@@ -1,25 +1,49 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { OpenAIService } from '../services/ai/openaiService';
+import { generateCopyWithValidation } from '../services/ai/copyService';
 import {
   createBriefing,
+  createBriefingStages,
   createCopyVersion,
   createNotification,
   createTask,
+  ensureBriefingStages,
   getBriefingById,
   getOrCreateClientByName,
   listBriefings,
+  listBriefingStages,
   listCopyVersions,
   listTasks,
+  updateBriefingStageStatus,
   updateBriefingStatus,
 } from '../repositories/edroBriefingRepository';
+import { dispatchNotification } from '../services/notificationService';
+import {
+  WORKFLOW_STAGES,
+  WorkflowStage,
+  getNextStage,
+  getStageIndex,
+  isWorkflowStage,
+} from '../utils/workflow';
+import { env } from '../env';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
 
-function resolveUserId(request: any): string | null {
-  const user = request.user as { id?: string; sub?: string } | undefined;
-  return user?.id || user?.sub || null;
+type RequestUser = {
+  sub?: string;
+  id?: string;
+  email?: string;
+  role?: string;
+};
+
+function resolveUser(request: any) {
+  const user = request.user as RequestUser | undefined;
+  return {
+    id: user?.id || user?.sub || null,
+    email: user?.email || null,
+    role: user?.role || null,
+  };
 }
 
 function parseDate(value?: string | null): Date | null {
@@ -52,7 +76,46 @@ function buildCopyPrompt(params: {
     'Detalhes do briefing (JSON):',
     payloadText,
     params.instructions ? `Instrucoes extras: ${params.instructions}` : '',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function ensureStageUnlocked(stage: WorkflowStage, stages: { stage: WorkflowStage; status: string }[]) {
+  const stageIndex = getStageIndex(stage);
+  if (stageIndex <= 0) return { ok: true, missing: [] as string[] };
+
+  const missing = stages
+    .filter((item) => getStageIndex(item.stage) < stageIndex && item.status !== 'done')
+    .map((item) => item.stage);
+
+  return { ok: missing.length === 0, missing };
+}
+
+async function refreshBriefingStatus(briefingId: string) {
+  const stages = await listBriefingStages(briefingId);
+  const inProgress = stages.find((stage) => stage.status === 'in_progress');
+  const pending = stages.find((stage) => stage.status !== 'done');
+  const nextStage = inProgress?.stage || pending?.stage || 'done';
+  await updateBriefingStatus(briefingId, nextStage);
+  return { stages, currentStage: nextStage };
+}
+
+async function promoteStageIfPending(
+  briefingId: string,
+  stage: WorkflowStage,
+  updatedBy?: string | null
+) {
+  const stages = await listBriefingStages(briefingId);
+  const target = stages.find((item) => item.stage === stage);
+  if (target && target.status === 'pending') {
+    await updateBriefingStageStatus({
+      briefingId,
+      stage,
+      status: 'in_progress',
+      updatedBy: updatedBy ?? null,
+    });
+  }
 }
 
 async function createTaskNotifications(params: {
@@ -73,12 +136,26 @@ async function createTaskNotifications(params: {
       payload: params.payload,
     });
     notifications.push(notification);
+    await dispatchNotification({
+      id: notification.id,
+      channel: notification.channel,
+      recipient: notification.recipient,
+      payload: notification.payload ?? params.payload,
+    });
   }
 
   return notifications;
 }
 
 export default async function edroRoutes(app: FastifyInstance) {
+  app.addHook('preHandler', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+    } catch {
+      return reply.status(401).send({ success: false, error: 'Nao autorizado.' });
+    }
+  });
+
   app.get('/edro/briefings', async (request, reply) => {
     const querySchema = z.object({
       status: z.string().optional(),
@@ -102,29 +179,30 @@ export default async function edroRoutes(app: FastifyInstance) {
   });
 
   app.post('/edro/briefings', async (request, reply) => {
-    const bodySchema = z.object({
-      client_id: z.string().uuid().optional(),
-      client_name: z.string().min(2).optional(),
-      client_segment: z.string().optional(),
-      client_timezone: z.string().optional(),
-      title: z.string().min(3),
-      payload: z.record(z.any()).optional(),
-      created_by: z.string().optional(),
-      traffic_owner: z.string().optional(),
-      meeting_url: z.string().optional(),
-      due_at: z.string().optional(),
-      source: z.string().optional(),
-      notify_traffic: z.boolean().optional(),
-      traffic_channels: z.array(z.string()).optional(),
-      traffic_recipient: z.string().optional(),
-      status: z.string().optional(),
-    }).refine(data => data.client_id || data.client_name, {
-      message: 'client_id or client_name is required',
-      path: ['client_id'],
-    });
+    const bodySchema = z
+      .object({
+        client_id: z.string().uuid().optional(),
+        client_name: z.string().min(2).optional(),
+        client_segment: z.string().optional(),
+        client_timezone: z.string().optional(),
+        title: z.string().min(3),
+        payload: z.record(z.any()).optional(),
+        created_by: z.string().optional(),
+        traffic_owner: z.string().optional(),
+        meeting_url: z.string().optional(),
+        due_at: z.string().optional(),
+        source: z.string().optional(),
+        notify_traffic: z.boolean().optional(),
+        traffic_channels: z.array(z.string()).optional(),
+        traffic_recipient: z.string().optional(),
+      })
+      .refine((data) => data.client_id || data.client_name, {
+        message: 'client_id or client_name is required',
+        path: ['client_id'],
+      });
 
     const body = bodySchema.parse(request.body);
-    const userId = resolveUserId(request);
+    const user = resolveUser(request);
 
     const dueAt = parseDate(body.due_at);
     if (body.due_at && !dueAt) {
@@ -144,14 +222,16 @@ export default async function edroRoutes(app: FastifyInstance) {
     const briefing = await createBriefing({
       clientId,
       title: body.title,
-      status: body.status ?? 'new',
+      status: 'briefing',
       payload: body.payload ?? {},
-      createdBy: body.created_by ?? userId,
+      createdBy: body.created_by ?? user.email,
       trafficOwner: body.traffic_owner ?? null,
       meetingUrl: body.meeting_url ?? null,
       dueAt: dueAt ?? null,
       source: body.source ?? 'manual',
     });
+
+    const stages = await createBriefingStages(briefing.id, user.email);
 
     const shouldNotifyTraffic =
       body.notify_traffic ?? Boolean(body.traffic_owner || body.traffic_recipient);
@@ -188,7 +268,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         channels: trafficChannels,
         recipient: trafficRecipient,
         payload: {
-          briefing: briefing,
+          briefing,
           event: 'briefing_created',
         },
       });
@@ -198,6 +278,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       success: true,
       data: {
         briefing,
+        stages,
         trafficTask,
         trafficNotifications,
       },
@@ -205,9 +286,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   });
 
   app.get('/edro/briefings/:id', async (request, reply) => {
-    const paramsSchema = z.object({
-      id: z.string().uuid(),
-    });
+    const paramsSchema = z.object({ id: z.string().uuid() });
 
     const params = paramsSchema.parse(request.params);
     const briefing = await getBriefingById(params.id);
@@ -216,6 +295,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
     }
 
+    const stages = await ensureBriefingStages(briefing.id);
     const copies = await listCopyVersions(briefing.id);
     const tasks = await listTasks(briefing.id);
 
@@ -223,25 +303,109 @@ export default async function edroRoutes(app: FastifyInstance) {
       success: true,
       data: {
         briefing,
+        stages,
         copies,
         tasks,
       },
     });
   });
 
-  app.patch('/edro/briefings/:id/status', async (request, reply) => {
+  app.get('/edro/briefings/:id/stages', async (request, reply) => {
     const paramsSchema = z.object({ id: z.string().uuid() });
-    const bodySchema = z.object({ status: z.string().min(2) });
+    const params = paramsSchema.parse(request.params);
+
+    const stages = await ensureBriefingStages(params.id);
+    return reply.send({ success: true, data: stages });
+  });
+
+  app.patch('/edro/briefings/:id/stages/:stage', async (request, reply) => {
+    const paramsSchema = z.object({
+      id: z.string().uuid(),
+      stage: z.string(),
+    });
+
+    const bodySchema = z.object({
+      status: z.enum(['in_progress', 'done']),
+      metadata: z.record(z.any()).optional(),
+    });
 
     const params = paramsSchema.parse(request.params);
     const body = bodySchema.parse(request.body);
 
-    const briefing = await updateBriefingStatus(params.id, body.status);
-    if (!briefing) {
-      return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
+    if (!isWorkflowStage(params.stage)) {
+      return reply.status(400).send({ success: false, error: 'stage invalido' });
     }
 
-    return reply.send({ success: true, data: briefing });
+    const user = resolveUser(request);
+    const stages = await ensureBriefingStages(params.id, user.email);
+    const unlock = ensureStageUnlocked(params.stage, stages as any);
+
+    if (!unlock.ok) {
+      return reply.status(409).send({
+        success: false,
+        error: 'Etapa anterior pendente.',
+        missing: unlock.missing,
+      });
+    }
+
+    if (params.stage === 'aprovacao' && body.status === 'done' && user.role !== 'gestor') {
+      return reply.status(403).send({
+        success: false,
+        error: 'Aprovacao requer perfil gestor.',
+      });
+    }
+
+    const updatedStage = await updateBriefingStageStatus({
+      briefingId: params.id,
+      stage: params.stage,
+      status: body.status,
+      updatedBy: user.email,
+      metadata: body.metadata ?? null,
+    });
+
+    if (!updatedStage) {
+      return reply.status(404).send({ success: false, error: 'stage nao encontrado' });
+    }
+
+    if (body.status === 'done') {
+      const nextStage = getNextStage(params.stage);
+      if (nextStage) {
+        await promoteStageIfPending(params.id, nextStage, user.email);
+      }
+
+      if (params.stage === 'iclips_in' || params.stage === 'iclips_out') {
+        const briefing = await getBriefingById(params.id);
+        const recipient = env.EDRO_ICLIPS_NOTIFY_EMAIL || briefing?.traffic_owner || user.email;
+        if (recipient) {
+          const notification = await createNotification({
+            briefingId: params.id,
+            channel: 'iclips',
+            recipient,
+            payload: {
+              briefing,
+              event: params.stage,
+            },
+          });
+          await dispatchNotification({
+            id: notification.id,
+            channel: notification.channel,
+            recipient: notification.recipient,
+            payload: notification.payload ?? {},
+          });
+        }
+      }
+    }
+
+    const refreshed = await refreshBriefingStatus(params.id);
+
+    return reply.send({
+      success: true,
+      data: {
+        stage: updatedStage,
+        currentStage: refreshed.currentStage,
+        stages: refreshed.stages,
+      },
+    });
   });
 
   app.post('/edro/briefings/:id/copy', async (request, reply) => {
@@ -267,26 +431,49 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
     }
 
-    const userId = resolveUserId(request);
+    const user = resolveUser(request);
+    const stages = await ensureBriefingStages(briefing.id, user.email);
+    const unlock = ensureStageUnlocked('copy_ia', stages as any);
+
+    if (!unlock.ok) {
+      return reply.status(409).send({
+        success: false,
+        error: 'Etapas anteriores pendentes.',
+        missing: unlock.missing,
+      });
+    }
+
     const count = body.count ?? 10;
 
     let output = body.output;
     let prompt = body.prompt;
     let model = body.model ?? process.env.OPENAI_MODEL ?? null;
+    let payload: Record<string, any> | null = null;
 
     if (!output) {
-      prompt = prompt || buildCopyPrompt({
-        briefing,
-        language: body.language,
-        count,
-        instructions: body.instructions ?? null,
-      });
+      prompt = prompt ||
+        buildCopyPrompt({
+          briefing,
+          language: body.language,
+          count,
+          instructions: body.instructions ?? null,
+        });
 
-      output = await OpenAIService.generateCompletion({
-        prompt,
-        temperature: 0.6,
-        maxTokens: 1500,
-      });
+      try {
+        const result = await generateCopyWithValidation({
+          prompt,
+          temperature: 0.6,
+          maxTokens: 1500,
+        });
+        output = result.output;
+        model = result.model;
+        payload = result.payload;
+      } catch (error: any) {
+        return reply.status(500).send({
+          success: false,
+          error: 'Erro ao gerar copy com IA.',
+        });
+      }
     }
 
     const copy = await createCopyVersion({
@@ -295,10 +482,21 @@ export default async function edroRoutes(app: FastifyInstance) {
       model,
       prompt: prompt ?? null,
       output,
-      createdBy: body.created_by ?? userId,
+      payload,
+      createdBy: body.created_by ?? user.email,
     });
 
-    await updateBriefingStatus(briefing.id, 'copy_ready');
+    await updateBriefingStageStatus({
+      briefingId: briefing.id,
+      stage: 'copy_ia',
+      status: 'done',
+      updatedBy: user.email,
+      metadata: { copyVersionId: copy.id },
+    });
+
+    await promoteStageIfPending(briefing.id, 'aprovacao', user.email);
+
+    await refreshBriefingStatus(briefing.id);
 
     const shouldNotifyTraffic = body.notify_traffic ?? true;
     let trafficTask = null;
@@ -368,10 +566,22 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
     }
 
+    const user = resolveUser(request);
+    const stages = await ensureBriefingStages(briefing.id, user.email);
+    const unlock = ensureStageUnlocked('producao', stages as any);
+
+    if (!unlock.ok) {
+      return reply.status(409).send({
+        success: false,
+        error: 'Etapas anteriores pendentes.',
+        missing: unlock.missing,
+      });
+    }
+
     const copies = await listCopyVersions(briefing.id);
     const selectedCopy = body.copy_version_id
-      ? copies.find(copy => copy.id === body.copy_version_id) || null
-      : (copies[0] ?? null);
+      ? copies.find((copy) => copy.id === body.copy_version_id) || null
+      : copies[0] ?? null;
 
     const channels = body.channels ?? DEFAULT_DESIGN_CHANNELS;
     const taskPayload: Record<string, any> = {
@@ -401,9 +611,17 @@ export default async function edroRoutes(app: FastifyInstance) {
         payload: taskPayload,
       });
       notifications.push(notification);
+      await dispatchNotification({
+        id: notification.id,
+        channel: notification.channel,
+        recipient: notification.recipient,
+        payload: notification.payload ?? taskPayload,
+      });
     }
 
-    await updateBriefingStatus(briefing.id, 'design_pending');
+    await promoteStageIfPending(briefing.id, 'producao', user.email);
+
+    await refreshBriefingStatus(briefing.id);
 
     return reply.status(201).send({
       success: true,
@@ -412,5 +630,9 @@ export default async function edroRoutes(app: FastifyInstance) {
         notifications,
       },
     });
+  });
+
+  app.get('/edro/workflow', async (_request, reply) => {
+    return reply.send({ success: true, data: WORKFLOW_STAGES });
   });
 }

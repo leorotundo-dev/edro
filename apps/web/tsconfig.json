@@ -22,30 +22,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@edro/ui": [
-        "../../packages/ui",
-        "./vendor/@edro/ui/src"
-      ],
-      "@edro/ui/*": [
-        "../../packages/ui/*",
-        "./vendor/@edro/ui/src/*"
-      ],
-      "@edro/theme": [
-        "../../packages/theme",
-        "./vendor/@edro/theme"
-      ],
-      "@edro/theme/*": [
-        "../../packages/theme/*",
-        "./vendor/@edro/theme/*"
-      ],
-      "@edro/shared": [
-        "../../packages/shared",
-        "./vendor/@edro/shared/src"
-      ],
-      "@edro/shared/*": [
-        "../../packages/shared/*",
-        "./vendor/@edro/shared/src/*"
       ]
     },
     "plugins": [

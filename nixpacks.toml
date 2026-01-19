@@ -1,24 +1,16 @@
-[variables]
-NIXPACKS_PATH = ""
-
 [phases.setup]
-nixPkgs = ['nodejs_20', 'poppler_utils', 'tesseract']
+nixPkgs = ['nodejs_20', 'pnpm']
 
 [phases.install]
 cmds = [
-  'corepack enable || npm install -g pnpm@9',
-  'npx pnpm install --frozen-lockfile || npx pnpm install --no-frozen-lockfile',
-  'npm install -g ts-node'
+  'npm install -g pnpm@9',
+  'pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile'
 ]
 
 [phases.build]
 cmds = [
-  'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm run build:packages && pnpm --filter @edro/web run build; fi',
-  'if [ "$RAILWAY_SERVICE_NAME" = "@edro/web-aluno" ]; then pnpm run build:packages && pnpm --filter @edro/web-aluno run build; fi',
-  'if [ "$RAILWAY_SERVICE_NAME" = "scrapers" ]; then echo "[build] scrapers has no build step"; fi',
-  'if [ "$RAILWAY_SERVICE_NAME" = "@edro/ai" ]; then pnpm --filter @edro/ai run build || true; fi',
-  'if [ -z "$RAILWAY_SERVICE_NAME" ]; then pnpm --filter @edro/backend... run build; fi'
+  'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm --filter @edro/web run build; else pnpm --filter @edro/backend run build; fi'
 ]
 
 [start]
-cmd = 'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm --filter @edro/web run start; elif [ "$RAILWAY_SERVICE_NAME" = "@edro/web-aluno" ]; then pnpm --filter @edro/web-aluno run start; elif [ "$RAILWAY_SERVICE_NAME" = "scrapers" ]; then node apps/scrapers/src/index.js; elif [ "$RAILWAY_SERVICE_NAME" = "@edro/ai" ]; then node apps/ai/src/index.js; else pnpm --filter @edro/backend run start; fi'
+cmd = 'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm --filter @edro/web run start; else pnpm --filter @edro/backend run start; fi'

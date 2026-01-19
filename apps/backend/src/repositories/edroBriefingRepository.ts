@@ -1,4 +1,5 @@
 import { query } from '../db';
+import { WORKFLOW_STAGES, WorkflowStage } from '../utils/workflow';
 
 export interface EdroClient {
   id: string;
@@ -23,6 +24,19 @@ export interface EdroBriefing {
   created_at: Date;
   updated_at: Date;
   client_name?: string | null;
+  current_stage?: string | null;
+}
+
+export interface EdroBriefingStage {
+  id: string;
+  briefing_id: string;
+  stage: WorkflowStage;
+  status: string;
+  position: number;
+  updated_by?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface EdroCopyVersion {
@@ -32,6 +46,7 @@ export interface EdroCopyVersion {
   model?: string | null;
   prompt?: string | null;
   output: string;
+  payload?: Record<string, any> | null;
   created_by?: string | null;
   created_at: Date;
 }
@@ -130,7 +145,7 @@ export async function createBriefing(input: {
     [
       input.clientId ?? null,
       input.title,
-      input.status ?? 'draft',
+      input.status ?? 'briefing',
       input.payload ?? {},
       input.createdBy ?? null,
       input.trafficOwner ?? null,
@@ -168,7 +183,24 @@ export async function listBriefings(params?: {
 
   const { rows } = await query<EdroBriefing>(
     `
-      SELECT b.*, c.name AS client_name
+      SELECT b.*, c.name AS client_name,
+        COALESCE(
+          (
+            SELECT stage
+            FROM edro_briefing_stages s
+            WHERE s.briefing_id = b.id AND s.status = 'in_progress'
+            ORDER BY position
+            LIMIT 1
+          ),
+          (
+            SELECT stage
+            FROM edro_briefing_stages s
+            WHERE s.briefing_id = b.id AND s.status <> 'done'
+            ORDER BY position
+            LIMIT 1
+          ),
+          'done'
+        ) AS current_stage
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
       ${whereClause}
@@ -183,7 +215,24 @@ export async function listBriefings(params?: {
 export async function getBriefingById(id: string): Promise<EdroBriefing | null> {
   const { rows } = await query<EdroBriefing>(
     `
-      SELECT b.*, c.name AS client_name
+      SELECT b.*, c.name AS client_name,
+        COALESCE(
+          (
+            SELECT stage
+            FROM edro_briefing_stages s
+            WHERE s.briefing_id = b.id AND s.status = 'in_progress'
+            ORDER BY position
+            LIMIT 1
+          ),
+          (
+            SELECT stage
+            FROM edro_briefing_stages s
+            WHERE s.briefing_id = b.id AND s.status <> 'done'
+            ORDER BY position
+            LIMIT 1
+          ),
+          'done'
+        ) AS current_stage
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
       WHERE b.id = $1
@@ -194,10 +243,7 @@ export async function getBriefingById(id: string): Promise<EdroBriefing | null> 
   return rows[0] || null;
 }
 
-export async function updateBriefingStatus(
-  id: string,
-  status: string
-): Promise<EdroBriefing | null> {
+export async function updateBriefingStatus(id: string, status: string) {
   const { rows } = await query<EdroBriefing>(
     `
       UPDATE edro_briefings
@@ -207,7 +253,7 @@ export async function updateBriefingStatus(
     `,
     [id, status]
   );
-  return rows[0] || null;
+  return rows[0] ?? null;
 }
 
 export async function listCopyVersions(briefingId: string): Promise<EdroCopyVersion[]> {
@@ -229,6 +275,7 @@ export async function createCopyVersion(input: {
   model?: string | null;
   prompt?: string | null;
   output: string;
+  payload?: Record<string, any> | null;
   createdBy?: string | null;
 }): Promise<EdroCopyVersion> {
   const { rows } = await query<EdroCopyVersion>(
@@ -239,9 +286,10 @@ export async function createCopyVersion(input: {
         model,
         prompt,
         output,
+        payload,
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `,
     [
@@ -250,6 +298,7 @@ export async function createCopyVersion(input: {
       input.model ?? null,
       input.prompt ?? null,
       input.output,
+      input.payload ?? null,
       input.createdBy ?? null,
     ]
   );
@@ -339,4 +388,105 @@ export async function createNotification(input: {
     ]
   );
   return rows[0];
+}
+
+export async function updateNotificationStatus(params: {
+  id: string;
+  status: string;
+  error?: string | null;
+  sentAt?: Date | null;
+}): Promise<EdroNotification | null> {
+  const { rows } = await query<EdroNotification>(
+    `
+      UPDATE edro_notifications
+      SET status = $2,
+          error = $3,
+          sent_at = COALESCE($4, sent_at)
+      WHERE id = $1
+      RETURNING *
+    `,
+    [params.id, params.status, params.error ?? null, params.sentAt ?? null]
+  );
+  return rows[0] ?? null;
+}
+
+export async function listBriefingStages(briefingId: string): Promise<EdroBriefingStage[]> {
+  const { rows } = await query<EdroBriefingStage>(
+    `
+      SELECT *
+      FROM edro_briefing_stages
+      WHERE briefing_id = $1
+      ORDER BY position ASC
+    `,
+    [briefingId]
+  );
+  return rows;
+}
+
+export async function ensureBriefingStages(briefingId: string, updatedBy?: string | null) {
+  const stages = await listBriefingStages(briefingId);
+  if (stages.length) return stages;
+  return createBriefingStages(briefingId, updatedBy);
+}
+
+export async function createBriefingStages(
+  briefingId: string,
+  updatedBy?: string | null
+): Promise<EdroBriefingStage[]> {
+  const values: any[] = [];
+  const rowsSql: string[] = [];
+
+  WORKFLOW_STAGES.forEach((stage, index) => {
+    const status = index === 0 ? 'in_progress' : 'pending';
+    const baseIndex = values.length;
+    values.push(briefingId, stage, status, index, updatedBy ?? null, {});
+    rowsSql.push(`($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}::jsonb)`);
+  });
+
+  const { rows } = await query<EdroBriefingStage>(
+    `
+      INSERT INTO edro_briefing_stages (
+        briefing_id,
+        stage,
+        status,
+        position,
+        updated_by,
+        metadata
+      )
+      VALUES ${rowsSql.join(', ')}
+      RETURNING *
+    `,
+    values
+  );
+
+  await updateBriefingStatus(briefingId, WORKFLOW_STAGES[0]);
+  return rows.sort((a, b) => a.position - b.position);
+}
+
+export async function updateBriefingStageStatus(params: {
+  briefingId: string;
+  stage: WorkflowStage;
+  status: string;
+  updatedBy?: string | null;
+  metadata?: Record<string, any> | null;
+}): Promise<EdroBriefingStage | null> {
+  const { rows } = await query<EdroBriefingStage>(
+    `
+      UPDATE edro_briefing_stages
+      SET status = $3,
+          updated_by = $4,
+          metadata = COALESCE($5::jsonb, metadata),
+          updated_at = now()
+      WHERE briefing_id = $1 AND stage = $2
+      RETURNING *
+    `,
+    [
+      params.briefingId,
+      params.stage,
+      params.status,
+      params.updatedBy ?? null,
+      params.metadata ?? null,
+    ]
+  );
+  return rows[0] ?? null;
 }

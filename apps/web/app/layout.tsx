@@ -1,23 +1,31 @@
-import "./globals.css";
-import { Providers } from "./providers";
+import './globals.css';
+import { Fraunces, Sora } from 'next/font/google';
+
+const displayFont = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['300', '400', '500', '600', '700'],
+});
+
+const bodyFont = Sora({
+  subsets: ['latin'],
+  variable: '--font-body',
+  weight: ['300', '400', '500', '600'],
+});
 
 export const metadata = {
-  title: "Edro Admin",
-  description: "Painel de gestão do Edro"
+  title: 'Edro Control',
+  description: 'Fluxo interno da Edro Digital',
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body className="min-h-screen bg-white text-gray-900">
-        <Providers>
-          {children}
-        </Providers>
-      </body>
+    <html lang="pt-BR" className={`${displayFont.variable} ${bodyFont.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

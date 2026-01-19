@@ -38,9 +38,6 @@ Thumbs.db
 # Build artifacts
 apps/backend/dist/
 apps/web/.next/
-packages/shared/dist/
-packages/ui/dist/
-apps/ai/dist/
 .vercel
 
 # Local temp/logs
@@ -53,11 +50,6 @@ apps/backend/pnpm-dev*.log
 apps/backend/pnpm-dev*.err.log
 apps/backend/uploads/
 .force-redeploy
-apps/web-aluno/app/styles.css
-apps/web-aluno/tmp.css
 codex-x86_64-pc-windows-msvc.exe
-memodrops-main/
-packages/shared/src/*.js
-packages/shared/src/types/*.js
 *_IMPLEMENTACAO_COMPLETA.txt
 *_DEPLOY_RAPIDO.txt

@@ -3,12 +3,11 @@ nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
 cmds = [
-  "echo \"[install] cwd=$(pwd)\" && ls -a && if [ ! -f pnpm-workspace.yaml ]; then echo 'pnpm-workspace.yaml not found. Execute railway deployment from the repo root (C:/Users/leoro/Documents/Edro.Digital).' && exit 1; fi; pnpm install --frozen-lockfile"
+  "pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile"
 ]
 
 [phases.build]
 cmds = [
-  "echo \"[build] cwd=$(pwd)\" && ls -a && if [ ! -f pnpm-workspace.yaml ]; then echo 'pnpm-workspace.yaml not found. Execute railway deployment from the repo root (C:/Users/leoro/Documents/Edro.Digital).' && exit 1; fi; pnpm run build:packages",
   "pnpm --filter @edro/web run build"
 ]
 

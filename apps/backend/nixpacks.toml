@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs_20', 'poppler_utils', 'tesseract']
+nixPkgs = ['nodejs_20', 'pnpm']
 
 [phases.install]
 cmds = [

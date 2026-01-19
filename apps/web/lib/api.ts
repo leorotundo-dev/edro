@@ -1,9 +1,8 @@
-// API Client inline - solução temporária
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? "http://localhost:3333"
-    : "/api/proxy");
+    ? 'http://localhost:3333'
+    : '/api/proxy');
 
 export interface ApiResponse<T = unknown> {
   success?: boolean;
@@ -19,9 +18,9 @@ function getAuthHeaders(): HeadersInit {
   };
 
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token') || localStorage.getItem('edro_token');
+    const token = localStorage.getItem('edro_token');
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
   }
 
@@ -31,9 +30,8 @@ function getAuthHeaders(): HeadersInit {
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
       localStorage.removeItem('edro_token');
-      localStorage.removeItem('user');
+      localStorage.removeItem('edro_user');
       window.location.href = '/login';
     }
     throw new Error('Unauthorized');
@@ -43,12 +41,26 @@ async function handleResponse<T>(response: Response): Promise<T> {
     return {} as T;
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  const text = await response.text();
+  if (!text) {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return {} as T;
   }
 
-  return response.json();
+  try {
+    const parsed = JSON.parse(text) as T & { error?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(parsed.error || parsed.message || `HTTP ${response.status}`);
+    }
+    return parsed as T;
+  } catch (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return { raw: text } as T;
+  }
 }
 
 export async function apiGet<T = any>(path: string): Promise<T> {
@@ -62,15 +74,6 @@ export async function apiGet<T = any>(path: string): Promise<T> {
 export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return handleResponse<T>(response);
-}
-
-export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: 'PUT',
     headers: getAuthHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -94,11 +97,9 @@ export async function apiDelete<T = any>(path: string): Promise<T> {
   return handleResponse<T>(response);
 }
 
-// Cliente API unificado para compatibilidade
 export const api = {
   get: apiGet,
   post: apiPost,
-  put: apiPut,
   patch: apiPatch,
   delete: apiDelete,
 };

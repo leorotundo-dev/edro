@@ -9,20 +9,10 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "outDir": "../../dist/apps/backend",
-    "rootDir": "../../",
+    "outDir": "dist",
+    "rootDir": ".",
     "skipLibCheck": true,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@edro/ai/*": ["../../apps/ai/src/*"],
-      "@edro/shared": ["../../packages/shared/src/index"],
-      "@edro/shared/*": ["../../packages/shared/src/*"]
-    }
+    "types": ["node"]
   },
-  "include": [
-    "src",
-    "../../apps/ai/src/**/*",
-    "../../packages/shared/src/**/*"
-  ]
+  "include": ["src"]
 }

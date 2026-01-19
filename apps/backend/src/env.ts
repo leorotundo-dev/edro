@@ -11,12 +11,21 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
-  RAILWAY_ACCOUNT_TOKEN: z.string().optional(),
-  RAILWAY_PROJECT_ID: z.string().optional(),
-  VERCEL_TOKEN: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
+  GEMINI_BASE_URL: z.string().optional(),
   ALLOWED_ORIGINS: z.string().optional(),
-  REDIS_URL: z.string().optional(),
-  ENABLE_WORKERS: z.string().optional()
+  EDRO_ALLOWED_DOMAINS: z.string().optional(),
+  EDRO_ADMIN_EMAILS: z.string().optional(),
+  EDRO_LOGIN_CODE_TTL_MINUTES: z.coerce.number().optional(),
+  EDRO_LOGIN_ECHO_CODE: z.coerce.boolean().optional(),
+  EDRO_LOGIN_SECRET: z.string().optional(),
+  EDRO_ICLIPS_NOTIFY_EMAIL: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
