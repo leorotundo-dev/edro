@@ -127,4 +127,4 @@ EXPOSE 3333
 USER nextjs
 WORKDIR /app/apps/web
 
-CMD ["sh", "-c", "if [ \"$SERVICE_ROLE\" = \"scrapers\" ]; then node /app/apps/scrapers/src/index.js; else pnpm run start; fi"]
+CMD ["sh", "-c", "if [ \"$SERVICE_ROLE\" = \"scrapers\" ]; then node /app/apps/scrapers/src/index.js; elif [ \"$SERVICE_ROLE\" = \"backend\" ]; then node -e \"require('ts-node/register/transpile-only'); require('/app/apps/backend/src/index.ts')\"; else pnpm run start; fi"]
