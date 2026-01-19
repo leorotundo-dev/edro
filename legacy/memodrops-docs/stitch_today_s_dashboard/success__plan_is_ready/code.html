@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Success: Plan is Ready</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+            extend: {
+                colors: {
+                "primary": "#7f13ec",
+                "background-light": "#f7f6f8", 
+                "background-dark": "#191022",
+                "accent-yellow": "#FADF64",
+                "lilac-soft": "#F8F4FD",
+                },
+                fontFamily: {
+                "display": ["Spline Sans", "sans-serif"],
+                "body": ["Manrope", "sans-serif"],
+                },
+                borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "2xl": "4rem", "full": "9999px"},
+                boxShadow: {
+                    "soft": "0 20px 40px -10px rgba(127, 19, 236, 0.15)",
+                    "card": "0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02)"
+                }
+            },
+            },
+        }
+    </script>
+<style>
+        /* Custom tweaks for the festive background */
+        .confetti-piece {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ffd700;
+            opacity: 0.6;
+        }
+        .bg-grid-pattern {
+            background-image: radial-gradient(#7f13ec 0.5px, transparent 0.5px);
+            background-size: 20px 20px;
+            opacity: 0.05;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#140d1b] dark:text-white overflow-x-hidden antialiased selection:bg-primary selection:text-white">
+<!-- Background Decor Elements -->
+<div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+<!-- Soft Gradient Blob Top -->
+<div class="absolute -top-[20%] -right-[20%] w-[80%] h-[60%] rounded-full bg-primary/5 blur-[80px]"></div>
+<!-- Soft Gradient Blob Bottom -->
+<div class="absolute -bottom-[10%] -left-[10%] w-[60%] h-[50%] rounded-full bg-accent-yellow/10 blur-[80px]"></div>
+<!-- Grid Pattern -->
+<div class="absolute inset-0 bg-grid-pattern"></div>
+<!-- Subtle Confetti Shapes -->
+<div class="absolute top-[15%] left-[10%] text-primary/20 rotate-12">
+<span class="material-symbols-outlined text-4xl">star</span>
+</div>
+<div class="absolute top-[20%] right-[15%] text-accent-yellow/40 -rotate-12">
+<span class="material-symbols-outlined text-3xl">verified</span>
+</div>
+<div class="absolute bottom-[30%] left-[5%] text-primary/10 rotate-45">
+<span class="material-symbols-outlined text-5xl">bolt</span>
+</div>
+</div>
+<!-- Main Content Wrapper -->
+<div class="relative z-10 flex min-h-screen flex-col w-full max-w-md mx-auto p-6 justify-between">
+<!-- Top Spacer for safe area -->
+<div class="h-4"></div>
+<!-- 1. Hero Illustration (Mascot) -->
+<div class="flex-1 flex flex-col justify-center items-center py-6 w-full">
+<div class="relative w-full aspect-square max-w-[280px] flex items-center justify-center">
+<!-- Mascot Image Container -->
+<div class="w-full h-full bg-center bg-no-repeat bg-contain animate-bounce-slow" data-alt="Cute 3D purple droplet mascot character wearing a black graduation cap and holding a golden trophy, smiling broadly" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnCxCqpMcsUfW6T1aztID60RZxdvjdxLeXbfDRi6Ar91gha5lpeB94dolvH76D16Kz6WFH0BM_R2-9PUIIU_ZGWKJVMsHAx_T5zoXo5wFFPWU8pATqkACfhXzsiDzrk0-FXg7YU8ipOLOvSoct3nFGnQ2hZXwvDaETg-zspZmeMRAqDIBMGPJ8xim00MRZlDzd4NJ-isc8_wr2HhA92Py8zA7s2pbQXlvYLLIVoyfsZZbg1CBFR7pcgvw7gaTcEizbptGOu8ICrmI"); animation: bounce 3s infinite ease-in-out;'>
+<!-- Using a placeholder but styling as if it is a transparent PNG mascot -->
+<!-- Since I cannot modify image source content, I am using the provided URL pattern but simulating the placement. 
+                          In a real scenario, this would be a transparent PNG of the mascot. 
+                          I will use a gradient div to represent the "purple drop" if the image fails or for visual context in this layout. -->
+<div class="absolute inset-4 rounded-full bg-gradient-to-br from-primary via-[#9d4edd] to-[#5a189a] opacity-90 shadow-2xl flex items-center justify-center overflow-visible">
+<span class="text-8xl filter drop-shadow-md">🎓</span>
+<div class="absolute -bottom-2 -right-2 bg-accent-yellow text-primary p-3 rounded-full shadow-lg border-4 border-white dark:border-background-dark">
+<span class="material-symbols-outlined text-3xl font-bold">emoji_events</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Headline -->
+<div class="mt-8 text-center space-y-2">
+<h1 class="text-[#140d1b] dark:text-white tracking-tight text-[32px] font-bold leading-[1.1]">
+                    Tudo pronto para<br/> sua aprovação!
+                </h1>
+</div>
+</div>
+<!-- 2. Plan Summary Card -->
+<div class="w-full mb-6">
+<div class="bg-white dark:bg-[#251b30] p-6 rounded-xl shadow-soft border border-primary/5 relative overflow-hidden group">
+<!-- Decorative top accent -->
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/20 via-primary to-primary/20"></div>
+<div class="flex flex-col gap-5">
+<!-- Item 1 -->
+<div class="flex items-center justify-between group/item">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-purple-50 dark:bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+<span class="text-gray-500 dark:text-gray-400 font-body text-sm font-medium">Início</span>
+</div>
+<span class="text-[#140d1b] dark:text-white font-display font-bold text-base">Hoje</span>
+</div>
+<!-- Divider -->
+<div class="h-px w-full bg-gray-100 dark:bg-gray-700/50 ml-14"></div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between group/item">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-purple-50 dark:bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">timer</span>
+</div>
+<span class="text-gray-500 dark:text-gray-400 font-body text-sm font-medium">Meta</span>
+</div>
+<span class="text-[#140d1b] dark:text-white font-display font-bold text-base">2h/dia</span>
+</div>
+<!-- Divider -->
+<div class="h-px w-full bg-gray-100 dark:bg-gray-700/50 ml-14"></div>
+<!-- Item 3 -->
+<div class="flex items-center justify-between group/item">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-purple-50 dark:bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">track_changes</span>
+</div>
+<span class="text-gray-500 dark:text-gray-400 font-body text-sm font-medium">Foco</span>
+</div>
+<span class="text-[#140d1b] dark:text-white font-display font-bold text-base text-right max-w-[140px] truncate leading-tight">Concurso Banco do Brasil</span>
+</div>
+</div>
+</div>
+<!-- Motivational Subtext -->
+<p class="text-gray-500 dark:text-gray-400 font-body text-[15px] font-medium leading-relaxed mt-6 text-center px-4">
+                O segredo do sucesso é a constância.<br/>Sua jornada rumo à aprovação começa agora.
+            </p>
+</div>
+<!-- 3. Actions / Footer -->
+<div class="flex flex-col gap-4 pb-4">
+<button class="relative w-full cursor-pointer overflow-hidden rounded-full h-14 bg-primary hover:bg-primary/90 transition-all duration-300 shadow-lg shadow-primary/30 active:scale-[0.98] group">
+<div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-full"></div>
+<div class="relative flex items-center justify-center gap-2">
+<span class="text-white text-lg font-bold tracking-wide">Iniciar Primeiro Estudo</span>
+<span class="material-symbols-outlined text-white animate-pulse">arrow_forward</span>
+</div>
+</button>
+<button class="text-gray-400 hover:text-primary transition-colors text-sm font-medium font-body py-2">
+                Ver cronograma completo
+            </button>
+</div>
+</div>
+</body></html>

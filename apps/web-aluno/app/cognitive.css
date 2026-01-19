@@ -1,0 +1,23 @@
+:root[data-cognitive-energy='low'] {
+  --color-primary: #0f766e;
+  --color-primary-soft: #ccfbf1;
+  --bg-main: #f0fdfa;
+}
+
+:root[data-cognitive-energy='high'] {
+  --color-primary: #ea580c;
+  --color-primary-soft: #ffedd5;
+  --bg-main: #fff7ed;
+}
+
+:root[data-cognitive-focus='low'] {
+  --focus-ring: 0 0 0 3px rgba(14, 116, 144, 0.35);
+}
+
+:root[data-cognitive-mood='low'] {
+  --text-secondary: #64748b;
+}
+
+:root[data-cognitive-mood='high'] {
+  --text-secondary: #0f172a;
+}

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops Onboarding</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#137fec",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+            keyframes: {
+                float: {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-10px)' },
+                }
+            },
+            animation: {
+                float: 'float 6s ease-in-out infinite',
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display antialiased text-slate-900 dark:text-slate-100 bg-background-light dark:bg-background-dark selection:bg-primary/30">
+<!-- Wrapper with Soft Blue Gradient Overlay -->
+<div class="relative flex h-screen w-full flex-col overflow-hidden bg-gradient-to-b from-[#eef8ff] via-[#f4faff] to-background-light dark:from-[#15202b] dark:to-background-dark">
+<!-- Top Bar -->
+<div class="flex items-center justify-end p-6 pt-10 z-10 w-full animate-[fadeIn_0.5s_ease-out]">
+<button class="group flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-bold tracking-wide hover:text-primary transition-colors py-2 px-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+<span>Pular</span>
+</button>
+</div>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col items-center justify-center px-6 -mt-10 w-full max-w-md mx-auto">
+<!-- Illustration Container -->
+<div class="w-full relative mb-10 flex justify-center">
+<!-- Decorative background blob -->
+<div class="absolute inset-0 bg-blue-100/50 dark:bg-blue-900/10 rounded-full blur-3xl scale-90 translate-y-4"></div>
+<!-- Main Illustration -->
+<div class="w-[85%] aspect-square relative z-10 animate-float">
+<div class="w-full h-full bg-center bg-contain bg-no-repeat drop-shadow-sm" data-alt="Minimalist abstract illustration depicting a water drop transforming into a leaf, symbolizing knowledge growth" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDXiigbZMt364pSXeCagKN7MzOxYsgRDzYJPW4TZNZbpth4y1P2gB30lszdq0uXvSULDAQ9SmFJ31fGj0OCeK5oHwaDWcALdFDGRGO-0ZFEJRIgirujjEsu3kQ3_5MEbJ29h9ft_ce5iwcb_vW5M-1Rw0bLdHP8YKY_wbjUAdq26pTovggmgenXU2FZ8gylekKn_xsqK_lx6m2CDUAogL45SKSHFxYx01UFA4PNPATo4yj368OvOlYVxSShpSUmCSn_kIXytm_4Yf0');">
+</div>
+</div>
+</div>
+<!-- Text Content -->
+<div class="text-center space-y-4 w-full">
+<h1 class="text-[#0d141b] dark:text-white text-[32px] leading-[1.1] font-extrabold tracking-tight">
+                    Conhecimento <br/> que fica
+                </h1>
+<p class="text-slate-500 dark:text-slate-400 text-base font-medium leading-relaxed px-4 mx-auto max-w-[32ch]">
+                    Aprenda de forma inteligente com nosso sistema de repetição espaçada.
+                </p>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="flex flex-col items-center gap-8 pb-10 pt-4 px-6 w-full max-w-md mx-auto">
+<!-- Page Indicators -->
+<div class="flex flex-row items-center justify-center gap-2.5">
+<div class="h-2.5 w-8 rounded-full bg-primary shadow-sm shadow-blue-200 dark:shadow-none transition-all duration-300"></div>
+<div class="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+<div class="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+</div>
+<!-- Primary Button -->
+<button class="w-full bg-primary hover:bg-blue-600 active:bg-blue-700 text-white font-bold text-[17px] py-4 rounded-full shadow-lg shadow-blue-500/25 dark:shadow-blue-900/20 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 group">
+                Começar
+                <span class="material-symbols-outlined text-[20px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

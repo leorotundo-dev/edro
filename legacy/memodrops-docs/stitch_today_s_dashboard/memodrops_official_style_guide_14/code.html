@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops - Criar Conta</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;family=Sora:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "primary-light": "#9b4bf1",
+                        "secondary-lilac": "#e0cffc",
+                        "lilac-50": "#f5f0ff",
+                        "background-light": "#f7f6f8",
+                        "text-main": "#140d1b",
+                        "text-muted": "#7a7a7a",
+                    },
+                    fontFamily: {
+                        "manrope": ["Manrope", "sans-serif"],
+                        "sora": ["Sora", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "card": "20px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(127, 19, 236, 0.08)",
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Manrope', sans-serif;
+            background: linear-gradient(180deg, #f5f0ff 0%, #ffffff 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-text-main min-h-screen flex justify-center">
+<div class="relative flex h-screen min-h-[700px] w-full max-w-md flex-col overflow-hidden bg-transparent">
+<header class="flex items-center px-6 pt-12 pb-6">
+<button class="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-soft text-primary hover:bg-lilac-50 transition-colors">
+<span class="material-symbols-outlined text-2xl">arrow_back_ios_new</span>
+</button>
+</header>
+<div class="px-8 mb-8">
+<h1 class="font-sora text-[32px] font-bold text-text-main leading-tight">Criar Conta</h1>
+<p class="font-manrope text-text-muted mt-2 text-base">Comece sua jornada rumo à aprovação.</p>
+</div>
+<form class="flex-1 px-8 space-y-5">
+<div class="space-y-1.5">
+<div class="relative">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-primary text-[20px]">person</span>
+</div>
+<input class="w-full pl-12 pr-4 py-4 bg-lilac-50 border-none rounded-card focus:ring-2 focus:ring-primary/20 text-text-main placeholder:text-text-muted/60 transition-all font-manrope" placeholder="Nome completo" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<div class="relative">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-primary text-[20px]">mail</span>
+</div>
+<input class="w-full pl-12 pr-4 py-4 bg-lilac-50 border-none rounded-card focus:ring-2 focus:ring-primary/20 text-text-main placeholder:text-text-muted/60 transition-all font-manrope" placeholder="E-mail" type="email"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<div class="relative">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-primary text-[20px]">lock</span>
+</div>
+<input class="w-full pl-12 pr-12 py-4 bg-lilac-50 border-none rounded-card focus:ring-2 focus:ring-primary/20 text-text-main placeholder:text-text-muted/60 transition-all font-manrope" placeholder="Senha" type="password"/>
+<div class="absolute inset-y-0 right-4 flex items-center cursor-pointer">
+<span class="material-symbols-outlined text-text-muted/50 text-[20px]">visibility</span>
+</div>
+</div>
+</div>
+<div class="flex items-start gap-3 pt-1">
+<div class="flex items-center h-5">
+<input class="w-5 h-5 rounded border-secondary-lilac text-primary focus:ring-primary/20 transition-all" id="terms" type="checkbox"/>
+</div>
+<label class="text-sm font-manrope text-text-muted" for="terms">
+                    Eu aceito os <a class="text-primary font-semibold hover:underline" href="#">Termos de Uso</a> e a <a class="text-primary font-semibold hover:underline" href="#">Política de Privacidade</a>.
+                </label>
+</div>
+<div class="pt-4">
+<button class="w-full py-4 bg-primary hover:bg-primary-light text-white font-sora font-bold rounded-full shadow-lg shadow-primary/20 transition-all active:scale-[0.98]" type="submit">
+                    Criar Conta
+                </button>
+</div>
+<div class="relative py-4 flex items-center">
+<div class="flex-grow border-t border-gray-200"></div>
+<span class="flex-shrink mx-4 text-xs font-manrope font-bold text-text-muted uppercase tracking-widest">ou entre com</span>
+<div class="flex-grow border-t border-gray-200"></div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 py-3.5 px-4 bg-white border border-gray-100 rounded-card shadow-soft hover:bg-gray-50 transition-all active:scale-[0.98]" type="button">
+<img alt="Google" class="w-5 h-5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVae7okNV-rPUWB4YouTdS9mUUKyLdzVmF-kGNqEjsYFsSja28YEb9FdXvtBPxf8T2zJ5ajF-CdXDZODTcQGWs4XGPIGM46oDiZuK902krLi7A8pQAQ_5saC3Bv7eAulZhFeqeAomASetx3n07g5RmTUlEyJQC9Rp0pbcA-zM6KcTeMi1QC3NO_AI-83KLlLmO3PYq5Gg4uABHA9oQXaGcb9uVA-yNyUHf5nHa2GoKThfy-bR9dJr5nAgpz4zX8p2h1FPw_Y-x6nQ"/>
+<span class="font-manrope font-semibold text-sm">Google</span>
+</button>
+<button class="flex items-center justify-center gap-2 py-3.5 px-4 bg-white border border-gray-100 rounded-card shadow-soft hover:bg-gray-50 transition-all active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[20px] text-black">ios</span>
+<span class="font-manrope font-semibold text-sm">Apple</span>
+</button>
+</div>
+</form>
+<footer class="pb-10 pt-6 text-center">
+<p class="font-manrope text-text-muted text-sm">
+                Já tem uma conta? <a class="text-primary font-bold hover:underline" href="#">Entrar</a>
+</p>
+</footer>
+</div>
+
+</body></html>

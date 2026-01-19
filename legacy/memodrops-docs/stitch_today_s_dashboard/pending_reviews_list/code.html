@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops - Pending Reviews</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b08d",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2c28",
+                        "text-main": "#0e1b18",
+                        "text-muted": "#4e9785",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "2xl": "1.25rem", // Adding 20px specifically as requested
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 8px 30px rgba(0,0,0,0.04)",
+                        "glow": "0 0 15px rgba(48, 232, 186, 0.3)"
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .bouncy-click:active {
+            transform: scale(0.98);
+            transition: transform 0.1s;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark transition-colors duration-200">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-hidden">
+<!-- Top App Bar -->
+<div class="flex items-center px-6 pt-6 pb-2 justify-between z-10">
+<button class="text-text-main dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-[28px]">menu</span>
+</button>
+<h2 class="text-text-main dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] opacity-0">Reviews</h2> <!-- Hidden title for layout balance -->
+<button class="flex items-center justify-center rounded-full px-3 py-1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<p class="text-text-muted dark:text-primary text-sm font-bold leading-normal tracking-[0.015em] shrink-0">Edit</p>
+</button>
+</div>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto pb-32">
+<!-- Headline -->
+<div class="px-6 pt-4 pb-2">
+<h1 class="text-text-main dark:text-white tracking-tight text-[32px] font-bold leading-tight">
+                    Ready for your<br/><span class="text-primary-dark dark:text-primary">brain workout?</span>
+</h1>
+</div>
+<!-- Stats -->
+<div class="flex flex-wrap gap-4 px-6 py-4">
+<div class="flex min-w-[140px] flex-1 flex-col gap-1 rounded-[20px] p-5 bg-surface-light dark:bg-surface-dark shadow-soft border border-transparent dark:border-white/5">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">style</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium leading-normal">Cards Ready</p>
+</div>
+<p class="text-text-main dark:text-white tracking-tight text-3xl font-bold leading-tight">24</p>
+</div>
+<div class="flex min-w-[140px] flex-1 flex-col gap-1 rounded-[20px] p-5 bg-surface-light dark:bg-surface-dark shadow-soft border border-transparent dark:border-white/5">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">schedule</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium leading-normal">Est. Time</p>
+</div>
+<p class="text-text-main dark:text-white tracking-tight text-3xl font-bold leading-tight">12 <span class="text-lg font-medium text-gray-400">min</span></p>
+</div>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-3 px-6 py-2 overflow-x-auto hide-scrollbar snap-x">
+<button class="snap-start flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary text-text-main px-5 shadow-glow transition-transform active:scale-95">
+<p class="text-sm font-bold leading-normal">All</p>
+</button>
+<button class="snap-start flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-gray-700 px-5 transition-transform active:scale-95">
+<div class="w-2 h-2 rounded-full bg-rose-400"></div>
+<p class="text-text-main dark:text-white text-sm font-medium leading-normal">High Priority</p>
+</button>
+<button class="snap-start flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-gray-700 px-5 transition-transform active:scale-95">
+<div class="w-2 h-2 rounded-full bg-amber-400"></div>
+<p class="text-text-main dark:text-white text-sm font-medium leading-normal">Medium</p>
+</button>
+<button class="snap-start flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-gray-700 px-5 transition-transform active:scale-95">
+<div class="w-2 h-2 rounded-full bg-sky-400"></div>
+<p class="text-text-main dark:text-white text-sm font-medium leading-normal">Quick</p>
+</button>
+</div>
+<!-- Cards List -->
+<div class="flex flex-col gap-4 px-6 py-4">
+<!-- Card 1 -->
+<div class="bouncy-click cursor-pointer group flex items-stretch justify-between gap-4 rounded-[20px] bg-surface-light dark:bg-surface-dark p-4 shadow-soft hover:shadow-lg transition-all dark:border dark:border-white/5">
+<div class="flex flex-col justify-between py-1 flex-[2_2_0px]">
+<div>
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/30 w-fit mb-2">
+<span class="material-symbols-outlined text-rose-500 text-[14px]">priority_high</span>
+<span class="text-rose-600 dark:text-rose-300 text-[11px] font-bold uppercase tracking-wide">High Priority</span>
+</div>
+<h3 class="text-text-main dark:text-white text-lg font-bold leading-tight group-hover:text-primary transition-colors">Japanese Vocabulary</h3>
+</div>
+<div class="flex items-center gap-3 mt-3">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">filter_none</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">10 cards</p>
+</div>
+<div class="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">timer</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">~5m</p>
+</div>
+</div>
+</div>
+<div class="w-24 h-24 bg-center bg-no-repeat bg-cover rounded-2xl flex-shrink-0" data-alt="Abstract Japanese minimalist pattern with red sun and waves" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBqq5vzzLAi_Bi_GN6QrsJsKWz_6C9Z_g5Nleq3FtOyZ-hkAPahRTwXimeXzpNCYAMuY6X5R7DDqTTBr1r5R-Wb0zV3VELQnuWWFNH8UhXcMm9MAMluvRodleU6DQc26b6fU-E9Wn5cM3LBNr3uWVudS2ov9bIS06JY1L14JsBuVMg6tNN6T5o4_1p6_S6f5tSwj_hwa3mmr7jXy3Bk1u_mUOtoXBOOYUiD5x-fGqJgPC1Z7LMiGNpbMfkfUIV_OWHpty9JVtUFq60");'></div>
+</div>
+<!-- Card 2 -->
+<div class="bouncy-click cursor-pointer group flex items-stretch justify-between gap-4 rounded-[20px] bg-surface-light dark:bg-surface-dark p-4 shadow-soft hover:shadow-lg transition-all dark:border dark:border-white/5">
+<div class="flex flex-col justify-between py-1 flex-[2_2_0px]">
+<div>
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 w-fit mb-2">
+<span class="text-amber-600 dark:text-amber-300 text-[11px] font-bold uppercase tracking-wide">Medium</span>
+</div>
+<h3 class="text-text-main dark:text-white text-lg font-bold leading-tight group-hover:text-primary transition-colors">React Hooks</h3>
+</div>
+<div class="flex items-center gap-3 mt-3">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">filter_none</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">5 cards</p>
+</div>
+<div class="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">timer</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">~3m</p>
+</div>
+</div>
+</div>
+<div class="w-24 h-24 bg-center bg-no-repeat bg-cover rounded-2xl flex-shrink-0" data-alt="Abstract blue atom structure symbol representing science or code" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD4z-utjJXWJWqlJNK_T3S7hLvXgfLW_rADPorvHG34kiJgEiJhhB3hi-CjdU3i3nFKyHQlW8R4KEJfXVABYKF6U04llxclxpCkWIOyDJuWnLsOjXKhYZyScAGI4WJxIQXZS2ULBb8xELHlSZ5n1PRAjdiQ2vibEBQhFS-MuorG_dEv8lMx5J09q2TqQ3d3VveJfJs5hRzbLXzOc4B6XT0gF0920z4MPsDByzZYPxipt6j-5kULgVRc1-fi6Gx236SWSPGCu8l8yqw");'></div>
+</div>
+<!-- Card 3 -->
+<div class="bouncy-click cursor-pointer group flex items-stretch justify-between gap-4 rounded-[20px] bg-surface-light dark:bg-surface-dark p-4 shadow-soft hover:shadow-lg transition-all dark:border dark:border-white/5">
+<div class="flex flex-col justify-between py-1 flex-[2_2_0px]">
+<div>
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-900/30 w-fit mb-2">
+<span class="text-sky-600 dark:text-sky-300 text-[11px] font-bold uppercase tracking-wide">Low Priority</span>
+</div>
+<h3 class="text-text-main dark:text-white text-lg font-bold leading-tight group-hover:text-primary transition-colors">History 101</h3>
+</div>
+<div class="flex items-center gap-3 mt-3">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">filter_none</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">9 cards</p>
+</div>
+<div class="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-text-muted dark:text-gray-500 text-[18px]">timer</span>
+<p class="text-text-muted dark:text-gray-400 text-sm font-medium">~4m</p>
+</div>
+</div>
+</div>
+<div class="w-24 h-24 bg-center bg-no-repeat bg-cover rounded-2xl flex-shrink-0" data-alt="Old paper map texture background for history subject" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCRf5WzZV8nynGm883F1PuIs0bg2ofyPsv91fGuWqSlCiNX8SpuHHVIHNpW0Nfbzq3NYK9svBlV_wKaQHTOas2UjGWqdxextdwiCGjUkob_pzmwl_mfjAIXL3f2vEM_tcP8iYMRALPH5p-l9XDip97uX-bRNdES-6Yd1Dt0hhfkEY8c_0ciPWV9QyH_-smJ9KKEmU2bumz8zW2zy36E0c7xkDdk9txHdkV9jtY_63giZ45sSwdtSQdmzwr8kNJzRMbxqcKsc4cHsm4");'></div>
+</div>
+</div>
+</div>
+<!-- Floating Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pt-12 z-20 pointer-events-none flex flex-col gap-4">
+<button class="pointer-events-auto w-full bg-primary hover:bg-primary-dark text-text-main font-bold text-lg h-14 rounded-2xl shadow-[0_8px_20px_rgba(48,232,186,0.4)] flex items-center justify-center gap-2 transition-transform active:scale-95">
+<span class="material-symbols-outlined">play_arrow</span>
+                Start Session
+            </button>
+<!-- Bottom Nav Mockup -->
+<div class="pointer-events-auto h-16 w-full bg-surface-light dark:bg-surface-dark/90 backdrop-blur-md rounded-[20px] shadow-soft flex items-center justify-around px-2 border border-gray-100 dark:border-white/5">
+<div class="flex flex-col items-center justify-center w-12 gap-1 opacity-50">
+<span class="material-symbols-outlined text-[24px]">home</span>
+</div>
+<div class="flex flex-col items-center justify-center w-12 gap-1 opacity-50">
+<span class="material-symbols-outlined text-[24px]">grid_view</span>
+</div>
+<div class="flex flex-col items-center justify-center w-12 gap-1 text-primary">
+<div class="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px] filled">layers</span>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center w-12 gap-1 opacity-50">
+<span class="material-symbols-outlined text-[24px]">person</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

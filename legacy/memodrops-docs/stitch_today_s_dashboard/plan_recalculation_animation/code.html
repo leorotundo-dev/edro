@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#bdd1db", // As requested in theme but described as lilac in context
+                        "lilac-soft": "#e9e5f3",
+                        "lilac-deep": "#8a7db3",
+                        "background-light": "#f2f0f5",
+                        "background-dark": "#26222a",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .organic-blob {
+            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased transition-colors duration-500">
+<div class="relative flex h-screen w-full flex-col overflow-hidden items-center justify-center p-6">
+<!-- Top Navigation (Minimalist Close) -->
+<div class="absolute top-0 w-full flex items-center justify-between p-6">
+<div class="text-[#121517] dark:text-gray-100 flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-2xl cursor-pointer">close</span>
+</div>
+<h2 class="text-[#121517] dark:text-gray-100 text-sm font-bold tracking-widest uppercase opacity-40">MemoDrops</h2>
+<div class="size-12"></div> <!-- Spacer for balance -->
+</div>
+<!-- Central Animation Hub -->
+<div class="relative flex flex-col items-center justify-center w-full max-w-sm">
+<!-- Circular Progress Ring (Outer) -->
+<div class="relative flex items-center justify-center mb-12">
+<svg class="w-64 h-64 -rotate-90">
+<!-- Background Circle -->
+<circle class="text-primary/20 dark:text-white/5" cx="128" cy="128" fill="transparent" r="120" stroke="currentColor" stroke-width="2"></circle>
+<!-- Progress Circle -->
+<circle class="text-lilac-deep" cx="128" cy="128" fill="transparent" r="120" stroke="currentColor" stroke-dasharray="753.6" stroke-dashoffset="263.76" stroke-linecap="round" stroke-width="2"></circle>
+</svg>
+<!-- Inner Animation Content -->
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="relative w-40 h-40">
+<!-- Fluid Blobs / Drops -->
+<div class="absolute inset-0 organic-blob bg-lilac-soft/60 dark:bg-lilac-deep/20 scale-110 blur-xl"></div>
+<div class="absolute inset-4 organic-blob bg-primary/40 dark:bg-primary/20"></div>
+<!-- Calendar Icon (The Goal) -->
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="bg-white/80 dark:bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/40">
+<span class="material-symbols-outlined text-lilac-deep text-5xl">calendar_today</span>
+</div>
+</div>
+<!-- Merging Small Drops -->
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-lilac-deep opacity-60"></div>
+<div class="absolute -bottom-2 right-1/4 w-3 h-3 rounded-full bg-primary opacity-80"></div>
+<div class="absolute top-1/4 -left-2 w-5 h-5 organic-blob bg-lilac-soft opacity-90 border border-lilac-deep/20"></div>
+</div>
+</div>
+</div>
+<!-- Text Content (HeadlineText & BodyText Replacement) -->
+<div class="text-center space-y-4 px-4">
+<div class="flex flex-col gap-1 items-center">
+<h3 class="text-[#121517] dark:text-gray-100 text-3xl font-extrabold tracking-tight">
+                        Ajustando sua rota...
+                    </h3>
+<div class="flex items-center gap-2 mt-2">
+<span class="text-lilac-deep text-sm font-bold tracking-tighter">65%</span>
+<div class="w-12 h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-lilac-deep" style="width: 65%;"></div>
+</div>
+</div>
+</div>
+<p class="text-[#657781] dark:text-gray-400 text-base font-normal leading-relaxed max-w-[280px] mx-auto">
+                    Distribuindo seus temas para garantir que você chegue pronto na prova.
+                </p>
+</div>
+</div>
+<!-- Background Decorative Elements -->
+<div class="absolute bottom-[-10%] left-[-10%] w-[50%] aspect-square organic-blob bg-primary/10 blur-3xl -z-10"></div>
+<div class="absolute top-[10%] right-[-10%] w-[40%] aspect-square organic-blob bg-lilac-soft/30 blur-3xl -z-10"></div>
+<!-- Subtle Footer Info -->
+<div class="absolute bottom-12 w-full text-center">
+<button class="text-lilac-deep/60 dark:text-white/40 text-sm font-medium hover:text-lilac-deep transition-colors">
+                Cancelar recalculo
+            </button>
+</div>
+</div>
+</body></html>

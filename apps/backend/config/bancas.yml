@@ -1,0 +1,360 @@
+- id: cebraspe
+  banca: CEBRASPE
+  limit: 20
+  config:
+    allowedDomains: ["cebraspe.org.br"]
+    urlIncludePatterns: ["/concursos/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "edital de abertura", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fgv
+  banca: FGV
+  limit: 20
+  config:
+    allowedDomains: ["fgv.br"]
+    urlIncludePatterns: ["/concursos/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso", "fgv"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: vunesp
+  banca: VUNESP
+  limit: 20
+  config:
+    allowedDomains: ["vunesp.com.br"]
+    urlIncludePatterns: ["/", "vunesp.com.br"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fcc
+  banca: FCC
+  limit: 20
+  config:
+    allowedDomains: ["concursosfcc.com.br"]
+    urlIncludePatterns: ["/concursos/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: quadrix
+  banca: QUADRIX
+  limit: 15
+  config:
+    allowedDomains: ["quadrix.selecao.net.br", "selecao.net.br"]
+    urlIncludePatterns: ["/informacoes/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: ibfc
+  banca: IBFC
+  limit: 15
+  config:
+    allowedDomains: ["ibfc.org.br"]
+    urlIncludePatterns: ["/concurso/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: idecan
+  banca: IDECAN
+  limit: 15
+  config:
+    allowedDomains: ["idecan.org.br"]
+    urlIncludePatterns: ["idecan.org.br/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: aocp
+  banca: AOCP
+  limit: 15
+  config:
+    allowedDomains: ["institutoaocp.org.br"]
+    urlIncludePatterns: ["/concursos"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fundatec
+  banca: FUNDATEC
+  limit: 15
+  config:
+    allowedDomains: ["fundatec.org.br"]
+    urlIncludePatterns: ["/concursos"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: ibade
+  banca: IBADE
+  limit: 15
+  config:
+    allowedDomains: ["portal.ibade.selecao.site", "cdn-ibade.selecao.site", "s3.sa-east-1.amazonaws.com"]
+    urlIncludePatterns: ["/edital/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: institutoma
+  banca: INSTITUTO MAIS
+  limit: 15
+  config:
+    allowedDomains: ["institutomais.org.br"]
+    urlIncludePatterns: ["/Concursos/Detalhe/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: cesgranrio
+  banca: CESGRANRIO
+  limit: 15
+  config:
+    allowedDomains: ["cesgranrio.org.br", "concursos.cesgranrio.org.br"]
+    urlIncludePatterns: ["/concurso", "/concursos"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: selecon
+  banca: SELECON
+  limit: 15
+  config:
+    allowedDomains: ["selecon.org.br"]
+    urlIncludePatterns: ["/concursos/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: iades
+  banca: IADES
+  limit: 15
+  config:
+    allowedDomains: ["iades.com.br"]
+    urlIncludePatterns: ["/concurso", "/concursos", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: access
+  banca: ACCESS
+  limit: 15
+  config:
+    allowedDomains: ["access.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/editais"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso", "processo seletivo"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: consulplan
+  banca: CONSULPLAN
+  limit: 15
+  config:
+    allowedDomains: ["consulplan.net"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: funrio
+  banca: FUNRIO
+  limit: 12
+  config:
+    allowedDomains: ["funrio.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: funcab
+  banca: FUNCAB
+  limit: 12
+  config:
+    allowedDomains: ["funcab.org"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fundep
+  banca: FUNDEP
+  limit: 12
+  config:
+    allowedDomains: ["fundep.ufmg.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fumarc
+  banca: FUMARC
+  limit: 12
+  config:
+    allowedDomains: ["fumarc.com.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: ibam
+  banca: IBAM
+  limit: 12
+  config:
+    allowedDomains: ["ibam-concursos.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: nossorumo
+  banca: NOSSO_RUMO
+  limit: 12
+  config:
+    allowedDomains: ["institutonossorumo.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: cetro
+  banca: CETRO
+  limit: 12
+  config:
+    allowedDomains: ["institutocetro.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: inaz
+  banca: INAZ
+  limit: 12
+  config:
+    allowedDomains: ["inaz.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: avancasp
+  banca: AVANCASP
+  limit: 12
+  config:
+    allowedDomains: ["avancasp.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: cetap
+  banca: CETAP
+  limit: 12
+  config:
+    allowedDomains: ["cetapnet.com.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/editais"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fapec
+  banca: FAPEC
+  limit: 12
+  config:
+    allowedDomains: ["fapec.org"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: copese
+  banca: COPESE
+  limit: 10
+  config:
+    allowedDomains: ["copese.ufjf.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: copeve
+  banca: COPEVE
+  limit: 10
+  config:
+    allowedDomains: ["copeve.ufal.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: cev
+  banca: CEV
+  limit: 10
+  config:
+    allowedDomains: ["cev.uece.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: ibgp
+  banca: IBGP
+  limit: 12
+  config:
+    allowedDomains: ["ibgpconcursos.com.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: igeduc
+  banca: IGEDUC
+  limit: 10
+  config:
+    allowedDomains: ["igeduc.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: ncufpr
+  banca: NCUFPR
+  limit: 10
+  config:
+    allowedDomains: ["nc.ufpr.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: copeveufmg
+  banca: COPEVE_UFMG
+  limit: 10
+  config:
+    allowedDomains: ["copeve.ufmg.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: coseac
+  banca: COSEAC
+  limit: 10
+  config:
+    allowedDomains: ["coseac.uff.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: cepsufpa
+  banca: CEPS_UFPA
+  limit: 10
+  config:
+    allowedDomains: ["ceps.ufpa.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: fepese
+  banca: FEPESE
+  limit: 10
+  config:
+    allowedDomains: ["fepese.org.br"]
+    urlIncludePatterns: ["/concursos", "/concurso", "/edital"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "retifica", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: pci
+  banca: PCI_CONCURSOS
+  limit: 20
+  config:
+    allowedDomains: ["pciconcursos.com.br"]
+    urlIncludePatterns: ["/noticias/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["edital", "concurso"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: jcconcursos
+  banca: JC_CONCURSOS
+  limit: 20
+  config:
+    allowedDomains: ["jcconcursos.com.br"]
+    urlIncludePatterns: ["/concurso/"]
+    urlExcludePatterns: ["resultado", "gabarito", "retificacao", "convocacao", "classificacao", "recurso", "anexo"]
+    textIncludePatterns: ["concurso", "processo seletivo"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]
+- id: granblog
+  banca: GRAN_BLOG
+  limit: 20
+  config:
+    allowedDomains: ["blog.grancursosonline.com.br", "grancursosonline.com.br"]
+    urlIncludePatterns: ["/"]
+    urlExcludePatterns: ["/tag/", "/categoria/", "/category/", "/autor/", "/author/", "/page/", "/amp/"]
+    textIncludePatterns: ["concurso", "edital"]
+    textExcludePatterns: ["resultado", "gabarito", "retifica", "convoca", "homologa", "classifica", "anexo"]

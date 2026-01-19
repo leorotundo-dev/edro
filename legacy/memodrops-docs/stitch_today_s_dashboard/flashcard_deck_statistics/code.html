@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d8c6ec",
+                        "background-light": "#f1f0f5",
+                        "background-dark": "#25222a",
+                        "soft-red": "#FDD7D7",
+                        "soft-purple": "#DABBEB",
+                        "soft-green": "#BDE2BF",
+                        "gold": "#FADF8F",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.25rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .ios-shadow { shadow-[0_4px_20px_rgba(0,0,0,0.05)] }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen flex flex-col text-[#141018] dark:text-white">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between p-6 pt-12">
+<div class="size-10 flex items-center justify-center rounded-full bg-white dark:bg-white/10 shadow-sm">
+<span class="material-symbols-outlined text-xl">close</span>
+</div>
+<div class="flex-1 text-center">
+<span class="text-xs font-extrabold uppercase tracking-widest text-[#715c8a] dark:text-primary/70">Sessão Finalizada</span>
+</div>
+<div class="size-10"></div> <!-- Spacer for symmetry -->
+</header>
+<main class="flex-1 px-6 pb-32">
+<!-- Celebration Header -->
+<div class="flex flex-col items-center text-center mb-8">
+<div class="relative mb-4">
+<div class="absolute -inset-4 bg-primary/20 rounded-full blur-xl"></div>
+<div class="relative bg-white dark:bg-white/5 p-4 rounded-full shadow-lg">
+<span class="material-symbols-outlined text-5xl text-primary" style="font-variation-settings: 'FILL' 1">celebration</span>
+</div>
+</div>
+<h1 class="text-3xl font-extrabold tracking-tight mb-2">Excelente trabalho!</h1>
+<p class="text-[#715c8a] dark:text-primary/60 font-medium">Você concluiu sua meta diária.</p>
+</div>
+<!-- Performance Summary Card -->
+<div class="bg-white dark:bg-[#2d2a33] rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-6 border border-white/20">
+<div class="flex items-center justify-between mb-6">
+<div class="flex flex-col">
+<span class="text-4xl font-extrabold text-[#141018] dark:text-white">88%</span>
+<span class="text-sm font-semibold text-[#715c8a] dark:text-primary/60">Precisão Total</span>
+</div>
+<div class="h-12 w-[1px] bg-gray-100 dark:bg-gray-700"></div>
+<div class="flex flex-col text-right">
+<span class="text-4xl font-extrabold text-[#141018] dark:text-white">25</span>
+<span class="text-sm font-semibold text-[#715c8a] dark:text-primary/60">Cartões</span>
+</div>
+</div>
+<div class="bg-background-light dark:bg-background-dark/50 rounded-lg p-4 flex items-center gap-4">
+<div class="size-10 bg-gold rounded-full flex items-center justify-center shadow-inner">
+<span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings: 'FILL' 1">database</span>
+</div>
+<div>
+<p class="text-sm font-bold leading-tight">+12 Drops Coletados</p>
+<p class="text-xs text-[#715c8a] dark:text-primary/60">Novo recorde pessoal!</p>
+</div>
+</div>
+</div>
+<!-- Distribution Chart Section -->
+<div class="mb-8">
+<h3 class="text-sm font-extrabold uppercase tracking-widest text-[#715c8a] dark:text-primary/70 mb-4 px-1">Distribuição</h3>
+<div class="bg-white dark:bg-[#2d2a33] rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+<div class="space-y-5">
+<!-- Fácil -->
+<div class="space-y-2">
+<div class="flex justify-between items-center text-sm font-bold">
+<span class="flex items-center gap-2"><div class="size-2 rounded-full bg-soft-green"></div> Fácil</span>
+<span>18</span>
+</div>
+<div class="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="h-full bg-soft-green rounded-full" style="width: 72%"></div>
+</div>
+</div>
+<!-- Bom -->
+<div class="space-y-2">
+<div class="flex justify-between items-center text-sm font-bold">
+<span class="flex items-center gap-2"><div class="size-2 rounded-full bg-soft-purple"></div> Bom</span>
+<span>4</span>
+</div>
+<div class="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="h-full bg-soft-purple rounded-full" style="width: 16%"></div>
+</div>
+</div>
+<!-- Errei -->
+<div class="space-y-2">
+<div class="flex justify-between items-center text-sm font-bold">
+<span class="flex items-center gap-2"><div class="size-2 rounded-full bg-soft-red"></div> Errei</span>
+<span>3</span>
+</div>
+<div class="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="h-full bg-soft-red rounded-full" style="width: 12%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Next Review Widget -->
+<div class="bg-primary/10 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-white dark:bg-white/10 flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+<div>
+<p class="text-sm font-extrabold">Próxima Revisão</p>
+<p class="text-xs font-medium text-[#715c8a] dark:text-primary/70">Amanhã, 14:00 (em 24h)</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary">notifications</span>
+</div>
+</main>
+<!-- Bottom Actions -->
+<footer class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-[#25222a]/80 backdrop-blur-xl p-6 pt-4 border-t border-gray-100 dark:border-white/5">
+<div class="max-w-md mx-auto space-y-3">
+<button class="w-full bg-primary hover:bg-primary/90 text-[#4a3a5e] font-extrabold py-4 rounded-xl transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+                Voltar para Biblioteca
+                <span class="material-symbols-outlined text-xl">arrow_forward</span>
+</button>
+<button class="w-full bg-transparent border-2 border-primary/30 text-[#715c8a] dark:text-primary font-bold py-3 rounded-xl transition-all">
+                Refazer Erros
+            </button>
+</div>
+</footer>
+</body></html>

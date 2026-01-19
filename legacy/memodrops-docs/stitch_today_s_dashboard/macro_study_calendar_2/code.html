@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Macro Study Calendar - MemoDrops</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b28e",
+                        "secondary": "#e7f3f0",
+                        "background-light": "#f8fcfb",
+                        "background-dark": "#11211d",
+                        "text-main": "#0e1b18",
+                        "text-muted": "#4a5553",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding for horizontal scroll areas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-text-main dark:text-white font-display antialiased selection:bg-primary selection:text-background-dark">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- Header -->
+<header class="flex items-center justify-between px-4 py-4 bg-background-light dark:bg-background-dark z-10 sticky top-0">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-2xl text-text-main dark:text-white">arrow_back</span>
+</button>
+<h1 class="text-lg font-bold tracking-tight text-center flex-1">Seu Plano</h1>
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-primary">
+<span class="material-symbols-outlined text-2xl fill-1">calendar_today</span>
+</button>
+</header>
+<!-- Hero: Countdown -->
+<section class="px-6 py-4 text-center">
+<div class="inline-flex flex-col items-center justify-center">
+<h2 class="text-4xl font-extrabold tracking-tight text-text-main dark:text-white">45 Dias</h2>
+<p class="text-text-muted dark:text-gray-400 font-medium text-sm mt-1">até a prova final</p>
+</div>
+</section>
+<!-- Progress Chart Compact -->
+<section class="px-4 py-2">
+<div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+<div class="flex items-center justify-between mb-4">
+<div>
+<p class="text-sm font-medium text-text-muted dark:text-gray-400">Progresso Geral</p>
+<p class="text-2xl font-bold text-text-main dark:text-white">68%</p>
+</div>
+<div class="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-lg text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                        +5% esta semana
+                    </div>
+</div>
+<!-- Simple Bar Chart Visualization -->
+<div class="h-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+<div class="h-full bg-primary rounded-full" style="width: 68%"></div>
+</div>
+<div class="flex justify-between text-xs text-text-muted dark:text-gray-500 font-medium">
+<span>Início</span>
+<span>Meta: 100%</span>
+</div>
+</div>
+</section>
+<!-- Subject Chips / Legend -->
+<section class="px-4 py-4">
+<p class="text-sm font-semibold mb-3 px-1 text-text-main dark:text-white">Legenda de Matérias</p>
+<div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+<!-- Chip 1: Math -->
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 px-3 transition-transform active:scale-95">
+<div class="size-2 rounded-full bg-blue-500"></div>
+<p class="text-text-main dark:text-blue-100 text-xs font-medium whitespace-nowrap">Matemática</p>
+</div>
+<!-- Chip 2: Portuguese -->
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-pink-50 dark:bg-pink-900/20 border border-pink-100 dark:border-pink-800 px-3 transition-transform active:scale-95">
+<div class="size-2 rounded-full bg-pink-500"></div>
+<p class="text-text-main dark:text-pink-100 text-xs font-medium whitespace-nowrap">Português</p>
+</div>
+<!-- Chip 3: Science -->
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 px-3 transition-transform active:scale-95">
+<div class="size-2 rounded-full bg-green-500"></div>
+<p class="text-text-main dark:text-green-100 text-xs font-medium whitespace-nowrap">Ciências</p>
+</div>
+<!-- Chip 4: History -->
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800 px-3 transition-transform active:scale-95">
+<div class="size-2 rounded-full bg-yellow-500"></div>
+<p class="text-text-main dark:text-yellow-100 text-xs font-medium whitespace-nowrap">História</p>
+</div>
+</div>
+</section>
+<!-- Calendar Section -->
+<section class="flex-1 px-4 pb-24 overflow-y-auto">
+<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+<!-- Month Navigator -->
+<div class="flex items-center justify-between mb-6">
+<button class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-text-muted dark:text-gray-400">
+<span class="material-symbols-outlined text-xl">chevron_left</span>
+</button>
+<h3 class="text-lg font-bold text-text-main dark:text-white">Outubro 2023</h3>
+<button class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-text-muted dark:text-gray-400">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</div>
+<!-- Weekday Headers -->
+<div class="grid grid-cols-7 mb-2">
+<div class="text-center text-xs font-bold text-gray-400 uppercase">D</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">S</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">T</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">Q</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">Q</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">S</div>
+<div class="text-center text-xs font-bold text-gray-400 uppercase">S</div>
+</div>
+<!-- Days Grid -->
+<div class="grid grid-cols-7 gap-y-4 gap-x-1">
+<!-- Empty start days -->
+<div></div>
+<div></div>
+<div></div>
+<!-- Day 1 -->
+<button class="group flex flex-col items-center gap-1">
+<span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">1</span>
+<div class="size-1.5 rounded-full bg-blue-500"></div>
+</button>
+<!-- Day 2 -->
+<button class="group flex flex-col items-center gap-1">
+<span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">2</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-blue-500"></div>
+<div class="size-1.5 rounded-full bg-pink-500"></div>
+</div>
+</button>
+<!-- Day 3 -->
+<button class="group flex flex-col items-center gap-1">
+<span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">3</span>
+<div class="size-1.5 rounded-full bg-green-500"></div>
+</button>
+<!-- Day 4 -->
+<button class="group flex flex-col items-center gap-1">
+<span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">4</span>
+<div class="size-1.5 rounded-full bg-yellow-500"></div>
+</button>
+<!-- Day 5 (Current Day) -->
+<button class="group flex flex-col items-center gap-1 relative">
+<span class="flex size-8 items-center justify-center rounded-full text-sm font-bold bg-primary text-text-main shadow-md shadow-primary/30">5</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-pink-500"></div>
+</div>
+</button>
+<!-- Other Days... -->
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">6</span><div class="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">7</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">8</span><div class="flex gap-0.5"><div class="size-1.5 rounded-full bg-green-500"></div><div class="size-1.5 rounded-full bg-yellow-500"></div></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">9</span><div class="size-1.5 rounded-full bg-pink-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">10</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">11</span><div class="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">12</span><div class="size-1.5 rounded-full bg-green-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">13</span><div class="size-1.5 rounded-full bg-yellow-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">14</span><div class="flex gap-0.5"><div class="size-1.5 rounded-full bg-blue-500"></div><div class="size-1.5 rounded-full bg-pink-500"></div></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">15</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">16</span><div class="size-1.5 rounded-full bg-green-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">17</span><div class="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">18</span><div class="size-1.5 rounded-full bg-yellow-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">19</span><div class="size-1.5 rounded-full bg-pink-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">20</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">21</span><div class="size-1.5 rounded-full bg-green-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">22</span><div class="flex gap-0.5"><div class="size-1.5 rounded-full bg-yellow-500"></div><div class="size-1.5 rounded-full bg-pink-500"></div></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">23</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">24</span><div class="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">25</span><div class="size-1.5 rounded-full bg-green-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">26</span><div class="size-1.5 rounded-full bg-yellow-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">27</span><div class="size-1.5 rounded-full bg-pink-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">28</span><div class="size-1.5 rounded-full bg-blue-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">29</span><div class="size-1.5 rounded-full bg-green-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">30</span><div class="size-1.5 rounded-full bg-yellow-500"></div></button>
+<button class="group flex flex-col items-center gap-1"><span class="flex size-8 items-center justify-center rounded-full text-sm font-medium text-text-main dark:text-white group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">31</span><div class="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div></button>
+</div>
+</div>
+<!-- Exam Date Highlight -->
+<div class="mt-6 flex items-start gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
+<div class="flex-shrink-0 size-10 rounded-full bg-primary flex items-center justify-center text-text-main">
+<span class="material-symbols-outlined">flag</span>
+</div>
+<div>
+<h4 class="font-bold text-text-main dark:text-white">Prova Final</h4>
+<p class="text-sm text-text-muted dark:text-gray-300">Sua prova está marcada para <span class="font-semibold text-primary-dark dark:text-primary">15 de Novembro</span>.</p>
+</div>
+</div>
+</section>
+<!-- Floating Action Button Area -->
+<div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pointer-events-none">
+<button class="pointer-events-auto w-full h-14 bg-primary hover:bg-primary-dark active:scale-[0.98] transition-all text-text-main font-bold text-lg rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">tune</span>
+                Ajustar plano
+            </button>
+</div>
+</div>
+</body></html>

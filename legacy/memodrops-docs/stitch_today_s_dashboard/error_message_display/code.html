@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops - Error Screen</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b591",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "text-main": "#0e1b18",
+                        "text-sub": "#4a5955",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased transition-colors duration-200">
+<div class="relative flex min-h-screen w-full flex-col justify-center items-center overflow-hidden px-6 py-10">
+<!-- Main Content Container -->
+<div class="flex w-full max-w-[380px] flex-col items-center gap-8">
+<!-- Illustration Area -->
+<!-- Using a generous padding wrapper to give the illustration space -->
+<div class="relative flex items-center justify-center p-4">
+<!-- Background decorative blob -->
+<div class="absolute inset-0 rounded-full bg-primary/10 blur-2xl scale-125 dark:bg-primary/5"></div>
+<!-- Main Illustration Image -->
+<div class="relative z-10 aspect-square w-64 rounded-2xl bg-cover bg-center bg-no-repeat" data-alt="Cute mascot character looking confused next to a broken study card with a small red crack" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA_nP-jQJAGswMHNLCnxHmAibFWYKrhlepB8ubMK8KjzObWmhIcJEKAmNpg-Kg7MALEm6SMUf-reUTG7pYWqR7o8eB5eombS3ZeA8dfTj2xkV9a8d_Zo8VX1W4VLWKGwwg0bw8fHGpCC3JVh043SZMgzXLQCKNGB71ghiUG53XOPpEabDKV_VSu8M_nVuWHRSR-jp6IW3LJhHDQ8tb5gM3zhBCTsYAZKEbEHAAw_D04VedP43hsEnFekZckWc8ML3YyKY4cwDnZirU");'></div>
+<!-- Floating Icon Badge (Soft Red Accent) -->
+<div class="absolute -right-2 top-0 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm ring-4 ring-background-light dark:bg-background-dark dark:ring-background-dark">
+<span class="material-symbols-outlined text-[28px] text-red-400">
+                        priority_high
+                    </span>
+</div>
+</div>
+<!-- Text Content -->
+<div class="flex flex-col items-center gap-3 text-center">
+<h1 class="text-text-main dark:text-white text-3xl font-bold tracking-tight">
+                    Ops!
+                </h1>
+<p class="text-text-sub dark:text-gray-400 text-base font-normal leading-relaxed max-w-[280px]">
+                    Algo deu errado por aqui. Não se preocupe, seus dados estão seguros.
+                </p>
+</div>
+<!-- Action Buttons -->
+<div class="flex w-full flex-col gap-3 pt-4">
+<!-- Primary CTA -->
+<!-- Using text-text-main for better contrast on the bright primary green, or white if preferred but ensuring readability -->
+<button class="group relative flex w-full items-center justify-center overflow-hidden rounded-lg bg-primary py-3.5 px-4 text-text-main font-bold shadow-sm transition-all hover:bg-primary-dark hover:shadow-md active:scale-[0.98]">
+<span class="relative z-10 text-sm tracking-wide">Tentar novamente</span>
+<span class="absolute inset-0 bg-white/20 opacity-0 transition-opacity group-hover:opacity-100"></span>
+</button>
+<!-- Secondary CTA -->
+<button class="flex w-full items-center justify-center rounded-lg bg-transparent py-3.5 px-4 text-text-sub dark:text-gray-300 text-sm font-semibold transition-colors hover:bg-gray-100 dark:hover:bg-white/5">
+                    Voltar ao início
+                </button>
+</div>
+</div>
+<!-- Decorative Footer Element (optional spacing filler) -->
+<div class="h-10"></div>
+</div>
+</body></html>

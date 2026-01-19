@@ -1,0 +1,61 @@
+================================================================================
+                    ⚡ COMANDOS PARA COPIAR E COLAR ⚡
+================================================================================
+
+PASSO 1: BAIXAR RAILWAY CLI
+----------------------------
+Acesse: https://docs.railway.app/guides/cli#installation
+Ou: https://github.com/railwayapp/cli/releases/latest
+Baixe a versão Windows e instale.
+
+
+PASSO 2: COPIAR E COLAR ESTES COMANDOS (PowerShell)
+----------------------------------------------------
+
+railway login
+
+cd "D:\WORK\DESIGN ROTUNDO\MEMODROPS\memodrops-main\memodrops-main"
+
+railway link e0ca0841-18bc-4c48-942e-d90a6b725a5b
+
+cd apps\backend
+
+railway run npm install pg --no-save
+
+railway run node migrate-simple.js
+
+
+PRONTO! ✅
+----------
+
+Vai criar 57 tabelas novas automaticamente.
+
+
+VERIFICAR SE FUNCIONOU:
+-----------------------
+
+railway run psql $DATABASE_URL
+
+# Dentro do psql:
+SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';
+# Deve mostrar ~74
+
+\q
+
+
+================================================================================
+                           🎉 FIM! ESTÁ PRONTO! 🎉
+================================================================================
+
+RESULTADO:
+✅ 74 tabelas no banco
+✅ 12 endpoints novos funcionando
+✅ Sistema de Tracking completo (NEC/NCA automático)
+✅ ReccoEngine estruturado (11 tabelas)
+✅ Questões & Simulados expandidos (18 tabelas)
+✅ SRS-AI™, Progress, Mnemônicos (21 tabelas)
+✅ Observability (12 tabelas)
+
+TEMPO TOTAL: 2 MINUTOS
+
+================================================================================

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Create New Study - MemoDrops</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2c28",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(48, 232, 186, 0.15)',
+                        'card': '0 2px 10px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for clean look */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 20px;
+        }
+        .dark textarea::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 font-display transition-colors duration-200 antialiased overflow-hidden">
+<div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between p-4 pb-2 bg-background-light dark:bg-background-dark z-10">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white group">
+<span class="material-symbols-outlined text-[24px] group-active:scale-95 transition-transform">arrow_back_ios_new</span>
+</button>
+<h2 class="text-lg font-bold leading-tight tracking-tight text-center text-gray-900 dark:text-white flex-1 pr-10">
+                Nova Sessão
+            </h2>
+</header>
+<!-- Main Scrollable Content -->
+<main class="flex-1 overflow-y-auto px-6 pb-32">
+<!-- HeadlineText -->
+<div class="pt-6 pb-4 animate-fade-in-up">
+<h1 class="text-[28px] font-bold leading-tight tracking-tight text-gray-900 dark:text-white">
+                    O que você quer <br/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-teal-600 dark:to-teal-400">aprender hoje?</span>
+</h1>
+<p class="text-sm text-gray-500 dark:text-gray-400 mt-2 font-medium">Vamos começar algo novo.</p>
+</div>
+<!-- TextField (Main Input) -->
+<div class="w-full mt-2 group">
+<div class="relative w-full rounded-2xl bg-surface-light dark:bg-surface-dark shadow-card border border-transparent focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 transition-all duration-300">
+<textarea class="w-full h-64 resize-none bg-transparent rounded-2xl p-5 text-lg font-normal leading-relaxed text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 border-none focus:ring-0 focus:outline-none" placeholder="Digite um tópico, cole suas notas ou faça uma pergunta aqui..."></textarea>
+<!-- Floating hint/counter inside the box -->
+<div class="absolute bottom-4 right-4 text-xs font-medium text-gray-400 dark:text-gray-600 bg-background-light dark:bg-background-dark px-2 py-1 rounded-md opacity-0 group-focus-within:opacity-100 transition-opacity">
+                        Enter para nova linha
+                    </div>
+</div>
+</div>
+<!-- Quick Actions Section -->
+<div class="mt-8">
+<!-- TitleText -->
+<h3 class="text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">bolt</span>
+                    Adicionar material rápido
+                </h3>
+<!-- ActionsBar Grid -->
+<div class="grid grid-cols-3 gap-4">
+<!-- Upload Action -->
+<button class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-surface-light dark:bg-surface-dark shadow-sm border border-gray-100 dark:border-gray-800 hover:border-primary/50 hover:shadow-soft active:scale-95 transition-all duration-200 group">
+<div class="rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-teal-700 dark:text-primary text-[24px]">upload_file</span>
+</div>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Arquivo</span>
+</button>
+<!-- Link Action -->
+<button class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-surface-light dark:bg-surface-dark shadow-sm border border-gray-100 dark:border-gray-800 hover:border-primary/50 hover:shadow-soft active:scale-95 transition-all duration-200 group">
+<div class="rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-teal-700 dark:text-primary text-[24px]">link</span>
+</div>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Link</span>
+</button>
+<!-- Audio Action -->
+<button class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-surface-light dark:bg-surface-dark shadow-sm border border-gray-100 dark:border-gray-800 hover:border-primary/50 hover:shadow-soft active:scale-95 transition-all duration-200 group">
+<div class="rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-teal-700 dark:text-primary text-[24px]">mic</span>
+</div>
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Áudio</span>
+</button>
+</div>
+</div>
+<!-- Optional: Recent Tags or Suggestions -->
+<div class="mt-8 pb-4">
+<h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider text-xs">
+                    Sugestões
+                </h3>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        Vocabulário Inglês
+                    </button>
+<button class="px-4 py-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        Fórmulas Física
+                    </button>
+<button class="px-4 py-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        História do Brasil
+                    </button>
+</div>
+</div>
+</main>
+<!-- Sticky Footer CTA -->
+<div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pb-8">
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-[#2bd4aa] active:bg-[#26bd98] text-[#0e1b18] font-bold text-lg py-4 rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all duration-200">
+<span class="material-symbols-outlined">auto_awesome</span>
+                Preparar meu estudo
+            </button>
+</div>
+</div>
+</body></html>

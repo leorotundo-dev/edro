@@ -1,0 +1,171 @@
+═══════════════════════════════════════════════════════════
+  🚀 DEPLOY DO SISTEMA DE QUESTÕES - EXECUTE AGORA
+═══════════════════════════════════════════════════════════
+
+⏱️ TEMPO TOTAL: 30 minutos
+
+═══════════════════════════════════════════════════════════
+  PASSO 1: COMMIT E PUSH (5 min)
+═══════════════════════════════════════════════════════════
+
+Abra PowerShell e execute:
+
+cd memodrops-main
+
+git add .
+
+git commit -m "feat: Sistema de Questões IA completo - 14 endpoints + geração automática"
+
+git push origin main
+
+
+⏳ AGUARDE: Railway vai fazer deploy automaticamente (3-5 min)
+
+
+═══════════════════════════════════════════════════════════
+  PASSO 2: RODAR MIGRATION (5 min)
+═══════════════════════════════════════════════════════════
+
+Opção A - Via Railway CLI (RECOMENDADO):
+
+npm install -g @railway/cli
+
+railway login
+
+railway link
+
+railway run npm run db:migrate
+
+
+Opção B - Vai rodar automaticamente no deploy
+  → Verifique nos logs se aparece "Migration 0009 applied"
+
+
+═══════════════════════════════════════════════════════════
+  PASSO 3: PEGAR URL DO BACKEND (2 min)
+═══════════════════════════════════════════════════════════
+
+railway status
+
+OU acesse: https://railway.app → Seu projeto → Settings → Domains
+
+Exemplo: https://memodrops-backend-production.up.railway.app
+
+
+═══════════════════════════════════════════════════════════
+  PASSO 4: TESTAR (10 min)
+═══════════════════════════════════════════════════════════
+
+Opção A - Script Automatizado (RECOMENDADO):
+
+cd memodrops-main
+
+.\test-questoes.ps1 -BaseUrl "https://sua-url-railway.up.railway.app"
+
+
+Opção B - Teste Manual:
+
+# Definir URL
+$BASE_URL="https://sua-url-railway.up.railway.app"
+
+# 1. Health check
+curl $BASE_URL/health
+
+# 2. Gerar questão
+curl -X POST "$BASE_URL/ai/questions/generate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "topic": "Regência Verbal",
+    "discipline": "Português",
+    "examBoard": "CESPE",
+    "difficulty": 3,
+    "saveToDatabase": true
+  }'
+
+# 3. Listar questões
+curl "$BASE_URL/questions?limit=5"
+
+# 4. Ver estatísticas
+curl "$BASE_URL/admin/questions/stats"
+
+
+═══════════════════════════════════════════════════════════
+  PASSO 5: VALIDAR (5 min)
+═══════════════════════════════════════════════════════════
+
+Use o checklist:
+
+cd memodrops-main
+notepad CHECKLIST_DEPLOY.md
+
+Marque cada item conforme completa.
+
+
+═══════════════════════════════════════════════════════════
+  ✅ PRONTO!
+═══════════════════════════════════════════════════════════
+
+Se todos os testes passaram:
+
+🎉 SISTEMA DE QUESTÕES DEPLOYADO COM SUCESSO!
+
+Você agora tem:
+  ✓ 14 endpoints REST funcionando
+  ✓ Geração automática com OpenAI
+  ✓ 4 bancas suportadas (CESPE, FCC, FGV, VUNESP)
+  ✓ Análise de qualidade
+  ✓ Batch processing
+  ✓ Busca avançada
+
+
+═══════════════════════════════════════════════════════════
+  🐛 PROBLEMAS?
+═══════════════════════════════════════════════════════════
+
+1. Migration não rodou?
+   → railway run npm run db:migrate
+
+2. OpenAI não responde?
+   → railway variables
+   → Verificar se OPENAI_API_KEY existe
+
+3. Endpoint 404?
+   → Verificar se build completou
+   → railway logs
+
+4. Erro 500?
+   → railway logs --tail 100
+   → Procurar stack trace
+
+
+═══════════════════════════════════════════════════════════
+  📚 DOCUMENTAÇÃO
+═══════════════════════════════════════════════════════════
+
+Guia Completo:      DEPLOY_QUESTOES_AGORA.md
+Testes Detalhados:  TESTE_SISTEMA_QUESTOES.md
+Checklist:          CHECKLIST_DEPLOY.md
+Script de Teste:    test-questoes.ps1
+
+
+═══════════════════════════════════════════════════════════
+  🚀 PRÓXIMOS PASSOS
+═══════════════════════════════════════════════════════════
+
+Após deploy bem-sucedido:
+
+1. Gerar 10-20 questões de teste
+2. Integrar com Frontend
+3. Escolher próximo sistema:
+   - ReccoEngine (lógica)
+   - Simulados (lógica adaptativa)
+   - Frontend Aluno
+   - Workers BullMQ
+
+
+═══════════════════════════════════════════════════════════
+
+Última atualização: Dezembro 2024
+Status: ✅ Pronto para executar!
+
+═══════════════════════════════════════════════════════════

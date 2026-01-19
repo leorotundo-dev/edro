@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Plan &amp; Usage Details</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2c26",
+                        "border-light": "#d0e7e1",
+                        "border-dark": "#2a4038",
+                        "text-main-light": "#0e1b18",
+                        "text-main-dark": "#e8f2f0",
+                        "text-muted-light": "#4e9785",
+                        "text-muted-dark": "#8fb3a9",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(48, 232, 186, 0.1)',
+                        'card': '0 2px 10px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for cleaner look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(78, 151, 133, 0.2);
+            border-radius: 20px;
+        }
+        
+        /* Circular Progress Animation */
+        @keyframes progress-fill {
+            from { stroke-dashoffset: 251.2; }
+        }
+        .progress-circle {
+            animation: progress-fill 1s ease-out forwards;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased text-text-main-light dark:text-text-main-dark transition-colors duration-300">
+<div class="relative min-h-screen w-full flex justify-center">
+<!-- Mobile Container -->
+<div class="w-full max-w-md bg-background-light dark:bg-background-dark flex flex-col relative overflow-hidden shadow-2xl">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-20 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-b border-border-light/30 dark:border-border-dark/30">
+<div class="flex items-center justify-between p-4 h-16">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-text-main-light dark:text-text-main-dark">
+<span class="material-symbols-outlined text-[24px]">arrow_back_ios_new</span>
+</button>
+<h1 class="text-lg font-bold leading-tight tracking-[-0.015em] text-center flex-1 pr-10">Planos e Uso</h1>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto px-5 pb-32 pt-4 flex flex-col gap-6">
+<!-- Usage Summary Section -->
+<section>
+<h2 class="text-xl font-bold mb-4 tracking-tight px-1">Uso de Recursos</h2>
+<!-- Circular Stats Row -->
+<div class="flex gap-4">
+<!-- AI Credits Card -->
+<div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-2xl p-5 border border-border-light dark:border-border-dark shadow-card flex flex-col items-center justify-between gap-3 relative overflow-hidden group">
+<!-- Subtle background glow -->
+<div class="absolute -top-10 -right-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all duration-500"></div>
+<div class="relative size-28">
+<svg class="size-full -rotate-90 transform" viewbox="0 0 100 100">
+<!-- Background Circle -->
+<circle class="text-gray-100 dark:text-gray-800 stroke-current" cx="50" cy="50" fill="transparent" r="40" stroke-width="8"></circle>
+<!-- Progress Circle (85%) -->
+<!-- C = 2 * pi * 40 = 251.2 -->
+<!-- 85% filled => dashoffset = 251.2 * (1 - 0.85) = 37.68 -->
+<circle class="text-primary stroke-current progress-circle" cx="50" cy="50" fill="transparent" r="40" stroke-dasharray="251.2" stroke-linecap="round" stroke-width="8" style="stroke-dashoffset: 37.68;"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[28px]">psychology</span>
+<span class="text-xs font-bold mt-1 text-text-main-light dark:text-text-main-dark">85%</span>
+</div>
+</div>
+<div class="text-center">
+<p class="text-sm font-semibold text-text-muted-light dark:text-text-muted-dark mb-0.5">Créditos AI</p>
+<p class="text-base font-bold text-text-main-light dark:text-text-main-dark">850<span class="text-xs font-medium opacity-60">/1000</span></p>
+</div>
+</div>
+<!-- Storage Card -->
+<div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-2xl p-5 border border-border-light dark:border-border-dark shadow-card flex flex-col items-center justify-between gap-3 relative overflow-hidden group">
+<!-- Subtle background glow -->
+<div class="absolute -top-10 -right-10 w-24 h-24 bg-blue-400/10 rounded-full blur-2xl group-hover:bg-blue-400/20 transition-all duration-500"></div>
+<div class="relative size-28">
+<svg class="size-full -rotate-90 transform" viewbox="0 0 100 100">
+<circle class="text-gray-100 dark:text-gray-800 stroke-current" cx="50" cy="50" fill="transparent" r="40" stroke-width="8"></circle>
+<!-- 24% filled => dashoffset = 251.2 * (1 - 0.24) = 190.9 -->
+<circle class="text-blue-400 stroke-current progress-circle" cx="50" cy="50" fill="transparent" r="40" stroke-dasharray="251.2" stroke-linecap="round" stroke-width="8" style="stroke-dashoffset: 190.9;"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center text-blue-400">
+<span class="material-symbols-outlined text-[28px]">cloud</span>
+<span class="text-xs font-bold mt-1 text-text-main-light dark:text-text-main-dark">24%</span>
+</div>
+</div>
+<div class="text-center">
+<p class="text-sm font-semibold text-text-muted-light dark:text-text-muted-dark mb-0.5">Armazenamento</p>
+<p class="text-base font-bold text-text-main-light dark:text-text-main-dark">1.2GB<span class="text-xs font-medium opacity-60">/5GB</span></p>
+</div>
+</div>
+</div>
+</section>
+<!-- Current Plan Section -->
+<section class="flex flex-col gap-4">
+<div class="flex items-center justify-between px-1">
+<h2 class="text-xl font-bold tracking-tight">Plano Atual</h2>
+<span class="inline-flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-0.5 text-xs font-bold text-teal-800 dark:text-teal-100">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+</span>
+                            ATIVO
+                        </span>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-6 border border-primary/30 shadow-soft relative overflow-hidden">
+<!-- Decorative Header Strip -->
+<div class="absolute top-0 left-0 right-0 h-1.5 bg-primary"></div>
+<div class="mt-2 flex flex-col gap-6">
+<!-- Plan Header -->
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-2xl font-bold text-text-main-light dark:text-text-main-dark mb-1">Estudante Pro</h3>
+<p class="text-sm text-text-muted-light dark:text-text-muted-dark">Próxima renovação: 24 Out</p>
+</div>
+<div class="text-right">
+<p class="text-2xl font-bold tracking-tight">R$ 19,90</p>
+<p class="text-xs text-text-muted-light dark:text-text-muted-dark">/ mês</p>
+</div>
+</div>
+<hr class="border-border-light dark:border-border-dark border-dashed"/>
+<!-- Feature List -->
+<ul class="space-y-3">
+<li class="flex items-start gap-3 text-sm font-medium text-text-main-light dark:text-text-main-dark/90">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0">check_circle</span>
+<span>Acesso ilimitado a Flashcards &amp; Resumos</span>
+</li>
+<li class="flex items-start gap-3 text-sm font-medium text-text-main-light dark:text-text-main-dark/90">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0">check_circle</span>
+<span>1000 Créditos AI mensais para assistente</span>
+</li>
+<li class="flex items-start gap-3 text-sm font-medium text-text-main-light dark:text-text-main-dark/90">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0">check_circle</span>
+<span>5GB de Armazenamento Cloud seguro</span>
+</li>
+<li class="flex items-start gap-3 text-sm font-medium text-text-main-light dark:text-text-main-dark/90">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0">check_circle</span>
+<span>Modo offline e sem anúncios</span>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- Quick Links -->
+<section class="space-y-2">
+<button class="w-full flex items-center justify-between p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center text-text-muted-light dark:text-text-muted-dark group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+<span class="text-sm font-semibold">Histórico de Cobrança</span>
+</div>
+<span class="material-symbols-outlined text-gray-400 text-[20px]">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center text-text-muted-light dark:text-text-muted-dark group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">settings_account_box</span>
+</div>
+<span class="text-sm font-semibold">Gerenciar Assinatura Apple</span>
+</div>
+<span class="material-symbols-outlined text-gray-400 text-[20px]">open_in_new</span>
+</button>
+</section>
+</main>
+<!-- Bottom Sticky CTA -->
+<div class="absolute bottom-0 left-0 w-full p-5 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-t border-border-light dark:border-border-dark z-20">
+<button class="w-full bg-primary hover:bg-[#25d6aa] text-teal-950 text-lg font-bold py-4 px-6 rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
+<span>Alterar Plano</span>
+<span class="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+<div class="mt-3 text-center">
+<a class="text-xs font-medium text-text-muted-light dark:text-text-muted-dark hover:text-primary transition-colors" href="#">Precisa de ajuda? Fale com o Suporte</a>
+</div>
+</div>
+</div>
+</div>
+</body></html>

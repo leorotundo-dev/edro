@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops - Practice Question</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b692",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "text-main": "#0e1b18",
+                        "text-subtle": "#4e9785",
+                        "accent-blue": "#dbeafe",
+                        "accent-blue-border": "#93c5fd",
+                        "accent-blue-text": "#1e40af",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        /* Custom scrollbar hide for cleaner mobile feel */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-text-main dark:text-white h-screen flex flex-col overflow-hidden">
+<!-- Header -->
+<header class="flex items-center justify-between p-4 bg-background-light dark:bg-background-dark shrink-0">
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-text-main dark:text-white">
+<span class="material-symbols-outlined" style="font-size: 24px;">close</span>
+</button>
+<h1 class="text-base font-bold text-center flex-1 truncate px-2 text-text-main dark:text-white">
+            Prática: Direito Constitucional
+        </h1>
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-text-main dark:text-white">
+<span class="material-symbols-outlined" style="font-size: 24px;">bookmark_border</span>
+</button>
+</header>
+<!-- Scrollable Content Area -->
+<main class="flex-1 overflow-y-auto no-scrollbar pb-24 px-4">
+<!-- Progress Bar -->
+<div class="flex flex-col gap-2 pt-2 pb-6">
+<div class="flex justify-between items-end">
+<span class="text-sm font-medium text-text-subtle dark:text-gray-400">Progresso</span>
+<span class="text-sm font-bold text-text-main dark:text-white">2 de 10</span>
+</div>
+<div class="w-full h-2 bg-[#d0e7e1] dark:bg-gray-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500 ease-out" style="width: 20%;"></div>
+</div>
+</div>
+<!-- Question Stem -->
+<section class="mb-6">
+<h2 class="text-xl md:text-2xl font-bold leading-snug text-text-main dark:text-white">
+                Qual dos seguintes direitos é considerado cláusula pétrea na Constituição Federal de 1988?
+            </h2>
+</section>
+<!-- Pegadinha da Banca Box -->
+<section class="mb-6">
+<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex gap-3 shadow-sm">
+<div class="shrink-0 pt-0.5">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400">lightbulb</span>
+</div>
+<div class="flex flex-col gap-1">
+<h3 class="font-bold text-sm text-blue-800 dark:text-blue-300">Pegadinha da Banca</h3>
+<p class="text-sm text-blue-700 dark:text-blue-200 leading-relaxed">
+                        Cuidado! A banca costuma confundir direitos sociais com individuais aqui. Lembre-se do artigo 60, § 4º.
+                    </p>
+</div>
+</div>
+</section>
+<!-- Answer Options -->
+<section class="flex flex-col gap-3 mb-6" role="radiogroup">
+<!-- Option 1: Selected State Example -->
+<label class="relative flex items-center gap-4 rounded-xl border-2 border-primary bg-primary/5 dark:bg-primary/10 p-4 cursor-pointer transition-all active:scale-[0.99]">
+<input checked="" class="peer sr-only" name="question_option" type="radio"/>
+<div class="flex items-center justify-center w-6 h-6 rounded-full border-2 border-primary bg-primary text-white shrink-0">
+<div class="w-2.5 h-2.5 bg-white rounded-full"></div>
+</div>
+<div class="flex flex-col grow">
+<span class="text-base font-medium text-text-main dark:text-white">Direito à vida</span>
+</div>
+</label>
+<!-- Option 2: Default State -->
+<label class="relative flex items-center gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-all active:scale-[0.99]">
+<input class="peer sr-only" name="question_option" type="radio"/>
+<div class="flex items-center justify-center w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary peer-checked:bg-primary text-transparent shrink-0">
+<div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+</div>
+<div class="flex flex-col grow">
+<span class="text-base font-medium text-text-main dark:text-white">Direito à greve</span>
+</div>
+</label>
+<!-- Option 3: Default State -->
+<label class="relative flex items-center gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-all active:scale-[0.99]">
+<input class="peer sr-only" name="question_option" type="radio"/>
+<div class="flex items-center justify-center w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary peer-checked:bg-primary text-transparent shrink-0">
+<div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+</div>
+<div class="flex flex-col grow">
+<span class="text-base font-medium text-text-main dark:text-white">Direito à propriedade nos moldes civis</span>
+</div>
+</label>
+<!-- Option 4: Default State -->
+<label class="relative flex items-center gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-all active:scale-[0.99]">
+<input class="peer sr-only" name="question_option" type="radio"/>
+<div class="flex items-center justify-center w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary peer-checked:bg-primary text-transparent shrink-0">
+<div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+</div>
+<div class="flex flex-col grow">
+<span class="text-base font-medium text-text-main dark:text-white">Todos os direitos sociais</span>
+</div>
+</label>
+</section>
+<!-- Explanation Toggle -->
+<div class="mb-10">
+<details class="group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+<summary class="flex justify-between items-center p-4 cursor-pointer list-none select-none text-text-main dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-text-subtle dark:text-gray-400">help_outline</span>
+                        Ver Explicação
+                    </span>
+<span class="material-symbols-outlined transition-transform duration-300 group-open:rotate-180">expand_more</span>
+</summary>
+<div class="px-4 pb-4 pt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed border-t border-gray-100 dark:border-gray-700">
+<p class="mb-2"><strong class="text-primary dark:text-primary">Resposta Correta.</strong> O artigo 60, § 4º, IV, da CF/88 estabelece que não será objeto de deliberação a proposta de emenda tendente a abolir os direitos e garantias individuais.</p>
+<p>O STF entende que o direito à vida, como corolário máximo da dignidade da pessoa humana, é protegido como cláusula pétrea.</p>
+</div>
+</details>
+</div>
+</main>
+<!-- Sticky Footer CTA -->
+<footer class="fixed bottom-0 left-0 w-full bg-white/90 dark:bg-background-dark/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+<button class="w-full h-14 bg-primary hover:bg-primary-dark text-text-main font-bold text-lg rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+            Próxima
+            <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</footer>
+</body></html>

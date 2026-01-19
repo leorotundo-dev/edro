@@ -1,0 +1,377 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                      SISTEMA DE JOBS - DIAGRAMA VISUAL                        ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           FASE 1: PREPARAÇÃO                                  │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    📦 PROJETO                     🗄️ RAILWAY
+    ┌─────────────┐               ┌─────────────┐
+    │             │               │             │
+    │  Migrações  │──────────────▶│  PostgreSQL │
+    │    SQL      │   Executar    │             │
+    │             │               │             │
+    └─────────────┘               └─────────────┘
+          │                              │
+          │                              │
+          ▼                              ▼
+    ┌─────────────┐               ┌─────────────┐
+    │   5 Tabelas │               │   Backend   │
+    │   Criadas   │               │  Reiniciar  │
+    └─────────────┘               └─────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           FASE 2: TABELAS                                     │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                         TABELA: jobs                            │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ id | name | type | status | priority | data | result | error   │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ UUID │ Text │ Text │ pending│ 5       │ JSON │ JSON   │ Text   │
+    └─────────────────────────────────────────────────────────────────┘
+              │
+              ├──▶ Status: pending, running, completed, failed
+              ├──▶ Priority: 1-10 (10 = mais urgente)
+              └──▶ Retry automático se attempts < max_attempts
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                     TABELA: job_schedules                       │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ id | name | type | schedule | enabled | last_run | next_run    │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ UUID │ Text │ Text │ 0 3 * * *│ true   │ TIMESTAMP│ TIMESTAMP  │
+    └─────────────────────────────────────────────────────────────────┘
+              │
+              ├──▶ Schedule: Expressão cron
+              ├──▶ Enabled: Ativo/Inativo
+              └──▶ Cria jobs automaticamente
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                       TABELA: job_logs                          │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ id | job_id | level | message | data | timestamp               │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ UUID│ UUID  │ info  │ Text    │ JSON │ TIMESTAMP               │
+    └─────────────────────────────────────────────────────────────────┘
+              │
+              └──▶ Level: info, warn, error
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                        FASE 3: FLUXO DE EXECUÇÃO                              │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    ⏰ CRON SERVICE (a cada 1 minuto)
+    ┌─────────────────────────────────┐
+    │ Verificar job_schedules         │
+    │   WHERE enabled = true          │
+    │   AND next_run <= NOW()         │
+    └────────────┬────────────────────┘
+                 │
+                 ▼
+    ┌─────────────────────────────────┐
+    │ Criar job na tabela jobs        │
+    │   status = 'pending'            │
+    └────────────┬────────────────────┘
+                 │
+                 ▼
+    🔄 JOB WORKER (loop contínuo)
+    ┌─────────────────────────────────┐
+    │ Buscar próximo job:             │
+    │   SELECT * FROM jobs            │
+    │   WHERE status = 'pending'      │
+    │   ORDER BY priority DESC        │
+    │   LIMIT 1                       │
+    │   FOR UPDATE SKIP LOCKED        │
+    └────────────┬────────────────────┘
+                 │
+                 ▼
+    ┌─────────────────────────────────┐
+    │ Atualizar:                      │
+    │   status = 'running'            │
+    │   started_at = NOW()            │
+    │   attempts = attempts + 1       │
+    └────────────┬────────────────────┘
+                 │
+                 ▼
+    ┌─────────────────────────────────┐
+    │ Executar job handler:           │
+    │   - harvest                     │
+    │   - generate_embeddings         │
+    │   - generate_drops              │
+    │   - etc                         │
+    └────────────┬────────────────────┘
+                 │
+                 ├──▶ ✅ SUCESSO
+                 │    │
+                 │    ▼
+                 │    ┌─────────────────────────────┐
+                 │    │ status = 'completed'        │
+                 │    │ result = {...}              │
+                 │    │ completed_at = NOW()        │
+                 │    └─────────────────────────────┘
+                 │
+                 └──▶ ❌ FALHA
+                      │
+                      ▼
+                      ┌─────────────────────────────┐
+                      │ SE attempts < max_attempts: │
+                      │   status = 'pending'        │
+                      │   scheduled_for = +5min     │
+                      │ SENÃO:                      │
+                      │   status = 'failed'         │
+                      │   error = {...}             │
+                      │   completed_at = NOW()      │
+                      └─────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                          FASE 4: TIPOS DE JOBS                                │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    📥 HARVEST
+    ┌─────────────────────┐
+    │ Buscar conteúdo     │
+    │ externo             │
+    │                     │
+    │ Input:              │
+    │   sourceId          │
+    │   limit             │
+    │                     │
+    │ Output:             │
+    │   conteúdo coletado │
+    └─────────────────────┘
+
+    🧠 GENERATE_EMBEDDINGS
+    ┌─────────────────────┐
+    │ Gerar embeddings    │
+    │ para RAG            │
+    │                     │
+    │ Input:              │
+    │   -                 │
+    │                     │
+    │ Output:             │
+    │   embeddings        │
+    └─────────────────────┘
+
+    💡 GENERATE_DROPS
+    ┌─────────────────────┐
+    │ Gerar drops com IA  │
+    │                     │
+    │ Input:              │
+    │   topico            │
+    │   subtopico         │
+    │   banca             │
+    │   dificuldade       │
+    │                     │
+    │ Output:             │
+    │   novo drop         │
+    └─────────────────────┘
+
+    ❓ GENERATE_QUESTIONS
+    ┌─────────────────────┐
+    │ Gerar questões      │
+    │                     │
+    │ Input:              │
+    │   topico            │
+    │   subtopico         │
+    │   quantidade        │
+    │                     │
+    │ Output:             │
+    │   questões          │
+    └─────────────────────┘
+
+    🧹 CLEANUP
+    ┌─────────────────────┐
+    │ Limpar dados        │
+    │ antigos             │
+    │                     │
+    │ Input:              │
+    │   -                 │
+    │                     │
+    │ Output:             │
+    │   registros limpos  │
+    └─────────────────────┘
+
+    📊 UPDATE_STATS
+    ┌─────────────────────┐
+    │ Atualizar           │
+    │ estatísticas        │
+    │                     │
+    │ Input:              │
+    │   -                 │
+    │                     │
+    │ Output:             │
+    │   stats atualizadas │
+    └─────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                       FASE 5: JOBS AGENDADOS PADRÃO                           │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    ⏰ Daily Cleanup (3h)
+    ┌─────────────────────────────────────────────────┐
+    │ Cron: 0 3 * * *                                 │
+    │ Tipo: cleanup                                   │
+    │ Status: ✅ ATIVO                                │
+    │                                                 │
+    │ Executa às 3h da manhã todos os dias           │
+    │ Remove jobs antigos e tokens expirados          │
+    └─────────────────────────────────────────────────┘
+
+    ⏰ Daily Harvest (2h)
+    ┌─────────────────────────────────────────────────┐
+    │ Cron: 0 2 * * *                                 │
+    │ Tipo: harvest                                   │
+    │ Status: ✅ ATIVO                                │
+    │                                                 │
+    │ Executa às 2h da manhã todos os dias           │
+    │ Busca até 20 novos conteúdos                   │
+    └─────────────────────────────────────────────────┘
+
+    ⏰ Weekly Stats Update (domingo 4h)
+    ┌─────────────────────────────────────────────────┐
+    │ Cron: 0 4 * * 0                                 │
+    │ Tipo: update_stats                              │
+    │ Status: ✅ ATIVO                                │
+    │                                                 │
+    │ Executa aos domingos às 4h                      │
+    │ Atualiza todas as estatísticas do sistema      │
+    └─────────────────────────────────────────────────┘
+
+    ⏰ Weekly Embedding Generation (sábado 1h)
+    ┌─────────────────────────────────────────────────┐
+    │ Cron: 0 1 * * 6                                 │
+    │ Tipo: generate_embeddings                       │
+    │ Status: ❌ INATIVO                              │
+    │                                                 │
+    │ Executa aos sábados à 1h (quando ativado)      │
+    │ Gera embeddings para novo conteúdo             │
+    └─────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           FASE 6: MONITORAMENTO                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    📊 DASHBOARD
+    ┌─────────────────────────────────────────────────┐
+    │                                                 │
+    │  Total:      100 jobs                           │
+    │  Pending:     5 jobs  ⏳                        │
+    │  Running:     1 job   🔄                        │
+    │  Completed:  90 jobs  ✅                        │
+    │  Failed:      4 jobs  ❌                        │
+    │                                                 │
+    │  Avg Duration: 1.2s                             │
+    │  Success Rate: 95%                              │
+    │                                                 │
+    └─────────────────────────────────────────────────┘
+
+    📝 LOGS
+    ┌─────────────────────────────────────────────────┐
+    │ 2025-01-15 14:30:45 | INFO  | Job started      │
+    │ 2025-01-15 14:30:46 | INFO  | Processing...    │
+    │ 2025-01-15 14:30:47 | INFO  | Job completed    │
+    │ 2025-01-15 14:31:00 | INFO  | Job started      │
+    │ 2025-01-15 14:31:02 | ERROR | Job failed!      │
+    └─────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                            FASE 7: API ENDPOINTS                              │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    GET  /api/admin/jobs/stats
+         └──▶ Estatísticas gerais
+
+    GET  /api/admin/jobs
+         └──▶ Listar todos os jobs
+
+    GET  /api/admin/jobs/:id
+         └──▶ Ver job específico
+
+    POST /api/admin/jobs
+         └──▶ Criar novo job
+
+    POST /api/admin/jobs/:id/execute
+         └──▶ Executar job manualmente
+
+    POST /api/admin/jobs/:id/cancel
+         └──▶ Cancelar job
+
+    GET  /api/admin/jobs/schedules
+         └──▶ Listar jobs agendados
+
+    PATCH /api/admin/jobs/schedules/:id
+          └──▶ Atualizar schedule
+
+    GET  /api/admin/jobs/:id/logs
+         └──▶ Ver logs do job
+
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                          FASE 8: CICLO DE VIDA                                │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+    CRIAÇÃO                    EXECUÇÃO                   CONCLUSÃO
+    ┌──────────┐              ┌──────────┐              ┌──────────┐
+    │          │              │          │              │          │
+    │ pending  │──────────▶   │ running  │──────────▶   │completed │
+    │          │   Worker     │          │   Success    │          │
+    └──────────┘   inicia     └──────────┘              └──────────┘
+         │                          │
+         │                          │ Failure
+         │                          ▼
+         │                    ┌──────────┐
+         │                    │          │
+         └────────────────────│  failed  │
+           Retry automático   │          │
+           (se attempts < max)└──────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                               RESUMO FINAL                                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+✅ 5 TABELAS:
+   - jobs (fila de execução)
+   - job_schedules (agendamento)
+   - job_logs (logs)
+   - harvest_sources (fontes)
+   - harvested_content (conteúdo)
+
+✅ 4 JOBS AGENDADOS:
+   - Daily Cleanup (3h)
+   - Daily Harvest (2h)
+   - Weekly Stats (domingo 4h)
+   - Weekly Embeddings (sábado 1h - inativo)
+
+✅ 6 TIPOS DE JOBS:
+   - harvest
+   - generate_embeddings
+   - generate_drops
+   - generate_questions
+   - cleanup
+   - update_stats
+
+✅ 9 ENDPOINTS:
+   - stats, list, get, create, execute
+   - cancel, schedules, update, logs
+
+✅ RECURSOS:
+   - Retry automático
+   - Priorização
+   - Agendamento cron
+   - Logs detalhados
+   - Transações SQL
+   - Performance otimizada
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          🚀 PRONTO PARA USAR!                                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝

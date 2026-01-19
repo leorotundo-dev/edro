@@ -1,0 +1,130 @@
+=========================================
+🔧 VARIÁVEIS RAILWAY - MEMODROPS BACKEND
+=========================================
+Gerado em: 2024-12-05
+
+⚠️  COPIE E COLE AS VARIÁVEIS ABAIXO NO RAILWAY
+
+=========================================
+📋 OBRIGATÓRIAS (Configure TODAS)
+=========================================
+
+DATABASE_URL
+${{Postgres.DATABASE_URL}}
+
+JWT_SECRET
+c2ed9213c1384ef0a72d9762c2715c148a6102df
+
+PORT
+8080
+
+NODE_ENV
+production
+
+=========================================
+✨ RECOMENDADAS (Configure se possível)
+=========================================
+
+ALLOWED_ORIGINS
+https://memodrops-dashboard-1bj6g09lt-memo-drops.vercel.app,https://memodrops-dashboard-*.vercel.app,http://localhost:3000,http://localhost:3001
+
+OPENAI_BASE_URL
+https://api.openai.com/v1
+
+OPENAI_MODEL
+gpt-4o-mini
+
+=========================================
+🔑 OPCIONAIS (Configure depois)
+=========================================
+
+OPENAI_API_KEY
+(Sua chave da OpenAI se tiver)
+
+REDIS_URL
+(Se quiser habilitar workers com Redis)
+
+ENABLE_WORKERS
+true
+
+SENTRY_DSN
+(Se quiser monitoramento de erros)
+
+=========================================
+📝 INSTRUÇÕES
+=========================================
+
+1. Acesse: https://railway.app/dashboard
+
+2. Abra o projeto MemoDrops
+
+3. Se NÃO tiver PostgreSQL:
+   - Clique "+ New"
+   - Selecione "Database" → "PostgreSQL"
+   - Aguarde 2 minutos
+
+4. Clique no serviço "backend"
+
+5. Vá na aba "Variables"
+
+6. Clique "+ New Variable"
+
+7. Adicione cada variável:
+   - Cole o "Key" (nome da variável)
+   - Cole o "Value" (valor correspondente)
+   - Clique "Add"
+
+8. Aguarde o redeploy automático (~2 min)
+
+9. Verifique os logs:
+   - Aba "Deployments"
+   - Último deploy
+   - "View Logs"
+   - Procure: "Server listening at http://0.0.0.0:8080"
+
+=========================================
+✅ CHECKLIST
+=========================================
+
+[ ] PostgreSQL criado no Railway
+[ ] DATABASE_URL = ${{Postgres.DATABASE_URL}}
+[ ] JWT_SECRET = c2ed9213c1384ef0a72d9762c2715c148a6102df
+[ ] PORT = 8080
+[ ] NODE_ENV = production
+[ ] ALLOWED_ORIGINS configurado
+[ ] Redeploy concluído sem erros
+[ ] Logs mostram "Server listening"
+[ ] Sem erro "getaddrinfo ENOTFOUND host"
+
+=========================================
+🚨 SOLUÇÃO DE PROBLEMAS
+=========================================
+
+ERRO: "getaddrinfo ENOTFOUND host"
+→ DATABASE_URL não configurada
+→ Use: ${{Postgres.DATABASE_URL}} (com chaves duplas)
+
+ERRO: "relation users does not exist"
+→ Migrations não executaram
+→ Execute: railway run npm run migrate
+
+ERRO: "Invalid JWT_SECRET"
+→ JWT_SECRET muito curto
+→ Use o gerado acima (40 caracteres)
+
+=========================================
+📖 DOCUMENTAÇÃO COMPLETA
+=========================================
+
+Consulte estes arquivos para mais detalhes:
+- RAILWAY-SETUP-RAPIDO.md
+- CONFIGURAR_DATABASE.md
+
+=========================================
+🎯 PRÓXIMO PASSO
+=========================================
+
+Após configurar tudo, cole os logs aqui
+para verificarmos se está tudo OK! 🚀
+
+=========================================

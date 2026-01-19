@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops - Empty State</title>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+            extend: {
+                colors: {
+                "primary": "#30e8ba",
+                "background-light": "#f6f8f7",
+                "background-dark": "#11211d",
+                "surface-light": "#ffffff",
+                "surface-dark": "#1a2c28",
+                },
+                fontFamily: {
+                "display": ["Plus Jakarta Sans", "sans-serif"]
+                },
+                borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                boxShadow: {
+                    "soft": "0 10px 40px -10px rgba(48, 232, 186, 0.2)",
+                    "card": "0 4px 20px -2px rgba(0, 0, 0, 0.05)"
+                }
+            },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings:
+            'FILL' 1,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+        
+        /* Subtle lilac/blue gradient background accent */
+        .bg-gradient-soft {
+            background: radial-gradient(circle at 50% 30%, rgba(200, 210, 255, 0.4) 0%, rgba(246, 248, 247, 0) 70%);
+        }
+        .dark .bg-gradient-soft {
+            background: radial-gradient(circle at 50% 30%, rgba(48, 232, 186, 0.1) 0%, rgba(17, 33, 29, 0) 70%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-800 dark:text-slate-100 transition-colors duration-200">
+<div class="relative flex h-screen w-full flex-col overflow-hidden bg-background-light dark:bg-background-dark">
+<!-- Decorative Background Blob -->
+<div class="absolute top-0 left-0 w-full h-full bg-gradient-soft pointer-events-none z-0"></div>
+<!-- Top App Bar -->
+<header class="relative z-10 flex items-center p-4 pt-6 justify-between shrink-0">
+<div class="flex items-center gap-3">
+<div class="relative flex shrink-0 items-center justify-center">
+<!-- Avatar -->
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 border-2 border-white dark:border-surface-dark shadow-sm" data-alt="User profile avatar showing a smiling person" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDiNPSeXrKtfNZZNlxLEXBVJpoVHqaBo-YR-aXE22AJ6AVpU0hb_7z9wx4H9xbKfK3CiwokVS3h2vpFkqIufQNLhzYi6swT9kRq8497hka3t61JE3zNIvOWXYOj-vA11mXUe9pUR0WnGpQbhwlD4kxyTJE6WeQ9RKinqV3thkZgesyyUFW45q50-xGlj93oe_Q8zhJTzkJ3kxImRAY5juee5UmmyveG3kP2-_VKJOj1zfnp8OLTkOm3KlKQm2IxWVzfkK0flKQsMGE");'>
+</div>
+</div>
+<h1 class="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">MemoDrops</h1>
+</div>
+<button class="flex items-center justify-center rounded-full size-10 bg-white/50 dark:bg-surface-dark/50 backdrop-blur-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-surface-dark transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</header>
+<!-- Main Content: Empty State -->
+<main class="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-6 w-full max-w-md mx-auto">
+<!-- Card Container -->
+<div class="w-full flex flex-col items-center bg-surface-light/60 dark:bg-surface-dark/60 backdrop-blur-md rounded-[2rem] p-8 shadow-card border border-white/50 dark:border-white/5">
+<!-- Illustration -->
+<div class="w-full max-w-[280px] aspect-square mb-6 rounded-2xl overflow-hidden relative">
+<!-- Abstract representation of the illustration described -->
+<div class="w-full h-full bg-indigo-50 dark:bg-slate-800 flex items-center justify-center rounded-2xl" data-alt="Soft minimalist illustration of a closed book resting on a peaceful green hill">
+<img alt="Peaceful landscape abstract" class="w-full h-full object-cover opacity-90 mix-blend-overlay" data-alt="Abstract peaceful landscape with soft lighting representing rest" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQ3vWnIwK_O2c8-6lMKR4kxG6ERcHiy5JrOPKMo0-2rFzwErcKnEGfr3w1tAhKnJw-UBsv8cbVkbtQ2v3bkX8sFR4MzoQeQja7nviod2GksHyZB7xxy-3B_zEfwa6Ktce8uXtsGjWWOCrUqQNojaYurnd_IfX6F9N6oS7pf187jcBRAoAoy0bjsonao6FPxQ1c3f2eX3uMm5KM7F9RCbeMjQ-sTmBl_B4WVxANGkG4seXoUnSfBRo7l_saedxeyTLAEoj6qaTSseU"/>
+<div class="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent dark:from-black/40"></div>
+<!-- Icon Overlay to reinforce meaning if image is abstract -->
+<span class="material-symbols-outlined absolute text-6xl text-primary drop-shadow-lg" style="font-size: 64px;">check_circle</span>
+</div>
+</div>
+<!-- Text Content -->
+<div class="flex flex-col items-center text-center gap-3 mb-8">
+<h2 class="text-slate-900 dark:text-white text-2xl font-extrabold tracking-tight">
+                        Tudo em dia!
+                    </h2>
+<p class="text-slate-600 dark:text-slate-300 text-base font-medium leading-relaxed">
+                        Você completou suas revisões por hoje.
+                    </p>
+<p class="text-slate-400 dark:text-slate-500 text-sm font-normal leading-relaxed max-w-[260px]">
+                        Que tal aproveitar para planejar seu próximo edital?
+                    </p>
+</div>
+<!-- CTA Button -->
+<button class="w-full h-14 bg-primary hover:bg-[#25dba5] active:scale-95 transition-all duration-200 rounded-full flex items-center justify-center gap-2 shadow-soft group">
+<span class="text-green-950 text-base font-bold tracking-wide">Ver meu plano</span>
+<span class="material-symbols-outlined text-green-950 transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+</div>
+</main>
+<!-- Bottom Navigation -->
+<nav class="relative z-20 shrink-0 bg-surface-light dark:bg-surface-dark border-t border-slate-100 dark:border-slate-800 pb-safe pt-2 px-6">
+<div class="flex items-center justify-between h-16 max-w-md mx-auto">
+<!-- Nav Item: Home (Active) -->
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-primary group" href="#">
+<span class="material-symbols-outlined filled">home</span>
+<span class="text-[10px] font-bold tracking-wide">Início</span>
+</a>
+<!-- Nav Item: Plans -->
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors group" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="text-[10px] font-medium tracking-wide">Planos</span>
+</a>
+<!-- Nav Item: Stats -->
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors group" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="text-[10px] font-medium tracking-wide">Estatísticas</span>
+</a>
+<!-- Nav Item: Profile -->
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors group" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium tracking-wide">Perfil</span>
+</a>
+</div>
+<!-- Bottom safe area spacing -->
+<div class="h-4"></div>
+</nav>
+</div>
+</body></html>

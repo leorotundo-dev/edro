@@ -1,0 +1,41 @@
+═══════════════════════════════════════════════════════════
+  🚀 COLE ESTES COMANDOS NO POWERSHELL
+═══════════════════════════════════════════════════════════
+
+PASSO 1: Abrir PowerShell
+  → Pressione Win + X
+  → Clique em "Windows PowerShell" ou "Terminal"
+
+
+PASSO 2: Colar este comando:
+
+cd "D:\WORK\DESIGN ROTUNDO\MEMODROPS\memodrops-main\memodrops-main"
+.\EXECUTAR_TUDO_AUTOMATICO.ps1
+
+
+═══════════════════════════════════════════════════════════
+
+ISSO É TUDO! 
+
+O script vai fazer TUDO sozinho:
+  ✅ Verificar ambiente
+  ✅ Instalar dependências  
+  ✅ Conectar banco
+  ✅ Rodar migrations
+  ✅ Criar dados de teste
+  ✅ Executar testes
+  ✅ Mostrar resultado
+
+Tempo: 2-3 minutos
+
+═══════════════════════════════════════════════════════════
+
+SE DER ERRO DE EXECUÇÃO DE SCRIPT:
+
+Execute este comando ANTES:
+
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
+
+Depois execute o script novamente.
+
+═══════════════════════════════════════════════════════════

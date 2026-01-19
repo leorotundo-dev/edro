@@ -1,0 +1,68 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@edro/ui": [
+        "../../packages/ui",
+        "./vendor/@edro/ui/src"
+      ],
+      "@edro/ui/*": [
+        "../../packages/ui/*",
+        "./vendor/@edro/ui/src/*"
+      ],
+      "@edro/theme": [
+        "../../packages/theme",
+        "./vendor/@edro/theme"
+      ],
+      "@edro/theme/*": [
+        "../../packages/theme/*",
+        "./vendor/@edro/theme/*"
+      ],
+      "@edro/shared": [
+        "../../packages/shared",
+        "./vendor/@edro/shared/src"
+      ],
+      "@edro/shared/*": [
+        "../../packages/shared/*",
+        "./vendor/@edro/shared/src/*"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.jsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

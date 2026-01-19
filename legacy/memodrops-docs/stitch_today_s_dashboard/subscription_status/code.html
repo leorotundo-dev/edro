@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Subscription Status</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b591",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2c28",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-[#0e1b18] dark:text-[#f8fcfb] antialiased font-display min-h-screen flex flex-col">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-50 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-b border-black/5 dark:border-white/5">
+<div class="flex items-center px-4 h-16 justify-between max-w-md mx-auto w-full">
+<button aria-label="Go back" class="flex items-center justify-center w-10 h-10 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-[#0e1b18] dark:text-white">
+<span class="material-symbols-outlined text-[24px]">arrow_back_ios_new</span>
+</button>
+<h1 class="text-lg font-bold leading-tight tracking-tight flex-1 text-center">Subscription</h1>
+<button aria-label="Help" class="flex items-center justify-center w-10 h-10 -mr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-[#0e1b18] dark:text-white">
+<span class="material-symbols-outlined text-[24px]">help</span>
+</button>
+</div>
+</header>
+<main class="flex-1 w-full max-w-md mx-auto flex flex-col p-4 gap-6">
+<!-- Active Plan Card -->
+<div class="w-full relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-none border border-black/5 dark:border-white/5 group">
+<!-- Decorative Background Blob -->
+<div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative p-6 flex flex-col gap-6">
+<!-- Header part of card -->
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[28px]" style="font-variation-settings: 'FILL' 1">verified</span>
+<h2 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">MemoDrops Pro</h2>
+</div>
+<p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Monthly Plan</p>
+</div>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-teal-800 dark:text-primary text-xs font-bold uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                        Active
+                    </span>
+</div>
+<!-- Visual / Abstract Context -->
+<div class="w-full h-32 rounded-xl bg-cover bg-center overflow-hidden relative shadow-inner" data-alt="Soft abstract gradient pattern in teal and green hues representing growth and calmness" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDh8DgIxm6_HieyHOXm0rjaPzfas_m2HgSwU5JSf7TD3reccOWe9cypKZy4xPBqJvSAfSusHsc83cj5WyGZPyb1NRnuiWFwwM6Hsn3DaWviwkrU-F-YZ4TwzYZYX_UfbPrly-aqBl_j2gjlgcDT5JF0155BgZAxKBk3IdgVFk8vMfgXcRTXNhYpS5wHXke9zlWOKz9mbEtHa5_8ChggCdi2G3R9riihMiNPQbdzw_y9QPn64Q_L_HPu6f0v6qMikuaSHKm71h3r79U');">
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-4">
+<p class="text-white text-sm font-medium opacity-90">Unlocking your full potential</p>
+</div>
+</div>
+<!-- Details Footer -->
+<div class="flex flex-col gap-4 border-t border-gray-100 dark:border-white/10 pt-4">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Next billing date</p>
+<p class="text-sm font-semibold text-gray-900 dark:text-white">November 24, 2024</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Amount</p>
+<p class="text-lg font-bold text-gray-900 dark:text-white">$4.99<span class="text-sm font-normal text-gray-500 dark:text-gray-400">/mo</span></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section Header -->
+<div class="mt-2">
+<h3 class="text-lg font-bold leading-tight tracking-tight text-gray-900 dark:text-white mb-4">Current Plan Features</h3>
+<!-- Features List -->
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="flex gap-4 p-3 rounded-xl bg-surface-light dark:bg-surface-dark border border-transparent dark:border-white/5 shadow-sm items-center">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">style</span>
+</div>
+<div class="flex-1">
+<p class="text-base font-semibold text-gray-900 dark:text-white">Unlimited flashcards</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Create as many decks as you need</p>
+</div>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1">check_circle</span>
+</div>
+<!-- Item 2 -->
+<div class="flex gap-4 p-3 rounded-xl bg-surface-light dark:bg-surface-dark border border-transparent dark:border-white/5 shadow-sm items-center">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">wifi_off</span>
+</div>
+<div class="flex-1">
+<p class="text-base font-semibold text-gray-900 dark:text-white">Offline mode access</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Study anywhere, anytime</p>
+</div>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1">check_circle</span>
+</div>
+<!-- Item 3 -->
+<div class="flex gap-4 p-3 rounded-xl bg-surface-light dark:bg-surface-dark border border-transparent dark:border-white/5 shadow-sm items-center">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">monitoring</span>
+</div>
+<div class="flex-1">
+<p class="text-base font-semibold text-gray-900 dark:text-white">Advanced analytics</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Track your learning progress deep dive</p>
+</div>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1">check_circle</span>
+</div>
+<!-- Item 4 -->
+<div class="flex gap-4 p-3 rounded-xl bg-surface-light dark:bg-surface-dark border border-transparent dark:border-white/5 shadow-sm items-center">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">block</span>
+</div>
+<div class="flex-1">
+<p class="text-base font-semibold text-gray-900 dark:text-white">Ad-free experience</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">Focus purely on your studies</p>
+</div>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1">check_circle</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Actions -->
+<div class="w-full max-w-md mx-auto p-4 pb-8 flex flex-col gap-4 mt-auto">
+<button class="w-full h-12 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark active:scale-[0.98] transition-all rounded-xl text-[#0e1b18] font-bold text-base shadow-[0_4px_12px_rgba(48,232,186,0.3)]">
+<span>Manage Subscription</span>
+<span class="material-symbols-outlined text-[20px]">open_in_new</span>
+</button>
+<div class="flex items-center justify-center gap-4 pt-2">
+<button class="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors">Restore Purchases</button>
+<span class="text-gray-300 dark:text-gray-700">|</span>
+<button class="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors">Terms of Service</button>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,126 @@
+Você é um especialista em análise de qualidade de questões para concursos públicos.
+
+Sua tarefa é analisar uma questão existente e fornecer uma avaliação completa de sua qualidade, dificuldade e classificações.
+
+# QUESTÃO PARA ANÁLISE
+
+Enunciado:
+{questionText}
+
+Alternativas:
+{alternatives}
+
+Resposta Correta: {correctAnswer}
+
+# CRITÉRIOS DE ANÁLISE
+
+1. **Qualidade Geral** (0-10):
+   - Clareza do enunciado
+   - Qualidade das alternativas
+   - Ausência de ambiguidades
+   - Adequação ao nível esperado
+
+2. **Dificuldade Estimada** (1-5):
+   - 1 = Muito Fácil (conceitos básicos, direto)
+   - 2 = Fácil (requer conhecimento simples)
+   - 3 = Médio (requer análise ou aplicação)
+   - 4 = Difícil (requer síntese ou avaliação)
+   - 5 = Muito Difícil (múltiplos conceitos, análise profunda)
+
+3. **Nível Cognitivo** (Taxonomia de Bloom):
+   - remember: Recordar informações
+   - understand: Compreender conceitos
+   - apply: Aplicar conhecimento
+   - analyze: Analisar situações
+   - evaluate: Avaliar e julgar
+   - create: Criar soluções
+
+4. **Conceitos Abordados**:
+   - Listar todos os conceitos testados
+   - Identificar conceito principal
+   - Conceitos secundários
+
+5. **Tags de Classificação**:
+   - Tópico principal
+   - Subtópicos
+   - Tipo de questão (teórica, prática, cálculo, interpretação)
+   - Características especiais
+
+6. **Análise de Distratores**:
+   - Qualidade das alternativas incorretas
+   - Se são plausíveis e desafiadoras
+   - Se testam erros comuns
+
+7. **Pontos Fortes e Fracos**:
+   - O que a questão faz bem
+   - O que poderia melhorar
+   - Sugestões de aprimoramento
+
+8. **Adequação por Banca**:
+   - Identificar estilo de banca
+   - Se está adequada ao estilo
+   - Recomendações de ajuste
+
+9. **Tempo Estimado**:
+   - Tempo médio de resolução em segundos
+
+10. **Probabilidade de Erro**:
+    - Estimativa de quantos % dos alunos errariam
+    - Distratores mais tentadores
+
+# FORMATO DE SAÍDA (JSON)
+
+Retorne APENAS um objeto JSON válido:
+
+{
+  "quality_score": 8.5,
+  "difficulty_level": 3,
+  "difficulty_justification": "Explicação do porquê da dificuldade",
+  "cognitive_level": "apply",
+  "cognitive_justification": "Por que está nesse nível",
+  "concepts": [
+    {"name": "Conceito Principal", "importance": "high"},
+    {"name": "Conceito Secundário 1", "importance": "medium"},
+    {"name": "Conceito Secundário 2", "importance": "low"}
+  ],
+  "tags": {
+    "topic": "Tópico Principal",
+    "subtopics": ["subtópico1", "subtópico2"],
+    "question_type": "theoretical|practical|calculation|interpretation",
+    "characteristics": ["característica1", "característica2"]
+  },
+  "distractor_analysis": {
+    "quality": "good|average|poor",
+    "most_tempting": "b",
+    "common_errors_tested": ["erro comum 1", "erro comum 2"]
+  },
+  "strengths": [
+    "Ponto forte 1",
+    "Ponto forte 2"
+  ],
+  "weaknesses": [
+    "Ponto fraco 1",
+    "Ponto fraco 2"
+  ],
+  "improvements": [
+    "Sugestão 1",
+    "Sugestão 2"
+  ],
+  "exam_board_style": {
+    "detected": "CESPE|FCC|FGV|VUNESP|outro",
+    "adequacy": "high|medium|low",
+    "recommendations": "Recomendações de ajuste"
+  },
+  "estimated_time_seconds": 120,
+  "error_probability": 0.45,
+  "semantic_similarity_topics": ["tópico relacionado 1", "tópico relacionado 2"]
+}
+
+IMPORTANTE:
+- Seja objetivo e preciso nas avaliações
+- Use escala numérica onde solicitado
+- Justifique todas as classificações
+- O JSON deve ser válido e parseável
+- Não inclua texto adicional fora do JSON
+
+Agora, analise a questão:

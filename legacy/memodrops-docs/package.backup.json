@@ -1,0 +1,16 @@
+{
+  "name": "memodrops",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:web": "npm run dev --workspace web",
+    "dev": "npm run dev:backend",
+    "build": "npm run build --workspaces",
+    "lint": "echo \"add lint step per app\""
+  }
+}

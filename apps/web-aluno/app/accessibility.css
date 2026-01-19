@@ -1,0 +1,56 @@
+:root[data-accessibility-font='sm'] {
+  font-size: 14px;
+}
+
+:root[data-accessibility-font='md'] {
+  font-size: 16px;
+}
+
+:root[data-accessibility-font='lg'] {
+  font-size: 18px;
+}
+
+:root[data-accessibility-font='xl'] {
+  font-size: 20px;
+}
+
+:root[data-accessibility-contrast='high'] {
+  --bg-main: #ffffff;
+  --bg-card: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #111827;
+  --border-color: #000000;
+  --color-primary: #000000;
+  --color-primary-soft: #ffffff;
+  --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-accessibility-mode='tdah'] {
+  --bg-main: #fefce8;
+  --bg-card: #ffffff;
+}
+
+:root[data-accessibility-mode='dislexia'] {
+  letter-spacing: 0.04em;
+  line-height: 1.7;
+}
+
+:root[data-accessibility-mode='baixa-visao'] {
+  --bg-main: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #111827;
+}
+
+:root[data-accessibility-mode='ansiedade'] {
+  --color-primary: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+}
+
+:root[data-accessibility-motion='reduced'] *,
+:root[data-accessibility-motion='reduced'] *::before,
+:root[data-accessibility-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

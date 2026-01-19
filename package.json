@@ -1,0 +1,37 @@
+{
+  "name": "edro-digital-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @edro/backend",
+    "dev:backend": "npm run dev --workspace @edro/backend",
+    "dev:web": "npm run dev --workspace @edro/web",
+    "dev:ai": "npm run dev --workspace @edro/ai",
+    "build": "npm run build:packages && npm run build:backend && npm run build:web",
+    "build:packages": "npm run build --workspace @edro/theme && npm run build --workspace @edro/shared && npm run build --workspace @edro/ui",
+    "build:backend": "npm run build --workspace @edro/backend",
+    "build:web": "npm run build --workspace @edro/web",
+    "start": "node -e \"require('ts-node/register/transpile-only'); require('./apps/backend/src/index.ts')\"",
+    "start:web": "pnpm --filter @edro/web run start",
+    "lint": "npm run lint --workspace @edro/backend || true && npm run lint --workspace @edro/web || true",
+    "migrate": "npm run migrate --workspace @edro/backend || true"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "node-cron": "^4.2.1",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.16.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

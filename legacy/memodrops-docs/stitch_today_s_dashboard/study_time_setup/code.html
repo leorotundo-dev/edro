@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Study Time Setup</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4ce6bf",
+                        "primary-dark": "#3bc7a3",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2c28",
+                        "text-main": "#0e1b17",
+                        "text-muted": "#6b7c76",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem", 
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(76, 230, 191, 0.1)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Slider Styling for a clean look */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+        }
+
+        input[type=range]:focus {
+            outline: none; 
+        }
+        
+        .slider-track {
+            background: linear-gradient(to right, #4ce6bf 0%, #4ce6bf 50%, #e5e7eb 50%, #e5e7eb 100%);
+        }
+        
+        .dark .slider-track {
+            background: linear-gradient(to right, #4ce6bf 0%, #4ce6bf 50%, #2f453f 50%, #2f453f 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main dark:text-white antialiased transition-colors duration-200">
+<div class="relative flex h-screen w-full max-w-md mx-auto flex-col overflow-hidden bg-background-light dark:bg-background-dark shadow-2xl">
+<!-- Top Navigation & Progress -->
+<div class="flex flex-col w-full pt-6 pb-2 px-6 z-10">
+<div class="flex items-center justify-between mb-6">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-2xl text-text-main dark:text-white">arrow_back</span>
+</button>
+<div class="text-sm font-medium text-text-muted dark:text-gray-400">Personalização</div>
+<div class="w-10"></div> <!-- Spacer for visual balance -->
+</div>
+<!-- Page Indicators (10 steps) -->
+<div class="flex w-full flex-row items-center justify-center gap-1.5 px-4">
+<div class="h-1.5 w-full rounded-full bg-primary"></div>
+<div class="h-1.5 w-full rounded-full bg-primary"></div>
+<div class="h-1.5 w-full rounded-full bg-primary"></div> <!-- Active Step 3 -->
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+<div class="h-1.5 w-full rounded-full bg-[#d1e6e1] dark:bg-white/10"></div>
+</div>
+</div>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col items-center justify-start pt-8 px-6 overflow-y-auto no-scrollbar">
+<!-- Headline -->
+<div class="w-full text-center space-y-3 mb-10">
+<h1 class="text-text-main dark:text-white tracking-tight text-[28px] md:text-[32px] font-bold leading-tight">
+                    Quanto tempo você<br/>tem por dia?
+                </h1>
+<p class="text-text-muted dark:text-gray-400 text-base font-normal leading-normal">
+                    Ajustaremos suas metas com base nisso.
+                </p>
+</div>
+<!-- Interactive Card -->
+<div class="w-full bg-surface-light dark:bg-surface-dark rounded-3xl p-6 shadow-soft dark:shadow-none border border-transparent dark:border-white/5 flex flex-col items-center gap-8 mb-6">
+<!-- Chips Selection -->
+<div class="flex w-full justify-between gap-2">
+<button class="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border border-transparent bg-background-light dark:bg-white/5 text-text-muted dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">
+                        15 min
+                    </button>
+<button class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-primary text-[#0e1b17] shadow-lg shadow-primary/20 scale-105">
+                        30 min
+                    </button>
+<button class="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border border-transparent bg-background-light dark:bg-white/5 text-text-muted dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">
+                        45 min
+                    </button>
+<button class="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border border-transparent bg-background-light dark:bg-white/5 text-text-muted dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">
+                        60 min
+                    </button>
+</div>
+<!-- Large Time Display -->
+<div class="flex flex-col items-center justify-center">
+<h2 class="text-6xl font-bold text-text-main dark:text-white tracking-tighter mb-1">
+                        30
+                    </h2>
+<span class="text-lg font-medium text-text-muted dark:text-gray-400 uppercase tracking-widest text-xs">minutos</span>
+</div>
+<!-- Slider Component -->
+<div class="w-full px-2 pb-2">
+<div class="relative w-full h-8 flex items-center">
+<!-- Track Background -->
+<div class="slider-track absolute w-full h-2 rounded-full"></div>
+<!-- Thumb (Visual representation) -->
+<div class="absolute left-1/2 -translate-x-1/2 w-8 h-8 bg-white rounded-full shadow-md border-4 border-primary cursor-pointer hover:scale-110 transition-transform"></div>
+</div>
+<div class="flex justify-between w-full mt-2 px-1">
+<span class="text-xs text-text-muted/60 dark:text-white/20 font-medium">5 min</span>
+<span class="text-xs text-text-muted/60 dark:text-white/20 font-medium">120 min</span>
+</div>
+</div>
+<!-- Encouragement Micro-copy -->
+<div class="flex items-center gap-2 bg-primary/10 dark:bg-primary/5 px-4 py-2 rounded-full">
+<span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+<span class="text-sm font-medium text-primary-dark dark:text-primary">Ótimo começo para criar hábito!</span>
+</div>
+</div>
+</main>
+<!-- Footer / CTA -->
+<div class="w-full p-6 bg-background-light dark:bg-background-dark z-20">
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-[#0e1b17] font-bold text-lg py-4 px-6 rounded-2xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98]">
+                Continuar
+                <span class="material-symbols-outlined text-xl">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

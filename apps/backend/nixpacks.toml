@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ['nodejs_20', 'poppler_utils', 'tesseract']
+
+[phases.install]
+cmds = [
+  'corepack enable || npm install -g pnpm@9',
+  'pnpm install --no-frozen-lockfile'
+]
+
+[phases.build]
+cmds = [
+  'pnpm run build'
+]
+
+[start]
+cmd = 'pnpm run start'

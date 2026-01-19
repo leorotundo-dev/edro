@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "strict": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "../../dist/apps/backend",
+    "rootDir": "../../",
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@edro/ai/*": ["../../apps/ai/src/*"],
+      "@edro/shared": ["../../packages/shared/src/index"],
+      "@edro/shared/*": ["../../packages/shared/src/*"]
+    }
+  },
+  "include": [
+    "src",
+    "../../apps/ai/src/**/*",
+    "../../packages/shared/src/**/*"
+  ]
+}

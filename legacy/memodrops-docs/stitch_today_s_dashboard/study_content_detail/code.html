@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Study Content Detail</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#20a886",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        /* Custom scrollbar hide for cleaner mobile look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-900 dark:text-gray-100 antialiased selection:bg-primary/30">
+<div class="relative min-h-screen flex flex-col max-w-md mx-auto bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden border-x border-gray-100 dark:border-gray-900">
+<!-- Header -->
+<header class="sticky top-0 z-30 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 px-4 py-3 flex items-center justify-between transition-colors duration-300">
+<button class="flex items-center justify-center w-10 h-10 -ml-2 rounded-full hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-colors text-gray-800 dark:text-white group">
+<span class="material-symbols-outlined text-[24px] group-hover:-translate-x-0.5 transition-transform">arrow_back_ios_new</span>
+</button>
+<h2 class="text-base font-bold text-gray-900 dark:text-white tracking-wide uppercase opacity-90">Estudo</h2>
+<div class="w-10 h-10 flex items-center justify-center">
+<button class="text-gray-500 dark:text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">bookmark_border</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto no-scrollbar pb-32">
+<!-- Breadcrumbs -->
+<div class="px-5 pt-6 pb-2">
+<nav class="flex items-center flex-wrap gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+<span class="hover:text-primary cursor-pointer transition-colors">Biologia</span>
+<span class="material-symbols-outlined text-[10px] text-gray-300">arrow_forward_ios</span>
+<span class="hover:text-primary cursor-pointer transition-colors">Citologia</span>
+<span class="material-symbols-outlined text-[10px] text-gray-300">arrow_forward_ios</span>
+<span class="text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded-full">Membrana</span>
+</nav>
+</div>
+<!-- Header Image -->
+<div class="px-4 py-4">
+<div class="w-full aspect-[21/9] rounded-2xl bg-gray-200 dark:bg-gray-800 overflow-hidden relative shadow-sm group">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" data-alt="Abstract microscopic view of cell membrane structure with blue and green tones" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCf_xqyYOsKHsaTK2nbwQVVTdqJaZNppkNkwaaIiOn-Jlvln6G7Y8ugCvTZDRqMkZBV9PKGDDavt0_0FvSOXyUWG7Z8KzsFialW5GpCRIWRbfV6VzW3mC9hsGUETsoj6g0sk2vtCTsYKuMjNAfLVGG-BZGwjBtuF1hhPKXG53iVygGcRF5XIgpJ3lwSKofpb6zt8_ASRHGDgkj-aVRYSx2GSFZaaBb4bU84ruhUPoqD-B5QPVrU6slSxgFCYMzCUvPrkhPZ0Xgg88I');">
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+</div>
+</div>
+<!-- Content Title & Body -->
+<div class="px-5 space-y-4">
+<h1 class="text-3xl font-bold leading-tight text-gray-900 dark:text-white pt-2">
+                    Estrutura e Funções da Membrana
+                </h1>
+<div class="space-y-4 text-base leading-relaxed text-gray-600 dark:text-gray-300">
+<p>
+                        A membrana plasmática é uma estrutura dinâmica e fina que envolve a célula, separando o meio intracelular do extracelular. Ela é composta principalmente por uma <strong class="text-gray-900 dark:text-white font-semibold">bicamada lipídica</strong>.
+                    </p>
+<p>
+                        Essa estrutura atua como uma barreira seletiva, controlando o transporte de substâncias essenciais e garantindo a homeostase celular através de diversos mecanismos de transporte passivo e ativo.
+                    </p>
+</div>
+</div>
+<!-- Mnemonic Card -->
+<div class="px-4 py-8">
+<div class="bg-gradient-to-br from-[#30e8ba]/10 to-[#30e8ba]/5 border border-[#30e8ba]/30 rounded-2xl p-6 relative overflow-hidden">
+<!-- Decorative background icon -->
+<span class="material-symbols-outlined absolute -right-4 -bottom-4 text-[120px] text-primary/5 select-none pointer-events-none">lightbulb</span>
+<div class="relative z-10 flex flex-col gap-3">
+<div class="flex items-center gap-2 mb-1">
+<div class="bg-primary text-teal-950 p-1.5 rounded-lg flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[20px]">lightbulb</span>
+</div>
+<span class="text-sm font-bold tracking-widest text-primary-dark uppercase">Mnemônico</span>
+</div>
+<div class="bg-white/60 dark:bg-black/20 rounded-xl p-4 backdrop-blur-sm border border-primary/10">
+<p class="text-lg font-medium text-gray-800 dark:text-gray-100">
+<span class="text-primary-dark font-bold block mb-1">"Hi-Hidro"</span>
+                                Hidrofílica (Ama água) fora / Hidrofóbica (Medo de água) dentro.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Advanced Fixation Box -->
+<div class="px-5 mb-6">
+<div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+<div class="flex items-center gap-3 mb-5 border-b border-gray-100 dark:border-gray-700 pb-3">
+<div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-600 dark:text-gray-300">
+<span class="material-symbols-outlined">psychology_alt</span>
+</div>
+<h3 class="text-lg font-bold text-gray-900 dark:text-white">Fixação Avançada</h3>
+</div>
+<ul class="space-y-4">
+<li class="flex items-start gap-3 group">
+<span class="material-symbols-outlined text-primary mt-0.5 group-hover:scale-110 transition-transform">check_circle</span>
+<div>
+<span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">Flashcard Association</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">Associe a camada fosfolipídica a um sanduíche.</span>
+</div>
+</li>
+<li class="flex items-start gap-3 group">
+<span class="material-symbols-outlined text-primary mt-0.5 group-hover:scale-110 transition-transform">bolt</span>
+<div>
+<span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">Active Recall Prompt</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">Por que a membrana é considerada mosaico fluido?</span>
+</div>
+</li>
+<li class="flex items-start gap-3 group">
+<span class="material-symbols-outlined text-primary mt-0.5 group-hover:scale-110 transition-transform">public</span>
+<div>
+<span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">Real-world Example</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">Comparar com a segurança de um evento (seleção).</span>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<!-- Spacer for visual breathing room at bottom of content -->
+<div class="h-6"></div>
+</main>
+<!-- Sticky Footer Action Bar -->
+<div class="fixed bottom-0 w-full max-w-md bg-white/90 dark:bg-[#11211d]/90 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 p-5 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+<div class="flex items-center gap-3">
+<button class="flex-1 py-3.5 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 transition-all active:scale-[0.98]">
+                    Preciso revisar
+                </button>
+<button class="flex-1 py-3.5 px-4 rounded-xl bg-primary text-teal-950 font-bold text-sm shadow-[0_4px_14px_0_rgba(48,232,186,0.39)] hover:shadow-[0_6px_20px_rgba(48,232,186,0.23)] hover:bg-[#2ce0b3] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[20px]">check</span>
+                    Sim, entendi
+                </button>
+</div>
+</div>
+</div>
+</body></html>

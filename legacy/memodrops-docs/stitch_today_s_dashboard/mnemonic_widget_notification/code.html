@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Mnemonic Widget Notification</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#a379cd",
+                        "background-light": "#f9f9fa",
+                        "background-dark": "#272c35",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom utility for filled icons if needed, though outline is default */
+        .material-symbols-outlined-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-black font-display overflow-hidden">
+<!-- Phone Screen Simulation Wrapper -->
+<div class="relative flex h-screen w-full flex-col items-center justify-center bg-gray-900 group/design-root overflow-hidden">
+<!-- Wallpaper Background with Blur Effect -->
+<div class="absolute inset-0 z-0">
+<!-- Colorful gradient base representing a lock screen wallpaper -->
+<div class="absolute inset-0 bg-gradient-to-br from-[#c4b5fd] via-[#e9d5ff] to-[#fbcfe8] dark:from-[#2e1065] dark:via-[#4c1d95] dark:to-[#831843] opacity-60" data-alt="Abstract gradient background simulating a phone wallpaper"></div>
+<!-- Noise texture for organic feel -->
+<div class="absolute inset-0 bg-no-repeat bg-cover opacity-30 mix-blend-overlay" data-alt="Grainy texture overlay" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBzJPODs7lW-CndEmSltpZIysf6iOXwxPGQv3hkK8gEV-z3hBLiFP8IWLB8TC7ysnx0cMfpcdwHMMEH8lQO5_1_v786_IbDjPaXr0daQhO6TNAfOq89OkArXVswm_lZzxN_tSJ2UHFQiGH_UlavonZhobYlZl5IVoM1oY6HxhwDg_3dekfwo2fqmM7cgM1jsRr1HrPxzuEpBKA_mQLaqIhr_87H3dYJEYeD3AWnnQzKc0s7oUEXkh3vCqfuvu1Y_3RPkXMqp_3PN7Y');"></div>
+<!-- Backdrop blur simulation -->
+<div class="absolute inset-0 backdrop-blur-[8px]"></div>
+</div>
+<!-- The Mnemonic Widget Notification -->
+<!-- Simulating an expanded iOS notification or interactive widget -->
+<div class="relative z-10 w-full max-w-[360px] mx-4 animate-in fade-in zoom-in duration-500 slide-in-from-bottom-4">
+<div class="relative flex flex-col bg-background-light/90 dark:bg-background-dark/85 backdrop-blur-xl rounded-[1.75rem] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.3)] border border-white/40 dark:border-white/10 p-5 overflow-hidden">
+<!-- Notification Header -->
+<div class="flex items-center justify-between mb-3 pl-1">
+<div class="flex items-center gap-2">
+<!-- App Icon Container -->
+<div class="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-primary to-purple-600 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-white">water_drop</span>
+</div>
+<span class="text-[13px] font-bold tracking-wide text-primary dark:text-purple-300 uppercase">MemoDrops</span>
+</div>
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400">Agora</span>
+</div>
+<!-- Main Content Row -->
+<div class="flex gap-4 items-start">
+<!-- Text Content -->
+<div class="flex flex-col flex-1 gap-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-0.5">
+<h2 class="text-sm font-semibold text-gray-600 dark:text-gray-300">Mnemônico do Dia</h2>
+<span class="text-sm">🧠</span>
+</div>
+<!-- Hero Acronym: Styled for memorability -->
+<div class="py-1">
+<h1 class="text-2xl font-extrabold text-gray-900 dark:text-white leading-none tracking-tight break-words select-none">
+<span class="text-primary">CON</span><span class="text-gray-300 dark:text-gray-600">-</span>FI<span class="text-gray-300 dark:text-gray-600">-</span>DE<span class="text-gray-300 dark:text-gray-600">-</span><span class="text-primary">SOC</span><span class="text-gray-300 dark:text-gray-600">-</span>PLU
+                            </h1>
+</div>
+<p class="text-[15px] font-medium text-slate-500 dark:text-slate-400 leading-tight">
+                            Fundamentos da República
+                        </p>
+</div>
+<!-- Visual Preview: Mini Card -->
+<div class="shrink-0 pt-1">
+<div class="group h-[88px] w-[68px] rounded-xl bg-white dark:bg-gray-800 border border-purple-100 dark:border-gray-700 shadow-sm flex flex-col items-center justify-center gap-2 relative overflow-hidden" data-alt="Miniature preview of the mnemonic flashcard showing a legal icon">
+<!-- Background decoration -->
+<div class="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent"></div>
+<!-- Icon -->
+<span class="material-symbols-outlined text-primary/80 text-3xl group-hover:scale-110 transition-transform duration-300">account_balance</span>
+<!-- Fake text lines -->
+<div class="flex flex-col gap-1 w-full px-3 items-center opacity-40">
+<div class="w-full h-1 bg-primary/40 rounded-full"></div>
+<div class="w-2/3 h-1 bg-primary/20 rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer / Actions -->
+<div class="mt-5 space-y-3">
+<!-- Gamification Hook -->
+<div class="flex items-start gap-2 bg-primary/5 dark:bg-primary/10 p-2.5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-yellow-500 text-[18px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                            Clique para ver o que cada um significa e ganhar <span class="font-bold text-primary dark:text-purple-300">5 Drops!</span>
+</p>
+</div>
+<!-- Main Action Button -->
+<button class="relative w-full overflow-hidden flex cursor-pointer items-center justify-center rounded-xl h-11 px-4 bg-primary text-white text-[15px] font-bold shadow-md shadow-primary/20 hover:bg-[#9265c2] active:scale-[0.98] transition-all">
+<div class="absolute inset-0 bg-white/20 opacity-0 hover:opacity-100 transition-opacity"></div>
+<span class="truncate">Ver Agora</span>
+</button>
+</div>
+</div>
+<!-- Stacked card effect for depth -->
+<div class="absolute top-4 left-4 right-4 h-full bg-white/30 dark:bg-black/30 backdrop-blur-sm rounded-[2rem] -z-10 scale-x-[0.92] scale-y-[0.95] translate-y-3"></div>
+</div>
+<!-- Simulated Lock Screen UI Elements (Bottom) -->
+<div class="absolute bottom-10 w-full flex justify-between px-12 pointer-events-none opacity-80">
+<div class="h-[50px] w-[50px] rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg">
+<span class="material-symbols-outlined text-white text-2xl">flashlight_on</span>
+</div>
+<div class="h-[50px] w-[50px] rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg">
+<span class="material-symbols-outlined text-white text-2xl">photo_camera</span>
+</div>
+</div>
+</div>
+</body></html>

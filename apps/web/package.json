@@ -1,0 +1,47 @@
+{
+  "name": "@edro/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "pnpm run --filter @edro/theme --if-present build && pnpm run --filter @edro/shared build && pnpm run --filter @edro/ui build",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3333}",
+    "lint": "next lint"
+  },
+  "npmConfig": {
+    "legacy-peer-deps": "true"
+  },
+  "dependencies": {
+    "@edro/shared": "workspace:*",
+    "@edro/theme": "workspace:*",
+    "@edro/ui": "workspace:*",
+    "@heroui/react": "^2.8.5",
+    "@heroui/theme": "^2.4.23",
+    "date-fns": "^2.30.0",
+    "framer-motion": "^12.23.25",
+    "lucide-react": "^0.554.0",
+    "next": "14.1.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "scheduler": "^0.23.0",
+    "styled-jsx": "^5.1.1",
+    "tslib": "^2.6.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.2",
+    "@sentry/nextjs": "^7.114.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@tailwindcss/cli": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.4.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}

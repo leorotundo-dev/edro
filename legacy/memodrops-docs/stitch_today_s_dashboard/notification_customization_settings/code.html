@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Personalizar Alertas - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#b2a3c8",
+                        "primary-dark": "#9688aa",
+                        "background-light": "#eeebf5", // Soft lilac requested
+                        "background-dark": "#2a2a32",
+                        "card-light": "#ffffff",
+                        "card-dark": "#363640",
+                        "text-main": "#2a2a32",
+                        "text-sub": "#6b6675",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.25rem", // Approx 20px
+                        "2xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(178, 163, 200, 0.15)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* Smooth toggle transition */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #b2a3c8;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #b2a3c8;
+        }
+        
+        /* Wheel picker gradient fade */
+        .wheel-mask {
+            mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen flex justify-center text-text-main dark:text-gray-100 transition-colors duration-300">
+<div class="relative w-full max-w-md bg-background-light dark:bg-background-dark min-h-screen overflow-y-auto scrollbar-hide pb-10">
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-white dark:bg-card-dark shadow-sm hover:bg-gray-50 active:scale-95 transition-transform text-text-main dark:text-white">
+<span class="material-symbols-outlined text-[24px]">chevron_left</span>
+</button>
+<h1 class="text-lg font-bold text-text-main dark:text-white tracking-tight flex-1 text-center pr-10">
+                Personalizar Alertas
+            </h1>
+</header>
+<main class="px-6 flex flex-col gap-6 mt-2">
+<!-- Section 1: Study Reminders -->
+<section class="bg-card-light dark:bg-card-dark rounded-xl p-5 shadow-soft">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-purple-50 dark:bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<h2 class="text-lg font-bold text-text-main dark:text-white">Lembretes de Estudo</h2>
+</div>
+<!-- Toggle -->
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<p class="text-sm text-text-sub dark:text-gray-400 mb-6 pl-[52px]">Defina o melhor horário para seus estudos diários.</p>
+<!-- Wheel Picker -->
+<div class="bg-[#faf9fa] dark:bg-[#2f2f38] rounded-2xl p-4 wheel-mask relative overflow-hidden h-32 flex items-center justify-center">
+<!-- Selection Indicator -->
+<div class="absolute w-full h-10 bg-primary/10 dark:bg-primary/20 rounded-lg pointer-events-none top-1/2 -translate-y-1/2"></div>
+<div class="flex w-full justify-center gap-8 z-10">
+<!-- Hours -->
+<div class="flex flex-col items-center gap-2 overflow-hidden h-full">
+<span class="text-xl font-medium text-gray-300 dark:text-gray-600">07</span>
+<span class="text-2xl font-bold text-text-main dark:text-white">08</span>
+<span class="text-xl font-medium text-gray-300 dark:text-gray-600">09</span>
+</div>
+<span class="text-2xl font-bold text-text-main dark:text-white self-center pb-1">:</span>
+<!-- Minutes -->
+<div class="flex flex-col items-center gap-2 overflow-hidden h-full">
+<span class="text-xl font-medium text-gray-300 dark:text-gray-600">59</span>
+<span class="text-2xl font-bold text-text-main dark:text-white">00</span>
+<span class="text-xl font-medium text-gray-300 dark:text-gray-600">01</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Mnemonics -->
+<section class="bg-card-light dark:bg-card-dark rounded-xl p-5 shadow-soft">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-400 dark:text-blue-300">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<h2 class="text-lg font-bold text-text-main dark:text-white">Mnemônicos do Dia</h2>
+</div>
+</div>
+<div class="flex items-center justify-between py-2">
+<div class="flex-1 pr-4">
+<p class="text-base font-semibold text-text-main dark:text-white">Dicas na tela bloqueada</p>
+<p class="text-sm text-text-sub dark:text-gray-400 mt-1 leading-tight">Receba dicas rápidas de memorização sem abrir o app.</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</section>
+<!-- Section 3: Social & Achievements -->
+<section class="bg-card-light dark:bg-card-dark rounded-xl p-5 shadow-soft flex flex-col gap-4">
+<div class="flex items-center gap-3 mb-1">
+<div class="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/30 flex items-center justify-center text-pink-400 dark:text-pink-300">
+<span class="material-symbols-outlined">emoji_events</span>
+</div>
+<h2 class="text-lg font-bold text-text-main dark:text-white">Conquistas e Social</h2>
+</div>
+<!-- Item 1 -->
+<div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-4">
+<span class="text-base font-medium text-text-main dark:text-white">Novas Conquistas</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex-1">
+<span class="text-base font-medium text-text-main dark:text-white block">Atividade de Amigos</span>
+<span class="text-xs text-text-sub dark:text-gray-400">Saiba quando amigos baterem metas.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</section>
+<!-- Section 4: Silent Mode -->
+<section class="bg-card-light dark:bg-card-dark rounded-xl p-5 shadow-soft">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-400 dark:text-indigo-300">
+<span class="material-symbols-outlined">do_not_disturb_on</span>
+</div>
+<div>
+<h2 class="text-lg font-bold text-text-main dark:text-white">Modo Silencioso</h2>
+<p class="text-xs text-text-sub dark:text-gray-400">Bloquear alertas durante horários.</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Time Range Row -->
+<div class="flex items-center justify-between gap-4 bg-[#faf9fa] dark:bg-[#2f2f38] p-4 rounded-lg">
+<div class="flex flex-col gap-1 w-full">
+<span class="text-xs font-bold text-primary uppercase tracking-wider">Início</span>
+<button class="bg-white dark:bg-card-dark text-text-main dark:text-white font-semibold py-2 px-3 rounded-md border border-gray-100 dark:border-gray-600 shadow-sm flex items-center justify-between w-full hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                            22:00
+                            <span class="material-symbols-outlined text-gray-400 text-sm">expand_more</span>
+</button>
+</div>
+<div class="h-[1px] w-4 bg-gray-300 dark:bg-gray-600 mt-5"></div>
+<div class="flex flex-col gap-1 w-full">
+<span class="text-xs font-bold text-primary uppercase tracking-wider">Fim</span>
+<button class="bg-white dark:bg-card-dark text-text-main dark:text-white font-semibold py-2 px-3 rounded-md border border-gray-100 dark:border-gray-600 shadow-sm flex items-center justify-between w-full hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                            07:00
+                            <span class="material-symbols-outlined text-gray-400 text-sm">expand_more</span>
+</button>
+</div>
+</div>
+</section>
+<div class="h-6"></div>
+</main>
+</div>
+</body></html>

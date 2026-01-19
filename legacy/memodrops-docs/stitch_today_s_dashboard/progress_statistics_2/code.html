@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Progress Statistics - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#9f86dd", // Pastel purple from logo drop/text
+                        "primary-dark": "#360064", // Deep purple from logo smile/text
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1a2c28",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>.no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white transition-colors duration-200">
+<div class="relative flex min-h-screen w-full flex-col pb-24 overflow-x-hidden">
+<header class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
+<button class="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-900 dark:text-white">arrow_back</span>
+</button>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-10">Your Progress</h2>
+</header>
+<div class="px-4 py-2">
+<div class="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl">
+<button class="flex-1 py-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-sm font-semibold text-slate-900 dark:text-white transition-all">Week</button>
+<button class="flex-1 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">Month</button>
+<button class="flex-1 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">Year</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 px-4 py-6">
+<div class="flex flex-col gap-3 rounded-2xl bg-card-light dark:bg-card-dark p-5 shadow-sm border border-slate-100 dark:border-slate-800/50">
+<div class="flex items-center gap-2">
+<div class="flex size-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-500">
+<span class="material-symbols-outlined text-[20px]">local_fire_department</span>
+</div>
+<p class="text-sm font-medium text-slate-500 dark:text-slate-400">Streak</p>
+</div>
+<div>
+<p class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">12</p>
+<p class="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">Days in a row</p>
+</div>
+</div>
+<div class="flex flex-col gap-3 rounded-2xl bg-card-light dark:bg-card-dark p-5 shadow-sm border border-slate-100 dark:border-slate-800/50">
+<div class="flex items-center gap-2">
+<div class="flex size-8 items-center justify-center rounded-full bg-primary/20 text-primary-dark dark:text-primary">
+<span class="material-symbols-outlined text-[20px]">style</span>
+</div>
+<p class="text-sm font-medium text-slate-500 dark:text-slate-400">Reviewed</p>
+</div>
+<div>
+<p class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">1,240</p>
+<p class="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">Cards total</p>
+</div>
+</div>
+</div>
+<section class="px-4 mb-6">
+<div class="rounded-3xl bg-card-light dark:bg-card-dark p-6 shadow-sm border border-slate-100 dark:border-slate-800/50">
+<div class="flex items-start justify-between mb-6">
+<div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Recall Accuracy</h3>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold text-slate-900 dark:text-white">85%</span>
+<span class="text-sm font-medium text-primary-dark dark:text-primary bg-primary/10 px-2 py-0.5 rounded-full">+5%</span>
+</div>
+</div>
+<button class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="grid grid-cols-7 gap-2 items-end h-40">
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[60%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[80%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">M</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[45%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[90%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">T</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[75%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[70%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">W</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[55%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[60%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">T</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[85%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[95%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">F</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[40%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[100%]"></div>
+</div>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">S</span>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
+<div class="w-full bg-primary/30 dark:bg-primary/20 rounded-t-md relative group-hover:bg-primary/50 transition-all h-[90%]">
+<div class="absolute bottom-0 w-full bg-primary rounded-t-md h-[88%]"></div>
+</div>
+<span class="text-xs font-bold text-primary-dark dark:text-primary">S</span>
+</div>
+</div>
+</div>
+</section>
+<section class="px-4 mb-6">
+<div class="rounded-3xl bg-card-light dark:bg-card-dark p-6 shadow-sm border border-slate-100 dark:border-slate-800/50">
+<div class="flex items-start justify-between mb-6">
+<div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Study Time</h3>
+<div class="flex items-baseline gap-2">
+<span class="text-xl font-bold text-slate-900 dark:text-white">Avg. 25m / day</span>
+</div>
+</div>
+</div>
+<div class="flex items-end justify-between h-32 gap-2 px-1">
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[30%] hover:bg-primary/40 transition-colors"></div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[45%] hover:bg-primary/40 transition-colors"></div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[25%] hover:bg-primary/40 transition-colors"></div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[60%] hover:bg-primary/40 transition-colors"></div>
+<div class="w-full bg-primary rounded-t-lg h-[85%] shadow-[0_0_15px_-3px_rgba(159,134,221,0.5)]"></div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[40%] hover:bg-primary/40 transition-colors"></div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg h-[55%] hover:bg-primary/40 transition-colors"></div>
+</div>
+<div class="flex justify-between px-1 mt-2">
+<span class="text-xs text-slate-400 w-full text-center">M</span>
+<span class="text-xs text-slate-400 w-full text-center">T</span>
+<span class="text-xs text-slate-400 w-full text-center">W</span>
+<span class="text-xs text-slate-400 w-full text-center">T</span>
+<span class="text-xs text-primary-dark dark:text-primary font-bold w-full text-center">F</span>
+<span class="text-xs text-slate-400 w-full text-center">S</span>
+<span class="text-xs text-slate-400 w-full text-center">S</span>
+</div>
+</div>
+</section>
+<div class="px-4 mb-8">
+<div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-700 p-5 text-white shadow-lg">
+<div class="absolute top-0 right-0 -mt-2 -mr-2 h-20 w-20 rounded-full bg-primary/20 blur-2xl"></div>
+<div class="absolute bottom-0 left-0 -mb-2 -ml-2 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
+<div class="relative z-10 flex gap-4 items-center">
+<div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm">
+<span class="material-symbols-outlined text-primary">emoji_events</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-lg">Great job!</p>
+<p class="text-sm text-slate-300">You're in the top 10% of learners this week.</p>
+</div>
+<button class="text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<nav class="fixed bottom-0 left-0 z-30 w-full border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-background-dark/95 backdrop-blur-md pb-safe">
+<div class="flex h-16 items-center justify-around px-2">
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary-dark dark:hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">dashboard</span>
+<span class="text-[10px] font-medium">Home</span>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary-dark dark:hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">style</span>
+<span class="text-[10px] font-medium">Decks</span>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-primary-dark dark:text-primary" href="#">
+<span class="material-symbols-outlined font-bold scale-110">bar_chart</span>
+<span class="text-[10px] font-bold">Stats</span>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary-dark dark:hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">person</span>
+<span class="text-[10px] font-medium">Profile</span>
+</a>
+</div>
+<div class="h-5 w-full"></div>
+</nav>
+</body></html>

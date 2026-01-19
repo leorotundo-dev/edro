@@ -1,0 +1,30 @@
+:root {
+  --rs-sidebar-width: 256px;
+}
+
+/* Desktop layout reserves space for the aside */
+.rs-desktop .rs-aside {
+  width: var(--rs-sidebar-width);
+  transform: translateX(0);
+}
+
+.rs-desktop .rs-main {
+  margin-left: var(--rs-sidebar-width);
+  width: calc(100% - var(--rs-sidebar-width));
+  max-width: calc(100% - var(--rs-sidebar-width));
+  overflow-x: hidden;
+  padding-top: 24px;
+  padding-bottom: 32px;
+}
+
+/* Mobile: aside overlays the content */
+.rs-mobile .rs-aside {
+  width: min(88vw, 320px);
+}
+
+.rs-mobile .rs-main {
+  margin-left: 0;
+  width: 100%;
+  padding-top: 16px;
+  padding-bottom: 24px;
+}

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Payment Methods Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+            extend: {
+                colors: {
+                    "primary": "#30e8ba",
+                    "primary-dark": "#25b592",
+                    "background-light": "#f6f8f7",
+                    "background-dark": "#11211d",
+                    "card-light": "#ffffff",
+                    "card-dark": "#1A2C28",
+                    "text-main-light": "#0e1b18",
+                    "text-main-dark": "#eef4f2",
+                    "text-muted-light": "#4e9785",
+                    "text-muted-dark": "#8bad9f",
+                },
+                fontFamily: {
+                    "display": ["Lexend", "sans-serif"]
+                },
+                borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "2xl": "1.25rem", "full": "9999px"}, // 1.25rem is 20px
+            },
+            },
+        }
+    </script>
+<style>
+        .card-shadow {
+            box-shadow: 0 4px 20px -2px rgba(48, 232, 186, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+        }
+        .dark .card-shadow {
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main-light dark:text-text-main-dark antialiased selection:bg-primary selection:text-background-dark transition-colors duration-200">
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto overflow-hidden">
+<!-- Top App Bar -->
+<header class="flex items-center p-6 pb-2 justify-between sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md">
+<button class="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-gray-200 dark:active:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined text-text-main-light dark:text-text-main-dark" style="font-size: 24px;">arrow_back_ios_new</span>
+</button>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em] text-center flex-1">Payment Methods</h2>
+<div class="size-10"></div> <!-- Spacer for center alignment -->
+</header>
+<main class="flex-1 flex flex-col px-6 pt-4 pb-24 gap-6">
+<!-- Saved Cards Section -->
+<section>
+<h3 class="text-lg font-bold leading-tight tracking-tight mb-4 px-1">Saved Cards</h3>
+<div class="flex flex-col gap-4">
+<!-- Default Card (Visa) -->
+<div class="group relative flex items-center gap-4 bg-card-light dark:bg-card-dark p-5 rounded-[20px] card-shadow border-2 border-primary/30 dark:border-primary/20 hover:border-primary transition-all duration-300">
+<!-- Icon Placeholder -->
+<div class="relative flex items-center justify-center h-10 w-14 shrink-0 rounded bg-gradient-to-br from-blue-600 to-blue-800 text-white font-bold text-[10px] tracking-wider italic shadow-sm" data-alt="Blue gradient rectangle representing Visa card logo">
+                            VISA
+                        </div>
+<div class="flex flex-col flex-1 justify-center">
+<div class="flex items-center gap-2">
+<p class="text-base font-semibold leading-normal line-clamp-1 tracking-wide">•••• 4242</p>
+<span class="bg-primary/20 text-teal-800 dark:text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">DEFAULT</span>
+</div>
+<p class="text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Expires 12/25</p>
+</div>
+<button class="shrink-0 text-text-muted-light dark:text-text-muted-dark hover:text-red-500 dark:hover:text-red-400 transition-colors p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800">
+<span class="material-symbols-outlined" style="font-size: 24px;">more_vert</span>
+</button>
+</div>
+<!-- Secondary Card (Mastercard) -->
+<div class="group relative flex items-center gap-4 bg-card-light dark:bg-card-dark p-5 rounded-[20px] card-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-300">
+<!-- Icon Placeholder -->
+<div class="relative flex items-center justify-center h-10 w-14 shrink-0 rounded bg-gradient-to-br from-orange-500 to-red-600 text-white font-bold text-[8px] tracking-wider shadow-sm overflow-hidden" data-alt="Orange and red gradient rectangle representing Mastercard logo">
+<div class="absolute w-6 h-6 rounded-full bg-white/20 -left-1 top-1/2 -translate-y-1/2"></div>
+<div class="absolute w-6 h-6 rounded-full bg-white/20 -right-1 top-1/2 -translate-y-1/2"></div>
+</div>
+<div class="flex flex-col flex-1 justify-center">
+<p class="text-base font-semibold leading-normal line-clamp-1 tracking-wide">•••• 8899</p>
+<p class="text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal">Expires 09/24</p>
+</div>
+<button class="shrink-0 text-text-muted-light dark:text-text-muted-dark hover:text-red-500 dark:hover:text-red-400 transition-colors p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800">
+<span class="material-symbols-outlined" style="font-size: 24px;">more_vert</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Other Methods Section (PIX) -->
+<section>
+<h3 class="text-lg font-bold leading-tight tracking-tight mb-4 px-1">Instant Payment</h3>
+<div class="flex flex-col gap-4">
+<div class="group relative flex items-center gap-4 bg-card-light dark:bg-card-dark p-5 rounded-[20px] card-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-300">
+<!-- Icon Placeholder for PIX -->
+<div class="relative flex items-center justify-center size-10 shrink-0 rounded-xl bg-[#32BCAD]/10 dark:bg-[#32BCAD]/20 text-[#32BCAD]" data-alt="Green geometric abstract logo representing Pix payment method">
+<span class="material-symbols-outlined" style="font-size: 24px;">qr_code_2</span>
+</div>
+<div class="flex flex-col flex-1 justify-center">
+<p class="text-base font-semibold leading-normal line-clamp-1">PIX (Email)</p>
+<p class="text-text-muted-light dark:text-text-muted-dark text-sm font-normal leading-normal line-clamp-1">u***@example.com</p>
+</div>
+<button class="shrink-0 text-text-muted-light dark:text-text-muted-dark hover:text-red-500 dark:hover:text-red-400 transition-colors p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800">
+<span class="material-symbols-outlined" style="font-size: 24px;">delete</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating/Sticky Action Area -->
+<div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pointer-events-none flex flex-col items-center gap-4">
+<button class="pointer-events-auto w-full max-w-md bg-primary hover:bg-primary-dark text-background-dark text-lg font-bold h-14 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-primary/30 transition-all transform active:scale-[0.98]">
+<span class="material-symbols-outlined font-bold" style="font-size: 24px;">add</span>
+                Add New Method
+            </button>
+<!-- Security Badge -->
+<div class="flex items-center gap-1.5 text-text-muted-light dark:text-text-muted-dark opacity-80 pointer-events-auto">
+<span class="material-symbols-outlined text-primary" style="font-size: 16px;">lock</span>
+<p class="text-xs font-medium">Payments secured by 256-bit encryption</p>
+</div>
+</div>
+</div>
+</body></html>

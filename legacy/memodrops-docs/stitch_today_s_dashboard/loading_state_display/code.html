@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops Loading State</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                    animation: {
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased overflow-hidden selection:bg-primary/20">
+<div class="relative flex h-screen w-full flex-col items-center justify-between p-6">
+<!-- Background Ambient Effects -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+<!-- Large Pulse Blob -->
+<div class="w-[600px] h-[600px] bg-gradient-to-tr from-primary/10 to-teal-400/10 rounded-full blur-[100px] animate-pulse"></div>
+<!-- Secondary Accent Blob -->
+<div class="absolute top-1/4 right-0 w-[400px] h-[400px] bg-blue-200/20 dark:bg-blue-900/10 rounded-full blur-[80px]"></div>
+</div>
+<!-- Header Area (Empty for focus) -->
+<div class="flex-none h-16 w-full"></div>
+<!-- Center Content: Progress & Status -->
+<div class="flex-1 flex flex-col items-center justify-center w-full max-w-sm z-10 gap-10">
+<!-- Percentage Indicator -->
+<div class="flex flex-col items-center">
+<div class="relative">
+<h1 class="text-7xl font-extrabold text-primary tracking-tight">78<span class="text-4xl align-top ml-1 opacity-60">%</span></h1>
+<!-- Decorative sparkle icon -->
+<span class="material-symbols-outlined absolute -top-4 -right-8 text-teal-400 text-3xl animate-bounce" style="animation-duration: 3s;">
+                        auto_awesome
+                    </span>
+</div>
+</div>
+<!-- Progress Bar Container -->
+<div class="w-full space-y-3">
+<!-- Bar -->
+<div class="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden shadow-sm ring-1 ring-black/5 dark:ring-white/5">
+<div class="h-full bg-gradient-to-r from-primary to-blue-400 rounded-full relative transition-all duration-300 ease-out" style="width: 78%;">
+<!-- Shine Overlay -->
+<div class="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+</div>
+</div>
+<!-- Time Estimate (Micro-copy) -->
+<div class="flex justify-between px-1">
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">Estimated time: 12s</span>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">45/60 drops</span>
+</div>
+</div>
+<!-- Dynamic Status Text -->
+<div class="text-center space-y-2">
+<p class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                    Organizing your drops...
+                </p>
+<div class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-full border border-slate-200/50 dark:border-slate-700/50">
+<span class="material-symbols-outlined text-teal-500 text-sm animate-spin">
+                        sync
+                    </span>
+<span class="text-sm font-medium text-slate-600 dark:text-slate-300">
+                        Processing: <span class="text-primary dark:text-blue-300">Molecular Structures</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Footer: Action -->
+<div class="flex-none w-full flex justify-center pb-8 z-10">
+<button class="group flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer">
+<span class="text-sm font-bold text-slate-500 dark:text-slate-400 group-hover:text-primary dark:group-hover:text-primary transition-colors">Hide</span>
+<span class="material-symbols-outlined text-lg text-slate-400 group-hover:text-primary dark:text-slate-500 dark:group-hover:text-primary transition-colors">
+                    keyboard_arrow_down
+                </span>
+</button>
+</div>
+</div>
+</body></html>

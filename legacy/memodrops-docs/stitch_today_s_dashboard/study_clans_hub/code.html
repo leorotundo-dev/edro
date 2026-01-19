@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Study Clans Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#30e8ba",
+              "background-light": "#f6f8f7",
+              "background-dark": "#11211d",
+              "surface-light": "#ffffff",
+              "surface-dark": "#1a2c28",
+              "text-main-light": "#0e1b18",
+              "text-main-dark": "#f0fdfa",
+              "text-sec-light": "#4e9785",
+              "text-sec-dark": "#8ebcb0",
+            },
+            fontFamily: {
+              "display": ["Lexend", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen flex justify-center">
+<div class="relative w-full max-w-md h-full min-h-screen flex flex-col bg-background-light dark:bg-background-dark overflow-hidden shadow-2xl">
+<!-- Sticky Header -->
+<div class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
+<h2 class="text-text-main-light dark:text-text-main-dark text-xl font-bold tracking-tight">Study Clans</h2>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-white dark:bg-surface-dark shadow-sm text-text-main-light dark:text-text-main-dark hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined" style="font-size: 24px;">notifications</span>
+</button>
+</div>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto pb-28 hide-scrollbar">
+<!-- Search Bar -->
+<div class="px-4 py-4">
+<div class="flex w-full items-center rounded-xl bg-white dark:bg-surface-dark shadow-sm h-12 transition-all ring-1 ring-gray-100 dark:ring-gray-800 focus-within:ring-2 focus-within:ring-primary">
+<div class="pl-4 pr-2 text-text-sec-light dark:text-text-sec-dark flex items-center justify-center">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="w-full bg-transparent border-none focus:ring-0 text-text-main-light dark:text-text-main-dark placeholder:text-text-sec-light/70 dark:placeholder:text-text-sec-dark/70 text-base h-full font-normal" placeholder="Search by subject or name"/>
+</div>
+</div>
+<!-- Chips / Filters -->
+<div class="flex gap-3 px-4 pb-4 overflow-x-auto hide-scrollbar">
+<button class="flex h-9 shrink-0 items-center justify-center px-5 rounded-full bg-primary text-text-main-light font-medium text-sm shadow-sm shadow-primary/30 transition-transform active:scale-95">
+                    All
+                </button>
+<button class="flex h-9 shrink-0 items-center justify-center px-5 rounded-full bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-700 text-text-main-light dark:text-text-main-dark font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Math
+                </button>
+<button class="flex h-9 shrink-0 items-center justify-center px-5 rounded-full bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-700 text-text-main-light dark:text-text-main-dark font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Science
+                </button>
+<button class="flex h-9 shrink-0 items-center justify-center px-5 rounded-full bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-700 text-text-main-light dark:text-text-main-dark font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    History
+                </button>
+<button class="flex h-9 shrink-0 items-center justify-center px-5 rounded-full bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-700 text-text-main-light dark:text-text-main-dark font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Literature
+                </button>
+</div>
+<!-- Create Clan Promo -->
+<div class="px-4 mb-6">
+<div class="flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-[#dcfce7] to-[#ccfbf1] dark:from-[#064e3b] dark:to-[#115e59] p-5 shadow-sm border border-[#d0e7e1] dark:border-transparent">
+<div class="flex flex-col gap-1">
+<h3 class="text-text-main-light dark:text-white text-lg font-bold">Start your own Clan</h3>
+<p class="text-text-sec-light dark:text-gray-200 text-sm leading-relaxed">Can't find the right group? Create one to study together and earn bonus points.</p>
+</div>
+<button class="self-start flex items-center justify-center rounded-lg h-9 px-5 bg-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 text-text-main-light text-sm font-bold shadow-sm transition-all hover:shadow-md">
+                        Create Clan
+                    </button>
+</div>
+</div>
+<!-- Clan List Header -->
+<div class="px-4 mb-3 flex items-center justify-between">
+<h3 class="text-text-main-light dark:text-text-main-dark font-bold text-lg">Recommended for you</h3>
+<span class="text-text-sec-light dark:text-text-sec-dark text-sm font-medium cursor-pointer hover:text-primary transition-colors">View all</span>
+</div>
+<!-- List Items -->
+<div class="flex flex-col gap-3 px-4">
+<!-- Item 1 -->
+<div class="group flex items-center gap-4 bg-white dark:bg-surface-dark p-3 rounded-xl shadow-sm border border-transparent hover:border-primary/20 transition-all">
+<div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-blue-50 dark:bg-blue-900/30">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Abstract blue physics atom visualization" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAIas1hsPUWWJALw07s0vNIyTiPfC9cEtzZY0UkxlId4Jq9nJJoHCsou2n0m0c_2v1LxnBDPRWVPoiwmPs00ocZXl3ISX-C1VVhX4qiaDNi1geLUUdh3FUGkcGYRMsX9gOIzZ63yWQ9hsZM9Ih84kPBoSW3-Uu5MV8Mtq6sQ00VBJkwsfbbLNi-JhL-KjGq77-B3oKvAqrehY5rcaFOJFewdOsHsBz_4L0xpgZXTG_x9rBA80qrAQC3uT65fleGYyHG5f4UonToays');"></div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-text-main-light dark:text-text-main-dark text-base font-bold truncate">Quantum Leapers</p>
+<div class="flex items-center gap-2 text-xs text-text-sec-light dark:text-text-sec-dark mt-1">
+<span class="bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Physics</span>
+<span>•</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size: 14px;">group</span> 15/20</span>
+</div>
+</div>
+<button class="shrink-0 flex items-center justify-center rounded-lg h-9 px-5 bg-primary hover:bg-[#20dcb0] text-text-main-light text-sm font-bold shadow-sm shadow-primary/20 transition-all active:scale-95">
+                        Entrar
+                    </button>
+</div>
+<!-- Item 2 -->
+<div class="group flex items-center gap-4 bg-white dark:bg-surface-dark p-3 rounded-xl shadow-sm border border-transparent hover:border-primary/20 transition-all">
+<div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-amber-50 dark:bg-amber-900/30">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Old paper texture representing history" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDWFSQuAUMGHoI06eQ6I8GiyWVu4ilop_lOajXOXJtSS78exOQMnVdMV10RGgOGPAW-KP1mbKalXftu-FyLBD9JaVAGNEgtNqtlBWuNxqNuEUrC-IJ7purZdTXK0tJ4R_UriV8LGxDeGtFPlGq3KIL0xN0q1IcQ_PT-EEixjk8vYYNYdm1BfLygSr81OB-RYUE4mRHdbfZ0azqBfhuEm3ku9phutVrYV3vWcsyXO1__XQa33epnjGZJMfH2RuIf3jgQ21LVn0u25iw');"></div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-text-main-light dark:text-text-main-dark text-base font-bold truncate">History Buffs</p>
+<div class="flex items-center gap-2 text-xs text-text-sec-light dark:text-text-sec-dark mt-1">
+<span class="bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">History</span>
+<span>•</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size: 14px;">group</span> 18/20</span>
+</div>
+</div>
+<button class="shrink-0 flex items-center justify-center rounded-lg h-9 px-5 bg-primary hover:bg-[#20dcb0] text-text-main-light text-sm font-bold shadow-sm shadow-primary/20 transition-all active:scale-95">
+                        Entrar
+                    </button>
+</div>
+<!-- Item 3 -->
+<div class="group flex items-center gap-4 bg-white dark:bg-surface-dark p-3 rounded-xl shadow-sm border border-transparent hover:border-primary/20 transition-all">
+<div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-purple-50 dark:bg-purple-900/30">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Mathematical equations on a chalkboard" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCdZS0FzQnhd4i0aHqaQVmJ8KoUnoOLzQvJtEiAWjtJISb2balZO0Mk4-3Hbqa1jBGeL9a-NrmyrIInGJrfpHjKoNrNUwtn5r7EvYdo58ruOpS5IQvww_7dhchCyCrM9IyNY1TCImlUVOGUvU35j5uAvGOPNs5J5eZ8LQvjAx52BWyEJ0_etkqDMJj3A14v00Rrq4s8yw3sAQ_t0VlRvkM5vZgUigY9M541dsE8VXxL-3ABUZn_5xVDzEdvGNyiQK8gTtxke_CjiAc');"></div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-text-main-light dark:text-text-main-dark text-base font-bold truncate">Math Magicians</p>
+<div class="flex items-center gap-2 text-xs text-text-sec-light dark:text-text-sec-dark mt-1">
+<span class="bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Math</span>
+<span>•</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size: 14px;">group</span> 8/20</span>
+</div>
+</div>
+<button class="shrink-0 flex items-center justify-center rounded-lg h-9 px-5 bg-primary hover:bg-[#20dcb0] text-text-main-light text-sm font-bold shadow-sm shadow-primary/20 transition-all active:scale-95">
+                        Entrar
+                    </button>
+</div>
+<!-- Item 4 -->
+<div class="group flex items-center gap-4 bg-white dark:bg-surface-dark p-3 rounded-xl shadow-sm border border-transparent hover:border-primary/20 transition-all">
+<div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-green-50 dark:bg-green-900/30">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Green leaf close up details biology" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBzgRHT6jdoefoj40HfWDoCF9yxZtb13nqHm9ZaBjtbvWIbFMgBkKP3GfoTWf1qQXYbiS93YBaGpIhdJ9IKzm_nZR_iTge-6WOrDrN3p_0EqW5h_OeAEFX0GPZ9TDmpq--eEeMZBeSlNs76Mxt34je76jNFxXyANyVKQ4c-aTIYQEszVYcYsf1iXy7HhjyiXw_RkBc2H-Y5oBDE3Hgzg7cUyM9vUrwRSX3z7C9cVw5JMIqbj7QzC_bcHZ3G4qNs4VjUsLmJiTNZDTQ');"></div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-text-main-light dark:text-text-main-dark text-base font-bold truncate">Bio Hacking</p>
+<div class="flex items-center gap-2 text-xs text-text-sec-light dark:text-text-sec-dark mt-1">
+<span class="bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Biology</span>
+<span>•</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size: 14px;">group</span> 12/20</span>
+</div>
+</div>
+<button class="shrink-0 flex items-center justify-center rounded-lg h-9 px-5 bg-primary hover:bg-[#20dcb0] text-text-main-light text-sm font-bold shadow-sm shadow-primary/20 transition-all active:scale-95">
+                        Entrar
+                    </button>
+</div>
+<!-- Item 5 -->
+<div class="group flex items-center gap-4 bg-white dark:bg-surface-dark p-3 rounded-xl shadow-sm border border-transparent hover:border-primary/20 transition-all">
+<div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-rose-50 dark:bg-rose-900/30">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Stack of literature books on a table" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAWglgEGsvzFgkSNbuLReuZ5hHIvRPGrCBdMGmvPeO89_nKt8dhynPNqP7XJDrbgv61HNnZYGQyebF9HqBcTxVahTaMxgbdq1PftHx-TWY9ePpOh09XjHLYT333ZoRdpCDnhPRFWxK-JjLFUtnQwMaq3tdYdonBjZDMmSy4sPj2FPnXvnI8mqvkVi7v6Q3A65JdR9iacpuniEm3kTb1QxzBqaE4uZFvzbzxE55niuUBTsB5N_EFybHPM60UiSbAreV6ZBKD2K_iLzo');"></div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-text-main-light dark:text-text-main-dark text-base font-bold truncate">Lit Lovers</p>
+<div class="flex items-center gap-2 text-xs text-text-sec-light dark:text-text-sec-dark mt-1">
+<span class="bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Literature</span>
+<span>•</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size: 14px;">group</span> 19/20</span>
+</div>
+</div>
+<button class="shrink-0 flex items-center justify-center rounded-lg h-9 px-5 bg-primary hover:bg-[#20dcb0] text-text-main-light text-sm font-bold shadow-sm shadow-primary/20 transition-all active:scale-95">
+                        Entrar
+                    </button>
+</div>
+</div>
+<div class="h-6"></div>
+</div>
+<!-- Bottom Navigation -->
+<div class="absolute bottom-0 w-full bg-white dark:bg-surface-dark border-t border-gray-100 dark:border-gray-800 h-[84px] flex items-start justify-around pt-3 pb-8 z-30 shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
+<button class="flex flex-col items-center gap-1 w-16 text-text-sec-light dark:text-text-sec-dark hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 26px;">home</span>
+<span class="text-[10px] font-medium">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 w-16 text-primary dark:text-primary transition-colors">
+<span class="material-symbols-outlined fill-current" style="font-size: 26px;">groups</span>
+<span class="text-[10px] font-medium">Clans</span>
+</button>
+<div class="relative -top-6">
+<button class="flex items-center justify-center w-14 h-14 rounded-full bg-primary text-text-main-light shadow-lg shadow-primary/40 transform hover:scale-105 transition-all">
+<span class="material-symbols-outlined" style="font-size: 28px;">add</span>
+</button>
+</div>
+<button class="flex flex-col items-center gap-1 w-16 text-text-sec-light dark:text-text-sec-dark hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 26px;">leaderboard</span>
+<span class="text-[10px] font-medium">Rank</span>
+</button>
+<button class="flex flex-col items-center gap-1 w-16 text-text-sec-light dark:text-text-sec-dark hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 26px;">person</span>
+<span class="text-[10px] font-medium">Profile</span>
+</button>
+</div>
+</div>
+</body></html>

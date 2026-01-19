@@ -1,0 +1,14 @@
+[
+  {
+    "id": "estrategia_concursos",
+    "name": "Estratégia Concursos",
+    "baseUrl": "https://www.estrategiaconcursos.com.br",
+    "enabled": true
+  },
+  {
+    "id": "pcdf_oficial",
+    "name": "PCDF - Editais oficiais",
+    "baseUrl": "https://pcdf.df.gov.br",
+    "enabled": false
+  }
+]

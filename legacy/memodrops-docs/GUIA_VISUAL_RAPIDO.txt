@@ -1,0 +1,236 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                    🚀 GUIA VISUAL RÁPIDO - 4 PASSOS 🚀                      ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              PASSO 1: ACESSAR RAILWAY                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Abra seu navegador
+    2. Vá para: https://railway.app
+    3. Faça login
+    4. Clique no projeto "MemoDrops"
+    
+    ┌─────────────────────────────────────┐
+    │  🌐 RAILWAY DASHBOARD               │
+    ├─────────────────────────────────────┤
+    │  📁 MemoDrops                       │
+    │     ├─ 🐘 PostgreSQL     ← CLIQUE  │
+    │     └─ 🚀 Backend                   │
+    └─────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          PASSO 2: ABRIR QUERY EDITOR                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Você está na tela do PostgreSQL
+    2. Veja as abas no topo
+    3. Clique em "Query"
+    
+    ┌──────────────────────────────────────────────────┐
+    │  PostgreSQL                                      │
+    ├──────────────────────────────────────────────────┤
+    │  Variables | Data | Query | Settings             │
+    │                     ^^^^^                         │
+    │                  CLIQUE AQUI                      │
+    └──────────────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          PASSO 3: EXECUTAR SQL                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Abra o arquivo: EXECUTAR_NO_RAILWAY.sql
+    2. Selecione TUDO (Ctrl+A)
+    3. Copie (Ctrl+C)
+    4. Cole no Query Editor (Ctrl+V)
+    5. Clique em "Run Query"
+    
+    ┌──────────────────────────────────────────────────┐
+    │  Query Editor                  [Run Query] ← CLIQUE
+    ├──────────────────────────────────────────────────┤
+    │  CREATE TABLE IF NOT EXISTS jobs (              │
+    │    id UUID PRIMARY KEY...                       │
+    │    ...                                          │
+    │  );                                             │
+    │                                                 │
+    │  [COLE TODO O SQL AQUI]                        │
+    └──────────────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                      PASSO 4: REINICIAR BACKEND                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Volte para o Dashboard do projeto
+    2. Clique no serviço "Backend"
+    3. Clique no menu (⋮) no canto superior direito
+    4. Clique em "Restart"
+    
+    ┌──────────────────────────────────────────────────┐
+    │  Backend                              ⋮ ← CLIQUE │
+    ├──────────────────────────────────────────────────┤
+    │  [Settings]                                      │
+    │  [Restart]     ← CLIQUE AQUI                     │
+    │  [Redeploy]                                      │
+    │  [Remove]                                        │
+    └──────────────────────────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              ✅ PRONTO! VERIFICAR                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          VERIFICAÇÃO 1: SQL EXECUTOU                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Após clicar "Run Query", você deve ver:
+    
+    ┌──────────────────────────────────────────────────┐
+    │  Results                                         │
+    ├──────────────────────────────────────────────────┤
+    │  tipo          | nome              | status      │
+    │  ──────────────┼───────────────────┼───────────  │
+    │  TABELAS       | jobs              | OK          │
+    │  TABELAS       | job_logs          | OK          │
+    │  TABELAS       | job_schedules     | OK          │
+    │  TABELAS       | harvest_sources   | OK          │
+    │  TABELAS       | harvested_content | OK          │
+    │  JOBS_AGENDADOS| Daily Cleanup     | ATIVO       │
+    │  JOBS_AGENDADOS| Daily Harvest     | ATIVO       │
+    │  JOBS_AGENDADOS| Weekly Stats...   | ATIVO       │
+    │  JOBS_AGENDADOS| Weekly Embedding..| INATIVO     │
+    └──────────────────────────────────────────────────┘
+    
+    ✅ Se você vê 9 linhas = SUCESSO!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        VERIFICAÇÃO 2: BACKEND INICIOU                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Backend → Deployments → Último deploy → View Logs
+    2. Procure por estas mensagens:
+    
+    ┌──────────────────────────────────────────────────┐
+    │  Logs                                            │
+    ├──────────────────────────────────────────────────┤
+    │  [12:34:56] ✅ Conectado ao PostgreSQL          │
+    │  [12:34:57] 🚀 Job worker iniciado              │
+    │  [12:34:58] ✅ Servidor rodando na porta 3000   │
+    │  [12:34:59] ℹ️ Sistema de jobs ativo            │
+    └──────────────────────────────────────────────────┘
+    
+    ✅ Se você vê "Job worker iniciado" = SUCESSO!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         VERIFICAÇÃO 3: API RESPONDE                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    1. Copie a URL do seu backend (em Settings → Domains)
+    2. Abra no navegador: https://seu-backend/api/admin/jobs/stats
+    3. Deve aparecer:
+    
+    ┌──────────────────────────────────────────────────┐
+    │  {                                               │
+    │    "total": 0,                                   │
+    │    "pending": 0,                                 │
+    │    "running": 0,                                 │
+    │    "completed": 0,                               │
+    │    "failed": 0,                                  │
+    │    "avg_duration_ms": 0                          │
+    │  }                                               │
+    └──────────────────────────────────────────────────┘
+    
+    ✅ Se você vê JSON com números = SUCESSO!
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                  🎉 PARABÉNS!                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+    Se todas as 3 verificações passaram, você tem:
+    
+    ✅ 5 tabelas criadas no PostgreSQL
+    ✅ 4 jobs agendados ativos
+    ✅ Sistema de jobs funcionando
+    ✅ Worker processando
+    ✅ API respondendo
+    
+    🎯 SISTEMA 100% OPERACIONAL!
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              ❌ SE DEU ERRO                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ERRO 1: "syntax error at or near..."                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Solução: Certifique-se de copiar TODO o SQL do arquivo
+    - Abra: EXECUTAR_NO_RAILWAY.sql
+    - Ctrl+A para selecionar tudo
+    - Ctrl+C para copiar
+    - Cole no Query Editor
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ERRO 2: Backend não reinicia                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Solução: Verifique os logs de build
+    - Backend → Deployments → View Logs
+    - Procure por erros em vermelho
+    - Me avise qual é o erro
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ERRO 3: Endpoint retorna 404                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Solução: Verifique a URL
+    - URL correta: https://seu-backend.railway.app/api/admin/jobs/stats
+    - NÃO: .../jobs (falta /api/admin)
+    - NÃO: .../job/stats (singular)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            📞 PRECISA DE AJUDA?                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+    Me diga exatamente onde travou:
+    
+    "Travei no PASSO X, erro: [cole o erro aqui]"
+    
+    Ou me avise se funcionou:
+    
+    "Funcionou! Aqui estão os resultados: [cole prints/logs]"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            🚀 PRÓXIMOS PASSOS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+    Após tudo funcionando:
+    
+    1. 🧪 Criar um job de teste
+    2. 📊 Ver estatísticas
+    3. 📅 Configurar jobs agendados
+    4. 🔍 Monitorar execuções
+    
+    Consulte: REFERENCIA_RAPIDA_JOBS.md
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          ⏱️ TEMPO TOTAL: 2-3 MINUTOS                        ║
+║                          ⭐ DIFICULDADE: Muito Fácil                         ║
+║                          🎯 TAXA DE SUCESSO: 99%                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝

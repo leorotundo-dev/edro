@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Subject Library - MemoDrops</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        // Brand colors derived from the logo
+                        "primary": "#9d83d8",       // Main lilac/purple
+                        "primary-dark": "#7e5cc5",  // Darker purple for interactions
+                        "secondary": "#3a0ca3",     // Deep purple from 'memo' text
+                        "background-light": "#fcfbfe", // Very subtle lilac tint
+                        "background-dark": "#16131d",
+                        "card-light": "#ffffff",
+                        "card-dark": "#231f2e",
+                        "text-main-light": "#2d243a", // Dark purple-grey
+                        "text-main-dark": "#ece9f2",
+                        "text-sub-light": "#8b7aa3",  // Muted purple-grey
+                        "text-sub-dark": "#a79cc2",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.375rem", 
+                        "md": "0.5rem", // Slightly softer standard rounding
+                        "lg": "0.75rem", 
+                        "xl": "1rem", 
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 8px 30px -4px rgba(157, 131, 216, 0.15)', // Purple tinted shadow
+                        'card': '0 2px 10px -2px rgba(45, 36, 58, 0.04)',
+                        'glow': '0 0 15px rgba(157, 131, 216, 0.4)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>.scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main-light dark:text-text-main-dark antialiased transition-colors duration-200">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-hidden mx-auto max-w-md bg-background-light dark:bg-background-dark shadow-2xl">
+<div class="h-10 w-full bg-background-light dark:bg-background-dark"></div>
+<header class="flex flex-col px-6 pb-4 bg-background-light dark:bg-background-dark sticky top-0 z-20">
+<div class="flex items-center justify-between h-14 mb-2">
+<div>
+<p class="text-primary font-bold tracking-wide uppercase text-xs mb-0.5">MemoDrops</p>
+<h1 class="text-text-main-light dark:text-text-main-dark text-3xl font-extrabold leading-tight tracking-tight">My Library</h1>
+</div>
+<button class="flex items-center justify-center w-11 h-11 rounded-full bg-white dark:bg-card-dark shadow-sm border border-purple-100 dark:border-gray-800 hover:bg-purple-50 dark:hover:bg-gray-800 transition-colors group">
+<span class="material-symbols-outlined text-text-main-light dark:text-text-main-dark group-hover:text-primary transition-colors">account_circle</span>
+</button>
+</div>
+<div class="relative w-full group">
+<div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+<span class="material-symbols-outlined text-text-sub-light dark:text-text-sub-dark text-[22px] group-focus-within:text-primary transition-colors">search</span>
+</div>
+<input class="block w-full py-4 pl-12 text-sm text-text-main-light dark:text-text-main-dark border-none bg-white dark:bg-card-dark rounded-xl shadow-card focus:ring-2 focus:ring-primary/40 placeholder-text-sub-light/60 dark:placeholder-text-sub-dark/50 transition-all outline-none" placeholder="Search your subjects..." type="text"/>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto scrollbar-hide px-6 pb-28 pt-2">
+<div class="flex gap-2 overflow-x-auto scrollbar-hide pb-5">
+<button class="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-full shadow-lg shadow-primary/25 whitespace-nowrap hover:bg-primary-dark transition-colors">All</button>
+<button class="px-5 py-2 bg-white dark:bg-card-dark text-text-sub-light dark:text-text-sub-dark border border-purple-50 dark:border-gray-800 text-sm font-medium rounded-full whitespace-nowrap hover:bg-purple-50 dark:hover:bg-gray-800 hover:text-primary transition-colors shadow-sm">In Progress</button>
+<button class="px-5 py-2 bg-white dark:bg-card-dark text-text-sub-light dark:text-text-sub-dark border border-purple-50 dark:border-gray-800 text-sm font-medium rounded-full whitespace-nowrap hover:bg-purple-50 dark:hover:bg-gray-800 hover:text-primary transition-colors shadow-sm">Mastered</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="group flex flex-col p-5 bg-white dark:bg-card-dark rounded-xl shadow-card hover:shadow-soft transition-all duration-300 border border-purple-50/50 dark:border-gray-800 hover:border-primary/30 cursor-pointer relative overflow-hidden">
+<div class="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-br from-green-100/60 dark:from-green-900/20 to-transparent rounded-full opacity-60 transition-transform group-hover:scale-125 duration-500"></div>
+<div class="w-11 h-11 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-4 text-green-500 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+<span class="material-symbols-outlined">biotech</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark font-bold text-lg leading-tight mb-1 z-10">Biology</h2>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium mb-5">120 Drops</p>
+<div class="mt-auto">
+<div class="flex justify-between items-end mb-1.5">
+<span class="text-[10px] font-bold text-green-500 tracking-wider uppercase">80% Mastered</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+<div class="bg-green-400 h-1.5 rounded-full" style="width: 80%"></div>
+</div>
+</div>
+</div>
+<div class="group flex flex-col p-5 bg-white dark:bg-card-dark rounded-xl shadow-card hover:shadow-soft transition-all duration-300 border border-purple-50/50 dark:border-gray-800 hover:border-primary/30 cursor-pointer relative overflow-hidden">
+<div class="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-br from-blue-100/60 dark:from-blue-900/20 to-transparent rounded-full opacity-60 transition-transform group-hover:scale-125 duration-500"></div>
+<div class="w-11 h-11 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-4 text-blue-500 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+<span class="material-symbols-outlined">calculate</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark font-bold text-lg leading-tight mb-1 z-10">Math</h2>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium mb-5">200 Drops</p>
+<div class="mt-auto">
+<div class="flex justify-between items-end mb-1.5">
+<span class="text-[10px] font-bold text-blue-500 tracking-wider uppercase">15% Mastered</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+<div class="bg-blue-400 h-1.5 rounded-full" style="width: 15%"></div>
+</div>
+</div>
+</div>
+<div class="group flex flex-col p-5 bg-white dark:bg-card-dark rounded-xl shadow-card hover:shadow-soft transition-all duration-300 border border-purple-50/50 dark:border-gray-800 hover:border-primary/30 cursor-pointer relative overflow-hidden">
+<div class="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-br from-orange-100/60 dark:from-orange-900/20 to-transparent rounded-full opacity-60 transition-transform group-hover:scale-125 duration-500"></div>
+<div class="w-11 h-11 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mb-4 text-orange-500 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+<span class="material-symbols-outlined">hourglass_top</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark font-bold text-lg leading-tight mb-1 z-10">History</h2>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium mb-5">85 Drops</p>
+<div class="mt-auto">
+<div class="flex justify-between items-end mb-1.5">
+<span class="text-[10px] font-bold text-orange-500 tracking-wider uppercase">40% Mastered</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+<div class="bg-orange-400 h-1.5 rounded-full" style="width: 40%"></div>
+</div>
+</div>
+</div>
+<div class="group flex flex-col p-5 bg-white dark:bg-card-dark rounded-xl shadow-card hover:shadow-soft transition-all duration-300 border border-purple-50/50 dark:border-gray-800 hover:border-primary/30 cursor-pointer relative overflow-hidden">
+<div class="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-br from-primary/20 to-transparent rounded-full opacity-60 transition-transform group-hover:scale-125 duration-500"></div>
+<div class="w-11 h-11 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform duration-300 shadow-sm">
+<span class="material-symbols-outlined">menu_book</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark font-bold text-lg leading-tight mb-1 z-10">Literature</h2>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium mb-5">50 Drops</p>
+<div class="mt-auto">
+<div class="flex justify-between items-end mb-1.5">
+<span class="text-[10px] font-bold text-primary tracking-wider uppercase">100% Mastered</span>
+<span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+<div class="bg-primary h-1.5 rounded-full" style="width: 100%"></div>
+</div>
+</div>
+</div>
+<div class="group flex flex-col p-5 bg-white dark:bg-card-dark rounded-xl shadow-card hover:shadow-soft transition-all duration-300 border border-purple-50/50 dark:border-gray-800 hover:border-primary/30 cursor-pointer relative overflow-hidden">
+<div class="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-br from-indigo-100/60 dark:from-indigo-900/20 to-transparent rounded-full opacity-60 transition-transform group-hover:scale-125 duration-500"></div>
+<div class="w-11 h-11 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 text-indigo-500 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+<span class="material-symbols-outlined">science</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark font-bold text-lg leading-tight mb-1 z-10">Physics</h2>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium mb-5">120 Drops</p>
+<div class="mt-auto">
+<div class="flex justify-between items-end mb-1.5">
+<span class="text-[10px] font-bold text-indigo-500 tracking-wider uppercase">60% Mastered</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+<div class="bg-indigo-400 h-1.5 rounded-full" style="width: 60%"></div>
+</div>
+</div>
+</div>
+<button class="flex flex-col items-center justify-center p-5 rounded-xl border-2 border-dashed border-purple-100 dark:border-gray-700 hover:border-primary/50 hover:bg-purple-50/50 dark:hover:bg-gray-800/50 transition-all group min-h-[140px]">
+<div class="w-12 h-12 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-purple-200 group-hover:text-primary transition-colors">add</span>
+</div>
+<span class="text-sm font-semibold text-text-sub-light dark:text-text-sub-dark group-hover:text-primary transition-colors">Add Subject</span>
+</button>
+</div>
+<div class="h-8"></div>
+</main>
+<div class="absolute bottom-24 right-6 z-20">
+<button class="flex items-center justify-center w-14 h-14 bg-gradient-to-tr from-primary to-primary-dark text-white rounded-full shadow-lg shadow-primary/40 hover:shadow-xl hover:shadow-primary/50 transition-all active:scale-95 group">
+<span class="material-symbols-outlined text-[28px] group-hover:rotate-90 transition-transform duration-300">add</span>
+</button>
+</div>
+<nav class="absolute bottom-0 w-full bg-white/95 dark:bg-card-dark/95 backdrop-blur-xl border-t border-purple-100 dark:border-gray-800 pb-6 pt-3 px-6 z-30">
+<div class="flex justify-between items-center max-w-sm mx-auto">
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="p-1 rounded-full group-hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-primary text-[26px] font-variation-settings-fill">home</span>
+</div>
+<span class="text-[10px] font-bold text-primary">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="p-1 rounded-full group-hover:bg-purple-50 dark:group-hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined text-text-sub-light dark:text-text-sub-dark text-[26px] group-hover:text-primary transition-colors">update</span>
+</div>
+<span class="text-[10px] font-medium text-text-sub-light dark:text-text-sub-dark group-hover:text-primary transition-colors">Review</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="p-1 rounded-full group-hover:bg-purple-50 dark:group-hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined text-text-sub-light dark:text-text-sub-dark text-[26px] group-hover:text-primary transition-colors">bar_chart</span>
+</div>
+<span class="text-[10px] font-medium text-text-sub-light dark:text-text-sub-dark group-hover:text-primary transition-colors">Stats</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="p-1 rounded-full group-hover:bg-purple-50 dark:group-hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined text-text-sub-light dark:text-text-sub-dark text-[26px] group-hover:text-primary transition-colors">person</span>
+</div>
+<span class="text-[10px] font-medium text-text-sub-light dark:text-text-sub-dark group-hover:text-primary transition-colors">Profile</span>
+</a>
+</div>
+</nav>
+</div>
+
+</body></html>

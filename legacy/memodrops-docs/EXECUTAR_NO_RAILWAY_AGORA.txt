@@ -1,0 +1,84 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║               FIX APLICADO - AGUARDANDO RAILWAY                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+✅ CÓDIGO COMMITADO E ENVIADO PARA O GITHUB!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 OPÇÃO 1: AGUARDAR DEPLOY AUTOMÁTICO (5-10 minutos)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Acessar: https://railway.app
+2. Ir no projeto MemoDrops > Backend
+3. Aguardar o deploy automático terminar
+4. Verificar logs - procurar por:
+   ✅ "Migração 0013_fix_jobs_scheduled_for.sql aplicada com sucesso!"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ OPÇÃO 2: FIX MANUAL IMEDIATO (2 minutos)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Se quiser resolver AGORA sem aguardar deploy:
+
+1. Instalar Railway CLI (se ainda não tem):
+   
+   Windows (PowerShell):
+   powershell -c "irm https://railway.app/install.ps1 | iex"
+   
+   Mac/Linux:
+   curl -fsSL https://railway.app/install.sh | sh
+
+2. Fazer login:
+   railway login
+
+3. Conectar ao banco:
+   railway connect postgres
+
+4. Copiar e colar TODO o conteúdo do arquivo:
+   MANUAL_SQL_FIX_RAILWAY.sql
+
+5. Executar linha por linha
+
+6. No Railway dashboard, clicar em "Restart" no serviço backend
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 VERIFICAR SE FUNCIONOU:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nos logs do Railway, você NÃO deve mais ver:
+❌ "error: column "scheduled_for" does not exist"
+❌ "[jobs] Erro no worker"
+
+E DEVE ver:
+✅ "🚀 MemoDrops backend rodando"
+✅ "✅ Scheduler inicializado com sucesso"
+✅ "[monitoring] Error rate: 0.00 %"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 COMANDOS RÁPIDOS RAILWAY CLI:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Ver logs em tempo real
+railway logs
+
+# Conectar ao banco
+railway connect postgres
+
+# Restart do serviço
+railway restart
+
+# Ver status
+railway status
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+QUAL OPÇÃO VOCÊ QUER SEGUIR?
+
+→ Opção 1: Aguardar deploy (mais seguro, automático)
+→ Opção 2: Fix manual (mais rápido, requer Railway CLI)
+
+Me avise qual vai escolher ou se precisa de ajuda!

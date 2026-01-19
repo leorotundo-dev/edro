@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops Onboarding</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#9f86c0", // Softer medium purple inspired by the logo
+              "primary-dark": "#7b5fa3", // Slightly darker purple for active states
+              "secondary": "#4a0e78", // Deep purple from "memo" text
+              "background-light": "#faf8fc", // Very light off-white/lilac
+              "background-dark": "#181024", // Dark purple-tinted background
+              "lilac-50": "#f5f0fa",
+              "lilac-100": "#ebe4f5",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+            keyframes: {
+                float: {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-10px)' },
+                }
+            },
+            animation: {
+                float: 'float 6s ease-in-out infinite',
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display antialiased text-slate-900 dark:text-slate-100 bg-background-light dark:bg-background-dark selection:bg-primary/30">
+<div class="relative flex h-screen w-full flex-col overflow-hidden bg-gradient-to-b from-[#f3eefc] via-[#f7f4fd] to-background-light dark:from-[#2a1b3d] dark:to-background-dark">
+<div class="flex items-center justify-end p-6 pt-10 z-10 w-full animate-[fadeIn_0.5s_ease-out]">
+<button class="group flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-bold tracking-wide hover:text-primary transition-colors py-2 px-3 rounded-full hover:bg-purple-50 dark:hover:bg-purple-900/20">
+<span>Pular</span>
+</button>
+</div>
+<div class="flex-1 flex flex-col items-center justify-center px-6 -mt-10 w-full max-w-md mx-auto">
+<div class="w-full relative mb-10 flex justify-center">
+<div class="absolute inset-0 bg-purple-200/50 dark:bg-purple-900/20 rounded-full blur-3xl scale-90 translate-y-4"></div>
+<div class="w-[85%] aspect-square relative z-10 animate-float">
+<div class="w-full h-full bg-center bg-contain bg-no-repeat drop-shadow-sm" data-alt="Minimalist abstract illustration depicting a water drop transforming into a leaf, symbolizing knowledge growth" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDXiigbZMt364pSXeCagKN7MzOxYsgRDzYJPW4TZNZbpth4y1P2gB30lszdq0uXvSULDAQ9SmFJ31fGj0OCeK5oHwaDWcALdFDGRGO-0ZFEJRIgirujjEsu3kQ3_5MEbJ29h9ft_ce5iwcb_vW5M-1Rw0bLdHP8YKY_wbjUAdq26pTovggmgenXU2FZ8gylekKn_xsqK_lx6m2CDUAogL45SKSHFxYx01UFA4PNPATo4yj368OvOlYVxSShpSUmCSn_kIXytm_4Yf0');">
+</div>
+</div>
+</div>
+<div class="text-center space-y-4 w-full">
+<h1 class="text-[#2d1b4e] dark:text-purple-50 text-[32px] leading-[1.1] font-extrabold tracking-tight">
+                    Conhecimento <br/> que fica
+                </h1>
+<p class="text-slate-500 dark:text-slate-400 text-base font-medium leading-relaxed px-4 mx-auto max-w-[32ch]">
+                    Aprenda de forma inteligente com nosso sistema de repetição espaçada.
+                </p>
+</div>
+</div>
+<div class="flex flex-col items-center gap-8 pb-10 pt-4 px-6 w-full max-w-md mx-auto">
+<div class="flex flex-row items-center justify-center gap-2.5">
+<div class="h-2.5 w-8 rounded-full bg-primary shadow-sm shadow-purple-200 dark:shadow-none transition-all duration-300"></div>
+<div class="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+<div class="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+</div>
+<button class="w-full bg-primary hover:bg-primary-dark active:bg-secondary text-white font-bold text-[17px] py-4 rounded-full shadow-lg shadow-purple-500/25 dark:shadow-purple-900/30 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 group">
+                Começar
+                <span class="material-symbols-outlined text-[20px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+
+</body></html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gamification Hub - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b390",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1a2c28",
+                        "text-main-light": "#0e1b18",
+                        "text-main-dark": "#e0eCe9",
+                        "text-sub-light": "#4e9785",
+                        "text-sub-dark": "#8cbab0",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark font-display antialiased min-h-screen flex flex-col overflow-hidden">
+<!-- Top App Bar -->
+<div class="sticky top-0 z-50 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm p-4 pb-2 justify-between border-b border-gray-100 dark:border-gray-800">
+<div class="text-text-main-light dark:text-text-main-dark flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</div>
+<h2 class="text-text-main-light dark:text-text-main-dark text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Gamification Hub</h2>
+<div class="flex w-10 items-center justify-end">
+<button class="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800 text-text-main-light dark:text-text-main-dark">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="Portrait of young woman" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVW8Isy6iuyqgTivaKkdp1hOTQrbCeIgrfurDvlcuUGravej0acH4x49bTVYIZZ9YyKgbPUO82F93zH0MXOVMIBe-hCK3hFUUoOAyAdTSz5LWuVPRg5T6A7Q1JWUP_0XFGbRDfSNZg2G880-9iWDYwza5j7c8rHCENmfDhnLdrKt5xkb2MkRTqmE5huJoML3ny55f3WzEam55_GCynBeSiAhoQ2j1l7LhEsJ1vbpYBP6JTdiZCgfk5IBPtloPEDNiZfRrFsvVo2OE"/>
+</button>
+</div>
+</div>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto pb-24">
+<!-- Welcome Header -->
+<div class="px-4 pt-6 pb-2">
+<p class="text-text-sub-light dark:text-text-sub-dark text-sm font-medium">Good Morning, Alex!</p>
+<h1 class="text-text-main-light dark:text-text-main-dark text-3xl font-bold mt-1">Ready to level up?</h1>
+</div>
+<!-- Stats Dashboard (Hero) -->
+<div class="px-4 py-4">
+<div class="bg-card-light dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+<!-- Level Info -->
+<div class="flex justify-between items-center mb-4">
+<div>
+<span class="text-primary font-bold text-sm uppercase tracking-wider">Level 5</span>
+<h3 class="text-xl font-bold text-text-main-light dark:text-text-main-dark">Scholar</h3>
+</div>
+<div class="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center text-primary-dark dark:text-primary">
+<span class="material-symbols-outlined text-[28px]">school</span>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="mb-6">
+<div class="flex justify-between mb-2">
+<span class="text-xs font-medium text-text-sub-light dark:text-text-sub-dark">Level Progress</span>
+<span class="text-xs font-bold text-text-main-light dark:text-text-main-dark">75%</span>
+</div>
+<div class="h-3 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-1000 ease-out" style="width: 75%"></div>
+</div>
+<p class="text-xs text-text-sub-light dark:text-text-sub-dark mt-2 text-right">350 XP to Level 6</p>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-2 gap-3">
+<div class="flex flex-col gap-1 rounded-xl bg-background-light dark:bg-background-dark p-3 items-center text-center border border-gray-100 dark:border-gray-700/50">
+<span class="material-symbols-outlined text-primary mb-1 text-[24px]">bolt</span>
+<p class="text-text-main-light dark:text-text-main-dark tracking-tight text-2xl font-bold leading-none">1,240</p>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium">Total XP</p>
+</div>
+<div class="flex flex-col gap-1 rounded-xl bg-background-light dark:bg-background-dark p-3 items-center text-center border border-gray-100 dark:border-gray-700/50">
+<span class="material-symbols-outlined text-orange-500 mb-1 text-[24px] fill-current">local_fire_department</span>
+<p class="text-text-main-light dark:text-text-main-dark tracking-tight text-2xl font-bold leading-none">12</p>
+<p class="text-text-sub-light dark:text-text-sub-dark text-xs font-medium">Day Streak</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Daily Missions Section -->
+<div class="px-4 pt-2">
+<h2 class="text-text-main-light dark:text-text-main-dark text-lg font-bold mb-4 flex items-center gap-2">
+                Daily Missions
+                <span class="bg-primary text-[#11211d] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Reset in 4h</span>
+</h2>
+<!-- Mission List -->
+<div class="flex flex-col gap-3">
+<!-- Mission 1: Active -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
+<div class="absolute right-0 top-0 p-3">
+<span class="bg-primary/10 text-primary-dark dark:text-primary text-xs font-bold px-2 py-1 rounded-lg">+50 XP</span>
+</div>
+<div class="flex gap-4 items-start">
+<div class="size-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">style</span>
+</div>
+<div class="flex-1 pr-12">
+<h3 class="text-text-main-light dark:text-text-main-dark font-bold text-base leading-tight mb-1">Quick Review</h3>
+<p class="text-text-sub-light dark:text-text-sub-dark text-sm mb-3 leading-snug">Review 20 flashcards from your Biology set.</p>
+<!-- Progress -->
+<div class="flex items-center gap-3">
+<div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+<div class="h-full bg-blue-500 rounded-full" style="width: 75%"></div>
+</div>
+<span class="text-xs font-bold text-text-sub-light dark:text-text-sub-dark min-w-[3rem] text-right">15/20</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Mission 2: Active -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
+<div class="absolute right-0 top-0 p-3">
+<span class="bg-primary/10 text-primary-dark dark:text-primary text-xs font-bold px-2 py-1 rounded-lg">+100 XP</span>
+</div>
+<div class="flex gap-4 items-start">
+<div class="size-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+</div>
+<div class="flex-1 pr-12">
+<h3 class="text-text-main-light dark:text-text-main-dark font-bold text-base leading-tight mb-1">Deep Dive</h3>
+<p class="text-text-sub-light dark:text-text-sub-dark text-sm mb-3 leading-snug">Study for 30 minutes uninterrupted.</p>
+<!-- Progress -->
+<div class="flex items-center gap-3">
+<div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+<div class="h-full bg-purple-500 rounded-full" style="width: 33%"></div>
+</div>
+<span class="text-xs font-bold text-text-sub-light dark:text-text-sub-dark min-w-[3rem] text-right">10/30m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Mission 3: Not Started -->
+<div class="bg-card-light dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden group opacity-80 hover:opacity-100 transition-opacity">
+<div class="absolute right-0 top-0 p-3">
+<span class="bg-primary/10 text-primary-dark dark:text-primary text-xs font-bold px-2 py-1 rounded-lg">+150 XP</span>
+</div>
+<div class="flex gap-4 items-start">
+<div class="size-10 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">quiz</span>
+</div>
+<div class="flex-1 pr-12">
+<h3 class="text-text-main-light dark:text-text-main-dark font-bold text-base leading-tight mb-1">Perfect Score</h3>
+<p class="text-text-sub-light dark:text-text-sub-dark text-sm mb-3 leading-snug">Get 100% on any practice quiz.</p>
+<!-- Progress -->
+<div class="flex items-center gap-3">
+<div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+<div class="h-full bg-orange-500 rounded-full w-0"></div>
+</div>
+<span class="text-xs font-bold text-text-sub-light dark:text-text-sub-dark min-w-[3rem] text-right">0/1</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Spacer for Floating Button -->
+<div class="h-10"></div>
+</div>
+<!-- Floating CTA -->
+<div class="fixed bottom-6 left-0 right-0 p-4 z-40 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/80 dark:via-background-dark/80 to-transparent pb-8">
+<button class="w-full bg-primary hover:bg-primary-dark text-[#0e1b18] font-bold text-base py-4 rounded-xl shadow-lg shadow-primary/25 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+            Ver missões
+            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</body></html>

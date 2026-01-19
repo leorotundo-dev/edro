@@ -1,0 +1,358 @@
+/**
+ * Queue Service
+ * Job queue management with BullMQ
+ */
+
+import { Queue, Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
+
+// Redis connection
+const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: null,
+});
+
+// ============================================
+// QUEUES
+// ============================================
+
+export const queues = {
+  generateDrops: new Queue('generate-drops', { connection }),
+  processHarvest: new Queue('process-harvest', { connection }),
+  generateEmbeddings: new Queue('generate-embeddings', { connection }),
+  sendNotifications: new Queue('send-notifications', { connection }),
+  generateQuestions: new Queue('generate-questions', { connection }),
+  cleanupData: new Queue('cleanup-data', { connection }),
+};
+
+// ============================================
+// JOB INTERFACES
+// ============================================
+
+export interface GenerateDropsJob {
+  disciplineId: string;
+  topicCode: string;
+  count: number;
+}
+
+export interface ProcessHarvestJob {
+  harvestId: string;
+  sourceUrl: string;
+}
+
+export interface GenerateEmbeddingsJob {
+  type: 'drops' | 'questions' | 'rag';
+  ids: string[];
+}
+
+export interface SendNotificationJob {
+  userId: string;
+  type: 'email' | 'push';
+  title: string;
+  body: string;
+}
+
+export interface GenerateQuestionsJob {
+  disciplineId: string;
+  topicCode: string;
+  count: number;
+  difficulty: number;
+}
+
+export interface CleanupDataJob {
+  type: 'old_logs' | 'expired_sessions' | 'temp_files';
+  olderThanDays: number;
+}
+
+// ============================================
+// QUEUE OPERATIONS
+// ============================================
+
+export async function addToQueue<T>(
+  queueName: keyof typeof queues,
+  data: T,
+  options?: {
+    delay?: number;
+    priority?: number;
+    attempts?: number;
+  }
+): Promise<Job<T>> {
+  const queue = queues[queueName] as Queue<T>;
+  
+  const job = await queue.add(queueName, data, {
+    delay: options?.delay,
+    priority: options?.priority,
+    attempts: options?.attempts || 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+    removeOnComplete: {
+      age: 86400, // Keep completed jobs for 24h
+      count: 1000,
+    },
+    removeOnFail: {
+      age: 604800, // Keep failed jobs for 7 days
+    },
+  });
+
+  console.log(`[queue] Job added to ${queueName}: ${job.id}`);
+  
+  return job;
+}
+
+export async function getQueueStats(queueName: keyof typeof queues) {
+  const queue = queues[queueName];
+  
+  const [waiting, active, completed, failed, delayed] = await Promise.all([
+    queue.getWaitingCount(),
+    queue.getActiveCount(),
+    queue.getCompletedCount(),
+    queue.getFailedCount(),
+    queue.getDelayedCount(),
+  ]);
+
+  return {
+    name: queueName,
+    waiting,
+    active,
+    completed,
+    failed,
+    delayed,
+    total: waiting + active + delayed,
+  };
+}
+
+export async function getAllQueuesStats() {
+  const stats = await Promise.all(
+    Object.keys(queues).map(name => getQueueStats(name as keyof typeof queues))
+  );
+
+  return stats;
+}
+
+export async function pauseQueue(queueName: keyof typeof queues) {
+  const queue = queues[queueName];
+  await queue.pause();
+  console.log(`[queue] Queue ${queueName} paused`);
+}
+
+export async function resumeQueue(queueName: keyof typeof queues) {
+  const queue = queues[queueName];
+  await queue.resume();
+  console.log(`[queue] Queue ${queueName} resumed`);
+}
+
+export async function clearQueue(queueName: keyof typeof queues) {
+  const queue = queues[queueName];
+  await queue.drain();
+  console.log(`[queue] Queue ${queueName} cleared`);
+}
+
+// ============================================
+// WORKERS
+// ============================================
+
+// Worker: Generate Drops
+export const generateDropsWorker = new Worker<GenerateDropsJob>(
+  'generate-drops',
+  async (job) => {
+    console.log(`[worker:drops] Processing job ${job.id}:`, job.data);
+    
+    const { disciplineId, topicCode, count } = job.data;
+    
+    // TODO: Implement actual drop generation
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    console.log(`[worker:drops] ✅ Generated ${count} drops for ${topicCode}`);
+    
+    return { success: true, generated: count };
+  },
+  { connection, concurrency: 2 }
+);
+
+// Worker: Process Harvest
+export const processHarvestWorker = new Worker<ProcessHarvestJob>(
+  'process-harvest',
+  async (job) => {
+    console.log(`[worker:harvest] Processing job ${job.id}:`, job.data);
+    
+    const { harvestId, sourceUrl } = job.data;
+    
+    // TODO: Implement actual harvest processing
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    console.log(`[worker:harvest] ✅ Processed harvest ${harvestId}`);
+    
+    return { success: true, itemsProcessed: 10 };
+  },
+  { connection, concurrency: 1 }
+);
+
+// Worker: Generate Embeddings
+export const generateEmbeddingsWorker = new Worker<GenerateEmbeddingsJob>(
+  'generate-embeddings',
+  async (job) => {
+    console.log(`[worker:embeddings] Processing job ${job.id}:`, job.data);
+    
+    const { type, ids } = job.data;
+    
+    // TODO: Implement actual embeddings generation
+    await new Promise(resolve => setTimeout(resolve, ids.length * 100));
+    
+    console.log(`[worker:embeddings] ✅ Generated embeddings for ${ids.length} ${type}`);
+    
+    return { success: true, processed: ids.length };
+  },
+  { connection, concurrency: 3 }
+);
+
+// Worker: Send Notifications
+export const sendNotificationsWorker = new Worker<SendNotificationJob>(
+  'send-notifications',
+  async (job) => {
+    console.log(`[worker:notifications] Processing job ${job.id}:`, job.data);
+    
+    const { userId, type, title, body } = job.data;
+    
+    // TODO: Implement actual notification sending
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log(`[worker:notifications] ✅ Sent ${type} to user ${userId}`);
+    
+    return { success: true, sent: true };
+  },
+  { connection, concurrency: 10 }
+);
+
+// Worker: Generate Questions
+export const generateQuestionsWorker = new Worker<GenerateQuestionsJob>(
+  'generate-questions',
+  async (job) => {
+    console.log(`[worker:questions] Processing job ${job.id}:`, job.data);
+    
+    const { disciplineId, topicCode, count, difficulty } = job.data;
+    
+    // TODO: Implement actual question generation
+    await new Promise(resolve => setTimeout(resolve, count * 1000));
+    
+    console.log(`[worker:questions] ✅ Generated ${count} questions`);
+    
+    return { success: true, generated: count };
+  },
+  { connection, concurrency: 2 }
+);
+
+// Worker: Cleanup Data
+export const cleanupDataWorker = new Worker<CleanupDataJob>(
+  'cleanup-data',
+  async (job) => {
+    console.log(`[worker:cleanup] Processing job ${job.id}:`, job.data);
+    
+    const { type, olderThanDays } = job.data;
+    
+    // TODO: Implement actual data cleanup
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log(`[worker:cleanup] ✅ Cleaned ${type} older than ${olderThanDays} days`);
+    
+    return { success: true, deletedCount: 42 };
+  },
+  { connection, concurrency: 1 }
+);
+
+// ============================================
+// WORKER EVENT LISTENERS
+// ============================================
+
+const workers = [
+  generateDropsWorker,
+  processHarvestWorker,
+  generateEmbeddingsWorker,
+  sendNotificationsWorker,
+  generateQuestionsWorker,
+  cleanupDataWorker,
+];
+
+workers.forEach(worker => {
+  worker.on('completed', (job) => {
+    console.log(`[worker] Job ${job.id} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`[worker] Job ${job?.id} failed:`, err.message);
+  });
+
+  worker.on('error', (err) => {
+    console.error(`[worker] Worker error:`, err.message);
+  });
+});
+
+// ============================================
+// SCHEDULED JOBS
+// ============================================
+
+export async function scheduleRecurringJobs() {
+  console.log('[queue] Scheduling recurring jobs...');
+
+  // Daily cleanup at 2 AM
+  await queues.cleanupData.add(
+    'daily-cleanup',
+    {
+      type: 'old_logs',
+      olderThanDays: 30,
+    },
+    {
+      repeat: {
+        pattern: '0 2 * * *', // Every day at 2 AM
+      },
+    }
+  );
+
+  // Weekly embeddings update
+  await queues.generateEmbeddings.add(
+    'weekly-embeddings',
+    {
+      type: 'drops',
+      ids: [], // Will be populated by worker
+    },
+    {
+      repeat: {
+        pattern: '0 3 * * 0', // Every Sunday at 3 AM
+      },
+    }
+  );
+
+  console.log('[queue] ✅ Recurring jobs scheduled');
+}
+
+// ============================================
+// SHUTDOWN
+// ============================================
+
+export async function shutdownQueues() {
+  console.log('[queue] Shutting down queues...');
+
+  await Promise.all(workers.map(w => w.close()));
+  await Promise.all(Object.values(queues).map(q => q.close()));
+  await connection.quit();
+
+  console.log('[queue] ✅ Queues shut down');
+}
+
+// ============================================
+// EXPORTS
+// ============================================
+
+export const QueueService = {
+  queues,
+  addToQueue,
+  getQueueStats,
+  getAllQueuesStats,
+  pauseQueue,
+  resumeQueue,
+  clearQueue,
+  scheduleRecurringJobs,
+  shutdownQueues,
+};
+
+export default QueueService;

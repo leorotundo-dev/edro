@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MemoDrops Style Guide</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;family=Sora:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "primary-light": "#9b4bf1",
+                        "secondary-lilac": "#e0cffc",
+                        "secondary-bg": "#ede7f3",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#2d1f3f",
+                        "text-main": "#140d1b",
+                        "text-muted": "#7a7a7a",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"],
+                        "title": ["Sora", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem", 
+                        "lg": "2rem", 
+                        "xl": "3rem", 
+                        "full": "9999px",
+                        "card": "20px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(127, 19, 236, 0.08)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Manrope', sans-serif;
+        }
+        .font-sora {
+            font-family: 'Sora', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-text-main dark:text-white transition-colors duration-200">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-50 flex items-center bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-4 pb-2 justify-between border-b border-gray-200 dark:border-white/5">
+<div class="text-text-main dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer hover:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</div>
+<h2 class="text-text-main dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center font-sora">Design System</h2>
+<div class="flex w-12 items-center justify-end">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:text-primary-light transition-colors">share</span>
+</div>
+</header>
+<!-- Hero Section -->
+<div class="flex flex-col px-4 pt-6 pb-2">
+<h1 class="text-text-main dark:text-white tracking-tight text-[32px] font-bold leading-tight text-left pb-3 font-sora">MemoDrops Brand</h1>
+<!-- Chips -->
+<div class="flex gap-3 flex-wrap">
+<div class="flex h-7 items-center justify-center gap-x-2 rounded-full bg-secondary-bg dark:bg-white/10 px-3 border border-transparent dark:border-white/10">
+<span class="text-primary dark:text-secondary-lilac text-xs font-bold uppercase tracking-wider">v1.0</span>
+</div>
+<div class="flex h-7 items-center justify-center gap-x-2 rounded-full bg-secondary-bg dark:bg-white/10 px-3 border border-transparent dark:border-white/10">
+<span class="text-text-main dark:text-white text-xs font-medium">iOS Mobile</span>
+</div>
+<div class="flex h-7 items-center justify-center gap-x-2 rounded-full bg-secondary-bg dark:bg-white/10 px-3 border border-transparent dark:border-white/10">
+<span class="text-text-main dark:text-white text-xs font-medium">Light &amp; Dark</span>
+</div>
+</div>
+</div>
+<div class="h-6 w-full"></div>
+<!-- Section 1: Color Palette -->
+<section class="px-4">
+<h2 class="text-text-main dark:text-white text-xl font-bold leading-tight tracking-tight pb-4 font-sora flex items-center gap-2">
+<span class="text-primary text-sm font-mono opacity-60">01.</span> Color Palette
+            </h2>
+<div class="grid grid-cols-2 gap-4">
+<!-- Primary Color -->
+<div class="flex flex-col gap-3 p-4 rounded-[20px] bg-white dark:bg-surface-dark shadow-soft border border-gray-100 dark:border-white/5">
+<div class="h-20 w-full rounded-2xl bg-[#7f13ec] shadow-inner relative group cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-2xl">
+<span class="material-symbols-outlined text-white text-lg">content_copy</span>
+</div>
+</div>
+<div>
+<p class="text-text-main dark:text-white font-bold text-base">Primary</p>
+<p class="text-text-muted text-sm font-mono">#7F13EC</p>
+</div>
+</div>
+<!-- Secondary/Lilac -->
+<div class="flex flex-col gap-3 p-4 rounded-[20px] bg-white dark:bg-surface-dark shadow-soft border border-gray-100 dark:border-white/5">
+<div class="h-20 w-full rounded-2xl bg-[#E0CFFC] shadow-inner relative group cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 rounded-2xl">
+<span class="material-symbols-outlined text-primary text-lg">content_copy</span>
+</div>
+</div>
+<div>
+<p class="text-text-main dark:text-white font-bold text-base">Lilac</p>
+<p class="text-text-muted text-sm font-mono">#E0CFFC</p>
+</div>
+</div>
+<!-- Surface Light -->
+<div class="flex flex-col gap-3 p-4 rounded-[20px] bg-white dark:bg-surface-dark shadow-soft border border-gray-100 dark:border-white/5">
+<div class="h-20 w-full rounded-2xl bg-[#F7F6F8] border border-gray-200 dark:border-transparent shadow-sm relative group cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded-2xl">
+<span class="material-symbols-outlined text-text-main text-lg">content_copy</span>
+</div>
+</div>
+<div>
+<p class="text-text-main dark:text-white font-bold text-base">Surface</p>
+<p class="text-text-muted text-sm font-mono">#F7F6F8</p>
+</div>
+</div>
+<!-- Text Main -->
+<div class="flex flex-col gap-3 p-4 rounded-[20px] bg-white dark:bg-surface-dark shadow-soft border border-gray-100 dark:border-white/5">
+<div class="h-20 w-full rounded-2xl bg-[#140D1B] shadow-inner relative group cursor-pointer">
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 rounded-2xl">
+<span class="material-symbols-outlined text-white text-lg">content_copy</span>
+</div>
+</div>
+<div>
+<p class="text-text-main dark:text-white font-bold text-base">Ink</p>
+<p class="text-text-muted text-sm font-mono">#140D1B</p>
+</div>
+</div>
+</div>
+</section>
+<div class="h-8 w-full border-b border-gray-200/50 dark:border-white/5 my-6 mx-4 w-auto"></div>
+<!-- Section 2: Typography -->
+<section class="px-4">
+<h2 class="text-text-main dark:text-white text-xl font-bold leading-tight tracking-tight pb-4 font-sora flex items-center gap-2">
+<span class="text-primary text-sm font-mono opacity-60">02.</span> Typography
+            </h2>
+<div class="space-y-6">
+<!-- Heading Font -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-end border-b border-gray-200 dark:border-white/10 pb-2 mb-2">
+<span class="text-xs uppercase tracking-widest text-text-muted font-bold">Headings (Sora)</span>
+<span class="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">Display</span>
+</div>
+<div class="space-y-4">
+<div class="flex flex-col">
+<h1 class="font-sora text-3xl font-bold text-text-main dark:text-white">Heading 1</h1>
+<span class="text-xs text-text-muted font-mono mt-1">Sora Bold • 30px</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-sora text-xl font-bold text-text-main dark:text-white">Heading 2</h2>
+<span class="text-xs text-text-muted font-mono mt-1">Sora Bold • 20px</span>
+</div>
+</div>
+</div>
+<!-- Body Font -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-end border-b border-gray-200 dark:border-white/10 pb-2 mb-2">
+<span class="text-xs uppercase tracking-widest text-text-muted font-bold">Body (Manrope)</span>
+<span class="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">Interface</span>
+</div>
+<div class="space-y-4">
+<div class="flex flex-col">
+<p class="text-base font-medium text-text-main dark:text-white">Body Medium</p>
+<p class="text-text-muted mt-1 leading-relaxed text-sm">
+                                Use Manrope for all UI elements, long paragraphs, and descriptions. It's clean and legible at small sizes.
+                            </p>
+<span class="text-xs text-text-muted font-mono mt-2">Manrope Medium • 16px</span>
+</div>
+<div class="flex flex-col">
+<p class="text-sm text-text-muted">Caption Text</p>
+<span class="text-xs text-text-muted font-mono mt-1">Manrope Regular • 14px</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<div class="h-8 w-full border-b border-gray-200/50 dark:border-white/5 my-6 mx-4 w-auto"></div>
+<!-- Section 3: Buttons & Inputs -->
+<section class="px-4">
+<h2 class="text-text-main dark:text-white text-xl font-bold leading-tight tracking-tight pb-4 font-sora flex items-center gap-2">
+<span class="text-primary text-sm font-mono opacity-60">03.</span> Components
+            </h2>
+<div class="bg-white dark:bg-surface-dark rounded-[24px] p-6 shadow-soft border border-gray-100 dark:border-white/5 space-y-8">
+<!-- Buttons -->
+<div class="space-y-4">
+<p class="text-xs uppercase tracking-widest text-text-muted font-bold mb-2">Buttons</p>
+<button class="w-full h-12 bg-primary hover:bg-primary-light active:scale-[0.98] text-white rounded-full font-bold text-base transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2">
+<span>Get Started</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+<button class="w-full h-12 bg-secondary-lilac hover:bg-[#d4bcf7] active:scale-[0.98] text-primary rounded-full font-bold text-base transition-all flex items-center justify-center gap-2">
+<span>Secondary Action</span>
+</button>
+<button class="w-full h-12 bg-transparent border-2 border-gray-200 dark:border-white/20 text-text-muted rounded-full font-bold text-base flex items-center justify-center gap-2 cursor-not-allowed opacity-60">
+<span>Disabled State</span>
+</button>
+</div>
+<!-- Inputs -->
+<div class="space-y-2">
+<p class="text-xs uppercase tracking-widest text-text-muted font-bold mb-2">Input Fields</p>
+<div class="relative group">
+<label class="block text-sm font-medium text-text-main dark:text-white mb-1 ml-1">Email Address</label>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-primary">mail</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-3 border-2 border-secondary-lilac dark:border-white/20 rounded-xl leading-5 bg-white dark:bg-black/20 text-text-main dark:text-white placeholder-text-muted focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all sm:text-sm" placeholder="hello@edro.digital" type="email"/>
+</div>
+</div>
+</div>
+</div>
+</section>
+<div class="h-8 w-full border-b border-gray-200/50 dark:border-white/5 my-6 mx-4 w-auto"></div>
+<!-- Section 4: Iconography -->
+<section class="px-4">
+<h2 class="text-text-main dark:text-white text-xl font-bold leading-tight tracking-tight pb-4 font-sora flex items-center gap-2">
+<span class="text-primary text-sm font-mono opacity-60">04.</span> Icons
+            </h2>
+<div class="grid grid-cols-4 gap-4 bg-white dark:bg-surface-dark p-6 rounded-[24px] shadow-soft border border-gray-100 dark:border-white/5">
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">school</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">edit_note</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">check_circle</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">favorite</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">search</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">calendar_today</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">settings</span>
+</div>
+<div class="aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl bg-secondary-bg dark:bg-white/5 text-primary hover:bg-primary hover:text-white transition-colors group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">lightbulb</span>
+</div>
+</div>
+<p class="text-xs text-text-muted mt-3 text-center">Material Symbols Outlined • Rounded • 24px</p>
+</section>
+<div class="h-8 w-full border-b border-gray-200/50 dark:border-white/5 my-6 mx-4 w-auto"></div>
+<!-- Section 5: Shape & Radius -->
+<section class="px-4 mb-10">
+<h2 class="text-text-main dark:text-white text-xl font-bold leading-tight tracking-tight pb-4 font-sora flex items-center gap-2">
+<span class="text-primary text-sm font-mono opacity-60">05.</span> Radius &amp; Shadow
+            </h2>
+<div class="relative bg-secondary-bg dark:bg-white/5 rounded-[32px] p-8 overflow-hidden">
+<!-- Visual Guide Lines -->
+<div class="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
+<span class="material-symbols-outlined text-6xl text-primary rotate-12">architecture</span>
+</div>
+<div class="bg-white dark:bg-surface-dark rounded-[20px] p-5 shadow-soft max-w-[280px] mx-auto relative">
+<!-- Radius Indicator -->
+<div class="absolute -top-2 -left-2 size-8 border-t-2 border-l-2 border-primary rounded-tl-[20px]"></div>
+<div class="absolute -top-6 -left-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">20px</div>
+<div class="h-32 bg-secondary-lilac/30 rounded-xl mb-3 flex items-center justify-center" data-alt="Abstract soft purple gradient representing a study card placeholder">
+<span class="material-symbols-outlined text-primary/40 text-4xl">image</span>
+</div>
+<div class="h-4 bg-gray-100 dark:bg-white/10 w-3/4 rounded-full mb-2"></div>
+<div class="h-4 bg-gray-100 dark:bg-white/10 w-1/2 rounded-full"></div>
+</div>
+<div class="mt-6 flex justify-between text-xs font-mono text-text-muted">
+<div class="text-center">
+<span class="block text-lg font-bold text-primary">20px</span>
+                        Cards
+                    </div>
+<div class="text-center">
+<span class="block text-lg font-bold text-primary">12px</span>
+                        Inner Elements
+                    </div>
+<div class="text-center">
+<span class="block text-lg font-bold text-primary">Full</span>
+                        Buttons
+                    </div>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<div class="py-8 bg-white dark:bg-surface-dark border-t border-gray-200 dark:border-white/5 flex flex-col items-center justify-center gap-2">
+<div class="flex items-center gap-2">
+<div class="size-6 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[14px]">water_drop</span>
+</div>
+<span class="font-sora font-bold text-text-main dark:text-white">MemoDrops</span>
+</div>
+<p class="text-xs text-text-muted">Internal Design System v1.0</p>
+</div>
+</div>
+</body></html>

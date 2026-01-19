@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Weekly Rankings - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1a2c28",
+                        "text-primary-light": "#0e1b18",
+                        "text-primary-dark": "#e8f5f2",
+                        "text-secondary-light": "#4e9785",
+                        "text-secondary-dark": "#8abeb0",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased min-h-screen flex justify-center">
+<div class="relative w-full max-w-md h-screen flex flex-col overflow-hidden bg-background-light dark:bg-background-dark shadow-xl ring-1 ring-black/5">
+<!-- Header -->
+<header class="flex-none px-4 pt-6 pb-2 z-20">
+<div class="flex items-center justify-between mb-4">
+<button class="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-primary-light dark:text-text-primary-dark">
+<span class="material-symbols-outlined" style="font-size: 24px;">arrow_back</span>
+</button>
+<h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Weekly Rankings</h1>
+<button class="p-2 -mr-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-primary-light dark:text-text-primary-dark">
+<span class="material-symbols-outlined" style="font-size: 24px;">info</span>
+</button>
+</div>
+<!-- Filter Chip -->
+<div class="flex justify-center">
+<button class="flex items-center gap-2 bg-primary/10 dark:bg-primary/20 text-primary-darker dark:text-primary px-4 py-1.5 rounded-full hover:bg-primary/20 transition-all">
+<span class="text-sm font-medium text-[#07882e] dark:text-primary">This Week</span>
+<span class="material-symbols-outlined text-[#07882e] dark:text-primary" style="font-size: 18px;">expand_more</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto hide-scrollbar pb-24 relative">
+<!-- Podium Section -->
+<div class="px-4 pt-4 pb-8">
+<div class="flex items-end justify-center gap-4 min-h-[220px]">
+<!-- 2nd Place -->
+<div class="flex flex-col items-center w-1/3 z-10">
+<div class="relative mb-2">
+<div class="w-16 h-16 rounded-full border-4 border-gray-200 dark:border-gray-600 bg-gray-100 overflow-hidden shadow-sm" data-alt="Portrait of a young woman smiling" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBkiUHcj9QnspYAPF_R9zSF69yrCJ54HcDJ9TjBr21ICBt6-x35da6lugrgAb4ahmPn-DQtxGsQWIWn9IcUzDz-e1sRzXw-XcMaBUeFLVMEh31MAAnBUzqirtXT_51K_dCcg-PDgWcv57iP27UROF3pjHWKB3ZKnJaO2WiQ2jA2qf-gmNzpjYeBYnOhaa-VV3VYC9AVi0FDre9Ym-GEAES7zT2GeBBynnHhz7tuqdo-m4_1m-BIXmnNGmq7-wqUk6EKskAd3htyFN4'); background-size: cover; background-position: center;"></div>
+<div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-100 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white dark:border-background-dark shadow-sm">2</div>
+</div>
+<p class="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark mb-0.5 truncate w-full text-center">Sarah</p>
+<p class="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">1,150 XP</p>
+<!-- Podium Bar -->
+<div class="w-full bg-gradient-to-t from-gray-200/80 to-gray-100/50 dark:from-gray-700 dark:to-gray-800 h-24 mt-3 rounded-t-lg flex items-end justify-center pb-2 relative overflow-hidden group">
+<div class="absolute inset-x-0 bottom-0 h-1 bg-gray-300 dark:bg-gray-600"></div>
+</div>
+</div>
+<!-- 1st Place -->
+<div class="flex flex-col items-center w-1/3 z-20 -mx-2">
+<div class="relative mb-3">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-yellow-400">
+<span class="material-symbols-outlined filled" style="font-size: 28px; font-variation-settings: 'FILL' 1;">crown</span>
+</div>
+<div class="w-20 h-20 rounded-full border-4 border-primary bg-primary/10 overflow-hidden shadow-lg" data-alt="Portrait of a young man smiling widely" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCxFMfhgK6hpZ7ys3QOcTUUlRqhwhpPIz3beSCh9mK3VES3R8mzFBNkmvPj379d1OFRTWt_0aODzlu4p_zjn5ZAurJgyM868A6pi0hKoO2uQICDqy12IcoyVlRSi9H8E_MOVdErV71T8T9Wcv8oqZ9o9Tj2cycL7aq1Pc14qHVl_8GzOOanxnU9pOQuITHB5hKUqrJXjGCTpsLvmmlaq3Pj7FHCXkBCb4t0u_mkHhBDJAQlt7OEXdcriXNPhy9NDpMa8aZ_peLO7Rk'); background-size: cover; background-position: center;"></div>
+<div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-background-dark text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center border-2 border-white dark:border-background-dark shadow-sm">1</div>
+</div>
+<p class="text-base font-bold text-text-primary-light dark:text-text-primary-dark mb-0.5 truncate w-full text-center">Michael</p>
+<p class="text-xs font-bold text-primary dark:text-primary">1,420 XP</p>
+<!-- Podium Bar -->
+<div class="w-full bg-gradient-to-t from-primary/30 to-primary/10 h-32 mt-3 rounded-t-xl flex items-end justify-center pb-3 relative overflow-hidden shadow-[0_0_15px_rgba(48,232,186,0.15)]">
+<div class="absolute inset-x-0 bottom-0 h-1.5 bg-primary"></div>
+</div>
+</div>
+<!-- 3rd Place -->
+<div class="flex flex-col items-center w-1/3 z-10">
+<div class="relative mb-2">
+<div class="w-16 h-16 rounded-full border-4 border-orange-200 dark:border-orange-900/50 bg-orange-50 overflow-hidden shadow-sm" data-alt="Portrait of a smiling woman with long hair" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBXlAQHDQvP-JIEUVdzhILBRxrVKgJJBH5yKYqjimbWcxMYcSckmlWiELa6MnfaGJN-1wbmQdVm4XJXC_jk0HOPQmbJ6RFEc_GJK40yBbnHRp4dbEoTf3FGTtEdz2FuxluQ4EjqvUn5bi0BMkj2cxftiyM-lKgo8vwDJSudMLlR-MoXa1cbbkFGGQENTVMQAXw0MdFVE4cr5P3vmOZgaWLAHjE5_QQIEBpxzG1wS7YzO0tEXF_JhLfdQr0hvIsCoOrHdmUHGxOzVto'); background-size: cover; background-position: center;"></div>
+<div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-100 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white dark:border-background-dark shadow-sm">3</div>
+</div>
+<p class="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark mb-0.5 truncate w-full text-center">Elena</p>
+<p class="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">980 XP</p>
+<!-- Podium Bar -->
+<div class="w-full bg-gradient-to-t from-orange-100/80 to-orange-50/50 dark:from-orange-900/40 dark:to-orange-900/20 h-16 mt-3 rounded-t-lg flex items-end justify-center pb-2 relative overflow-hidden">
+<div class="absolute inset-x-0 bottom-0 h-1 bg-orange-200 dark:bg-orange-800"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- List Section -->
+<div class="bg-card-light dark:bg-card-dark rounded-t-[2rem] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] min-h-full px-4 pt-6 pb-20">
+<div class="flex flex-col gap-3">
+<!-- Item 4 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">4</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a man with glasses" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDZi6xPXLZVt8ZX16ghI5XEneBLFVGeueNi4Gti4VFaMDK9NuUocw_3cooUzptchTfoZt5tK4tFnestlFo7qHA-n1p9ZZx6moB_BeTKz9kPCvTDMwywQhivgMIds3EushiOvUg_ESGeM4bbKa9sKLmkFFDYPt0SqD0wiUeMno9fsV0Sq4hv-WcVXmwg0V-1Taoq-s-Wv0MyAfFM-B4ZJBWWeiiuWSQKy8V3l4nf5-pGue0H7E300NBP37h8R5NoYGM_62FipGJFkXw');"></div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Alex Johnson</p>
+<div class="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined" style="font-size: 10px;">local_fire_department</span>
+                                    5
+                                </div>
+</div>
+</div>
+<p class="text-text-primary-light dark:text-text-primary-dark font-bold text-sm">945 XP</p>
+</div>
+<!-- Item 5 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">5</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a smiling young woman" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB_CHMQdXShJ6xERpls5uk3EmmXBSUvy19wBZVXWDPLybZ_i2-hySgnGKOwsLC6TEFlN0LVS3LiVpm_OsQO92J10FzJ4kHqYzamJpCfRA5Z-nD6kxfEVXjAQ0sStgpKOxnihJKGpQv-XvR4wZpOdg5_-hbIavZosA1LPLUFuRZPRA-4-ayHt01xPawDGba3u_SaA3K3Zp5u-dhDmLofT9WIC5blmrRELlp2g-m3iTxSYs35OdPCbpRo5MC5ijfyk9JAqn-HcbIZHdY');"></div>
+<div class="flex-1 min-w-0">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Priya Patel</p>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">890 XP</p>
+</div>
+<!-- Item 6 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">6</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a man with a beard" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCXAEUlDNGZzL3X3sDC3Q5tGfEL1PMnn-v6kzrqyUMnbJmIZL2BYhXKT3CkR8ibfXwoUJ9C5lwvmnvCdFSnY3mVeVPSKHlZsXh5aJwHveC6GYu6ZNTY1xfF0VrEe0qTcZuGCkdZG4ZYAKzp5Q8_9cdbfHTH1W8nwlzD7rnc2heeSuYIYOFMfy_OtjxJjTMHwEgYnwxwQNNMnv0oCfTiSuWv9P8jqSCfba-mvBTWGkQzNHqyXtF0AY_liZ5mMkheSYVp76wvGJN-AwI');"></div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Daniel Kim</p>
+<div class="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                    Steady
+                                </div>
+</div>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">850 XP</p>
+</div>
+<!-- Item 7 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">7</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a woman with short hair" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAFybkrmwpugLanOjet1Tdm2JgcgJmSJ8OjDFSuAciQjmUvbgEUdMdolsqzE5ck9gdhwkqG0VbLOc_31tw7JammL8lrrx6BjcDlXiVd9PM9OKTpaPQdE_7pB2I7BUH57BrAWiO6bYtr1qeMJ4g1GFnXPQHRHdaK8Uf3xEiRl9QZgn5ticIWroBM72JMPrVo7xz3J7gOlbRO67Dq9mrnAWTKW_Mesv088V1ipTXHec8Y_RUv9QdSkrAVgzVKoSfD1Rn0vnIeojUo2Uc');"></div>
+<div class="flex-1 min-w-0">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Maria Garcia</p>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">820 XP</p>
+</div>
+<!-- Item 8 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">8</span>
+<div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center ml-2 mr-3 text-gray-500 dark:text-gray-400 font-bold text-xs" data-alt="Initials avatar">
+                            JT
+                        </div>
+<div class="flex-1 min-w-0">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">James T.</p>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">790 XP</p>
+</div>
+<!-- Item 9 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">9</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a man looking to the side" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBRHt8QhafX4hwWcMenJAxlDGJSTcG8m_Q_rVLjBE5CHt8vY_4QweW8BFbqiIyJC7IKPnGg3xo0N3LWPNeuhE0K-twNl6JpvRc5p3ooGsOls10srgOd0jW-x9sXSKRSsuhXU6wAxOGb5FZcJIaLOKQOlpOZSXjmogVapARftvs7qcRqH_MEc0JvvtYrDnOjbCZWbQCPgocnt17rL3CMSGBjmISrkswz2_lCAHAT4_R-ge4S1Q0QAY8lqs-tnevX0LIVLMo_ms_JxSo');"></div>
+<div class="flex-1 min-w-0">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Tom W.</p>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">755 XP</p>
+</div>
+<!-- Item 10 -->
+<div class="flex items-center p-3 rounded-xl bg-background-light dark:bg-background-dark/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-colors opacity-60">
+<span class="w-8 text-center text-text-secondary-light dark:text-text-secondary-dark font-bold">10</span>
+<div class="w-10 h-10 rounded-full bg-cover bg-center ml-2 mr-3 border border-gray-100 dark:border-gray-700" data-alt="Avatar of a woman smiling" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD7xFsfsPyNUC42k84ta-i0ftGbMxpNDzfHILHuyL5Bnpjc7QY5Nv0kC3o9s2Vw-R4fNHKEB_FVI2qFwXrsoPUii_HZSNGUlBAmVkjVwNa54cf5WIZoE74AD1BGE15yrY5TTUwH1oqYuxeNBPctmfFY9yLwjLH1wVZhPbZhfCKTeqDKSGgtmPKdscB61fjlQinrAEgboRtA_7r1o70LFj8Pier7dkUTeV6EyWcd0L_5x_C0R_4bVzPx81n8zBPa3NSA02B6LGk_zEY');"></div>
+<div class="flex-1 min-w-0">
+<p class="text-text-primary-light dark:text-text-primary-dark font-medium truncate">Linda K.</p>
+</div>
+<p class="text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">710 XP</p>
+</div>
+<!-- Spacer for sticky bottom -->
+<div class="h-20"></div>
+</div>
+</div>
+</main>
+<!-- Sticky User Stat Bar -->
+<div class="absolute bottom-6 left-4 right-4 z-30">
+<div class="bg-[#eafbf6] dark:bg-primary/20 backdrop-blur-md rounded-2xl p-3 shadow-lg border border-primary/20 flex items-center justify-between ring-1 ring-primary/30">
+<div class="flex items-center gap-3">
+<div class="bg-primary/20 dark:bg-primary/30 w-10 h-10 rounded-full flex items-center justify-center text-primary-darker dark:text-primary font-bold text-sm">
+                        12
+                    </div>
+<div class="flex flex-col">
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark font-medium uppercase tracking-wider">Your Rank</span>
+<span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">You</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex flex-col items-end">
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark font-medium">This Week</span>
+<span class="text-sm font-bold text-[#07882e] dark:text-primary">640 XP</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-cover bg-center border-2 border-primary" data-alt="Your own avatar" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuARcoShK5qKlzM6nJy27sOzqe8CMmOLhDY7zd1BwSBscVsYF2NVh7jHQ5n3zy01L2m-ACHb-X13F46N0JDcM8gVgJV5PHKpJt5dDNNeudXTAlsC_JPfuKnIqL5S0waVjXstLE7L9NAH-D8bTZC8ub1qbXpFLaP42oV4itChKctziZXsLZM26hVb4-Uj99TASCApE5YeTpZDxJDqlSe6YbHdCt6Y3PpO7qW9FvaH2Mdfz0qTIb7oh42qj76NbO5U7KTjC2dFGuEEWQk');"></div>
+</div>
+</div>
+</div>
+</div>
+</body></html>

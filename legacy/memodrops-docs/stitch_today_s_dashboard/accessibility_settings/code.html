@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Accessibility Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "primary-dark": "#25b591",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1c2e2a",
+                        "text-main-light": "#0e1b18",
+                        "text-main-dark": "#e0e7e5",
+                        "text-sub-light": "#4a5f5a",
+                        "text-sub-dark": "#a0b3af",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom styling for the range slider to ensure consistent cross-browser appearance */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #30e8ba;
+            cursor: pointer;
+            margin-top: -10px; 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        input[type=range]::-moz-range-thumb {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #30e8ba;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 9999px;
+        }
+        
+        .dark input[type=range]::-webkit-slider-runnable-track {
+            background: #374151;
+        }
+        
+        /* Custom fill simulation handled via accent-color in supported browsers or requires JS for precise fill, keeping simple track color here */
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased text-text-main-light dark:text-text-main-dark transition-colors duration-300">
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto overflow-x-hidden pb-12">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 flex items-center justify-between px-4 pt-12 pb-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm transition-colors duration-300">
+<button aria-label="Go back" class="group flex items-center justify-center size-10 rounded-full hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-text-main-light dark:text-text-main-dark">arrow_back_ios_new</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight text-center flex-1 pr-10">Accessibility</h1>
+</header>
+<main class="flex-1 flex flex-col gap-8 px-5 py-2">
+<!-- Section: Visual -->
+<section class="flex flex-col gap-3">
+<h2 class="text-sm font-semibold uppercase tracking-wider text-text-sub-light dark:text-text-sub-dark px-1">Visual</h2>
+<div class="flex flex-col bg-surface-light dark:bg-surface-dark rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-none overflow-hidden transition-colors duration-300">
+<!-- Item: High Contrast -->
+<div class="flex items-center justify-between p-4 min-h-[72px] active:bg-gray-50 dark:active:bg-white/5 transition-colors">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center size-12 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-primary shrink-0 transition-colors">
+<span class="material-symbols-outlined">contrast</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-base font-medium leading-tight">High Contrast</span>
+<span class="text-xs text-text-sub-light dark:text-text-sub-dark mt-0.5">Increase visibility</span>
+</div>
+</div>
+<!-- Custom Toggle -->
+<label class="relative inline-flex cursor-pointer items-center">
+<input class="peer sr-only" type="checkbox" value=""/>
+<div class="peer h-[31px] w-[51px] rounded-full bg-gray-200 dark:bg-gray-700 after:absolute after:start-[2px] after:top-[2px] after:h-[27px] after:w-[27px] after:rounded-full after:bg-white after:shadow-sm after:transition-all peer-checked:bg-primary peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Section: Audio & Speech -->
+<section class="flex flex-col gap-3">
+<h2 class="text-sm font-semibold uppercase tracking-wider text-text-sub-light dark:text-text-sub-dark px-1">Audio &amp; Speech</h2>
+<div class="flex flex-col bg-surface-light dark:bg-surface-dark rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-none overflow-hidden transition-colors duration-300 divide-y divide-gray-100 dark:divide-gray-800/50">
+<!-- Item: Screen Reader -->
+<div class="flex items-center justify-between p-4 min-h-[72px] active:bg-gray-50 dark:active:bg-white/5 transition-colors">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center size-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shrink-0 transition-colors">
+<span class="material-symbols-outlined">hearing</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-base font-medium leading-tight">Screen Reader</span>
+<span class="text-xs text-text-sub-light dark:text-text-sub-dark mt-0.5">Voice assistance</span>
+</div>
+</div>
+<!-- Custom Toggle -->
+<label class="relative inline-flex cursor-pointer items-center">
+<input class="peer sr-only" type="checkbox" value=""/>
+<div class="peer h-[31px] w-[51px] rounded-full bg-gray-200 dark:bg-gray-700 after:absolute after:start-[2px] after:top-[2px] after:h-[27px] after:w-[27px] after:rounded-full after:bg-white after:shadow-sm after:transition-all peer-checked:bg-primary peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+</label>
+</div>
+<!-- Item: TTS Speed Slider -->
+<div class="flex flex-col gap-4 p-4 min-h-[110px]">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center size-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shrink-0 transition-colors">
+<span class="material-symbols-outlined">speed</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-base font-medium leading-tight">TTS Speed</span>
+<span class="text-xs text-text-sub-light dark:text-text-sub-dark mt-0.5">Reading pace</span>
+</div>
+</div>
+<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-primary/10 text-primary-dark dark:text-primary font-bold text-sm tracking-tight">
+                                1.2x
+                            </span>
+</div>
+<!-- Slider Controls -->
+<div class="flex items-center gap-3 pt-1 px-1">
+<button aria-label="Slower" class="text-text-sub-light dark:text-text-sub-dark hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">directions_walk</span>
+</button>
+<div class="relative flex-1 h-6 flex items-center">
+<!-- Background Track -->
+<div class="absolute w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+<!-- Active fill simulation for visual -->
+<div class="h-full bg-primary w-[40%] rounded-full"></div>
+</div>
+<!-- Native Slider on top -->
+<input class="relative w-full z-10 opacity-0 cursor-pointer h-full" max="2.0" min="0.5" step="0.1" type="range" value="1.2"/>
+<!-- Custom Thumb Visual (since we can't style native thumb fully consistently without complex css hacks, we use a positioned div controlled by hypothetical JS, but for this static output we place it at 40%) -->
+<div class="absolute left-[40%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.2)] border-2 border-primary pointer-events-none z-20"></div>
+</div>
+<button aria-label="Faster" class="text-text-sub-light dark:text-text-sub-dark hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">directions_run</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Cognitive Load -->
+<section class="flex flex-col gap-3">
+<h2 class="text-sm font-semibold uppercase tracking-wider text-text-sub-light dark:text-text-sub-dark px-1">Cognitive Load</h2>
+<div class="flex flex-col bg-surface-light dark:bg-surface-dark rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-none overflow-hidden transition-colors duration-300">
+<!-- Item: Focus Mode -->
+<div class="flex items-center justify-between p-4 min-h-[72px] active:bg-gray-50 dark:active:bg-white/5 transition-colors">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center size-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0 transition-colors">
+<span class="material-symbols-outlined">center_focus_strong</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-base font-medium leading-tight">Focus Mode</span>
+<span class="text-xs text-text-sub-light dark:text-text-sub-dark mt-0.5">Hide distractions</span>
+</div>
+</div>
+<!-- Custom Toggle (Checked State) -->
+<label class="relative inline-flex cursor-pointer items-center">
+<input checked="" class="peer sr-only" type="checkbox" value=""/>
+<div class="peer h-[31px] w-[51px] rounded-full bg-gray-200 dark:bg-gray-700 after:absolute after:start-[2px] after:top-[2px] after:h-[27px] after:w-[27px] after:rounded-full after:bg-white after:shadow-sm after:transition-all peer-checked:bg-primary peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Footer Help -->
+<div class="mt-4 flex justify-center">
+<button class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-text-sub-light dark:text-text-sub-dark hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined text-lg">support_agent</span>
+                    Need more help? Contact Support
+                </button>
+</div>
+</main>
+</div>
+</body></html>

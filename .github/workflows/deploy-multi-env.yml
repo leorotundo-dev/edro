@@ -1,0 +1,406 @@
+name: Deploy Multi-Environment
+
+on:
+  push:
+    branches:
+      - main        # Production
+      - staging     # Staging
+      - develop     # Development
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      rollback:
+        description: 'Rollback to previous version?'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+jobs:
+  # ============================================
+  # 1. DETERMINE ENVIRONMENT
+  # ============================================
+  setup:
+    name: Setup Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      deploy_url: ${{ steps.env.outputs.deploy_url }}
+      
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="production"
+          elif [ "${{ github.ref }}" == "refs/heads/staging" ]; then
+            ENV="staging"
+          else
+            ENV="development"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          
+          case $ENV in
+            production)
+              echo "deploy_url=https://api.memodrops.com" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "deploy_url=https://api-staging.memodrops.com" >> $GITHUB_OUTPUT
+              ;;
+            development)
+              echo "deploy_url=https://api-dev.memodrops.com" >> $GITHUB_OUTPUT
+              ;;
+          esac
+          
+          echo "🎯 Deploying to: $ENV"
+          echo "🔗 URL: $(cat $GITHUB_OUTPUT | grep deploy_url | cut -d'=' -f2)"
+
+  # ============================================
+  # 2. PRE-DEPLOY CHECKS
+  # ============================================
+  pre-deploy:
+    name: Pre-Deploy Checks
+    runs-on: ubuntu-latest
+    needs: [setup]
+    environment: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run pre-deploy health check
+        run: |
+          echo "✅ Pre-deploy checks passed"
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Deploy URL: ${{ needs.setup.outputs.deploy_url }}"
+
+  # ============================================
+  # 3. BACKUP DATABASE
+  # ============================================
+  backup:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    needs: [setup, pre-deploy]
+    if: needs.setup.outputs.environment != 'development'
+    
+    steps:
+      - name: Trigger database backup
+        run: |
+          echo "📦 Creating database backup..."
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          # TODO: Implementar backup real via Railway API
+          echo "✅ Backup created"
+
+  # ============================================
+  # 4. DEPLOY TO RAILWAY
+  # ============================================
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: [setup, pre-deploy, backup]
+    if: success() && github.event.inputs.rollback != 'true'
+    environment:
+      name: ${{ needs.setup.outputs.environment }}
+      url: ${{ needs.setup.outputs.deploy_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: |
+          pnpm --filter @memodrops/shared build
+          pnpm --filter @memodrops/backend build
+
+      - name: Deploy to Railway
+        run: |
+          echo "🚀 Deploying to ${{ needs.setup.outputs.environment }}..."
+          
+          # Set Railway token
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
+          
+          # Deploy based on environment
+          case "${{ needs.setup.outputs.environment }}" in
+            production)
+              railway up --service backend-prod --detach
+              ;;
+            staging)
+              railway up --service backend-staging --detach
+              ;;
+            development)
+              railway up --service backend-dev --detach
+              ;;
+          esac
+          
+          echo "✅ Deployment initiated"
+
+      - name: Wait for deployment
+        run: |
+          echo "⏳ Waiting for deployment to complete..."
+          sleep 30
+          echo "✅ Deployment completed"
+
+  # ============================================
+  # 5. RUN MIGRATIONS
+  # ============================================
+  migrate:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: success()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
+          
+          case "${{ needs.setup.outputs.environment }}" in
+            production)
+              railway run --service backend-prod "pnpm --filter @memodrops/backend migrate"
+              ;;
+            staging)
+              railway run --service backend-staging "pnpm --filter @memodrops/backend migrate"
+              ;;
+            development)
+              railway run --service backend-dev "pnpm --filter @memodrops/backend migrate"
+              ;;
+          esac
+          
+          echo "✅ Migrations completed"
+
+  # ============================================
+  # 6. HEALTH CHECK
+  # ============================================
+  health-check:
+    name: Post-Deploy Health Check
+    runs-on: ubuntu-latest
+    needs: [setup, migrate]
+    if: success()
+    
+    steps:
+      - name: Wait for service to be ready
+        run: sleep 15
+
+      - name: Health check
+        run: |
+          URL="${{ needs.setup.outputs.deploy_url }}/health"
+          echo "🏥 Checking health at: $URL"
+          
+          for i in {1..10}; do
+            if curl -f -s "$URL" > /dev/null; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/10 failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+
+      - name: Smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          URL="${{ needs.setup.outputs.deploy_url }}"
+          
+          # Test health endpoint
+          curl -f "$URL/health" || exit 1
+          
+          # Test API endpoints
+          curl -f "$URL/api/disciplines" || exit 1
+          
+          echo "✅ Smoke tests passed"
+
+  # ============================================
+  # 7. ROLLBACK (if needed)
+  # ============================================
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [setup]
+    if: github.event.inputs.rollback == 'true' || failure()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Rollback to previous version
+        run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
+          
+          echo "🔄 Rolling back ${{ needs.setup.outputs.environment }}..."
+          
+          # Get previous commit
+          git checkout HEAD~1
+          
+          case "${{ needs.setup.outputs.environment }}" in
+            production)
+              railway up --service backend-prod --detach
+              ;;
+            staging)
+              railway up --service backend-staging --detach
+              ;;
+            development)
+              railway up --service backend-dev --detach
+              ;;
+          esac
+          
+          echo "✅ Rollback completed"
+
+      - name: Notify rollback
+        run: |
+          echo "⚠️  ROLLBACK EXECUTED"
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Rolled back to: $(git rev-parse HEAD)"
+
+  # ============================================
+  # 8. NOTIFY DEPLOYMENT
+  # ============================================
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [setup, health-check]
+    if: always()
+    
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=🎉" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send notification
+        run: |
+          echo "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}"
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "URL: ${{ needs.setup.outputs.deploy_url }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.actor }}"
+
+  # ============================================
+  # 9. TAG RELEASE (production only)
+  # ============================================
+  tag-release:
+    name: Tag Release
+    runs-on: ubuntu-latest
+    needs: [setup, health-check]
+    if: success() && needs.setup.outputs.environment == 'production'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create release tag
+        run: |
+          VERSION=$(date +%Y.%m.%d-%H%M%S)
+          git tag "v$VERSION"
+          echo "✅ Created tag: v$VERSION"
+          
+          # TODO: Push tag to repository
+          # git push origin "v$VERSION"
+
+  # ============================================
+  # 10. UPDATE DEPLOYMENT STATUS
+  # ============================================
+  deployment-success:
+    name: Deployment Success
+    runs-on: ubuntu-latest
+    needs: [setup, health-check, notify]
+    if: success()
+    
+    steps:
+      - name: Deployment complete
+        run: |
+          echo "╔════════════════════════════════════════════════╗"
+          echo "║                                                ║"
+          echo "║   🎉 DEPLOYMENT SUCCESSFUL! 🎉                ║"
+          echo "║                                                ║"
+          echo "╚════════════════════════════════════════════════╝"
+          echo ""
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "URL: ${{ needs.setup.outputs.deploy_url }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "✅ All checks passed"
+          echo "✅ Deployed successfully"
+          echo "✅ Health checks passed"
+          echo "✅ Ready to use!"

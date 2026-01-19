@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Email Confirmation Sent - MemoDrops</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;family=Sora:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "primary-light": "#9b4bf1",
+                        "secondary-lilac": "#e0cffc",
+                        "background-lilac": "#f3ebff",
+                        "text-main": "#140d1b",
+                        "text-muted": "#6b7280",
+                    },
+                    fontFamily: {
+                        "manrope": ["Manrope", "sans-serif"],
+                        "sora": ["Sora", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "card": "20px"
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-manrope bg-white antialiased;
+            }
+        }
+        .bg-lilac-gradient {
+            background: linear-gradient(180deg, #f3ebff 0%, #ffffff 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-white">
+<div class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto bg-lilac-gradient shadow-2xl">
+<div class="h-12 w-full"></div>
+<main class="flex-1 flex flex-col items-center justify-center px-8 text-center">
+<div class="relative mb-10 group">
+<div class="absolute -inset-4 bg-secondary-lilac/30 rounded-full blur-2xl group-hover:bg-secondary-lilac/50 transition-all duration-500"></div>
+<div class="relative flex items-center justify-center w-48 h-48 bg-white rounded-[40px] shadow-xl shadow-primary/5">
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-[100px] text-primary">
+                            send
+                        </span>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-4 ml-6">
+<div class="bg-white rounded-full p-1 shadow-sm">
+<span class="material-symbols-outlined text-red-400 text-4xl">
+                                    favorite
+                                </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4 max-w-[280px] mx-auto">
+<h1 class="font-sora text-3xl font-bold text-text-main tracking-tight">
+                    E-mail enviado!
+                </h1>
+<p class="text-text-muted font-manrope text-base leading-relaxed">
+                    Enviamos um link de recuperação para o seu e-mail. Verifique sua caixa de entrada <span class="text-text-main font-medium">(e a pasta de spam)</span>.
+                </p>
+</div>
+</main>
+<footer class="p-8 pb-12">
+<div class="bg-white/50 backdrop-blur-sm p-2 rounded-[28px] border border-white/40">
+<button class="w-full h-14 bg-primary hover:bg-primary-light active:scale-[0.98] text-white rounded-[20px] font-bold text-lg transition-all shadow-lg shadow-primary/25 flex items-center justify-center">
+                    Entendi
+                </button>
+</div>
+<div class="mt-8 flex justify-center">
+<div class="w-32 h-1.5 bg-gray-300 rounded-full"></div>
+</div>
+</footer>
+<div class="absolute top-20 left-10 opacity-20 rotate-12">
+<span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+</div>
+<div class="absolute bottom-40 right-10 opacity-20 -rotate-12">
+<span class="material-symbols-outlined text-primary text-4xl">auto_awesome</span>
+</div>
+</div>
+
+</body></html>

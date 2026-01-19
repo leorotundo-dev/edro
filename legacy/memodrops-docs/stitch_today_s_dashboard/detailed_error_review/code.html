@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Detailed Error Review - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#994ce6",
+                        "primary-light": "#ede8f3",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191121",
+                        "success-light": "#dcfce7",
+                        "success-dark": "#166534",
+                        "error-light": "#fee2e2",
+                        "error-dark": "#991b1b",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "2xl": "1.25rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased overflow-x-hidden transition-colors duration-200">
+<div class="relative flex h-full min-h-screen w-full flex-col max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark pb-20">
+<!-- Header Section -->
+<header class="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 transition-colors">
+<div class="flex flex-col pt-2">
+<!-- Breadcrumb -->
+<div class="px-4 pt-2">
+<p class="text-primary text-xs font-medium tracking-wide">Simulado <span class="text-slate-400 mx-1">&gt;</span> Revisão de Erros</p>
+</div>
+<!-- Top Bar with Back Button and Title -->
+<div class="flex items-center p-4 gap-4">
+<button class="group flex items-center justify-center size-10 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300 group-hover:text-primary transition-colors">arrow_back_ios_new</span>
+</button>
+<h1 class="text-2xl font-bold text-slate-900 dark:text-white flex-1">Detailed Error Review</h1>
+<button class="flex items-center justify-center size-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">more_vert</span>
+</button>
+</div>
+<!-- Segmented Control Filter -->
+<div class="px-4 pb-4">
+<div class="flex p-1 bg-slate-200 dark:bg-slate-800 rounded-xl relative">
+<div class="w-1/2 h-full absolute left-1/2 top-0 bottom-0 p-1 transition-transform duration-300">
+<div class="w-full h-full bg-white dark:bg-slate-700 rounded-lg shadow-sm"></div>
+</div>
+<label class="relative z-10 flex-1 cursor-pointer text-center py-2 text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-slate-700 dark:hover:text-slate-200">
+<input class="peer hidden" name="filter" type="radio" value="all"/>
+<span>All Questions</span>
+</label>
+<label class="relative z-10 flex-1 cursor-pointer text-center py-2 text-sm font-bold text-primary dark:text-white transition-colors">
+<input checked="" class="peer hidden" name="filter" type="radio" value="errors"/>
+<span>Errors Only</span>
+</label>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Feed -->
+<main class="flex-1 flex flex-col gap-6 p-4">
+<!-- Question Card 1 -->
+<article class="bg-white dark:bg-slate-800 rounded-[20px] p-5 shadow-sm shadow-primary/5 dark:shadow-none border border-slate-100 dark:border-slate-700 flex flex-col gap-4">
+<!-- Question Header -->
+<div class="flex justify-between items-start gap-3">
+<h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                        1. What is the capital of Australia?
+                    </h2>
+<span class="shrink-0 inline-flex items-center justify-center size-8 rounded-full bg-error-light dark:bg-red-900/30">
+<span class="material-symbols-outlined text-red-600 dark:text-red-400 text-lg">close</span>
+</span>
+</div>
+<!-- Choices Review -->
+<div class="flex flex-col gap-2">
+<!-- User's Wrong Choice -->
+<div class="flex items-center gap-3 p-3 rounded-xl bg-error-light/50 dark:bg-red-900/20 border border-error-light dark:border-red-900/30">
+<div class="shrink-0 flex items-center justify-center size-6 rounded-full bg-white dark:bg-red-900/50 text-red-500">
+<span class="material-symbols-outlined text-sm">close</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Your Answer</span>
+<span class="text-sm font-medium text-slate-800 dark:text-slate-200">Sydney</span>
+</div>
+</div>
+<!-- Correct Answer -->
+<div class="flex items-center gap-3 p-3 rounded-xl bg-success-light/50 dark:bg-green-900/20 border border-success-light dark:border-green-900/30">
+<div class="shrink-0 flex items-center justify-center size-6 rounded-full bg-white dark:bg-green-900/50 text-green-600">
+<span class="material-symbols-outlined text-sm">check</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">Correct Answer</span>
+<span class="text-sm font-medium text-slate-800 dark:text-slate-200">Canberra</span>
+</div>
+</div>
+</div>
+<!-- Explanation Section -->
+<div class="pt-2 border-t border-slate-100 dark:border-slate-700">
+<div class="flex items-center gap-2 mb-2 text-primary">
+<span class="material-symbols-outlined text-xl">psychology_alt</span>
+<h3 class="font-bold text-sm">Por que errei?</h3>
+</div>
+<p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4">
+                        Sydney is the largest and most recognizable city, but Canberra was chosen as the capital in 1908 as a compromise between the two largest cities, Sydney and Melbourne.
+                    </p>
+<!-- Mnemonic Box -->
+<div class="bg-primary/10 dark:bg-primary/20 rounded-xl p-4 flex gap-3 items-start border border-primary/20">
+<span class="material-symbols-outlined text-primary text-xl mt-0.5">lightbulb</span>
+<div>
+<span class="block text-xs font-bold text-primary uppercase mb-1">MemoDrop</span>
+<p class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                "Can-berra? Can-do! Remember the <span class="text-primary font-bold">compromise</span> created the capital."
+                            </p>
+</div>
+</div>
+</div>
+</article>
+<!-- Question Card 2 -->
+<article class="bg-white dark:bg-slate-800 rounded-[20px] p-5 shadow-sm shadow-primary/5 dark:shadow-none border border-slate-100 dark:border-slate-700 flex flex-col gap-4">
+<!-- Question Header -->
+<div class="flex justify-between items-start gap-3">
+<h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                        2. Which organ in the human body is primarily responsible for producing insulin?
+                    </h2>
+<span class="shrink-0 inline-flex items-center justify-center size-8 rounded-full bg-error-light dark:bg-red-900/30">
+<span class="material-symbols-outlined text-red-600 dark:text-red-400 text-lg">close</span>
+</span>
+</div>
+<!-- Choices Review -->
+<div class="flex flex-col gap-2">
+<!-- User's Wrong Choice -->
+<div class="flex items-center gap-3 p-3 rounded-xl bg-error-light/50 dark:bg-red-900/20 border border-error-light dark:border-red-900/30">
+<div class="shrink-0 flex items-center justify-center size-6 rounded-full bg-white dark:bg-red-900/50 text-red-500">
+<span class="material-symbols-outlined text-sm">close</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Your Answer</span>
+<span class="text-sm font-medium text-slate-800 dark:text-slate-200">Liver</span>
+</div>
+</div>
+<!-- Correct Answer -->
+<div class="flex items-center gap-3 p-3 rounded-xl bg-success-light/50 dark:bg-green-900/20 border border-success-light dark:border-green-900/30">
+<div class="shrink-0 flex items-center justify-center size-6 rounded-full bg-white dark:bg-green-900/50 text-green-600">
+<span class="material-symbols-outlined text-sm">check</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">Correct Answer</span>
+<span class="text-sm font-medium text-slate-800 dark:text-slate-200">Pancreas</span>
+</div>
+</div>
+</div>
+<!-- Explanation Section -->
+<div class="pt-2 border-t border-slate-100 dark:border-slate-700">
+<div class="flex items-center gap-2 mb-2 text-primary">
+<span class="material-symbols-outlined text-xl">psychology_alt</span>
+<h3 class="font-bold text-sm">Por que errei?</h3>
+</div>
+<p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4">
+                        While the liver performs over 500 vital functions including bile production, it is the pancreas that contains the Islets of Langerhans which secrete insulin to regulate blood sugar.
+                    </p>
+<!-- Mnemonic Box -->
+<div class="bg-primary/10 dark:bg-primary/20 rounded-xl p-4 flex gap-3 items-start border border-primary/20">
+<span class="material-symbols-outlined text-primary text-xl mt-0.5">lightbulb</span>
+<div>
+<span class="block text-xs font-bold text-primary uppercase mb-1">MemoDrop</span>
+<p class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                "Think of a <span class="text-primary font-bold">Pan</span>-cake with syrup. You need insulin for that sugar, so thank your <span class="text-primary font-bold">Pan</span>-creas!"
+                            </p>
+</div>
+</div>
+</div>
+</article>
+<!-- Question Card 3 (Correct - for context if tab switched, though hidden in this view logic usually) -->
+<!-- Just showing card style variation for 'Correct' question in a review context if filtered -->
+<article class="opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-300 bg-white dark:bg-slate-800 rounded-[20px] p-5 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col gap-4">
+<div class="flex justify-between items-start gap-3">
+<h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                        3. What represents the value of Pi to two decimal places?
+                    </h2>
+<span class="shrink-0 inline-flex items-center justify-center size-8 rounded-full bg-success-light dark:bg-green-900/30">
+<span class="material-symbols-outlined text-green-600 dark:text-green-400 text-lg">check</span>
+</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl bg-success-light/30 dark:bg-green-900/10 border border-success-light dark:border-green-900/20">
+<div class="shrink-0 flex items-center justify-center size-6 rounded-full bg-white dark:bg-green-900/50 text-green-600">
+<span class="material-symbols-outlined text-sm">check</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">Correct Answer</span>
+<span class="text-sm font-medium text-slate-800 dark:text-slate-200">3.14</span>
+</div>
+</div>
+</article>
+<!-- Encouragement Footer -->
+<div class="text-center py-6">
+<div class="inline-flex items-center justify-center p-3 rounded-full bg-white dark:bg-slate-800 shadow-sm mb-3">
+<span class="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+</div>
+<h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Keep going!</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm max-w-[250px] mx-auto mt-1">Reviewing errors is the fastest way to improve your score.</p>
+</div>
+</main>
+<!-- Bottom Action Bar (Fixed) -->
+<div class="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pointer-events-none max-w-md mx-auto z-40">
+<button class="pointer-events-auto w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+<span>Finish Review</span>
+<span class="material-symbols-outlined text-xl">check_circle</span>
+</button>
+</div>
+</div>
+</body></html>

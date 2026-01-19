@@ -1,0 +1,50 @@
+# Ignora node_modules (será instalado no build)
+node_modules
+**/node_modules
+
+# Ignora arquivos de build antigos
+dist
+**/dist
+build
+**/build
+
+# Ignora arquivos de desenvolvimento
+.env.local
+.env*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Ignora cache
+.cache
+.turbo
+.next
+
+# Ignora arquivos Git
+.git
+.gitignore
+
+# Ignora documentação
+*.md
+docs
+README.md
+
+# Ignora testes
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+coverage
+
+# Ignora configurações de IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Ignora arquivos do sistema
+.DS_Store
+Thumbs.db

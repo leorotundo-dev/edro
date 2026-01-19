@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Simulated Exams Hub - MemoDrops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#30e8ba",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#11211d",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1c2b27",
+                        "text-main-light": "#0e1b18",
+                        "text-main-dark": "#e0e6e4",
+                        "text-sub-light": "#4e9785",
+                        "text-sub-dark": "#8ebfb3",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding for clean UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main-light dark:text-text-main-dark antialiased selection:bg-primary selection:text-black">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm pt-safe-top">
+<div class="flex items-center justify-between p-4 pb-2">
+<button class="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-text-main-light dark:text-text-main-dark" style="font-size: 24px;">arrow_back</span>
+</button>
+<h1 class="text-xl font-bold leading-tight tracking-tight text-center flex-1">Simulados</h1>
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-text-main-light dark:text-text-main-dark" style="font-size: 24px;">history</span>
+</button>
+</div>
+<!-- Subtitle -->
+<p class="text-text-sub-light dark:text-text-sub-dark text-sm font-normal leading-normal pb-4 px-6 text-center">
+                Master your subjects with specialized exam modes.
+            </p>
+<!-- Segmented Control -->
+<div class="px-4 pb-4">
+<div class="flex h-12 w-full items-center justify-center rounded-xl bg-[#e7f3f0] dark:bg-[#1c2b27] p-1">
+<label class="group relative flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-lg px-2 text-sm font-medium transition-all">
+<input checked="" class="peer invisible absolute w-0" name="exam-type" type="radio"/>
+<span class="absolute inset-0 rounded-lg bg-transparent transition-all peer-checked:bg-white dark:peer-checked:bg-[#2d3f3a] peer-checked:shadow-sm"></span>
+<span class="relative z-10 truncate text-text-sub-light dark:text-text-sub-dark peer-checked:text-text-main-light dark:peer-checked:text-text-main-dark font-semibold">New Exam</span>
+</label>
+<label class="group relative flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-lg px-2 text-sm font-medium transition-all">
+<input class="peer invisible absolute w-0" name="exam-type" type="radio"/>
+<span class="absolute inset-0 rounded-lg bg-transparent transition-all peer-checked:bg-white dark:peer-checked:bg-[#2d3f3a] peer-checked:shadow-sm"></span>
+<span class="relative z-10 truncate text-text-sub-light dark:text-text-sub-dark peer-checked:text-text-main-light dark:peer-checked:text-text-main-dark font-semibold">History</span>
+</label>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 px-4 pb-24 pt-2 space-y-4">
+<!-- Card: Banca (Standard) -->
+<div class="group relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all hover:shadow-md border-2 border-transparent hover:border-primary/50 cursor-pointer">
+<div class="flex flex-col sm:flex-row">
+<!-- Image Section -->
+<div class="relative w-full sm:w-1/3 h-32 sm:h-auto overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent sm:hidden z-10"></div>
+<div class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Modern office building architecture representing official exam institutions" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAvreiSYYw1AO0v_CDlna1hAmYg8WJE2bGkcFAzOqldpKauINdiZVKCsrwfM7X0XUfx5tbFQ40zR6YoMlPLF_gbPoyeQykzxwOc36yZhH8we0sCClzbBtMIGtgd7FeJSd8gv7lDLF-CaRwvhk60p6bDxkjZf8jWN6z2XpKrSX13e3ewKOv6vEjgeLc868rSAEKFxjRd2-gFOIRj-wuN83ky8BBNWaxZrszbK3Qh4MuIhW2ozC5JWz9IzwD3XjhD0vXzZHruSUCJI5k');"></div>
+<div class="absolute bottom-3 left-4 z-20 sm:hidden">
+<div class="rounded-full bg-white/20 backdrop-blur-md p-2 text-white">
+<span class="material-symbols-outlined block" style="font-size: 20px;">account_balance</span>
+</div>
+</div>
+</div>
+<!-- Content Section -->
+<div class="flex flex-1 flex-col justify-between p-4 sm:p-5">
+<div>
+<div class="flex items-start justify-between mb-1">
+<div class="hidden sm:block p-2 rounded-lg bg-primary/10 text-primary mb-2 self-start">
+<span class="material-symbols-outlined block" style="font-size: 24px;">account_balance</span>
+</div>
+<span class="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                                    Popular
+                                </span>
+</div>
+<h3 class="text-lg font-bold text-text-main-light dark:text-text-main-dark mb-1">Banca Mode</h3>
+<p class="text-sm text-text-sub-light dark:text-text-sub-dark line-clamp-2">Replicate real exam conditions with official questions from previous years.</p>
+</div>
+<div class="mt-4 flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">schedule</span>
+                                4h duration
+                            </div>
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">library_books</span>
+                                Full Syllabus
+                            </div>
+</div>
+</div>
+<!-- Selection Indicator (Hidden by default, shown on active/checked state logic via JS usually, mocking visual here) -->
+<div class="absolute right-4 top-4 opacity-0 transition-opacity">
+<div class="rounded-full bg-primary p-1">
+<span class="material-symbols-outlined text-white" style="font-size: 16px;">check</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card: Temático -->
+<div class="group relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all hover:shadow-md border-2 border-transparent hover:border-primary/50 cursor-pointer">
+<div class="flex flex-col sm:flex-row">
+<div class="relative w-full sm:w-1/3 h-32 sm:h-auto overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent sm:hidden z-10"></div>
+<div class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Stack of books on a wooden table representing study topics" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB0wTMayuwWjDBR_u818_Ms21bpa93Y4thwu5qcCZDjGp26vE1DEk0TLpSosqrBp3vLSPLip2EZMuBjY3t5cX0AGnuwZbky5ImJANtA1HF6gokradkArwSRIu3RQqjHcQHHrt5_cljnRW64me4y_85socPbwMrAs83OvhG4jH_VRewpilsngZFwG0ucEZk0vjg4gXUVemdfiZQrIbHk0R-BxGKJXs9f6S7XyhB3c6OwkdTc6LHkPhIDAOFq_5r4ATPjZHNcR2xlXvo');"></div>
+<div class="absolute bottom-3 left-4 z-20 sm:hidden">
+<div class="rounded-full bg-white/20 backdrop-blur-md p-2 text-white">
+<span class="material-symbols-outlined block" style="font-size: 20px;">topic</span>
+</div>
+</div>
+</div>
+<div class="flex flex-1 flex-col justify-between p-4 sm:p-5">
+<div>
+<div class="hidden sm:block p-2 rounded-lg bg-blue-500/10 text-blue-500 mb-2 self-start w-fit">
+<span class="material-symbols-outlined block" style="font-size: 24px;">topic</span>
+</div>
+<h3 class="text-lg font-bold text-text-main-light dark:text-text-main-dark mb-1">Temático</h3>
+<p class="text-sm text-text-sub-light dark:text-text-sub-dark line-clamp-2">Focus your study on specific subjects or chapters you need to improve.</p>
+</div>
+<div class="mt-4 flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">timelapse</span>
+                                Flexible
+                            </div>
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">filter_list</span>
+                                Subject Focus
+                            </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card: Turbo -->
+<div class="group relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all hover:shadow-md border-2 border-transparent hover:border-yellow-400/50 cursor-pointer ring-1 ring-yellow-400/20 dark:ring-yellow-400/10">
+<div class="absolute top-0 right-0 p-0">
+<div class="bg-yellow-400 text-yellow-950 text-[10px] font-bold px-2 py-1 rounded-bl-lg">DAILY</div>
+</div>
+<div class="flex flex-col sm:flex-row">
+<div class="relative w-full sm:w-1/3 h-32 sm:h-auto overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent sm:hidden z-10"></div>
+<div class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Abstract lightning or energy visualization representing speed" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCGY-ky290o_-NL_v0Oh10OgBpk5a-0UdfZwf8kuCYYB-zqeHCQtx4uvART4446kbLWAzlhp-5J7sNSUHA26lgDBVSyZwsPo8pAd9sc58JIgqDj-TTZpjMJSefQZrYXBca16imdJaRRhhXsJBHbwvN49gBNVs67d5BYCXaRSKziLsfMYHgKbdHNh144Tc3CwsCfGqdHF6Tc0gLBBO_tjwdBk-l-8_lCuQj8gGonEgPAUqD9aywDxbY6sP-Iz76iFWPtRDypZYB1tIc');"></div>
+<div class="absolute bottom-3 left-4 z-20 sm:hidden">
+<div class="rounded-full bg-white/20 backdrop-blur-md p-2 text-white">
+<span class="material-symbols-outlined block" style="font-size: 20px;">bolt</span>
+</div>
+</div>
+</div>
+<div class="flex flex-1 flex-col justify-between p-4 sm:p-5">
+<div>
+<div class="hidden sm:block p-2 rounded-lg bg-yellow-500/10 text-yellow-600 mb-2 self-start w-fit">
+<span class="material-symbols-outlined block" style="font-size: 24px;">bolt</span>
+</div>
+<h3 class="text-lg font-bold text-text-main-light dark:text-text-main-dark mb-1">Turbo Mode</h3>
+<p class="text-sm text-text-sub-light dark:text-text-sub-dark line-clamp-2">Quick 15-minute sessions covering high-frequency questions.</p>
+</div>
+<div class="mt-4 flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">timer</span>
+                                15 min
+                            </div>
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                                High Yield
+                            </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card: Adaptativo -->
+<div class="group relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)] transition-all hover:shadow-md border-2 border-transparent hover:border-purple-500/50 cursor-pointer">
+<div class="flex flex-col sm:flex-row">
+<div class="relative w-full sm:w-1/3 h-32 sm:h-auto overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent sm:hidden z-10"></div>
+<div class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Futuristic artificial intelligence brain network visualization" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC0ouF6J0obfC9S2kQESy1DZ8Xwni-tHYgIdSedMAz9EPxiybT_XXvMMZsZDSsQCyd76PsBrsMnY-6I6ExasbYe66wC5zIHyA69NFmXJsJFWQyPhngZjKed05qPw7LGXJ7ZTUv-hKc10UW9CH4MtZ18S8GSkX1P74SEjhDOoaIgKNEX9OhqcUo7KFRh8YUKnZZSjIhlrGfemdH8z4RyiSDYcsk6tzOMi190gyQjkZ3yBt7eQcRqLro3fyNQ1blUMX7vxKVhsudUtnU');"></div>
+<div class="absolute bottom-3 left-4 z-20 sm:hidden">
+<div class="rounded-full bg-white/20 backdrop-blur-md p-2 text-white">
+<span class="material-symbols-outlined block" style="font-size: 20px;">psychology</span>
+</div>
+</div>
+</div>
+<div class="flex flex-1 flex-col justify-between p-4 sm:p-5">
+<div>
+<div class="hidden sm:block p-2 rounded-lg bg-purple-500/10 text-purple-500 mb-2 self-start w-fit">
+<span class="material-symbols-outlined block" style="font-size: 24px;">psychology</span>
+</div>
+<h3 class="text-lg font-bold text-text-main-light dark:text-text-main-dark mb-1">Adaptativo</h3>
+<p class="text-sm text-text-sub-light dark:text-text-sub-dark line-clamp-2">AI-driven mode that targets your weak spots automatically.</p>
+</div>
+<div class="mt-4 flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">all_inclusive</span>
+                                No limit
+                            </div>
+<div class="flex items-center gap-1.5 text-xs font-medium text-text-sub-light dark:text-text-sub-dark bg-background-light dark:bg-background-dark/50 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 16px;">target</span>
+                                Weakness Focus
+                            </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button / Bottom Sheet Area -->
+<div class="fixed bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark pt-12 max-w-md mx-auto">
+<button class="w-full flex items-center justify-center gap-2 rounded-xl bg-primary h-14 text-text-main-light shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:bg-primary/90 active:scale-[0.98] transition-all font-bold text-lg">
+<span class="material-symbols-outlined">play_arrow</span>
+                Iniciar Simulado
+            </button>
+</div>
+<!-- Tab Bar (Mock) -->
+<nav class="fixed bottom-0 left-0 right-0 z-40 bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-gray-800 pb-safe-bottom hidden">
+<!-- Hidden in this view as per prompt "single page" focus, but structure implies it exists -->
+</nav>
+</div>
+</body></html>
