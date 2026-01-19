@@ -10,7 +10,7 @@ import { finalizeEndedEvents } from '../services/gamificationEventsService';
 // Removido: import fetch from 'node-fetch' - usar fetch nativo do Node 18+
 
 interface JobScheduleRow {
-  id: number;
+  id: number | string;
   job_name: string;
   cron_expression: string;
   is_active: boolean;
@@ -29,6 +29,50 @@ interface HarvestItem {
 const toPositiveInt = (value: string | undefined, fallback: number) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const isMissingRelation = (err: unknown) => {
+  return (err as { code?: string })?.code === '42P01';
+};
+
+const loadSchedules = async (): Promise<JobScheduleRow[] | null> => {
+  const queries = [
+    {
+      name: 'job_schedules',
+      sql: `
+        SELECT
+          id,
+          COALESCE(NULLIF(type, ''), name) AS job_name,
+          schedule AS cron_expression,
+          enabled AS is_active,
+          last_run AS last_run_at,
+          next_run AS next_run_at
+        FROM job_schedules
+        WHERE enabled = true
+      `,
+    },
+    {
+      name: 'job_schedule',
+      sql: `
+        SELECT id, job_name, cron_expression, is_active, last_run_at, next_run_at
+        FROM job_schedule
+        WHERE is_active = true
+      `,
+    },
+  ];
+
+  for (const queryDef of queries) {
+    try {
+      const { rows } = await query<JobScheduleRow>(queryDef.sql);
+      return rows;
+    } catch (err) {
+      if (!isMissingRelation(err)) {
+        throw err;
+      }
+    }
+  }
+
+  return null;
 };
 
 /**
@@ -286,11 +330,13 @@ export async function initializeScheduler() {
   console.log('[scheduler] Inicializando scheduler de jobs...');
 
   try {
-    const { rows } = await query<JobScheduleRow>(
-      `SELECT id, job_name, cron_expression, is_active FROM job_schedule WHERE is_active = true`
-    );
+    const loadedSchedules = await loadSchedules();
+    if (!loadedSchedules) {
+      console.log('[scheduler] Nenhuma tabela de agendamentos encontrada. Scheduler desativado.');
+      return;
+    }
 
-    let schedules: JobScheduleRow[] = rows;
+    let schedules: JobScheduleRow[] = loadedSchedules;
 
     if (!schedules || schedules.length === 0) {
       console.log('[scheduler] Nenhum job agendado ativo. Usando defaults.');
