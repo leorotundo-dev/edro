@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import CSVImport from './csv-import';
 
 type Briefing = {
   id: string;
@@ -139,6 +140,7 @@ export default function BoardPage() {
   const [assignTarget, setAssignTarget] = useState<Briefing | null>(null);
   const [assignTo, setAssignTo] = useState('');
   const [assignMessage, setAssignMessage] = useState('');
+  const [showCSVImport, setShowCSVImport] = useState(false);
 
   const [detailTarget, setDetailTarget] = useState<BriefingDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -297,6 +299,9 @@ export default function BoardPage() {
         <div className="topbar-actions">
           <button className="btn ghost" type="button" onClick={() => setShowNewBriefing(true)}>
             Novo briefing
+          </button>
+          <button className="btn outline" type="button" onClick={() => setShowCSVImport(true)}>
+            Importar CSV
           </button>
           <div className="user-chip">
             <span>{user.email || 'edro.digital'}</span>
@@ -545,6 +550,19 @@ export default function BoardPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={showCSVImport}
+        title="Importar Briefings via CSV"
+        onClose={() => setShowCSVImport(false)}
+      >
+        <CSVImport
+          onImportComplete={async () => {
+            setShowCSVImport(false);
+            await loadBoard();
+          }}
+        />
       </Modal>
 
       <Drawer
