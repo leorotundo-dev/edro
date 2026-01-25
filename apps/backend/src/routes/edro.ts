@@ -26,7 +26,6 @@ import {
   isWorkflowStage,
 } from '../utils/workflow';
 import { env } from '../env';
-import { importCSV } from '../services/csvImportService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -635,30 +634,5 @@ export default async function edroRoutes(app: FastifyInstance) {
 
   app.get('/edro/workflow', async (_request, reply) => {
     return reply.send({ success: true, data: WORKFLOW_STAGES });
-  });
-
-  app.post('/edro/briefings/import-csv', async (request, reply) => {
-    const bodySchema = z.object({
-      csv_content: z.string().min(1),
-      created_by: z.string().optional(),
-    });
-
-    try {
-      const body = bodySchema.parse(request.body);
-      const user = resolveUser(request);
-      const createdBy = body.created_by ?? user.email ?? undefined;
-
-      const result = await importCSV(body.csv_content, createdBy);
-
-      return reply.status(200).send({
-        success: true,
-        data: result,
-      });
-    } catch (error: any) {
-      return reply.status(400).send({
-        success: false,
-        error: error.message || 'Erro ao importar CSV',
-      });
-    }
   });
 }
