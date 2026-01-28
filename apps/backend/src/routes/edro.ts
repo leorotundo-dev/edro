@@ -1,6 +1,20 @@
 import { FastifyInstance } from 'fastify';
+import fs from 'fs';
+import path from 'path';
 import { z } from 'zod';
-import { generateCopyWithValidation, generateCopy, getOrchestratorInfo, TaskType } from '../services/ai/copyService';
+import {
+  generateCopy,
+  generateCopyWithValidation,
+  generatePremiumCopy,
+  getOrchestratorInfo,
+  TaskType,
+} from '../services/ai/copyService';
+import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
+import { getClientById } from '../repos/clientsRepo';
+import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
+import { buildClientKnowledgeBlock } from '../ai/knowledgePrompt';
+import { query } from '../db';
+import type { ClientKnowledge } from '../providers/contracts';
 import {
   createBriefing,
   createBriefingStages,
@@ -37,6 +51,149 @@ type RequestUser = {
   role?: string;
 };
 
+type RadarEvidence = {
+  title: string;
+  url: string;
+  source_name: string;
+  published_at?: string | null;
+  summary?: string | null;
+};
+
+type ProductionCatalogItem = {
+  production_type: string;
+  platform: string;
+  format_name: string;
+  measurability_score?: number;
+  measurability_type?: string;
+  available_metrics?: string[];
+  tracking_tools?: string[];
+  attribution_capability?: string;
+  ml_performance_score?: {
+    overall_score?: number;
+    score_weights?: Record<string, number>;
+  };
+  ml_insights?: {
+    ml_insights?: string[];
+    recommendations?: string[];
+    optimization_tips?: string[];
+  };
+};
+
+let cachedProductionCatalog: ProductionCatalogItem[] | null = null;
+
+function normalizeText(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function normalizeProductionType(value?: string | null) {
+  if (!value) return '';
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === 'eventos') return 'eventos-ativacoes';
+  if (trimmed === 'eventos_ativacoes') return 'eventos-ativacoes';
+  return trimmed;
+}
+
+function loadProductionCatalog(): ProductionCatalogItem[] {
+  if (cachedProductionCatalog) return cachedProductionCatalog;
+  try {
+    const catalogPath = path.resolve(__dirname, '../data/productionCatalog.json');
+    const raw = fs.readFileSync(catalogPath, 'utf-8');
+    cachedProductionCatalog = JSON.parse(raw) as ProductionCatalogItem[];
+  } catch {
+    cachedProductionCatalog = [];
+  }
+  return cachedProductionCatalog;
+}
+
+function resolveObjectiveRange(objective?: string | null) {
+  const text = (objective || '').toLowerCase();
+  if (text.includes('convers') || text.includes('performance') || text.includes('venda') || text.includes('lead')) {
+    return { min: 90, max: 100, label: 'performance' };
+  }
+  if (text.includes('awareness') || text.includes('reconhec') || text.includes('alcance') || text.includes('branding')) {
+    return { min: 0, max: 60, label: 'awareness' };
+  }
+  if (text.includes('engaj') || text.includes('engagement')) {
+    return { min: 70, max: 100, label: 'engagement' };
+  }
+  if (text.includes('balance') || text.includes('equilibr') || text.includes('mix')) {
+    return { min: 70, max: 89, label: 'balanced' };
+  }
+  return { min: 0, max: 100, label: 'general' };
+}
+
+async function fetchRadarEvidence(tenantId: string, clientId?: string | null, limit = 3): Promise<RadarEvidence[]> {
+  if (!clientId) return [];
+
+  const { rows } = await query<any>(
+    `
+    SELECT ci.title,
+           ci.url,
+           ci.published_at,
+           COALESCE(ci.summary, ci.snippet) AS summary,
+           cs.name AS source_name
+    FROM clipping_matches cm
+    JOIN clipping_items ci ON ci.id = cm.clipping_item_id
+    JOIN clipping_sources cs ON cs.id = ci.source_id
+    WHERE cm.tenant_id=$1
+      AND cm.client_id=$2
+      AND ci.status <> 'ARCHIVED'
+    ORDER BY cm.score DESC, ci.published_at DESC NULLS LAST
+    LIMIT $3
+    `,
+    [tenantId, clientId, limit]
+  );
+
+  if (rows.length) return rows as RadarEvidence[];
+
+  const fallback = await query<any>(
+    `
+    SELECT ci.title,
+           ci.url,
+           ci.published_at,
+           COALESCE(ci.summary, ci.snippet) AS summary,
+           cs.name AS source_name
+    FROM clipping_items ci
+    JOIN clipping_sources cs ON cs.id = ci.source_id
+    WHERE ci.tenant_id=$1
+      AND ci.status <> 'ARCHIVED'
+    ORDER BY ci.published_at DESC NULLS LAST
+    LIMIT $2
+    `,
+    [tenantId, limit]
+  );
+
+  return (fallback.rows || []) as RadarEvidence[];
+}
+
+async function fetchPerformanceHint(tenantId: string, clientId?: string | null, platform?: string) {
+  if (!clientId || !platform) return null;
+  const { rows } = await query<any>(
+    `
+    SELECT payload
+    FROM learned_insights
+    WHERE tenant_id=$1 AND client_id=$2 AND platform=$3
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [tenantId, clientId, platform]
+  );
+  const payload = rows[0]?.payload || null;
+  const byFormat = Array.isArray(payload?.by_format) ? payload.by_format : [];
+  if (!byFormat.length) return payload ? { payload } : null;
+  const sorted = [...byFormat].sort((a: any, b: any) => Number(b?.score ?? 0) - Number(a?.score ?? 0));
+  const top = sorted[0];
+  if (!top?.format) return { payload };
+  return {
+    format: String(top.format),
+    score: Number(top.score ?? 0),
+    payload,
+  };
+}
+
 function resolveUser(request: any) {
   const user = request.user as RequestUser | undefined;
   return {
@@ -53,6 +210,42 @@ function parseDate(value?: string | null): Date | null {
   return parsed;
 }
 
+function resolveClientIdFromPayload(payload: Record<string, any> | null | undefined) {
+  if (!payload) return null;
+  return (
+    payload.client_id ||
+    payload.clientId ||
+    payload.client_ref ||
+    payload.clientRef ||
+    null
+  );
+}
+
+async function loadClientKnowledge(
+  tenantId: string | null | undefined,
+  briefing: { payload?: Record<string, any>; client_name?: string | null }
+): Promise<ClientKnowledge | null> {
+  const clientId = resolveClientIdFromPayload(briefing.payload || {});
+  if (!tenantId) return null;
+  try {
+    if (clientId) {
+      const row = await getClientById(tenantId, String(clientId));
+      if (row) return buildClientKnowledgeFromRow(row);
+    }
+    if (briefing.client_name) {
+      const { rows } = await query<any>(
+        `SELECT * FROM clients WHERE tenant_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
+        [tenantId, briefing.client_name]
+      );
+      const row = rows[0];
+      if (row) return buildClientKnowledgeFromRow(row);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function buildCopyPrompt(params: {
   briefing: {
     title: string;
@@ -62,9 +255,11 @@ function buildCopyPrompt(params: {
   language: string;
   count: number;
   instructions?: string | null;
+  clientKnowledge?: ClientKnowledge | null;
 }): string {
   const languageLabel = params.language === 'es' ? 'espanhol' : 'portugues';
   const payloadText = JSON.stringify(params.briefing.payload || {}, null, 2);
+  const knowledgeBlock = buildClientKnowledgeBlock(params.clientKnowledge);
 
   return [
     'Voce e um redator para agencia de propaganda.',
@@ -72,6 +267,7 @@ function buildCopyPrompt(params: {
     `Idioma: ${languageLabel}.`,
     'Formato: lista numerada. Cada item deve ter titulo curto, corpo e CTA.',
     `Cliente: ${params.briefing.client_name || 'nao informado'}.`,
+    knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
     `Titulo do briefing: ${params.briefing.title}.`,
     'Detalhes do briefing (JSON):',
     payloadText,
@@ -348,7 +544,12 @@ export default async function edroRoutes(app: FastifyInstance) {
       });
     }
 
-    if (params.stage === 'aprovacao' && body.status === 'done' && user.role !== 'gestor') {
+    if (
+      params.stage === 'aprovacao' &&
+      body.status === 'done' &&
+      user.role !== 'gestor' &&
+      user.role !== 'admin'
+    ) {
       return reply.status(403).send({
         success: false,
         error: 'Aprovacao requer perfil gestor.',
@@ -417,6 +618,10 @@ export default async function edroRoutes(app: FastifyInstance) {
       instructions: z.string().optional(),
       output: z.string().optional(),
       model: z.string().optional(),
+      task_type: z.string().optional(),
+      tier: z.string().optional(),
+      pipeline: z.enum(['simple', 'standard', 'premium']).optional(),
+      force_provider: z.enum(['openai', 'gemini', 'claude']).optional(),
       created_by: z.string().optional(),
       notify_traffic: z.boolean().optional(),
       traffic_channels: z.array(z.string()).optional(),
@@ -432,6 +637,8 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     const user = resolveUser(request);
+    const tenantId = (request.user as any).tenant_id as string | undefined;
+    const clientKnowledge = await loadClientKnowledge(tenantId, briefing);
     const stages = await ensureBriefingStages(briefing.id, user.email);
     const unlock = ensureStageUnlocked('copy_ia', stages as any);
 
@@ -457,18 +664,32 @@ export default async function edroRoutes(app: FastifyInstance) {
           language: body.language,
           count,
           instructions: body.instructions ?? null,
+          clientKnowledge,
         });
 
       try {
-        const result = await generateCopyWithValidation({
+        const baseParams = {
           prompt,
           temperature: 0.6,
           maxTokens: 1500,
-        });
+        };
+        const pipeline = body.pipeline ?? 'standard';
+        const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
+        const result =
+          pipeline === 'simple'
+            ? await generateCopy({
+                ...baseParams,
+                taskType,
+                forceProvider: body.force_provider,
+              })
+            : pipeline === 'premium'
+              ? await generatePremiumCopy(baseParams)
+              : await generateCopyWithValidation(baseParams);
         output = result.output;
         model = result.model;
         payload = result.payload;
       } catch (error: any) {
+        request.log?.error({ err: error }, 'copy_ia_failed');
         return reply.status(500).send({
           success: false,
           error: 'Erro ao gerar copy com IA.',
@@ -637,8 +858,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   });
 
   app.get('/edro/orchestrator', async (_request, reply) => {
-    const info = getOrchestratorInfo();
-    return reply.send({ success: true, data: info });
+    return reply.send({ success: true, data: getOrchestratorInfo() });
   });
 
   app.post('/edro/orchestrator/test', async (request, reply) => {
@@ -646,24 +866,38 @@ export default async function edroRoutes(app: FastifyInstance) {
       prompt: z.string().min(1),
       taskType: z.enum([
         'briefing_analysis',
+        'validation',
         'social_post',
         'variations',
+        'headlines',
+        'institutional_copy',
+        'campaign_strategy',
+        'final_review',
+      ]).optional(),
+      task_type: z.enum([
+        'briefing_analysis',
         'validation',
+        'social_post',
+        'variations',
         'headlines',
         'institutional_copy',
         'campaign_strategy',
         'final_review',
       ]).optional(),
       forceProvider: z.enum(['openai', 'gemini', 'claude']).optional(),
+      force_provider: z.enum(['openai', 'gemini', 'claude']).optional(),
+      tier: z.enum(['fast', 'creative', 'premium']).optional(),
     });
 
     const body = bodySchema.parse(request.body);
+    const taskType = (body.taskType ?? body.task_type) as TaskType | undefined;
+    const forceProvider = body.forceProvider ?? body.force_provider;
 
     try {
       const result = await generateCopy({
         prompt: body.prompt,
-        taskType: body.taskType as TaskType,
-        forceProvider: body.forceProvider,
+        taskType,
+        forceProvider,
       });
 
       return reply.send({
@@ -673,14 +907,286 @@ export default async function edroRoutes(app: FastifyInstance) {
           model: result.model,
           provider: result.payload.provider,
           tier: result.payload.tier,
-          taskType: result.payload.taskType,
+          taskType: result.payload.taskType ?? result.payload.task_type ?? taskType,
         },
       });
     } catch (error: any) {
       return reply.status(500).send({
         success: false,
-        error: error.message || 'Erro ao gerar copy',
+        error: error?.message || 'Erro ao gerar copy',
       });
     }
+  });
+
+  app.post('/edro/recommendations/platforms', async (request, reply) => {
+    const bodySchema = z.object({
+      objective: z.string().optional(),
+      platform: z.string().optional(),
+      client_id: z.string().optional(),
+      production_type: z.string().optional(),
+    });
+
+    const body = bodySchema.parse(request.body);
+    const tenantId = (request.user as any).tenant_id as string;
+
+    const objective = body.objective || 'Awareness';
+    const productionType = (body.production_type || '').toLowerCase();
+    let platform = body.platform || PLATFORM_PROFILES[0]?.platform || 'Instagram';
+
+    let profile;
+    try {
+      profile = getPlatformProfile(platform as any);
+    } catch {
+      profile = PLATFORM_PROFILES[0];
+      platform = profile?.platform || platform;
+    }
+
+    const defaultMix = profile?.defaultMix || {};
+    const sorted = Object.entries(defaultMix).sort((a, b) => b[1] - a[1]);
+
+    const objectiveLower = objective.toLowerCase();
+    const isConversion =
+      objectiveLower.includes('convers') ||
+      objectiveLower.includes('venda') ||
+      objectiveLower.includes('lead');
+    const isAwareness =
+      objectiveLower.includes('awareness') ||
+      objectiveLower.includes('reconhecimento') ||
+      objectiveLower.includes('alcance') ||
+      objectiveLower.includes('branding');
+    const isEngagement = objectiveLower.includes('engaj') || objectiveLower.includes('engagement');
+
+    const pickPreferred = (candidates: string[]) => {
+      for (const candidate of candidates) {
+        if (profile?.supportedFormats?.includes(candidate)) return candidate;
+      }
+      return '';
+    };
+
+    let recommendedFormat = '';
+    let recommendedDetails: ProductionCatalogItem | null = null;
+    const normalizedType = normalizeProductionType(productionType);
+    const catalog = loadProductionCatalog();
+    if (catalog.length) {
+      const platformKey = normalizeText(platform);
+      const matches = catalog.filter((item) => {
+        const samePlatform = normalizeText(item.platform) === platformKey;
+        const sameType = normalizedType ? normalizeProductionType(item.production_type) === normalizedType : true;
+        return samePlatform && sameType;
+      });
+
+      if (matches.length) {
+        const { min, max } = resolveObjectiveRange(objective);
+        const scored = matches.filter((item) => typeof item.measurability_score === 'number');
+        let pool = scored.filter((item) => {
+          const score = Number(item.measurability_score ?? -1);
+          return score >= min && score <= max;
+        });
+        if (!pool.length) {
+          pool = scored.length ? scored : matches;
+        }
+        const scoreFor = (item: ProductionCatalogItem) => {
+          const mlScore = item.ml_performance_score?.overall_score;
+          if (typeof mlScore === 'number') return mlScore;
+          const meas = item.measurability_score;
+          return typeof meas === 'number' ? meas : -1;
+        };
+        pool.sort((a, b) => scoreFor(b) - scoreFor(a));
+        if (pool.length) {
+          recommendedFormat = pool[0].format_name;
+          recommendedDetails = pool[0];
+        }
+      }
+    }
+    if (!recommendedFormat && (productionType.includes('midia-on') || productionType.includes('mídia-on'))) {
+      if (platform === 'MetaAds') {
+        recommendedFormat = isConversion
+          ? pickPreferred(['CarouselAd', 'FeedAd'])
+          : pickPreferred(['ReelAd', 'StoryAd']);
+      } else if (platform === 'GoogleAds') {
+        recommendedFormat = isConversion ? pickPreferred(['RSA']) : pickPreferred(['Display']);
+      }
+    }
+
+    if (!recommendedFormat && isAwareness) {
+      recommendedFormat = pickPreferred(['Reels', 'Shorts', 'Video', 'VideoLongo', 'StoryAd', 'ReelAd']);
+    }
+
+    if (!recommendedFormat && isConversion) {
+      recommendedFormat = pickPreferred(['Carousel', 'Carrossel', 'FeedAd', 'CarouselAd', 'RSA']);
+    }
+
+    if (!recommendedFormat && isEngagement) {
+      recommendedFormat = pickPreferred(['Stories', 'StoryAd', 'CommunityPost', 'Carrossel']);
+    }
+
+    if (!recommendedFormat) {
+      recommendedFormat = sorted[0]?.[0] || profile?.supportedFormats?.[0] || 'Post';
+    }
+
+    if (!recommendedDetails && recommendedFormat && catalog.length) {
+      const platformKey = normalizeText(platform);
+      recommendedDetails =
+        catalog.find(
+          (item) =>
+            normalizeText(item.platform) === platformKey &&
+            item.format_name === recommendedFormat &&
+            (!normalizedType || normalizeProductionType(item.production_type) === normalizedType)
+        ) || null;
+    }
+
+    let client = null as any;
+    if (body.client_id) {
+      try {
+        client = await getClientById(tenantId, body.client_id);
+      } catch {
+        client = null;
+      }
+    }
+    const clientKnowledge = client ? buildClientKnowledgeFromRow(client) : null;
+    const knowledgeBlock = buildClientKnowledgeBlock(clientKnowledge);
+
+    const performanceHint = await fetchPerformanceHint(tenantId, body.client_id, platform);
+    const perfFormat = performanceHint?.format || '';
+    const perfScore = Number(performanceHint?.score ?? 0);
+    const isPaid = productionType.includes('midia-on') || productionType.includes('mídia-on');
+    const perfLooksPaid = perfFormat ? /ad|ads|rsa|display/i.test(perfFormat) : false;
+    let usedPerformance = false;
+    if (perfFormat && perfScore >= 70 && profile?.supportedFormats?.includes(perfFormat)) {
+      if (!isPaid || perfLooksPaid || platform.toLowerCase().includes('ads')) {
+        recommendedFormat = perfFormat;
+        usedPerformance = true;
+      }
+    }
+
+    const radarEvidence = await fetchRadarEvidence(tenantId, body.client_id, 3);
+
+    const impact =
+      objectiveLower.includes('convers') || objectiveLower.includes('venda') || objectiveLower.includes('lead')
+        ? 'Impacto Alto'
+        : objectiveLower.includes('awareness') || objectiveLower.includes('reconhecimento')
+          ? 'Impacto Médio'
+          : 'Impacto Médio';
+
+    const measurabilityLine =
+      recommendedDetails?.measurability_score != null
+        ? `Score de mensurabilidade ${recommendedDetails.measurability_score}/100 (${recommendedDetails.measurability_type || 'n/a'}).`
+        : '';
+    const mlScoreLine =
+      recommendedDetails?.ml_performance_score?.overall_score != null
+        ? `Score de performance (ML) ${Math.round(recommendedDetails.ml_performance_score.overall_score)}/100.`
+        : '';
+    let reason = `Para o objetivo de ${objective}, o formato ${recommendedFormat} tende a gerar melhores resultados em ${platform}. ${mlScoreLine} ${measurabilityLine}`.trim();
+
+    try {
+      const editorialInsights = Array.isArray(performanceHint?.payload?.editorial_insights)
+        ? performanceHint?.payload?.editorial_insights?.slice(0, 2)
+        : [];
+      const evidenceLines = [] as string[];
+      if (perfFormat) {
+        evidenceLines.push(
+          `Dados internos (ultimos 30 dias): formato ${perfFormat} com score ${Math.round(perfScore)}.`
+        );
+      }
+      if (editorialInsights?.length) {
+        evidenceLines.push(`Insights internos: ${editorialInsights.join(' | ')}.`);
+      }
+      if (recommendedDetails?.measurability_score != null) {
+        evidenceLines.push(
+          `Mensurabilidade do formato: ${recommendedDetails.measurability_score}/100 (${recommendedDetails.measurability_type || 'n/a'}).`
+        );
+      }
+      if (recommendedDetails?.available_metrics?.length) {
+        evidenceLines.push(`Metricas disponiveis: ${recommendedDetails.available_metrics.slice(0, 6).join(', ')}.`);
+      }
+      if (recommendedDetails?.tracking_tools?.length) {
+        evidenceLines.push(`Ferramentas de tracking: ${recommendedDetails.tracking_tools.slice(0, 4).join(', ')}.`);
+      }
+      if (recommendedDetails?.attribution_capability) {
+        evidenceLines.push(`Capacidade de atribuicao: ${recommendedDetails.attribution_capability}.`);
+      }
+      if (recommendedDetails?.ml_performance_score?.overall_score != null) {
+        evidenceLines.push(
+          `Score de performance (ML): ${Math.round(recommendedDetails.ml_performance_score.overall_score)}/100.`
+        );
+      }
+      if (recommendedDetails?.ml_insights?.ml_insights?.length) {
+        evidenceLines.push(`Insights ML: ${recommendedDetails.ml_insights.ml_insights.slice(0, 2).join(' | ')}.`);
+      }
+      if (radarEvidence.length) {
+        evidenceLines.push('Fontes Radar (use no maximo 1 se for relevante):');
+        radarEvidence.forEach((item) => {
+          evidenceLines.push(`- ${item.source_name}: ${item.title}`);
+        });
+      }
+
+      const prompt = [
+        'Voce e um estrategista de marketing digital.',
+        'Gere uma recomendacao objetiva de formato (1-2 frases) para a campanha abaixo.',
+        `Objetivo: ${objective}.`,
+        `Plataforma: ${platform}.`,
+        `Formato recomendado: ${recommendedFormat}.`,
+        productionType ? `Tipo de producao: ${productionType}.` : '',
+        client?.name ? `Cliente: ${client.name}.` : '',
+        client?.segment_primary ? `Segmento: ${client.segment_primary}.` : '',
+        knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
+        usedPerformance ? 'Preferencia baseada em performance real do cliente.' : '',
+        evidenceLines.length ? `Evidencias:\n${evidenceLines.join('\n')}` : '',
+        'Se citar fonte, use "segundo {fonte}". Se nao houver fonte relevante, nao cite.',
+        'Responda em portugues do Brasil. Sem markdown.',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const ai = await generateCopy({
+        prompt,
+        taskType: 'campaign_strategy',
+        maxTokens: 300,
+      });
+      if (ai?.output) reason = ai.output;
+    } catch {
+      // fallback mantém template
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        objective,
+        platform,
+        format: recommendedFormat,
+        impact,
+        reason,
+        sources: radarEvidence.map((item) => ({
+          title: item.title,
+          url: item.url,
+          source: item.source_name,
+          published_at: item.published_at ?? null,
+        })),
+        performance: perfFormat
+          ? {
+              format: perfFormat,
+              score: perfScore,
+            }
+          : null,
+        measurability: recommendedDetails
+          ? {
+              score: recommendedDetails.measurability_score ?? null,
+              type: recommendedDetails.measurability_type ?? null,
+              metrics: recommendedDetails.available_metrics ?? [],
+              tools: recommendedDetails.tracking_tools ?? [],
+              attribution: recommendedDetails.attribution_capability ?? null,
+            }
+          : null,
+        ml_performance: recommendedDetails?.ml_performance_score
+          ? {
+              overall_score: recommendedDetails.ml_performance_score.overall_score ?? null,
+              weights: recommendedDetails.ml_performance_score.score_weights ?? null,
+              insights: recommendedDetails.ml_insights?.ml_insights ?? [],
+              recommendations: recommendedDetails.ml_insights?.recommendations ?? [],
+              optimizations: recommendedDetails.ml_insights?.optimization_tips ?? [],
+            }
+          : null,
+      },
+    });
   });
 }
