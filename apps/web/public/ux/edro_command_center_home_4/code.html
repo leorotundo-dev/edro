@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                primary: "#FF6600",
+                "background-light": "#F9FAFB",
+                "background-dark": "#0F172A",
+                "surface-light": "#FFFFFF",
+                "surface-dark": "#1E293B",
+              },
+              fontFamily: {
+                display: ["Instrument Serif", "serif"],
+                sans: ["Inter", "sans-serif"],
+              },
+              borderRadius: {
+                DEFAULT: "12px",
+                xl: "16px",
+              },
+            },
+          },
+        }
+    </script>
+<style>
+        .sidebar-item-active {
+            background-color: rgba(255, 102, 0, 0.1);
+            color: #ff6600;
+            border-right: 3px solid #ff6600;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased flex min-h-screen">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Radar</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark">
+<!-- Top Bar -->
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-500">calendar_month</span>
+<span id="today-full-date" class="text-sm font-semibold">Tuesday, October 15, 2024</span>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3 border-l border-slate-200 dark:border-slate-800 pl-6">
+<div class="text-right">
+<p class="text-xs font-bold">Alex Rivera</p>
+<p class="text-[10px] text-slate-500">Studio Lead</p>
+</div>
+<div class="w-9 h-9 rounded-full bg-cover bg-center border border-slate-200" data-alt="User profile photo of Alex Rivera" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA_k-ZPYN60jvba0whpHaMMH0ujquX9OpoVlzkyD-l-K1PWBxwcw_O2JjQXAKY8WFRfw3MC0BNWX5W0J6ehRDFryHEhyA5qcOGCPLr6oNcCtelxGc3I8h8wmHb9EUYm8xxH9v9sqQXquLeE_U9DzOgZLlg4quMqFlzjrB3ewaqBPloQC29ktJvqymUDZtLHL9tFAkL7JX6zDRA0vWUKDiQtNq5VeSt4uFX1HFJsBxsEje6i9swts8XbV87Wm37MR8qukTP8WmZIMj8')"></div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-none w-full space-y-10">
+<!-- Section 1: Today Hero Block -->
+<section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+  <div class="p-8 flex flex-wrap justify-between items-end gap-6 border-b border-slate-200 dark:border-slate-800">
+    <div>
+      <div class="flex items-center gap-3 mb-2">
+        <h2 class="font-display text-5xl font-black text-slate-900 dark:text-white tracking-tight"><span id="today-number">22/01</span></h2>
+        <span class="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800/40" id="today-number-chip">22/01</span>
+      </div>
+      <p class="text-lg text-slate-500 font-medium">Operational Roadmap &amp; Key Events</p>
+    </div>
+    <div class="flex gap-3">
+      <button id="create-post-btn" class="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-lg shadow-lg shadow-primary/20 hover:bg-opacity-90 transition-all">
+        <span class="material-symbols-outlined text-sm">add_box</span>
+        <span>Create post</span>
+      </button>
+      <button id="view-calendar-btn" class="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all">
+        <span class="material-symbols-outlined text-sm">calendar_view_day</span>
+        <span>View in calendar</span>
+      </button>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 p-8">
+    <div class="lg:col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold uppercase tracking-widest text-slate-400">Today's observances</h3>
+        <button id="open-day-view-btn" class="text-xs font-semibold text-primary hover:underline">Open day view</button>
+      </div>
+      <div id="today-observances-list" class="space-y-3 max-h-[320px] overflow-y-auto pr-2">
+        <div id="today-observances-loading" class="text-xs text-slate-500">Loading calendar...</div>
+      </div>
+      <template id="observance-item-template">
+        <div class="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-dark hover:border-primary/50 transition-colors cursor-pointer">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center">
+              <span class="material-symbols-outlined text-2xl">event</span>
+            </div>
+            <div>
+              <h4 class="font-semibold">Event name</h4>
+              <p class="text-xs text-slate-500">Relevance: 0%</p>
+            </div>
+          </div>
+          <span class="px-3 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider" data-role="tier-pill">Tier A</span>
+        </div>
+      </template>
+    </div>
+    <div class="space-y-4">
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-400">At a glance</p>
+        <div class="mt-4 space-y-3">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-slate-500">Total observances</span>
+            <span id="glance-total" class="font-semibold text-slate-900 dark:text-white">0</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-slate-500">Clients impacted</span>
+            <span id="glance-clients" class="font-semibold text-slate-900 dark:text-white">0</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-slate-500">Pending actions</span>
+            <span id="glance-pending" class="font-semibold text-primary">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Priority segments</p>
+        <div id="priority-segments" class="mt-4 flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- Section 2: Upcoming Relevant Dates -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-display text-2xl font-bold">Upcoming Relevant Dates</h2>
+<a class="text-sm font-bold text-primary hover:underline" href="#">View Roadmap</a>
+</div>
+<div id="upcoming-events" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div id="upcoming-events-loading" class="text-xs text-slate-500">Loading upcoming events...</div>
+</div>
+<template id="upcoming-item-template">
+  <div class="bg-white dark:bg-surface-dark p-5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 transition-all cursor-pointer">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase" data-role="upcoming-date">Oct 17</p>
+        <h4 class="font-bold text-sm">Event name</h4>
+      </div>
+      <span class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">Relevance 0%</span>
+    </div>
+    <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+      <div class="bg-primary h-full w-[50%]"></div>
+    </div>
+    <p class="text-[10px] mt-2 text-gray-500" data-role="upcoming-label">Relevance 0%</p>
+  </div>
+</template>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Section 3: Trends & News Radar -->
+<section class="lg:col-span-2">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-display text-2xl font-bold">Trends &amp; News Radar</h2>
+<div class="flex gap-4 border-b border-slate-200 dark:border-slate-800">
+<button class="pb-2 text-sm font-bold border-b-2 border-primary text-primary">All</button>
+<button class="pb-2 text-sm font-medium text-gray-500 hover:text-primary transition-colors">Trends</button>
+<button class="pb-2 text-sm font-medium text-gray-500 hover:text-primary transition-colors">News</button>
+</div>
+</div>
+<div class="space-y-3">
+<!-- Radar Card -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group cursor-pointer" data-route="/radar/1">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center border-r border-slate-200 dark:border-slate-800 pr-4">
+<span class="text-xl font-black text-primary">92</span>
+<span class="text-[8px] uppercase font-bold text-slate-500">Score</span>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-bold rounded">TREND</span>
+<span class="text-[10px] text-gray-400 font-bold uppercase">Google Trends</span>
+</div>
+<h4 class="font-bold">TikTok: "Glass Skin" Skincare Routines</h4>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-1">
+<div class="w-6 h-6 rounded-full border border-white dark:border-slate-800 bg-cover bg-center" data-alt="Client logo for Sephora" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDXx9dN4Q2eWU8jTAt72PcVZ49bkNKs1EHHGdMzcuTnDfJt7f4seYJzT6iP-Eu1wH_P4IwEZfFX2_QHb0c56S55euwCDgllZTGHKzQrUbdCCWGny3z9t5X8l9-yoPJfafEhkjjFHor6VId6TP06YnSj78nFE2hbSwBsP_0RP6n49eh_5J6WEzXGVHIDg4y_N55y8cb9WzCpT03SNf3kasprpy46D1iRIaxZxlotrp3CqlepEmbpeTs9s6PctwKBpZlRW5JP_mDC2I8')"></div>
+<div class="w-6 h-6 rounded-full border border-white dark:border-slate-800 bg-cover bg-center" data-alt="Client logo for Glossier" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCEp44ki-02qn3qZl1Zm9Z0UzwoQCh-BmK43cDTGRXolLWeZuEeV0WXt60DT__nhJiJMoLWkqwEh-2wPv3A0IWjURCh0vFcloG6Pm9zkunJCZbQBwEEaLs1PKebvWLPQmvgNgHj21fCswYmrMmI_VBcjlpXL3ymZvhDeIT-sRh9QLfT-tw81cGSBAhAlSls5Eitt1BjMqhEMd5zofD7vndEUdiMfy8c-ZJNytHmQrfoR6_uhKvAclCdlggzg-gP1agq5Z561LuMg3Q')"></div>
+</div>
+<button class="material-symbols-outlined text-gray-300 group-hover:text-primary transition-colors">bookmark</button>
+</div>
+</div>
+<!-- Radar Card -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group cursor-pointer" data-route="/radar/2">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center border-r border-slate-200 dark:border-slate-800 pr-4">
+<span class="text-xl font-black text-gray-400">78</span>
+<span class="text-[8px] uppercase font-bold text-slate-500">Score</span>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 font-bold rounded">NEWS</span>
+<span class="text-[10px] text-gray-400 font-bold uppercase">AdAge</span>
+</div>
+<h4 class="font-bold">Instagram Algorithm Update: Reels Focus</h4>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-1 text-xs text-gray-400 bg-gray-50 dark:bg-slate-800/40 px-2 py-1 rounded">
+                                        Global Impact
+                                    </div>
+<button class="material-symbols-outlined text-gray-300 group-hover:text-primary transition-colors">bookmark</button>
+</div>
+</div>
+<!-- Radar Card -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group cursor-pointer" data-route="/radar/3">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center border-r border-slate-200 dark:border-slate-800 pr-4">
+<span class="text-xl font-black text-primary">85</span>
+<span class="text-[8px] uppercase font-bold text-slate-500">Score</span>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-bold rounded">TREND</span>
+<span class="text-[10px] text-gray-400 font-bold uppercase">X (Twitter)</span>
+</div>
+<h4 class="font-bold">Vintage Tech Aesthetics in Graphic Design</h4>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-1">
+<div class="w-6 h-6 rounded-full border border-white dark:border-slate-800 bg-cover bg-center" data-alt="Client logo for Apple" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCEnA0CbQ2FiztPm7BWIyLGkWiAYzretAIbx7HWI9ER7jA1-8_ysnajUyt_1IEn9SNW8VRFv7RZrMAw7L3nT0lFrigB5hefnDHkGBGT51lUIpIYStglD4gCy2s4lZrPuB9-u-Jsw0UGKwiYsXI6YnVn9_itFG8HSCt9uTINIuSyT2z7_PaYiUVCreZR-aKH8mvp-4dNfnww6H8THJX30LvJK1gdO64l4pcshyv9p6ILZssBG5cOH1aInUSOb7wF5tTvKvw7MhRODHQ')"></div>
+</div>
+<button class="material-symbols-outlined text-gray-300 group-hover:text-primary transition-colors">bookmark</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 4: Weekly Performance -->
+<section class="lg:col-span-1 space-y-6">
+<h2 class="font-display text-2xl font-bold">Weekly Performance</h2>
+<div class="space-y-4">
+<!-- Best Post Card -->
+<div class="bg-white dark:bg-surface-dark rounded-xl border-l-4 border-green-500 shadow-sm border border-y border-r border-slate-200 dark:border-slate-800 p-5">
+<div class="flex justify-between items-start mb-4">
+<span class="text-[10px] font-black uppercase text-green-600 tracking-tighter">Best Post of the Week</span>
+<span class="material-symbols-outlined text-green-500">trending_up</span>
+</div>
+<div class="flex gap-4 items-center">
+<div class="w-16 h-16 rounded-lg bg-cover bg-center shadow-inner" data-alt="Aesthetic coffee photography post preview" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCk12yf32em0LcbO7vHWZlTtRDZF3UHjkf6S9lP2ntwxUyYYNOLgrTI1T0YCGJJmoq0YE9705ecT1dgWRN5SjqSuKNqByqygyLj_XTOMnTIUkivEZfAwvcRABJlC3zvvQ3hp62P_J9r57a8VHGGFGWEkddYQjeItwPRIgTRtpeJ-75ld5ofyez6PMECjrx-R996akC481I-AiSMVfsjo6JpnJcDHFtzFI5TDNX3xsIygKvwDSmZq3GcQWEMWcQyLjuGT82sQ2y4Q_M')"></div>
+<div class="flex-1">
+<div class="flex items-center gap-1.5 mb-1">
+<div class="w-4 h-4 rounded-full bg-cover bg-center" data-alt="Starbucks logo thumbnail" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDGTN9dXeG1PrtIEm0tudykcaByR9_Deo43r12f91VULlQ3W6q8Z2vcOUH8NMVLDpSXBYNR0gy05QVI2krngi3OltsABk7pxXasEYFMqDe_y5beISAZ3PgTbnp40B0rW_PXBkJuAxvGr_C_e8XfMGjygVTuoPlyE15LcmFzpuZFtq6aXRPn8SykzJt4dmqtRn-ldop4axNS-h1O2TNiWoQ53aEmbhgqaA4wzVhRYKELvjfPrUtUdwhbBojPRTaAgVLaTKDp6MrZ-sA')"></div>
+<p class="text-[10px] font-bold text-gray-500">Starbucks Global</p>
+</div>
+<h5 class="text-sm font-bold leading-tight line-clamp-2">"The Morning Ritual" - Carousel Series</h5>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+<div>
+<p class="text-[10px] text-gray-400 font-bold uppercase">Engagement Rate</p>
+<p class="text-lg font-black text-green-600">8.42%</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-gray-400 font-bold uppercase">Reach</p>
+<p class="text-lg font-black">1.2M</p>
+</div>
+</div>
+</div>
+<!-- Worst Post Card -->
+<div class="bg-white dark:bg-surface-dark rounded-xl border-l-4 border-red-400 shadow-sm border border-y border-r border-slate-200 dark:border-slate-800 p-5 opacity-80">
+<div class="flex justify-between items-start mb-4">
+<span class="text-[10px] font-black uppercase text-red-500 tracking-tighter">Underperforming</span>
+<span class="material-symbols-outlined text-red-400">trending_down</span>
+</div>
+<div class="flex gap-4 items-center">
+<div class="w-16 h-16 rounded-lg bg-cover bg-center grayscale shadow-inner" data-alt="Technical code snippet post preview" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAzIeo-hvxMS3-Hl7o8pHApPM-KWID47WZt4FEXNCnxBux18v0To575797CFvjraQoKdG8IRChVwUXYQUAW32fP79PRAtUfvqUJVXAjUtKc7ChfEym2gwPp9kIg5-e-iZZvaXIMnrZ6-EaU_L8amotCuR_0KCG4CcuXeZaJ-vwycTB7CXcnPy0DWOw2uHdPYcDAOrFLVB1k8ooxAPg0ZUtwyM9Fd96KpOgU4t5sH5OQsXbpi5um_lGk_lzSCSODt2E_YLmJWJS7aTQ')"></div>
+<div class="flex-1">
+<div class="flex items-center gap-1.5 mb-1">
+<div class="w-4 h-4 rounded-full bg-cover bg-center" data-alt="Tech client logo thumbnail" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBsWmzr1gbl-eonIH-9Gqt1Ci-70dGYJ9T1wMgsTC7oGM9DKpGZpE6vfLzR0dcRKc9bo5dKgw-7029kgeZ4ywBDz_sr0nRweTLj3qxkcbvouZXkF4QomNjYllTbuvjrpXLSdcyThV4BlFKVg6lk-TXPbwl8FngNnMarahz2empsLKjL20m6JzjnWW9B9W5hGNcyMZ_pucuA9yoe_i-PuvVMo67PegdPSt6yA_zr__RGYvthXHXlY9aFCqGtXRI3lWZeyKbz_XY3u34')"></div>
+<p class="text-[10px] font-bold text-gray-500">CodeStream Inc</p>
+</div>
+<h5 class="text-sm font-bold leading-tight line-clamp-2">"API Update v2.0" - Static Graphic</h5>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+<div>
+<p class="text-[10px] text-gray-400 font-bold uppercase">Engagement Rate</p>
+<p class="text-lg font-black text-red-400">0.12%</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-gray-400 font-bold uppercase">Reach</p>
+<p class="text-lg font-black">4.5K</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Footer Action -->
+<footer class="mt-auto p-8 text-center text-gray-400 text-xs">
+<p>© 2024 Edro Creative Studio • System Online • v4.2.0-stable</p>
+</footer>
+</main>
+</div>
+<script>
+  (function () {
+    const apiBase = '/api/proxy';
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+
+    const pad = (value) => String(value).padStart(2, '0');
+    const toISODate = (date) => {
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    };
+    const parseISODate = (iso) => {
+      const parts = String(iso || '').split('-').map(Number);
+      if (parts.length !== 3 || parts.some((num) => Number.isNaN(num))) return null;
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    };
+    const formatShortDate = (date) =>
+      new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit' }).format(date);
+    const formatFullDate = (date) =>
+      new Intl.DateTimeFormat('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+    const formatNumericDate = (value) => `${pad(value.getDate())}/${pad(value.getMonth() + 1)}`;
+
+    const date = parseISODate(dateParam) || new Date();
+    const dateISO = toISODate(date);
+    const monthKey = dateISO.slice(0, 7);
+
+    const todayFullDate = document.getElementById('today-full-date');
+    const todayNumber = document.getElementById('today-number');
+    const todayNumberChip = document.getElementById('today-number-chip');
+    const openDayViewBtn = document.getElementById('open-day-view-btn');
+    const createPostBtn = document.getElementById('create-post-btn');
+    const viewCalendarBtn = document.getElementById('view-calendar-btn');
+
+    const dayLabel = formatNumericDate(date);
+    if (todayNumber) todayNumber.textContent = dayLabel;
+    if (todayNumberChip) todayNumberChip.textContent = dayLabel;
+    if (todayFullDate) todayFullDate.textContent = formatFullDate(date);
+
+    const dayRoute = `/calendar?date=${dateISO}`;
+    if (openDayViewBtn) {
+      openDayViewBtn.addEventListener('click', () => {
+        window.location.href = dayRoute;
+      });
+    }
+    if (viewCalendarBtn) {
+      viewCalendarBtn.addEventListener('click', () => {
+        window.location.href = dayRoute;
+      });
+    }
+
+    const listEl = document.getElementById('today-observances-list');
+    const listLoading = document.getElementById('today-observances-loading');
+    const listTemplate = document.getElementById('observance-item-template');
+    const upcomingEl = document.getElementById('upcoming-events');
+    const upcomingLoading = document.getElementById('upcoming-events-loading');
+    const upcomingTemplate = document.getElementById('upcoming-item-template');
+
+    const glanceTotal = document.getElementById('glance-total');
+    const glanceClients = document.getElementById('glance-clients');
+    const glancePending = document.getElementById('glance-pending');
+    const segmentsEl = document.getElementById('priority-segments');
+
+    const setText = (el, value) => {
+      if (!el) return;
+      el.textContent = value;
+    };
+
+    const getStorageItem = (key) => {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        // ignore
+      }
+      try {
+        return window.top?.localStorage?.getItem(key) || null;
+      } catch {
+        return null;
+      }
+    };
+
+    const setStorageItem = (key, value) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+      try {
+        window.top?.localStorage?.setItem(key, value);
+      } catch {
+        // ignore
+      }
+    };
+
+    const hasSession = () => Boolean(getStorageItem('edro_token') || getStorageItem('edro_refresh'));
+
+    const getAuthHeaders = () => {
+      const headers = { 'Content-Type': 'application/json' };
+      const token = getStorageItem('edro_token');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      return headers;
+    };
+
+    const refreshAccessToken = async () => {
+      const refreshToken = getStorageItem('edro_refresh');
+      const userRaw = getStorageItem('edro_user');
+      if (!refreshToken || !userRaw) return false;
+
+      let user;
+      try {
+        user = JSON.parse(userRaw);
+      } catch {
+        return false;
+      }
+      if (!user?.id) return false;
+
+      const response = await fetch(`${apiBase}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, refreshToken }),
+      });
+
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (data?.accessToken) setStorageItem('edro_token', data.accessToken);
+      if (data?.refreshToken) setStorageItem('edro_refresh', data.refreshToken);
+      return true;
+    };
+
+    const request = async (path, options = {}) => {
+      const response = await fetch(`${apiBase}${path}`, {
+        ...options,
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return request(path, options);
+        }
+        if (window.top) window.top.location.href = '/login';
+      }
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('json')) {
+        throw new Error(text || `Unexpected response ${response.status}`);
+      }
+      return text ? JSON.parse(text) : {};
+    };
+
+    const scoreToPercent = (value) => {
+      const score = Number(value);
+      if (!Number.isFinite(score)) return 0;
+      return Math.max(0, Math.min(100, Math.round(score)));
+    };
+
+    const tierStyles = (tier) => {
+      if (tier === 'A') return ['bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'];
+      if (tier === 'B') return ['bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'];
+      return ['bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'];
+    };
+
+    const normalizeToken = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+    const iconForCategories = (categories = [], tags = []) => {
+      const tokens = [...categories, ...tags].map(normalizeToken).filter(Boolean);
+      const matches = (keys) => tokens.some((token) => keys.some((key) => token.includes(key)));
+
+      if (matches(['comercial', 'varejo', 'retail', 'promocao', 'promo', 'vendas'])) {
+        return ['local_offer', 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'];
+      }
+      if (matches(['oficial', 'institucional', 'governo', 'government', 'feriado'])) {
+        return ['event', 'bg-slate-100 dark:bg-slate-800 text-slate-600'];
+      }
+      if (matches(['cultural', 'arte', 'cultura', 'entretenimento', 'musica', 'cinema'])) {
+        return ['theater_comedy', 'bg-purple-100 dark:bg-purple-900/30 text-purple-600'];
+      }
+      if (matches(['sazonalidade', 'seasonal', 'clima'])) {
+        return ['sunny', 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600'];
+      }
+      if (matches(['esportivo', 'esporte', 'futebol', 'olimpiada'])) {
+        return ['sports_soccer', 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'];
+      }
+      if (matches(['causa_social', 'direitos', 'acessibilidade', 'genero', 'inclusao', 'social'])) {
+        return ['volunteer_activism', 'bg-rose-100 dark:bg-rose-900/30 text-rose-600'];
+      }
+      if (matches(['profissao', 'carreira', 'trabalho', 'emprego'])) {
+        return ['work', 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600'];
+      }
+      if (matches(['geek_pop', 'geek', 'tech', 'tecnologia', 'jogos', 'games'])) {
+        return ['sports_esports', 'bg-violet-100 dark:bg-violet-900/30 text-violet-600'];
+      }
+      if (matches(['setorial', 'industria', 'negocio', 'business'])) {
+        return ['domain', 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600'];
+      }
+      if (matches(['local', 'regional', 'cidade', 'municipal'])) {
+        return ['place', 'bg-teal-100 dark:bg-teal-900/30 text-teal-600'];
+      }
+      if (matches(['religioso', 'religiao', 'fe', 'catolico'])) {
+        return ['church', 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'];
+      }
+      if (matches(['saude', 'medicina', 'hospital'])) {
+        return ['health_and_safety', 'bg-red-100 dark:bg-red-900/30 text-red-600'];
+      }
+      if (matches(['educacao', 'escola', 'ensino'])) {
+        return ['school', 'bg-sky-100 dark:bg-sky-900/30 text-sky-600'];
+      }
+      if (matches(['ambiental', 'meio ambiente', 'natureza', 'sustentabilidade', 'fauna', 'flora'])) {
+        return ['eco', 'bg-green-100 dark:bg-green-900/30 text-green-600'];
+      }
+      if (matches(['culinaria', 'gastronomia', 'comida', 'alimentacao'])) {
+        return ['restaurant', 'bg-lime-100 dark:bg-lime-900/30 text-lime-700'];
+      }
+      if (matches(['lazer', 'turismo', 'viagem', 'praia'])) {
+        return ['beach_access', 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'];
+      }
+      if (matches(['historico', 'historia', 'patrimonio'])) {
+        return ['history', 'bg-stone-100 dark:bg-stone-900/30 text-stone-600'];
+      }
+      if (matches(['militar', 'defesa', 'exercito'])) {
+        return ['military_tech', 'bg-gray-100 dark:bg-gray-800 text-gray-600'];
+      }
+      return ['calendar_month', 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'];
+    };
+
+    const buildStudioUrl = (event, dateValue) => {
+      const query = new URLSearchParams();
+      if (dateValue) query.set('date', dateValue);
+      if (event?.name) query.set('event', event.name);
+      if (Number.isFinite(event?.score)) query.set('score', String(event.score));
+      if (event?.tier) query.set('tier', event.tier);
+      if (event?.categories?.length) query.set('categories', event.categories.join(', '));
+      if (event?.tags?.length) query.set('tags', event.tags.join(', '));
+      if (event?.why) query.set('why', event.why);
+      if (event?.source) query.set('source', event.source);
+      const qs = query.toString();
+      return qs ? `/studio?${qs}` : '/studio';
+    };
+
+    const renderObservances = (events) => {
+      if (!listEl || !listTemplate) return;
+      listEl.innerHTML = '';
+      if (!events.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs text-slate-500';
+        empty.textContent = 'No observances for this day.';
+        listEl.appendChild(empty);
+        return;
+      }
+
+      events.forEach((event) => {
+        const node = listTemplate.content.firstElementChild.cloneNode(true);
+        const title = node.querySelector('h4');
+        const subtitle = node.querySelector('p');
+        const iconWrap = node.querySelector('div.w-12');
+        const icon = node.querySelector('.material-symbols-outlined');
+        const pill = node.querySelector('[data-role="tier-pill"]');
+
+        const score = scoreToPercent(event.score);
+        const [pillClass, iconClass] = tierStyles(event.tier);
+        const [iconName, iconWrapClass] = iconForCategories(event.categories || [], event.tags || []);
+        const subtitleParts = [];
+
+        if (event.tags?.length) {
+          subtitleParts.push(event.tags.slice(0, 3).join(', '));
+        } else if (event.categories?.length) {
+          subtitleParts.push(event.categories.slice(0, 3).join(', '));
+        }
+        subtitleParts.push(`Relevance: ${score}%`);
+
+        if (title) title.textContent = event.name || 'Event';
+        if (subtitle) subtitle.textContent = subtitleParts.join(' • ');
+        if (icon) icon.textContent = iconName;
+        if (iconWrap) iconWrap.className = `w-12 h-12 rounded-xl flex items-center justify-center ${iconWrapClass}`;
+        if (pill) {
+          pill.textContent = `Tier ${event.tier || 'C'}`;
+          pill.className = `px-3 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider ${pillClass}`;
+        }
+
+        node.addEventListener('click', () => {
+          window.location.href = dayRoute;
+        });
+        listEl.appendChild(node);
+      });
+    };
+
+    const renderSegments = (events) => {
+      if (!segmentsEl) return;
+      segmentsEl.innerHTML = '';
+      const counts = new Map();
+      events.forEach((event) => {
+        (event.tags || []).forEach((tag) => {
+          const key = String(tag || '').trim();
+          if (!key) return;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        });
+      });
+      const top = Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map((entry) => entry[0]);
+
+      if (!top.length) {
+        const chip = document.createElement('span');
+        chip.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700';
+        chip.textContent = 'General';
+        segmentsEl.appendChild(chip);
+        return;
+      }
+
+      top.forEach((tag, index) => {
+        const chip = document.createElement('span');
+        const colorClass =
+          index === 0
+            ? 'bg-orange-100 text-orange-700'
+            : index === 1
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-emerald-100 text-emerald-700';
+        chip.className = `px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`;
+        chip.textContent = tag;
+        segmentsEl.appendChild(chip);
+      });
+    };
+
+    const renderUpcoming = (daysMap) => {
+      if (!upcomingEl || !upcomingTemplate) return;
+      upcomingEl.innerHTML = '';
+
+      const dates = Object.keys(daysMap || {}).filter((key) => key > dateISO).sort();
+      const items = [];
+      dates.forEach((dayKey) => {
+        const dayEvents = daysMap[dayKey] || [];
+        if (!dayEvents.length) return;
+        items.push({ dateISO: dayKey, event: dayEvents[0] });
+      });
+
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs text-slate-500';
+        empty.textContent = 'No upcoming events in this month.';
+        upcomingEl.appendChild(empty);
+        return;
+      }
+
+      items.slice(0, 4).forEach((item) => {
+        const node = upcomingTemplate.content.firstElementChild.cloneNode(true);
+        const dateEl = node.querySelector('[data-role="upcoming-date"]');
+        const title = node.querySelector('h4');
+        const badge = node.querySelector('span.text-xs');
+        const bar = node.querySelector('div.bg-primary');
+        const label = node.querySelector('[data-role="upcoming-label"]');
+
+        const eventDate = parseISODate(item.dateISO);
+        const score = scoreToPercent(item.event?.score);
+        if (dateEl && eventDate) dateEl.textContent = formatShortDate(eventDate);
+        if (title) title.textContent = item.event?.name || 'Event';
+        if (badge) badge.textContent = `Relevance ${score}%`;
+        if (bar) bar.style.width = `${score}%`;
+        if (label) label.textContent = `Relevance ${score}%`;
+
+        node.addEventListener('click', () => {
+          window.location.href = `/calendar?date=${item.dateISO}`;
+        });
+        upcomingEl.appendChild(node);
+      });
+    };
+
+    const loadData = async () => {
+      if (!hasSession()) {
+        setText(glanceTotal, '0');
+        setText(glanceClients, '0');
+        setText(glancePending, '0');
+        if (listEl) {
+          listEl.innerHTML = '<div class="text-xs text-slate-500">Login required to load calendar.</div>';
+        }
+        return;
+      }
+
+      try {
+        const payload = await request(`/calendar/events/${monthKey}`, { method: 'GET' });
+        const days = payload?.days || {};
+        const events = days[dateISO] || [];
+
+        renderObservances(events);
+        renderSegments(events);
+        renderUpcoming(days);
+
+        setText(glanceTotal, String(events.length));
+        const pending = events.filter((event) => event.tier === 'C').length;
+        setText(glancePending, String(pending));
+
+        try {
+          const clients = await request('/clients', { method: 'GET' });
+          setText(glanceClients, String((clients || []).length));
+        } catch {
+          setText(glanceClients, '0');
+        }
+
+        if (createPostBtn) {
+          const firstEvent = events[0];
+          createPostBtn.addEventListener('click', () => {
+            window.location.href = buildStudioUrl(firstEvent, dateISO);
+          });
+        }
+      } catch (error) {
+        console.error('Calendar load error:', error);
+        if (listEl) {
+          const message = error?.message ? String(error.message) : 'Unable to load calendar data.';
+          listEl.innerHTML = `<div class="text-xs text-slate-500">Unable to load calendar data. ${message}</div>`;
+        }
+      } finally {
+        if (listLoading) listLoading.remove();
+        if (upcomingLoading) upcomingLoading.remove();
+      }
+    };
+
+    loadData();
+  })();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+
+

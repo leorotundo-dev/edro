@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Creative Studio AI Editor - Edro</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#FF6600",
+              "background-light": "#F9FAFB",
+              "background-dark": "#0F172A",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1E293B",
+            },
+            fontFamily: {
+              display: ["Instrument Serif", "serif"],
+              sans: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "12px",
+              'xl': '16px',
+            },
+            aspectRatio: {
+                '9/16': '9 / 16',
+            },
+          },
+        },
+      };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tiktok-preview-card {
+            max-width: 340px;
+            width: 100%;
+        }
+        .tiktok-visual {
+            aspect-ratio: 9 / 16;
+        }
+        .tiktok-glass {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl">Creative Studio Editor</h1>
+<span class="text-xs font-medium text-slate-400 uppercase tracking-widest ml-4">October 01, 2023</span>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvAk3odobYSg1Pbv6JIgSldZBi3DFIUUztWB6XUe29WkmbpW3iFxm-up5sdxcN7wplROm6if2NtRMvS5bb6eLDxYHZjyg2sZG2jI54RdIn5M9XfG34WVWVVktcPqSC5sKOxJHdtj8OhvGhzjiYoVvwj6---zaiH2XiafvYl2dNjjJAW7G6dxcJw6Y_lTrUasNpunsU3fpzMIusTbzbf2YlDLd2lHYQzr8AxNFZNtWL8l2XegBDh5cQ5xZjXw8d7ePCQIzwRbE-RXY"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<section class="flex-1 bg-slate-50 dark:bg-slate-900/50 p-8 overflow-y-auto flex flex-col items-center">
+<div class="w-full max-w-[340px] mb-6 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 flex items-center justify-center">
+<svg class="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
+<path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .8.11V9.42a7.27 7.27 0 0 0-7.28 7.3 7.3 7.3 0 0 0 12.06 5.53 7.23 7.23 0 0 0 2.2-5.33V10.27A10.29 10.29 0 0 0 22 13V9.42a4.83 4.83 0 0 1-2.41-2.73z"></path>
+</svg>
+</div>
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">TikTok Preview</span>
+</div>
+<span class="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">Variant 8 of 10</span>
+</div>
+<div class="tiktok-preview-card bg-black rounded-[40px] shadow-2xl overflow-hidden border-[8px] border-slate-900 dark:border-slate-800 relative ring-1 ring-white/10">
+<div class="tiktok-visual relative bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-tr from-slate-900 via-[#1a2b3c] to-slate-800 flex items-center justify-center">
+<div class="w-48 h-48 bg-orange-500/10 blur-[80px] rounded-full animate-pulse"></div>
+</div>
+<div class="relative z-10 px-8 text-center">
+<h2 class="font-display text-5xl text-white mb-2 leading-none italic drop-shadow-lg">The Morning Ritual</h2>
+<p class="text-[10px] text-white/60 font-medium uppercase tracking-[0.2em] drop-shadow-md">Crafted by Azul Coffee Co.</p>
+</div>
+<div class="absolute right-3 bottom-24 flex flex-col items-center gap-6 z-20">
+<div class="relative">
+<div class="w-11 h-11 rounded-full border-2 border-white overflow-hidden bg-slate-900 flex items-center justify-center">
+<span class="text-[10px] font-bold text-white">AZ</span>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary w-5 h-5 rounded-full border-2 border-black flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[14px]">add</span>
+</div>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-white text-[32px] fill-1 drop-shadow-md">favorite</span>
+<span class="text-white text-[11px] font-semibold">12.4K</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-white text-[32px] fill-1 drop-shadow-md">chat_bubble</span>
+<span class="text-white text-[11px] font-semibold">482</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-white text-[32px] fill-1 drop-shadow-md">share</span>
+<span class="text-white text-[11px] font-semibold">Share</span>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-slate-700 bg-slate-900 flex items-center justify-center animate-spin-slow">
+<div class="w-6 h-6 rounded-full bg-gradient-to-br from-slate-600 to-black"></div>
+</div>
+</div>
+<div class="absolute bottom-6 left-4 right-16 z-20">
+<p class="text-white font-bold text-sm mb-1 flex items-center gap-1">
+                            @azulcoffeeco <span class="material-symbols-outlined text-[14px] text-blue-400 fill-1">verified</span>
+</p>
+<p class="text-white/90 text-[13px] leading-snug line-clamp-2">
+                            The secret to a perfect morning starts before the first sip. Discover the ritual. ☕✨ #azulcoffeeco #morningritual #specialtycoffee
+                        </p>
+<div class="mt-3 flex items-center gap-2 text-white/80">
+<span class="material-symbols-outlined text-[16px]">music_note</span>
+<p class="text-[12px] truncate max-w-[120px]">Original Sound - Azul Coffee Co.</p>
+</div>
+</div>
+<div class="absolute bottom-0 left-0 h-0.5 bg-white/20 w-full z-20">
+<div class="h-full bg-white w-1/3"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 flex gap-4">
+<button class="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+<span class="material-symbols-outlined text-sm">desktop_windows</span> Desktop View
+                </button>
+<div class="w-px h-4 bg-slate-200 self-center"></div>
+<button class="text-primary flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+<span class="material-symbols-outlined text-sm">smartphone</span> Live Preview
+                </button>
+</div>
+</section>
+<section class="w-[420px] bg-surface-light dark:bg-surface-dark border-l border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">tune</span>
+                    Post Settings
+                </h3>
+<div class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8">
+<option selected="">TikTok</option>
+<option>Instagram</option>
+<option>Reels</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Video Type</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8">
+<option>Vertical 9:16</option>
+<option>Square 1:1</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Campaign Handle</label>
+<div class="relative">
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary py-2.5 pl-3 pr-8" type="text" value="azulcoffeeco"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">alternate_email</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-6 flex flex-col min-h-0">
+<div class="flex items-center justify-between mb-2">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">On-Screen Text Copy</label>
+<span class="text-[10px] font-medium text-slate-300">18/50</span>
+</div>
+<div class="mb-6 relative group">
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-primary transition-colors" placeholder="Type headline..." value="The Morning Ritual"/>
+</div>
+<div class="flex items-center justify-between mb-2">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Video Caption</label>
+<span class="text-[10px] font-medium text-slate-300">156/2200</span>
+</div>
+<div class="flex-1 relative group">
+<textarea class="w-full h-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-800 rounded-xl p-4 text-sm focus:ring-1 focus:ring-primary/50 focus:border-primary/50 resize-none transition-colors" placeholder="Type your caption here...">The secret to a perfect morning starts before the first sip. Discover the ritual. ☕✨ 
+#azulcoffeeco #morningritual #specialtycoffee #craftcoffee</textarea>
+</div>
+<div class="mt-6 space-y-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">auto_awesome</span> Regenerate Hook
+                    </button>
+<button class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined">magic_button</span> Refine Caption
+                    </button>
+</div>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-blue-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-blue-600 text-xs">verified</span></div>
+<div class="w-8 h-8 rounded-full bg-green-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-green-600 text-xs">check_circle</span></div>
+</div>
+<p class="text-[10px] font-bold text-slate-400 uppercase">AI Safety Filters Active</p>
+</div>
+</div>
+</section>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

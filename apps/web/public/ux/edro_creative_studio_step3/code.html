@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Studio Step 3: AI Copy Editor - Edro Creative</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff6600",
+                        "background-light": "#ffffff",
+                        "background-dark": "#1A1A1A",
+                        "sidebar-light": "#F9F9F9",
+                        "charcoal": "#1A1A1A",
+                        "edro-gray": "#E5E5E5"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "serif": ["Playfair Display", "serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+                font-size: 20px;
+            }
+            .active-nav-border {
+                border-left: 3px solid #ff6600;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            }
+            .editor-gradient-border {
+                position: relative;
+            }
+            .editor-gradient-border::after {
+                content: '';
+                position: absolute;
+                inset: -1px;
+                background: linear-gradient(to bottom right, #ff660033, transparent 50%);
+                z-index: -1;
+                border-radius: 0.5rem;
+            }
+        }
+    </style>
+<style>
+  body.edro-studio-embed aside { display: none !important; }
+  body.edro-studio-embed .ml-64 { margin-left: 0 !important; }
+  body.edro-studio-embed .left-64 { left: 0 !important; }
+  body.edro-studio-embed main > header { display: none !important; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-charcoal dark:text-white edro-studio-embed">
+<div class="flex min-h-screen">
+<aside class="w-64 bg-sidebar-light dark:bg-background-dark border-r border-edro-gray dark:border-zinc-800 flex flex-col justify-between fixed h-full z-20">
+<div class="flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary size-8 rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined">grid_view</span>
+</div>
+<div>
+<h1 class="text-charcoal dark:text-white text-sm font-bold tracking-tight uppercase">Edro Creative</h1>
+<p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Studio Suite</p>
+</div>
+</div>
+<nav class="mt-4 flex flex-col gap-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-400 opacity-50 cursor-not-allowed rounded transition-colors group" href="#">
+<span class="material-symbols-outlined">settings_input_component</span>
+<span class="text-sm font-medium">1. Configuração</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-400 opacity-50 cursor-not-allowed rounded transition-colors group" href="#">
+<span class="material-symbols-outlined">palette</span>
+<span class="text-sm font-medium">2. Identidade</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-white dark:bg-zinc-800 active-nav-border rounded-r text-charcoal dark:text-white transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<span class="text-sm font-bold">3. Copy Studio</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-400 opacity-50 cursor-not-allowed rounded transition-colors group" href="#">
+<span class="material-symbols-outlined">photo_library</span>
+<span class="text-sm font-medium">4. Visual Canvas</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-400 opacity-50 cursor-not-allowed rounded transition-colors group" href="#">
+<span class="material-symbols-outlined">reviews</span>
+<span class="text-sm font-medium">5. Revisão Geral</span>
+</a>
+</nav>
+</div>
+<div class="p-6">
+<div class="p-4 bg-white dark:bg-zinc-800 border border-edro-gray dark:border-zinc-800 rounded mb-4">
+<p class="text-[10px] font-bold text-zinc-400 uppercase mb-2">Progresso</p>
+<div class="h-1.5 w-full bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/2"></div>
+</div>
+<p class="text-[10px] font-medium text-zinc-500 mt-2 italic text-right">Etapa 3 de 6</p>
+</div>
+<button class="w-full text-zinc-400 hover:text-charcoal dark:hover:text-white text-xs font-bold py-2 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">exit_to_app</span>
+<span>Sair do Editor</span>
+</button>
+</div>
+</aside>
+<main class="flex-1 ml-64 min-h-screen flex flex-col bg-white dark:bg-background-dark">
+<header class="sticky top-0 z-10 bg-white dark:bg-background-dark border-b border-edro-gray dark:border-zinc-800 h-16 px-8 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-zinc-400 text-xs font-medium uppercase tracking-wider">
+<span>Studio</span>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-charcoal dark:text-white">Copy Studio</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
+<button id="edro-mode-fast" data-pipeline="simple" class="px-4 py-1.5 text-xs font-bold bg-white dark:bg-zinc-700 shadow-sm rounded text-charcoal dark:text-white transition-all">Modo Rápido</button>
+<button id="edro-mode-premium" data-pipeline="premium" class="px-4 py-1.5 text-xs font-medium text-zinc-500 hover:text-charcoal dark:hover:text-white transition-all">Modo Premium</button>
+</div>
+<div class="h-6 w-px bg-edro-gray dark:bg-zinc-800 mx-2"></div>
+<div class="size-8 rounded-full bg-cover bg-center border border-zinc-200" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBt0WNPUzBWw-qN0Iazpchx5OH2gDyLkKjgEnOygyHuPzkpST9aZ_4C_evyJXr3Xn4tWJxyR0nVRSPUDvRUFVJVaVNq3p5C3nOpE1NBfbz-xGu9Yc04WSDd3a8dNiaT8Yxi2TJlJv67sJ4HkUlCoiVD1pjF_zuQ9lFElz6P0Jb_rjMWmtibwK5LnFQxCKvU4gQn9I_C-2b-zyPD_s_sz2mD0PehkyucxaMcldWLW0k0JUi0yWud28peCtrLB0iiTZMu9ftUtw3WGq8')"></div>
+</div>
+</header>
+<div class="flex-1 p-8 max-w-none w-full">
+<div class="flex justify-between items-center mb-10">
+<div class="space-y-1">
+<span class="text-[10px] font-bold text-primary uppercase tracking-[0.3em]">Etapa 3 de 6</span>
+<h2 class="font-serif text-5xl text-charcoal dark:text-white leading-tight">Copy Studio</h2>
+</div>
+<div class="flex gap-3">
+<button id="edro-history-toggle" class="p-2.5 text-zinc-400 hover:text-charcoal dark:hover:text-white border border-edro-gray dark:border-zinc-800 rounded hover:bg-zinc-50 transition-all" title="Histórico de versões">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="p-2.5 text-zinc-400 hover:text-charcoal dark:hover:text-white border border-edro-gray dark:border-zinc-800 rounded hover:bg-zinc-50 transition-all" title="Ver dicas da plataforma">
+<span class="material-symbols-outlined">lightbulb</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-10">
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<div class="bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded-lg card-shadow overflow-hidden flex flex-col min-h-[500px]">
+<div class="px-6 py-4 border-b border-edro-gray dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-zinc-400">subject</span>
+<span class="text-xs font-bold uppercase tracking-wider text-zinc-500">Caption &amp; Copy — <span id="edro-format-name" class="text-charcoal dark:text-white">Instagram Post</span></span>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-zinc-500"><span class="material-symbols-outlined">format_bold</span></button>
+<button class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-zinc-500"><span class="material-symbols-outlined">format_italic</span></button>
+<button class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-zinc-500"><span class="material-symbols-outlined">format_list_bulleted</span></button>
+<div class="w-px h-4 bg-edro-gray mx-1"></div>
+<button class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-zinc-500"><span class="material-symbols-outlined">tag</span></button>
+<button class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-zinc-500"><span class="material-symbols-outlined">sentiment_satisfied</span></button>
+</div>
+</div>
+<div class="flex-1 p-8">
+<textarea id="edro-copy-text" class="w-full h-full min-h-[300px] border-none focus:ring-0 text-lg leading-relaxed text-charcoal dark:text-white placeholder-zinc-300 dark:placeholder-zinc-600 resize-none" placeholder="O seu texto aparecerá aqui após a geração ou digite manualmente..."></textarea>
+</div>
+<div class="p-6 bg-zinc-50 dark:bg-zinc-800/30 border-t border-edro-gray dark:border-zinc-800 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-zinc-400 uppercase">Caracteres</span>
+<span id="edro-copy-count" class="text-sm font-medium text-zinc-600 dark:text-zinc-400">0 / 2200</span>
+</div>
+<div class="w-px h-8 bg-edro-gray dark:bg-zinc-800"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-zinc-400 uppercase">Leiturabilidade</span>
+<div class="flex items-center gap-1.5">
+<div class="size-2 rounded-full bg-green-500"></div>
+<span class="text-sm font-medium text-zinc-600 dark:text-zinc-400">Excelente</span>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button id="edro-copy-refine" class="px-5 py-2.5 bg-white dark:bg-zinc-800 border border-charcoal dark:border-white text-charcoal dark:text-white text-xs font-bold rounded hover:bg-zinc-100 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined !text-sm">auto_fix_high</span>
+                                        Refinar com IA
+                                    </button>
+<button id="edro-copy-generate" class="px-6 py-2.5 bg-primary text-white text-xs font-bold rounded hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/10 flex items-center gap-2">
+<span class="material-symbols-outlined !text-sm">bolt</span>
+                                        Gerar com IA
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<section class="space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 border-b border-edro-gray pb-2">Dicas de Plataforma</h3>
+<div class="bg-sidebar-light dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-5 space-y-4">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-primary">info</span>
+<p class="text-xs text-zinc-500 leading-relaxed">
+<strong id="edro-tip-title" class="text-charcoal dark:text-white block mb-1">Gancho Inicial (Hook)</strong>
+                                        <span id="edro-tip-body">Para posts de Instagram, as primeiras 2 linhas são cruciais. Comece com uma pergunta ou um dado impactante.</span>
+                                    </p>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-primary">emoji_objects</span>
+<p class="text-xs text-zinc-500 leading-relaxed">
+<strong class="text-charcoal dark:text-white block mb-1">Espaçamento</strong>
+                                        Use quebras de linha generosas para facilitar a leitura no mobile.
+                                    </p>
+</div>
+</div>
+</section>
+<section class="space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 border-b border-edro-gray pb-2">Tom de Voz</h3>
+<div class="grid grid-cols-2 gap-2">
+<button data-tone="Profissional" class="px-3 py-2 border border-primary text-primary text-[10px] font-bold rounded bg-primary/5 uppercase">Profissional</button>
+<button data-tone="Inspirador" class="px-3 py-2 border border-edro-gray dark:border-zinc-800 text-zinc-400 text-[10px] font-bold rounded hover:border-zinc-400 uppercase">Inspirador</button>
+<button data-tone="Casual" class="px-3 py-2 border border-edro-gray dark:border-zinc-800 text-zinc-400 text-[10px] font-bold rounded hover:border-zinc-400 uppercase">Casual</button>
+<button data-tone="Persuasivo" class="px-3 py-2 border border-edro-gray dark:border-zinc-800 text-zinc-400 text-[10px] font-bold rounded hover:border-zinc-400 uppercase">Persuasivo</button>
+</div>
+</section>
+<section class="space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 border-b border-edro-gray pb-2">Motor de Copys</h3>
+<div class="bg-sidebar-light dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-5 space-y-4">
+<div id="edro-orchestrator-status" class="text-xs text-zinc-500">Carregando orquestrador...</div>
+<div>
+<p class="text-[10px] font-bold text-zinc-400 uppercase mb-2">Pipeline</p>
+<div class="grid grid-cols-3 gap-2">
+<button data-pipeline="simple" class="px-3 py-2 border border-edro-gray text-zinc-400 text-[10px] font-bold rounded uppercase">Rápido</button>
+<button data-pipeline="standard" class="px-3 py-2 border border-primary text-primary text-[10px] font-bold rounded bg-primary/5 uppercase">Standard</button>
+<button data-pipeline="premium" class="px-3 py-2 border border-edro-gray text-zinc-400 text-[10px] font-bold rounded uppercase">Premium</button>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-bold text-zinc-400 uppercase">Tipo de copy</label>
+<select id="edro-task-type" class="mt-2 w-full rounded border border-edro-gray text-xs font-semibold text-zinc-600">
+<option value="social_post">Social post</option>
+<option value="headlines">Headlines</option>
+<option value="variations">Variações</option>
+<option value="institutional_copy">Institucional</option>
+<option value="campaign_strategy">Estratégia</option>
+<option value="final_review">Revisão final</option>
+</select>
+</div>
+<div>
+<label class="text-[10px] font-bold text-zinc-400 uppercase">Provider (opcional)</label>
+<select id="edro-provider-select" class="mt-2 w-full rounded border border-edro-gray text-xs font-semibold text-zinc-600">
+<option value="">Automático</option>
+<option value="openai">OpenAI</option>
+<option value="gemini">Gemini</option>
+<option value="claude">Claude</option>
+</select>
+</div>
+<div>
+<label class="text-[10px] font-bold text-zinc-400 uppercase">Variações</label>
+<select id="edro-variation-count" class="mt-2 w-full rounded border border-edro-gray text-xs font-semibold text-zinc-600">
+<option value="1">1 variação</option>
+<option value="3" selected>3 variações</option>
+<option value="5">5 variações</option>
+<option value="10">10 variações</option>
+</select>
+</div>
+</div>
+</section>
+<section class="space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 border-b border-edro-gray pb-2">Validação IA</h3>
+<div id="edro-validation" class="bg-sidebar-light dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-5 text-xs text-zinc-500 hidden"></div>
+</section>
+<section class="space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 border-b border-edro-gray pb-2">Variações sugeridas</h3>
+<div id="edro-variations" class="bg-sidebar-light dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-5 text-xs text-zinc-500">
+<p class="text-zinc-400">Gere uma copy para ver variações.</p>
+</div>
+</section>
+</div>
+</div>
+</div>
+<footer class="mt-auto border-t border-edro-gray dark:border-zinc-800 bg-white dark:bg-background-dark p-6 sticky bottom-0 z-10">
+<div class="max-w-none flex justify-between items-center">
+<button data-route="/studio/platforms" class="px-6 py-2.5 text-zinc-500 hover:text-charcoal dark:hover:text-white text-sm font-bold transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">arrow_back</span>
+                        Voltar
+                    </button>
+<button data-route="/studio/mockups" class="px-10 py-3 bg-primary text-white text-sm font-bold rounded hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 flex items-center gap-3">
+                        Aprovar e avançar
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</footer>
+</main>
+</div>
+
+<div id="edro-history-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded-xl w-[520px] max-w-[90vw] max-h-[80vh] overflow-hidden shadow-xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-edro-gray dark:border-zinc-800">
+      <h3 class="text-sm font-bold uppercase tracking-widest text-zinc-500">Histórico de versões</h3>
+      <button id="edro-history-close" class="text-zinc-400 hover:text-zinc-700">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="edro-history-list" class="p-6 space-y-3 overflow-y-auto max-h-[60vh] text-xs text-zinc-600">
+      <p class="text-zinc-400">Nenhuma versão encontrada.</p>
+    </div>
+  </div>
+</div>
+
+<script src="/ux/edro-studio-api.js"></script>
+<script>
+  (function () {
+    const copyField = document.getElementById('edro-copy-text');
+    const countEl = document.getElementById('edro-copy-count');
+    const generateButton = document.getElementById('edro-copy-generate');
+    const refineButton = document.getElementById('edro-copy-refine');
+    const formatNameEl = document.getElementById('edro-format-name');
+    const tipTitleEl = document.getElementById('edro-tip-title');
+    const tipBodyEl = document.getElementById('edro-tip-body');
+    const toneButtons = Array.from(document.querySelectorAll('[data-tone]'));
+    const pipelineButtons = Array.from(document.querySelectorAll('[data-pipeline]'));
+    const taskTypeSelect = document.getElementById('edro-task-type');
+    const providerSelect = document.getElementById('edro-provider-select');
+    const variationSelect = document.getElementById('edro-variation-count');
+    const orchestratorEl = document.getElementById('edro-orchestrator-status');
+    const validationEl = document.getElementById('edro-validation');
+    const variationsEl = document.getElementById('edro-variations');
+    const historyToggle = document.getElementById('edro-history-toggle');
+    const historyModal = document.getElementById('edro-history-modal');
+    const historyClose = document.getElementById('edro-history-close');
+    const historyList = document.getElementById('edro-history-list');
+    const modeFastBtn = document.getElementById('edro-mode-fast');
+    const modePremiumBtn = document.getElementById('edro-mode-premium');
+
+    const safeGet = (key) => {
+      try {
+        const value = window.localStorage.getItem(key);
+        if (value !== null && value !== undefined) return value;
+      } catch {
+        // ignore
+      }
+      try {
+        if (window.top && window.top !== window) {
+          return window.top.localStorage.getItem(key);
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
+    const safeSet = (key, value) => {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+      try {
+        if (window.top && window.top !== window) {
+          window.top.localStorage.setItem(key, value);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const safeRemove = (key) => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // ignore
+      }
+      try {
+        if (window.top && window.top !== window) {
+          window.top.localStorage.removeItem(key);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const safeParse = (value, fallback) => {
+      try {
+        return JSON.parse(value || '') || fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const context = safeParse(safeGet('edro_studio_context'), {});
+    if (!context.productionType) {
+      context.productionType = context.production_type || safeGet('edro_studio_production_type') || undefined;
+    }
+
+    let displayMap = safeParse(safeGet('edro_platform_display_map'), {});
+    let profiles = safeParse(safeGet('edro_platform_profiles'), []);
+    let formatCatalog = safeParse(safeGet('edro_format_catalog'), {});
+    let formatsByPlatform = safeParse(safeGet('edro_selected_formats_by_platform'), {});
+    let selectedPlatforms = safeParse(safeGet('edro_selected_platforms'), []);
+    let inventory = safeParse(safeGet('edro_selected_inventory'), []);
+    let activePlatform = safeGet('edro_active_platform') || '';
+    let activeFormat = safeGet('edro_active_format') || '';
+    const pipelineKey = 'edro_copy_pipeline';
+    const providerKey = 'edro_copy_provider';
+    const variationKey = 'edro_copy_variation_count';
+    const taskKey = 'edro_copy_task_type';
+    const copyMetaKey = 'edro_copy_meta_by_platform_format';
+    const copyVersionKey = 'edro_copy_version_by_platform_format';
+    const autoGenKey = 'edro_copy_autogen_by_platform_format';
+    let autoGenerating = false;
+    let orchestratorProviders = null;
+    let orchestratorRouting = null;
+
+    const rebuildInventoryIfNeeded = () => {
+      if (Array.isArray(inventory) && inventory.length) return;
+      const entries = Object.entries(formatsByPlatform || {}).filter(([, list]) => Array.isArray(list) && list.length);
+      if (!entries.length) return;
+      const rebuilt = [];
+      entries.forEach(([platformName, formats]) => {
+        formats.forEach((fmt) => {
+          rebuilt.push({
+            id: `${platformName}-${fmt}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-'),
+            platform: platformName,
+            platformId: platformName,
+            format: fmt,
+            index: 1,
+            total: 1
+          });
+        });
+      });
+      if (!rebuilt.length) return;
+      inventory = rebuilt;
+      selectedPlatforms = entries.map(([platformName]) => platformName);
+      safeSet('edro_selected_inventory', JSON.stringify(inventory));
+      safeSet('edro_selected_platforms', JSON.stringify(selectedPlatforms));
+    };
+
+    const resolveProductionType = () => {
+      const stored = safeGet('edro_studio_production_type');
+      if (stored) return stored;
+      if (context?.productionType) {
+        safeSet('edro_studio_production_type', context.productionType);
+        return context.productionType;
+      }
+      if (context?.production_type) {
+        safeSet('edro_studio_production_type', context.production_type);
+        return context.production_type;
+      }
+      return '';
+    };
+
+    const buildDisplayMap = (profilesList) => {
+      const map = {};
+      (profilesList || []).forEach((profile) => {
+        if (!profile?.platform) return;
+        map[profile.platform] = String(profile.platform || '').replace(/([a-z])([A-Z])/g, '$1 $2');
+      });
+      return map;
+    };
+
+    const loadProductionCatalog = async () => {
+      if (!window.EdroStudio?.request) return false;
+      const productionType = resolveProductionType();
+      if (!productionType) return false;
+      try {
+        const response = await window.EdroStudio.request(`/production/catalog?type=${encodeURIComponent(productionType)}`, {
+          method: 'GET'
+        });
+        const payload = response?.data || response;
+        const platforms = Array.isArray(payload?.platforms) ? payload.platforms : [];
+        if (!platforms.length) return false;
+        const nextProfiles = platforms.map((item) => {
+          const formats = Array.isArray(item.formats) ? item.formats : [];
+          const formatNames = formats.map((fmt) => fmt.format_name);
+          const maxChars = {};
+          const bestPractices = [];
+          formats.forEach((fmt) => {
+            if (fmt?.max_chars) {
+              Object.entries(fmt.max_chars).forEach(([key, value]) => {
+                const current = maxChars[key] || 0;
+                if (Number(value) > current) maxChars[key] = Number(value);
+              });
+            }
+            if (Array.isArray(fmt?.best_practices)) {
+              fmt.best_practices.forEach((tip) => {
+                if (tip && !bestPractices.includes(tip)) bestPractices.push(tip);
+              });
+            }
+          });
+          const weight = formatNames.length ? Math.round(100 / formatNames.length) : 0;
+          const defaultMix = {};
+          formatNames.forEach((name) => {
+            defaultMix[name] = weight;
+          });
+          return {
+            platform: item.platform,
+            supportedFormats: formatNames,
+            maxChars,
+            languageStyle: '',
+            bestPractices,
+            avoid: [],
+            defaultMix
+          };
+        });
+
+        const catalogMap = {};
+        platforms.forEach((item) => {
+          if (!item?.platform) return;
+          if (!catalogMap[item.platform]) catalogMap[item.platform] = {};
+          (item.formats || []).forEach((fmt) => {
+            if (fmt?.format_name) {
+              catalogMap[item.platform][fmt.format_name] = fmt;
+            }
+          });
+        });
+
+        profiles = nextProfiles;
+        formatCatalog = catalogMap;
+        displayMap = buildDisplayMap(nextProfiles);
+        safeSet('edro_platform_profiles', JSON.stringify(nextProfiles));
+        safeSet('edro_format_catalog', JSON.stringify(catalogMap));
+        safeSet('edro_platform_display_map', JSON.stringify(displayMap));
+        return true;
+      } catch (error) {
+        console.warn('catalog load failed', error);
+        return false;
+      }
+    };
+
+    rebuildInventoryIfNeeded();
+
+    let platform = '';
+    let format = '';
+    let platformLabel = '';
+    let profile = null;
+    let catalogDetails = null;
+    let durationSec = null;
+    let maxChars = 2200;
+
+    const parseDurationFromFormat = (value) => {
+      const match = String(value || '').match(/(\d{1,3})\s*s/i);
+      if (!match) return null;
+      const parsed = Number(match[1]);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const normalizeKey = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '');
+
+    const resolvePlatformKey = (platformValue, platformMap) => {
+      if (!platformValue) return '';
+      if (platformMap?.[platformValue]) return platformValue;
+      const target = normalizeKey(platformValue);
+      const match = Object.keys(platformMap || {}).find((key) => normalizeKey(key) === target);
+      return match || platformValue;
+    };
+
+    const resolveFormatName = (formatValue, formats) => {
+      if (!formatValue) return '';
+      if (!Array.isArray(formats)) return formatValue;
+      if (formats.includes(formatValue)) return formatValue;
+      const target = normalizeKey(formatValue);
+      const match = formats.find((item) => normalizeKey(item) === target);
+      return match || formatValue;
+    };
+
+    const resolveTaskTypeForFormat = (platformValue, formatValue) => {
+      const text = `${platformValue || ''} ${formatValue || ''}`.toLowerCase();
+      if (text.includes('headline') || text.includes('título') || text.includes('titulo')) return 'headlines';
+      if (text.includes('varia')) return 'variations';
+      if (text.includes('institucional') || text.includes('manifesto') || text.includes('release') || text.includes('press')) {
+        return 'institutional_copy';
+      }
+      if (text.includes('estrateg') || text.includes('campanha')) return 'campaign_strategy';
+      if (text.includes('revis') || text.includes('review')) return 'final_review';
+      return 'social_post';
+    };
+
+    const resolvePipelineForTask = (taskType) => {
+      if (taskType === 'institutional_copy' || taskType === 'campaign_strategy' || taskType === 'final_review') {
+        return 'premium';
+      }
+      return 'standard';
+    };
+
+    const tierForPipeline = (pipeline) => {
+      if (pipeline === 'simple') return 'fast';
+      if (pipeline === 'premium') return 'premium';
+      return 'creative';
+    };
+
+    const resolveRoutingProvider = (task) => orchestratorRouting?.[task]?.provider || null;
+
+    const pickAvailableProvider = (preferred) => {
+      if (preferred && orchestratorProviders?.[preferred]) return preferred;
+      if (orchestratorProviders?.openai) return 'openai';
+      if (orchestratorProviders?.gemini) return 'gemini';
+      if (orchestratorProviders?.claude) return 'claude';
+      return preferred || 'openai';
+    };
+
+    const resolveCreativeProviderForTask = (taskType) => {
+      const preferred = resolveRoutingProvider(taskType) || 'openai';
+      return pickAvailableProvider(preferred);
+    };
+
+    const resolveValidationProvider = () => pickAvailableProvider(resolveRoutingProvider('validation') || 'gemini');
+
+    const resolvePipelineAvailability = (pipeline, taskType) => {
+      const desired = pipeline || resolvePipelineForTask(taskType);
+      if (!orchestratorProviders) return desired;
+      if (desired === 'premium' && !orchestratorProviders?.claude) {
+        return 'standard';
+      }
+      if (desired === 'standard') {
+        const creativeProvider = resolveCreativeProviderForTask(taskType);
+        const validationProvider = resolveValidationProvider();
+        if (!orchestratorProviders?.[creativeProvider] || !orchestratorProviders?.[validationProvider]) {
+          return 'simple';
+        }
+      }
+      return desired;
+    };
+
+    const updatePipelineButtons = (value) => {
+      pipelineButtons.forEach((button) => {
+        const pipeline = button.getAttribute('data-pipeline');
+        const isActive = pipeline === value;
+        button.classList.toggle('border-primary', isActive);
+        button.classList.toggle('text-primary', isActive);
+        button.classList.toggle('bg-primary/5', isActive);
+        button.classList.toggle('border-edro-gray', !isActive);
+        button.classList.toggle('text-zinc-400', !isActive);
+      });
+      if (modeFastBtn) {
+        modeFastBtn.classList.toggle('bg-white', value === 'simple');
+        modeFastBtn.classList.toggle('text-charcoal', value === 'simple');
+      }
+      if (modePremiumBtn) {
+        modePremiumBtn.classList.toggle('bg-white', value === 'premium');
+        modePremiumBtn.classList.toggle('text-charcoal', value === 'premium');
+      }
+    };
+
+    const applySelection = () => {
+      const inventoryList = Array.isArray(inventory) ? inventory : [];
+      const fallbackInventory = inventoryList.length ? inventoryList[inventoryList.length - 1] : null;
+      const inventoryPlatform = fallbackInventory?.platform || fallbackInventory?.platformId || '';
+      const inventoryFormat = fallbackInventory?.format || fallbackInventory?.name || '';
+      const fallbackPlatform = inventoryPlatform || selectedPlatforms[0] || Object.keys(formatsByPlatform || {})[0] || 'Instagram';
+      const resolvedPlatformKey = resolvePlatformKey(activePlatform || fallbackPlatform, formatsByPlatform);
+      platform = resolvedPlatformKey;
+      const platformFormats = Array.isArray(formatsByPlatform?.[platform]) ? formatsByPlatform[platform] : [];
+      const resolvedActiveFormat = activeFormat ? resolveFormatName(activeFormat, platformFormats) : '';
+      const fallbackFormat = resolveFormatName(inventoryFormat, platformFormats) || platformFormats[0] || 'Post';
+      format = resolvedActiveFormat || fallbackFormat;
+
+      let matchingInventory = null;
+      for (let i = inventoryList.length - 1; i >= 0; i -= 1) {
+        const item = inventoryList[i];
+        const p = resolvePlatformKey(item?.platform || item?.platformId || '', formatsByPlatform);
+        const f = resolveFormatName(item?.format || item?.name || '', platformFormats);
+        if (normalizeKey(p) === normalizeKey(platform) && normalizeKey(f) === normalizeKey(format)) {
+          matchingInventory = item;
+          break;
+        }
+      }
+      if (matchingInventory) {
+        platform = resolvePlatformKey(matchingInventory.platform || matchingInventory.platformId || platform, formatsByPlatform);
+        const formats = Array.isArray(formatsByPlatform?.[platform]) ? formatsByPlatform[platform] : platformFormats;
+        format = resolveFormatName(matchingInventory.format || matchingInventory.name || format, formats);
+      }
+      platformLabel = displayMap[platform] || String(platform || '').replace(/([a-z])([A-Z])/g, '$1 $2');
+
+      profile = Array.isArray(profiles) ? profiles.find((item) => item.platform === platform) : null;
+      catalogDetails = formatCatalog?.[platform]?.[format] || null;
+      durationSec = catalogDetails?.specs?.duration_sec ?? parseDurationFromFormat(format);
+      const estimatedVoiceChars = durationSec ? Math.round(Number(durationSec) * 12) : null;
+      maxChars =
+        catalogDetails?.max_chars?.caption ??
+        catalogDetails?.max_chars?.body ??
+        profile?.maxChars?.caption ??
+        profile?.maxChars?.body ??
+        estimatedVoiceChars ??
+        2200;
+
+      const activeCopyKey = `${platform}::${format}`;
+      const previousCopyKey = safeGet('edro_copy_active_key');
+      if (previousCopyKey && previousCopyKey !== activeCopyKey && copyField) {
+        copyField.value = '';
+        if (countEl) {
+          countEl.textContent = `0 / ${maxChars}`;
+        }
+      }
+      safeSet('edro_copy_active_key', activeCopyKey);
+
+      if (formatNameEl) {
+        formatNameEl.textContent = `${platformLabel} • ${format}`;
+      }
+
+      if (platform) {
+        safeSet('edro_active_platform', platform);
+      }
+      if (format) {
+        safeSet('edro_active_format', format);
+      }
+
+      const defaultTask = resolveTaskTypeForFormat(platformLabel, format);
+      const storedTask = safeGet(taskKey);
+      const resolvedTask = storedTask || defaultTask;
+      if (taskTypeSelect && resolvedTask) {
+        taskTypeSelect.value = resolvedTask;
+      }
+      if (resolvedTask && !storedTask) {
+        safeSet(taskKey, resolvedTask);
+      }
+
+      const storedPipeline = safeGet(pipelineKey);
+      const resolvedPipeline = storedPipeline || resolvePipelineForTask(resolvedTask);
+      if (!storedPipeline && resolvedPipeline) {
+        safeSet(pipelineKey, resolvedPipeline);
+      }
+      updatePipelineButtons(resolvedPipeline);
+    };
+
+    applySelection();
+
+    const renderValidation = (payload) => {
+      if (!validationEl) return;
+      const review = payload?.review_json || payload?.reviewJson || payload?.validation;
+      if (!review) {
+        validationEl.classList.add('hidden');
+        return;
+      }
+      const score = review.score_geral ?? review.score ?? null;
+      const checklist = review.checklist || {};
+      const improvements = Array.isArray(review.melhorias) ? review.melhorias : [];
+      validationEl.classList.remove('hidden');
+      validationEl.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Score</span>
+          <span class="text-sm font-bold text-primary">${score ?? '—'}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+          ${Object.entries(checklist)
+            .map(([key, value]) => {
+              const ok = value ? 'text-emerald-600' : 'text-amber-600';
+              return `<div class="flex items-center gap-1 ${ok}"><span class="material-symbols-outlined text-[14px]">${value ? 'check_circle' : 'error'}</span>${key}</div>`;
+            })
+            .join('')}
+        </div>
+        ${
+          improvements.length
+            ? `<div class="mt-3 text-[10px] text-zinc-400">Ajustes sugeridos: ${improvements.join(', ')}</div>`
+            : ''
+        }
+      `;
+    };
+
+    const buildVariationText = (variation) => {
+      if (!variation) return '';
+      if (typeof variation === 'string') return variation;
+      const headline = variation.headline ? `**${variation.headline}**` : '';
+      const body = variation.corpo || variation.body || '';
+      const cta = variation.cta ? `\nCTA: ${variation.cta}` : '';
+      return [headline, body].filter(Boolean).join('\n') + cta;
+    };
+
+    const extractVariations = (payload, output) => {
+      const review = payload?.review_json || payload?.reviewJson || payload?.validation;
+      if (review?.copys?.length) {
+        return review.copys.map(buildVariationText).filter(Boolean);
+      }
+      if (Array.isArray(payload?.copys)) {
+        return payload.copys.map(buildVariationText).filter(Boolean);
+      }
+      if (typeof output === 'string') {
+        const blocks = output
+          .split(/\n(?=\d+[\)\.\-])/g)
+          .map((block) => block.trim())
+          .filter(Boolean);
+        if (blocks.length > 1) return blocks;
+        return [output.trim()].filter(Boolean);
+      }
+      return [];
+    };
+
+    const renderVariations = (items) => {
+      if (!variationsEl) return;
+      if (!Array.isArray(items) || !items.length) {
+        variationsEl.innerHTML = '<p class="text-zinc-400">Gere uma copy para ver variações.</p>';
+        return;
+      }
+      variationsEl.innerHTML = items
+        .map(
+          (item, index) => `
+            <button data-variation-index="${index}" class="w-full text-left border border-edro-gray rounded p-3 hover:border-primary hover:bg-primary/5 transition-all">
+              <div class="text-[10px] font-bold uppercase text-zinc-400 mb-2">Variação ${index + 1}</div>
+              <div class="text-xs text-zinc-600 whitespace-pre-wrap">${item}</div>
+            </button>
+          `
+        )
+        .join('');
+
+      variationsEl.querySelectorAll('[data-variation-index]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.getAttribute('data-variation-index'));
+          if (!Number.isFinite(idx)) return;
+          const text = items[idx];
+          if (copyField && text) {
+            copyField.value = text;
+            updateCount();
+            persistCopy();
+          }
+        });
+      });
+    };
+
+    const renderOrchestrator = async () => {
+      if (!orchestratorEl || !window.EdroStudio?.request) return;
+      try {
+        const response = await window.EdroStudio.request('/edro/orchestrator', { method: 'GET' });
+        const data = response?.data || response;
+        const providers = data?.providers || {};
+        const routing = data?.routing || {};
+        orchestratorProviders = providers;
+        orchestratorRouting = routing;
+        const providerBadges = Object.entries(providers)
+          .map(([provider, enabled]) => {
+            const status = enabled ? '✓' : '×';
+            const color = enabled ? 'text-emerald-600' : 'text-rose-500';
+            return `<span class="px-2 py-1 rounded bg-zinc-100 text-[10px] font-bold ${color}">${provider} ${status}</span>`;
+          })
+          .join(' ');
+        const routeInfo = routing?.social_post ? `${routing.social_post.provider} • ${routing.social_post.tier}` : 'auto';
+        orchestratorEl.innerHTML = `
+          <div class="flex flex-wrap gap-2 mb-2">${providerBadges}</div>
+          <div class="text-[10px] text-zinc-400">Roteamento padrão: ${routeInfo}</div>
+        `;
+      } catch (error) {
+        orchestratorEl.textContent = 'Orquestrador indisponível.';
+      }
+    };
+
+    const renderHistory = (copies) => {
+      if (!historyList) return;
+      if (!Array.isArray(copies) || !copies.length) {
+        historyList.innerHTML = '<p class="text-zinc-400">Nenhuma versão encontrada.</p>';
+        return;
+      }
+      historyList.innerHTML = copies
+        .map((item, index) => {
+          const created = item?.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : `Versão ${index + 1}`;
+          const model = item?.model || item?.payload?.model || 'modelo';
+          const preview = String(item?.output || '').slice(0, 160);
+          return `
+            <button data-history-index="${index}" class="w-full text-left border border-edro-gray rounded p-3 hover:border-primary hover:bg-primary/5 transition-all">
+              <div class="flex items-center justify-between text-[10px] text-zinc-400 mb-2">
+                <span>${created}</span>
+                <span>${model}</span>
+              </div>
+              <div class="text-xs text-zinc-600">${preview || 'Sem texto'}</div>
+            </button>
+          `;
+        })
+        .join('');
+
+      historyList.querySelectorAll('[data-history-index]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.getAttribute('data-history-index'));
+          if (!Number.isFinite(idx)) return;
+          const selected = copies[idx];
+          if (copyField && selected?.output) {
+            copyField.value = selected.output;
+            updateCount();
+            persistCopy();
+            if (historyModal) historyModal.classList.add('hidden');
+          }
+        });
+      });
+    };
+
+    const toggleHistory = (open) => {
+      if (!historyModal) return;
+      if (open) {
+        historyModal.classList.remove('hidden');
+        historyModal.classList.add('flex');
+      } else {
+        historyModal.classList.add('hidden');
+        historyModal.classList.remove('flex');
+      }
+    };
+
+    const loadSavedCopy = () => {
+      if (!copyField) return;
+      const key = `${platform}::${format}`;
+      const store = safeParse(safeGet('edro_copy_by_platform_format'), {});
+      const saved = store?.[key] || '';
+      if (saved && !copyField.value) {
+        copyField.value = saved;
+      }
+      const metaStore = safeParse(safeGet(copyMetaKey), {});
+      const meta = metaStore?.[key];
+      if (meta) {
+        renderValidation(meta);
+        const variations = extractVariations(meta, saved || '');
+        renderVariations(variations);
+      }
+      updateCount();
+    };
+
+    const maybeAutoGenerate = async () => {
+      if (!copyField) return;
+      if (copyField.value && copyField.value.trim()) return;
+      const key = `${platform}::${format}`;
+      const autoStore = safeParse(safeGet(autoGenKey), {});
+      const copyStore = safeParse(safeGet('edro_copy_by_platform_format'), {});
+      const hasSavedCopy = !!copyStore?.[key];
+      if (autoStore?.[key] && hasSavedCopy) return;
+      if (autoStore?.[key] && !hasSavedCopy) {
+        delete autoStore[key];
+        safeSet(autoGenKey, JSON.stringify(autoStore));
+      }
+      if (autoGenerating) return;
+      autoGenerating = true;
+      try {
+        const output = await generateCopy('');
+        if (output) {
+          copyField.value = output;
+          updateCount();
+          persistCopy();
+          autoStore[key] = true;
+          safeSet(autoGenKey, JSON.stringify(autoStore));
+        }
+      } catch (error) {
+        console.warn('auto generate failed', error);
+      } finally {
+        autoGenerating = false;
+      }
+    };
+
+    const primeCopyFromInventory = () => {
+      if (!copyField) return;
+      const store = safeParse(safeGet('edro_copy_by_platform_format'), {});
+      const key = `${platform}::${format}`;
+      if (store?.[key]) return;
+      const inventoryList = Array.isArray(inventory) ? inventory : [];
+      let match = null;
+      for (let i = inventoryList.length - 1; i >= 0; i -= 1) {
+        const item = inventoryList[i];
+        const p = resolvePlatformKey(item?.platform || item?.platformId || '', formatsByPlatform);
+        const platformFormats = Array.isArray(formatsByPlatform?.[platform]) ? formatsByPlatform[platform] : [];
+        const f = resolveFormatName(item?.format || item?.name || '', platformFormats);
+        if (normalizeKey(p) === normalizeKey(platform) && normalizeKey(f) === normalizeKey(format)) {
+          match = item;
+          break;
+        }
+      }
+      if (!match) return;
+      const altKey = `${match.platform || match.platformId || ''}::${match.format || match.name || ''}`;
+      if (store?.[altKey]) {
+        store[key] = store[altKey];
+        safeSet('edro_copy_by_platform_format', JSON.stringify(store));
+      }
+    };
+
+    const persistCopy = () => {
+      if (!copyField) return;
+      const value = copyField.value || '';
+      if (!value.trim()) return;
+      const key = `${platform}::${format}`;
+      const store = safeParse(safeGet('edro_copy_by_platform_format'), {});
+      store[key] = value;
+      safeSet('edro_copy_by_platform_format', JSON.stringify(store));
+      safeSet('edro_copy_text', value);
+    };
+
+    const updateCount = () => {
+      if (!countEl || !copyField) return;
+      countEl.textContent = `${copyField.value.length} / ${maxChars}`;
+      persistCopy();
+    };
+
+    if (copyField) {
+      copyField.addEventListener('input', updateCount);
+      updateCount();
+    }
+
+    const updateToneButtons = (toneValue) => {
+      toneButtons.forEach((button) => {
+        const label = button.getAttribute('data-tone') || '';
+        const isActive = label.toLowerCase() === String(toneValue || '').toLowerCase();
+        button.classList.toggle('border-primary', isActive);
+        button.classList.toggle('text-primary', isActive);
+        button.classList.toggle('bg-primary/5', isActive);
+        button.classList.toggle('border-edro-gray', !isActive);
+        button.classList.toggle('dark:border-zinc-800', !isActive);
+        button.classList.toggle('text-zinc-400', !isActive);
+      });
+    };
+
+    if (toneButtons.length) {
+      toneButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const tone = button.getAttribute('data-tone');
+          if (!tone) return;
+          context.tone = tone;
+          safeSet('edro_studio_context', JSON.stringify(context));
+          updateToneButtons(tone);
+        });
+      });
+      updateToneButtons(context?.tone || toneButtons[0]?.getAttribute('data-tone'));
+    }
+
+    const getPipeline = () => safeGet(pipelineKey) || 'standard';
+    const getTaskType = () => safeGet(taskKey) || (taskTypeSelect ? taskTypeSelect.value : 'social_post');
+    const getProvider = () => safeGet(providerKey) || (providerSelect ? providerSelect.value : '');
+    const getVariationCount = () => {
+      const stored = safeGet(variationKey);
+      if (stored) return Number(stored);
+      if (variationSelect) return Number(variationSelect.value || 1);
+      return 1;
+    };
+
+    pipelineButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const pipeline = button.getAttribute('data-pipeline');
+        if (!pipeline) return;
+        safeSet(pipelineKey, pipeline);
+        updatePipelineButtons(pipeline);
+      });
+    });
+
+    if (modeFastBtn) {
+      modeFastBtn.addEventListener('click', () => {
+        safeSet(pipelineKey, 'simple');
+        updatePipelineButtons('simple');
+      });
+    }
+    if (modePremiumBtn) {
+      modePremiumBtn.addEventListener('click', () => {
+        safeSet(pipelineKey, 'premium');
+        updatePipelineButtons('premium');
+      });
+    }
+
+    if (taskTypeSelect) {
+      taskTypeSelect.addEventListener('change', () => {
+        const value = taskTypeSelect.value;
+        safeSet(taskKey, value);
+        const desiredPipeline = resolvePipelineForTask(value);
+        safeSet(pipelineKey, desiredPipeline);
+        updatePipelineButtons(desiredPipeline);
+      });
+    }
+
+    if (providerSelect) {
+      providerSelect.addEventListener('change', () => {
+        safeSet(providerKey, providerSelect.value || '');
+      });
+      const storedProvider = safeGet(providerKey);
+      if (storedProvider) providerSelect.value = storedProvider;
+    }
+
+    if (variationSelect) {
+      variationSelect.addEventListener('change', () => {
+        safeSet(variationKey, variationSelect.value || '1');
+      });
+      const storedCount = safeGet(variationKey);
+      if (storedCount) variationSelect.value = storedCount;
+    }
+
+    const briefingKey = 'edro_briefing_id';
+    const briefingContextKey = 'edro_briefing_context_key';
+    const contextKey = `${context?.clientId || ''}:${context?.date || ''}:${context?.event || ''}`;
+
+    const resetBriefingIfNeeded = () => {
+      const stored = safeGet(briefingContextKey);
+      const hasContext = Boolean(context?.clientId || context?.date || context?.event);
+      if (stored && hasContext && stored !== contextKey) {
+        safeRemove(briefingKey);
+      }
+      if (hasContext) {
+        safeSet(briefingContextKey, contextKey);
+      }
+    };
+
+    const ensureBriefingId = async () => {
+      resetBriefingIfNeeded();
+      const existing = safeGet(briefingKey);
+      if (existing) return existing;
+      if (!window.EdroStudio?.request) return null;
+
+      const payload = {
+        event: context?.event,
+        client_id: context?.clientId,
+        date: context?.date,
+        segment: context?.segment,
+        location: context?.location,
+        objective: context?.objective,
+        message: context?.message,
+        tone: context?.tone,
+        notes: context?.notes,
+        audience: context?.target,
+        tags: context?.tags,
+        categories: context?.categories,
+        score: context?.score,
+        tier: context?.tier,
+        why: context?.why,
+        source: context?.source,
+        trend: context?.trend,
+        production_type: context?.productionType
+      };
+
+      try {
+        const response = await window.EdroStudio.request('/edro/briefings', {
+          method: 'POST',
+          body: JSON.stringify({
+            client_name: context?.client || 'Cliente',
+            client_segment: context?.segment || undefined,
+            title: context?.event || 'Creative Studio Briefing',
+            payload,
+            source: 'studio',
+            notify_traffic: false
+          })
+        });
+        const briefingId = response?.data?.briefing?.id;
+        if (briefingId) {
+          safeSet(briefingKey, briefingId);
+          return briefingId;
+        }
+      } catch (error) {
+        console.warn('briefing create failed', error);
+      }
+      return null;
+    };
+
+    const applyCopyFromBriefing = (copies) => {
+      if (!Array.isArray(copies) || !copies.length || !copyField) return;
+      const key = `${platform}::${format}`;
+      const versionStore = safeParse(safeGet(copyVersionKey), {});
+      let desiredId = versionStore?.[key];
+      let latest = desiredId ? copies.find((item) => item?.id === desiredId) : null;
+      if (!latest) {
+        latest = [...copies]
+          .sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime())[0]
+          || copies[0];
+        if (latest?.id) {
+          versionStore[key] = latest.id;
+          safeSet(copyVersionKey, JSON.stringify(versionStore));
+        }
+      }
+      if (!latest) return;
+      const text =
+        latest?.output ||
+        latest?.payload?.review_json?.formatted_text ||
+        latest?.payload?.review_json?.copys?.[0]?.corpo ||
+        latest?.payload?.review_json?.copies?.[0] ||
+        latest?.payload?.review_json?.copy ||
+        '';
+      if (!copyField.value || !copyField.value.trim()) {
+        if (text) {
+          copyField.value = String(text).trim();
+          updateCount();
+          persistCopy();
+        }
+      }
+      if (text) {
+        const store = safeParse(safeGet('edro_copy_by_platform_format'), {});
+        if (!store?.[key]) {
+          store[key] = String(text).trim();
+          safeSet('edro_copy_by_platform_format', JSON.stringify(store));
+        }
+      }
+      renderValidation(latest?.payload || {});
+      const variations = extractVariations(latest?.payload || {}, latest?.output || '');
+      renderVariations(variations);
+    };
+
+    const hydrateFromBriefing = async () => {
+      const briefingId = safeGet(briefingKey);
+      if (!briefingId || !window.EdroStudio?.request) return;
+      try {
+        const response = await window.EdroStudio.request(`/edro/briefings/${briefingId}`, { method: 'GET' });
+        const data = response?.data || response;
+        const stages = Array.isArray(data?.stages) ? data.stages : [];
+        const alignment = stages.find((stage) => stage?.stage === 'alinhamento');
+        const metadata = alignment?.metadata || {};
+
+        if (metadata?.inventory) {
+          inventory = metadata.inventory;
+          safeSet('edro_selected_inventory', JSON.stringify(metadata.inventory));
+        }
+        if (metadata?.formatsByPlatform) {
+          formatsByPlatform = metadata.formatsByPlatform;
+          safeSet('edro_selected_formats_by_platform', JSON.stringify(metadata.formatsByPlatform));
+        }
+        if (metadata?.activePlatform) {
+          activePlatform = metadata.activePlatform;
+          safeSet('edro_active_platform', metadata.activePlatform);
+        }
+        if (metadata?.activeFormat) {
+          activeFormat = metadata.activeFormat;
+          safeSet('edro_active_format', metadata.activeFormat);
+        }
+
+        applySelection();
+        updateTips();
+        loadSavedCopy();
+        renderHistory(data?.copies || []);
+        applyCopyFromBriefing(data?.copies || []);
+        await maybeAutoGenerate();
+      } catch (error) {
+        console.warn('briefing hydrate failed', error);
+      }
+    };
+
+    const updateStage = async (briefingId, stage, status) => {
+      if (!briefingId || !window.EdroStudio?.request) return;
+      try {
+        await window.EdroStudio.request(`/edro/briefings/${briefingId}/stages/${stage}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    const ensureStagesReady = async (briefingId) => {
+      await updateStage(briefingId, 'briefing', 'done');
+      await updateStage(briefingId, 'iclips_in', 'done');
+      await updateStage(briefingId, 'alinhamento', 'done');
+    };
+
+    const buildInstructions = (extra) => {
+      const parts = [];
+      if (context?.client) parts.push(`Cliente: ${context.client}`);
+      if (context?.event) parts.push(`Evento: ${context.event}`);
+      if (context?.date) parts.push(`Data: ${context.date}`);
+      if (context?.objective) parts.push(`Objetivo: ${context.objective}`);
+      if (context?.message) parts.push(`Mensagem-chave: ${context.message}`);
+      if (platform) parts.push(`Plataforma: ${platform}`);
+      if (format) parts.push(`Formato: ${format}`);
+      if (catalogDetails?.measurability_score != null) {
+        const score = Math.round(catalogDetails.measurability_score);
+        const type = catalogDetails.measurability_type ? ` (${catalogDetails.measurability_type})` : '';
+        parts.push(`Mensurabilidade: ${score}/100${type}`);
+      }
+      if (durationSec) {
+        parts.push(`Formato de audio/locucao. Duracao: ${durationSec} segundos.`);
+        parts.push('Entregue o texto como roteiro de locucao (ex: LOC, SFX, MUS).');
+        parts.push('Texto deve caber dentro do tempo informado.');
+      }
+      const isAudioFormat =
+        String(platformLabel || '').toLowerCase().includes('rádio') ||
+        String(platformLabel || '').toLowerCase().includes('radio') ||
+        String(format || '').toLowerCase().includes('spot') ||
+        String(format || '').toLowerCase().includes('audio') ||
+        String(format || '').toLowerCase().includes('jingle');
+      if (isAudioFormat && !durationSec) {
+        parts.push('Formato de audio/locucao. Estruture como roteiro com indicações de locutor (LOC) e SFX.');
+      }
+      if (catalogDetails?.available_metrics?.length) {
+        parts.push(`Metricas disponiveis: ${catalogDetails.available_metrics.slice(0, 6).join(', ')}`);
+      }
+      if (catalogDetails?.tracking_tools?.length) {
+        parts.push(`Ferramentas de tracking: ${catalogDetails.tracking_tools.slice(0, 4).join(', ')}`);
+      }
+      if (catalogDetails?.attribution_capability) {
+        parts.push(`Atribuicao: ${catalogDetails.attribution_capability}`);
+      }
+      if (catalogDetails?.ml_performance_score?.overall_score != null) {
+        parts.push(`Score de performance (ML): ${Math.round(catalogDetails.ml_performance_score.overall_score)}/100`);
+      }
+      if (catalogDetails?.ml_insights?.ml_insights?.length) {
+        parts.push(`Insights ML: ${catalogDetails.ml_insights.ml_insights.slice(0, 3).join(' | ')}`);
+      }
+      if (catalogDetails?.ml_insights?.recommendations?.length) {
+        parts.push(`Recomendacoes ML: ${catalogDetails.ml_insights.recommendations.slice(0, 2).join(' | ')}`);
+      }
+      if (context?.segment) parts.push(`Segmento: ${context.segment}`);
+      if (context?.target) parts.push(`Publico-alvo: ${context.target}`);
+      if (context?.tone) parts.push(`Tom de voz: ${context.tone}`);
+      if (context?.notes) parts.push(`Notas: ${context.notes}`);
+      if (context?.location) parts.push(`Local: ${context.location}`);
+      if (context?.tags) parts.push(`Tags: ${context.tags}`);
+      if (context?.categories) parts.push(`Categorias: ${context.categories}`);
+      if (context?.why) parts.push(`Contexto: ${context.why}`);
+      if (profile?.languageStyle) parts.push(`Estilo: ${profile.languageStyle}`);
+      if (profile?.bestPractices?.length) parts.push(`Boas práticas: ${profile.bestPractices.join('; ')}`);
+      if (profile?.avoid?.length) parts.push(`Evitar: ${profile.avoid.join('; ')}`);
+      if (extra) parts.push(extra);
+      return parts.filter(Boolean).join('\n');
+    };
+
+    const generateCopy = async (extraInstruction) => {
+      if (!window.EdroStudio?.request) return null;
+      const briefingId = await ensureBriefingId();
+      if (!briefingId) return null;
+      await ensureStagesReady(briefingId);
+      const instructions = buildInstructions(extraInstruction);
+      const taskType = getTaskType();
+      const requestedPipeline = getPipeline();
+      const pipeline = resolvePipelineAvailability(requestedPipeline, taskType);
+      if (pipeline !== requestedPipeline) {
+        safeSet(pipelineKey, pipeline);
+        updatePipelineButtons(pipeline);
+      }
+      const tier = tierForPipeline(pipeline);
+      const provider = getProvider();
+      const creativeProvider = resolveCreativeProviderForTask(taskType);
+      const forceProvider = provider || (pipeline === 'simple' ? creativeProvider : undefined);
+      const count = getVariationCount();
+      const response = await window.EdroStudio.request(`/edro/briefings/${briefingId}/copy`, {
+        method: 'POST',
+        body: JSON.stringify({
+          language: 'pt',
+          count: count || 1,
+          instructions,
+          task_type: taskType,
+          tier,
+          pipeline,
+          force_provider: forceProvider || undefined
+        })
+      });
+      const copy = response?.data?.copy;
+      if (copy?.payload) {
+        const metaStore = safeParse(safeGet(copyMetaKey), {});
+        const key = `${platform}::${format}`;
+        metaStore[key] = copy.payload;
+        safeSet(copyMetaKey, JSON.stringify(metaStore));
+        if (copy?.id) {
+          const versionStore = safeParse(safeGet(copyVersionKey), {});
+          versionStore[key] = copy.id;
+          safeSet(copyVersionKey, JSON.stringify(versionStore));
+        }
+        renderValidation(copy.payload);
+        const variations = extractVariations(copy.payload, copy?.output || '');
+        renderVariations(variations);
+      }
+      const text =
+        copy?.payload?.review_json?.formatted_text ||
+        copy?.payload?.review_json?.copys?.[0]?.corpo ||
+        copy?.payload?.review_json?.copies?.[0] ||
+        copy?.payload?.review_json?.copy ||
+        copy?.output ||
+        '';
+      return String(text || '').trim();
+    };
+
+    if (generateButton) {
+      generateButton.addEventListener('click', async () => {
+        if (!copyField) return;
+        const original = generateButton.innerHTML;
+        generateButton.disabled = true;
+        generateButton.classList.add('opacity-60');
+        generateButton.innerHTML = '<span class="material-symbols-outlined !text-sm">bolt</span> Gerando...';
+        let output = null;
+        try {
+          output = await generateCopy('');
+        } catch (error) {
+          console.warn('copy generation failed', error);
+        }
+        if (output) {
+          copyField.value = output;
+          updateCount();
+        }
+        persistCopy();
+        hydrateFromBriefing();
+        generateButton.disabled = false;
+        generateButton.classList.remove('opacity-60');
+        generateButton.innerHTML = original;
+      });
+    }
+
+    if (refineButton) {
+      refineButton.addEventListener('click', async () => {
+        if (!copyField) return;
+        const prompt = window.prompt('Qual ajuste você deseja aplicar?');
+        if (!prompt) return;
+        const original = refineButton.innerHTML;
+        refineButton.disabled = true;
+        refineButton.classList.add('opacity-60');
+        refineButton.innerHTML = '<span class="material-symbols-outlined !text-sm">auto_fix_high</span> Refinando...';
+        let output = null;
+        try {
+          output = await generateCopy(`Refinar o texto abaixo conforme: ${prompt}
+
+Texto atual:
+${copyField.value}`);
+        } catch (error) {
+          console.warn('copy refine failed', error);
+        }
+        if (output) {
+          copyField.value = output;
+          updateCount();
+        }
+        persistCopy();
+        hydrateFromBriefing();
+        refineButton.disabled = false;
+        refineButton.classList.remove('opacity-60');
+        refineButton.innerHTML = original;
+      });
+    }
+
+    const updateTips = () => {
+      if (!tipTitleEl || !tipBodyEl) return;
+      const tips = (catalogDetails?.best_practices && catalogDetails.best_practices.length)
+        ? catalogDetails.best_practices
+        : profile?.bestPractices || [];
+      if (tips.length) {
+        tipTitleEl.textContent = `Boas práticas (${platformLabel})`;
+        tipBodyEl.textContent = tips[0];
+      }
+    };
+
+    if (historyToggle) {
+      historyToggle.addEventListener('click', () => toggleHistory(true));
+    }
+    if (historyClose) {
+      historyClose.addEventListener('click', () => toggleHistory(false));
+    }
+    if (historyModal) {
+      historyModal.addEventListener('click', (event) => {
+        if (event.target === historyModal) toggleHistory(false);
+      });
+    }
+
+    updateTips();
+
+    (async () => {
+      if (!Object.keys(formatCatalog || {}).length) {
+        const loaded = await loadProductionCatalog();
+        if (loaded) {
+          applySelection();
+          updateCount();
+          updateTips();
+        }
+      }
+      primeCopyFromInventory();
+      loadSavedCopy();
+      hydrateFromBriefing();
+      await renderOrchestrator();
+      await maybeAutoGenerate();
+    })();
+  })();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

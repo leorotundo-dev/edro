@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tab-active {
+            @apply border-primary text-primary border-b-2;
+        }
+        .tab-inactive {
+            @apply border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Clients</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-100 font-medium">Azul</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+</div>
+</div>
+</header>
+<div class="px-8 pt-10 pb-2">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-6">
+<button class="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<div>
+<h1 class="font-display text-6xl text-slate-900 dark:text-white leading-tight">Azul</h1>
+<p class="text-slate-500 text-sm mt-1">Premium Beverage &amp; Hospitality Group</p>
+</div>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm text-slate-500">edit</span>
+                    Edit Client
+                </button>
+</div>
+<div class="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+<nav class="flex space-x-8 min-w-max">
+<button class="tab-active py-4 px-1 text-sm font-semibold flex items-center gap-2 transition-all" data-route="/clients/azul">Overview</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/calendar">Calendar</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/planning">Planning</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/creative">Creative</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/clipping">Clipping</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/library">Library</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/insights">Insights</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/performance">Performance</button>
+</nav>
+</div>
+</div>
+<div class="p-8 max-w-none">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<div class="lg:col-span-8 space-y-6">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<div class="flex items-start justify-between mb-6">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Client Summary</h3>
+<span class="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/30 text-primary text-[10px] font-bold rounded uppercase">Active Client</span>
+</div>
+<p class="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+                            Azul is a market leader in premium organic beverages. Our focus for 2024 is expanding their lifestyle footprint through narrative-driven campaigns and high-production content for digital platforms.
+                        </p>
+<div class="grid grid-cols-2 gap-8 border-t border-slate-100 dark:border-slate-800 pt-6">
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Segment</p>
+<p class="font-semibold">Premium Lifestyle / F&amp;B</p>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Key Account Managers</p>
+<div class="flex -space-x-2">
+<img class="w-7 h-7 rounded-full border-2 border-surface-light dark:border-surface-dark object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHJd-M7LqhiXbEk2UuIwUN6I1zQbYR_SrAs5Lq4aCC_HhE7oN-aNcGXGBxkA9UDyiSoVUb-483SCukWsEY0UVn49GaYTuNP8vE-atC7TOa8Jl-kCzrG86VTtrhgGTRTHEPwSNAHap5_LOsMgs0OOVslNXjjmOfIqOL28W8Sdk3XEaLG4UzeEh9r4ZVY3j_pxs8pQdlBifFbSH_nxh0GqsVOP9MMf2a9t9TqfgBm7hEldILAtGWLNCXb1xnJ9y5U0R5dUEhL2TwAK4" title="Sarah Jenkins"/>
+<img class="w-7 h-7 rounded-full border-2 border-surface-light dark:border-surface-dark object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPxQJZtWP2gCKWz-vlXAwF7tGx8vOpCQOQZMxYIB2IrjA-Eq79xazoP3HVYA1hBasWiDyY6qsqBq7v89FIKBeGq1H6KBnqH9WnedYlVtW6d4MOPdLOx2pIuK2eTfvJzhBrW1SdqHv9QeA-ygMvuwnV2z4uxWTjWLgWlnPZ9YRunCiT36j002u8EcVl1GZb_Qz8gDjpCVXs-GOl8aj1C1NxNKNyO8eMVKR_I-0hEgckmG_o_4XJ4NhJ0rtTeyMOKlKGS4mVrxh_vW0" title="Marcus Thorne"/>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Planning Status</h3>
+<p class="text-lg font-bold mt-1">October 2023 Content Cycle</p>
+</div>
+<div class="text-right">
+<span class="text-3xl font-display text-primary">72%</span>
+<p class="text-[10px] font-bold text-slate-400 uppercase">Ready for Publish</p>
+</div>
+</div>
+<div class="space-y-4">
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[72%]"></div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+<div class="flex items-center gap-2 text-green-600 mb-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Approved</span>
+</div>
+<p class="text-2xl font-display">18 <span class="text-sm font-sans text-slate-400">/ 25 posts</span></p>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+<div class="flex items-center gap-2 text-yellow-600 mb-1">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Pending Review</span>
+</div>
+<p class="text-2xl font-display">07 <span class="text-sm font-sans text-slate-400">/ 25 posts</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Campaigns</h3>
+<button class="text-primary text-xs font-bold hover:underline">View All</button>
+</div>
+<div class="divide-y divide-slate-100 dark:divide-slate-800">
+<div class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">waves</span>
+</div>
+<div>
+<h4 class="font-bold text-sm">Summer Launch 2024</h4>
+<p class="text-xs text-slate-400">Digital, Social, OOH</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full uppercase">On Track</span>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined">celebration</span>
+</div>
+<div>
+<h4 class="font-bold text-sm">Holiday Promo</h4>
+<p class="text-xs text-slate-400">Influencer Campaign</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400 text-[10px] font-bold rounded-full uppercase">Review</span>
+</div>
+<div class="p-8 text-center bg-slate-50/50 dark:bg-slate-800/30">
+<p class="text-slate-400 text-xs italic">Start by creating your first campaign to see more metrics.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Quick Actions</h3>
+<div class="space-y-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">add</span> Create post
+                            </button>
+<button class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined">calendar_today</span> View calendar
+                            </button>
+</div>
+<div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary mb-1">upload</span>
+<span class="text-[10px] font-bold text-slate-500 uppercase">Upload Assets</span>
+</button>
+<button class="flex flex-col items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary mb-1">description</span>
+<span class="text-[10px] font-bold text-slate-500 uppercase">New Report</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Client Events</h3>
+<button class="material-symbols-outlined text-slate-400 hover:text-slate-600">more_horiz</button>
+</div>
+<div class="space-y-6">
+<div class="flex gap-4">
+<div class="flex-shrink-0 w-10 text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Oct</p>
+<p class="text-xl font-display text-primary">01</p>
+</div>
+<div class="flex-1 border-l-2 border-orange-100 dark:border-orange-900/30 pl-4">
+<h4 class="font-bold text-sm leading-none mb-2">Coffee Day Special</h4>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Ready to post</span>
+</div>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex-shrink-0 w-10 text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Oct</p>
+<p class="text-xl font-display text-slate-300">16</p>
+</div>
+<div class="flex-1 border-l-2 border-slate-100 dark:border-slate-800 pl-4">
+<h4 class="font-bold text-sm leading-none mb-2">World Food Day</h4>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+<span class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Copywriting</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2023 Edro Creative Studio • Azul Account Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

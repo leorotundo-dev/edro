@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Edro Creative Studio - Step 2</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff6600",
+                        "background-light": "#ffffff",
+                        "background-dark": "#1A1A1A",
+                        "sidebar-light": "#F9F9F9",
+                        "charcoal": "#1A1A1A",
+                        "edro-gray": "#E5E5E5",
+                        "recommend-bg": "#FFF4ED"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "serif": ["Playfair Display", "serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 20px;
+        }
+        .active-nav-border {
+            border-left: 3px solid #ff6600;
+        }
+        .card-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+        .step-number {
+            @apply flex items-center justify-center size-6 rounded-full bg-charcoal text-white text-[10px] font-bold;
+        }
+    </style>
+<style>
+  body.edro-studio-embed aside { display: none !important; }
+  body.edro-studio-embed .ml-64 { margin-left: 0 !important; }
+  body.edro-studio-embed .left-64 { left: 0 !important; }
+  body.edro-studio-embed main > header { display: none !important; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-charcoal dark:text-white edro-studio-embed">
+<div class="flex min-h-screen">
+<aside class="w-64 bg-sidebar-light dark:bg-background-dark border-r border-edro-gray dark:border-zinc-800 flex flex-col justify-between fixed h-full z-20">
+<div class="flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary size-8 rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined">grid_view</span>
+</div>
+<div>
+<h1 class="text-charcoal dark:text-white text-sm font-bold tracking-tight text-nowrap">Edro Creative Studio</h1>
+<p class="text-xs text-zinc-500">Workspace v2.4</p>
+</div>
+</div>
+<nav class="mt-4 flex flex-col gap-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-white dark:bg-zinc-800 active-nav-border rounded-r text-charcoal dark:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<span class="text-sm font-bold">Creative Studio</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">inventory_2</span>
+<span class="text-sm font-medium">Campanhas</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">palette</span>
+<span class="text-sm font-medium">Brand Assets</span>
+</a>
+</nav>
+</div>
+<div class="p-6 flex flex-col gap-4">
+<div class="bg-white dark:bg-zinc-800 p-4 border border-edro-gray dark:border-zinc-700 rounded card-shadow mb-4">
+<p class="text-[10px] font-bold text-zinc-400 uppercase mb-2">Plano Atual</p>
+<p class="text-sm font-bold">Pro Enterprise</p>
+<div class="w-full bg-zinc-100 h-1.5 rounded-full mt-2">
+<div class="bg-primary h-full w-3/4 rounded-full"></div>
+</div>
+<p class="text-[10px] text-zinc-500 mt-2">750/1000 créditos usados</p>
+</div>
+</div>
+</aside>
+<main class="flex-1 ml-64 min-h-screen flex flex-col">
+<header class="sticky top-0 z-10 bg-white dark:bg-background-dark border-b border-edro-gray dark:border-zinc-800 h-16 px-8 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-zinc-400 text-xs font-medium uppercase tracking-wider">
+<span>Creative Studio</span>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-charcoal dark:text-white">Configuração de Campanha</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3 border-l border-zinc-200 dark:border-zinc-700 pl-6">
+<button class="p-2 text-zinc-400 hover:text-charcoal dark:hover:text-white">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="size-8 rounded-full bg-cover bg-center border border-zinc-200" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDY_e0rnTcl4jn3Jw8ClojVkTgx9B4nYoTNZj5z9xf4cs_GKJXQYDxNOPS4omNGwHirFzAvTfPBEMapnLTp3lKVorOGAL3thLwbDY7kpOv9ZS9VYlEPiGQ0MVW09ZACkjcWt6mwgRHhlGqc_HivJpAZ10WET9-O-7OAirws7CQHcZHK8j25V0pkrQfHyp6800LwYOzmD6iOYam0B1jJSBlfzVwTk9ZikMo4dnzNBCUl-PXSM1_VQpAMT5MBYfA1Vqe22AI4dTQjcEo')"></div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-none w-full flex-1 mb-24">
+<div class="mb-8">
+<div class="flex items-center gap-2 mb-2">
+<span class="text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Etapa 2 de 6</span>
+<div class="flex-1 h-[1px] bg-edro-gray dark:bg-zinc-800"></div>
+</div>
+<h2 class="font-serif text-4xl text-charcoal dark:text-white leading-tight mb-2">Seleção de Plataformas e Formatos</h2>
+<p class="text-zinc-500 text-sm">Baseado no seu objetivo estratégico: <span id="edro-brief-objective" class="font-bold text-charcoal dark:text-zinc-300">Aumento de Conversão em E-commerce</span></p>
+</div>
+<div class="bg-recommend-bg border border-orange-100 rounded-lg p-5 mb-10 flex items-start gap-5">
+<div class="bg-primary/10 p-3 rounded-full text-primary">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-sm font-bold text-charcoal">Recomendação do Edro AI</h3>
+<span id="edro-recommend-impact" class="px-2 py-0.5 bg-primary text-[10px] font-bold text-white rounded uppercase tracking-wider">Impacto Alto</span>
+</div>
+<p id="edro-recommend-text" class="text-sm text-zinc-600 leading-relaxed max-w-2xl">
+                            Para o objetivo de Conversão, o formato <span class="font-bold">Instagram Carousel</span> apresenta taxas de clique 45% superiores. Recomendamos selecionar este formato como base principal.
+                        </p>
+<div id="edro-recommend-sources" class="mt-3 text-[11px] text-zinc-500 hidden"></div>
+</div>
+<button id="edro-recommend-apply" class="px-4 py-2 bg-white border border-primary/20 text-primary text-xs font-bold rounded hover:bg-primary hover:text-white transition-all">
+                        Aplicar Recomendação
+                    </button>
+</div>
+<div class="grid grid-cols-1 gap-12">
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="step-number">1</span>
+<h3 class="text-sm font-bold uppercase tracking-[0.1em] text-zinc-400">Escolha a Plataforma</h3>
+</div>
+<div id="edro-platform-list" class="flex gap-4 flex-wrap">
+<button data-platform="Instagram" class="flex flex-col items-center gap-3 p-6 border-2 border-primary bg-white rounded-lg w-32 group transition-all">
+<span class="material-symbols-outlined text-primary !text-3xl">camera_alt</span>
+<span class="text-xs font-bold">Instagram</span>
+<div class="size-4 bg-primary rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-white !text-[12px]">check</span>
+</div>
+</button>
+<button data-platform="Facebook" class="flex flex-col items-center gap-3 p-6 border border-edro-gray bg-white rounded-lg w-32 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:border-zinc-300 transition-all">
+<span class="material-symbols-outlined text-zinc-600 !text-3xl">social_leaderboard</span>
+<span class="text-xs font-bold text-zinc-500">Facebook</span>
+</button>
+<button data-platform="TikTok" class="flex flex-col items-center gap-3 p-6 border border-edro-gray bg-white rounded-lg w-32 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:border-zinc-300 transition-all">
+<span class="material-symbols-outlined text-zinc-600 !text-3xl">play_circle</span>
+<span class="text-xs font-bold text-zinc-500">TikTok</span>
+</button>
+<button data-platform="YouTube" class="flex flex-col items-center gap-3 p-6 border border-edro-gray bg-white rounded-lg w-32 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:border-zinc-300 transition-all">
+<span class="material-symbols-outlined text-zinc-600 !text-3xl">smart_display</span>
+<span class="text-xs font-bold text-zinc-500">YouTube</span>
+</button>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="step-number">2</span>
+<h3 class="text-sm font-bold uppercase tracking-[0.1em] text-zinc-400">Escolha o Formato</h3>
+</div>
+<div id="edro-format-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div data-format="Single Image" class="border border-edro-gray rounded-lg p-4 bg-white hover:border-zinc-300 transition-all cursor-pointer group card-shadow">
+<div class="bg-zinc-50 w-full aspect-[4/5] rounded border border-dashed border-zinc-200 flex flex-col items-center justify-center mb-4">
+<span class="text-[10px] font-bold text-zinc-400 uppercase">4:5</span>
+<span class="material-symbols-outlined text-zinc-300 !text-4xl mt-2">rectangle</span>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm font-bold">Single Image</p>
+<p class="text-[10px] text-zinc-400">Feed Post</p>
+</div>
+<input class="rounded border-zinc-300 text-primary focus:ring-primary" type="checkbox"/>
+</div>
+</div>
+<div data-format="Carousel" class="border-2 border-primary rounded-lg p-4 bg-white transition-all cursor-pointer relative card-shadow">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                    Recomendado
+                                </div>
+<div class="bg-recommend-bg w-full aspect-[4/5] rounded border border-dashed border-primary/30 flex flex-col items-center justify-center mb-4">
+<span class="text-[10px] font-bold text-primary uppercase">1:1 / 4:5</span>
+<span class="material-symbols-outlined text-primary/40 !text-4xl mt-2">view_carousel</span>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm font-bold text-charcoal">Carousel</p>
+<p class="text-[10px] text-zinc-400">Feed Slider</p>
+</div>
+<input checked="" class="rounded border-zinc-300 text-primary focus:ring-primary" type="checkbox"/>
+</div>
+</div>
+<div data-format="Stories" class="border border-edro-gray rounded-lg p-4 bg-white hover:border-zinc-300 transition-all cursor-pointer group card-shadow">
+<div class="bg-zinc-50 w-full aspect-[4/5] rounded border border-dashed border-zinc-200 flex flex-col items-center justify-center mb-4 overflow-hidden relative">
+<div class="h-full w-full flex flex-col items-center justify-center">
+<span class="text-[10px] font-bold text-zinc-400 uppercase">9:16</span>
+<span class="material-symbols-outlined text-zinc-300 !text-4xl mt-2 rotate-90">rectangle</span>
+</div>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm font-bold">Stories</p>
+<p class="text-[10px] text-zinc-400">Full Screen</p>
+</div>
+<input class="rounded border-zinc-300 text-primary focus:ring-primary" type="checkbox"/>
+</div>
+</div>
+<div data-format="Reels" class="border border-edro-gray rounded-lg p-4 bg-white hover:border-zinc-300 transition-all cursor-pointer group card-shadow">
+<div class="bg-zinc-50 w-full aspect-[4/5] rounded border border-dashed border-zinc-200 flex flex-col items-center justify-center mb-4">
+<span class="text-[10px] font-bold text-zinc-400 uppercase">9:16</span>
+<span class="material-symbols-outlined text-zinc-300 !text-4xl mt-2">movie</span>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm font-bold">Reels</p>
+<p class="text-[10px] text-zinc-400">Short Video</p>
+</div>
+<input class="rounded border-zinc-300 text-primary focus:ring-primary" type="checkbox"/>
+</div>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="step-number">3</span>
+<h3 class="text-sm font-bold uppercase tracking-[0.1em] text-zinc-400">Inventário Selecionado</h3>
+</div>
+<div class="bg-white border border-edro-gray rounded card-shadow overflow-hidden">
+<table class="w-full text-left">
+<thead class="bg-zinc-50 border-b border-edro-gray">
+<tr>
+<th class="px-6 py-3 text-[10px] font-bold text-zinc-400 uppercase">Plataforma</th>
+<th class="px-6 py-3 text-[10px] font-bold text-zinc-400 uppercase">Formato</th>
+<th class="px-6 py-3 text-[10px] font-bold text-zinc-400 uppercase text-right">Ações</th>
+</tr>
+</thead>
+<tbody id="edro-inventory-body" class="text-sm"></tbody>
+</table>
+</div>
+</section>
+</div>
+</div>
+<footer class="fixed bottom-0 left-64 right-0 bg-white border-t border-edro-gray p-6 flex items-center justify-between z-10 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+<button data-route="/studio/brief" class="flex items-center gap-2 px-6 py-3 text-zinc-500 hover:text-charcoal font-bold text-sm transition-all">
+<span class="material-symbols-outlined">arrow_back</span>
+<span>Voltar</span>
+</button>
+<div class="flex items-center gap-4">
+<p class="text-xs text-zinc-400 italic">Próxima etapa: Geração de Copy e Storyboard</p>
+<button data-route="/studio/editor" class="px-8 py-3 bg-primary hover:bg-orange-600 text-white text-sm font-bold rounded transition-all flex items-center gap-2">
+<span>Continuar para Copy Studio</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</footer>
+</main>
+</div>
+
+<script src="/ux/edro-studio-api.js"></script>
+<script>
+  (function () {
+    const safeParse = (value, fallback) => {
+      try {
+        const parsed = JSON.parse(value || '');
+        return parsed ?? fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const objectiveEl = document.getElementById('edro-brief-objective');
+    const context = safeParse(localStorage.getItem('edro_studio_context'), {});
+    if (objectiveEl && context?.objective) {
+      objectiveEl.textContent = context.objective;
+    }
+
+    const platformList = document.getElementById('edro-platform-list');
+    const formatGrid = document.getElementById('edro-format-grid');
+    const inventoryBody = document.getElementById('edro-inventory-body');
+    const recommendImpactEl = document.getElementById('edro-recommend-impact');
+    const recommendTextEl = document.getElementById('edro-recommend-text');
+    const recommendSourcesEl = document.getElementById('edro-recommend-sources');
+    const recommendApplyButton = document.getElementById('edro-recommend-apply');
+
+    const platformKey = 'edro_active_platform';
+    const platformsKey = 'edro_selected_platforms';
+    const formatsKey = 'edro_selected_formats_by_platform';
+    const countsKey = 'edro_selected_format_counts_by_platform';
+    const inventoryKey = 'edro_selected_inventory';
+    const catalogKey = 'edro_format_catalog';
+    const productionTypeKey = 'edro_production_type';
+
+    const iconMap = {
+      Instagram: 'camera_alt',
+      TikTok: 'play_circle',
+      LinkedIn: 'social_leaderboard',
+      YouTube: 'smart_display',
+      X: 'close',
+      Pinterest: 'push_pin',
+      MetaAds: 'campaign',
+      GoogleAds: 'ads_click',
+      EmailMarketing: 'mail'
+    };
+
+    const displayNameFor = (platform) => {
+      const map = {
+        MetaAds: 'Meta Ads',
+        GoogleAds: 'Google Ads',
+        EmailMarketing: 'Email Marketing'
+      };
+      if (map[platform]) return map[platform];
+      return String(platform || '').replace(/([a-z])([A-Z])/g, '$1 $2');
+    };
+
+    const normalizeProfiles = (profiles) => {
+      if (!Array.isArray(profiles)) return [];
+      return profiles.filter((item) => item && item.platform);
+    };
+
+    let platformProfiles = normalizeProfiles(safeParse(localStorage.getItem('edro_platform_profiles'), []));
+    let formatsByPlatform = safeParse(localStorage.getItem(formatsKey), {});
+    let countsByPlatform = safeParse(localStorage.getItem(countsKey), {});
+    let activePlatform = '';
+    let recommendationState = { platform: null, format: null };
+    let formatCatalog = safeParse(localStorage.getItem(catalogKey), {});
+
+    const normalizeProductionType = (value) => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'eventos') return 'eventos-ativacoes';
+      if (normalized === 'eventos_ativacoes') return 'eventos-ativacoes';
+      return normalized;
+    };
+
+    const resolveProductionType = () => {
+      const stored = localStorage.getItem('edro_studio_production_type');
+      if (stored) return normalizeProductionType(stored);
+      const fromContext = context?.productionType || context?.production_type;
+      if (fromContext) {
+        const normalized = normalizeProductionType(fromContext);
+        if (normalized) {
+          localStorage.setItem('edro_studio_production_type', normalized);
+          return normalized;
+        }
+      }
+      return '';
+    };
+
+    const normalizeText = (value) =>
+      String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '');
+
+    const appendSectionTitle = (text) => {
+      const title = document.createElement('div');
+      title.textContent = text;
+      title.className = 'text-[10px] uppercase tracking-[0.2em] text-zinc-400 mb-1';
+      return title;
+    };
+
+    const appendTextList = (titleText, items) => {
+      if (!items.length) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mt-2';
+      wrapper.appendChild(appendSectionTitle(titleText));
+      const list = document.createElement('ul');
+      list.className = 'space-y-1';
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'text-zinc-600';
+        li.textContent = item;
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
+      recommendSourcesEl.appendChild(wrapper);
+    };
+
+    const appendExampleList = (titleText, examples) => {
+      if (!examples.length) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mt-2';
+      wrapper.appendChild(appendSectionTitle(titleText));
+      const list = document.createElement('ul');
+      list.className = 'space-y-1';
+      examples.forEach((example) => {
+        const li = document.createElement('li');
+        li.className = 'flex flex-col sm:flex-row sm:items-center sm:gap-2';
+        const label = document.createElement('span');
+        const metaParts = [];
+        if (example?.platform) metaParts.push(String(example.platform).toUpperCase());
+        if (typeof example?.engagement === 'number') metaParts.push(`${example.engagement}% eng.`);
+        if (example?.author) metaParts.push(example.author);
+        label.className = 'font-semibold text-zinc-600';
+        label.textContent = metaParts.length ? `${metaParts.join(' • ')}:` : 'Exemplo:';
+        li.appendChild(label);
+        if (example?.url) {
+          const link = document.createElement('a');
+          link.href = example.url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.className = 'text-primary hover:underline';
+          link.textContent = example?.whyWorked || 'Abrir exemplo';
+          li.appendChild(link);
+        } else if (example?.whyWorked) {
+          const text = document.createElement('span');
+          text.className = 'text-zinc-600';
+          text.textContent = example.whyWorked;
+          li.appendChild(text);
+        }
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
+      recommendSourcesEl.appendChild(wrapper);
+    };
+
+    const appendSourceLinks = (sources) => {
+      if (!sources.length) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mt-2';
+      wrapper.appendChild(appendSectionTitle('Fontes Radar'));
+      const list = document.createElement('ul');
+      list.className = 'space-y-1';
+      sources.forEach((source) => {
+        const li = document.createElement('li');
+        li.className = 'flex flex-col sm:flex-row sm:items-center sm:gap-2';
+        const label = document.createElement('span');
+        label.className = 'font-semibold text-zinc-600';
+        label.textContent = source?.source ? `${source.source}:` : 'Fonte:';
+        const link = document.createElement('a');
+        link.href = source?.url || '#';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'text-primary hover:underline';
+        link.textContent = source?.title || source?.url || 'Abrir fonte';
+        li.appendChild(label);
+        li.appendChild(link);
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
+      recommendSourcesEl.appendChild(wrapper);
+    };
+
+    const renderSources = (payload) => {
+      if (!recommendSourcesEl) return;
+      recommendSourcesEl.innerHTML = '';
+      if (!payload) {
+        recommendSourcesEl.classList.add('hidden');
+        return;
+      }
+
+      if (Array.isArray(payload)) {
+        if (!payload.length) {
+          recommendSourcesEl.classList.add('hidden');
+          return;
+        }
+        recommendSourcesEl.classList.remove('hidden');
+        appendSourceLinks(payload.slice(0, 3));
+        return;
+      }
+
+      const sources = Array.isArray(payload.sources) ? payload.sources.slice(0, 3) : [];
+      const angles = Array.isArray(payload.angles) ? payload.angles.slice(0, 5) : [];
+      const examples = Array.isArray(payload.examples) ? payload.examples.slice(0, 3) : [];
+      const risks = Array.isArray(payload.risks) ? payload.risks.slice(0, 3) : [];
+      const alternativesRaw = Array.isArray(payload.alternatives) ? payload.alternatives.slice(0, 3) : [];
+      const alternatives = alternativesRaw.map((alt) => {
+        if (typeof alt === 'string') return alt;
+        const label = alt?.formato || alt?.format || alt?.name || 'Alternativa';
+        const reason = alt?.reason ? ` - ${alt.reason}` : '';
+        return `${label}${reason}`;
+      });
+
+      const hasAny = sources.length || angles.length || examples.length || risks.length || alternatives.length;
+      if (!hasAny) {
+        recommendSourcesEl.classList.add('hidden');
+        return;
+      }
+      recommendSourcesEl.classList.remove('hidden');
+      appendTextList('Ângulos em alta', angles);
+      appendExampleList('Exemplos recentes', examples);
+      appendTextList('Riscos', risks);
+      appendTextList('Alternativas', alternatives);
+      appendSourceLinks(sources);
+    };
+
+    const updateRecommendationUI = (data) => {
+      if (!data) return;
+      if (recommendImpactEl && data.impact) {
+        recommendImpactEl.textContent = data.impact;
+      }
+      if (recommendTextEl && data.reason) {
+        recommendTextEl.textContent = data.reason;
+      }
+      renderSources(data.sources || data);
+    };
+
+    const normalizeObjective = (value) => {
+      const raw = String(value || '').toLowerCase();
+      if (!raw) return '';
+      if (raw.includes('awareness') || raw.includes('reconhec') || raw.includes('alcance') || raw.includes('branding')) {
+        return 'awareness';
+      }
+      if (raw.includes('convers') || raw.includes('venda') || raw.includes('performance') || raw.includes('lead')) {
+        return 'conversion';
+      }
+      if (raw.includes('engaj')) {
+        return 'consideration';
+      }
+      if (raw.includes('retencao') || raw.includes('fidel')) {
+        return 'retention';
+      }
+      return '';
+    };
+
+    const buildBriefingText = () => {
+      const parts = [];
+      if (context?.event) parts.push(`Tema: ${context.event}`);
+      if (context?.message) parts.push(`Mensagem-chave: ${context.message}`);
+      if (context?.objective) parts.push(`Objetivo: ${context.objective}`);
+      if (context?.segment) parts.push(`Segmento: ${context.segment}`);
+      if (context?.target) parts.push(`Publico-alvo: ${context.target}`);
+      if (context?.tone) parts.push(`Tom de voz: ${context.tone}`);
+      if (context?.notes) parts.push(`Notas: ${context.notes}`);
+      if (context?.date) parts.push(`Data: ${context.date}`);
+      if (context?.client) parts.push(`Cliente: ${context.client}`);
+      return parts.join('\n') || 'Briefing de campanha';
+    };
+
+    const impactLabelFor = (priority) => {
+      const value = String(priority || '').toLowerCase();
+      if (value === 'must_have') return 'Impacto Maximo';
+      if (value === 'high') return 'Impacto Alto';
+      if (value === 'medium') return 'Impacto Medio';
+      if (value === 'nice_to_have') return 'Impacto Baixo';
+      return 'Impacto Alto';
+    };
+
+    const impactFromScore = (score) => {
+      const value = Number(score);
+      if (!Number.isFinite(value)) return 'Impacto Alto';
+      if (value >= 85) return 'Impacto Alto';
+      if (value >= 70) return 'Impacto Medio';
+      if (value >= 55) return 'Impacto Moderado';
+      return 'Impacto Baixo';
+    };
+
+    const normalizeKeywordList = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) {
+        return value.map((item) => String(item || '').trim()).filter(Boolean);
+      }
+      if (typeof value === 'string') {
+        return value
+          .split(/[,;|]/g)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
+
+    const extractKeywords = () => {
+      const keywords = new Set();
+      normalizeKeywordList(context?.keywords).forEach((item) => keywords.add(item));
+      normalizeKeywordList(context?.tags).forEach((item) => keywords.add(item));
+      normalizeKeywordList(context?.categories).forEach((item) => keywords.add(item));
+      normalizeKeywordList(context?.segment).forEach((item) => keywords.add(item));
+      if (context?.event) keywords.add(context.event);
+      return Array.from(keywords).slice(0, 10);
+    };
+
+    const matchFormatName = (formatName, availableFormats) => {
+      const target = normalizeText(formatName);
+      if (!target) return formatName;
+      const match = availableFormats.find((item) => normalizeText(item) === target);
+      return match || formatName;
+    };
+
+    const buildFormatCandidates = (selectedPlatform) => {
+      const profile = platformProfiles.find((item) => item.platform === selectedPlatform);
+      const formats = profile?.supportedFormats?.length
+        ? profile.supportedFormats
+        : Object.keys(formatCatalog?.[selectedPlatform] || {});
+
+      return formats.map((format) => {
+        const details = formatCatalog?.[selectedPlatform]?.[format] || {};
+        const baseScore =
+          Number(details?.ml_performance_score?.overall_score ??
+            details?.measurability_score ??
+            details?.recommendation_score ??
+            details?.score ??
+            60);
+        const originalScore = Number.isFinite(baseScore) ? Math.max(0, Math.min(100, Math.round(baseScore))) : 60;
+        return {
+          id: `${selectedPlatform}:${format}`,
+          name: format,
+          platform: selectedPlatform,
+          originalScore,
+          category: details?.category || details?.format_category || details?.type || details?.media_type || ''
+        };
+      });
+    };
+
+    const pickRecommendedFormat = (formats, selectedPlatform) => {
+      const normalizedTarget = normalizeText(selectedPlatform);
+      const pool = Array.isArray(formats) ? formats.filter((f) => normalizeText(f?.platform) === normalizedTarget) : [];
+      const candidates = pool.length ? pool : Array.isArray(formats) ? formats : [];
+      const ordered = candidates.slice().sort((a, b) => (Number(b?.recommendation_score || 0) - Number(a?.recommendation_score || 0)));
+      return ordered[0] || null;
+    };
+
+    const loadRecommendation = async (selectedPlatform) => {
+      if (!selectedPlatform || !window.EdroStudio?.request) return;
+      const clientId = window.EdroStudio.getClientId?.() || context.client_id || context.clientId || null;
+      const productionType = resolveProductionType();
+      const objective = context?.objective || context?.objetivo || 'Objetivo da campanha';
+      const briefingText = buildBriefingText();
+      const keywords = extractKeywords();
+      const publico = context?.target || context?.publico || '';
+      const budget = Number(context?.budget || context?.investment || 0) || 0;
+
+      try {
+        const enrichedResponse = await window.EdroStudio.request('/integration/enrich-briefing', {
+          method: 'POST',
+          body: JSON.stringify({
+            objetivo: objective,
+            publico,
+            plataformas: [selectedPlatform],
+            budget,
+            keywords,
+            clientId: clientId || undefined,
+          }),
+        });
+
+        const enrichedBriefing = enrichedResponse?.data || enrichedResponse;
+        const candidates = buildFormatCandidates(selectedPlatform);
+        if (!candidates.length) throw new Error('no_candidates');
+
+        const scoredResponse = await window.EdroStudio.request('/integration/score-formats', {
+          method: 'POST',
+          body: JSON.stringify({
+            candidates,
+            keywords,
+            clientId: clientId || undefined,
+          }),
+        });
+
+        const scored = scoredResponse?.data?.scored || scoredResponse?.scored || [];
+        if (!Array.isArray(scored) || !scored.length) throw new Error('no_scored');
+
+        const contextualResponse = await window.EdroStudio.request('/integration/contextual-recommendations', {
+          method: 'POST',
+          body: JSON.stringify({
+            scoredFormats: scored,
+            enrichedBriefing,
+            clientId: clientId || undefined,
+          }),
+        });
+
+        const recommendations = contextualResponse?.data?.recommendations || contextualResponse?.recommendations || [];
+        if (Array.isArray(recommendations) && recommendations.length) {
+          const chosen =
+            recommendations.find((item) => normalizeText(item?.platform) === normalizeText(selectedPlatform)) ||
+            recommendations[0];
+          const availableFormats = candidates.map((candidate) => candidate.name);
+          const resolvedFormat = matchFormatName(chosen?.formato || chosen?.format || '', availableFormats);
+          const performanceData = chosen?.performanceData || {};
+          const perfParts = [];
+          if (typeof performanceData.sentiment === 'number') {
+            perfParts.push(`Sentimento ${Math.round(performanceData.sentiment * 100)}%`);
+          }
+          if (typeof performanceData.engagementRate === 'number') {
+            perfParts.push(`Engajamento ${Math.round(performanceData.engagementRate * 1000) / 10}%`);
+          }
+          if (typeof performanceData.sampleSize === 'number' && performanceData.sampleSize > 0) {
+            perfParts.push(`${performanceData.sampleSize} amostras`);
+          }
+          const reason = chosen?.justificativa || `Formato recomendado para ${selectedPlatform}.`;
+          const reasonWithPerf = perfParts.length ? `${reason} (${perfParts.join(' • ')})` : reason;
+
+          recommendationState = {
+            platform: selectedPlatform,
+            format: resolvedFormat,
+          };
+          updateRecommendationUI({
+            impact: impactFromScore(chosen?.score),
+            reason: reasonWithPerf,
+            angles: chosen?.insights?.trendingAngles || [],
+            examples: chosen?.insights?.successfulExamples || [],
+            risks: chosen?.risks || [],
+            alternatives: chosen?.alternatives || [],
+          });
+          renderFormats(selectedPlatform);
+          return;
+        }
+      } catch {
+        // fallback para recomendacao legada
+      }
+
+      try {
+        const response = await window.EdroStudio.request('/recommendations/enxoval', {
+          method: 'POST',
+          body: JSON.stringify({
+            briefing_text: briefingText,
+            objective: normalizeObjective(objective) || undefined,
+            platforms: [selectedPlatform],
+            production_type: productionType || undefined,
+            deadline: context?.date || undefined,
+            client_id: clientId || undefined,
+            client_name: context?.client || undefined
+          }),
+        });
+        const payload = response?.data || response;
+        const best = pickRecommendedFormat(payload?.recommended_formats || [], selectedPlatform);
+        if (best?.format_name) {
+          const reason =
+            (Array.isArray(best.recommendation_reasons) && best.recommendation_reasons[0]) ||
+            `Para o objetivo de ${objective || 'campanha'}, o formato ${best.format_name} tende a performar melhor em ${best.platform || selectedPlatform}.`;
+          recommendationState = {
+            platform: best.platform || selectedPlatform,
+            format: best.format_name,
+          };
+          updateRecommendationUI({
+            impact: impactLabelFor(best.priority),
+            reason,
+            sources: []
+          });
+          renderFormats(selectedPlatform);
+          return;
+        }
+      } catch {
+        // fallback para recomendacao legada
+      }
+      try {
+        const response = await window.EdroStudio.request('/edro/recommendations/platforms', {
+          method: 'POST',
+          body: JSON.stringify({
+            objective: context?.objective || '',
+            platform: selectedPlatform,
+            client_id: clientId || undefined,
+            production_type: productionType || undefined,
+          }),
+        });
+        const payload = response?.data || response;
+        if (payload?.format) {
+          recommendationState = {
+            platform: payload.platform || selectedPlatform,
+            format: payload.format,
+          };
+          updateRecommendationUI(payload);
+          renderFormats(selectedPlatform);
+        }
+      } catch {
+        // ignore recommendation failures
+      }
+    };
+
+    const buildPlatformMaps = (profiles) => {
+      const displayMap = {};
+      const aliasMap = {};
+      profiles.forEach((profile) => {
+        const label = displayNameFor(profile.platform);
+        displayMap[profile.platform] = label;
+        aliasMap[label] = profile.platform;
+      });
+      localStorage.setItem('edro_platform_display_map', JSON.stringify(displayMap));
+      localStorage.setItem('edro_platform_alias_map', JSON.stringify(aliasMap));
+      return displayMap;
+    };
+
+    const persist = (selectedPlatform) => {
+      const platforms = Object.keys(formatsByPlatform).filter((platform) => formatsByPlatform[platform]?.length);
+      localStorage.setItem(platformKey, selectedPlatform || '');
+      localStorage.setItem(platformsKey, JSON.stringify(platforms));
+      localStorage.setItem(formatsKey, JSON.stringify(formatsByPlatform));
+      localStorage.setItem(countsKey, JSON.stringify(countsByPlatform));
+      const inventory = [];
+      platforms.forEach((platform) => {
+        const formats = formatsByPlatform[platform] || [];
+        formats.forEach((format) => {
+          inventory.push({
+            id: `${platform.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${format.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-1`,
+            platform,
+            platformId: platform,
+            format,
+            index: 1,
+            total: 1
+          });
+        });
+      });
+      localStorage.setItem(inventoryKey, JSON.stringify(inventory));
+    };
+
+    const renderInventory = (selectedPlatform, displayMap) => {
+      if (!inventoryBody) return;
+      const formats = formatsByPlatform[selectedPlatform] || [];
+      if (!formats.length) {
+        inventoryBody.innerHTML = '<tr><td class="px-6 py-6 text-xs text-zinc-400" colspan="3">Selecione uma plataforma e formatos.</td></tr>';
+        return;
+      }
+      const platformLabel = displayMap[selectedPlatform] || selectedPlatform;
+      const icon = iconMap[selectedPlatform] || 'palette';
+      inventoryBody.innerHTML = formats
+        .map((format) => {
+          return `
+            <tr class="border-b border-edro-gray" data-platform="${selectedPlatform}" data-format="${format}">
+              <td class="px-6 py-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary !text-lg">${icon}</span>
+                ${platformLabel}
+              </td>
+              <td class="px-6 py-4">
+                <span class="bg-recommend-bg text-primary text-[11px] font-bold px-2 py-1 rounded">${format}</span>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <button class="text-zinc-400 hover:text-red-500 transition-colors" data-action="remove">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+      inventoryBody.querySelectorAll('[data-action="remove"]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          const row = event.currentTarget.closest('tr');
+          const fmt = row?.getAttribute('data-format');
+          if (!fmt) return;
+          formatsByPlatform[selectedPlatform] = (formatsByPlatform[selectedPlatform] || []).filter((item) => item !== fmt);
+          if (!formatsByPlatform[selectedPlatform]?.length) {
+            delete formatsByPlatform[selectedPlatform];
+          }
+          const card = document.querySelector(`[data-format="${CSS.escape(fmt)}"]`);
+          const checkbox = card?.querySelector('input[type="checkbox"]');
+          if (checkbox) checkbox.checked = false;
+          persist(selectedPlatform);
+          renderInventory(selectedPlatform, displayMap);
+        });
+      });
+    };
+
+    const renderPlatformButtons = (selectedPlatform, displayMap) => {
+      if (!platformList) return [];
+      const platforms = platformProfiles.length
+        ? platformProfiles.map((profile) => profile.platform)
+        : Array.from(platformList.querySelectorAll('[data-platform]')).map((el) => el.getAttribute('data-platform')).filter(Boolean);
+
+      if (!platformProfiles.length) {
+        return Array.from(platformList.querySelectorAll('[data-platform]'));
+      }
+
+      platformList.innerHTML = platforms
+        .map((platform) => {
+          const icon = iconMap[platform] || 'layers';
+          const label = displayMap[platform] || platform;
+          const active = platform === selectedPlatform;
+          const baseClass = active ? 'border-primary border-2' : 'border border-edro-gray';
+          return `
+            <button data-platform="${platform}" class="flex flex-col items-center gap-3 p-6 ${baseClass} bg-white rounded-lg w-32 group transition-all ${active ? '' : 'grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:border-zinc-300'}">
+              <span class="material-symbols-outlined ${active ? 'text-primary' : 'text-zinc-600'} !text-3xl">${icon}</span>
+              <span class="text-xs font-bold ${active ? 'text-charcoal' : 'text-zinc-500'}">${label}</span>
+              ${active ? '<div class="size-4 bg-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-white !text-[12px]">check</span></div>' : ''}
+            </button>
+          `;
+        })
+        .join('');
+
+      return Array.from(platformList.querySelectorAll('[data-platform]'));
+    };
+
+    const formatCardMarkup = (format, isRecommended, details) => {
+      const badge = isRecommended
+        ? '<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">Recomendado</div>'
+        : '';
+      const border = isRecommended ? 'border-2 border-primary' : 'border border-edro-gray hover:border-zinc-300';
+      const specs = details?.specs || {};
+      const ratio = specs.ratio ? `• ${specs.ratio}` : '';
+      const size = specs.width_px && specs.height_px ? `${specs.width_px}x${specs.height_px}px` : '';
+      const outputs = Array.isArray(details?.outputs) ? details.outputs.join(', ') : '';
+      const measScore =
+        typeof details?.measurability_score === 'number' ? Math.round(details.measurability_score) : null;
+      const mlScore =
+        typeof details?.ml_performance_score?.overall_score === 'number'
+          ? Math.round(details.ml_performance_score.overall_score)
+          : null;
+      const badgeScore = mlScore !== null ? mlScore : measScore;
+      const scoreLabel = mlScore !== null ? 'ML Score' : 'Score';
+      const scoreClass =
+        badgeScore === null
+          ? ''
+          : badgeScore >= 90
+            ? 'bg-emerald-100 text-emerald-700'
+            : badgeScore >= 70
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-zinc-100 text-zinc-500';
+      const scoreBadge =
+        badgeScore === null
+          ? ''
+          : `<div class="absolute top-3 right-3 px-2 py-1 rounded-full text-[9px] font-bold ${scoreClass}">${scoreLabel} ${badgeScore}</div>`;
+      const measType = details?.measurability_type || '';
+      const measLine = measScore !== null ? `Mensurabilidade: ${measScore}/100${measType ? ` • ${measType}` : ''}` : '';
+      const mlLine = mlScore !== null ? `ML Score: ${mlScore}/100` : '';
+      const effort = details?.production_effort || null;
+      const effortLine = effort
+        ? `Esforço: ${effort.skill_level || 'n/a'}${effort.estimated_hours ? ` • ${effort.estimated_hours}h` : ''}${effort.complexity ? ` • C${effort.complexity}` : ''}`
+        : '';
+      const cost = details?.production_cost || null;
+      const prodCost = cost?.production_cost_brl || null;
+      const costLine = prodCost
+        ? `Custo prod.: R$ ${prodCost.min ?? ''}${prodCost.max ? `–${prodCost.max}` : ''}${cost?.roi_potential ? ` • ROI ${cost.roi_potential}` : ''}`
+        : '';
+      const metricsLine = Array.isArray(details?.available_metrics)
+        ? `Métricas: ${details.available_metrics.slice(0, 3).join(', ')}`
+        : '';
+      const toolsLine = Array.isArray(details?.tracking_tools)
+        ? `Tracking: ${details.tracking_tools.slice(0, 2).join(', ')}`
+        : '';
+      const metaLine = [size, ratio].filter(Boolean).join(' ');
+      const outputsLine = outputs ? `Outputs: ${outputs}` : '';
+      return `
+        <div data-format="${format}" class="${border} rounded-lg p-4 bg-white transition-all cursor-pointer group card-shadow relative">
+          ${badge}
+          ${scoreBadge}
+          <div class="bg-zinc-50 w-full aspect-[4/5] rounded border border-dashed border-zinc-200 flex flex-col items-center justify-center mb-4">
+            <span class="text-[10px] font-bold text-zinc-400 uppercase">${format}</span>
+            <span class="material-symbols-outlined text-zinc-300 !text-4xl mt-2">rectangle</span>
+          </div>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-sm font-bold">${format}</p>
+              <p class="text-[10px] text-zinc-400">${metaLine || 'Formato'}</p>
+              ${outputsLine ? `<p class="text-[9px] text-zinc-400 mt-1">${outputsLine}</p>` : ''}
+              ${measLine ? `<p class="text-[9px] text-zinc-400 mt-1">${measLine}</p>` : ''}
+              ${mlLine ? `<p class="text-[9px] text-zinc-400 mt-1">${mlLine}</p>` : ''}
+              ${effortLine ? `<p class="text-[9px] text-zinc-400 mt-1">${effortLine}</p>` : ''}
+              ${costLine ? `<p class="text-[9px] text-zinc-400 mt-1">${costLine}</p>` : ''}
+              ${metricsLine ? `<p class="text-[9px] text-zinc-400 mt-1">${metricsLine}</p>` : ''}
+              ${toolsLine ? `<p class="text-[9px] text-zinc-400 mt-1">${toolsLine}</p>` : ''}
+            </div>
+            <input class="rounded border-zinc-300 text-primary focus:ring-primary" type="checkbox"/>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderFormats = (selectedPlatform) => {
+      if (!formatGrid) return;
+      const profile = platformProfiles.find((item) => item.platform === selectedPlatform);
+      const formats = profile?.supportedFormats?.length
+        ? profile.supportedFormats
+        : Array.from(formatGrid.querySelectorAll('[data-format]')).map((el) => el.getAttribute('data-format')).filter(Boolean);
+
+      const fallbackRecommended = (() => {
+        if (!profile?.defaultMix) return '';
+        const entries = Object.entries(profile.defaultMix || {});
+        if (!entries.length) return '';
+        return entries.sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+      })();
+
+      const recommended =
+        recommendationState?.format && recommendationState?.platform === selectedPlatform
+          ? recommendationState.format
+          : fallbackRecommended;
+
+      const catalogFormats = formatCatalog?.[selectedPlatform] || {};
+      formatGrid.innerHTML = formats
+        .map((format) => {
+          const details = catalogFormats[format] || null;
+          return formatCardMarkup(format, format === recommended, details);
+        })
+        .join('');
+      const cards = Array.from(formatGrid.querySelectorAll('[data-format]'));
+      const activeFormats = new Set(formatsByPlatform[selectedPlatform] || []);
+      cards.forEach((card) => {
+        const format = card.getAttribute('data-format');
+        const checkbox = card.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = activeFormats.has(format);
+        card.addEventListener('click', (event) => {
+          if (event.target && event.target.tagName === 'INPUT') return;
+          if (!format || !selectedPlatform) return;
+          const list = new Set(formatsByPlatform[selectedPlatform] || []);
+          const nextState = !list.has(format);
+          if (checkbox) checkbox.checked = nextState;
+          if (nextState) {
+            list.add(format);
+            countsByPlatform[selectedPlatform] = countsByPlatform[selectedPlatform] || {};
+            countsByPlatform[selectedPlatform][format] = 1;
+            localStorage.setItem('edro_active_format', format);
+            localStorage.setItem('edro_active_platform', selectedPlatform);
+          } else {
+            list.delete(format);
+            if (countsByPlatform[selectedPlatform]) delete countsByPlatform[selectedPlatform][format];
+          }
+          formatsByPlatform[selectedPlatform] = Array.from(list);
+          if (!formatsByPlatform[selectedPlatform]?.length) delete formatsByPlatform[selectedPlatform];
+          persist(selectedPlatform);
+          const displayMap = safeParse(localStorage.getItem('edro_platform_display_map'), {});
+          renderInventory(selectedPlatform, displayMap);
+        });
+      });
+    };
+
+    if (recommendApplyButton) {
+      recommendApplyButton.addEventListener('click', () => {
+        const targetPlatform = activePlatform || localStorage.getItem(platformKey) || recommendationState?.platform;
+        const targetFormat = recommendationState?.format;
+        if (!targetPlatform || !targetFormat) return;
+        const list = new Set(formatsByPlatform[targetPlatform] || []);
+        list.add(targetFormat);
+        countsByPlatform[targetPlatform] = countsByPlatform[targetPlatform] || {};
+        countsByPlatform[targetPlatform][targetFormat] = 1;
+        formatsByPlatform[targetPlatform] = Array.from(list);
+        localStorage.setItem('edro_active_format', targetFormat);
+        localStorage.setItem('edro_active_platform', targetPlatform);
+        persist(targetPlatform);
+        renderFormats(targetPlatform);
+        const displayMapInner = safeParse(localStorage.getItem('edro_platform_display_map'), {});
+        renderInventory(targetPlatform, displayMapInner);
+      });
+    }
+
+    const initialize = () => {
+      const displayMap = safeParse(localStorage.getItem('edro_platform_display_map'), {});
+      let selectedPlatform = localStorage.getItem(platformKey) || platformProfiles[0]?.platform;
+      if (!selectedPlatform) {
+        selectedPlatform = platformProfiles[0]?.platform || '';
+      }
+
+      const updateSelection = (platform) => {
+        selectedPlatform = platform;
+        activePlatform = platform;
+        localStorage.setItem(platformKey, platform || '');
+        localStorage.setItem('edro_active_platform', platform || '');
+        const displayMapInner = safeParse(localStorage.getItem('edro_platform_display_map'), {});
+        const platformButtons = renderPlatformButtons(platform, displayMapInner);
+        platformButtons.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const next = btn.getAttribute('data-platform');
+            if (next) updateSelection(next);
+          });
+        });
+        renderFormats(platform);
+        renderInventory(platform, displayMapInner);
+        persist(platform);
+        loadRecommendation(platform);
+      };
+
+      const buttons = renderPlatformButtons(selectedPlatform, displayMap);
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const platform = button.getAttribute('data-platform');
+          if (platform) updateSelection(platform);
+        });
+      });
+
+      if (selectedPlatform) {
+        activePlatform = selectedPlatform;
+        renderFormats(selectedPlatform);
+        renderInventory(selectedPlatform, displayMap);
+        persist(selectedPlatform);
+        loadRecommendation(selectedPlatform);
+      }
+    };
+
+    const loadProductionCatalog = async () => {
+      if (!window.EdroStudio?.request) return null;
+        const productionType = resolveProductionType();
+        if (!productionType) return null;
+        try {
+          const response = await window.EdroStudio.request(`/production/catalog?type=${encodeURIComponent(productionType)}`, {
+            method: 'GET'
+          });
+        const payload = response?.data || response;
+        const platforms = Array.isArray(payload?.platforms) ? payload.platforms : [];
+        if (!platforms.length) return null;
+
+        let profiles = platforms.map((item) => {
+          const formats = Array.isArray(item.formats) ? item.formats : [];
+          const formatNames = formats.map((fmt) => fmt.format_name);
+          const maxChars = {};
+          const bestPractices = [];
+          formats.forEach((fmt) => {
+            if (fmt?.max_chars) {
+              Object.entries(fmt.max_chars).forEach(([key, value]) => {
+                const current = maxChars[key] || 0;
+                if (Number(value) > current) maxChars[key] = Number(value);
+              });
+            }
+            if (Array.isArray(fmt?.best_practices)) {
+              fmt.best_practices.forEach((tip) => {
+                if (tip && !bestPractices.includes(tip)) bestPractices.push(tip);
+              });
+            }
+          });
+          const weight = formatNames.length ? Math.round(100 / formatNames.length) : 0;
+          const defaultMix = {};
+          formatNames.forEach((name) => {
+            defaultMix[name] = weight;
+          });
+          return {
+            platform: item.platform,
+            supportedFormats: formatNames,
+            maxChars,
+            languageStyle: '',
+            bestPractices,
+            avoid: [],
+            defaultMix
+          };
+        });
+
+        const objectiveText = (context?.objective || '').toLowerCase();
+        const isAwareness =
+          objectiveText.includes('awareness') ||
+          objectiveText.includes('reconhec') ||
+          objectiveText.includes('alcance') ||
+          objectiveText.includes('branding');
+        if (isAwareness && productionType.includes('midia-off')) {
+          const preferred = [
+            'ooh',
+            'outofhome',
+            'impresso',
+            'tv',
+            'radio',
+            'cinema',
+            'midiaemmovimento',
+            'pontodevenda',
+            'eventos'
+          ];
+          const scoreFor = (platformName) => {
+            const key = normalizeText(platformName);
+            const index = preferred.findIndex((pref) => key.includes(pref));
+            return index === -1 ? 999 : index;
+          };
+          profiles = profiles.sort((a, b) => scoreFor(a.platform) - scoreFor(b.platform));
+        }
+
+        const catalogMap = {};
+        platforms.forEach((item) => {
+          if (!item?.platform) return;
+          if (!catalogMap[item.platform]) catalogMap[item.platform] = {};
+          (item.formats || []).forEach((fmt) => {
+            if (fmt?.format_name) {
+              catalogMap[item.platform][fmt.format_name] = fmt;
+            }
+          });
+        });
+
+        platformProfiles = profiles;
+        formatCatalog = catalogMap;
+        localStorage.setItem('edro_platform_profiles', JSON.stringify(profiles));
+        localStorage.setItem(catalogKey, JSON.stringify(catalogMap));
+        localStorage.setItem(productionTypeKey, productionType);
+        buildPlatformMaps(profiles);
+        return profiles;
+      } catch (error) {
+        console.warn('production catalog load failed', error);
+        return null;
+      }
+    };
+
+    const loadPlatformProfiles = async () => {
+      if (!window.EdroStudio?.request) return platformProfiles;
+      const catalog = await loadProductionCatalog();
+      if (catalog && catalog.length) {
+        return platformProfiles;
+      }
+      try {
+        const data = await window.EdroStudio.request('/platforms', { method: 'GET' });
+        const profiles = normalizeProfiles(Array.isArray(data) ? data : data?.data?.platforms || data?.platforms);
+        if (profiles.length) {
+          platformProfiles = profiles;
+          localStorage.setItem('edro_platform_profiles', JSON.stringify(profiles));
+          buildPlatformMaps(profiles);
+        }
+      } catch (error) {
+        console.warn('platform profiles load failed', error);
+      }
+      return platformProfiles;
+    };
+
+    loadPlatformProfiles().finally(() => {
+      if (platformProfiles.length) {
+        buildPlatformMaps(platformProfiles);
+      }
+      initialize();
+    });
+
+    const continueButton = document.querySelector('[data-route="/studio/editor"]');
+    if (continueButton) {
+      continueButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const briefingId = localStorage.getItem('edro_briefing_id');
+        if (briefingId && window.EdroStudio?.request) {
+          try {
+            const inventory = safeParse(localStorage.getItem('edro_selected_inventory'), []);
+            const formatsByPlatform = safeParse(localStorage.getItem('edro_selected_formats_by_platform'), {});
+            const activePlatformValue = localStorage.getItem('edro_active_platform') || activePlatform;
+            const activeFormat =
+              localStorage.getItem('edro_active_format') ||
+              (activePlatformValue && Array.isArray(formatsByPlatform?.[activePlatformValue])
+                ? formatsByPlatform[activePlatformValue][0]
+                : null);
+            await window.EdroStudio.request(`/edro/briefings/${briefingId}/stages/alinhamento`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                status: 'done',
+                metadata: {
+                  activePlatform: activePlatformValue || null,
+                  activeFormat: activeFormat || null,
+                  inventory,
+                  formatsByPlatform
+                }
+              }),
+            });
+          } catch {
+            // ignore stage update errors
+          }
+        }
+        const top = window.top || window;
+        top.location.href = '/studio/editor';
+      });
+    }
+  })();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

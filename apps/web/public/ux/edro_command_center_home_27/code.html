@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Creative Studio Review - Edro</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#FF6600",
+            "background-light": "#F9FAFB",
+            "background-dark": "#0F172A",
+            "surface-light": "#FFFFFF",
+            "surface-dark": "#1E293B",
+          },
+          fontFamily: {
+            display: ["Instrument Serif", "serif"],
+            sans: ["Inter", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "12px",
+            xl: "16px",
+          },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    body { font-family: 'Inter', sans-serif; }
+    .font-display { font-family: 'Instrument Serif', serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+  <aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+    <div class="px-6 pt-6 pb-4">
+      <div class="flex items-center gap-3">
+        <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo" />
+        <div></div>
+      </div>
+    </div>
+    <nav class="px-4 py-2 space-y-1 text-sm">
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span>Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">group</span>
+        <span>Clients</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+        <span>Calendar</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+        <span>Kanban</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">palette</span>
+        <span>Creative Studio</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">content_cut</span>
+        <span>Clipping</span>
+      </a>
+    </nav>
+    <div class="mt-auto p-6">
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-xl">settings</span>
+        <span>Settings</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+    <header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+      <div class="flex items-center gap-4">
+        <h1 class="font-display text-2xl">Creative Studio Review</h1>
+        <div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+        <span class="text-sm font-medium text-slate-500 uppercase tracking-wide">Etapa 4 de 4</span>
+        <div class="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <span class="material-symbols-outlined text-[16px]">event</span>
+          <span id="review-date">22/01/2026</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-6">
+        <button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+          <span class="material-symbols-outlined text-[24px]">notifications</span>
+          <span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+          </div>
+          <img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvAk3odobYSg1Pbv6JIgSldZBi3DFIUUztWB6XUe29WkmbpW3iFxm-up5sdxcN7wplROm6if2NtRMvS5bb6eLDxYHZjyg2sZG2jI54RdIn5M9XfG34WVWVVktcPqSC5sKOxJHdtj8OhvGhzjiYoVvwj6---zaiH2XiafvYl2dNjjJAW7G6dxcJw6Y_lTrUasNpunsU3fpzMIusTbzbf2YlDLd2lHYQzr8AxNFZNtWL8l2XegBDh5cQ5xZjXw8d7ePCQIzwRbE-RXY" />
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto">
+      <div class="max-w-none p-8 pb-32">
+        <div class="mb-8">
+          <p class="text-sm font-semibold text-primary uppercase tracking-wide">Revisao & Acoes</p>
+          <h2 class="font-display text-4xl mt-2">Tudo o que foi criado para esta campanha</h2>
+          <p class="text-slate-500 mt-3 max-w-2xl">Consolide formatos, revise variacoes de copy e defina os proximos passos de entrega e aprovacao.</p>
+        </div>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Resumo do inventario</h3>
+                  <p class="text-xs text-slate-500 mt-1">Saidas geradas por plataforma e formato.</p>
+                </div>
+                <span class="text-xs text-slate-400 font-semibold uppercase tracking-wide" id="inventory-count">0 pecas</span>
+              </div>
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3" id="inventory-summary"></div>
+            </div>
+
+            <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+              <div class="flex items-center justify-between gap-4 mb-4">
+                <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Revisao dos outputs</h3>
+                <button class="text-xs font-semibold text-primary border border-primary px-3 py-1 rounded-full" data-route="/studio/editor">Abrir no editor</button>
+              </div>
+              <div class="space-y-4" id="outputs-list"></div>
+            </div>
+          </div>
+
+          <aside class="space-y-6">
+            <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+              <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Proximas acoes</h3>
+              <div class="mt-4 space-y-3">
+                <button class="w-full px-4 py-3 rounded-xl bg-primary text-white font-semibold shadow-md hover:shadow-lg transition-shadow">Enviar para aprovacao</button>
+                <button class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 font-semibold" id="export-copies">Exportar copys</button>
+                <button class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 font-semibold">Salvar como rascunho</button>
+              </div>
+              <div class="mt-4 text-xs text-slate-500">Escolha o que acontece com o lote inteiro.</div>
+            </div>
+
+            <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+              <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Status do lote</h3>
+              <ul class="mt-4 space-y-3 text-xs text-slate-500">
+                <li class="flex items-center justify-between"><span>Pronto</span><span class="font-semibold text-slate-700 dark:text-slate-200" id="status-ready">0</span></li>
+                <li class="flex items-center justify-between"><span>Revisao pendente</span><span class="font-semibold text-slate-700 dark:text-slate-200" id="status-review">0</span></li>
+                <li class="flex items-center justify-between"><span>Rascunho</span><span class="font-semibold text-slate-700 dark:text-slate-200" id="status-draft">0</span></li>
+              </ul>
+              <button class="mt-4 w-full px-4 py-2 text-xs font-semibold uppercase tracking-wide border border-primary text-primary rounded-full" data-route="/studio/editor">Voltar ao editor</button>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const dateEl = document.getElementById('review-date');
+      const paramDate = params.get('date');
+      const storedDate = localStorage.getItem('edro_publish_date');
+      const resolvedDate = paramDate || storedDate;
+
+      if (paramDate) {
+        localStorage.setItem('edro_publish_date', paramDate);
+      }
+      if (dateEl && resolvedDate) {
+        dateEl.textContent = resolvedDate;
+      }
+
+      const inventoryKey = 'edro_inventory_items';
+      const stateKey = 'edro_inventory_state';
+      const countsByPlatformKey = 'edro_selected_format_counts_by_platform';
+      const platformsKey = 'edro_selected_platforms';
+      const legacyFormatsKey = 'edro_selected_formats';
+
+      const summaryEl = document.getElementById('inventory-summary');
+      const outputsEl = document.getElementById('outputs-list');
+      const countEl = document.getElementById('inventory-count');
+      const readyEl = document.getElementById('status-ready');
+      const reviewEl = document.getElementById('status-review');
+      const draftEl = document.getElementById('status-draft');
+      const exportBtn = document.getElementById('export-copies');
+
+      const safeParse = (value, fallback) => {
+        try { return JSON.parse(value); } catch { return fallback; }
+      };
+
+      const slug = (value) => String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+
+      const buildInventoryFromCounts = (counts) => {
+        const items = [];
+        Object.keys(counts || {}).forEach((platform) => {
+          const formats = counts[platform] || {};
+          Object.keys(formats).forEach((format) => {
+            const total = Math.max(0, parseInt(formats[format], 10) || 0);
+            for (let i = 1; i <= total; i++) {
+              items.push({
+                id: `${slug(platform)}__${slug(format)}__${i}`,
+                platform,
+                format,
+                index: i,
+                total
+              });
+            }
+          });
+        });
+        return items;
+      };
+
+      const buildLegacyInventory = (platforms, formats) => {
+        const platform = platforms[0] || 'Instagram';
+        const fallbackFormats = formats.length ? formats : [];
+        return fallbackFormats.map((format, idx) => ({
+          id: `${slug(platform)}__${slug(format)}__${idx + 1}`,
+          platform,
+          format,
+          index: idx + 1,
+          total: fallbackFormats.length
+        }));
+      };
+
+      let inventory = safeParse(localStorage.getItem(inventoryKey), []);
+      const countStore = safeParse(localStorage.getItem(countsByPlatformKey), {});
+      if (!inventory.length) {
+        inventory = buildInventoryFromCounts(countStore);
+      }
+      if (!inventory.length) {
+        const platforms = safeParse(localStorage.getItem(platformsKey), []) || [];
+        const formats = safeParse(localStorage.getItem(legacyFormatsKey), []) || [];
+        inventory = buildLegacyInventory(platforms, formats);
+      }
+
+      const state = safeParse(localStorage.getItem(stateKey), {});
+      inventory.forEach((item) => {
+        if (!state[item.id]) {
+          state[item.id] = { copy: '', status: 'pending', history: [] };
+        }
+      });
+      localStorage.setItem(stateKey, JSON.stringify(state));
+
+      const totalCount = inventory.length;
+      if (countEl) {
+        countEl.textContent = `${totalCount} ${totalCount === 1 ? 'peca' : 'pecas'}`;
+      }
+
+      const summary = {};
+      inventory.forEach((item) => {
+        if (!summary[item.platform]) summary[item.platform] = {};
+        summary[item.platform][item.format] = (summary[item.platform][item.format] || 0) + 1;
+      });
+
+      if (summaryEl) {
+        if (!totalCount) {
+          summaryEl.innerHTML = '<div class="text-xs text-slate-400">Nenhuma peca selecionada.</div>';
+        } else {
+          summaryEl.innerHTML = Object.entries(summary).map(([platform, formats]) => {
+            const lines = Object.entries(formats)
+              .map(([format, count]) => `<div class="text-sm font-semibold mt-1">${format} • ${count} ${count === 1 ? 'peca' : 'pecas'}</div>`)
+              .join('');
+            return `
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
+                <div class="text-xs text-slate-400 uppercase tracking-wide">${platform}</div>
+                ${lines}
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      let readyCount = 0;
+      let reviewCount = 0;
+      let draftCount = 0;
+
+      if (outputsEl) {
+        if (!totalCount) {
+          outputsEl.innerHTML = '<div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-400">Sem outputs para revisar.</div>';
+        } else {
+          outputsEl.innerHTML = inventory.map((item) => {
+            const copy = (state[item.id]?.copy || '').trim();
+            const status = state[item.id]?.status || 'pending';
+            let statusLabel = 'Revisao pendente';
+            let statusClass = 'text-amber-600';
+
+            if (!copy) {
+              statusLabel = 'Rascunho';
+              statusClass = 'text-slate-500';
+              draftCount += 1;
+            } else if (status === 'done') {
+              statusLabel = 'Pronto';
+              statusClass = 'text-emerald-600';
+              readyCount += 1;
+            } else {
+              reviewCount += 1;
+            }
+
+            const preview = copy
+              ? copy.replace(/\s+/g, ' ').slice(0, 140) + (copy.length > 140 ? '...' : '')
+              : 'Sem copy ainda.';
+
+            return `
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="flex items-center justify-between text-xs text-slate-400 uppercase tracking-wide">
+                  <span>${item.platform} • ${item.format} #${item.index}</span>
+                  <span class="${statusClass}">${statusLabel}</span>
+                </div>
+                <div class="mt-3 flex gap-4">
+                  <div class="h-16 w-16 rounded-lg bg-gradient-to-br from-orange-200 to-orange-400 text-white text-[10px] font-semibold flex items-center justify-center text-center px-2">
+                    ${item.format}
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold text-slate-900 dark:text-white">${item.format} • ${item.platform}</p>
+                    <p class="text-xs text-slate-500 mt-1">${preview}</p>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      if (readyEl) readyEl.textContent = String(readyCount);
+      if (reviewEl) reviewEl.textContent = String(reviewCount);
+      if (draftEl) draftEl.textContent = String(draftCount);
+
+      if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+          if (!inventory.length) {
+            alert('Nenhuma peca para exportar.');
+            return;
+          }
+
+          const grouped = {};
+          inventory.forEach((item) => {
+            if (!grouped[item.platform]) grouped[item.platform] = [];
+            grouped[item.platform].push(item);
+          });
+
+          const exportDate = resolvedDate || new Date().toLocaleDateString('pt-BR');
+          let content = `Edro Studio - Export de Copys\\nData: ${exportDate}\\n\\n`;
+
+          Object.entries(grouped).forEach(([platform, items]) => {
+            content += `=== ${platform} ===\\n`;
+            items.forEach((item) => {
+              const copy = (state[item.id]?.copy || '').trim();
+              content += `\\n${item.format} #${item.index}\\n${copy || '[Sem copy]'}\\n`;
+            });
+            content += '\\n';
+          });
+
+          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `edro_copys_${new Date().toISOString().slice(0, 10)}.txt`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+      }
+    })();
+  </script>
+  <script src="/ux/edro-links.js"></script>
+</body>
+</html>
+
+
+

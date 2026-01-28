@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tab-active {
+            @apply border-primary text-primary border-b-2;
+        }
+        .tab-inactive {
+            @apply border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300;
+        }
+        .table-row-hover:hover .row-actions {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Clients</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-100 font-medium">Azul</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8HXyq-1wd4M8oCczKTNOSsxi0hioRftDgIi-ufKL6-V3liMTfdhndKDHj0Wb5AU2CpDElM1SmZgLuUlIDazGxasvyLmvSq6JbVAQv-N6bTKwsR0OY2D2jBgpItBVIfZSsJpIn7n7tI4ok4VvUmtU8aGwUbMwY7xr_pJVi2PbVsREidqJ6YCPO7sGdYLF-DC4InxSE0WP0y55s9kt9hcteWoIs9p5WzEv5pvM4Rp-acpX4fvQ8qsn_MXLqFdTQq5mZI44oKTrP6yU"/>
+</div>
+</div>
+</header>
+<div class="px-8 pt-10 pb-2">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-6">
+<button class="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<div>
+<h1 class="font-display text-6xl text-slate-900 dark:text-white leading-tight">Azul</h1>
+<p class="text-slate-500 text-sm mt-1">Premium Beverage &amp; Hospitality Group</p>
+</div>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm text-slate-500">edit</span>
+                    Edit Client
+                </button>
+</div>
+<div class="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+<nav class="flex space-x-8 min-w-max">
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul">Overview</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/calendar">Calendar</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/planning">Planning</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/creative">Creative</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/clipping">Clipping</button>
+<button class="tab-active py-4 px-1 text-sm font-semibold flex items-center gap-2 transition-all" data-route="/clients/azul/library">Library</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/insights">Insights</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/performance">Performance</button>
+</nav>
+</div>
+</div>
+<div class="p-8 max-w-none space-y-8">
+<div class="bg-surface-light dark:bg-surface-dark border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center transition-all hover:border-primary/40 group">
+<div class="max-w-md">
+<div class="w-16 h-16 bg-orange-50 dark:bg-orange-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+</div>
+<h2 class="text-xl font-bold mb-2">Upload Reference Materials</h2>
+<p class="text-slate-500 text-sm mb-6 leading-relaxed">
+                        Drag and drop files here, or click to browse. Organize your brand's core assets for quick access.
+                    </p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-orange-500/20 mb-4 inline-flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">add</span>
+                        Upload Reference
+                    </button>
+<div class="mt-6 border-t border-slate-100 dark:border-slate-800 pt-6 text-left">
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Add Links</div>
+<div class="flex flex-col md:flex-row gap-3">
+<div class="flex-1">
+<label class="block text-xs font-semibold text-slate-600 mb-2">Reference URL</label>
+<div class="flex items-center gap-2">
+<input class="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary" placeholder="Paste a website or drive link" type="url"/>
+<button class="px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:border-primary hover:text-primary transition-colors">Add URL</button>
+</div>
+</div>
+<div class="flex-1">
+<label class="block text-xs font-semibold text-slate-600 mb-2">Social Link</label>
+<div class="flex items-center gap-2">
+<input class="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary" placeholder="Paste Instagram, TikTok, YouTube, LinkedIn..." type="url"/>
+<button class="px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:border-primary hover:text-primary transition-colors">Add Link</button>
+</div>
+</div>
+</div>
+<div class="mt-3 text-xs text-slate-500">
+Links become part of the client reference library and help the AI with context.
+</div>
+</div>
+<p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+                        Supported: PDF, Brand Assets (PNG/SVG), Guidelines, URLs and Social Links
+                    </p>
+</div>
+</div>
+<div class="space-y-6">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<h3 class="font-display text-3xl">Reference Library</h3>
+<div class="flex items-center gap-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm w-64 focus:ring-primary focus:border-primary" placeholder="Search assets..." type="text"/>
+</div>
+<div class="relative">
+<select class="pl-4 pr-10 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm appearance-none focus:ring-primary focus:border-primary">
+<option>Filter by Tag</option>
+<option>Brand Identity</option>
+<option>Social Templates</option>
+<option>Photography</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Name</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date Added</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Size</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr class="table-row-hover hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+</div>
+<span class="font-medium text-sm">2024_Brand_Guidelines_v2.pdf</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Brand Identity</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">Oct 12, 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">14.2 MB</td>
+<td class="px-6 py-4 text-right">
+<div class="row-actions opacity-0 flex items-center justify-end gap-2 transition-opacity">
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="table-row-hover hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined text-xl">image</span>
+</div>
+<span class="font-medium text-sm">Primary_Logo_Master.svg</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Brand Identity</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">Sep 28, 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">240 KB</td>
+<td class="px-6 py-4 text-right">
+<div class="row-actions opacity-0 flex items-center justify-end gap-2 transition-opacity">
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="table-row-hover hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined text-xl">movie</span>
+</div>
+<span class="font-medium text-sm">Intro_Animation_Mockup.mp4</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Social Templates</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">Oct 05, 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">88.5 MB</td>
+<td class="px-6 py-4 text-right">
+<div class="row-actions opacity-0 flex items-center justify-end gap-2 transition-opacity">
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<footer class="pt-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2023 Edro Creative Studio • Azul Account Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

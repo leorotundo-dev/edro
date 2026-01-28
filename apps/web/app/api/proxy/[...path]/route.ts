@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Buffer } from 'node:buffer';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333';
+const DEFAULT_BACKEND_URL = 'http://localhost:3333';
 const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 20000);
 const API_SUFFIX_REGEX = /\/api$/i;
 
@@ -28,8 +29,32 @@ function buildProxyErrorResponse(error: unknown) {
   return NextResponse.json({ error: 'Proxy request failed' }, { status: 500 });
 }
 
+function resolveBackendBase() {
+  const explicit = process.env.EDRO_BACKEND_URL?.trim();
+  if (explicit && /^https?:\/\//i.test(explicit)) {
+    return explicit.replace(/\/$/, '');
+  }
+
+  const railway = process.env.RAILWAY_SERVICE_EDRO_BACKEND_URL?.trim();
+  if (railway) {
+    return `https://${railway.replace(/\/$/, '')}`;
+  }
+
+  const publicBackend = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+  if (publicBackend && /^https?:\/\//i.test(publicBackend)) {
+    return publicBackend.replace(/\/$/, '');
+  }
+
+  const publicBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (publicBase && /^https?:\/\//i.test(publicBase)) {
+    return publicBase.replace(/\/$/, '');
+  }
+
+  return DEFAULT_BACKEND_URL;
+}
+
 function buildTargetUrl(path: string, query = '') {
-  const base = BACKEND_URL.replace(/\/$/, '');
+  const base = resolveBackendBase();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const finalPath = API_SUFFIX_REGEX.test(base) || normalizedPath.startsWith('/api')
     ? normalizedPath
@@ -38,32 +63,51 @@ function buildTargetUrl(path: string, query = '') {
 }
 
 function buildHeaders(request: NextRequest) {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  const authHeader = request.headers.get('authorization');
-  if (authHeader) {
-    headers['Authorization'] = authHeader;
-  }
+  const headers: Record<string, string> = {};
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (lower === 'host' || lower === 'content-length') return;
+    headers[key] = value;
+  });
   return headers;
 }
 
-async function readResponse(response: Response) {
-  if (response.status === 204) {
-    return { data: {}, status: 204 };
-  }
-  const text = await response.text();
-  if (!text) {
-    return { data: {}, status: response.status };
-  }
-  try {
-    return { data: JSON.parse(text), status: response.status };
-  } catch {
-    return { data: { raw: text }, status: response.status };
-  }
+function isJsonResponse(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+  return contentType.includes('application/json') || contentType.includes('+json');
 }
 
-async function proxyFetch(request: NextRequest, init: RequestInit, path: string, query = '') {
+async function buildProxyResponse(response: Response) {
+  if (response.status === 204) {
+    return NextResponse.json({}, { status: 204 });
+  }
+
+  if (isJsonResponse(response)) {
+    const text = await response.text();
+    if (!text) {
+      return NextResponse.json({}, { status: response.status });
+    }
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      return NextResponse.json({ raw: text }, { status: response.status });
+    }
+  }
+
+  const headers = new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  return new NextResponse(response.body, { status: response.status, headers });
+}
+
+async function readRequestBody(request: NextRequest) {
+  if (request.method === 'GET' || request.method === 'HEAD') return undefined;
+  const buffer = await request.arrayBuffer();
+  return buffer.byteLength ? Buffer.from(buffer) : undefined;
+}
+
+async function proxyFetch(init: RequestInit, path: string, query = '') {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
   try {
@@ -71,7 +115,7 @@ async function proxyFetch(request: NextRequest, init: RequestInit, path: string,
       ...init,
       signal: controller.signal,
     });
-    return await readResponse(response);
+    return response;
   } catch (error) {
     throw error;
   } finally {
@@ -89,13 +133,12 @@ export async function GET(
   const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
 
   try {
-    const { data, status } = await proxyFetch(
-      request,
+    const response = await proxyFetch(
       { method: 'GET', headers: buildHeaders(request) },
       path,
       query
     );
-    return NextResponse.json(data, { status });
+    return await buildProxyResponse(response);
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);
@@ -110,13 +153,12 @@ export async function POST(
   const path = '/' + pathSegments.join('/');
 
   try {
-    const body = await request.json();
-    const { data, status } = await proxyFetch(
-      request,
-      { method: 'POST', headers: buildHeaders(request), body: JSON.stringify(body) },
+    const body = await readRequestBody(request);
+    const response = await proxyFetch(
+      { method: 'POST', headers: buildHeaders(request), body },
       path
     );
-    return NextResponse.json(data, { status });
+    return await buildProxyResponse(response);
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);
@@ -131,13 +173,12 @@ export async function PUT(
   const path = '/' + pathSegments.join('/');
 
   try {
-    const body = await request.json();
-    const { data, status } = await proxyFetch(
-      request,
-      { method: 'PUT', headers: buildHeaders(request), body: JSON.stringify(body) },
+    const body = await readRequestBody(request);
+    const response = await proxyFetch(
+      { method: 'PUT', headers: buildHeaders(request), body },
       path
     );
-    return NextResponse.json(data, { status });
+    return await buildProxyResponse(response);
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);
@@ -152,13 +193,12 @@ export async function PATCH(
   const path = '/' + pathSegments.join('/');
 
   try {
-    const body = await request.json();
-    const { data, status } = await proxyFetch(
-      request,
-      { method: 'PATCH', headers: buildHeaders(request), body: JSON.stringify(body) },
+    const body = await readRequestBody(request);
+    const response = await proxyFetch(
+      { method: 'PATCH', headers: buildHeaders(request), body },
       path
     );
-    return NextResponse.json(data, { status });
+    return await buildProxyResponse(response);
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);
@@ -173,12 +213,11 @@ export async function DELETE(
   const path = '/' + pathSegments.join('/');
 
   try {
-    const { data, status } = await proxyFetch(
-      request,
+    const response = await proxyFetch(
       { method: 'DELETE', headers: buildHeaders(request) },
       path
     );
-    return NextResponse.json(data, { status });
+    return await buildProxyResponse(response);
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);

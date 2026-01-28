@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Creative Studio AI Editor - Edro</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#FF6600",
+              "background-light": "#F9FAFB",
+              "background-dark": "#0F172A",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1E293B",
+            },
+            fontFamily: {
+              display: ["Instrument Serif", "serif"],
+              sans: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "12px",
+              'xl': '16px',
+            },
+          },
+        },
+      };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .instagram-preview {
+            aspect-ratio: 1 / 1;
+            max-width: 450px;
+            width: 100%;
+        }
+        .diff-highlight {
+            background-color: rgba(34, 197, 94, 0.15);
+            border-bottom: 1px solid rgba(34, 197, 94, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex overflow-hidden">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl">Creative Studio Editor</h1>
+<div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+<span class="text-sm font-medium text-slate-500 uppercase tracking-wide">Step 3 of 4</span>
+<div class="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-[16px]">event</span>
+<span id="header-date">01/10/2023</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDxef1rUIgwtbkLYCDmSpIDxk9ZK_uh4LeDf8krSclftZ2VmjLxwg2KNWwPdpESuT71pVc0vzLc3YCUJINETB-TWWrh2XaMljil5H7Fc1-cHCowSdRcuPy4Ue0lRLXXmoQPqnp706M0f-8yYDNob0VFtg8UvreeBWdm9psPwftmp-Mx6O63qMLJlDbKAs2H94YdYRPKgDGJZyurt7oPeoNqI1fnPU8QWiuf4KAZ08wZ5rVo2RVhl4nLVDCK3WscAp3a1PmAaUi4_I"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<section class="flex-1 bg-slate-50 dark:bg-slate-900/50 overflow-hidden flex">
+  <aside class="w-72 border-r border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 p-6 overflow-y-auto">
+    <div class="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <p class="text-xs font-semibold text-primary uppercase tracking-widest">Inventory Queue</p>
+        <h2 class="font-display text-2xl mt-1">Peças a criar</h2>
+      </div>
+      <span class="text-xs text-slate-400 font-semibold uppercase tracking-widest" id="queue-progress">0 / 0</span>
+    </div>
+    <div class="text-xs text-slate-500 mb-4">
+      As peças são geradas em sequência. Finalize uma para avançar automaticamente.
+    </div>
+    <div id="inventory-queue" class="space-y-2"></div>
+  </aside>
+
+  <div class="flex-1 p-8 overflow-y-auto flex flex-col items-center">
+    <div class="w-full max-w-2xl mb-6 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold" id="client-badge">AZ</div>
+        <div>
+          <p class="text-sm font-bold" id="client-name">Azul Coffee Co.</p>
+          <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Client Account</p>
+        </div>
+      </div>
+      <span class="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm" id="format-badge">Instagram • Carousel</span>
+    </div>
+
+    <div class="relative group instagram-preview bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+      <div class="absolute inset-0 flex flex-col" id="mockup-content">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900/70">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center" id="mockup-avatar">AZ</div>
+            <div>
+              <div class="text-[11px] font-semibold text-slate-900 dark:text-white" id="mockup-handle">Azul Coffee Co.</div>
+              <div class="text-[10px] text-slate-400">Post patrocinado</div>
+            </div>
+          </div>
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-400" id="mockup-platform">Instagram</span>
+        </div>
+        <div class="flex-1 relative bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center p-10 text-center text-white" id="mockup-slide">
+          <div class="max-w-sm">
+            <div class="font-display text-4xl leading-tight" id="mockup-slide-text">Better Coffee, Better Mornings.</div>
+          </div>
+        </div>
+        <div class="px-4 py-3 border-t border-slate-200/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900/80">
+          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Legenda</div>
+          <div class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed" id="mockup-caption">Discover our new artisanal autumn roast selection.</div>
+          <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-200" id="mockup-cta">Explore a colecao</div>
+        </div>
+      </div>
+      <div class="absolute top-4 right-4 bg-black/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md" id="mockup-step">1 / 3</div>
+      <button id="mockup-prev" class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <button id="mockup-next" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+      <div id="mockup-dots" class="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
+    </div>
+
+    <div class="mt-8 flex gap-4">
+      <button class="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+        <span class="material-symbols-outlined text-sm">desktop_windows</span> Desktop
+      </button>
+      <div class="w-px h-4 bg-slate-200 self-center"></div>
+      <button class="text-primary flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+        <span class="material-symbols-outlined text-sm">smartphone</span> Mobile
+      </button>
+    </div>
+  </div>
+</section>
+<section class="w-[520px] bg-surface-light dark:bg-surface-dark border-l border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">tune</span>
+                    Post Settings
+                </h3>
+<div class="flex flex-wrap gap-2 mb-5" id="format-badges"></div>
+<div class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8" id="platform-select">
+<option>Instagram</option>
+<option>LinkedIn</option>
+<option>Facebook</option>
+<option>X</option>
+<option>TikTok</option>
+<option>Google Ads</option>
+<option>Email Marketing</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Format</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8" id="format-select">
+<option>Carousel</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Publishing Date</label>
+<div class="relative">
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary py-2.5 pl-3 pr-8" type="date" value="2023-10-01"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">calendar_month</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-6 flex flex-col min-h-0">
+<div class="flex-1 overflow-y-auto pr-1" id="copy-blocks">
+<div class="copy-block" data-copy-template="true">
+<div class="flex items-center justify-between mb-2">
+<label class="copy-label text-[10px] font-bold text-slate-400 uppercase tracking-widest">Caption &amp; Copy — Carousel</label>
+<span class="copy-limit text-[10px] font-medium text-slate-300">0/2200</span>
+</div>
+<div class="copy-tip text-[10px] text-slate-400 mb-2">3 slides: hook → value → CTA.</div>
+<div class="relative group">
+<textarea class="copy-textarea w-full min-h-[360px] bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-[15px] leading-relaxed focus:ring-1 focus:ring-primary outline-none resize-none transition-colors">Start your day with the bold, rich notes of our signature dark roast. Crafted for the early risers and dreamers who believe that every great morning begins with an even better cup of coffee. 
+Visit our online shop to explore our new artisanal collection. ☕️✨</textarea>
+</div>
+<div class="mt-3 flex items-center gap-2">
+<input class="refine-input flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary" placeholder="Peça um ajuste para a IA (ex: mais direto, tom premium...)" type="text"/>
+<button class="refine-button bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-slate-800 transition-colors" type="button">Refinar</button>
+</div>
+<div class="refine-log mt-3 space-y-2 text-xs text-slate-400"></div>
+</div>
+</div>
+<div class="mt-6 space-y-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20" id="generate-multi">
+<span class="material-symbols-outlined">auto_awesome</span> Generate with AI
+                    </button>
+<button id="open-ai-panel" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined">magic_button</span> Refine with AI
+                    </button>
+<button class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all" data-route="/studio/review">
+<span class="material-symbols-outlined">inventory_2</span> Review outputs
+                    </button>
+</div>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-blue-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-blue-600 text-xs">thumb_up</span></div>
+<div class="w-8 h-8 rounded-full bg-green-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-green-600 text-xs">check_circle</span></div>
+</div>
+<p class="text-[10px] font-bold text-slate-400 uppercase">Brand compliance active</p>
+</div>
+</div>
+</section>
+<section id="ai-panel" class="hidden w-[480px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl z-20 overflow-hidden">
+<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">auto_awesome</span>
+<h2 class="font-bold text-slate-900 dark:text-white">AI Content Refinement</h2>
+</div>
+<button id="close-ai-panel" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400">close</span>
+</button>
+</div>
+<div class="p-6 pb-2">
+<div class="flex flex-col gap-4">
+<div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 p-4 rounded-xl">
+<div class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-sm">chat_bubble</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest mb-1">Instruction</p>
+<p class="text-sm font-medium text-slate-800 dark:text-slate-200">"Make it more professional and concise. Focus on the quality of the roast."</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<div>
+<div class="flex items-center justify-between mb-3">
+<h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span> Original
+                </h4>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+<p class="text-sm leading-relaxed text-slate-500 dark:text-slate-400 italic">
+                    Start your day with the bold, rich notes of our signature dark roast. Crafted for the early risers and dreamers who believe that every great morning begins with an even better cup of coffee. Visit our online shop to explore our new artisanal collection. ☕️✨
+                </p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 px-2">
+<span class="material-symbols-outlined text-slate-300 text-lg">expand_more</span>
+</div>
+</div>
+<div>
+<div class="flex items-center justify-between mb-3">
+<h4 class="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-widest flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Revised
+                </h4>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Confidence: 98%</span>
+</div>
+<div class="p-4 bg-white dark:bg-slate-800 rounded-xl border-2 border-green-100 dark:border-green-900/30 shadow-sm">
+<p class="text-sm leading-relaxed text-slate-800 dark:text-slate-100">
+<span class="diff-highlight">Elevate your morning routine with the premium depth</span> of our signature dark roast. <span class="diff-highlight">Expertly crafted for coffee connoisseurs</span> who value exceptional quality. Explore our artisanal collection <span class="diff-highlight">in our digital boutique.</span>
+</p>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/50">
+<div class="flex flex-col gap-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 text-sm" id="approve-copy">
+<span class="material-symbols-outlined text-[18px]">check_circle</span> Use this version
+            </button>
+<div class="grid grid-cols-2 gap-3">
+<button class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-200 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-sm">
+<span class="material-symbols-outlined text-[18px]">save_as</span> Save variation
+                </button>
+<button class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-sm">
+<span class="material-symbols-outlined text-[18px]">delete</span> Discard
+                </button>
+</div>
+</div>
+<p class="mt-4 text-[10px] text-center text-slate-400 uppercase tracking-widest font-medium">Refined by Edro AI Model V2.4</p>
+</div>
+</section>
+</div>
+</main>
+<button class="fixed bottom-8 left-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-studio-api.js"></script>
+<script>
+        (function () {
+          const params = new URLSearchParams(window.location.search);
+          const headerDate = document.getElementById('header-date');
+          const paramDate = params.get('date');
+          const storedDate = localStorage.getItem('edro_publish_date');
+          const resolvedDate = paramDate || storedDate;
+          const safeParse = (value, fallback) => {
+            try { return JSON.parse(value); } catch { return fallback; }
+          };
+          const context = safeParse(localStorage.getItem('edro_studio_context'), {});
+          const clientName = params.get('client') || context.client || 'Cliente';
+          const clientId = params.get('clientId') || context.clientId || window.EdroStudio?.getClientId?.() || null;
+          const eventName = params.get('event') || context.event || 'Briefing Criativo';
+          const contextKey = `${clientName}|${eventName}|${resolvedDate || ''}`;
+          const clientNameEl = document.getElementById('client-name');
+          const clientBadgeEl = document.getElementById('client-badge');
+
+          if (paramDate) {
+            localStorage.setItem('edro_publish_date', paramDate);
+          }
+          if (headerDate && resolvedDate) {
+            headerDate.textContent = resolvedDate;
+          }
+          if (clientNameEl) clientNameEl.textContent = clientName;
+          if (clientBadgeEl) {
+            const initials = clientName.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+            clientBadgeEl.textContent = initials || 'ED';
+          }
+          const inventoryKey = 'edro_inventory_items';
+          const stateKey = 'edro_inventory_state';
+          const countsByPlatformKey = 'edro_selected_format_counts_by_platform';
+          const platformsKey = 'edro_selected_platforms';
+          const legacyFormatsKey = 'edro_selected_formats';
+          const legacyPlatformKey = 'edro_active_platform';
+          const activeInventoryKey = 'edro_active_inventory_id';
+
+          let formatMap = {
+            'Feed Post': { limit: 2200, tip: 'Hook na primeira linha, 1-2 parágrafos curtos, CTA no final.' },
+            'Story': { limit: 180, tip: 'Uma ideia por tela, copy curto, CTA único.' },
+            'Reel': { limit: 150, tip: 'Gancho imediato, legenda curta, CTA no final.' },
+            'Carousel': { limit: 180, tip: '3 slides: gancho → valor → CTA.' },
+            'Single Image': { limit: 3000, tip: 'Tom executivo, 1 insight por bloco.' },
+            'Document Carousel': { limit: 220, tip: 'Clareza slide a slide, CTA no slide 3.' },
+            'Text Post': { limit: 1200, tip: 'Uma ideia por bloco, linhas curtas.' },
+            'Video Post': { limit: 300, tip: 'Legenda curta com foco no gancho.' },
+            'Single Post': { limit: 280, tip: 'Uma ideia, direto e compacto.' },
+            'Thread': { limit: 280, tip: 'Gancho forte e sequência objetiva.' },
+            'Image Post': { limit: 280, tip: 'Legenda curta, visual carrega o peso.' },
+            'Video': { limit: 150, tip: 'Legenda curta, destaque para o gancho.' },
+            'Photo Carousel': { limit: 180, tip: '3 cards, cada um com um foco.' },
+            'Spark Ad': { limit: 120, tip: 'CTA curto e valor claro.' },
+            'Search Ad': { limit: 90, tip: 'Beneficio direto e CTA objetivo.' },
+            'Display Banner': { limit: 120, tip: 'Headline forte + CTA curto.' },
+            'YouTube Ad': { limit: 150, tip: 'Gancho rapido, legenda curta.' },
+            'Performance Max': { limit: 120, tip: 'Proposta de valor direta e oferta.' },
+            'Newsletter': { limit: 1200, tip: 'Headline estilo assunto + secoes claras.' },
+            'Promo Blast': { limit: 500, tip: 'Oferta primeiro, CTA acima da dobra.' },
+            'Lifecycle': { limit: 600, tip: 'Contexto + beneficio + CTA.' },
+            'Nurture Series': { limit: 600, tip: 'Curto, cadencia consistente, 1 CTA.' }
+          };
+
+          const sampleCopy = {
+            'Feed Post': 'Abra o dia com o sabor marcante do nosso roast premium. Descubra a nova selecao artesanal e escolha o seu momento favorito. ☕️',
+            'Story': 'Roast premium, energia imediata. Experimente hoje.',
+            'Reel': 'Gancho forte, ritual perfeito. Descubra o nosso roast premium.',
+            'Carousel': 'Gancho: O ritual certo para manhas melhores.\nValor: Blend premium, aroma intenso.\nCTA: Explore a colecao.',
+            'Single Image': 'Um ritual premium para comecar o dia com energia. Explore a nova selecao.',
+            'Document Carousel': 'Slide 1: O ritual ideal.\nSlide 2: Aroma intenso.\nSlide 3: Explore agora.',
+            'Text Post': 'O ritual da manha precisa de um roast a altura. Conheca a nova colecao.',
+            'Video Post': 'Aroma intenso, energia imediata. Descubra nosso roast premium.',
+            'Single Post': 'Roast premium. Energia imediata.',
+            'Thread': '1. Ritual premium para manhas melhores.\n2. Aroma intenso.\n3. Explore a colecao.',
+            'Image Post': 'Roast premium para elevar o seu ritual diario.',
+            'Video': 'Gancho forte, ritual perfeito. Conheca o nosso roast.',
+            'Photo Carousel': 'Gancho: O ritual certo.\nValor: Aroma intenso.\nCTA: Explore.',
+            'Spark Ad': 'Gancho rapido + CTA direto. Experimente hoje.',
+            'Search Ad': 'Roast premium com aroma intenso. Explore agora.',
+            'Display Banner': 'Manhas melhores com roast premium.',
+            'YouTube Ad': 'Gancho rapido. Aroma intenso. Explore agora.',
+            'Performance Max': 'Oferta direta com valor claro. Explore.',
+            'Newsletter': 'Assunto: Um ritual premium para sua manha.\nCorpo: Descubra a nova colecao artesanal.',
+            'Promo Blast': 'Oferta especial hoje. Garanta seu roast premium.',
+            'Lifecycle': 'Contexto: O ritual certo.\nBeneficio: Aroma intenso.\nCTA: Explore.',
+            'Nurture Series': 'Sequencia curta: ritual, aroma, CTA.'
+          };
+
+          const normalizeFormatLabel = (value) => {
+            const name = String(value || '').trim();
+            const map = {
+              Reels: 'Reel',
+              Stories: 'Story',
+              Carrossel: 'Carousel',
+              Feed: 'Feed Post',
+              Texto: 'Text Post',
+              Documento: 'Document Carousel',
+              Imagem: 'Single Image',
+              Video: 'Video Post',
+              FeedAd: 'Feed Ad',
+              StoryAd: 'Story Ad',
+              ReelAd: 'Reel Ad',
+              CarouselAd: 'Carousel Ad',
+              RSA: 'Search Ad',
+              Display: 'Display Banner',
+              Newsletter: 'Newsletter',
+              Promo: 'Promo Blast',
+              Nurture: 'Nurture Series',
+              Lifecycle: 'Lifecycle'
+            };
+            return map[name] || name;
+          };
+
+          const buildFormatMapFromProfiles = (profiles) => {
+            const next = {};
+            if (!Array.isArray(profiles)) return next;
+            profiles.forEach((profile) => {
+              const maxChars = profile?.maxChars || {};
+              const limit = maxChars.caption || maxChars.body || maxChars.headline || maxChars.cta || 2200;
+              const tip = (profile?.bestPractices && profile.bestPractices.length)
+                ? profile.bestPractices.slice(0, 3).join(' • ')
+                : (profile?.languageStyle || 'Diretrizes aplicadas.');
+              (profile?.supportedFormats || []).forEach((fmt) => {
+                const label = normalizeFormatLabel(fmt);
+                next[label] = { limit, tip };
+              });
+            });
+            return next;
+          };
+
+          const platformProfiles = safeParse(localStorage.getItem('edro_platform_profiles'), []);
+          const platformAliasMap = safeParse(localStorage.getItem('edro_platform_alias_map'), {});
+          const dynamicFormatMap = buildFormatMapFromProfiles(platformProfiles);
+          formatMap = { ...formatMap, ...dynamicFormatMap };
+
+          const queueEl = document.getElementById('inventory-queue');
+          const progressEl = document.getElementById('queue-progress');
+          const badge = document.getElementById('format-badge');
+          const badgesWrap = document.getElementById('format-badges');
+          const platformSelect = document.getElementById('platform-select');
+          const formatSelect = document.getElementById('format-select');
+          const copyBlocks = document.getElementById('copy-blocks');
+          const template = copyBlocks?.querySelector('[data-copy-template]');
+          const generateButton = document.getElementById('generate-multi');
+          const approveButton = document.getElementById('approve-copy');
+          const mockupContent = document.getElementById('mockup-content');
+          const mockupStep = document.getElementById('mockup-step');
+          const mockupSlideText = document.getElementById('mockup-slide-text');
+          const mockupCaption = document.getElementById('mockup-caption');
+          const mockupCta = document.getElementById('mockup-cta');
+          const mockupPlatform = document.getElementById('mockup-platform');
+          const mockupHandle = document.getElementById('mockup-handle');
+          const mockupAvatar = document.getElementById('mockup-avatar');
+          const mockupPrev = document.getElementById('mockup-prev');
+          const mockupNext = document.getElementById('mockup-next');
+          const mockupDots = document.getElementById('mockup-dots');
+          const openAiPanel = document.getElementById('open-ai-panel');
+          const closeAiPanel = document.getElementById('close-ai-panel');
+          const aiPanel = document.getElementById('ai-panel');
+
+          const setAiPanelVisible = (visible) => {
+            if (!aiPanel) return;
+            aiPanel.classList.toggle('hidden', !visible);
+          };
+
+          if (openAiPanel) {
+            openAiPanel.addEventListener('click', () => setAiPanelVisible(true));
+          }
+          if (closeAiPanel) {
+            closeAiPanel.addEventListener('click', () => setAiPanelVisible(false));
+          }
+
+          const carouselFormats = new Set([
+            'Carousel',
+            'Document Carousel',
+            'Photo Carousel',
+            'Carrossel',
+            'Carousel Ad',
+            'Documento',
+            'Document'
+          ]);
+
+          let activeSlides = [];
+          let activeSlideIndex = 0;
+
+          const slug = (value) => String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+
+          const buildInventoryFromCounts = (counts) => {
+            const items = [];
+            Object.keys(counts || {}).forEach((platform) => {
+              const formats = counts[platform] || {};
+              Object.keys(formats).forEach((format) => {
+                const total = Math.max(0, parseInt(formats[format], 10) || 0);
+                for (let i = 1; i <= total; i++) {
+                  const platformId = platformAliasMap[platform] || platform;
+                  items.push({
+                    id: `${slug(platform)}__${slug(format)}__${i}`,
+                    platform,
+                    platformId,
+                    format,
+                    index: i,
+                    total
+                  });
+                }
+              });
+            });
+            return items;
+          };
+
+          const buildLegacyInventory = (platforms, formats) => {
+            const platform = platforms[0] || localStorage.getItem(legacyPlatformKey) || 'Instagram';
+            const safeFormats = formats.length ? formats : safeParse(localStorage.getItem(legacyFormatsKey), []) || [];
+            const fallbackFormats = safeFormats.length ? safeFormats : ['Carousel'];
+            return fallbackFormats.map((format, idx) => ({
+              id: `${slug(platform)}__${slug(format)}__${idx + 1}`,
+              platform,
+              platformId: platformAliasMap[platform] || platform,
+              format,
+              index: idx + 1,
+              total: fallbackFormats.length
+            }));
+          };
+
+          const formatsParam = params.get('formats');
+          const platformsParam = params.get('platforms');
+          const legacyFormats = formatsParam ? formatsParam.split(',').map((x) => x.trim()).filter(Boolean) : [];
+          const legacyPlatforms = platformsParam ? platformsParam.split(',').map((x) => x.trim()).filter(Boolean) : [];
+
+          const countStore = safeParse(localStorage.getItem(countsByPlatformKey), {});
+          const storedInventory = safeParse(localStorage.getItem(inventoryKey), []);
+          let inventory = Array.isArray(storedInventory) && storedInventory.length ? storedInventory : buildInventoryFromCounts(countStore);
+          if (!inventory.length) {
+            inventory = buildLegacyInventory(legacyPlatforms, legacyFormats);
+          }
+
+          localStorage.setItem(inventoryKey, JSON.stringify(inventory));
+
+          let state = safeParse(localStorage.getItem(stateKey), {});
+          inventory.forEach((item) => {
+            if (!state[item.id]) {
+              state[item.id] = { copy: '', status: 'pending', history: [] };
+            }
+          });
+          localStorage.setItem(stateKey, JSON.stringify(state));
+
+          const getActiveId = () => {
+            const stored = localStorage.getItem(activeInventoryKey);
+            if (stored && inventory.find((item) => item.id === stored)) return stored;
+            const firstPending = inventory.find((item) => state[item.id]?.status !== 'done');
+            return firstPending?.id || inventory[0]?.id || '';
+          };
+
+          let activeId = getActiveId();
+
+          const briefingKey = 'edro_briefing_id';
+          const briefingContextKey = 'edro_briefing_context_key';
+
+          const resetBriefingIfNeeded = () => {
+            const stored = localStorage.getItem(briefingContextKey);
+            if (stored && stored !== contextKey) {
+              localStorage.removeItem(briefingKey);
+            }
+            localStorage.setItem(briefingContextKey, contextKey);
+          };
+
+          const ensureBriefingId = async () => {
+            resetBriefingIfNeeded();
+            const existing = localStorage.getItem(briefingKey);
+            if (existing) return existing;
+            if (!window.EdroStudio?.request) return null;
+
+            const payload = {
+              event: eventName,
+              date: resolvedDate,
+              segment: context.segment,
+              location: context.location,
+              tags: context.tags,
+              categories: context.categories,
+              score: context.score,
+              tier: context.tier,
+              why: context.why,
+              source: context.source,
+              trend: context.trend
+            };
+
+            try {
+              const response = await window.EdroStudio.request('/edro/briefings', {
+                method: 'POST',
+                body: JSON.stringify({
+                  client_name: clientName,
+                  client_segment: context.segment || undefined,
+                  title: eventName || 'Creative Studio Briefing',
+                  payload,
+                  source: 'studio',
+                  notify_traffic: false
+                })
+              });
+              const briefingId = response?.data?.briefing?.id;
+              if (briefingId) {
+                localStorage.setItem(briefingKey, briefingId);
+                return briefingId;
+              }
+            } catch (error) {
+              console.warn('briefing create failed', error);
+            }
+            return null;
+          };
+
+          const buildCopyInstructions = (item) => {
+            const parts = [];
+            if (clientName) parts.push(`Cliente: ${clientName}`);
+            if (eventName) parts.push(`Evento: ${eventName}`);
+            if (resolvedDate) parts.push(`Data: ${resolvedDate}`);
+            if (item?.platformId || item?.platform) parts.push(`Plataforma: ${item.platformId || item.platform}`);
+            if (item?.format) parts.push(`Formato: ${item.format}`);
+            if (context.segment) parts.push(`Segmento: ${context.segment}`);
+            if (context.location) parts.push(`Local: ${context.location}`);
+            if (context.tags) parts.push(`Tags: ${context.tags}`);
+            if (context.categories) parts.push(`Categorias: ${context.categories}`);
+            if (context.why) parts.push(`Contexto: ${context.why}`);
+            const tip = formatMap[item?.format]?.tip;
+            if (tip) parts.push(`Diretrizes: ${tip}`);
+            return parts.filter(Boolean).join('\n');
+          };
+
+          const generateCopyForItem = async (item) => {
+            if (!window.EdroStudio?.request) return null;
+            const briefingId = await ensureBriefingId();
+            if (!briefingId) return null;
+            const instructions = buildCopyInstructions(item);
+            const response = await window.EdroStudio.request(`/edro/briefings/${briefingId}/copy`, {
+              method: 'POST',
+              body: JSON.stringify({
+                language: 'pt',
+                count: 1,
+                instructions
+              })
+            });
+            const copy = response?.data?.copy;
+            const text = copy?.payload?.review_json?.copys?.[0] || copy?.output || '';
+            return String(text || '').trim();
+          };
+
+          const updateProgress = () => {
+            const doneCount = inventory.filter((item) => state[item.id]?.status === 'done').length;
+            if (progressEl) {
+              progressEl.textContent = `${doneCount} / ${inventory.length}`;
+            }
+          };
+
+          const renderPlatformOptions = () => {
+            if (!platformSelect) return;
+            const unique = Array.from(new Set(inventory.map((item) => item.platform)));
+            platformSelect.innerHTML = unique
+              .map((platform) => `<option value="${platform}">${platform}</option>`)
+              .join('');
+          };
+
+          const renderSummaryBadges = () => {
+            if (!badgesWrap) return;
+            const counts = {};
+            inventory.forEach((item) => {
+              const key = `${item.platform} • ${item.format}`;
+              counts[key] = (counts[key] || 0) + 1;
+            });
+            badgesWrap.innerHTML = Object.entries(counts)
+              .map(([label, count]) => {
+                const suffix = count > 1 ? ` • ${count}` : '';
+                return `<span class="px-2.5 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-full">${label}${suffix}</span>`;
+              })
+              .join('');
+          };
+
+          const renderQueue = () => {
+            if (!queueEl) return;
+            if (!inventory.length) {
+              queueEl.innerHTML = '<div class="text-xs text-slate-400">Nenhuma peca selecionada.</div>';
+              return;
+            }
+            queueEl.innerHTML = inventory.map((item) => {
+              const itemState = state[item.id] || {};
+              const isActive = item.id === activeId;
+              const isDone = itemState.status === 'done';
+              return `
+                <button class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors ${isActive ? 'border-primary bg-orange-50/60' : 'border-slate-200 bg-white'}" data-id="${item.id}">
+                  <div class="text-left">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest">${item.platform}</div>
+                    <div class="text-sm font-semibold">${item.format} <span class="text-xs text-slate-400">#${item.index}</span></div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-semibold ${isDone ? 'text-emerald-600' : 'text-slate-400'}">${isDone ? 'OK' : 'Pendente'}</span>
+                    <span class="material-symbols-outlined text-base ${isDone ? 'text-emerald-500' : 'text-slate-300'}">${isDone ? 'check_circle' : 'radio_button_unchecked'}</span>
+                  </div>
+                </button>
+              `;
+            }).join('');
+
+            queueEl.querySelectorAll('[data-id]').forEach((button) => {
+              button.addEventListener('click', () => {
+                const nextId = button.getAttribute('data-id');
+                if (nextId) setActive(nextId, true);
+              });
+            });
+          };
+
+          const buildSlides = (copyText, isCarousel) => {
+            const trimmed = (copyText || '').trim();
+            if (!trimmed) {
+              return {
+                slides: ['Seu copy vai aparecer aqui.'],
+                caption: 'Digite ou gere o copy para visualizar o mockup.',
+                cta: 'Saiba mais'
+              };
+            }
+
+            const lines = trimmed.split('\n').map((line) => line.trim()).filter(Boolean);
+            let cta = '';
+            const ctaIndex = lines.findIndex((line) => /^cta[:\-\s]/i.test(line));
+            if (ctaIndex >= 0) {
+              cta = lines[ctaIndex].replace(/^cta[:\-\s]*/i, '').trim();
+              lines.splice(ctaIndex, 1);
+            }
+
+            const paragraphs = trimmed.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+            let slideCandidates = paragraphs.length ? paragraphs : lines;
+            slideCandidates = slideCandidates
+              .map((part) => part.replace(/^(slide|gancho|valor|hook|cta)\s*\d*[:\-]\s*/i, '').trim())
+              .filter(Boolean);
+
+            let slides = isCarousel ? slideCandidates.slice(0, 3) : slideCandidates.slice(0, 1);
+            if (!slides.length) {
+              slides = [trimmed.slice(0, 120)];
+            }
+            if (isCarousel && slides.length < 3) {
+              while (slides.length < 3) {
+                slides.push(slides[slides.length - 1] || 'Defina o texto do proximo slide.');
+              }
+            }
+
+            const caption = slideCandidates.join(' ');
+            return {
+              slides,
+              caption: caption || trimmed,
+              cta: cta || 'Saiba mais'
+            };
+          };
+
+          const renderMockupSlide = (totalSlides) => {
+            if (!mockupSlideText) return;
+            const slide = activeSlides[activeSlideIndex] || '';
+            mockupSlideText.textContent = slide;
+            if (mockupStep) {
+              mockupStep.textContent = `${activeSlideIndex + 1} / ${totalSlides}`;
+            }
+            if (mockupDots) {
+              mockupDots.innerHTML = '';
+              for (let i = 0; i < totalSlides; i++) {
+                const dot = document.createElement('div');
+                dot.className = `w-1.5 h-1.5 rounded-full ${i === activeSlideIndex ? 'bg-white' : 'bg-white/40'}`;
+                mockupDots.appendChild(dot);
+              }
+            }
+          };
+
+          const updateMockup = (copyText, format, platform) => {
+            const isCarousel = carouselFormats.has(format);
+            const { slides, caption, cta } = buildSlides(copyText, isCarousel);
+
+            activeSlides = slides;
+            activeSlideIndex = 0;
+            if (mockupCaption) mockupCaption.textContent = caption;
+            if (mockupCta) mockupCta.textContent = cta;
+            if (mockupPlatform) mockupPlatform.textContent = platform || 'Instagram';
+
+            if (mockupPrev) mockupPrev.classList.toggle('hidden', !isCarousel);
+            if (mockupNext) mockupNext.classList.toggle('hidden', !isCarousel);
+            if (mockupDots) mockupDots.classList.toggle('hidden', !isCarousel);
+            if (mockupStep) mockupStep.classList.toggle('hidden', !isCarousel);
+
+            renderMockupSlide(isCarousel ? slides.length : 1);
+          };
+
+          const renderActive = () => {
+            const item = inventory.find((entry) => entry.id === activeId);
+            if (!item) return;
+            const meta = formatMap[item.format] || { limit: 2200, tip: 'Diretrizes aplicadas.' };
+
+            if (badge) {
+              badge.textContent = `${item.platform} • ${item.format}`;
+            }
+
+            if (platformSelect) {
+              platformSelect.value = item.platform;
+            }
+
+            if (formatSelect) {
+              formatSelect.innerHTML = `<option>${item.format}</option>`;
+            }
+
+            if (mockupHandle) {
+              mockupHandle.textContent = document.getElementById('client-name')?.textContent || 'Cliente';
+            }
+            if (mockupAvatar) {
+              mockupAvatar.textContent = document.getElementById('client-badge')?.textContent || 'ED';
+            }
+
+            if (copyBlocks && template) {
+              copyBlocks.innerHTML = '';
+              const block = template.cloneNode(true);
+              const label = block.querySelector('.copy-label');
+              const limit = block.querySelector('.copy-limit');
+              const tip = block.querySelector('.copy-tip');
+              const textarea = block.querySelector('.copy-textarea');
+              const refineInput = block.querySelector('.refine-input');
+              const refineButton = block.querySelector('.refine-button');
+              const refineLog = block.querySelector('.refine-log');
+
+              const current = state[item.id]?.copy || '';
+
+              if (label) label.textContent = `Caption & Copy — ${item.format}`;
+              if (tip) tip.textContent = meta.tip;
+              if (textarea) textarea.value = current;
+              if (limit) limit.textContent = `${(current || '').length}/${meta.limit}`;
+
+              if (refineLog) {
+                refineLog.innerHTML = '';
+                (state[item.id]?.history || []).forEach((entry) => {
+                  const line = document.createElement('div');
+                  line.className = entry.role === 'ai' ? 'text-emerald-600' : 'text-slate-400';
+                  line.textContent = `${entry.role === 'ai' ? 'IA' : 'Voce'}: ${entry.text}`;
+                  refineLog.appendChild(line);
+                });
+              }
+
+              if (textarea) {
+                textarea.addEventListener('input', () => {
+                  state[item.id].copy = textarea.value;
+                  localStorage.setItem(stateKey, JSON.stringify(state));
+                  if (limit) limit.textContent = `${textarea.value.length}/${meta.limit}`;
+                  updateMockup(textarea.value, item.format, item.platform);
+                });
+              }
+
+              if (refineButton && refineInput && textarea) {
+                refineButton.addEventListener('click', () => {
+                  const prompt = refineInput.value.trim();
+                  if (!prompt) return;
+                  const history = state[item.id].history || [];
+                  history.push({ role: 'user', text: prompt });
+                  const aiText = `Sugestao aplicada: ${prompt}.`;
+                  history.push({ role: 'ai', text: aiText });
+                  state[item.id].history = history;
+                  textarea.value = textarea.value ? `${textarea.value}\n\n${aiText}` : aiText;
+                  state[item.id].copy = textarea.value;
+                  localStorage.setItem(stateKey, JSON.stringify(state));
+                  if (limit) limit.textContent = `${textarea.value.length}/${meta.limit}`;
+                  if (refineLog) {
+                    const userLine = document.createElement('div');
+                    userLine.className = 'text-slate-400';
+                    userLine.textContent = `Voce: ${prompt}`;
+                    refineLog.appendChild(userLine);
+                    const aiLine = document.createElement('div');
+                    aiLine.className = 'text-emerald-600';
+                    aiLine.textContent = `IA: ${aiText}`;
+                    refineLog.appendChild(aiLine);
+                  }
+                  refineInput.value = '';
+                  updateMockup(textarea.value, item.format, item.platform);
+                });
+              }
+
+              copyBlocks.appendChild(block);
+              updateMockup(current, item.format, item.platform);
+            }
+          };
+
+          const setActive = (id, focus) => {
+            activeId = id;
+            localStorage.setItem(activeInventoryKey, activeId);
+            renderQueue();
+            renderActive();
+            updateProgress();
+            if (focus && copyBlocks) {
+              const textarea = copyBlocks.querySelector('.copy-textarea');
+              textarea?.focus();
+            }
+          };
+
+          if (generateButton) {
+            generateButton.innerHTML = '<span class="material-symbols-outlined">auto_awesome</span> Gerar copy para esta peca';
+            generateButton.addEventListener('click', async () => {
+              const item = inventory.find((entry) => entry.id === activeId);
+              if (!item) return;
+              const originalLabel = generateButton.innerHTML;
+              generateButton.disabled = true;
+              generateButton.classList.add('opacity-60');
+              generateButton.innerHTML = '<span class="material-symbols-outlined">auto_awesome</span> Gerando copy...';
+
+              let suggestion = null;
+              try {
+                suggestion = await generateCopyForItem(item);
+              } catch (error) {
+                console.warn('copy generation failed', error);
+              }
+
+              if (!suggestion) {
+                suggestion = sampleCopy[item.format] || 'Copy gerado automaticamente para este formato.';
+              }
+
+              state[item.id].copy = suggestion;
+              localStorage.setItem(stateKey, JSON.stringify(state));
+              renderActive();
+              updateProgress();
+              generateButton.disabled = false;
+              generateButton.classList.remove('opacity-60');
+              generateButton.innerHTML = originalLabel;
+            });
+          }
+
+          if (mockupPrev) {
+            mockupPrev.addEventListener('click', () => {
+              if (!activeSlides.length) return;
+              activeSlideIndex = (activeSlideIndex - 1 + activeSlides.length) % activeSlides.length;
+              renderMockupSlide(activeSlides.length);
+            });
+          }
+
+          if (mockupNext) {
+            mockupNext.addEventListener('click', () => {
+              if (!activeSlides.length) return;
+              activeSlideIndex = (activeSlideIndex + 1) % activeSlides.length;
+              renderMockupSlide(activeSlides.length);
+            });
+          }
+
+          if (approveButton) {
+            approveButton.addEventListener('click', () => {
+              const item = inventory.find((entry) => entry.id === activeId);
+              if (!item) return;
+              state[item.id].status = 'done';
+              localStorage.setItem(stateKey, JSON.stringify(state));
+              const nextPending = inventory.find((entry) => state[entry.id]?.status !== 'done');
+              if (nextPending) {
+                setActive(nextPending.id, true);
+              } else {
+                renderQueue();
+                updateProgress();
+              }
+            });
+          }
+
+          renderPlatformOptions();
+          renderSummaryBadges();
+          renderQueue();
+          updateProgress();
+          if (activeId) {
+            setActive(activeId, false);
+          }
+        })();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

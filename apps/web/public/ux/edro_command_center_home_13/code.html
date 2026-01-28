@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tab-active {
+            @apply border-primary text-primary border-b-2;
+        }
+        .tab-inactive {
+            @apply border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300;
+        }
+        .chart-grid {
+            background-image: radial-gradient(circle, #e5e7eb 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .dark .chart-grid {
+            background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Clients</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-100 font-medium">Azul</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+</div>
+</div>
+</header>
+<div class="px-8 pt-10 pb-2">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-6">
+<button class="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<div>
+<h1 class="font-display text-6xl text-slate-900 dark:text-white leading-tight">Azul</h1>
+<p class="text-slate-500 text-sm mt-1">Performance Analytics Dashboard</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm text-slate-500">file_download</span>
+                    Export Report
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-white border border-primary rounded-lg hover:bg-orange-600 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm">refresh</span>
+                    Refresh Data
+                </button>
+</div>
+</div>
+<div class="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+<nav class="flex space-x-8 min-w-max">
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul">Overview</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/calendar">Calendar</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/planning">Planning</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/creative">Creative</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/clipping">Clipping</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/library">Library</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/insights">Insights</button>
+<button class="tab-active py-4 px-1 text-sm font-semibold flex items-center gap-2 transition-all" data-route="/clients/azul/performance">Performance</button>
+</nav>
+</div>
+</div>
+<div class="px-8 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+<div class="flex flex-wrap items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Platform:</span>
+<select class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-md focus:ring-primary focus:border-primary">
+<option>All Platforms</option>
+<option>Instagram</option>
+<option>LinkedIn</option>
+<option>Twitter / X</option>
+<option>TikTok</option>
+</select>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Period:</span>
+<div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-slate-300">
+<span class="material-symbols-outlined text-sm text-slate-400">calendar_month</span>
+<span>Last 30 Days</span>
+<span class="material-symbols-outlined text-sm text-slate-400">expand_more</span>
+</div>
+</div>
+</div>
+</div>
+<div class="p-8 max-w-none space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Reach</p>
+<span class="text-green-500 text-xs font-bold flex items-center">+12.4%</span>
+</div>
+<h3 class="text-3xl font-display text-slate-900 dark:text-white">1,284,502</h3>
+<div class="mt-4 h-10 w-full flex items-end gap-1">
+<div class="bg-primary/10 w-full h-[60%] rounded-sm"></div>
+<div class="bg-primary/20 w-full h-[80%] rounded-sm"></div>
+<div class="bg-primary/40 w-full h-[50%] rounded-sm"></div>
+<div class="bg-primary/60 w-full h-[90%] rounded-sm"></div>
+<div class="bg-primary w-full h-[75%] rounded-sm"></div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Engagement Rate</p>
+<span class="text-green-500 text-xs font-bold flex items-center">+3.2%</span>
+</div>
+<h3 class="text-3xl font-display text-slate-900 dark:text-white">4.82%</h3>
+<div class="mt-4 h-10 w-full flex items-end gap-1">
+<div class="bg-slate-200 w-full h-[40%] rounded-sm"></div>
+<div class="bg-slate-200 w-full h-[55%] rounded-sm"></div>
+<div class="bg-primary/60 w-full h-[70%] rounded-sm"></div>
+<div class="bg-primary/80 w-full h-[65%] rounded-sm"></div>
+<div class="bg-primary w-full h-[85%] rounded-sm"></div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Avg. CTR</p>
+<span class="text-red-500 text-xs font-bold flex items-center">-0.8%</span>
+</div>
+<h3 class="text-3xl font-display text-slate-900 dark:text-white">1.15%</h3>
+<div class="mt-4 h-10 w-full flex items-end gap-1">
+<div class="bg-slate-200 w-full h-[70%] rounded-sm"></div>
+<div class="bg-slate-200 w-full h-[60%] rounded-sm"></div>
+<div class="bg-slate-200 w-full h-[65%] rounded-sm"></div>
+<div class="bg-slate-200 w-full h-[50%] rounded-sm"></div>
+<div class="bg-slate-200 w-full h-[45%] rounded-sm"></div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Conversion</p>
+<span class="text-green-500 text-xs font-bold flex items-center">+5.7%</span>
+</div>
+<h3 class="text-3xl font-display text-slate-900 dark:text-white">0.42%</h3>
+<div class="mt-4 h-10 w-full flex items-end gap-1">
+<div class="bg-primary/10 w-full h-[30%] rounded-sm"></div>
+<div class="bg-primary/30 w-full h-[45%] rounded-sm"></div>
+<div class="bg-primary/50 w-full h-[60%] rounded-sm"></div>
+<div class="bg-primary/70 w-full h-[75%] rounded-sm"></div>
+<div class="bg-primary w-full h-[95%] rounded-sm"></div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Engagement Over Time</h3>
+<p class="text-sm text-slate-500">Comparative analysis of audience interactions</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-xs font-medium">Interactions</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-slate-400"></span>
+<span class="text-xs font-medium">Reach</span>
+</div>
+</div>
+</div>
+<div class="h-80 w-full chart-grid relative border-l border-b border-slate-200 dark:border-slate-700">
+<svg class="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
+<path d="M 0 280 Q 150 240 300 180 T 600 140 T 900 60 T 1200 100" fill="none" stroke="#FF6600" stroke-width="3"></path>
+<path d="M 0 200 Q 150 220 300 120 T 600 180 T 900 100 T 1200 140" fill="none" stroke="#94a3b8" stroke-dasharray="4" stroke-width="2"></path>
+</svg>
+<div class="absolute bottom-[-24px] w-full flex justify-between px-4 text-[10px] text-slate-400 font-bold">
+<span>OCT 01</span>
+<span>OCT 07</span>
+<span>OCT 14</span>
+<span>OCT 21</span>
+<span>OCT 28</span>
+<span>NOV 01</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Platform Distribution</h3>
+<div class="flex items-center gap-8 h-48">
+<div class="relative w-40 h-40">
+<svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+<circle class="stroke-slate-100 dark:stroke-slate-800" cx="18" cy="18" fill="none" r="15.915" stroke-width="4"></circle>
+<circle class="stroke-primary" cx="18" cy="18" fill="none" r="15.915" stroke-dasharray="60 40" stroke-dashoffset="0" stroke-width="4"></circle>
+<circle class="stroke-slate-400" cx="18" cy="18" fill="none" r="15.915" stroke-dasharray="25 75" stroke-dashoffset="-60" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-2xl font-display">1.2M</span>
+<span class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Total</span>
+</div>
+</div>
+<div class="flex-1 space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-sm">Instagram</span>
+</div>
+<span class="text-sm font-bold">60%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+<span class="text-sm">LinkedIn</span>
+</div>
+<span class="text-sm font-bold">25%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700"></span>
+<span class="text-sm">Other</span>
+</div>
+<span class="text-sm font-bold">15%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Top Performing Formats</h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-xs font-bold mb-1">
+<span>Video / Reels</span>
+<span>42.5k Eng.</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full">
+<div class="bg-primary h-full rounded-full w-[85%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1">
+<span>Carousel</span>
+<span>28.1k Eng.</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full">
+<div class="bg-primary/70 h-full rounded-full w-[60%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1">
+<span>Static Image</span>
+<span>12.4k Eng.</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full">
+<div class="bg-primary/40 h-full rounded-full w-[35%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1">
+<span>Stories</span>
+<span>9.2k Eng.</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full">
+<div class="bg-primary/20 h-full rounded-full w-[25%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Post Performance</h3>
+<button class="text-primary text-xs font-bold hover:underline">View Detailed Table</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Content</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Reach</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Engagement</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">ROI</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 text-sm text-slate-500">Oct 24, 2023</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-[10px] font-bold rounded uppercase">Instagram</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="post thumbnail" class="w-8 h-8 rounded object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHJd-M7LqhiXbEk2UuIwUN6I1zQbYR_SrAs5Lq4aCC_HhE7oN-aNcGXGBxkA9UDyiSoVUb-483SCukWsEY0UVn49GaYTuNP8vE-atC7TOa8Jl-kCzrG86VTtrhgGTRTHEPwSNAHap5_LOsMgs0OOVslNXjjmOfIqOL28W8Sdk3XEaLG4UzeEh9r4ZVY3j_pxs8pQdlBifFbSH_nxh0GqsVOP9MMf2a9t9TqfgBm7hEldILAtGWLNCXb1xnJ9y5U0R5dUEhL2TwAK4"/>
+<span class="text-sm font-medium truncate max-w-[150px]">The Golden Hour Brew...</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">12.4k</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">4.2%</td>
+<td class="px-6 py-4 text-sm font-bold text-green-600 text-right">3.2x</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 text-sm text-slate-500">Oct 22, 2023</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded uppercase">LinkedIn</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="post thumbnail" class="w-8 h-8 rounded object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPxQJZtWP2gCKWz-vlXAwF7tGx8vOpCQOQZMxYIB2IrjA-Eq79xazoP3HVYA1hBasWiDyY6qsqBq7v89FIKBeGq1H6KBnqH9WnedYlVtW6d4MOPdLOx2pIuK2eTfvJzhBrW1SdqHv9QeA-ygMvuwnV2z4uxWTjWLgWlnPZ9YRunCiT36j002u8EcVl1GZb_Qz8gDjpCVXs-GOl8aj1C1NxNKNyO8eMVKR_I-0hEgckmG_o_4XJ4NhJ0rtTeyMOKlKGS4mVrxh_vW0"/>
+<span class="text-sm font-medium truncate max-w-[150px]">Sustainability Report...</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">8.1k</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">2.8%</td>
+<td class="px-6 py-4 text-sm font-bold text-green-600 text-right">1.8x</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 text-sm text-slate-500">Oct 20, 2023</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-[10px] font-bold rounded uppercase">Instagram</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="post thumbnail" class="w-8 h-8 rounded object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+<span class="text-sm font-medium truncate max-w-[150px]">Behind the Scenes...</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">24.5k</td>
+<td class="px-6 py-4 text-sm font-semibold text-right">5.1%</td>
+<td class="px-6 py-4 text-sm font-bold text-green-600 text-right">4.5x</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="bg-slate-100/50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-12 flex flex-col items-center text-center">
+<div class="w-16 h-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-sm">
+<span class="material-symbols-outlined text-3xl text-slate-300">link_off</span>
+</div>
+<h4 class="text-xl font-display text-slate-900 dark:text-white mb-2">Analytics Disconnected</h4>
+<p class="text-slate-500 text-sm max-w-sm mb-8">Certain data sources have been disconnected or need re-authorization to display real-time insights.</p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-orange-500/20 text-sm">
+                Connect Data Source
+            </button>
+</div>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2023 Edro Creative Studio • Azul Performance Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

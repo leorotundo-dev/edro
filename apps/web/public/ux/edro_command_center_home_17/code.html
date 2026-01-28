@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tab-active {
+            @apply border-primary text-primary border-b-2;
+        }
+        .tab-inactive {
+            @apply border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300;
+        }
+        .roadmap-bar {
+            @apply h-8 rounded-full flex items-center px-4 text-[10px] font-bold uppercase tracking-wider text-white;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Clients</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-100 font-medium">Azul</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+</div>
+</div>
+</header>
+<div class="px-8 pt-10 pb-2">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-6">
+<button class="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<div>
+<h1 class="font-display text-6xl text-slate-900 dark:text-white leading-tight">Azul</h1>
+<p class="text-slate-500 text-sm mt-1">Strategic Planning • 2024 Fiscal Year</p>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm text-slate-500">file_download</span>
+                    Export PDF
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-orange-600 transition-all font-semibold text-sm shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined text-sm">save</span>
+                    Save Planning
+                </button>
+</div>
+</div>
+<div class="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+<nav class="flex space-x-8 min-w-max">
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul">Overview</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/calendar">Calendar</button>
+<button class="tab-active py-4 px-1 text-sm font-semibold flex items-center gap-2 transition-all" data-route="/clients/azul/planning">Planning</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/creative">Creative</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/clipping">Clipping</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/library">Library</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/insights">Insights</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/performance">Performance</button>
+</nav>
+</div>
+</div>
+<div class="p-8 max-w-none space-y-8">
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="w-8 h-[1px] bg-primary"></span>
+<h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Strategic Foundation</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+<h3 class="font-display text-3xl mb-4">Brand Positioning</h3>
+<p class="text-slate-600 dark:text-slate-300 leading-relaxed text-lg italic">
+                        "For the conscious urbanite who values quality and heritage, Azul offers a premium organic beverage experience that connects modern lifestyle with authentic sustainable practices."
+                    </p>
+<div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Primary Voice</p>
+<p class="font-medium text-slate-800 dark:text-slate-200">Sophisticated, Earnest, Timeless</p>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+<h3 class="font-display text-3xl mb-4">Strategic Objectives</h3>
+<ul class="space-y-4">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+<span class="text-slate-600 dark:text-slate-300">Increase brand awareness in European markets by 25% through localized storytelling.</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+<span class="text-slate-600 dark:text-slate-300">Establish 'The Blue Hour' as a signature social media ritual for consumers.</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+<span class="text-slate-600 dark:text-slate-300">Launch 3 new collaborative capsule collections with sustainable artisans.</span>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="w-8 h-[1px] bg-primary"></span>
+<h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Direction</h2>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm relative overflow-hidden">
+<div class="max-w-none">
+<h3 class="font-display text-4xl mb-6">Minimalist Elegance &amp; Tactile Heritage</h3>
+<p class="text-slate-600 dark:text-slate-300 text-lg leading-relaxed mb-6">
+                        The visual strategy for 2024 centers on 'Raw Sophistication'. We will transition from high-gloss studio environments to natural, high-contrast natural light photography. The color palette remains anchored in Cobalt and Ecru, with seasonal accents introduced through prop styling.
+                    </p>
+<div class="flex flex-wrap gap-4">
+<span class="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-full uppercase">Natural Grain</span>
+<span class="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-full uppercase">Architectural Framing</span>
+<span class="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-full uppercase">Human Centric</span>
+</div>
+</div>
+<div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 pointer-events-none hidden lg:block">
+<svg class="h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M0 0 L100 0 L100 100 Z" fill="currentColor"></path>
+</svg>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="w-8 h-[1px] bg-primary"></span>
+<h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Content Pillars</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 text-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">history_edu</span>
+</div>
+<h4 class="font-bold text-sm mb-2">Product Heritage</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Deep dives into sourcing, botanical history, and craft.</p>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 text-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">group</span>
+</div>
+<h4 class="font-bold text-sm mb-2">Community Stories</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">User generated content and local tastemaker profiles.</p>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 text-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">eco</span>
+</div>
+<h4 class="font-bold text-sm mb-2">Sustainability</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Radical transparency on packaging and supply chain.</p>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 text-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<h4 class="font-bold text-sm mb-2">The Blue Hour</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Lifestyle aesthetic moments and consumption rituals.</p>
+</div>
+<div class="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary mb-2">add_circle</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Add Pillar</span>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="w-8 h-[1px] bg-primary"></span>
+<h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Annual Roadmap</h2>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+<div class="grid grid-cols-4 mb-8 border-b border-slate-100 dark:border-slate-800 pb-4">
+<div class="text-center font-display text-2xl text-slate-400">Q1</div>
+<div class="text-center font-display text-2xl text-slate-400 border-l border-slate-100 dark:border-slate-800">Q2</div>
+<div class="text-center font-display text-2xl text-slate-400 border-l border-slate-100 dark:border-slate-800">Q3</div>
+<div class="text-center font-display text-2xl text-slate-400 border-l border-slate-100 dark:border-slate-800">Q4</div>
+</div>
+<div class="space-y-6 relative">
+<div class="absolute inset-0 flex justify-between pointer-events-none opacity-20">
+<div class="w-[1px] h-full bg-slate-300 dark:bg-slate-700"></div>
+<div class="w-[1px] h-full bg-slate-300 dark:bg-slate-700"></div>
+<div class="w-[1px] h-full bg-slate-300 dark:bg-slate-700"></div>
+<div class="w-[1px] h-full bg-slate-300 dark:bg-slate-700"></div>
+<div class="w-[1px] h-full bg-slate-300 dark:bg-slate-700"></div>
+</div>
+<div class="relative z-10">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Brand Awareness</p>
+<div class="w-3/4 roadmap-bar bg-primary shadow-sm shadow-orange-500/20">Always-On Narrative</div>
+</div>
+<div class="relative z-10 ml-[25%]">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-2">New Collection Launch</p>
+<div class="w-1/4 roadmap-bar bg-indigo-500 shadow-sm shadow-indigo-500/20">Summer Artisan Series</div>
+</div>
+<div class="relative z-10 ml-[75%]">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Holiday Push</p>
+<div class="w-1/4 roadmap-bar bg-rose-500 shadow-sm shadow-rose-500/20">Gifting Season 24</div>
+</div>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-3 mb-6">
+<span class="w-8 h-[1px] bg-primary"></span>
+<h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Notes</h2>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-sm">
+<textarea class="w-full h-48 bg-transparent border-none focus:ring-0 p-6 text-slate-600 dark:text-slate-300 resize-none placeholder:text-slate-400" placeholder="Type collaborative notes here... These are persistent across the creative team.">Reminder: Always cross-reference the moodboard in the Creative Studio tab when selecting influencers for the Q2 Summer Series. The emphasis is on authentic texture and morning light. 
+Approved Hashtags: #AzulHeritage #TheBlueHour #OrganicSophistication
+                </textarea>
+<div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-between items-center">
+<span class="text-[10px] font-bold text-slate-400 uppercase">Last updated by Alex Rivera • 2h ago</span>
+<button class="text-primary text-[10px] font-bold uppercase hover:underline">Edit Notes</button>
+</div>
+</div>
+</section>
+<div class="hidden flex-col items-center justify-center py-24 text-center">
+<div class="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-4xl text-slate-300">strategy</span>
+</div>
+<h3 class="font-display text-3xl mb-2">No strategic planning defined yet</h3>
+<p class="text-slate-500 max-w-sm mb-8">Kickstart the yearly vision for Azul by setting your foundations and content pillars.</p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">add</span> Create Strategy
+            </button>
+</div>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2024 Edro Creative Studio • Azul Strategic Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

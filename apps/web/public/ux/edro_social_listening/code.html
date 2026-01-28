@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Social Listening</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f9fafb;
+        --card: #ffffff;
+        --border: #e5e7eb;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #ff6600;
+        --positive: #22c55e;
+        --negative: #ef4444;
+        --neutral: #f59e0b;
+        --shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+        --radius-lg: 18px;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        padding: 28px 36px 60px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin: 0;
+      }
+
+      .header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+      }
+
+      .button {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(255, 102, 0, 0.2);
+      }
+
+      .button.secondary {
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+        box-shadow: none;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .stat-value {
+        font-size: 26px;
+        font-weight: 700;
+      }
+
+      .stat-label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 18px 20px;
+        margin-bottom: 24px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .section-title {
+        font-weight: 700;
+        font-size: 16px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .list-item {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .list-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .badge.positive { background: rgba(34, 197, 94, 0.15); color: var(--positive); }
+      .badge.negative { background: rgba(239, 68, 68, 0.15); color: var(--negative); }
+      .badge.neutral { background: rgba(245, 158, 11, 0.15); color: var(--neutral); }
+
+      .keyword-form {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      .input {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 10px;
+        min-width: 180px;
+      }
+
+      .toggle {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        background: #fff;
+      }
+
+      .keyword-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 8px 12px;
+      }
+
+      .pill {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: var(--muted);
+        margin-left: 6px;
+      }
+
+      .empty {
+        padding: 12px;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-md);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+      }
+
+      @media (max-width: 960px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div>
+          <h1>Social Listening</h1>
+          <p>Monitoramento de conversas e tendencias das marcas</p>
+        </div>
+        <div class="actions">
+          <button class="button secondary" id="refreshButton">Atualizar dados</button>
+          <button class="button" id="collectButton">Coletar agora</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-label">Mencoes (7 dias)</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="statPositive">0</div>
+          <div class="stat-label">Positivas</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="statNeutral">0</div>
+          <div class="stat-label">Neutras</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="statNegative">0</div>
+          <div class="stat-label">Negativas</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <div class="section">
+            <div class="section-header">
+              <div class="section-title">Mencoes recentes</div>
+              <div class="muted" id="mentionsMeta">0 itens</div>
+            </div>
+            <div class="list" id="mentionsList"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <div class="section-title">Tendencias</div>
+              <div class="muted" id="trendsMeta">0 itens</div>
+            </div>
+            <div class="list" id="trendsList"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section">
+            <div class="section-header">
+              <div class="section-title">Keywords monitoradas</div>
+              <div class="muted" id="keywordsMeta">0 keywords</div>
+            </div>
+            <div class="list" id="keywordsList"></div>
+            <div class="keyword-form">
+              <input class="input" id="keywordInput" placeholder="Nova keyword" />
+              <input class="input" id="keywordCategory" placeholder="Categoria (opcional)" />
+              <button class="button" id="addKeywordButton">Adicionar</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <div class="section-title">Plataformas</div>
+            </div>
+            <div class="list" id="platformList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/ux/edro-studio-api.js"></script>
+    <script>
+      const api = window.EdroStudio;
+      const clientId = api?.getClientId ? api.getClientId() : null;
+
+      const elements = {
+        statTotal: document.getElementById('statTotal'),
+        statPositive: document.getElementById('statPositive'),
+        statNeutral: document.getElementById('statNeutral'),
+        statNegative: document.getElementById('statNegative'),
+        mentionsList: document.getElementById('mentionsList'),
+        mentionsMeta: document.getElementById('mentionsMeta'),
+        trendsList: document.getElementById('trendsList'),
+        trendsMeta: document.getElementById('trendsMeta'),
+        keywordsList: document.getElementById('keywordsList'),
+        keywordsMeta: document.getElementById('keywordsMeta'),
+        platformList: document.getElementById('platformList'),
+        refreshButton: document.getElementById('refreshButton'),
+        collectButton: document.getElementById('collectButton'),
+        addKeywordButton: document.getElementById('addKeywordButton'),
+        keywordInput: document.getElementById('keywordInput'),
+        keywordCategory: document.getElementById('keywordCategory'),
+      };
+
+      const buildQuery = (params) => {
+        const search = new URLSearchParams();
+        Object.entries(params || {}).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') return;
+          search.set(key, value);
+        });
+        const query = search.toString();
+        return query ? `?${query}` : '';
+      };
+
+      const formatNumber = (value) => {
+        const num = Number(value || 0);
+        return num.toLocaleString('pt-BR');
+      };
+
+      const renderMentions = (mentions) => {
+        elements.mentionsList.innerHTML = '';
+        if (!mentions.length) {
+          elements.mentionsList.innerHTML = '<div class="empty">Nenhuma mencao recente.</div>';
+          elements.mentionsMeta.textContent = '0 itens';
+          return;
+        }
+        elements.mentionsMeta.textContent = `${mentions.length} itens`;
+        mentions.forEach((mention) => {
+          const sentiment = mention.sentiment || 'neutral';
+          const badgeClass = sentiment === 'positive' ? 'positive' : sentiment === 'negative' ? 'negative' : 'neutral';
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div class="list-item-header">
+              <strong>${mention.platform || 'Social'}</strong>
+              <span class="badge ${badgeClass}">${sentiment}</span>
+            </div>
+            <div>${mention.content || ''}</div>
+            <div class="muted">${mention.author || 'Anonimo'} · ${mention.published_at ? new Date(mention.published_at).toLocaleDateString('pt-BR') : ''}</div>
+          `;
+          elements.mentionsList.appendChild(item);
+        });
+      };
+
+      const renderTrends = (trends) => {
+        elements.trendsList.innerHTML = '';
+        if (!trends.length) {
+          elements.trendsList.innerHTML = '<div class="empty">Nenhuma tendencia registrada.</div>';
+          elements.trendsMeta.textContent = '0 itens';
+          return;
+        }
+        elements.trendsMeta.textContent = `${trends.length} itens`;
+        trends.forEach((trend) => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div class="list-item-header">
+              <strong>${trend.keyword}</strong>
+              <span class="pill">${trend.platform}</span>
+            </div>
+            <div class="muted">${trend.mention_count} mencoes · Sentimento medio ${trend.average_sentiment || 0}%</div>
+          `;
+          elements.trendsList.appendChild(item);
+        });
+      };
+
+      const renderKeywords = (keywords) => {
+        elements.keywordsList.innerHTML = '';
+        elements.keywordsMeta.textContent = `${keywords.length} keywords`;
+        if (!keywords.length) {
+          elements.keywordsList.innerHTML = '<div class="empty">Nenhuma keyword cadastrada.</div>';
+          return;
+        }
+        keywords.forEach((keyword) => {
+          const row = document.createElement('div');
+          row.className = 'keyword-row';
+          row.innerHTML = `
+            <div>
+              <strong>${keyword.keyword}</strong>
+              ${keyword.category ? `<span class="pill">${keyword.category}</span>` : ''}
+            </div>
+            <div>
+              <button class="toggle" data-id="${keyword.id}" data-active="${keyword.is_active}">
+                ${keyword.is_active ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          `;
+          row.querySelector('button').addEventListener('click', async (event) => {
+            const isActive = event.target.getAttribute('data-active') === 'true';
+            await api.request(`/social-listening/keywords/${keyword.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ is_active: !isActive }),
+            });
+            await loadData();
+          });
+          elements.keywordsList.appendChild(row);
+        });
+      };
+
+      const renderPlatforms = (platforms) => {
+        elements.platformList.innerHTML = '';
+        if (!platforms.length) {
+          elements.platformList.innerHTML = '<div class="empty">Sem dados por plataforma.</div>';
+          return;
+        }
+        platforms.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'list-item';
+          row.innerHTML = `
+            <div class="list-item-header">
+              <strong>${item.platform}</strong>
+              <span class="pill">${item.total} mencoes</span>
+            </div>
+          `;
+          elements.platformList.appendChild(row);
+        });
+      };
+
+      const loadData = async () => {
+        try {
+          const baseQuery = { clientId };
+          const stats = await api.request(`/social-listening/stats${buildQuery(baseQuery)}`, { method: 'GET' });
+          elements.statTotal.textContent = formatNumber(stats.summary?.total || 0);
+          elements.statPositive.textContent = formatNumber(stats.summary?.positive || 0);
+          elements.statNeutral.textContent = formatNumber(stats.summary?.neutral || 0);
+          elements.statNegative.textContent = formatNumber(stats.summary?.negative || 0);
+          renderPlatforms(stats.platforms || []);
+
+          const mentions = await api.request(
+            `/social-listening/mentions${buildQuery({ ...baseQuery, limit: 20 })}`,
+            { method: 'GET' }
+          );
+          renderMentions(mentions.mentions || []);
+
+          const trends = await api.request(
+            `/social-listening/trends${buildQuery({ ...baseQuery, limit: 10 })}`,
+            { method: 'GET' }
+          );
+          renderTrends(trends.trends || []);
+
+          const keywords = await api.request(`/social-listening/keywords${buildQuery(baseQuery)}`, { method: 'GET' });
+          renderKeywords(keywords || []);
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      elements.refreshButton.addEventListener('click', loadData);
+
+      elements.collectButton.addEventListener('click', async () => {
+        try {
+          await api.request('/social-listening/collect', {
+            method: 'POST',
+            body: JSON.stringify({ limit: 20, clientId }),
+          });
+          await loadData();
+        } catch (error) {
+          console.error(error);
+        }
+      });
+
+      elements.addKeywordButton.addEventListener('click', async () => {
+        const keyword = elements.keywordInput.value.trim();
+        const category = elements.keywordCategory.value.trim();
+        if (!keyword) return;
+        await api.request('/social-listening/keywords', {
+          method: 'POST',
+          body: JSON.stringify({ keyword, category: category || undefined, client_id: clientId || undefined }),
+        });
+        elements.keywordInput.value = '';
+        elements.keywordCategory.value = '';
+        await loadData();
+      });
+
+      loadData();
+    </script>
+  </body>
+</html>
