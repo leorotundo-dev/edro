@@ -227,6 +227,8 @@ const clampText = (value: string, max = 140) => {
   return `${normalized.slice(0, max - 1)}…`;
 };
 
+const DISPLAY_SCALE = 0.72;
+
 const buildMinimalCopy = (
   item: MockupItem,
   fields: { headline: string; body: string; cta: string; fullText: string },
@@ -1055,13 +1057,18 @@ export default function Page() {
     const baseKey = item.baseId || item.id;
     const measured = measuredSizes[baseKey];
     if (measured?.width && measured?.height) {
+      const scaledWidth = Math.max(220, Math.round(measured.width * DISPLAY_SCALE));
+      const scaledHeight = Math.max(180, Math.round(measured.height * DISPLAY_SCALE));
       return {
-        width: measured.width,
-        height: measured.height,
-        ratio: measured.width / measured.height,
+        width: scaledWidth,
+        height: scaledHeight,
+        ratio: scaledWidth / scaledHeight,
       };
     }
-    return resolveFrameSize(item.format, item.platform, ratio);
+    const frame = resolveFrameSize(item.format, item.platform, ratio);
+    const scaledWidth = Math.max(220, Math.round(frame.width * DISPLAY_SCALE));
+    const scaledHeight = Math.max(180, Math.round(frame.height * DISPLAY_SCALE));
+    return { width: scaledWidth, height: scaledHeight, ratio: scaledWidth / scaledHeight };
   };
 
   const getMeasureFrameSize = (item: MockupItem) => {
@@ -1133,11 +1140,18 @@ export default function Page() {
         { ...fields, fullText: captionText },
         captionText || shortText
       );
-      const fontScale = Math.max(0.85, Math.min(1.25, frame.width / 520));
+      const fontScale = Math.max(0.75, Math.min(1.1, frame.width / 520));
+      const clampStyle = (lines: number) =>
+        ({
+          display: '-webkit-box',
+          WebkitLineClamp: lines,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }) as React.CSSProperties;
 
       const renderMinimal = () => (
         <div
-          className="w-full h-full bg-white/40 border border-slate-300/70 rounded-[28px] flex flex-col"
+          className="w-full h-full border border-slate-300/70 rounded-[22px] flex flex-col bg-white/60"
           style={{
             padding: Math.max(18, Math.round(18 * fontScale)),
             gap: Math.max(10, Math.round(10 * fontScale)),
@@ -1148,15 +1162,21 @@ export default function Page() {
           </div>
           <div className="flex-1 flex flex-col justify-center text-center">
             <div
-              className="text-slate-900 font-semibold"
-              style={{ fontSize: `${Math.max(16, Math.round(20 * fontScale))}px` }}
+              className="text-slate-900 font-semibold break-words"
+              style={{
+                fontSize: `${Math.max(14, Math.round(18 * fontScale))}px`,
+                ...clampStyle(minimal.isRadio ? 3 : 2),
+              }}
             >
               {minimal.headline}
             </div>
             {minimal.body ? (
               <div
-                className="text-slate-600 mt-3"
-                style={{ fontSize: `${Math.max(12, Math.round(14 * fontScale))}px` }}
+                className="text-slate-600 mt-3 break-words"
+                style={{
+                  fontSize: `${Math.max(11, Math.round(13 * fontScale))}px`,
+                  ...clampStyle(minimal.isRadio ? 4 : 3),
+                }}
               >
                 {minimal.body}
               </div>
@@ -1164,7 +1184,10 @@ export default function Page() {
             {minimal.cta ? (
               <div
                 className="text-slate-800 mt-4 font-semibold uppercase tracking-[0.2em]"
-                style={{ fontSize: `${Math.max(10, Math.round(11 * fontScale))}px` }}
+                style={{
+                  fontSize: `${Math.max(9, Math.round(10 * fontScale))}px`,
+                  ...clampStyle(1),
+                }}
               >
                 {minimal.cta}
               </div>
@@ -1404,7 +1427,7 @@ export default function Page() {
                       type="button"
                       data-mockup-id={item.id}
                       onClick={() => toggleSelect(item.id)}
-                      className={`group relative flex items-center justify-center transition-all ${
+                      className={`group relative flex items-center justify-center overflow-hidden transition-all ${
                         isSelected ? 'ring-2 ring-primary/70 ring-offset-8 ring-offset-slate-50' : 'hover:shadow-xl'
                       }`}
                     >
