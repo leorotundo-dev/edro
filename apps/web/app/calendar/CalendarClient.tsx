@@ -494,7 +494,7 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
 
   return (
     <AppShell title="Global Operational Calendar">
-      <div className="p-6 lg:p-8 space-y-4">
+      <div className="page-content">
         {error ? (
           <div className="notice error" style={{ margin: 0 }}>
             {error}
