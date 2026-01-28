@@ -247,11 +247,41 @@ const getCopyMap = () => safeParse<Record<string, string>>(safeGet('edro_copy_by
 
 const getContext = () => safeParse<Record<string, any>>(safeGet('edro_studio_context'), {});
 
+const getCopyMetaMap = () =>
+  safeParse<Record<string, any>>(safeGet('edro_copy_meta_by_platform_format'), {});
+
 const getCopyFor = (platform: string, format: string, context: Record<string, any>) => {
   const map = getCopyMap();
   const key = `${platform}::${format}`;
   const raw = map[key] ?? context?.message ?? context?.event ?? '';
   return typeof raw === 'string' ? raw : String(raw);
+};
+
+const getCopyMetaFor = (platform: string, format: string) => {
+  const meta = getCopyMetaMap();
+  const key = `${platform}::${format}`;
+  return meta?.[key] || null;
+};
+
+const resolveProviderLabel = (meta: any) => {
+  if (!meta) return '';
+  const rawProvider =
+    meta?.provider ||
+    meta?.ai_provider ||
+    meta?.vendor ||
+    meta?.model_provider ||
+    meta?.payload?.provider ||
+    '';
+  const rawModel = meta?.model || meta?.payload?.model || meta?.engine || '';
+  const candidate = String(rawProvider || rawModel || '').toLowerCase();
+  let label = '';
+  if (candidate.includes('gpt') || candidate.includes('openai')) label = 'OpenAI';
+  if (candidate.includes('gemini')) label = 'Gemini';
+  if (candidate.includes('claude')) label = 'Claude';
+  const modelLabel = rawModel ? String(rawModel) : '';
+  if (!label && candidate) label = candidate;
+  if (label && modelLabel) return `${label} • ${modelLabel}`;
+  return label || modelLabel || '';
 };
 
 const expandMockups = (items: MockupItem[], context: Record<string, any>) => {
@@ -837,124 +867,128 @@ export default function Page() {
   };
 
   const renderMockup = (item: MockupItem) => {
-    const productionType =
-      context?.productionType ||
-      context?.production_type ||
-      safeGet('edro_studio_production_type') ||
-      '';
-    const rawCopy = item.variantCopy ?? getCopyFor(item.platform, item.format, context);
-    const variant = extractCopyVariants(rawCopy)[item.variantIndex ?? 0] || rawCopy;
-    const fields = extractCopyFields(variant);
-    const caption = fields.fullText || rawCopy || 'Digite ou gere o copy para visualizar o mockup.';
-    const captionText = normalizeWhitespace(fields.body || caption).slice(0, 2200);
-    const shortText = clampText(fields.headline || captionText || `${item.platform} ${item.format}`, 90);
-    const subheadline = clampText(fields.body || fields.cta || captionText, 140);
-    const profileImage = clientLogo || context?.logo_url || context?.logo || '/assets/logo-studio.png';
-    const likes = Math.max(120, Math.round((context?.score || 60) * 25));
-    const comments = Math.max(12, Math.round(likes / 18));
-    const shares = Math.max(5, Math.round(likes / 30));
-    const wideImage = createSvgDataUri(shortText, 1280, 720);
-    const squareImage = createSvgDataUri(shortText, 1080, 1080);
-    const tallImage = createSvgDataUri(shortText, 1080, 1920);
-    const baseProps: Record<string, any> = {
-      username,
-      profileImage,
-      avatar: profileImage,
-      logo: profileImage,
-      brandLogo: profileImage,
-      channelImage: profileImage,
-      channelName: displayName,
-      postText: captionText,
-      caption: captionText,
-      description: captionText,
-      title: shortText,
-      headline: shortText,
-      subheadline,
-      subtitle: context?.event || '',
-      timeAgo: '2h',
-      likes,
-      comments,
-      shares,
-      views: `${likes * 4} views`,
-      postImage: squareImage,
-      image: squareImage,
-      thumbnail: wideImage,
-      coverImage: wideImage,
-      bannerImage: wideImage,
-      storyImage: tallImage,
-      videoThumbnail: wideImage,
-      adImage: wideImage,
-    };
-    const normalizedPlatform = normalizeCatalogToken(item.platform || '');
-    const normalizedFormat = normalizeCatalogToken(item.format || '');
-    const productionKey = normalizeProductionType(productionType);
-    const catalogKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat);
-    const fallbackKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat).toLowerCase();
-    const componentName =
-      mockupCatalogMap[catalogKey] ||
-      Object.entries(mockupCatalogMap).find(
-        ([key]) => removeAccents(key).toLowerCase() === fallbackKey
-      )?.[1];
-    const RegistryComponent = componentName ? mockupRegistry[normalizeMockupKey(componentName)] : null;
+    try {
+      const productionType =
+        context?.productionType ||
+        context?.production_type ||
+        safeGet('edro_studio_production_type') ||
+        '';
+      const rawCopy = item.variantCopy ?? getCopyFor(item.platform, item.format, context);
+      const variant = extractCopyVariants(rawCopy)[item.variantIndex ?? 0] || rawCopy;
+      const fields = extractCopyFields(variant);
+      const caption = fields.fullText || rawCopy || 'Digite ou gere o copy para visualizar o mockup.';
+      const captionText = normalizeWhitespace(fields.body || caption).slice(0, 2200);
+      const shortText = clampText(fields.headline || captionText || `${item.platform} ${item.format}`, 90);
+      const subheadline = clampText(fields.body || fields.cta || captionText, 140);
+      const profileImage = clientLogo || context?.logo_url || context?.logo || '/assets/logo-studio.png';
+      const likes = Math.max(120, Math.round((context?.score || 60) * 25));
+      const comments = Math.max(12, Math.round(likes / 18));
+      const shares = Math.max(5, Math.round(likes / 30));
+      const wideImage = createSvgDataUri(shortText, 1280, 720);
+      const squareImage = createSvgDataUri(shortText, 1080, 1080);
+      const tallImage = createSvgDataUri(shortText, 1080, 1920);
+      const baseProps: Record<string, any> = {
+        username,
+        profileImage,
+        avatar: profileImage,
+        logo: profileImage,
+        brandLogo: profileImage,
+        channelImage: profileImage,
+        channelName: displayName,
+        postText: captionText,
+        caption: captionText,
+        description: captionText,
+        title: shortText,
+        headline: shortText,
+        subheadline,
+        subtitle: context?.event || '',
+        timeAgo: '2h',
+        likes,
+        comments,
+        shares,
+        views: `${likes * 4} views`,
+        postImage: squareImage,
+        image: squareImage,
+        thumbnail: wideImage,
+        coverImage: wideImage,
+        bannerImage: wideImage,
+        storyImage: tallImage,
+        videoThumbnail: wideImage,
+        adImage: wideImage,
+      };
+      const normalizedPlatform = normalizeCatalogToken(item.platform || '');
+      const normalizedFormat = normalizeCatalogToken(item.format || '');
+      const productionKey = normalizeProductionType(productionType);
+      const catalogKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat);
+      const fallbackKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat).toLowerCase();
+      const componentName =
+        mockupCatalogMap[catalogKey] ||
+        Object.entries(mockupCatalogMap).find(
+          ([key]) => removeAccents(key).toLowerCase() === fallbackKey
+        )?.[1];
+      const RegistryComponent = componentName ? mockupRegistry[normalizeMockupKey(componentName)] : null;
 
-    if (componentName === 'InstagramStoryMockup') {
-      return (
-        <InstagramStoryMockup
-          username={username}
-          profileImage={profileImage}
-          storyImage={createSvgDataUri(shortText, 1080, 1920)}
-          timeAgo="2h"
-        />
-      );
-    }
-    if (componentName === 'InstagramProfileMockup') {
-      return (
-        <InstagramProfileMockup
-          username={username}
-          profileImage={profileImage}
-          bio={captionText.slice(0, 120)}
-          website="edro.studio"
-          posts={12}
-          followers={1520}
-          following={320}
-          stories={[
-            { title: 'Campanha', image: createSvgDataUri(shortText, 400, 400) },
-            { title: 'Bastidores', image: createSvgDataUri(shortText, 400, 400, '#2563eb') },
-          ]}
-          gridImages={Array.from({ length: 9 }).map((_, idx) =>
-            createSvgDataUri(`${shortText} ${idx + 1}`, 400, 400, '#f97316')
-          )}
-        />
-      );
-    }
-    if (componentName === 'InstagramGridMockup') {
-      return (
-        <InstagramGridMockup
-          username={username}
-          gridImages={Array.from({ length: 9 }).map((_, idx) =>
-            createSvgDataUri(`${shortText} ${idx + 1}`, 400, 400, '#0ea5e9')
-          )}
-        />
-      );
-    }
-    if (componentName === 'InstagramFeedMockup') {
-      return (
-        <InstagramFeedMockup
-          username={username}
-          profileImage={profileImage}
-          postImage={squareImage}
-          likes={Math.max(120, Math.round((context?.score || 60) * 25))}
-          caption={captionText.slice(0, 180)}
-          comments={[
-            { username: 'cliente_real', text: 'Curti muito!' },
-            { username: 'edro_team', text: 'Vamos nessa 🚀' },
-          ]}
-        />
-      );
-    }
+      if (componentName === 'InstagramStoryMockup') {
+        return (
+          <InstagramStoryMockup
+            username={username}
+            profileImage={profileImage}
+            storyImage={createSvgDataUri(shortText, 1080, 1920)}
+            timeAgo="2h"
+          />
+        );
+      }
+      if (componentName === 'InstagramProfileMockup') {
+        return (
+          <InstagramProfileMockup
+            username={username}
+            profileImage={profileImage}
+            bio={captionText.slice(0, 120)}
+            website="edro.studio"
+            posts={12}
+            followers={1520}
+            following={320}
+            stories={[
+              { title: 'Campanha', image: createSvgDataUri(shortText, 400, 400) },
+              { title: 'Bastidores', image: createSvgDataUri(shortText, 400, 400, '#2563eb') },
+            ]}
+            gridImages={Array.from({ length: 9 }).map((_, idx) =>
+              createSvgDataUri(`${shortText} ${idx + 1}`, 400, 400, '#f97316')
+            )}
+          />
+        );
+      }
+      if (componentName === 'InstagramGridMockup') {
+        return (
+          <InstagramGridMockup
+            username={username}
+            gridImages={Array.from({ length: 9 }).map((_, idx) =>
+              createSvgDataUri(`${shortText} ${idx + 1}`, 400, 400, '#0ea5e9')
+            )}
+          />
+        );
+      }
+      if (componentName === 'InstagramFeedMockup') {
+        return (
+          <InstagramFeedMockup
+            username={username}
+            profileImage={profileImage}
+            postImage={squareImage}
+            likes={Math.max(120, Math.round((context?.score || 60) * 25))}
+            caption={captionText.slice(0, 180)}
+            comments={[
+              { username: 'cliente_real', text: 'Curti muito!' },
+              { username: 'edro_team', text: 'Vamos nessa 🚀' },
+            ]}
+          />
+        );
+      }
 
-    if (RegistryComponent) {
-      return <RegistryComponent {...baseProps} />;
+      if (RegistryComponent) {
+        return <RegistryComponent {...baseProps} />;
+      }
+    } catch (error) {
+      console.warn('mockup render failed', error);
     }
 
     return (
@@ -962,7 +996,7 @@ export default function Page() {
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{item.platform}</div>
         <div className="text-lg font-semibold text-slate-900">{item.format}</div>
         <div className="flex-1 rounded-2xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-center px-4 text-sm text-slate-500">
-          {captionText || 'Copie o texto para visualizar o mockup.'}
+          Copie o texto para visualizar o mockup.
         </div>
         <div className="text-xs text-slate-400">Mockup dinâmico gerado com base no briefing.</div>
       </div>
@@ -1076,6 +1110,7 @@ export default function Page() {
                 const isSelected = selectedIds.includes(item.id);
                 const label = resolveLabel(item.platform, item.format);
                 const optionLabel = item.variantLabel ? `${label} • ${item.variantLabel}` : label;
+                const providerLabel = resolveProviderLabel(getCopyMetaFor(item.platform, item.format));
                 const statusLabel = item.status === 'saved' ? 'Salvo' : item.status === 'draft' ? 'Rascunho' : 'Novo';
                 return (
                   <button
@@ -1090,6 +1125,11 @@ export default function Page() {
                     <div className="absolute top-4 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                       {optionLabel}
                     </div>
+                    {providerLabel ? (
+                      <div className="absolute top-10 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-300">
+                        {providerLabel}
+                      </div>
+                    ) : null}
                     <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                       {statusLabel}
                     </div>
