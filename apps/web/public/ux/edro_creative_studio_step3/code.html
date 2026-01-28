@@ -828,16 +828,30 @@
       try {
         const response = await window.EdroStudio.request('/edro/orchestrator', { method: 'GET' });
         const data = response?.data || response;
-        const providers = data?.providers || {};
+        const providersInfo = data?.providers || {};
         const routing = data?.routing || {};
-        orchestratorProviders = providers;
+        const labels = { openai: 'OpenAI', gemini: 'Gemini', claude: 'Claude' };
+        let providerFlags = providersInfo;
+        if (providersInfo?.available || providersInfo?.configured) {
+          const configured = providersInfo.configured || {};
+          const available = Array.isArray(providersInfo.available) ? providersInfo.available : [];
+          providerFlags = {
+            openai: configured.openai ?? available.includes('openai'),
+            gemini: configured.gemini ?? available.includes('gemini'),
+            claude: configured.claude ?? available.includes('claude'),
+          };
+        }
+        orchestratorProviders = providerFlags;
         orchestratorRouting = routing;
-        const providerBadges = Object.entries(providers)
+        const providerBadges = Object.entries(providerFlags || {})
           .map(([provider, enabled]) => {
+            if (!['openai', 'gemini', 'claude'].includes(provider)) return '';
             const status = enabled ? '✓' : '×';
             const color = enabled ? 'text-emerald-600' : 'text-rose-500';
-            return `<span class="px-2 py-1 rounded bg-zinc-100 text-[10px] font-bold ${color}">${provider} ${status}</span>`;
+            const label = labels[provider] || provider;
+            return `<span class="px-2 py-1 rounded bg-zinc-100 text-[10px] font-bold ${color}">${label} ${status}</span>`;
           })
+          .filter(Boolean)
           .join(' ');
         const routeInfo = routing?.social_post ? `${routing.social_post.provider} • ${routing.social_post.tier}` : 'auto';
         orchestratorEl.innerHTML = `
