@@ -8,7 +8,12 @@ import { InstagramFeedMockup } from '@/components/mockups/instagram/InstagramFee
 import { InstagramStoryMockup } from '@/components/mockups/instagram/InstagramStoryMockup';
 import { InstagramProfileMockup } from '@/components/mockups/instagram/InstagramProfileMockup';
 import { InstagramGridMockup } from '@/components/mockups/instagram/InstagramGridMockup';
-import { mockupRegistry, normalizeMockupKey } from '@/components/mockups/mockupRegistry';
+import {
+  buildMockupKeyCandidates,
+  mockupRegistry,
+  normalizeMockupKey,
+  resolveMockupComponent,
+} from '@/components/mockups/mockupRegistry';
 import { buildCatalogKey, mockupCatalogMap } from '@/components/mockups/mockupCatalogMap';
 
 type InventoryItem = {
@@ -265,23 +270,33 @@ const getCopyMetaFor = (platform: string, format: string) => {
 
 const resolveProviderLabel = (meta: any) => {
   if (!meta) return '';
-  const rawProvider =
-    meta?.provider ||
-    meta?.ai_provider ||
-    meta?.vendor ||
-    meta?.model_provider ||
-    meta?.payload?.provider ||
+  const creativeProvider = meta?.creative_provider || meta?.provider || meta?.payload?.provider || '';
+  const reviewProvider = meta?.review_provider || meta?.validator_provider || '';
+  const rawModel =
+    meta?.model ||
+    meta?.creative_model ||
+    meta?.payload?.model ||
+    meta?.review_model ||
+    meta?.engine ||
     '';
-  const rawModel = meta?.model || meta?.payload?.model || meta?.engine || '';
-  const candidate = String(rawProvider || rawModel || '').toLowerCase();
-  let label = '';
-  if (candidate.includes('gpt') || candidate.includes('openai')) label = 'OpenAI';
-  if (candidate.includes('gemini')) label = 'Gemini';
-  if (candidate.includes('claude')) label = 'Claude';
+
+  const toLabel = (value: string) => {
+    const candidate = String(value || '').toLowerCase();
+    if (candidate.includes('gpt') || candidate.includes('openai')) return 'OpenAI';
+    if (candidate.includes('gemini')) return 'Gemini';
+    if (candidate.includes('claude')) return 'Claude';
+    return value ? value : '';
+  };
+
+  const creativeLabel = toLabel(String(creativeProvider || ''));
+  const reviewLabel = toLabel(String(reviewProvider || ''));
   const modelLabel = rawModel ? String(rawModel) : '';
-  if (!label && candidate) label = candidate;
-  if (label && modelLabel) return `${label} • ${modelLabel}`;
-  return label || modelLabel || '';
+
+  if (creativeLabel && reviewLabel && creativeLabel !== reviewLabel) {
+    return `${creativeLabel} + ${reviewLabel}`;
+  }
+  if (creativeLabel && modelLabel) return `${creativeLabel} • ${modelLabel}`;
+  return creativeLabel || reviewLabel || modelLabel || '';
 };
 
 const expandMockups = (items: MockupItem[], context: Record<string, any>) => {
@@ -926,7 +941,15 @@ export default function Page() {
         Object.entries(mockupCatalogMap).find(
           ([key]) => removeAccents(key).toLowerCase() === fallbackKey
         )?.[1];
-      const RegistryComponent = componentName ? mockupRegistry[normalizeMockupKey(componentName)] : null;
+      let RegistryComponent = componentName ? mockupRegistry[normalizeMockupKey(componentName)] : null;
+      if (!RegistryComponent) {
+        const candidates = buildMockupKeyCandidates({
+          platform: item.platform,
+          format: item.format,
+          platformLabel: displayMap[item.platform],
+        });
+        RegistryComponent = resolveMockupComponent(candidates);
+      }
 
       if (componentName === 'InstagramStoryMockup') {
         return (
