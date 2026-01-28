@@ -2,20 +2,21 @@
   "name": "edro-digital-monorepo",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "workspaces": [
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @edro/backend",
-    "dev:backend": "npm run dev --workspace @edro/backend",
-    "dev:web": "npm run dev --workspace @edro/web",
-    "build": "npm run build:backend && npm run build:web",
-    "build:backend": "npm run build --workspace @edro/backend",
-    "build:web": "npm run build --workspace @edro/web",
-    "start": "node -e \"require('ts-node/register/transpile-only'); require('./apps/backend/src/index.ts')\"",
-    "start:web": "pnpm --filter @edro/web run start",
-    "lint": "npm run lint --workspace @edro/backend || true && npm run lint --workspace @edro/web || true",
-    "migrate": "npm run db:migrate --workspace @edro/backend || true"
+    "dev": "pnpm --filter @edro/backend dev",
+    "dev:backend": "pnpm --filter @edro/backend dev",
+    "dev:web": "pnpm --filter @edro/web dev",
+    "build": "pnpm -r build",
+    "build:backend": "pnpm --filter @edro/backend build",
+    "build:web": "pnpm --filter @edro/web build",
+    "start": "pnpm --filter @edro/backend start",
+    "start:web": "pnpm --filter @edro/web start",
+    "lint": "pnpm --filter @edro/backend lint || true && pnpm --filter @edro/web lint || true",
+    "migrate": "pnpm --filter @edro/backend db:migrate || true"
   },
   "engines": {
     "node": ">=18.0.0"
