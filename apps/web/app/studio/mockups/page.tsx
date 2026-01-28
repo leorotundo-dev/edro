@@ -227,6 +227,42 @@ const clampText = (value: string, max = 140) => {
   return `${normalized.slice(0, max - 1)}…`;
 };
 
+const buildMinimalCopy = (
+  item: MockupItem,
+  fields: { headline: string; body: string; cta: string; fullText: string },
+  fallbackText: string
+) => {
+  const key = normalizeWhitespace(`${item.platform} ${item.format}`).toLowerCase();
+  const isOOH =
+    /outdoor|ooh|busdoor|frontlight|backlight|painel|placa|rel[oó]gio|totem|empena|taxi|tri-vis/i.test(
+      key
+    );
+  const isRadio =
+    /radio|spot|vinheta|jingle|podcast|locu[cç][aã]o|audio|a[uú]dio/i.test(key);
+  const isStory = /story|reels|9:16|vertical|shorts/i.test(key);
+  const isSquare = /1:1|feed|post|square/i.test(key);
+
+  const headlineMax = isOOH ? 52 : isStory ? 44 : isSquare ? 40 : 60;
+  const bodyMax = isOOH ? 120 : isRadio ? 220 : isStory ? 140 : 180;
+  const ctaMax = isOOH ? 42 : 60;
+
+  let headline = clampText(fields.headline || fields.body || fallbackText, headlineMax);
+  let body = clampText(fields.body || fields.fullText || fallbackText, bodyMax);
+  let cta = clampText(fields.cta || '', ctaMax);
+
+  if (isRadio && (!headline || headline.length < 6)) {
+    headline = 'Roteiro';
+  }
+  if (isOOH) {
+    body = clampText(fields.body || fields.cta || '', bodyMax);
+  }
+  if (!cta && isOOH && fields.body) {
+    cta = clampText(fields.body.split('.').pop() || '', ctaMax);
+  }
+
+  return { headline, body, cta, isRadio };
+};
+
 const resolveFormatRatio = (format: string, platform?: string) => {
   const text = normalizeWhitespace(format || '').toLowerCase();
   const match = text.match(/(\d+(?:\.\d+)?)\s*[x:]\s*(\d+(?:\.\d+)?)/);
@@ -1091,6 +1127,61 @@ export default function Page() {
         videoThumbnail: wideImage,
         adImage: wideImage,
       };
+
+      const minimal = buildMinimalCopy(
+        item,
+        { ...fields, fullText: captionText },
+        captionText || shortText
+      );
+      const fontScale = Math.max(0.85, Math.min(1.25, frame.width / 520));
+
+      const renderMinimal = () => (
+        <div
+          className="w-full h-full bg-white/40 border border-slate-300/70 rounded-[28px] flex flex-col"
+          style={{
+            padding: Math.max(18, Math.round(18 * fontScale)),
+            gap: Math.max(10, Math.round(10 * fontScale)),
+          }}
+        >
+          <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+            {item.platform} • {item.format}
+          </div>
+          <div className="flex-1 flex flex-col justify-center text-center">
+            <div
+              className="text-slate-900 font-semibold"
+              style={{ fontSize: `${Math.max(16, Math.round(20 * fontScale))}px` }}
+            >
+              {minimal.headline}
+            </div>
+            {minimal.body ? (
+              <div
+                className="text-slate-600 mt-3"
+                style={{ fontSize: `${Math.max(12, Math.round(14 * fontScale))}px` }}
+              >
+                {minimal.body}
+              </div>
+            ) : null}
+            {minimal.cta ? (
+              <div
+                className="text-slate-800 mt-4 font-semibold uppercase tracking-[0.2em]"
+                style={{ fontSize: `${Math.max(10, Math.round(11 * fontScale))}px` }}
+              >
+                {minimal.cta}
+              </div>
+            ) : null}
+            {minimal.isRadio ? (
+              <div className="text-[10px] mt-4 uppercase tracking-[0.35em] text-slate-400">
+                Roteiro de locução
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+
+      const useMinimalMockups = true;
+      if (useMinimalMockups) {
+        return renderMinimal();
+      }
       const normalizedPlatform = normalizeCatalogToken(item.platform || '');
       const normalizedFormat = normalizeCatalogToken(item.format || '');
       const productionKey = normalizeProductionType(productionType);
