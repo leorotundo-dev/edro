@@ -9,7 +9,7 @@ export default function SupportPage() {
       meta="Help Center"
       topbarLeft={<div className="text-sm font-semibold text-slate-500 uppercase tracking-widest">Support</div>}
     >
-      <div className="p-8 space-y-6">
+      <div className="page-content">
         <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
           <h2 className="font-display text-2xl text-slate-900">Support Desk</h2>
           <p className="text-sm text-slate-500 mt-2 max-w-2xl">

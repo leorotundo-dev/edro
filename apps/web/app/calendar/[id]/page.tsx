@@ -215,13 +215,10 @@ export default function CalendarReviewPage() {
         </div>
       }
     >
-      {error ? (
-        <div className="mx-8 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
+      <div className="page-content">
+        {error ? <div className="notice error">{error}</div> : null}
 
-      <div className="p-8 w-full max-w-none space-y-6">
+        <div className="flex flex-col gap-6">
         <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
@@ -418,6 +415,7 @@ export default function CalendarReviewPage() {
             </div>
           ) : null}
         </section>
+        </div>
       </div>
 
       <Modal open={briefsOpen} title="Briefs para AdCreative" onClose={() => setBriefsOpen(false)}>

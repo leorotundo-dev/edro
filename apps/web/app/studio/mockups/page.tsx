@@ -1320,7 +1320,7 @@ export default function Page() {
 
   return (
     <AppShell title="Creative Studio Mockups" topbarLeft={topbarLeft}>
-      <div className="flex-1 p-8 flex flex-col gap-8">
+      <div className="page-content flex-1">
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>

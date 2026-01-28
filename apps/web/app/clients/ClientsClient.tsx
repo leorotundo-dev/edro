@@ -591,7 +591,7 @@ export default function ClientsClient() {
         onClick: handleNewClient,
       }}
     >
-      <div className="p-6 lg:p-8 space-y-4">
+      <div className="page-content">
         {error ? <div className="notice error">{error}</div> : null}
         {success ? <div className="notice success">{success}</div> : null}
         {planMissing.length ? (
