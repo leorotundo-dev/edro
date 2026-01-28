@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Creative Studio AI Editor - Edro</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .instagram-preview-container {
+            max-width: 400px;
+            width: 100%;
+        }
+        .reels-frame {
+            aspect-ratio: 9 / 16;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl">Creative Studio Editor</h1>
+<span class="text-xs font-medium text-slate-400 uppercase tracking-widest ml-4">October 01, 2023</span>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_cDMMynnqI_HompijBPp5t_hmSV4WKaOA7LGRfG9w45hDMKpD-ILYilRp3SnVLTOG5zkwow1exEZe0IDUqiuTM1zj7KGTJJ9qTvJ8OIrHmGA85BfFMAtjFykqJwZDByNbj0v4NFuvnxvPfo2kz967jeGdh2eDCOBNUgXtuzT_ppV7cotTDD2WblIzRiMd4dOlMfO--fuIlGi1r0lKfD-QHF_OB_ptl264XCVS3F-yM9gNNTSIIZdaFRCW9ltF5cfG5AKPUdmf7dc"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<section class="flex-1 bg-slate-50 dark:bg-slate-900/50 p-8 overflow-y-auto flex flex-col items-center">
+<div class="w-full max-w-[400px] mb-6 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-5 h-5 flex items-center justify-center">
+<svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" fill="currentColor"></path>
+</svg>
+</div>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Instagram Preview</span>
+</div>
+<span class="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">Reels Preview</span>
+</div>
+<div class="instagram-preview-container bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 pb-2">
+<div class="px-3 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-white text-[8px] font-bold overflow-hidden">
+                            AZ
+                        </div>
+<p class="text-[13px] font-semibold text-slate-900 dark:text-white">azulcoffeeco</p>
+</div>
+<button class="text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="reels-frame mx-0 bg-slate-900">
+<img alt="Coffee roasting visuals" class="w-full h-full object-cover opacity-60" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCneS8yxVXOdy9KF2hpDPg3ZFXlSTzh951CACzlrLjlmKIXKi7-9q2aLUx8Tw5Anyk9bFJO1BT38zjOj_01ZaLU0BMdVjhKF6FSc6J5HGAgJqVndNfbHhw0hZNyoIhY37ZTg3z3XPFYT3FgdZUM5w7h_W94H1IopjfixzYzBeY-Pahc2yjN5Jx80wgOHWCLi-8FOYHsBnvd0AUoOQ3j1HAq380cbS1fE9kV2NQh-0UdtSzGUNmwJ7QzzTJDhbzWeEK_lHO6QOCjp5I"/>
+<div class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+<h2 class="font-display text-5xl text-white mb-2 italic">The Alchemy<br/>of Roast</h2>
+<div class="w-12 h-[1px] bg-white/40 mb-4"></div>
+<p class="text-xs text-white/80 font-medium tracking-widest uppercase">Variant 4 of 10</p>
+</div>
+<div class="absolute right-3 bottom-12 flex flex-col gap-5 text-white/90">
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-[24px]">favorite</span>
+<span class="text-[10px] font-medium">1.2k</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-[24px]">chat_bubble</span>
+<span class="text-[10px] font-medium">84</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-[24px]">send</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-[24px]">more_horiz</span>
+</div>
+</div>
+<div class="absolute bottom-4 left-4 right-14 text-white">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-6 h-6 rounded-full bg-slate-800 border border-white/20 flex items-center justify-center text-[6px]">AZ</div>
+<span class="text-[12px] font-semibold">azulcoffeeco</span>
+<button class="text-[11px] font-semibold border border-white/40 px-2 py-0.5 rounded">Follow</button>
+</div>
+</div>
+</div>
+<div class="px-4 py-3 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="text-slate-800 dark:text-slate-200 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-[26px]">favorite</span>
+</button>
+<button class="text-slate-800 dark:text-slate-200">
+<span class="material-symbols-outlined text-[26px]">chat_bubble</span>
+</button>
+<button class="text-slate-800 dark:text-slate-200">
+<span class="material-symbols-outlined text-[26px]">send</span>
+</button>
+</div>
+<button class="text-slate-800 dark:text-slate-200">
+<span class="material-symbols-outlined text-[26px]">bookmark</span>
+</button>
+</div>
+<div class="px-4 pb-4">
+<p class="text-[13px] leading-[1.4] text-slate-900 dark:text-slate-200">
+<span class="font-bold mr-1">azulcoffeeco</span> Waking up has never been this inviting. Our Autumn roast brings notes of dark chocolate and maple directly to your cup. 🍂✨
+                    </p>
+<p class="text-[13px] text-blue-600 dark:text-blue-400 mt-1">
+                        #azulcoffeeco #specialtycoffee #autumnroast #morningritual
+                    </p>
+</div>
+</div>
+<div class="mt-8 flex gap-4">
+<button class="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+<span class="material-symbols-outlined text-sm">desktop_windows</span> Desktop
+                </button>
+<div class="w-px h-4 bg-slate-200 self-center"></div>
+<button class="text-primary flex items-center gap-1 text-xs font-bold uppercase tracking-tighter">
+<span class="material-symbols-outlined text-sm">smartphone</span> Mobile
+                </button>
+</div>
+</section>
+<section class="w-[420px] bg-surface-light dark:bg-surface-dark border-l border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">tune</span>
+                    Post Settings
+                </h3>
+<div class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8">
+<option>Instagram</option>
+<option>LinkedIn</option>
+<option>Twitter</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Format</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8">
+<option>Reel</option>
+<option>Carousel</option>
+<option>Static Post</option>
+<option>Story</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Publishing Date</label>
+<div class="relative">
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary py-2.5 pl-3 pr-8" type="date" value="2023-10-01"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">calendar_month</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-6 flex flex-col min-h-0">
+<div class="flex items-center justify-between mb-2">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Caption &amp; Copy</label>
+<span class="text-[10px] font-medium text-slate-300">142/2200</span>
+</div>
+<div class="flex-1 relative group">
+<textarea class="w-full h-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-800 rounded-xl p-4 text-sm focus:ring-1 focus:ring-primary/50 focus:border-primary/50 resize-none transition-colors" placeholder="Type your caption here...">Waking up has never been this inviting. Our Autumn roast brings notes of dark chocolate and maple directly to your cup. 🍂✨
+#azulcoffeeco #specialtycoffee #autumnroast #morningritual</textarea>
+</div>
+<div class="mt-6 space-y-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">auto_awesome</span> Generate with AI
+                    </button>
+<button class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined">magic_button</span> Refine with AI
+                    </button>
+</div>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-blue-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-blue-600 text-xs">thumb_up</span></div>
+<div class="w-8 h-8 rounded-full bg-green-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-green-600 text-xs">check_circle</span></div>
+</div>
+<p class="text-[10px] font-bold text-slate-400 uppercase">Brand compliance active</p>
+</div>
+</div>
+</section>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

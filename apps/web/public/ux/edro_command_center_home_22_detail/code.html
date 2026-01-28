@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#FF6600",
+            "background-light": "#F9FAFB",
+            "background-dark": "#0F172A",
+            "surface-light": "#FFFFFF",
+            "surface-dark": "#1E293B",
+          },
+          fontFamily: {
+            display: ["Instrument Serif", "serif"],
+            sans: ["Inter", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "12px",
+            xl: "16px",
+          },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    body { font-family: 'Inter', sans-serif; }
+    .font-display { font-family: 'Instrument Serif', serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 999px; }
+    .sidebar-item-active {
+      background-color: rgba(255, 102, 0, 0.1);
+      color: #ff6600;
+      border-right: 3px solid #ff6600;
+    }
+  </style>
+</head>
+<body class="bg-background-light text-slate-900">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-36 shrink-0 border-r border-slate-200 bg-white flex flex-col sticky top-0 h-screen overflow-y-auto">
+      <div class="px-6 pt-6 pb-4">
+        <div class="flex items-center gap-3">
+          <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+          <div>
+          </div>
+        </div>
+      </div>
+      <nav class="px-4 py-2 space-y-1 text-sm">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors" data-label="Home" href="#">
+          <span class="material-symbols-outlined text-[20px]">home</span>
+          <span>Home</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors" data-label="Clients" href="#">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+          <span>Clients</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors" data-label="Calendar" href="#">
+          <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+          <span>Calendar</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors" data-label="Kanban" href="#">
+          <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+          <span>Kanban</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors" data-label="Creative Studio" href="#">
+          <span class="material-symbols-outlined text-[20px]">palette</span>
+          <span>Creative Studio</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors sidebar-item-active" data-label="Radar" href="#">
+          <span class="material-symbols-outlined text-[20px]">content_cut</span>
+          <span>Radar</span>
+        </a>
+      </nav>
+      <div class="mt-auto p-6">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors" href="#">
+          <span class="material-symbols-outlined text-xl">settings</span>
+          <span>Settings</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="flex-1">
+      <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3 text-sm text-slate-500">
+          <span class="material-symbols-outlined text-slate-400">calendar_month</span>
+          Tuesday, October 15, 2024
+        </div>
+        <div class="flex items-center gap-6">
+          <span class="material-symbols-outlined text-slate-400">notifications</span>
+          <div class="flex items-center gap-3">
+            <div class="text-right text-xs">
+              <div class="font-semibold text-slate-700">Alex Rivera</div>
+              <div class="text-slate-400">Creative Director</div>
+            </div>
+            <img class="w-9 h-9 rounded-full border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuARnV2f8K9Q_0B7GoR7rFxmC0B2g8wCxlV6IAV4cRMNq9v5m6q8b8lE8AP1S9l8YJ7aJt5bW1zCC9k3EoY8vR2y2Wpx6Y2Wj9gQPK5ZJ8cQZf2h1gZ9ZQYk8" alt="User" />
+          </div>
+        </div>
+      </header>
+
+      <main class="px-8 py-8 max-w-none">
+        <div class="flex items-center gap-3 text-sm text-slate-500 mb-4">
+          <a class="hover:text-primary" data-label="Home" href="#">Home</a>
+          <span>/</span>
+          <a class="hover:text-primary" data-label="Radar" href="#">Radar</a>
+          <span>/</span>
+          <span class="text-slate-700 font-semibold">Radar Detail</span>
+        </div>
+
+        <div class="flex items-start justify-between gap-6 mb-8">
+          <div>
+            <div class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-primary bg-orange-100 px-3 py-1 rounded-full">
+              <span class="material-symbols-outlined text-[14px]">trending_up</span>
+              Trend
+            </div>
+            <h1 class="font-display text-4xl font-bold mt-4">TikTok: "Glass Skin" Skincare Routines</h1>
+            <p class="text-slate-500 mt-2 max-w-2xl">
+              Analysis of viral skincare routines gaining traction across TikTok and beauty communities.
+            </p>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-xl px-6 py-4 text-center">
+            <div class="text-3xl font-black text-primary">92</div>
+            <div class="text-xs uppercase tracking-widest text-slate-400">Score</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white border border-slate-200 rounded-2xl p-6">
+              <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Summary</h2>
+                <span class="text-xs text-slate-400">Source: Google Trends</span>
+              </div>
+              <p class="text-slate-600 mt-4">
+                The “glass skin” routine has surged in search interest over the last 7 days, driven by short-form video
+                tutorials that highlight hydration layers, dewy finishes, and minimalist skincare kits.
+              </p>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-2xl p-6">
+              <h2 class="text-lg font-semibold">Relevance</h2>
+              <div class="mt-4 space-y-3 text-sm text-slate-600">
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-primary text-[18px]">hub</span>
+                  Segment match: beauty, skincare, premium retail
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-primary text-[18px]">schedule</span>
+                  Recency: last 48 hours spike
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-primary text-[18px]">insights</span>
+                  Momentum: +35% week-over-week
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-2xl p-6">
+              <h2 class="text-lg font-semibold">Recommended Angles</h2>
+              <ul class="mt-4 space-y-3 text-sm text-slate-600 list-disc list-inside">
+                <li>“Glass skin” starter kits using best-sellers.</li>
+                <li>Before/after glow visuals with minimal copy.</li>
+                <li>Routine checklist carousel for Instagram.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="bg-white border border-slate-200 rounded-2xl p-6">
+              <h2 class="text-lg font-semibold">Impacted Clients</h2>
+              <div class="mt-4 space-y-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-cover bg-center border border-slate-200" style="background-image:url('https://lh3.googleusercontent.com/aida-public/AB6AXuDXx9dN4Q2eWU8jTAt72PcVZ49bkNKs1EHHGdMzcuTnDfJt7f4seYJzT6iP-Eu1wH_P4IwEZfFX2_QHb0c56S55euwCDgllZTGHKzQrUbdCCWGny3z9t5X8l9-yoPJfafEhkjjFHor6VId6TP06YnSj78nFE2hbSwBsP_0RP6n49eh_5J6WEzXGVHIDg4y_N55y8cb9WzCpT03SNf3kasprpy46D1iRIaxZxlotrp3CqlepEmbpeTs9s6PctwKBpZlRW5JP_mDC2I8')"></div>
+                  <div>
+                    <div class="text-sm font-semibold">Sephora</div>
+                    <div class="text-xs text-slate-400">High relevance</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-cover bg-center border border-slate-200" style="background-image:url('https://lh3.googleusercontent.com/aida-public/AB6AXuCEp44ki-02qn3qZl1Zm9Z0UzwoQCh-BmK43cDTGRXolLWeZuEeV0WXt60DT__nhJiJMoLWkqwEh-2wPv3A0IWjURCh0vFcloG6Pm9zkunJCZbQBwEEaLs1PKebvWLPQmvgNgHj21fCswYmrMmI_VBcjlpXL3ymZvhDeIT-sRh9QLfT-tw81cGSBAhAlSls5Eitt1BjMqhEMd5zofD7vndEUdiMfy8c-ZJNytHmQrfoR6_uhKvAclCdlggzg-gP1agq5Z561LuMg3Q')"></div>
+                  <div>
+                    <div class="text-sm font-semibold">Glossier</div>
+                    <div class="text-xs text-slate-400">Medium relevance</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-2xl p-6">
+              <h2 class="text-lg font-semibold">Actions</h2>
+              <div class="mt-4 space-y-3">
+                <button class="w-full px-4 py-3 rounded-lg bg-primary text-white font-semibold" data-label="Create post">Create post</button>
+                <button class="w-full px-4 py-3 rounded-lg border border-slate-200 text-slate-700 font-semibold">Pin to Client</button>
+                <button class="w-full px-4 py-3 rounded-lg border border-slate-200 text-slate-700 font-semibold">Open in Calendar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="/ux/edro-links.js"></script>
+</body>
+</html>
+
+
+
+

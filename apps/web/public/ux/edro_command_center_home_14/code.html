@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .tab-active {
+            @apply border-primary text-primary border-b-2;
+        }
+        .tab-inactive {
+            @apply border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Radar</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Clients</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span data-role="client-breadcrumb" class="text-slate-900 dark:text-slate-100 font-medium">Client</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+</div>
+</div>
+</header>
+<div class="px-8 pt-10 pb-2">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-6">
+<button class="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<div>
+<h1 id="client-name" class="font-display text-6xl text-slate-900 dark:text-white leading-tight">Client</h1>
+<p id="client-subtitle" class="text-slate-500 text-sm mt-1">Client profile</p>
+</div>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-sm text-slate-500">edit</span>
+                Edit Client
+            </button>
+</div>
+<div class="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+<nav class="flex space-x-8 min-w-max">
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul">Overview</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/calendar">Calendar</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/planning">Planning</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/creative">Creative</button>
+<button class="tab-active py-4 px-1 text-sm font-semibold flex items-center gap-2 transition-all" data-route="/clients/azul/clipping">Radar</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/library">Library</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/insights">Insights</button>
+<button class="tab-inactive py-4 px-1 text-sm font-medium transition-all" data-route="/clients/azul/performance">Performance</button>
+</nav>
+</div>
+</div>
+<div class="p-8 max-w-none space-y-10">
+<section>
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-lg font-bold">Monitored Sources</h2>
+<p id="client-sources-subtitle" class="text-xs text-slate-500 uppercase tracking-widest mt-1">Real-time tracking for client industry news</p>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-lg">add</span>
+                    Add Source
+                </button>
+</div>
+<div id="client-sources" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div id="client-sources-loading" class="text-xs text-slate-500">Loading sources...</div>
+</div>
+<template id="client-source-template">
+  <div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between group">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700">
+        <span data-role="source-icon" class="material-symbols-outlined text-slate-400">language</span>
+      </div>
+      <div>
+        <p data-role="source-name" class="font-bold text-sm">source</p>
+        <div class="flex items-center gap-1.5 mt-0.5">
+          <span data-role="source-dot" class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+          <span data-role="source-status" class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Active</span>
+        </div>
+      </div>
+    </div>
+    <button class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" data-role="source-edit">
+      <span class="material-symbols-outlined text-xl font-light">edit</span>
+    </button>
+  </div>
+</template>
+<div id="client-sources-empty" class="hidden mt-4 bg-surface-light dark:bg-surface-dark border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-12 text-center">
+<span class="material-symbols-outlined text-4xl text-slate-300 mb-3">list_alt</span>
+<h3 class="font-bold text-slate-600 dark:text-slate-400">No sources added</h3>
+<p class="text-sm text-slate-500 mb-6">Start monitoring the web by adding your first source.</p>
+<button class="bg-primary text-white px-6 py-2 rounded-lg font-bold text-sm">Add your first feed</button>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-lg font-bold">Client Radar Feed</h2>
+<p class="text-xs text-slate-500 uppercase tracking-widest mt-1">High-relevance mentions and industry trends</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button id="client-radar-refresh" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+<div id="client-radar-list" class="space-y-3">
+  <div id="client-radar-loading" class="text-xs text-slate-500">Loading radar feed...</div>
+</div>
+<template id="client-radar-template">
+  <div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-6 group hover:border-primary/30 transition-all">
+    <div class="flex-1">
+      <div class="flex items-center gap-3 mb-2">
+        <span data-role="match-label" class="text-[10px] font-bold text-slate-400 uppercase bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">Radar</span>
+        <span data-role="match-meta" class="text-xs text-slate-400">Source • Date</span>
+      </div>
+      <h3 data-role="match-title" class="font-display text-2xl text-slate-900 dark:text-white group-hover:text-primary transition-colors">Radar item</h3>
+    </div>
+    <div class="flex items-center gap-8">
+      <div class="text-center">
+        <p data-role="match-score" class="text-2xl font-display text-slate-600 dark:text-slate-300 leading-none">0%</p>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">Score</p>
+      </div>
+      <button data-role="match-create" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-900 dark:text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-all">
+        Create post
+      </button>
+    </div>
+  </div>
+</template>
+<div id="client-radar-empty" class="hidden mt-8 bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-16 text-center">
+  <div class="max-w-xs flex flex-col items-center">
+    <div class="w-32 h-32 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-6">
+      <span class="material-symbols-outlined text-6xl text-slate-200 dark:text-slate-700">newspaper</span>
+    </div>
+    <h3 class="font-display text-3xl text-slate-900 dark:text-white mb-2">No radar items found</h3>
+    <p class="text-slate-500 text-sm leading-relaxed mb-6">
+      We haven't found any relevant mentions for this client today. Check your source settings or try refreshing the feed.
+    </p>
+    <button data-role="match-refresh" class="flex items-center gap-2 px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+      <span class="material-symbols-outlined text-lg">sync</span>
+      Refresh Sources
+    </button>
+  </div>
+</div>
+</section>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2023 Edro Creative Studio • Client Account Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script>
+(() => {
+  const apiBase = '/api/proxy';
+  const navigate = (path) => {
+    const target = window.top || window;
+    target.location.href = path;
+  };
+  const sourcesEl = document.getElementById('client-sources');
+  const sourcesTemplate = document.getElementById('client-source-template');
+  const sourcesLoading = document.getElementById('client-sources-loading');
+  const sourcesEmpty = document.getElementById('client-sources-empty');
+
+  const radarList = document.getElementById('client-radar-list');
+  const radarTemplate = document.getElementById('client-radar-template');
+  const radarLoading = document.getElementById('client-radar-loading');
+  const radarEmpty = document.getElementById('client-radar-empty');
+  const refreshButton = document.getElementById('client-radar-refresh');
+
+  const breadcrumbEl = document.querySelector('[data-role=\"client-breadcrumb\"]');
+  const nameEl = document.getElementById('client-name');
+  const subtitleEl = document.getElementById('client-subtitle');
+  const sourcesSubtitle = document.getElementById('client-sources-subtitle');
+
+  const getStorageItem = (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+
+  const setStorageItem = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // ignore
+    }
+    try {
+      window.top?.localStorage?.setItem(key, value);
+    } catch {
+      // ignore
+    }
+  };
+
+  const hasSession = () => Boolean(getStorageItem('edro_token') || getStorageItem('edro_refresh'));
+
+  const getAuthHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = getStorageItem('edro_token');
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  const refreshAccessToken = async () => {
+    const refreshToken = getStorageItem('edro_refresh');
+    const userRaw = getStorageItem('edro_user');
+    if (!refreshToken || !userRaw) return false;
+
+    let user;
+    try {
+      user = JSON.parse(userRaw);
+    } catch {
+      return false;
+    }
+    if (!user?.id) return false;
+
+    const response = await fetch(`${apiBase}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, refreshToken }),
+    });
+
+    if (!response.ok) return false;
+    const data = await response.json();
+    if (data?.accessToken) setStorageItem('edro_token', data.accessToken);
+    if (data?.refreshToken) setStorageItem('edro_refresh', data.refreshToken);
+    return true;
+  };
+
+  const request = async (path, options = {}) => {
+    const response = await fetch(`${apiBase}${path}`, {
+      ...options,
+      headers: getAuthHeaders(),
+    });
+
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return request(path, options);
+      }
+      if (window.top) window.top.location.href = '/login';
+    }
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('json')) {
+      throw new Error(text || `Unexpected response ${response.status}`);
+    }
+    return text ? JSON.parse(text) : {};
+  };
+
+  const scoreToPercent = (value) => {
+    const score = Number(value);
+    if (!Number.isFinite(score)) return 0;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '--';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  const getClientId = () => {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('clientId');
+    if (fromQuery) return fromQuery;
+    const topPath = window.top?.location?.pathname || '';
+    const match = topPath.match(/\\/clients\\/([^/?#]+)/);
+    return match ? match[1] : null;
+  };
+
+  const buildStudioUrl = (match) => {
+    const query = new URLSearchParams();
+    if (match?.published_at) query.set('date', String(match.published_at).slice(0, 10));
+    if (match?.title) query.set('event', match.title);
+    const scoreValue = scoreToPercent(match?.score);
+    if (scoreValue) query.set('score', String(scoreValue));
+    if (match?.snippet) query.set('why', match.snippet.slice(0, 160));
+    if (match?.url) {
+      try {
+        const host = new URL(match.url).hostname.replace('www.', '');
+        query.set('source', host);
+      } catch {
+        // ignore
+      }
+    }
+    const qs = query.toString();
+    return qs ? `/studio?${qs}` : '/studio';
+  };
+
+  const renderSources = (sources) => {
+    if (!sourcesEl || !sourcesTemplate) return;
+    sourcesEl.innerHTML = '';
+
+    if (!sources.length) {
+      sourcesEmpty?.classList.remove('hidden');
+      return;
+    }
+    sourcesEmpty?.classList.add('hidden');
+
+    sources.forEach((source) => {
+      const node = sourcesTemplate.content.firstElementChild.cloneNode(true);
+      const icon = node.querySelector('[data-role=\"source-icon\"]');
+      const name = node.querySelector('[data-role=\"source-name\"]');
+      const dot = node.querySelector('[data-role=\"source-dot\"]');
+      const status = node.querySelector('[data-role=\"source-status\"]');
+
+      const sourceType = String(source?.type || '').toUpperCase();
+      if (icon) {
+        icon.textContent = sourceType === 'RSS' ? 'rss_feed' : sourceType === 'YOUTUBE' ? 'smart_display' : 'language';
+      }
+      if (name) {
+        name.textContent = source?.name || source?.url || 'Source';
+      }
+      if (dot) {
+        if (!source?.is_active) {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
+        } else if (source?.status === 'ERROR') {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-red-500';
+        } else {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-green-500';
+        }
+      }
+      if (status) {
+        if (!source?.is_active) {
+          status.textContent = 'Paused';
+          status.className = 'text-[10px] text-amber-600 font-bold uppercase tracking-tight';
+        } else if (source?.status === 'ERROR') {
+          status.textContent = 'Error';
+          status.className = 'text-[10px] text-red-600 font-bold uppercase tracking-tight';
+        } else {
+          status.textContent = 'Active';
+          status.className = 'text-[10px] text-slate-500 font-bold uppercase tracking-tight';
+        }
+      }
+      sourcesEl.appendChild(node);
+    });
+  };
+
+  const renderMatches = (matches) => {
+    if (!radarList || !radarTemplate) return;
+    radarList.innerHTML = '';
+
+    if (!matches.length) {
+      radarEmpty?.classList.remove('hidden');
+      return;
+    }
+    radarEmpty?.classList.add('hidden');
+
+    matches.forEach((match) => {
+      const node = radarTemplate.content.firstElementChild.cloneNode(true);
+      const label = node.querySelector('[data-role=\"match-label\"]');
+      const meta = node.querySelector('[data-role=\"match-meta\"]');
+      const title = node.querySelector('[data-role=\"match-title\"]');
+      const score = node.querySelector('[data-role=\"match-score\"]');
+      const create = node.querySelector('[data-role=\"match-create\"]');
+
+      const scoreValue = scoreToPercent(match?.score);
+      const labelText = scoreValue >= 80 ? 'High Relevance' : scoreValue >= 60 ? 'Industry Trend' : 'Monitor';
+      const labelClass =
+        scoreValue >= 80
+          ? 'text-primary bg-orange-50 dark:bg-orange-950/30'
+          : scoreValue >= 60
+            ? 'text-slate-500 bg-slate-50 dark:bg-slate-800'
+            : 'text-slate-400 bg-slate-50 dark:bg-slate-800';
+
+      if (label) {
+        label.textContent = labelText;
+        label.className = `text-[10px] font-bold uppercase px-2 py-0.5 rounded ${labelClass}`;
+      }
+      if (meta) {
+        let host = 'Radar';
+        try {
+          host = match?.url ? new URL(match.url).hostname.replace('www.', '') : host;
+        } catch {
+          // ignore
+        }
+        meta.textContent = `${host} • ${formatDate(match?.published_at)}`;
+      }
+      if (title) title.textContent = match?.title || 'Radar item';
+      if (score) {
+        score.textContent = `${scoreValue}%`;
+        score.className = `text-2xl font-display leading-none ${scoreValue >= 80 ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`;
+      }
+      if (create) {
+        create.addEventListener('click', (event) => {
+          event.stopPropagation();
+          navigate(buildStudioUrl(match));
+        });
+      }
+
+      node.addEventListener('click', () => {
+        if (match?.clipping_item_id) {
+          navigate(`/clipping/${match.clipping_item_id}`);
+        }
+      });
+
+      radarList.appendChild(node);
+    });
+  };
+
+  const loadClient = async (clientId) => {
+    try {
+      const client = await request(`/clients/${clientId}`, { method: 'GET' });
+      const name = client?.name || clientId;
+      if (breadcrumbEl) breadcrumbEl.textContent = name;
+      if (nameEl) nameEl.textContent = name;
+      if (subtitleEl) {
+        const segment = client?.segment_primary || client?.segment_secondary?.[0] || 'Client profile';
+        subtitleEl.textContent = segment;
+      }
+      if (sourcesSubtitle) {
+        sourcesSubtitle.textContent = `Real-time tracking for ${name} industry news`;
+      }
+    } catch (error) {
+      console.error('Client load error:', error);
+      if (breadcrumbEl) breadcrumbEl.textContent = clientId;
+      if (nameEl) nameEl.textContent = clientId;
+    }
+  };
+
+  const loadSources = async (clientId) => {
+    try {
+      const sources = await request(`/clipping/sources?clientId=${clientId}`, { method: 'GET' });
+      renderSources(Array.isArray(sources) ? sources : []);
+    } catch (error) {
+      console.error('Sources load error:', error);
+      if (sourcesEl) {
+        sourcesEl.innerHTML = '<div class=\"text-xs text-slate-500\">Unable to load sources.</div>';
+      }
+    } finally {
+      sourcesLoading?.remove();
+    }
+  };
+
+  const loadMatches = async (clientId) => {
+    try {
+      const data = await request(`/clipping/matches/${clientId}?limit=20`, { method: 'GET' });
+      renderMatches(Array.isArray(data?.matches) ? data.matches : []);
+    } catch (error) {
+      console.error('Radar feed load error:', error);
+      if (radarList) {
+        radarList.innerHTML = '<div class=\"text-xs text-slate-500\">Unable to load radar feed.</div>';
+      }
+    } finally {
+      radarLoading?.remove();
+    }
+  };
+
+  const loadAll = () => {
+    const clientId = getClientId();
+    if (!clientId) {
+      if (nameEl) nameEl.textContent = 'Client';
+      return;
+    }
+    document.querySelectorAll('[data-route]').forEach((el) => {
+      const route = el.getAttribute('data-route');
+      if (!route || !route.startsWith('/clients/')) return;
+      const updated = route.replace(/\/clients\/[^/]+/, `/clients/${clientId}`);
+      el.setAttribute('data-route', updated);
+    });
+    if (!hasSession()) {
+      if (radarList) {
+        radarList.innerHTML = '<div class=\"text-xs text-slate-500\">Login required to load radar.</div>';
+      }
+      return;
+    }
+    loadClient(clientId);
+    loadSources(clientId);
+    loadMatches(clientId);
+  };
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => loadAll());
+  }
+  document.querySelectorAll('[data-role=\"match-refresh\"]').forEach((button) => {
+    button.addEventListener('click', () => loadAll());
+  });
+
+  loadAll();
+})();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

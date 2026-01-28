@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': "16px",
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-auto-rows: minmax(140px, auto);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .day-cell {
+            @apply flex flex-col min-h-[140px] p-2 border-l border-t border-slate-200 dark:border-slate-800 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30;
+        }
+        .event-card {
+            @apply p-1.5 rounded-md text-[10px] flex items-center justify-between mb-1 shadow-sm border;
+        }
+        .observance-tag {
+            @apply flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-medium py-0.5 px-1 rounded bg-slate-100 dark:bg-slate-800/50;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20 shrink-0">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl text-slate-900 dark:text-white">Global Operational Calendar</h1>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCyKEqeQ_QzJIFhU-x5XmTjPil8X4sgAxga8tMn4crhykReHrtZOwSMaCipnbLZqYsUifMkdYY2yZ0mChRBJHkJXyrz2jKgwh15D2tZra8Sy5H51xOmWvHFnsrso6S4WuufToBf65jQEYnOxlPUCsEq664xwyjNhJtJQGwA3xdP-cYUCF_LWhyW8beSpUxTCPkxl2BfmzpC9cMqmVc3bmUwnFxXyto5T5Pa9LXdUZEfEfcsddABAxhuGPnZwm1gB4IaTjzqQP51K94"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<div class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+<div class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+<button data-view="month" class="px-4 py-1.5 text-xs font-bold bg-white dark:bg-slate-700 shadow-sm rounded-md transition-all">Month</button>
+<button data-view="week" class="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all">Week</button>
+<button data-view="day" class="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all">Day</button>
+</div>
+<div class="flex items-center gap-2">
+<button id="calendar-prev" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">chevron_left</span>
+</button>
+<h2 id="calendar-month-label" class="font-bold text-lg min-w-[140px] text-center">October 2023</h2>
+<button id="calendar-next" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">chevron_right</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2">
+<select class="text-xs font-medium bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-primary h-9">
+<option>All Clients</option>
+<option>Azul</option>
+<option>Sockastic</option>
+<option>Willctel</option>
+</select>
+<select class="text-xs font-medium bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-primary h-9">
+<option>All Segments</option>
+<option>Social Media</option>
+<option>Editorial</option>
+<option>Events</option>
+</select>
+</div>
+<button class="bg-primary hover:bg-orange-600 text-white text-xs font-bold px-4 h-9 rounded-lg flex items-center gap-2 transition-all shadow-sm">
+<span class="material-symbols-outlined text-sm">add</span> Add Event
+                    </button>
+</div>
+</div>
+<div id="calendar-month" class="flex-1 overflow-y-auto"></div>
+<div id="calendar-week" class="flex-1 overflow-y-auto hidden"></div>
+<div id="calendar-day" class="flex-1 overflow-y-auto hidden"></div>
+</div>
+<aside id="selected-day-panel" class="w-96 border-l border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark overflow-y-auto flex flex-col shrink-0 hidden">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between mb-4">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Day</span>
+<button id="selected-day-close" class="text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+<h3 class="font-display text-4xl text-slate-900 dark:text-white mb-1">October 01</h3>
+<p class="text-sm text-slate-500 font-medium">Sunday, 2023</p>
+</div>
+<div class="flex-1 p-6 space-y-8">
+<div>
+<div class="flex items-center justify-between mb-4">
+<h4 class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">Daily Edro Events</h4>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">2 Tasks</span>
+</div>
+<div class="space-y-4">
+<div class="group cursor-pointer">
+<div class="flex gap-4 items-start">
+<div class="w-1.5 h-12 bg-yellow-400 rounded-full shrink-0"></div>
+<div class="flex-1">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">International Coffee Day Social</p>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">Main visual post launch across all Instagram handles. Focus on morning aesthetic and energy.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded">AZUL</span>
+<span class="text-[10px] text-orange-500 font-bold flex items-center gap-1">
+<span class="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span> Review pending
+                                        </span>
+</div>
+</div>
+</div>
+</div>
+<div class="group cursor-pointer border-t border-slate-100 dark:border-slate-800 pt-4">
+<div class="flex gap-4 items-start">
+<div class="w-1.5 h-12 bg-green-500 rounded-full shrink-0"></div>
+<div class="flex-1">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">World Post Day Preparation</p>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">Copywriting approval for the carousel scheduled for the 9th. Assets already rendered.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded">WILLCTEL</span>
+<span class="text-[10px] text-green-500 font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">check_circle</span> Approved
+                                        </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div>
+<h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">public</span> Global Observances
+                    </h4>
+<div class="space-y-3">
+<div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/50">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-[18px]">coffee</span>
+<span class="text-xs font-bold text-slate-800 dark:text-slate-100">International Coffee Day</span>
+</div>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
+                                "Celebrating coffee as a beverage and promoting sustainable coffee practices globally."
+                            </p>
+</div>
+<div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/50 opacity-60">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-slate-400 text-[18px]">cake</span>
+<span class="text-xs font-bold text-slate-800 dark:text-slate-100">World Vegetarian Day</span>
+</div>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                Emphasizing the health and humanitarian benefits of a vegetarian lifestyle.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 mt-auto border-t border-slate-100 dark:border-slate-800">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+<span class="material-symbols-outlined">edit_square</span> Create post for Oct 01
+                </button>
+</div>
+</aside>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50 group" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300 group-hover:text-primary transition-colors">dark_mode</span>
+</button>
+
+<script>
+  const API_BASE = "/api/proxy";
+  const monthView = document.getElementById("calendar-month");
+  const weekView = document.getElementById("calendar-week");
+  const dayView = document.getElementById("calendar-day");
+  const monthLabel = document.getElementById("calendar-month-label");
+  const prevBtn = document.getElementById("calendar-prev");
+  const nextBtn = document.getElementById("calendar-next");
+  const selectedDayPanel = document.getElementById("selected-day-panel");
+  const viewButtons = document.querySelectorAll("[data-view]");
+
+  let currentView = "month";
+  let currentDate = new Date();
+  let selectedDate = new Date();
+  let events = [];
+  let eventsByDay = new Map();
+  const clientIdParam = new URLSearchParams(window.location.search).get("clientId");
+
+  function pad(num) {
+    return String(num).padStart(2, "0");
+  }
+
+  function toISODate(date) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  function parseISODateLocal(value) {
+    if (!value) return new Date();
+    const text = String(value);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      return new Date(year, month - 1, day);
+    }
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+
+  function toMonthLabel(date) {
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
+
+  function toDayLabel(date) {
+    return date.toLocaleDateString("en-US", { month: "long", day: "2-digit" });
+  }
+
+  function toWeekdayLabel(date) {
+    return date.toLocaleDateString("en-US", { weekday: "long", year: "numeric" });
+  }
+
+  function eventDateKey(evt) {
+    if (!evt?.start) return null;
+    const dt = parseISODateLocal(evt.start);
+    if (Number.isNaN(dt.getTime())) return null;
+    return toISODate(dt);
+  }
+
+  function mapEventsByDay(items) {
+    const map = new Map();
+    items.forEach((evt) => {
+      const key = eventDateKey(evt);
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(evt);
+    });
+    return map;
+  }
+
+  async function loadEvents() {
+    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    const from = toISODate(monthStart);
+    const to = toISODate(monthEnd);
+
+    try {
+      const token = localStorage.getItem("edro_token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const clientQuery = clientIdParam ? `&clientId=${encodeURIComponent(clientIdParam)}` : "";
+      const res = await fetch(`${API_BASE}/google-calendar/events?from=${from}&to=${to}${clientQuery}`, { headers });
+      const data = await res.json();
+      events = Array.isArray(data?.events) ? data.events : [];
+      eventsByDay = mapEventsByDay(events);
+      renderAll();
+    } catch (err) {
+      console.warn("calendar fetch failed", err);
+    }
+  }
+
+  function buildEventChip(evt) {
+    const badge = (evt.clientIds && evt.clientIds[0]) || (evt.tags && evt.tags[0]) || "ED";
+    return `
+      <div class="event-card bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+        <span class="truncate font-semibold">${evt.title}</span>
+        <span class="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 px-1 rounded text-[8px] font-bold">${badge}</span>
+      </div>
+    `;
+  }
+
+  function renderMonth() {
+    if (!monthView) return;
+    if (monthLabel) monthLabel.textContent = toMonthLabel(currentDate);
+
+    const first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const last = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const start = new Date(first);
+    start.setDate(first.getDate() - first.getDay());
+    const end = new Date(last);
+    end.setDate(last.getDate() + (6 - last.getDay()));
+
+    let html = `
+      <div class="calendar-grid border-b border-r border-slate-200 dark:border-slate-800">
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Sun</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Mon</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Tue</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Wed</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Thu</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Fri</div>
+        <div class="p-2 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Sat</div>
+    `;
+
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const key = toISODate(cursor);
+      const inMonth = cursor.getMonth() === currentDate.getMonth();
+      const dayEvents = eventsByDay.get(key) || [];
+      const today = toISODate(cursor) === toISODate(new Date());
+      html += `
+        <div data-day-cell data-date="${key}" class="day-cell ${inMonth ? "" : "text-slate-300"} ${today ? "bg-orange-50/40 border-2 border-primary/10" : ""}">
+          <div class="flex justify-between items-start mb-1">
+            <span class="text-xs font-bold ${today ? "text-primary" : "text-slate-500"}">${cursor.getDate()}</span>
+            ${dayEvents.length ? `<span class="text-[8px] font-black text-primary uppercase">Events</span>` : ""}
+          </div>
+          <div class="flex-1 space-y-1">
+            ${dayEvents.slice(0, 2).map(buildEventChip).join("")}
+            ${dayEvents.length > 2 ? `<div class="text-[10px] text-slate-400">+${dayEvents.length - 2} more</div>` : ""}
+          </div>
+        </div>
+      `;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    html += `</div>`;
+    monthView.innerHTML = html;
+    bindDayCells();
+  }
+
+  function renderWeek() {
+    if (!weekView) return;
+    const start = new Date(selectedDate);
+    start.setDate(start.getDate() - start.getDay());
+    const cursor = new Date(start);
+
+    let html = `<div class="grid grid-cols-7 border-b border-r border-slate-200 dark:border-slate-800">`;
+    const headers = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    headers.forEach((day) => {
+      html += `<div class="p-3 border-l border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">${day}</div>`;
+    });
+
+    for (let i = 0; i < 7; i += 1) {
+      const key = toISODate(cursor);
+      const dayEvents = eventsByDay.get(key) || [];
+      html += `
+        <div data-day-cell data-date="${key}" class="min-h-[220px] p-3 border-l border-t border-slate-200 dark:border-slate-800">
+          <div class="text-xs font-semibold text-slate-500">${cursor.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+          <div class="mt-2 space-y-2">
+            ${dayEvents.slice(0, 3).map(buildEventChip).join("") || `<div class="text-[11px] text-slate-400">No events</div>`}
+          </div>
+        </div>
+      `;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    html += `</div>`;
+    weekView.innerHTML = html;
+    bindDayCells();
+  }
+
+  function renderDay() {
+    if (!dayView) return;
+    const key = toISODate(selectedDate);
+    const dayEvents = eventsByDay.get(key) || [];
+    const header = `
+      <div class="p-6 border-b border-slate-200 dark:border-slate-800">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Day</div>
+        <h3 class="font-display text-4xl text-slate-900 dark:text-white mt-2">${toDayLabel(selectedDate)}</h3>
+        <p class="text-sm text-slate-500 font-medium">${selectedDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric" })}</p>
+      </div>
+    `;
+
+    const list = dayEvents.length
+      ? dayEvents
+          .map(
+            (evt) => `
+        <div class="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-bold">${evt.title}</p>
+            <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded">${evt.clientIds?.[0] || "EDRO"}</span>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">${evt.description || "Sem descrição."}</p>
+        </div>
+      `
+          )
+          .join("")
+      : `<div class="text-sm text-slate-500">No events for this day.</div>`;
+
+    const body = `
+      <div class="p-6 space-y-6">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">Daily Edro Events</h4>
+            <span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">${dayEvents.length} Tasks</span>
+          </div>
+          <div class="space-y-3">${list}</div>
+        </div>
+      </div>
+    `;
+
+    dayView.innerHTML = header + body;
+  }
+
+  function renderSelectedPanel(dateKey) {
+    if (!selectedDayPanel) return;
+    const dayEvents = eventsByDay.get(dateKey) || [];
+    const date = parseISODateLocal(dateKey);
+
+    const eventBlocks = dayEvents.length
+      ? dayEvents
+          .map(
+            (evt) => `
+        <div class="group cursor-pointer border-t border-slate-100 dark:border-slate-800 pt-4">
+          <div class="flex gap-4 items-start">
+            <div class="w-1.5 h-12 bg-orange-400 rounded-full shrink-0"></div>
+            <div class="flex-1">
+              <p class="text-sm font-bold group-hover:text-primary transition-colors">${evt.title}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">${evt.description || "Sem descrição."}</p>
+              <div class="flex items-center gap-2 mt-2">
+                <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded">${evt.clientIds?.[0] || "EDRO"}</span>
+                ${evt.tags?.[0] ? `<span class="text-[10px] text-orange-500 font-bold">${evt.tags[0]}</span>` : ""}
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+          )
+          .join("")
+      : `<div class="text-sm text-slate-500">No events for this day.</div>`;
+
+    selectedDayPanel.innerHTML = `
+      <div class="p-6 border-b border-slate-100 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Day</span>
+          <button id="selected-day-close" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <span class="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+        <h3 class="font-display text-4xl text-slate-900 dark:text-white mb-1">${toDayLabel(date)}</h3>
+        <p class="text-sm text-slate-500 font-medium">${toWeekdayLabel(date)}</p>
+      </div>
+      <div class="flex-1 p-6 space-y-8">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">Daily Edro Events</h4>
+            <span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">${dayEvents.length} Tasks</span>
+          </div>
+          <div class="space-y-4">${eventBlocks}</div>
+        </div>
+      </div>
+      <div class="p-6 mt-auto border-t border-slate-100 dark:border-slate-800">
+        <button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+          <span class="material-symbols-outlined">edit_square</span> Create post for ${toDayLabel(date)}
+        </button>
+      </div>
+    `;
+
+    const closeBtn = document.getElementById("selected-day-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectedDayPanel.classList.add("hidden");
+      });
+    }
+  }
+
+  function openSelectedDay(dateKey) {
+    if (!selectedDayPanel) return;
+    selectedDayPanel.classList.remove("hidden");
+    renderSelectedPanel(dateKey);
+  }
+
+  function bindDayCells() {
+    const dayCells = document.querySelectorAll("[data-day-cell]");
+    dayCells.forEach((cell) => {
+      cell.addEventListener("click", () => {
+        const dateKey = cell.getAttribute("data-date") || toISODate(selectedDate);
+        selectedDate = parseISODateLocal(dateKey);
+        renderDay();
+        openSelectedDay(dateKey);
+      });
+    });
+  }
+
+  function setView(view) {
+    currentView = view;
+    if (monthView) monthView.classList.add("hidden");
+    if (weekView) weekView.classList.add("hidden");
+    if (dayView) dayView.classList.add("hidden");
+
+    if (view === "week" && weekView) weekView.classList.remove("hidden");
+    else if (view === "day" && dayView) dayView.classList.remove("hidden");
+    else if (monthView) monthView.classList.remove("hidden");
+
+    viewButtons.forEach((btn) => {
+      const isActive = btn.getAttribute("data-view") === view;
+      btn.classList.toggle("bg-white", isActive);
+      btn.classList.toggle("dark:bg-slate-700", isActive);
+      btn.classList.toggle("shadow-sm", isActive);
+      btn.classList.toggle("rounded-md", isActive);
+      btn.classList.toggle("text-slate-500", !isActive);
+    });
+  }
+
+  function renderAll() {
+    renderMonth();
+    renderWeek();
+    renderDay();
+    setView(currentView);
+  }
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+      selectedDate = new Date(currentDate);
+      loadEvents();
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+      selectedDate = new Date(currentDate);
+      loadEvents();
+    });
+  }
+
+  viewButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setView(btn.getAttribute("data-view") || "month");
+    });
+  });
+
+  loadEvents();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

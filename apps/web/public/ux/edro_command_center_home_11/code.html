@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#FF6600",
+              "background-light": "#F9FAFB",
+              "background-dark": "#0F172A",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1E293B",
+            },
+            fontFamily: {
+              display: ["Instrument Serif", "serif"],
+              sans: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "12px",
+              'xl': '16px',
+            },
+          },
+        },
+      };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .clipping-card:hover .quick-actions { opacity: 1; transform: translateY(0); }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Radar</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl text-slate-900 dark:text-white">Global Radar Inbox</h1>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADlO9oIHcWqmAq--ryVy7tuX2eBpGObU9kVQ6eMFngHp4gauSHh5WU2Ne4UGKuaSlouAb1u6ARWYQhleXvz62gOHwLlvBv3TOsUjv8MZFLgHM0hWl-uO6Czlu6pWnQeOG6FlP332bGs_EAonN6Jwk6pjWePHLz1P9vXJj115YBEx3OLQlmgDKTcBlAi7ttXDd-YGf7ZzdpJ-K7ILGxPtCcvKK217EvxLNhnp4RPpjuQJNqe16cKvtQl0y_PPCYenUmg16G_YCySmg"/>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto">
+<div class="p-8 max-w-none">
+<div class="flex flex-col md:flex-row gap-4 items-center justify-between mb-8">
+<div class="relative w-full md:w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+<input id="radar-search" class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-primary focus:border-primary text-sm transition-all" placeholder="Search radar items..." type="text"/>
+</div>
+<div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+<button id="radar-high" class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-orange-600 transition-colors whitespace-nowrap">
+<span class="material-symbols-outlined text-sm">trending_up</span> High Relevance
+                    </button>
+<div class="flex items-center gap-1 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg p-1">
+<button class="px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Date</button>
+<button class="px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Status</button>
+</div>
+<button class="flex items-center gap-2 px-3 py-2 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span> More Filters
+                    </button>
+</div>
+</div>
+
+<div id="radar-items" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div id="radar-loading" class="text-xs text-slate-500">Loading radar...</div>
+</div>
+<template id="radar-item-template">
+  <article class="clipping-card group relative bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden hover:shadow-xl hover:border-primary/20 transition-all cursor-pointer">
+    <div class="relative">
+      <img data-role="item-image" alt="Radar item" class="h-44 w-full object-cover" src=""/>
+      <div class="absolute top-3 left-3 bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+        <div class="text-[9px] font-bold uppercase text-slate-400">Score</div>
+        <div data-role="item-score" class="text-lg font-display text-primary leading-none">0</div>
+      </div>
+      <div class="quick-actions absolute top-3 right-3 flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">
+        <button class="p-2 text-slate-600 bg-white/90 hover:text-primary rounded-lg transition-colors" title="Assign to client" data-role="item-assign">
+          <span class="material-symbols-outlined text-[18px]">person_add</span>
+        </button>
+        <button class="p-2 text-slate-600 bg-white/90 hover:text-primary rounded-lg transition-colors" title="Pin" data-role="item-pin">
+          <span class="material-symbols-outlined text-[18px]">keep</span>
+        </button>
+        <button class="p-2 text-slate-600 bg-white/90 hover:text-primary rounded-lg transition-colors" title="Create post" data-role="item-create">
+          <span class="material-symbols-outlined text-[18px]">add_box</span>
+        </button>
+        <button class="p-2 text-slate-600 bg-white/90 hover:text-red-500 rounded-lg transition-colors" title="Archive" data-role="item-archive">
+          <span class="material-symbols-outlined text-[18px]">archive</span>
+        </button>
+      </div>
+    </div>
+    <div class="p-5">
+      <div class="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        <span class="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500" data-role="item-source">
+          <span class="material-symbols-outlined text-[12px]">public</span> Source
+        </span>
+        <span data-role="item-date">--</span>
+        <span class="w-1.5 h-1.5 rounded-full" data-role="item-status-dot"></span>
+        <span data-role="item-status" class="text-slate-500">Status</span>
+      </div>
+      <h3 data-role="item-title" class="font-display text-2xl text-slate-900 dark:text-white leading-tight mt-3">Title</h3>
+      <p data-role="item-snippet" class="text-sm text-slate-500 dark:text-slate-400 mt-2">Snippet</p>
+      <div class="mt-4 flex items-center justify-between">
+        <div data-role="item-clients" class="flex -space-x-2"></div>
+        <button data-role="item-create-link" class="text-xs font-semibold text-primary">Create post</button>
+      </div>
+    </div>
+  </article>
+</template>
+<div id="radar-empty" class="hidden flex flex-col items-center justify-center py-20 px-4 text-center">
+  <div class="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+    <span class="material-symbols-outlined text-slate-300 text-3xl">content_cut</span>
+  </div>
+  <h4 class="text-lg font-medium text-slate-600 dark:text-slate-400">No radar items found</h4>
+  <p class="text-sm text-slate-400 mt-1 max-w-xs">Your inbox is clear. Adjust your filters or wait for new global trends to surface.</p>
+</div>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 text-center">
+<p class="text-xs text-slate-400 uppercase tracking-widest">© 2023 Edro Creative Studio • All operations synchronized</p>
+</footer>
+</div>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script>
+(() => {
+  const apiBase = '/api/proxy';
+  const listEl = document.getElementById('radar-items');
+  const template = document.getElementById('radar-item-template');
+  const loadingEl = document.getElementById('radar-loading');
+  const emptyEl = document.getElementById('radar-empty');
+  const searchInput = document.getElementById('radar-search');
+  const highBtn = document.getElementById('radar-high');
+  const fallbackImage =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='600'%3E%3Crect width='1200' height='600' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='Inter, sans-serif' font-size='48' fill='%2394a3b8'%3ERadar%3C/text%3E%3C/svg%3E";
+  const state = {
+    items: [],
+    highOnly: false,
+  };
+  const navigate = (path) => {
+    const target = window.top || window;
+    target.location.href = path;
+  };
+
+  const getStorageItem = (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+
+  const setStorageItem = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // ignore
+    }
+    try {
+      window.top?.localStorage?.setItem(key, value);
+    } catch {
+      // ignore
+    }
+  };
+
+  const hasSession = () => Boolean(getStorageItem('edro_token') || getStorageItem('edro_refresh'));
+
+  const getAuthHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = getStorageItem('edro_token');
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  const refreshAccessToken = async () => {
+    const refreshToken = getStorageItem('edro_refresh');
+    const userRaw = getStorageItem('edro_user');
+    if (!refreshToken || !userRaw) return false;
+
+    let user;
+    try {
+      user = JSON.parse(userRaw);
+    } catch {
+      return false;
+    }
+    if (!user?.id) return false;
+
+    const response = await fetch(`${apiBase}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, refreshToken }),
+    });
+
+    if (!response.ok) return false;
+    const data = await response.json();
+    if (data?.accessToken) setStorageItem('edro_token', data.accessToken);
+    if (data?.refreshToken) setStorageItem('edro_refresh', data.refreshToken);
+    return true;
+  };
+
+  const request = async (path, options = {}) => {
+    const response = await fetch(`${apiBase}${path}`, {
+      ...options,
+      headers: getAuthHeaders(),
+    });
+
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return request(path, options);
+      }
+      if (window.top) window.top.location.href = '/login';
+    }
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('json')) {
+      throw new Error(text || `Unexpected response ${response.status}`);
+    }
+    return text ? JSON.parse(text) : {};
+  };
+
+  const scoreToPercent = (value) => {
+    const score = Number(value);
+    if (!Number.isFinite(score)) return 0;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '--';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  const statusConfig = (status) => {
+    const normalized = String(status || 'NEW').toUpperCase();
+    if (normalized === 'PINNED') {
+      return { label: 'Pinned', dot: 'bg-blue-400', text: 'text-blue-600' };
+    }
+    if (normalized === 'TRIAGED') {
+      return { label: 'Triaged', dot: 'bg-amber-400', text: 'text-amber-600' };
+    }
+    if (normalized === 'ARCHIVED') {
+      return { label: 'Archived', dot: 'bg-slate-300', text: 'text-slate-400' };
+    }
+    return { label: 'New', dot: 'bg-emerald-400', text: 'text-emerald-600' };
+  };
+
+  const buildStudioUrl = (item) => {
+    const query = new URLSearchParams();
+    if (item?.published_at) query.set('date', String(item.published_at).slice(0, 10));
+    if (item?.title) query.set('event', item.title);
+    const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+    if (scoreValue) query.set('score', String(scoreValue));
+    if (item?.categories?.length) query.set('categories', item.categories.join(', '));
+    if (item?.tags?.length) query.set('tags', item.tags.join(', '));
+    if (item?.snippet) query.set('why', item.snippet.slice(0, 160));
+    if (item?.source_name) query.set('source', item.source_name);
+    const qs = query.toString();
+    return qs ? `/studio?${qs}` : '/studio';
+  };
+
+  const applyFilters = () => {
+    const query = (searchInput?.value || '').trim().toLowerCase();
+    const filtered = state.items.filter((item) => {
+      if (state.highOnly) {
+        const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+        if (scoreValue < 80) return false;
+      }
+      if (!query) return true;
+      const title = String(item?.title || '').toLowerCase();
+      const snippet = String(item?.snippet || '').toLowerCase();
+      return title.includes(query) || snippet.includes(query);
+    });
+    renderItems(filtered);
+  };
+
+  const renderItems = (items) => {
+    if (!listEl || !template) return;
+    listEl.innerHTML = '';
+    if (!items.length) {
+      emptyEl?.classList.remove('hidden');
+      return;
+    }
+    emptyEl?.classList.add('hidden');
+
+    items.forEach((item) => {
+      const node = template.content.firstElementChild.cloneNode(true);
+      const imageEl = node.querySelector('[data-role="item-image"]');
+      const scoreEl = node.querySelector('[data-role="item-score"]');
+      const sourceEl = node.querySelector('[data-role="item-source"]');
+      const dateEl = node.querySelector('[data-role="item-date"]');
+      const statusDot = node.querySelector('[data-role="item-status-dot"]');
+      const statusEl = node.querySelector('[data-role="item-status"]');
+      const titleEl = node.querySelector('[data-role="item-title"]');
+      const snippetEl = node.querySelector('[data-role="item-snippet"]');
+      const clientsEl = node.querySelector('[data-role="item-clients"]');
+      const createLink = node.querySelector('[data-role="item-create-link"]');
+      const createButton = node.querySelector('[data-role="item-create"]');
+      const assignButton = node.querySelector('[data-role="item-assign"]');
+      const pinButton = node.querySelector('[data-role="item-pin"]');
+      const archiveButton = node.querySelector('[data-role="item-archive"]');
+
+      const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+      const status = statusConfig(item?.status);
+      const itemLink = `/clipping/${item?.id}`;
+
+      if (imageEl) {
+        imageEl.src = item?.image_url || fallbackImage;
+        imageEl.alt = item?.title || 'Radar item';
+        imageEl.onerror = () => {
+          imageEl.src = fallbackImage;
+        };
+      }
+      if (scoreEl) scoreEl.textContent = String(scoreValue);
+      if (sourceEl) {
+        sourceEl.innerHTML = '';
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined text-[12px]';
+        icon.textContent = 'public';
+        const label = document.createElement('span');
+        label.textContent = item?.source_name || item?.source_type || 'Source';
+        sourceEl.appendChild(icon);
+        sourceEl.appendChild(label);
+      }
+      if (dateEl) dateEl.textContent = formatDate(item?.published_at || item?.created_at);
+      if (statusDot) statusDot.className = `w-1.5 h-1.5 rounded-full ${status.dot}`;
+      if (statusEl) {
+        statusEl.textContent = status.label;
+        statusEl.className = `text-slate-500 ${status.text} text-[10px] font-bold uppercase`;
+      }
+      if (titleEl) titleEl.textContent = item?.title || 'Radar item';
+      if (snippetEl) snippetEl.textContent = item?.snippet || 'No summary available.';
+
+      if (clientsEl) {
+        clientsEl.innerHTML = '';
+        const clients = [
+          ...(item?.assigned_client_ids || []),
+          ...(item?.suggested_client_ids || []),
+        ];
+        clients.slice(0, 3).forEach((clientId, index) => {
+          const chip = document.createElement('span');
+          const initials = String(clientId || '?').slice(0, 2).toUpperCase();
+          chip.className =
+            'w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold flex items-center justify-center border border-white dark:border-slate-900';
+          if (index === 0) chip.classList.add('text-primary');
+          chip.textContent = initials;
+          chip.title = String(clientId);
+          clientsEl.appendChild(chip);
+        });
+      }
+
+      const openStudio = (event) => {
+        event?.stopPropagation();
+        navigate(buildStudioUrl(item));
+      };
+
+      if (createLink) {
+        createLink.addEventListener('click', openStudio);
+      }
+      if (createButton) {
+        createButton.addEventListener('click', openStudio);
+      }
+      if (assignButton) {
+        assignButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          navigate(itemLink);
+        });
+      }
+      if (pinButton) {
+        pinButton.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          try {
+            await request(`/clipping/items/${item.id}/pin`, {
+              method: 'POST',
+              body: JSON.stringify({ scope: 'GLOBAL', collection_name: 'Radar' }),
+            });
+          } catch (error) {
+            console.error('Pin failed', error);
+          }
+        });
+      }
+      if (archiveButton) {
+        archiveButton.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          try {
+            await request(`/clipping/items/${item.id}/archive`, { method: 'POST' });
+            state.items = state.items.filter((entry) => entry.id !== item.id);
+            applyFilters();
+          } catch (error) {
+            console.error('Archive failed', error);
+          }
+        });
+      }
+
+      node.addEventListener('click', () => {
+        navigate(itemLink);
+      });
+      listEl.appendChild(node);
+    });
+  };
+
+  const loadItems = async () => {
+    if (!listEl || !template) return;
+    if (!hasSession()) {
+      listEl.innerHTML = '<div class="text-xs text-slate-500">Login required to load radar.</div>';
+      loadingEl?.remove();
+      return;
+    }
+
+    try {
+      const data = await request('/clipping/items?limit=200');
+      state.items = Array.isArray(data) ? data : [];
+      applyFilters();
+    } catch (error) {
+      console.error('Radar load error:', error);
+      listEl.innerHTML =
+        '<div class="text-xs text-slate-500">Unable to load radar data.</div>';
+    } finally {
+      loadingEl?.remove();
+    }
+  };
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => applyFilters());
+  }
+  if (highBtn) {
+    highBtn.addEventListener('click', () => {
+      state.highOnly = !state.highOnly;
+      highBtn.classList.toggle('bg-primary', state.highOnly);
+      highBtn.classList.toggle('text-white', state.highOnly);
+      highBtn.classList.toggle('bg-slate-100', !state.highOnly);
+      highBtn.classList.toggle('text-slate-600', !state.highOnly);
+      applyFilters();
+    });
+  }
+
+  loadItems();
+})();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

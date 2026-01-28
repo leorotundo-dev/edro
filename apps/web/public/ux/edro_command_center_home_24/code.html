@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Creative Brief Start - Edro Creative Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" crossorigin href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#FF6600",
+              "background-light": "#F9FAFB",
+              "background-dark": "#0F172A",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1E293B",
+            },
+            fontFamily: {
+              display: ["Instrument Serif", "serif"],
+              sans: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "12px",
+              xl: "16px",
+            },
+          },
+        },
+      };
+    </script>
+    <style type="text/tailwindcss">
+      body { font-family: 'Inter', sans-serif; }
+      .font-display { font-family: 'Instrument Serif', serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    </style>
+  </head>
+  <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+    <aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+      <div class="px-6 pt-6 pb-4">
+        <div class="flex items-center gap-3">
+          <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+          <div>
+          </div>
+        </div>
+      </div>
+      <nav class="px-4 py-2 space-y-1 text-sm">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">home</span>
+          <span>Home</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+          <span>Clients</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+          <span>Calendar</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+          <span>Kanban</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">palette</span>
+          <span>Creative Studio</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-[20px]">content_cut</span>
+          <span>Clipping</span>
+        </a>
+      </nav>
+      <div class="mt-auto p-6">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+          <span class="material-symbols-outlined text-xl">settings</span>
+          <span>Settings</span>
+        </a>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+      <header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+        <div class="flex items-center gap-4">
+          <h1 class="font-display text-2xl">Campaign Strategy</h1>
+          <div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+          <span class="text-sm font-medium text-slate-500 uppercase tracking-wide">Step 1 of 4</span>
+          <div class="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <span class="material-symbols-outlined text-[16px]">event</span>
+            <span id="edro-prefill-header-date">22/01/2026</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-6">
+          <button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <span class="material-symbols-outlined text-[24px]">notifications</span>
+            <span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+          </button>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Alex Rivera</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+            </div>
+            <img
+              alt="Profile avatar"
+              class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvAk3odobYSg1Pbv6JIgSldZBi3DFIUUztWB6XUe29WkmbpW3iFxm-up5sdxcN7wplROm6if2NtRMvS5bb6eLDxYHZjyg2sZG2jI54RdIn5M9XfG34WVWVVktcPqSC5sKOxJHdtj8OhvGhzjiYoVvwj6---zaiH2XiafvYl2dNjjJAW7G6dxcJw6Y_lTrUasNpunsU3fpzMIusTbzbf2YlDLd2lHYQzr8AxNFZNtWL8l2XegBDh5cQ5xZjXw8d7ePCQIzwRbE-RXY"
+            />
+          </div>
+        </div>
+      </header>
+
+      <div class="flex-1 overflow-y-auto">
+        <div class="max-w-none p-8 pb-24 space-y-8">
+          <div>
+            <h1 class="font-display text-4xl text-slate-900 dark:text-white mb-2">Start with the creative brief</h1>
+            <p class="text-slate-500 dark:text-slate-400 text-lg">
+              Define objective, context, and message before format selection.
+            </p>
+          </div>
+
+          <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Primary Client</p>
+                  <input id="edro-prefill-client" class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm" placeholder="Azul Coffee Co." />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Publish Date</p>
+                  <input id="edro-prefill-date" class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm" placeholder="22/01/2026" />
+                </div>
+              </div>
+
+              <div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Objective</p>
+                <select class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+                  <option>Awareness</option>
+                  <option>Engagement</option>
+                  <option>Conversion</option>
+                  <option>Retention</option>
+                </select>
+              </div>
+
+              <div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Campaign / Theme</p>
+                <input id="edro-prefill-theme" class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm" placeholder="Ex: Coffee Day Campaign" />
+              </div>
+
+              <div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Key Message</p>
+                <textarea id="edro-prefill-message" class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm min-h-[160px]" placeholder="What do you want to communicate?"></textarea>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-5">
+              <div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Context References</p>
+                <div class="space-y-3">
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                    <p class="text-xs text-slate-500">Calendar Signal</p>
+                    <p id="edro-prefill-signal" class="text-sm font-semibold">International Coffee Day</p>
+                  </div>
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                    <p class="text-xs text-slate-500">Trend Match</p>
+                    <p id="edro-prefill-trends" class="text-sm font-semibold">Morning Rituals</p>
+                  </div>
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                    <p class="text-xs text-slate-500">Client Insight</p>
+                    <p id="edro-prefill-insight" class="text-sm font-semibold">Premium roast positioning</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                class="w-full rounded-lg bg-primary text-white text-sm font-semibold py-3 hover:bg-orange-600 transition-colors"
+                data-route="/studio/platforms"
+              >
+                Continue to Format Selection
+              </button>
+              <p class="text-xs text-slate-500 text-center">
+                Next: pick platforms and generate copy for all selected formats.
+              </p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script src="/ux/edro-studio-api.js"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const read = (key) => params.get(key) || '';
+        const setField = (id, value) => {
+          if (!value) return;
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            el.value = value;
+          } else {
+            el.textContent = value;
+          }
+        };
+        const setIfEmpty = (id, value) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const current = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+            ? el.value
+            : el.textContent;
+          if (current && current.trim()) return;
+          setField(id, value);
+        };
+        const getTextValue = (id) => {
+          const el = document.getElementById(id);
+          if (!el) return '';
+          return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+            ? el.value
+            : el.textContent;
+        };
+
+        const client = read('client');
+        const clientId = window.EdroStudio?.getClientId?.() || read('clientId');
+        const segment = read('segment');
+        const location = read('location');
+        const date = read('date');
+        const eventName = read('event');
+        const score = read('score');
+        const tier = read('tier');
+        const tags = read('tags');
+        const categories = read('categories');
+        const why = read('why');
+        const source = read('source');
+
+        if (date) {
+          setField('edro-prefill-date', date);
+          setField('edro-prefill-header-date', date);
+        }
+        setField('edro-prefill-client', client);
+        setField('edro-prefill-theme', eventName);
+        setField('edro-prefill-signal', eventName);
+
+        const trendText = tags || categories;
+        setField('edro-prefill-trends', trendText);
+
+        const insightParts = [];
+        if (segment) insightParts.push(segment);
+        if (location) insightParts.push(location);
+        if (score) insightParts.push(`Relevance ${score}${tier ? ` · ${tier}` : ''}`);
+        if (why) insightParts.push(why);
+        if (!insightParts.length && source) insightParts.push(source);
+        if (insightParts.length) {
+          setField('edro-prefill-insight', insightParts.join(' | '));
+        }
+
+        const messageParts = [];
+        if (eventName) messageParts.push(`Event: ${eventName}`);
+        if (date) messageParts.push(`Date: ${date}`);
+        if (client) messageParts.push(`Client: ${client}`);
+        if (segment) messageParts.push(`Segment: ${segment}`);
+        if (score) messageParts.push(`Relevance: ${score}${tier ? ` (${tier})` : ''}`);
+        if (tags) messageParts.push(`Tags: ${tags}`);
+        if (categories) messageParts.push(`Categories: ${categories}`);
+        if (why) messageParts.push(`Why: ${why}`);
+        if (messageParts.length) {
+          setField('edro-prefill-message', messageParts.join('\n'));
+        }
+
+        const resolvedDate = date || new Date().toISOString().slice(0, 10);
+        const context = {
+          client,
+          clientId,
+          segment,
+          location,
+          date: resolvedDate,
+          event: eventName,
+          score,
+          tier,
+          tags,
+          categories,
+          why,
+          source
+        };
+        const persistContext = () => {
+          try {
+            localStorage.setItem('edro_studio_context', JSON.stringify(context));
+          } catch {
+            // ignore
+          }
+        };
+        persistContext();
+
+        const loadClient = async () => {
+          if (!clientId || !window.EdroStudio?.request) return;
+          try {
+            const clientData = await window.EdroStudio.request(`/clients/${clientId}`, { method: 'GET' });
+            if (clientData?.name) {
+              setIfEmpty('edro-prefill-client', clientData.name);
+              context.client = clientData.name;
+            }
+            const locationParts = [clientData?.city, clientData?.uf].filter(Boolean);
+            const insight = [];
+            if (clientData?.segment_primary) insight.push(clientData.segment_primary);
+            if (locationParts.length) insight.push(locationParts.join(' / '));
+            const tone = clientData?.profile?.tone_profile;
+            if (tone) insight.push(`tone:${tone}`);
+            if (insight.length) setIfEmpty('edro-prefill-insight', insight.join(' | '));
+            if (clientData?.segment_primary) context.segment = clientData.segment_primary;
+            if (locationParts.length) context.location = locationParts.join(' / ');
+            persistContext();
+          } catch (error) {
+            console.warn('studio client load failed', error);
+          }
+        };
+
+        const loadCalendarSignal = async () => {
+          if (!clientId || !window.EdroStudio?.request) return;
+          try {
+            const dayData = await window.EdroStudio.request(
+              `/clients/${clientId}/calendar/day/${resolvedDate}`,
+              { method: 'GET' }
+            );
+            const topEvent = dayData?.items?.[0];
+            if (topEvent?.name) {
+              setIfEmpty('edro-prefill-signal', topEvent.name);
+              setIfEmpty('edro-prefill-theme', topEvent.name);
+              context.event = topEvent.name;
+            }
+            if (resolvedDate) {
+              setIfEmpty('edro-prefill-date', resolvedDate);
+              setIfEmpty('edro-prefill-header-date', resolvedDate);
+              context.date = resolvedDate;
+            }
+            const messageValue = getTextValue('edro-prefill-message');
+            if (!messageValue && topEvent) {
+              const fallback = [];
+              if (topEvent.name) fallback.push(`Event: ${topEvent.name}`);
+              if (resolvedDate) fallback.push(`Date: ${resolvedDate}`);
+              if (topEvent.score) fallback.push(`Relevance: ${Math.round(topEvent.score)}${topEvent.tier ? ` (${topEvent.tier})` : ''}`);
+              if (topEvent.tags?.length) fallback.push(`Tags: ${topEvent.tags.join(', ')}`);
+              if (topEvent.categories?.length) fallback.push(`Categories: ${topEvent.categories.join(', ')}`);
+              if (topEvent.why) fallback.push(`Why: ${topEvent.why}`);
+              setIfEmpty('edro-prefill-message', fallback.join('\n'));
+            }
+            persistContext();
+          } catch (error) {
+            console.warn('studio calendar load failed', error);
+          }
+        };
+
+        const loadTrendMatch = async () => {
+          if (!clientId || !window.EdroStudio?.request) return;
+          try {
+            const matchData = await window.EdroStudio.request(
+              `/clipping/matches/${clientId}?limit=1`,
+              { method: 'GET' }
+            );
+            const match = matchData?.matches?.[0];
+            if (match?.title) setIfEmpty('edro-prefill-trends', match.title);
+            if (match?.snippet) setIfEmpty('edro-prefill-insight', match.snippet.slice(0, 120));
+            if (match?.title) context.trend = match.title;
+            if (match?.snippet) context.trend_why = match.snippet;
+            persistContext();
+          } catch (error) {
+            console.warn('studio trend load failed', error);
+          }
+        };
+
+        loadClient();
+        loadCalendarSignal();
+        loadTrendMatch();
+      })();
+    </script>
+    <script src="/ux/edro-links.js"></script>
+  </body>
+</html>
+
+
+
+

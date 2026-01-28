@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#FF6600",
+            "background-light": "#F9FAFB",
+            "background-dark": "#0F172A",
+            "surface-light": "#FFFFFF",
+            "surface-dark": "#1E293B",
+          },
+          fontFamily: {
+            display: ["Instrument Serif", "serif"],
+            sans: ["Inter", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "12px",
+            xl: "16px",
+          },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    body { font-family: 'Inter', sans-serif; }
+    .font-display { font-family: 'Instrument Serif', serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+  <aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+    <div class="px-6 pt-6 pb-4">
+      <div class="flex items-center gap-3">
+        <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+        <div>
+        </div>
+      </div>
+    </div>
+    <nav class="px-4 py-2 space-y-1 text-sm">
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span>Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">group</span>
+        <span>Clients</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+        <span>Calendar</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+        <span>Kanban</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[20px]">palette</span>
+        <span>Creative Studio</span>
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-primary bg-orange-50 dark:bg-orange-950/30 rounded-lg font-medium" href="#">
+        <span class="material-symbols-outlined text-[20px]">content_cut</span>
+        <span>Radar</span>
+      </a>
+    </nav>
+    <div class="mt-auto p-6">
+      <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+        <span class="material-symbols-outlined text-xl">settings</span>
+        <span>Settings</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+      <div class="flex items-center gap-4">
+        <h1 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-widest">Radar Detail</h1>
+      </div>
+      <div class="flex items-center gap-6">
+        <button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <p class="text-sm font-semibold leading-none">Alex Rivera</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+          </div>
+          <img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADlO9oIHcWqmAq--ryVy7tuX2eBpGObU9kVQ6eMFngHp4gauSHh5WU2Ne4UGKuaSlouAb1u6ARWYQhleXvz62gOHwLlvBv3TOsUjv8MZFLgHM0hWl-uO6Czlu6pWnQeOG6FlP332bGs_EAonN6Jwk6pjWePHLz1P9vXJj115YBEx3OLQlmgDKTcBlAi7ttXDd-YGf7ZzdpJ-K7ILGxPtCcvKK217EvxLNhnp4RPpjuQJNqe16cKvtQl0y_PPCYenUmg16G_YCySmg" />
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto">
+      <div class="p-8 max-w-none">
+        <div class="flex items-center justify-between mb-6">
+          <button class="flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-700" data-route="/clipping">
+            <span class="material-symbols-outlined text-sm">arrow_back</span>
+            Back to Radar
+          </button>
+          <div class="flex items-center gap-2">
+            <span data-role="item-source" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Source</span>
+            <span data-role="item-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+            <span data-role="item-status" class="text-[10px] font-bold text-slate-400 uppercase">Status</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-8">
+          <section class="space-y-6">
+            <div class="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+              <img data-role="item-image" alt="Radar item" class="w-full h-64 object-cover" src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80" />
+            </div>
+            <div>
+              <div data-role="item-meta" class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Date • Radar</div>
+              <h2 data-role="item-title" class="font-display text-4xl text-slate-900 dark:text-white mt-3">Radar item</h2>
+              <p data-role="item-snippet" class="text-sm text-slate-500 dark:text-slate-400 mt-3">Summary for this radar entry.</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4">
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Summary</h3>
+                <p data-role="item-summary" class="text-sm text-slate-600 dark:text-slate-300 mt-2">Summary not available.</p>
+              </div>
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Why it matters</h3>
+                <ul data-role="item-why" class="mt-2 text-sm text-slate-600 dark:text-slate-300 space-y-2 list-disc list-inside">
+                  <li>No analysis available yet.</li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Key tags</h3>
+                <div data-role="item-tags" class="mt-2 flex flex-wrap gap-2"></div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <a data-role="item-link" class="inline-flex items-center gap-2 text-xs font-semibold text-primary" href="#" target="_blank">Open original article <span class="material-symbols-outlined text-sm">open_in_new</span></a>
+              <button data-role="item-create" class="ml-auto bg-primary hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg">Create post</button>
+            </div>
+          </section>
+
+          <aside class="space-y-6">
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+              <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">Relevance by client</div>
+              <div data-role="item-clients" class="mt-4 space-y-4">
+                <div class="text-xs text-slate-500">No client matches available.</div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+              <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">AI relevance analysis</div>
+              <div data-role="item-analysis" class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                <div class="text-xs text-slate-500">No analysis available yet.</div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+              <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">Suggested angles</div>
+              <div data-role="item-angles" class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                <div class="text-xs text-slate-500">No suggestions yet.</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+    <span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+  </button>
+
+  <script>
+    (() => {
+      const apiBase = '/api/proxy';
+      const fallbackImage =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='600'%3E%3Crect width='1200' height='600' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-family='Inter, sans-serif' font-size='48' fill='%2394a3b8'%3ERadar%3C/text%3E%3C/svg%3E";
+      const navigate = (path) => {
+        const target = window.top || window;
+        target.location.href = path;
+      };
+
+      const els = {
+        source: document.querySelector('[data-role="item-source"]'),
+        statusDot: document.querySelector('[data-role="item-status-dot"]'),
+        status: document.querySelector('[data-role="item-status"]'),
+        image: document.querySelector('[data-role="item-image"]'),
+        meta: document.querySelector('[data-role="item-meta"]'),
+        title: document.querySelector('[data-role="item-title"]'),
+        snippet: document.querySelector('[data-role="item-snippet"]'),
+        summary: document.querySelector('[data-role="item-summary"]'),
+        why: document.querySelector('[data-role="item-why"]'),
+        tags: document.querySelector('[data-role="item-tags"]'),
+        link: document.querySelector('[data-role="item-link"]'),
+        create: document.querySelector('[data-role="item-create"]'),
+        clients: document.querySelector('[data-role="item-clients"]'),
+        analysis: document.querySelector('[data-role="item-analysis"]'),
+        angles: document.querySelector('[data-role="item-angles"]'),
+      };
+
+      const getStorageItem = (key) => {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      };
+
+      const setStorageItem = (key, value) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // ignore
+        }
+        try {
+          window.top?.localStorage?.setItem(key, value);
+        } catch {
+          // ignore
+        }
+      };
+
+      const hasSession = () => Boolean(getStorageItem('edro_token') || getStorageItem('edro_refresh'));
+
+      const getAuthHeaders = () => {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = getStorageItem('edro_token');
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
+      };
+
+      const refreshAccessToken = async () => {
+        const refreshToken = getStorageItem('edro_refresh');
+        const userRaw = getStorageItem('edro_user');
+        if (!refreshToken || !userRaw) return false;
+
+        let user;
+        try {
+          user = JSON.parse(userRaw);
+        } catch {
+          return false;
+        }
+        if (!user?.id) return false;
+
+        const response = await fetch(`${apiBase}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, refreshToken }),
+        });
+
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (data?.accessToken) setStorageItem('edro_token', data.accessToken);
+        if (data?.refreshToken) setStorageItem('edro_refresh', data.refreshToken);
+        return true;
+      };
+
+      const request = async (path, options = {}) => {
+        const response = await fetch(`${apiBase}${path}`, {
+          ...options,
+          headers: getAuthHeaders(),
+        });
+
+        if (response.status === 401) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            return request(path, options);
+          }
+          if (window.top) window.top.location.href = '/login';
+        }
+
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('json')) {
+          throw new Error(text || `Unexpected response ${response.status}`);
+        }
+        return text ? JSON.parse(text) : {};
+      };
+
+      const scoreToPercent = (value) => {
+        const score = Number(value);
+        if (!Number.isFinite(score)) return 0;
+        return Math.max(0, Math.min(100, Math.round(score)));
+      };
+
+      const formatLongDate = (value) => {
+        if (!value) return 'Date unavailable';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'Date unavailable';
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      };
+
+      const statusConfig = (status) => {
+        const normalized = String(status || 'NEW').toUpperCase();
+        if (normalized === 'PINNED') {
+          return { label: 'Pinned', dot: 'bg-blue-400', text: 'text-blue-600' };
+        }
+        if (normalized === 'TRIAGED') {
+          return { label: 'Triaged', dot: 'bg-amber-400', text: 'text-amber-600' };
+        }
+        if (normalized === 'ARCHIVED') {
+          return { label: 'Archived', dot: 'bg-slate-300', text: 'text-slate-400' };
+        }
+        return { label: 'New', dot: 'bg-emerald-400', text: 'text-emerald-600' };
+      };
+
+      const buildStudioUrl = (item) => {
+        const query = new URLSearchParams();
+        if (item?.published_at) query.set('date', String(item.published_at).slice(0, 10));
+        if (item?.title) query.set('event', item.title);
+        const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+        if (scoreValue) query.set('score', String(scoreValue));
+        if (item?.categories?.length) query.set('categories', item.categories.join(', '));
+        if (item?.tags?.length) query.set('tags', item.tags.join(', '));
+        if (item?.snippet) query.set('why', item.snippet.slice(0, 160));
+        if (item?.source_name) query.set('source', item.source_name);
+        const qs = query.toString();
+        return qs ? `/studio?${qs}` : '/studio';
+      };
+
+      const getItemId = () => {
+        const params = new URLSearchParams(window.location.search);
+        const fromQuery = params.get('itemId');
+        if (fromQuery) return fromQuery;
+        const topPath = window.top?.location?.pathname || '';
+        const match = topPath.match(/\/clipping\/([^/?#]+)/) || topPath.match(/\/radar\/([^/?#]+)/);
+        return match ? match[1] : null;
+      };
+
+      const renderTags = (tags) => {
+        if (!els.tags) return;
+        els.tags.innerHTML = '';
+        const unique = Array.from(new Set((tags || []).filter(Boolean)));
+        if (!unique.length) {
+          const chip = document.createElement('span');
+          chip.className = 'px-2 py-1 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800';
+          chip.textContent = 'No tags';
+          els.tags.appendChild(chip);
+          return;
+        }
+        unique.slice(0, 6).forEach((tag) => {
+          const chip = document.createElement('span');
+          chip.className = 'px-2 py-1 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800';
+          chip.textContent = tag;
+          els.tags.appendChild(chip);
+        });
+      };
+
+      const renderWhy = (text) => {
+        if (!els.why) return;
+        els.why.innerHTML = '';
+        const raw = String(text || '').replace(/\s+/g, ' ').trim();
+        const parts = raw
+          .split('.')
+          .map((sentence) => sentence.trim())
+          .filter((sentence) => sentence.length > 18)
+          .slice(0, 3);
+
+        if (!parts.length) {
+          const li = document.createElement('li');
+          li.textContent = 'No analysis available yet.';
+          els.why.appendChild(li);
+          return;
+        }
+
+        parts.forEach((sentence) => {
+          const li = document.createElement('li');
+          li.textContent = sentence;
+          els.why.appendChild(li);
+        });
+      };
+
+      const renderClients = (item) => {
+        if (!els.clients) return;
+        els.clients.innerHTML = '';
+        const clients = [
+          ...(item?.assigned_client_ids || []),
+          ...(item?.suggested_client_ids || []),
+        ];
+
+        if (!clients.length) {
+          const empty = document.createElement('div');
+          empty.className = 'text-xs text-slate-500';
+          empty.textContent = 'No client matches available.';
+          els.clients.appendChild(empty);
+          return;
+        }
+
+        const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+        clients.slice(0, 4).forEach((clientId) => {
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = `
+            <div class="flex items-center justify-between text-sm font-semibold">
+              <span>${clientId}</span>
+              <span class="text-primary">${scoreValue}</span>
+            </div>
+            <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-2">
+              <div class="h-2 bg-primary rounded-full" style="width:${scoreValue}%"></div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Suggested match based on current tagging.</p>
+          `;
+          els.clients.appendChild(wrapper);
+        });
+      };
+
+      const renderAnalysis = (item) => {
+        if (!els.analysis) return;
+        els.analysis.innerHTML = '';
+        const insights = [];
+        if (item?.author) insights.push({ icon: 'person', text: `Author: ${item.author}` });
+        if (item?.source_name) insights.push({ icon: 'public', text: `Source: ${item.source_name}` });
+        if (item?.published_at || item?.created_at) {
+          insights.push({ icon: 'calendar_month', text: `Published: ${formatLongDate(item.published_at || item.created_at)}` });
+        }
+        if (item?.relevance_score || item?.score) {
+          const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+          insights.push({ icon: 'insights', text: `Relevance score: ${scoreValue}%` });
+        }
+
+        if (!insights.length) {
+          const empty = document.createElement('div');
+          empty.className = 'text-xs text-slate-500';
+          empty.textContent = 'No analysis available yet.';
+          els.analysis.appendChild(empty);
+          return;
+        }
+
+        insights.slice(0, 3).forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'flex items-start gap-3';
+          row.innerHTML = `<span class="material-symbols-outlined text-primary text-[18px]">${item.icon}</span>${item.text}`;
+          els.analysis.appendChild(row);
+        });
+      };
+
+      const renderAngles = (item) => {
+        if (!els.angles) return;
+        els.angles.innerHTML = '';
+        const tags = [...(item?.tags || []), ...(item?.categories || [])].filter(Boolean);
+        if (!tags.length) {
+          const empty = document.createElement('div');
+          empty.className = 'text-xs text-slate-500';
+          empty.textContent = 'No suggestions yet.';
+          els.angles.appendChild(empty);
+          return;
+        }
+        tags.slice(0, 3).forEach((tag) => {
+          const card = document.createElement('div');
+          card.className = 'p-3 rounded-xl bg-slate-50 dark:bg-slate-800';
+          card.textContent = `Explore content around ${tag}.`;
+          els.angles.appendChild(card);
+        });
+      };
+
+      const renderItem = (item) => {
+        const scoreValue = scoreToPercent(item?.relevance_score ?? item?.score);
+        const status = statusConfig(item?.status);
+
+        if (els.source) els.source.textContent = item?.source_name || item?.source_type || 'Source';
+        if (els.statusDot) els.statusDot.className = `w-1.5 h-1.5 rounded-full ${status.dot}`;
+        if (els.status) {
+          els.status.textContent = status.label;
+          els.status.className = `text-[10px] font-bold uppercase ${status.text}`;
+        }
+        if (els.image) {
+          els.image.src = item?.image_url || fallbackImage;
+          els.image.alt = item?.title || 'Radar item';
+          els.image.onerror = () => {
+            els.image.src = fallbackImage;
+          };
+        }
+        if (els.meta) {
+          const metaParts = [formatLongDate(item?.published_at || item?.created_at)];
+          metaParts.push(item?.type === 'TREND' ? 'Trend' : 'News');
+          els.meta.textContent = metaParts.join(' • ');
+        }
+        if (els.title) els.title.textContent = item?.title || 'Radar item';
+        if (els.snippet) els.snippet.textContent = item?.snippet || item?.summary || 'No summary available.';
+        if (els.summary) {
+          const summary = item?.summary || item?.snippet || item?.content || 'Summary not available.';
+          els.summary.textContent = String(summary).slice(0, 500);
+        }
+        renderWhy(item?.content || item?.summary || item?.snippet);
+        renderTags([...(item?.tags || []), ...(item?.categories || [])]);
+        renderClients(item);
+        renderAnalysis(item);
+        renderAngles(item);
+
+        if (els.link) {
+          if (item?.url) {
+            els.link.href = item.url;
+            els.link.classList.remove('opacity-50', 'pointer-events-none');
+          } else {
+            els.link.href = '#';
+            els.link.classList.add('opacity-50', 'pointer-events-none');
+          }
+        }
+        if (els.create) {
+          els.create.addEventListener('click', () => {
+            navigate(buildStudioUrl(item));
+          });
+        }
+      };
+
+      const loadItem = async () => {
+        const itemId = getItemId();
+        if (!itemId) {
+          if (els.title) els.title.textContent = 'Radar item not found.';
+          return;
+        }
+        if (!hasSession()) {
+          if (els.title) els.title.textContent = 'Login required to load radar item.';
+          return;
+        }
+        try {
+          const item = await request(`/clipping/items/${itemId}`, { method: 'GET' });
+          renderItem(item);
+        } catch (error) {
+          console.error('Radar item load error:', error);
+          if (els.title) els.title.textContent = 'Unable to load radar item.';
+        }
+      };
+
+      loadItem();
+    })();
+  </script>
+  <script src="/ux/edro-links.js"></script>
+</body>
+</html>
+
+
+
+

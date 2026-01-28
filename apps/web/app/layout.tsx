@@ -1,21 +1,9 @@
 import './globals.css';
-import { Fraunces, Sora } from 'next/font/google';
-
-const displayFont = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['300', '400', '500', '600', '700'],
-});
-
-const bodyFont = Sora({
-  subsets: ['latin'],
-  variable: '--font-body',
-  weight: ['300', '400', '500', '600'],
-});
+import AuthGate from '@/components/AuthGate';
 
 export const metadata = {
-  title: 'Edro Control',
-  description: 'Fluxo interno da Edro Digital',
+  title: 'Edro Editorial Board',
+  description: 'Edro Editorial Board',
 };
 
 export default function RootLayout({
@@ -24,8 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={`${displayFont.variable} ${bodyFont.variable}`}>
-      <body>{children}</body>
+    <html lang="pt-BR">
+      <body>
+        <AuthGate>{children}</AuthGate>
+      </body>
     </html>
   );
 }

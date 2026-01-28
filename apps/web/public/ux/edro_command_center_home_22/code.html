@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF6600",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                    },
+                    fontFamily: {
+                        display: ["Instrument Serif", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '16px',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .row-action { opacity: 0; transition: opacity 0.2s; }
+        tr:hover .row-action { opacity: 1; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20">
+<div class="flex items-center gap-4">
+<nav class="flex items-center space-x-2 text-sm text-slate-400">
+<a class="hover:text-slate-600" href="#">Studio</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-100 font-medium">Global Reference Library</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Rivera</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Creative Director</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAufT5FJozymBrNw8tfXoJwjsAM6MXtMUPQ_YS68ZsWWHin6xwYzFVtaJiFOKGlsGjwOazzk1dEMVud-mSC2V2QfZ9g5VPMGCuTq1-yGB2xt16fGLxVzSqrGyeH46XQiWLhvGKD9xYLV_MWemUlmz4TL2okv654B0Rd5erASYfFrT80w8kKVciZ8oidCsZ22G8-mayhEUt-wsKTs6gBHgZcZHj-fSzbhq_kLJXxj2bL2xy5-cC8kyMWC80eC__I9YHgtIwkvZT_Fzg"/>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-none space-y-10">
+<div>
+<h1 class="font-display text-5xl text-slate-900 dark:text-white mb-2">Global Reference Library Hub</h1>
+<p class="text-slate-500">Centralized repository for operational assets, brand guidelines, and reference materials.</p>
+</div>
+<section class="bg-surface-light dark:bg-surface-dark border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-10 text-center transition-colors hover:border-primary/50 group">
+<div class="max-w-md">
+<div class="w-16 h-16 bg-orange-50 dark:bg-orange-950/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+</div>
+<h3 class="text-lg font-semibold mb-1">Upload Reference Materials</h3>
+<p class="text-slate-500 text-sm mb-6">Drag and drop your documents here, or browse from your computer. Supports PDF, PNG, JPG, and MP4.</p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">add</span> Select Files
+                </button>
+</div>
+</section>
+<section class="space-y-4">
+<div class="flex flex-col md:flex-row gap-4 items-center justify-between bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
+<div class="flex items-center gap-4 w-full md:w-auto">
+<div class="relative flex-1 md:w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary" placeholder="Search references..." type="text"/>
+</div>
+<select class="bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm py-2 px-4 pr-10 focus:ring-1 focus:ring-primary">
+<option>All Clients</option>
+<option>Azul</option>
+<option>Lumina</option>
+<option>Vertex</option>
+</select>
+<select class="bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm py-2 px-4 pr-10 focus:ring-1 focus:ring-primary">
+<option>File Type</option>
+<option>PDF</option>
+<option>Image</option>
+<option>Video</option>
+</select>
+</div>
+<div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Showing 12 Files
+                </div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Name</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Association</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tags</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Upload Date</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Size</th>
+<th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+</div>
+<span class="font-medium text-sm">Brand_Guidelines_2024.pdf</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold">A</div>
+<span class="text-sm text-slate-600 dark:text-slate-300">Azul</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Identity</span>
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Global</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">Oct 12, 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">12.4 MB</td>
+<td class="px-6 py-4 text-right">
+<div class="row-action flex items-center justify-end gap-2">
+<button class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500">
+<span class="material-symbols-outlined text-xl">image</span>
+</div>
+<span class="font-medium text-sm">Campaign_Hero_Still.png</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center text-[10px] text-white font-bold">V</div>
+<span class="text-sm text-slate-600 dark:text-slate-300">Vertex</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Social</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">Oct 10, 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">4.2 MB</td>
+<td class="px-6 py-4 text-right">
+<div class="row-action flex items-center justify-end gap-2">
+<button class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="hidden flex-col items-center justify-center py-20 px-6 text-center">
+<div class="w-24 h-24 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-slate-300 text-5xl">folder_off</span>
+</div>
+<h3 class="text-xl font-bold mb-2">No documents added yet</h3>
+<p class="text-slate-500 text-sm mb-8 max-w-xs">Start building your global reference library by uploading your first organizational document.</p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">add</span> Upload first file
+                    </button>
+</div>
+</div>
+</section>
+<footer class="mt-12 py-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-400">
+<p>© 2023 Edro Creative Studio • Global Reference Hub</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="hover:text-primary transition-colors" href="#">Usage Policy</a>
+</div>
+</footer>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+

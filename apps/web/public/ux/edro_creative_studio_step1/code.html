@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Edro Creative Studio - Brief Criativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff6600",
+                        "background-light": "#ffffff",
+                        "background-dark": "#1A1A1A",
+                        "sidebar-light": "#F9F9F9",
+                        "charcoal": "#1A1A1A",
+                        "edro-gray": "#E5E5E5"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "serif": ["Playfair Display", "serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+                font-size: 20px;
+            }
+            .active-nav-border {
+                border-left: 3px solid #ff6600;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            }
+            .no-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            .no-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+<style>
+  body.edro-studio-embed aside { display: none !important; }
+  body.edro-studio-embed .ml-64 { margin-left: 0 !important; }
+  body.edro-studio-embed .left-64 { left: 0 !important; }
+  body.edro-studio-embed main > header { display: none !important; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-charcoal dark:text-white edro-studio-embed">
+<div class="flex min-h-screen">
+<aside class="w-64 bg-sidebar-light dark:bg-background-dark border-r border-edro-gray dark:border-zinc-800 flex flex-col justify-between fixed h-full z-20">
+<div class="flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary size-8 rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined">grid_view</span>
+</div>
+<div>
+<h1 class="text-charcoal dark:text-white text-sm font-bold tracking-tight">Edro Creative</h1>
+<p class="text-xs text-zinc-500">Studio SaaS</p>
+</div>
+</div>
+<nav class="mt-4 flex flex-col gap-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 bg-white dark:bg-zinc-800 active-nav-border rounded-r text-charcoal dark:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-primary">add_circle</span>
+<span class="text-sm font-bold">Novo Projeto</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">folder_open</span>
+<span class="text-sm font-medium">Projetos Ativos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">analytics</span>
+<span class="text-sm font-medium">Insights IA</span>
+</a>
+</nav>
+</div>
+<div class="p-6">
+<div class="p-4 bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded-lg shadow-sm">
+<p class="text-[10px] font-bold text-zinc-400 uppercase mb-2">Plano Atual</p>
+<p class="text-sm font-bold text-charcoal dark:text-white">Pro Creator</p>
+<div class="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-2">
+<div class="bg-primary h-1.5 rounded-full w-3/4"></div>
+</div>
+<p class="text-[10px] text-zinc-500 mt-2">75% da cota mensal utilizada</p>
+</div>
+</div>
+</aside>
+<main class="flex-1 ml-64 flex flex-col min-h-screen">
+<header class="sticky top-0 z-30 bg-white dark:bg-background-dark border-b border-edro-gray dark:border-zinc-800 h-16 px-8 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-zinc-400 text-xs font-medium uppercase tracking-wider">
+<span>Creative Studio</span>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-charcoal dark:text-white">Briefing</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-full bg-cover bg-center border border-zinc-200" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDUsEpASpZOlGuenwID-naocaJmivzFoBuA1yR2WQ8xuHQjGr7BeObSmZCjQ6epn6IHZkZk1Qa8-EkvQl-_zXfBNmYQyYp6YyIqmKhsvyfZyOfbVKV-Ol03xPlVOhVS4W-hQOJTyL3mIql6Ex1wi6eNAh4REkdninARYT77gUeaaB-mm7T7wyclynSpw1wPsbnswRsQGKOQNKFIVI4K2JqMKaUr5eEewO-KsjUabCJrLtQOWwzTOQR2xgLSOJRX9Xdce3HqJIc2450')"></div>
+<span class="text-sm font-medium text-charcoal dark:text-white">Julian Edro</span>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<div class="flex-1 overflow-y-auto p-8 no-scrollbar bg-white dark:bg-background-dark">
+<div class="max-w-none">
+<div class="mb-10">
+<p class="text-xs font-bold text-primary tracking-widest uppercase mb-2">Etapa 1 de 6 • Social Media High-Performance</p>
+<h2 class="font-serif text-5xl text-charcoal dark:text-white leading-tight">Brief Criativo</h2>
+</div>
+<div class="space-y-8 pb-20">
+<div class="grid grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cliente</label>
+<select id="edro-prefill-client" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+<option>Selecione o Cliente</option>
+<option>LuminaTech Solutions</option>
+<option>Aura Lifestyle</option>
+<option>Zenith Logistics</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Data de Publicação</label>
+<input id="edro-prefill-date" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" type="date"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Objetivo da Campanha</label>
+<select id="edro-prefill-objective" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+<option>Reconhecimento de Marca (Awareness)</option>
+<option>Conversão / Vendas</option>
+<option>Engajamento</option>
+<option>Lançamento de Produto</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tema da Campanha</label>
+<input id="edro-prefill-theme" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Coleção de Verão 2024" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mensagem-Chave</label>
+<textarea id="edro-prefill-message" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Qual a ideia principal que deve ser transmitida?" rows="3"></textarea>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Público-Alvo</label>
+<input id="edro-prefill-target" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Jovens profissionais 25-35" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tom de Voz</label>
+<select id="edro-prefill-tone" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+<option>Profissional e Autoritário</option>
+<option>Descontraído e Moderno</option>
+<option>Inspirador e Emocional</option>
+<option>Direto e Minimalista</option>
+</select>
+</div>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Notas Adicionais</label>
+<textarea id="edro-prefill-notes" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Observações importantes, restrições ou pedidos específicos..." rows="4"></textarea>
+</div>
+</div>
+</div>
+</div>
+<aside class="w-96 border-l border-edro-gray dark:border-zinc-800 bg-sidebar-light dark:bg-zinc-900/50 p-6 overflow-y-auto no-scrollbar">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h3 class="text-sm font-bold uppercase tracking-wider text-charcoal dark:text-white">Referências de Contexto</h3>
+</div>
+<div class="space-y-6">
+<div class="bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-4 card-shadow">
+<div class="flex justify-between items-start mb-3">
+<span class="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">98% Relevância</span>
+<span class="material-symbols-outlined text-zinc-300 text-sm">trending_up</span>
+</div>
+<h4 id="edro-prefill-signal" class="text-xs font-bold text-charcoal dark:text-white mb-2">Tendência: Minimalismo Industrial</h4>
+<p id="edro-prefill-trends" class="text-[11px] text-zinc-500 leading-relaxed mb-3">
+                                O setor de tecnologia está migrando para paletas monocromáticas com tipografia serifada em 2024.
+                            </p>
+<div class="flex gap-1">
+<div class="h-12 w-12 bg-zinc-100 rounded border border-zinc-200"></div>
+<div class="h-12 w-12 bg-zinc-200 rounded border border-zinc-200"></div>
+<div class="h-12 w-12 bg-zinc-300 rounded border border-zinc-200"></div>
+</div>
+</div>
+<div class="bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-4 card-shadow">
+<div class="flex justify-between items-start mb-3">
+<span class="text-[10px] font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Frequência Alta</span>
+<span class="material-symbols-outlined text-zinc-300 text-sm">bolt</span>
+</div>
+<h4 class="text-xs font-bold text-charcoal dark:text-white mb-2">Insight de Público</h4>
+<p id="edro-prefill-insight" class="text-[11px] text-zinc-500 leading-relaxed">
+                                Seu público alvo tem 4x mais engajamento em conteúdos que utilizam perguntas diretas nas primeiras 2 linhas da mensagem-chave.
+                            </p>
+</div>
+<div class="bg-white dark:bg-zinc-900 border border-edro-gray dark:border-zinc-800 rounded p-4 card-shadow">
+<h4 class="text-[10px] font-bold text-zinc-400 uppercase mb-3">Benchmarks do Setor</h4>
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-[11px] text-zinc-600 dark:text-zinc-400 italic">"Design-first approach"</span>
+<span class="text-[10px] font-mono text-primary">+12%</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-[11px] text-zinc-600 dark:text-zinc-400 italic">"Personalized CTAs"</span>
+<span class="text-[10px] font-mono text-primary">+24%</span>
+</div>
+</div>
+</div>
+<div class="p-4 border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg">
+<p class="text-[11px] text-zinc-400 text-center italic">
+                                "O IA analisou 250 campanhas similares para gerar essas sugestões."
+                            </p>
+</div>
+</div>
+</aside>
+</div>
+<footer class="bg-white dark:bg-background-dark border-t border-edro-gray dark:border-zinc-800 px-8 py-4 flex items-center justify-between z-30 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+<button data-route="/studio" class="px-6 py-2.5 border border-charcoal dark:border-white text-charcoal dark:text-white text-sm font-bold rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">west</span>
+                    Voltar
+                </button>
+<div class="flex items-center gap-8">
+<div class="flex gap-1.5">
+<div class="h-1.5 w-6 bg-primary rounded-full"></div>
+<div class="h-1.5 w-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full"></div>
+<div class="h-1.5 w-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full"></div>
+<div class="h-1.5 w-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full"></div>
+<div class="h-1.5 w-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full"></div>
+<div class="h-1.5 w-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full"></div>
+</div>
+<button id="edro-brief-continue" data-route="/studio/platforms" class="px-8 py-2.5 bg-primary text-white text-sm font-bold rounded hover:bg-orange-600 transition-all flex items-center gap-2">
+                        Continuar para Seleção de Formato
+                        <span class="material-symbols-outlined">east</span>
+</button>
+</div>
+</footer>
+</main>
+</div>
+
+<script src="/ux/edro-studio-api.js"></script>
+<script>
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const read = (key) => params.get(key) || '';
+    const ensureOption = (selectEl, value) => {
+      if (!selectEl || !value) return;
+      const existing = Array.from(selectEl.options).find((opt) => opt.value === value || opt.textContent === value);
+      if (existing) {
+        selectEl.value = existing.value;
+        return;
+      }
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      option.selected = true;
+      selectEl.appendChild(option);
+    };
+    const setField = (id, value) => {
+      if (!value) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.value = value;
+        return;
+      }
+      if (el.tagName === 'SELECT') {
+        ensureOption(el, value);
+        return;
+      }
+      el.textContent = value;
+    };
+    const setIfEmpty = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el || !value) return;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        if (el.value && el.value.trim()) return;
+      } else if (el.tagName === 'SELECT') {
+        if (el.value) return;
+      } else if (el.textContent && el.textContent.trim()) {
+        return;
+      }
+      setField(id, value);
+    };
+
+    const clientSelect = document.getElementById('edro-prefill-client');
+    const client = read('client');
+    const clientId = window.EdroStudio?.getClientId?.() || read('clientId');
+    const segment = read('segment');
+    const location = read('location');
+    const date = read('date');
+    const eventName = read('event');
+    const score = read('score');
+    const tier = read('tier');
+    const tags = read('tags');
+    const categories = read('categories');
+    const why = read('why');
+    const source = read('source');
+
+    if (client) setField('edro-prefill-client', client);
+    if (date) setField('edro-prefill-date', date);
+    if (eventName) {
+      setField('edro-prefill-theme', eventName);
+      setField('edro-prefill-signal', eventName);
+    }
+    if (tags || categories) setField('edro-prefill-trends', tags || categories);
+    if (segment) setField('edro-prefill-target', segment);
+    if (why) setField('edro-prefill-notes', why);
+
+    const insightParts = [];
+    if (segment) insightParts.push(segment);
+    if (location) insightParts.push(location);
+    if (score) insightParts.push(`Relevância ${score}${tier ? ` · ${tier}` : ''}`);
+    if (why) insightParts.push(why);
+    if (!insightParts.length && source) insightParts.push(source);
+    if (insightParts.length) setField('edro-prefill-insight', insightParts.join(' | '));
+
+    const messageParts = [];
+    if (eventName) messageParts.push(`Evento: ${eventName}`);
+    if (date) messageParts.push(`Data: ${date}`);
+    if (client) messageParts.push(`Cliente: ${client}`);
+    if (segment) messageParts.push(`Segmento: ${segment}`);
+    if (score) messageParts.push(`Relevância: ${score}${tier ? ` (${tier})` : ''}`);
+    if (tags) messageParts.push(`Tags: ${tags}`);
+    if (categories) messageParts.push(`Categorias: ${categories}`);
+    if (why) messageParts.push(`Contexto: ${why}`);
+    if (messageParts.length) setField('edro-prefill-message', messageParts.join('\n'));
+
+    const resolvedDate = date || new Date().toISOString().slice(0, 10);
+    const context = {
+      client,
+      clientId,
+      segment,
+      location,
+      date: resolvedDate,
+      event: eventName,
+      score,
+      tier,
+      tags,
+      categories,
+      why,
+      source,
+      productionType: localStorage.getItem('edro_studio_production_type') || undefined
+    };
+
+    const persistContext = () => {
+      try {
+        localStorage.setItem('edro_studio_context', JSON.stringify(context));
+      } catch {
+        // ignore
+      }
+    };
+
+    persistContext();
+
+    const loadClient = async () => {
+      const resolvedClientId = context?.clientId || clientId || window.EdroStudio?.getClientId?.();
+      if (!resolvedClientId || !window.EdroStudio?.request) return;
+      try {
+        const clientData = await window.EdroStudio.request(`/clients/${resolvedClientId}`, { method: 'GET' });
+        if (clientData?.name) {
+          setIfEmpty('edro-prefill-client', clientData.name);
+          context.client = clientData.name;
+        }
+        const locationParts = [clientData?.city, clientData?.uf].filter(Boolean);
+        const insight = [];
+        if (clientData?.segment_primary) insight.push(clientData.segment_primary);
+        if (locationParts.length) insight.push(locationParts.join(' / '));
+        const tone = clientData?.profile?.tone_profile;
+        if (tone) setIfEmpty('edro-prefill-tone', tone);
+        if (clientData?.profile?.knowledge_base?.audience) {
+          setIfEmpty('edro-prefill-target', clientData.profile.knowledge_base.audience);
+        }
+        if (clientData?.profile?.knowledge_base?.brand_promise) {
+          setIfEmpty('edro-prefill-message', clientData.profile.knowledge_base.brand_promise);
+        } else if (clientData?.profile?.knowledge_base?.description) {
+          setIfEmpty('edro-prefill-message', clientData.profile.knowledge_base.description);
+        }
+        if (clientData?.profile?.knowledge_base?.notes) {
+          setIfEmpty('edro-prefill-notes', clientData.profile.knowledge_base.notes);
+        }
+        if (insight.length) setIfEmpty('edro-prefill-insight', insight.join(' | '));
+        if (clientData?.segment_primary) context.segment = clientData.segment_primary;
+        context.clientId = resolvedClientId;
+        if (locationParts.length) context.location = locationParts.join(' / ');
+        persistContext();
+      } catch (error) {
+        console.warn('studio client load failed', error);
+      }
+    };
+
+    const loadClientsList = async () => {
+      if (!window.EdroStudio?.request || !clientSelect) return;
+      try {
+        const response = await window.EdroStudio.request('/clients', { method: 'GET' });
+        const list = Array.isArray(response) ? response : response?.data || response?.clients || [];
+        if (!Array.isArray(list) || !list.length) return;
+        const existingValues = new Set(Array.from(clientSelect.options).map((opt) => opt.value));
+        list.forEach((item) => {
+          if (!item?.id || !item?.name || existingValues.has(item.id)) return;
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = item.name;
+          clientSelect.appendChild(option);
+        });
+        if (clientId) {
+          clientSelect.value = clientId;
+        } else if (client) {
+          const match = list.find((item) => String(item.name).toLowerCase() === client.toLowerCase());
+          if (match) clientSelect.value = match.id;
+        }
+      } catch (error) {
+        console.warn('studio clients load failed', error);
+      }
+    };
+
+    const loadCalendarSignal = async () => {
+      const resolvedClientId = context?.clientId || clientId || window.EdroStudio?.getClientId?.();
+      if (!resolvedClientId || !window.EdroStudio?.request) return;
+      try {
+        const dayData = await window.EdroStudio.request(
+          `/clients/${resolvedClientId}/calendar/day/${resolvedDate}`,
+          { method: 'GET' }
+        );
+        const topEvent = dayData?.items?.[0];
+        if (topEvent?.name) {
+          setIfEmpty('edro-prefill-signal', topEvent.name);
+          setIfEmpty('edro-prefill-theme', topEvent.name);
+          context.event = topEvent.name;
+        }
+        if (resolvedDate) {
+          setIfEmpty('edro-prefill-date', resolvedDate);
+          context.date = resolvedDate;
+        }
+        const messageValue = document.getElementById('edro-prefill-message')?.value || '';
+        if (!messageValue && topEvent) {
+          const fallback = [];
+          if (topEvent.name) fallback.push(`Evento: ${topEvent.name}`);
+          if (resolvedDate) fallback.push(`Data: ${resolvedDate}`);
+          if (topEvent.score) fallback.push(`Relevância: ${Math.round(topEvent.score)}${topEvent.tier ? ` (${topEvent.tier})` : ''}`);
+          if (topEvent.tags?.length) fallback.push(`Tags: ${topEvent.tags.join(', ')}`);
+          if (topEvent.categories?.length) fallback.push(`Categorias: ${topEvent.categories.join(', ')}`);
+          if (topEvent.why) fallback.push(`Contexto: ${topEvent.why}`);
+          setIfEmpty('edro-prefill-message', fallback.join('\n'));
+        }
+        persistContext();
+      } catch (error) {
+        console.warn('studio calendar load failed', error);
+      }
+    };
+
+    const loadTrendMatch = async () => {
+      const resolvedClientId = context?.clientId || clientId || window.EdroStudio?.getClientId?.();
+      if (!resolvedClientId || !window.EdroStudio?.request) return;
+      try {
+        const matchData = await window.EdroStudio.request(
+          `/clipping/matches/${resolvedClientId}?limit=1`,
+          { method: 'GET' }
+        );
+        const match = matchData?.matches?.[0];
+        if (match?.title) setIfEmpty('edro-prefill-trends', match.title);
+        if (match?.snippet) setIfEmpty('edro-prefill-insight', match.snippet.slice(0, 120));
+        if (match?.title) context.trend = match.title;
+        if (match?.snippet) context.trend_why = match.snippet;
+        persistContext();
+      } catch (error) {
+        console.warn('studio trend load failed', error);
+      }
+    };
+
+    loadClient();
+    loadCalendarSignal();
+    loadTrendMatch();
+    loadClientsList();
+
+    if (clientSelect) {
+      clientSelect.addEventListener('change', () => {
+        const selectedId = clientSelect.value || '';
+        if (selectedId) {
+          context.clientId = selectedId;
+          try {
+            localStorage.setItem('edro_client_id', selectedId);
+          } catch {
+            // ignore
+          }
+        }
+        const label = clientSelect.options[clientSelect.selectedIndex]?.textContent;
+        if (label) context.client = label;
+        persistContext();
+        loadClient();
+        loadCalendarSignal();
+        loadTrendMatch();
+      });
+    }
+
+        const continueButton = document.getElementById('edro-brief-continue');
+        if (continueButton) {
+          continueButton.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const readField = (id) => {
+              const el = document.getElementById(id);
+              if (!el) return '';
+              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+                return el.value || '';
+              }
+              return el.textContent || '';
+            };
+
+            context.client = readField('edro-prefill-client') || context.client;
+            context.date = readField('edro-prefill-date') || context.date;
+            context.objective = readField('edro-prefill-objective') || context.objective;
+            context.event = readField('edro-prefill-theme') || context.event;
+            context.message = readField('edro-prefill-message') || context.message;
+            const targetValue = readField('edro-prefill-target');
+            context.target = targetValue || context.target;
+            if (!context.segment && targetValue) {
+              context.segment = targetValue;
+            }
+            context.tone = readField('edro-prefill-tone') || context.tone;
+            context.notes = readField('edro-prefill-notes') || context.notes;
+            if (clientSelect && clientSelect.value) {
+              context.clientId = clientSelect.value;
+              try {
+                localStorage.setItem('edro_client_id', clientSelect.value);
+              } catch {
+                // ignore
+              }
+              const label = clientSelect.options[clientSelect.selectedIndex]?.textContent;
+              if (label) context.client = label;
+            }
+            persistContext();
+
+            const briefingKey = 'edro_briefing_id';
+            const briefingContextKey = 'edro_briefing_context_key';
+            const contextKey = `${context?.clientId || ''}:${context?.date || ''}:${context?.event || ''}`;
+            const stored = localStorage.getItem(briefingContextKey);
+            if (stored && stored !== contextKey) {
+              localStorage.removeItem(briefingKey);
+            }
+            localStorage.setItem(briefingContextKey, contextKey);
+
+            const updateStage = async (briefingId, stage, status) => {
+              if (!briefingId || !window.EdroStudio?.request) return;
+              try {
+                await window.EdroStudio.request(`/edro/briefings/${briefingId}/stages/${stage}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ status }),
+                });
+              } catch {
+                // ignore
+              }
+            };
+
+            const createBriefing = async () => {
+              if (!window.EdroStudio?.request) return null;
+              const payload = {
+                objective: context?.objective,
+                message: context?.message,
+                tone: context?.tone,
+                notes: context?.notes,
+                audience: context?.segment,
+                event: context?.event,
+                date: context?.date,
+                tags: context?.tags,
+                categories: context?.categories,
+                score: context?.score,
+                tier: context?.tier,
+                why: context?.why,
+                source: context?.source,
+                production_type: context?.productionType || undefined,
+              };
+
+              const response = await window.EdroStudio.request('/edro/briefings', {
+                method: 'POST',
+                body: JSON.stringify({
+                  client_name: context?.client || undefined,
+                  client_segment: context?.segment || undefined,
+                  title: context?.event || context?.message || 'Creative Studio Briefing',
+                  payload,
+                  source: 'studio',
+                  notify_traffic: false
+                })
+              });
+              const briefingId = response?.data?.briefing?.id;
+              if (briefingId) {
+                localStorage.setItem(briefingKey, briefingId);
+              }
+              return briefingId || null;
+            };
+
+            const existingBriefing = localStorage.getItem(briefingKey);
+            const briefingId = existingBriefing || (await createBriefing());
+            if (briefingId) {
+              await updateStage(briefingId, 'briefing', 'done');
+              await updateStage(briefingId, 'iclips_in', 'done');
+              await updateStage(briefingId, 'alinhamento', 'in_progress');
+            }
+
+            const query = window.location.search || '';
+            const target = `/studio/platforms${query}`;
+            const top = window.top || window;
+            top.location.href = target;
+          });
+        }
+  })();
+</script>
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Google Display Ads Suite - Edro Creative Studio</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#FF6600",
+              "background-light": "#F9FAFB",
+              "background-dark": "#0F172A",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1E293B",
+            },
+            fontFamily: {
+              display: ["Instrument Serif", "serif"],
+              sans: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "12px",
+              'xl': '16px',
+            },
+          },
+        },
+      };
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Instrument Serif', serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }.ad-banner {
+            @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col relative;
+        }
+        .ad-content {
+            @apply flex flex-col items-center justify-center p-4 text-center h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900;
+        }
+        .leaderboard { width: 728px; height: 90px; }
+        .medium-rectangle { width: 300px; height: 250px; }
+        .wide-skyscraper { width: 160px; height: 600px; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen flex">
+<aside class="w-36 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <div class="px-6 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <img class="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Studio logo">
+      <div>
+      </div>
+    </div>
+  </div>
+  <nav class="px-4 py-2 space-y-1 text-sm">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">group</span>
+      <span>Clients</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">calendar_month</span>
+      <span>Calendar</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">view_kanban</span>
+      <span>Kanban</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">palette</span>
+      <span>Creative Studio</span>
+    </a>
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-[20px]">content_cut</span>
+      <span>Clipping</span>
+    </a>
+  </nav>
+  <div class="mt-auto p-6">
+    <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+      <span class="material-symbols-outlined text-xl">settings</span>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex items-center justify-between px-8 shrink-0 z-10">
+<div class="flex items-center gap-4">
+<h1 class="font-display text-2xl">Google Display Ads Suite</h1>
+<span class="text-xs font-medium text-slate-400 uppercase tracking-widest ml-4">Variant 10 of 10</span>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-slate-800"></span>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none text-slate-900 dark:text-white">Azul Creative Team</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Premium Branding</p>
+</div>
+<img alt="Profile avatar" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvAk3odobYSg1Pbv6JIgSldZBi3DFIUUztWB6XUe29WkmbpW3iFxm-up5sdxcN7wplROm6if2NtRMvS5bb6eLDxYHZjyg2sZG2jI54RdIn5M9XfG34WVWVVktcPqSC5sKOxJHdtj8OhvGhzjiYoVvwj6---zaiH2XiafvYl2dNjjJAW7G6dxcJw6Y_lTrUasNpunsU3fpzMIusTbzbf2YlDLd2lHYQzr8AxNFZNtWL8l2XegBDh5cQ5xZjXw8d7ePCQIzwRbE-RXY"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<section class="flex-1 bg-slate-50 dark:bg-slate-900/50 p-8 overflow-y-auto">
+<div class="w-full max-w-none space-y-12">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg">
+<span class="material-symbols-outlined">ads_click</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Display Network Preview</h2>
+<p class="text-xs text-slate-500">Azul Coffee Co. Autumn Campaign</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">Ad-Safe Verified</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-8 items-start justify-center">
+<div class="w-full flex flex-col items-center gap-3">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest self-start ml-2">Leaderboard (728 x 90)</span>
+<div class="ad-banner leaderboard">
+<div class="flex w-full h-full items-center px-8 bg-gradient-to-r from-[#122c4d] to-[#1e447a] text-white">
+<div class="flex-1">
+<h3 class="font-display text-2xl italic leading-none">Better Coffee, Better Mornings.</h3>
+<p class="text-[10px] opacity-80 mt-1 uppercase tracking-widest">Azul Coffee Co. Artisanal Roasts</p>
+</div>
+<div class="px-6 py-2 bg-white text-[#122c4d] rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg cursor-pointer hover:bg-slate-100">Shop Now</div>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-8 justify-center items-start w-full">
+<div class="flex flex-col gap-3">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Medium Rectangle (300 x 250)</span>
+<div class="ad-banner medium-rectangle">
+<div class="flex flex-col h-full bg-[#122c4d] p-6 text-center text-white justify-between">
+<div class="space-y-3">
+<div class="w-8 h-8 border-2 border-white/20 rounded-full flex items-center justify-center text-[10px] font-bold">AZ</div>
+<h3 class="font-display text-3xl italic leading-tight">Better Coffee,<br/>Better Mornings.</h3>
+<p class="text-[11px] opacity-70">Experience our new autumn collection.</p>
+</div>
+<div class="px-4 py-3 bg-primary text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-orange-600">Explore Collection</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Wide Skyscraper (160 x 600)</span>
+<div class="ad-banner wide-skyscraper">
+<div class="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border-x-4 border-primary/20">
+<div class="h-1/3 bg-[#1e447a] p-4 flex flex-col justify-center items-center text-center text-white">
+<div class="w-10 h-10 border-2 border-white/30 rounded-full flex items-center justify-center text-[12px] font-bold mb-4">AZ</div>
+<span class="text-[9px] font-bold uppercase tracking-[0.2em] mb-2 opacity-60">Est. 2023</span>
+</div>
+<div class="flex-1 p-4 flex flex-col justify-center items-center text-center gap-6">
+<h3 class="font-display text-3xl italic leading-tight text-[#122c4d] dark:text-slate-100">Better<br/>Coffee,<br/>Better<br/>Mornings.</h3>
+<div class="w-8 h-px bg-primary/30"></div>
+<p class="text-[11px] text-slate-500 dark:text-slate-400">Discover our artisanal autumn selection.</p>
+</div>
+<div class="p-4 pb-8">
+<div class="w-full py-3 bg-[#122c4d] text-white rounded-lg text-[9px] font-bold uppercase tracking-widest text-center shadow-md">Shop Today</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-4 max-w-[300px]">
+<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+<h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-widest mb-4">AI Asset Generation</h4>
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-sm">text_fields</span>
+</div>
+<div>
+<p class="text-[11px] font-semibold">Smart Headlines</p>
+<p class="text-[10px] text-slate-500">Auto-optimized for character limits.</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined text-sm">palette</span>
+</div>
+<div>
+<p class="text-[11px] font-semibold">Dynamic Branding</p>
+<p class="text-[10px] text-slate-500">Azul Coffee Co. visual identity applied.</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
+<span class="material-symbols-outlined text-sm">verified</span>
+</div>
+<div>
+<p class="text-[11px] font-semibold">Google Ad-Safe</p>
+<p class="text-[10px] text-slate-500">Policy-compliant layouts and content.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-primary/10 border border-primary/20 p-4 rounded-xl">
+<p class="text-[11px] text-primary font-medium leading-relaxed italic text-center">
+                                    "These variants use AI to ensure 35% higher click-through rates based on historical seasonal data."
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="w-[380px] bg-surface-light dark:bg-surface-dark border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">tune</span>
+                    Ad Group Settings
+                </h3>
+<div class="space-y-4">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</label>
+<div class="relative">
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary appearance-none py-2.5 pl-3 pr-8">
+<option>Google Display Network</option>
+<option>Meta Ads Manager</option>
+<option>X Promoted Cards</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tone of Voice</label>
+<div class="flex gap-2">
+<button class="flex-1 py-2 text-[11px] font-bold bg-slate-900 text-white rounded-lg">Sophisticated</button>
+<button class="flex-1 py-2 text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg">Energetic</button>
+<button class="flex-1 py-2 text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg">Minimal</button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-6 flex flex-col min-h-0">
+<div class="flex items-center justify-between mb-2">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Headline &amp; Copy</label>
+<span class="text-[10px] font-medium text-slate-300">28/30 (Google Limit)</span>
+</div>
+<div class="space-y-4 flex-1">
+<div class="relative">
+<input class="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-primary transition-colors font-medium" placeholder="Primary Headline" type="text" value="Better Coffee, Better Mornings."/>
+</div>
+<div class="relative">
+<textarea class="w-full h-32 bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-800 rounded-xl p-4 text-sm focus:ring-1 focus:ring-primary/50 focus:border-primary/50 resize-none transition-colors" placeholder="Ad Description">Experience our new artisanal autumn roast selection. Notes of dark chocolate and maple in every cup.</textarea>
+<div class="absolute bottom-3 right-3 text-[10px] text-slate-400">90 chars left</div>
+</div>
+<div class="space-y-1.5 pt-2">
+<label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Call to Action</label>
+<input class="w-full bg-slate-50 dark:bg-slate-900/50 border-none rounded-lg text-sm py-2.5 px-3" type="text" value="Explore the Collection"/>
+</div>
+</div>
+<div class="mt-6 space-y-3">
+<button class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+<span class="material-symbols-outlined">auto_awesome</span> Regenerate Variations
+                    </button>
+<div class="flex gap-3">
+<button class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm">download</span> Export Pack
+                        </button>
+<button class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm">ios_share</span> Push to Google
+                        </button>
+</div>
+</div>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-blue-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-blue-600 text-xs">analytics</span></div>
+<div class="w-8 h-8 rounded-full bg-green-100 border-2 border-white dark:border-slate-900 flex items-center justify-center"><span class="material-symbols-outlined text-green-600 text-xs">g_translate</span></div>
+</div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">AI Prediction: 4.8/5.0 CTR</p>
+</div>
+</div>
+</section>
+</div>
+</main>
+<button class="fixed bottom-8 right-8 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-50" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">dark_mode</span>
+</button>
+
+<script src="/ux/edro-links.js"></script>
+</body></html>
+
+
+
+
