@@ -220,6 +220,34 @@ const clampText = (value: string, max = 140) => {
   return `${normalized.slice(0, max - 1)}…`;
 };
 
+const resolveFormatRatio = (format: string, platform?: string) => {
+  const text = normalizeWhitespace(format || '').toLowerCase();
+  const match = text.match(/(\d+(?:\.\d+)?)\s*[x:]\s*(\d+(?:\.\d+)?)/);
+  if (match) {
+    const w = parseFloat(match[1]);
+    const h = parseFloat(match[2]);
+    if (w > 0 && h > 0) return w / h;
+  }
+  if (text.includes('9:16') || text.includes('story') || text.includes('reels')) return 9 / 16;
+  if (text.includes('4:5')) return 4 / 5;
+  if (text.includes('16:9')) return 16 / 9;
+  if (text.includes('1:1') || text.includes('feed') || text.includes('post')) return 1;
+  if (text.includes('outdoor') || text.includes('ooh') || text.includes('busdoor')) return 3;
+  if ((platform || '').toLowerCase().includes('ooh')) return 3;
+  return null;
+};
+
+const resolveFrameSize = (format: string, platform?: string) => {
+  const ratio = resolveFormatRatio(format, platform) ?? 4 / 3;
+  let width = 360;
+  if (ratio >= 2.4) width = 560;
+  else if (ratio >= 1.8) width = 480;
+  else if (ratio >= 1.4) width = 420;
+  else if (ratio <= 0.8) width = 260;
+  const height = Math.round(width / ratio);
+  return { width, height };
+};
+
 const createSvgDataUri = (text: string, width: number, height: number, accent = '#ff6600') => {
   const safeText = text || 'Preview';
   const lines = wrapText(safeText, 26, 6);
@@ -1156,7 +1184,15 @@ export default function Page() {
                     <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                       {statusLabel}
                     </div>
-                    <div data-export-root className="origin-center" style={{ transform: `scale(${zoomLevel})` }}>
+                    <div
+                      data-export-root
+                      className="origin-center flex items-center justify-center"
+                      style={{
+                        transform: `scale(${zoomLevel})`,
+                        width: resolveFrameSize(item.format, item.platform).width,
+                        height: resolveFrameSize(item.format, item.platform).height,
+                      }}
+                    >
                       {renderMockup(item)}
                     </div>
                   </button>
