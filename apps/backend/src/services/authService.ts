@@ -60,10 +60,12 @@ export async function requestLoginCode(emailInput: string) {
     return { delivery: 'email' as const };
   }
 
-  if (env.EDRO_LOGIN_ECHO_CODE) {
-    return { delivery: 'echo' as const, code };
+  const allowEcho = env.EDRO_LOGIN_ECHO_CODE || env.NODE_ENV !== 'production';
+  if (allowEcho) {
+    return { delivery: 'echo' as const, code, error: delivery.error };
   }
 
+  console.warn('[auth] email delivery failed', delivery.error);
   throw new Error('email_failed');
 }
 

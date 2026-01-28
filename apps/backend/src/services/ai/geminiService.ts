@@ -17,6 +17,7 @@ type GeminiResponse = {
 
 const BASE_URL = env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = env.GEMINI_MODEL || 'gemini-1.5-flash';
+const RESPONSE_MIME = env.GEMINI_RESPONSE_MIME;
 
 export async function generateCompletion(params: CompletionParams): Promise<string> {
   if (!env.GEMINI_API_KEY) {
@@ -43,6 +44,7 @@ export async function generateCompletion(params: CompletionParams): Promise<stri
         generationConfig: {
           temperature: params.temperature ?? 0.6,
           maxOutputTokens: params.maxTokens ?? 1500,
+          ...(RESPONSE_MIME ? { responseMimeType: RESPONSE_MIME } : {}),
         },
       }),
     }

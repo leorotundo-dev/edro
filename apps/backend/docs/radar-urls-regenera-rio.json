@@ -1,0 +1,382 @@
+{
+  "client": "REGENERA Rio (Aegea)",
+  "client_id": "regenera-rio-aegea",
+  "description": "Fontes de notícias para monitoramento do setor de resíduos sólidos, saneamento, sustentabilidade e Rio de Janeiro",
+  "categories": [
+    {
+      "name": "Setor de Resíduos Sólidos",
+      "sources": [
+        {
+          "name": "Portal Resíduos Sólidos",
+          "url": "https://portalresiduossolidos.com/",
+          "rss": "https://portalresiduossolidos.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["resíduos sólidos", "gestão", "reciclagem"],
+          "priority": "high"
+        },
+        {
+          "name": "ABLP - Associação Brasileira de Limpeza Pública",
+          "url": "https://www.ablp.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["limpeza pública", "resíduos", "associação"],
+          "priority": "high"
+        },
+        {
+          "name": "ABRELPE - Associação Brasileira de Empresas de Limpeza Pública",
+          "url": "https://abrelpe.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["limpeza pública", "resíduos", "associação"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Limpeza Urbana",
+          "url": "https://www.limpezaurbana.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["limpeza urbana", "gestão", "municipal"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ambiente Brasil",
+          "url": "https://ambientes.ambientebrasil.com.br/",
+          "rss": "https://ambientes.ambientebrasil.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "resíduos", "sustentabilidade"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Saneamento Básico",
+      "sources": [
+        {
+          "name": "Portal Saneamento Básico",
+          "url": "https://www.saneamentobasico.com.br/",
+          "rss": "https://www.saneamentobasico.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["saneamento", "água", "esgoto"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista DAE (Saneamento)",
+          "url": "https://revistadae.com.br/",
+          "rss": "https://revistadae.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["saneamento", "água", "esgoto", "técnico"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ambiente Energia",
+          "url": "https://www.ambienteenergia.com.br/",
+          "rss": "https://www.ambienteenergia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "energia", "sustentabilidade"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Local - Rio de Janeiro",
+      "sources": [
+        {
+          "name": "G1 Rio de Janeiro",
+          "url": "https://g1.globo.com/rj/rio-de-janeiro/",
+          "rss": "https://g1.globo.com/dynamo/rj/rio-de-janeiro/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio de janeiro", "notícias locais", "cidade"],
+          "priority": "high"
+        },
+        {
+          "name": "O Globo - Rio",
+          "url": "https://oglobo.globo.com/rio/",
+          "rss": "https://oglobo.globo.com/rio/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio de janeiro", "notícias locais", "cidade"],
+          "priority": "high"
+        },
+        {
+          "name": "Extra - Rio",
+          "url": "https://extra.globo.com/noticias/rio/",
+          "rss": "https://extra.globo.com/rss/noticias/rio.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio de janeiro", "notícias locais", "cidade"],
+          "priority": "medium"
+        },
+        {
+          "name": "Veja Rio",
+          "url": "https://vejario.abril.com.br/",
+          "rss": "https://vejario.abril.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio de janeiro", "cidade", "cultura"],
+          "priority": "medium"
+        },
+        {
+          "name": "Rio Prefeitura",
+          "url": "https://prefeitura.rio/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["rio de janeiro", "prefeitura", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "COMLURB - Companhia Municipal de Limpeza Urbana",
+          "url": "https://comlurb.rio/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["limpeza urbana", "rio de janeiro", "municipal"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Meio Ambiente e Sustentabilidade",
+      "sources": [
+        {
+          "name": "Um Só Planeta (G1)",
+          "url": "https://g1.globo.com/meio-ambiente/",
+          "rss": "https://g1.globo.com/dynamo/meio-ambiente/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "clima"],
+          "priority": "high"
+        },
+        {
+          "name": "Conexão Planeta",
+          "url": "https://conexaoplaneta.com.br/",
+          "rss": "https://conexaoplaneta.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "brasil"],
+          "priority": "high"
+        },
+        {
+          "name": "Ciclo Vivo",
+          "url": "https://ciclovivo.com.br/",
+          "rss": "https://ciclovivo.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["sustentabilidade", "reciclagem", "economia circular"],
+          "priority": "medium"
+        },
+        {
+          "name": "Página 22 (FGV)",
+          "url": "https://pagina22.com.br/",
+          "rss": "https://pagina22.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["sustentabilidade", "negócios", "esg"],
+          "priority": "medium"
+        },
+        {
+          "name": "Eco Debate",
+          "url": "https://www.ecodebate.com.br/",
+          "rss": "https://www.ecodebate.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "ecologia", "sustentabilidade"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Energia e Biogás",
+      "sources": [
+        {
+          "name": "Canal Energia",
+          "url": "https://www.canalenergia.com.br/",
+          "rss": "https://www.canalenergia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["energia", "biogás", "renováveis"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Biogás",
+          "url": "https://portaldobiogas.com/",
+          "rss": "https://portaldobiogas.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["biogás", "energia", "resíduos"],
+          "priority": "high"
+        },
+        {
+          "name": "ABiogás - Associação Brasileira do Biogás",
+          "url": "https://abiogas.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["biogás", "associação", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ambiente Energia",
+          "url": "https://www.ambienteenergia.com.br/",
+          "rss": "https://www.ambienteenergia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["energia", "meio ambiente", "sustentabilidade"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Governamentais e Regulatórios",
+      "sources": [
+        {
+          "name": "Ministério do Meio Ambiente",
+          "url": "https://www.gov.br/mma/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "meio ambiente", "política ambiental"],
+          "priority": "high"
+        },
+        {
+          "name": "Ministério das Cidades",
+          "url": "https://www.gov.br/cidades/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "saneamento", "infraestrutura"],
+          "priority": "medium"
+        },
+        {
+          "name": "IBAMA",
+          "url": "https://www.gov.br/ibama/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["meio ambiente", "fiscalização", "licenciamento"],
+          "priority": "medium"
+        },
+        {
+          "name": "INEA - Instituto Estadual do Ambiente (RJ)",
+          "url": "http://www.inea.rj.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["rio de janeiro", "meio ambiente", "estado"],
+          "priority": "medium"
+        },
+        {
+          "name": "CONAMA - Conselho Nacional do Meio Ambiente",
+          "url": "https://www.gov.br/mma/pt-br/acesso-a-informacao/conama",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["meio ambiente", "regulação", "normas"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Aegea e Grupo",
+      "sources": [
+        {
+          "name": "Aegea Saneamento (Site Oficial)",
+          "url": "https://www.aegea.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["aegea", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "Aegea Relações com Investidores",
+          "url": "https://ri.aegea.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["aegea", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "Águas do Rio (Aegea)",
+          "url": "https://aguasdorio.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["aegea", "rio de janeiro", "água"],
+          "priority": "medium"
+        },
+        {
+          "name": "Regenera Cariri (Aegea)",
+          "url": "https://www.aegea.com.br/unidades/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["aegea", "resíduos", "ceará"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "REGENERA Rio (Instagram)",
+          "url": "https://www.instagram.com/regenerario/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "REGENERA Rio (LinkedIn)",
+          "url": "https://www.linkedin.com/company/regenera-rio",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "Aegea Saneamento (LinkedIn)",
+          "url": "https://www.linkedin.com/company/aegea",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["aegea", "linkedin", "grupo"],
+          "priority": "medium"
+        },
+        {
+          "name": "Aegea Saneamento (Instagram)",
+          "url": "https://www.instagram.com/aegeasaneamento/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["aegea", "instagram", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "regenera rio",
+    "aegea",
+    "aegea saneamento",
+    "ciclus rio",
+    "resíduos sólidos",
+    "gestão de resíduos",
+    "limpeza urbana",
+    "coleta de lixo",
+    "reciclagem",
+    "aterro sanitário",
+    "compostagem",
+    "biogás",
+    "energia renovável",
+    "créditos de carbono",
+    "economia circular",
+    "sustentabilidade",
+    "meio ambiente",
+    "saneamento básico",
+    "rio de janeiro",
+    "comlurb",
+    "prefeitura do rio",
+    "águas do rio",
+    "tratamento de resíduos",
+    "destinação final",
+    "licenciamento ambiental",
+    "impacto ambiental"
+  ],
+  "total_sources": 36,
+  "last_updated": "2026-01-26"
+}

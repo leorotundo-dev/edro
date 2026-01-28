@@ -2,6 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache wget
 RUN corepack enable || npm install -g pnpm@9
 RUN npm install -g ts-node
 
@@ -14,6 +15,6 @@ COPY apps/backend ./apps/backend
 
 WORKDIR /app/apps/backend
 
-EXPOSE 8080
+EXPOSE 3333
 
 CMD ["node", "-e", "require('ts-node/register/transpile-only'); require('./src/index.ts')"]

@@ -1,0 +1,416 @@
+{
+  "client": "Planejamento e Estratégia de Campanhas - Transversal",
+  "client_id": "planejamento-estrategia-campanhas-transversal",
+  "description": "Fontes de notícias sobre planejamento de campanhas, estratégia de marketing, branding, social media strategy, advertising strategy, cases e insights para todos os clientes da agência",
+  "categories": [
+    {
+      "name": "Estratégia de Marketing e Branding",
+      "sources": [
+        {
+          "name": "Harvard Business Review - Marketing",
+          "url": "https://hbr.org/topic/marketing",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["estratégia", "marketing", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "Marketing Week",
+          "url": "https://www.marketingweek.com/",
+          "rss": "https://www.marketingweek.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marketing", "estratégia", "branding"],
+          "priority": "high"
+        },
+        {
+          "name": "Brand Strategy Insider",
+          "url": "https://www.brandingstrategyinsider.com/",
+          "rss": "https://www.brandingstrategyinsider.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["branding", "estratégia", "marca"],
+          "priority": "high"
+        },
+        {
+          "name": "McKinsey - Marketing & Sales",
+          "url": "https://www.mckinsey.com/capabilities/growth-marketing-and-sales/our-insights",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["estratégia", "consultoria", "insights"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Planejamento de Campanhas",
+      "sources": [
+        {
+          "name": "Campaign US",
+          "url": "https://www.campaignlive.com/",
+          "rss": "https://www.campaignlive.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["campanhas", "publicidade", "criatividade"],
+          "priority": "high"
+        },
+        {
+          "name": "Ads of the World",
+          "url": "https://www.adsoftheworld.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["campanhas", "criatividade", "cases"],
+          "priority": "high"
+        },
+        {
+          "name": "Creative Review",
+          "url": "https://www.creativereview.co.uk/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["criatividade", "design", "campanhas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Social Media Strategy",
+      "sources": [
+        {
+          "name": "Social Media Examiner",
+          "url": "https://www.socialmediaexaminer.com/",
+          "rss": "https://www.socialmediaexaminer.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["social media", "estratégia", "dicas"],
+          "priority": "high"
+        },
+        {
+          "name": "Buffer Blog",
+          "url": "https://buffer.com/resources/",
+          "rss": "https://buffer.com/resources/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["social media", "estratégia", "ferramentas"],
+          "priority": "high"
+        },
+        {
+          "name": "Hootsuite Blog",
+          "url": "https://blog.hootsuite.com/",
+          "rss": "https://blog.hootsuite.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["social media", "gestão", "estratégia"],
+          "priority": "high"
+        },
+        {
+          "name": "Sprout Social Insights",
+          "url": "https://sproutsocial.com/insights/",
+          "rss": "https://sproutsocial.com/insights/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["social media", "analytics", "estratégia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Advertising Strategy e Performance",
+      "sources": [
+        {
+          "name": "AdExchanger",
+          "url": "https://www.adexchanger.com/",
+          "rss": "https://www.adexchanger.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["advertising", "programática", "adtech"],
+          "priority": "high"
+        },
+        {
+          "name": "Marketing Land",
+          "url": "https://marketingland.com/",
+          "rss": "https://marketingland.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marketing", "advertising", "digital"],
+          "priority": "high"
+        },
+        {
+          "name": "PPC Hero",
+          "url": "https://www.ppchero.com/",
+          "rss": "https://www.ppchero.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["ppc", "google ads", "performance"],
+          "priority": "medium"
+        },
+        {
+          "name": "WordStream Blog",
+          "url": "https://www.wordstream.com/blog",
+          "rss": "https://www.wordstream.com/blog/feed",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["ppc", "advertising", "dicas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Cases e Campanhas Premiadas",
+      "sources": [
+        {
+          "name": "Cannes Lions",
+          "url": "https://www.canneslions.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["prêmios", "criatividade", "cases"],
+          "priority": "high"
+        },
+        {
+          "name": "The One Show",
+          "url": "https://www.oneclub.org/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["prêmios", "criatividade", "cases"],
+          "priority": "medium"
+        },
+        {
+          "name": "D&AD",
+          "url": "https://www.dandad.org/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["prêmios", "design", "criatividade"],
+          "priority": "medium"
+        },
+        {
+          "name": "Clube de Criação de São Paulo",
+          "url": "https://ccsp.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["prêmios", "brasil", "criatividade"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Pesquisa e Comportamento do Consumidor",
+      "sources": [
+        {
+          "name": "Nielsen Insights",
+          "url": "https://www.nielsen.com/insights/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["pesquisa", "consumidor", "dados"],
+          "priority": "high"
+        },
+        {
+          "name": "Kantar",
+          "url": "https://www.kantar.com/inspiration",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["pesquisa", "insights", "marcas"],
+          "priority": "high"
+        },
+        {
+          "name": "eMarketer",
+          "url": "https://www.emarketer.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["pesquisa", "digital", "estatísticas"],
+          "priority": "high"
+        },
+        {
+          "name": "Statista",
+          "url": "https://www.statista.com/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["estatísticas", "dados", "pesquisa"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Funil de Conversão e CRO",
+      "sources": [
+        {
+          "name": "ConversionXL",
+          "url": "https://cxl.com/blog/",
+          "rss": "https://cxl.com/blog/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["conversão", "cro", "otimização"],
+          "priority": "high"
+        },
+        {
+          "name": "Unbounce Blog",
+          "url": "https://unbounce.com/blog/",
+          "rss": "https://unbounce.com/blog/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["landing pages", "conversão", "cro"],
+          "priority": "medium"
+        },
+        {
+          "name": "Optimizely Blog",
+          "url": "https://www.optimizely.com/insights/blog/",
+          "rss": "https://www.optimizely.com/insights/blog/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["ab testing", "otimização", "conversão"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Growth Marketing e Growth Hacking",
+      "sources": [
+        {
+          "name": "Growth Hackers",
+          "url": "https://growthhackers.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["growth", "hacking", "estratégia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Reforge Blog",
+          "url": "https://www.reforge.com/blog",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["growth", "produto", "estratégia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Neil Patel Blog",
+          "url": "https://neilpatel.com/blog/",
+          "rss": "https://neilpatel.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marketing digital", "seo", "growth"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Email Marketing e Automação",
+      "sources": [
+        {
+          "name": "Mailchimp Resources",
+          "url": "https://mailchimp.com/resources/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["email marketing", "automação", "estratégia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Campaign Monitor Blog",
+          "url": "https://www.campaignmonitor.com/blog/",
+          "rss": "https://www.campaignmonitor.com/blog/rss/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["email marketing", "dicas", "estratégia"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Agências e Mercado Publicitário Brasil",
+      "sources": [
+        {
+          "name": "Meio & Mensagem - Agências",
+          "url": "https://www.meioemensagem.com.br/agencias",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["agências", "brasil", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "PropMark - Agências",
+          "url": "https://propmark.com.br/categoria/agencias/",
+          "rss": "https://propmark.com.br/categoria/agencias/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agências", "brasil", "cases"],
+          "priority": "high"
+        },
+        {
+          "name": "Cenp-Meios",
+          "url": "https://cenp.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["cenp", "investimento", "mídia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Frameworks e Metodologias",
+      "sources": [
+        {
+          "name": "Smart Insights",
+          "url": "https://www.smartinsights.com/blog/",
+          "rss": "https://www.smartinsights.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["frameworks", "estratégia", "metodologia"],
+          "priority": "high"
+        },
+        {
+          "name": "Marketing91",
+          "url": "https://www.marketing91.com/",
+          "rss": "https://www.marketing91.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["conceitos", "frameworks", "marketing"],
+          "priority": "low"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "planejamento de campanhas",
+    "estratégia de marketing",
+    "estratégia de marca",
+    "branding",
+    "posicionamento",
+    "social media strategy",
+    "calendário editorial",
+    "conteúdo",
+    "engajamento",
+    "advertising strategy",
+    "mídia paga",
+    "performance marketing",
+    "funil de conversão",
+    "jornada do cliente",
+    "customer journey",
+    "persona",
+    "público-alvo",
+    "segmentação",
+    "targeting",
+    "cases de sucesso",
+    "campanhas premiadas",
+    "cannes lions",
+    "criatividade",
+    "insights",
+    "pesquisa de mercado",
+    "comportamento do consumidor",
+    "dados",
+    "analytics",
+    "kpis",
+    "métricas",
+    "roi",
+    "cro",
+    "conversão",
+    "ab testing",
+    "growth marketing",
+    "growth hacking",
+    "email marketing",
+    "automação",
+    "frameworks",
+    "metodologias",
+    "swot",
+    "benchmarking",
+    "concorrência"
+  ],
+  "total_sources": 38,
+  "last_updated": "2026-01-26"
+}

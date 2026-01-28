@@ -1,0 +1,331 @@
+{
+  "client": "Ciclus Amazônia",
+  "client_id": "ciclus-amazonia",
+  "description": "Fontes de notícias para monitoramento de gestão de resíduos, limpeza urbana, sustentabilidade e Belém/PA",
+  "categories": [
+    {
+      "name": "Fontes Nacionais - Meio Ambiente e Sustentabilidade",
+      "sources": [
+        {
+          "name": "Um Só Planeta (G1)",
+          "url": "https://g1.globo.com/meio-ambiente/",
+          "rss": "https://g1.globo.com/dynamo/meio-ambiente/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "nacional"],
+          "priority": "high"
+        },
+        {
+          "name": "Folha - Ambiente",
+          "url": "https://www1.folha.uol.com.br/ambiente/",
+          "rss": "https://www1.folha.uol.com.br/ambiente/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "nacional"],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Sustentabilidade",
+          "url": "https://www.estadao.com.br/sustentabilidade/",
+          "rss": "https://www.estadao.com.br/rss/sustentabilidade.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["sustentabilidade", "meio ambiente", "nacional"],
+          "priority": "high"
+        },
+        {
+          "name": "Conexão Planeta",
+          "url": "https://conexaoplaneta.com.br/",
+          "rss": "https://conexaoplaneta.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "amazônia"],
+          "priority": "high"
+        },
+        {
+          "name": "O Eco",
+          "url": "https://oeco.org.br/",
+          "rss": "https://oeco.org.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "amazônia", "conservação"],
+          "priority": "high"
+        },
+        {
+          "name": "Amazônia Real",
+          "url": "https://amazoniareal.com.br/",
+          "rss": "https://amazoniareal.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["amazônia", "meio ambiente", "jornalismo investigativo"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Especializada - Resíduos e Saneamento",
+      "sources": [
+        {
+          "name": "Portal Resíduos Sólidos",
+          "url": "https://portalresiduossolidos.com/",
+          "rss": "https://portalresiduossolidos.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["resíduos sólidos", "gestão", "reciclagem"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Saneamento Básico",
+          "url": "https://www.saneamentobasico.com.br/",
+          "rss": "https://www.saneamentobasico.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["saneamento", "resíduos", "meio ambiente"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Limpeza Pública",
+          "url": "https://www.ablp.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["limpeza pública", "resíduos", "gestão urbana"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ambiente Brasil",
+          "url": "https://ambientes.ambientebrasil.com.br/",
+          "rss": "https://ambientes.ambientebrasil.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "brasil"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ciclo Vivo",
+          "url": "https://ciclovivo.com.br/",
+          "rss": "https://ciclovivo.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["sustentabilidade", "reciclagem", "meio ambiente"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Fontes Locais - Belém e Pará",
+      "sources": [
+        {
+          "name": "G1 Pará",
+          "url": "https://g1.globo.com/pa/para/",
+          "rss": "https://g1.globo.com/dynamo/para/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["pará", "belém", "notícias locais"],
+          "priority": "high"
+        },
+        {
+          "name": "O Liberal (Belém)",
+          "url": "https://www.oliberal.com/",
+          "rss": "https://www.oliberal.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["belém", "pará", "notícias locais"],
+          "priority": "high"
+        },
+        {
+          "name": "DOL - Diário Online",
+          "url": "https://www.diarioonline.com.br/",
+          "rss": "https://www.diarioonline.com.br/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["belém", "pará", "notícias locais"],
+          "priority": "high"
+        },
+        {
+          "name": "Amazônia Notícia",
+          "url": "https://amazonianoticia.com.br/",
+          "rss": "https://amazonianoticia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["amazônia", "pará", "notícias locais"],
+          "priority": "medium"
+        },
+        {
+          "name": "Debate Carajás",
+          "url": "https://www.debatecarajas.com.br/",
+          "rss": "https://www.debatecarajas.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["pará", "amazônia", "notícias locais"],
+          "priority": "medium"
+        },
+        {
+          "name": "Jornal Amazônia",
+          "url": "https://jornalamazonia.com.br/",
+          "rss": "https://jornalamazonia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["amazônia", "pará", "notícias locais"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal Tailândia",
+          "url": "https://portaltailandia.com.br/",
+          "rss": "https://portaltailandia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["pará", "região metropolitana", "notícias locais"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Governamentais e Oficiais",
+      "sources": [
+        {
+          "name": "Prefeitura de Belém",
+          "url": "https://belem.pa.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["governo", "belém", "oficial"],
+          "priority": "high"
+        },
+        {
+          "name": "Governo do Pará",
+          "url": "https://www.pa.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["governo", "pará", "oficial"],
+          "priority": "high"
+        },
+        {
+          "name": "Ministério do Meio Ambiente",
+          "url": "https://www.gov.br/mma/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo federal", "meio ambiente", "oficial"],
+          "priority": "medium"
+        },
+        {
+          "name": "IBAMA",
+          "url": "https://www.gov.br/ibama/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["meio ambiente", "fiscalização", "oficial"],
+          "priority": "medium"
+        },
+        {
+          "name": "SEMAS Pará (Secretaria de Meio Ambiente)",
+          "url": "https://www.semas.pa.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["meio ambiente", "pará", "oficial"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ministério das Cidades",
+          "url": "https://www.gov.br/cidades/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo federal", "saneamento", "oficial"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "COP 30 e Eventos",
+      "sources": [
+        {
+          "name": "COP 30 Belém (Site Oficial)",
+          "url": "https://cop30.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cop30", "clima", "belém"],
+          "priority": "high"
+        },
+        {
+          "name": "UNFCCC (ONU Clima)",
+          "url": "https://unfccc.int/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["clima", "cop", "internacional"],
+          "priority": "medium"
+        },
+        {
+          "name": "Climate Home News",
+          "url": "https://www.climatechangenews.com/",
+          "rss": "https://www.climatechangenews.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["clima", "cop", "internacional"],
+          "priority": "medium"
+        },
+        {
+          "name": "Observatório do Clima",
+          "url": "https://www.oc.eco.br/",
+          "rss": "https://www.oc.eco.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["clima", "brasil", "sustentabilidade"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais e Mídias Alternativas",
+      "sources": [
+        {
+          "name": "Ciclus Amazônia (Instagram)",
+          "url": "https://www.instagram.com/ciclusamazonia/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "Prefeitura de Belém (Instagram)",
+          "url": "https://www.instagram.com/prefeituradebelemoficial/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["governo", "belém", "instagram"],
+          "priority": "medium"
+        },
+        {
+          "name": "Belém Notícias (Instagram)",
+          "url": "https://www.instagram.com/belemnoticias/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["belém", "notícias", "instagram"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "ciclus amazônia",
+    "ciclus ambiental",
+    "gestão de resíduos",
+    "resíduos sólidos",
+    "limpeza urbana",
+    "coleta de lixo",
+    "reciclagem",
+    "sustentabilidade",
+    "meio ambiente",
+    "belém",
+    "pará",
+    "amazônia",
+    "cop 30",
+    "cop30",
+    "conferência do clima",
+    "aterro sanitário",
+    "compostagem",
+    "economia circular",
+    "varrição",
+    "saneamento básico",
+    "gestão ambiental",
+    "simpar",
+    "aegea"
+  ],
+  "total_sources": 33,
+  "last_updated": "2026-01-26"
+}

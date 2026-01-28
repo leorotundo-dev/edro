@@ -33,6 +33,19 @@ export async function findUserByEmail(email: string): Promise<EdroUser | null> {
   return rows[0] ?? null;
 }
 
+export async function findUserById(id: string): Promise<EdroUser | null> {
+  const { rows } = await query<EdroUser>(
+    `
+      SELECT *
+      FROM edro_users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
 export async function upsertUser(params: {
   email: string;
   name?: string | null;

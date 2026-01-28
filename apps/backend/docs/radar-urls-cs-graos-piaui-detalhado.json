@@ -1,0 +1,431 @@
+{
+  "client": "CS Grãos do Piauí",
+  "client_id": "cs-graos-piaui-detalhado",
+  "description": "Fontes de notícias para monitoramento do agronegócio, produção de grãos, MATOPIBA, Piauí, rodovias e logística agrícola",
+  "categories": [
+    {
+      "name": "Agronegócio Nacional",
+      "sources": [
+        {
+          "name": "Canal Rural",
+          "url": "https://www.canalrural.com.br/",
+          "rss": "https://www.canalrural.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agronegócio", "agricultura", "pecuária"],
+          "priority": "high"
+        },
+        {
+          "name": "Globo Rural",
+          "url": "https://g1.globo.com/economia/agronegocios/globo-rural/",
+          "rss": "https://g1.globo.com/dynamo/economia/agronegocios/globo-rural/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agronegócio", "agricultura", "rural"],
+          "priority": "high"
+        },
+        {
+          "name": "Notícias Agrícolas",
+          "url": "https://www.noticiasagricolas.com.br/",
+          "rss": "https://www.noticiasagricolas.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agricultura", "grãos", "commodities"],
+          "priority": "high"
+        },
+        {
+          "name": "Agrolink",
+          "url": "https://www.agrolink.com.br/",
+          "rss": "https://www.agrolink.com.br/rss/noticias.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agronegócio", "agricultura", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Agência Rural",
+          "url": "https://www.agenciarural.com.br/",
+          "rss": "https://www.agenciarural.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["agronegócio", "notícias", "agricultura"],
+          "priority": "medium"
+        },
+        {
+          "name": "Revista Cultivar",
+          "url": "https://www.grupocultivar.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["agricultura", "técnico", "produção"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Grãos e Commodities",
+      "sources": [
+        {
+          "name": "CEPEA - Centro de Estudos Avançados em Economia Aplicada (USP)",
+          "url": "https://www.cepea.esalq.usp.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["preços", "commodities", "pesquisa"],
+          "priority": "high"
+        },
+        {
+          "name": "Safras & Mercado",
+          "url": "https://www.safras.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["grãos", "safra", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Agência Safras",
+          "url": "https://agenciasafras.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["safra", "grãos", "notícias"],
+          "priority": "high"
+        },
+        {
+          "name": "Grão Direto",
+          "url": "https://www.graodireto.com.br/",
+          "rss": "https://www.graodireto.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["grãos", "soja", "milho"],
+          "priority": "medium"
+        },
+        {
+          "name": "Soja & Cia",
+          "url": "https://www.sojaecia.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["soja", "grãos", "produção"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "MATOPIBA (Região)",
+      "sources": [
+        {
+          "name": "Matopiba Agro",
+          "url": "https://www.matopibaagro.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["matopiba", "agronegócio", "região"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal MATOPIBA",
+          "url": "https://www.embrapa.br/tema-matopiba",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["matopiba", "embrapa", "pesquisa"],
+          "priority": "medium"
+        },
+        {
+          "name": "Associação dos Produtores de Soja do Piauí (APROSOJA-PI)",
+          "url": "https://aprosojapi.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["piauí", "soja", "associação"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Piauí e Região",
+      "sources": [
+        {
+          "name": "G1 Piauí",
+          "url": "https://g1.globo.com/pi/piaui/",
+          "rss": "https://g1.globo.com/dynamo/pi/piaui/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["piauí", "notícias locais", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal 180 Graus (Piauí)",
+          "url": "https://180graus.com/",
+          "rss": "https://180graus.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["piauí", "notícias", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "Meio Norte (Piauí)",
+          "url": "https://www.meionorte.com/",
+          "rss": "https://www.meionorte.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["piauí", "notícias", "teresina"],
+          "priority": "medium"
+        },
+        {
+          "name": "Cidade Verde (Piauí)",
+          "url": "https://cidadeverde.com/",
+          "rss": "https://cidadeverde.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["piauí", "notícias", "economia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Governo do Piauí",
+          "url": "https://www.pi.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["piauí", "governo", "estadual"],
+          "priority": "medium"
+        },
+        {
+          "name": "SEAGRO - Secretaria da Agricultura do Piauí",
+          "url": "https://www.pi.gov.br/seagro/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["piauí", "agricultura", "governo"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Rodovias e Logística",
+      "sources": [
+        {
+          "name": "Diário do Transporte",
+          "url": "https://diariodotransporte.com.br/",
+          "rss": "https://diariodotransporte.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["transporte", "logística", "rodovias"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Tecnologística",
+          "url": "https://www.tecnologistica.com.br/",
+          "rss": "https://www.tecnologistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["logística", "transporte", "supply chain"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal NTC&Logística",
+          "url": "https://www.portalntc.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "logística", "carga"],
+          "priority": "medium"
+        },
+        {
+          "name": "ANTT - Agência Nacional de Transportes Terrestres",
+          "url": "https://www.gov.br/antt/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["rodovias", "regulação", "governo"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Exportação e Portos",
+      "sources": [
+        {
+          "name": "ComexStat (MDIC)",
+          "url": "http://comexstat.mdic.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "exportação", "grãos"],
+          "priority": "high"
+        },
+        {
+          "name": "Portos e Navios",
+          "url": "https://www.portosenavios.com.br/",
+          "rss": "https://www.portosenavios.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "exportação", "logística"],
+          "priority": "medium"
+        },
+        {
+          "name": "SECEX - Secretaria de Comércio Exterior",
+          "url": "https://www.gov.br/produtividade-e-comercio-exterior/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "exportação", "governo"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Associações e Entidades",
+      "sources": [
+        {
+          "name": "APROSOJA Brasil",
+          "url": "https://aprosojabrasil.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["soja", "associação", "produtores"],
+          "priority": "high"
+        },
+        {
+          "name": "ABIOVE - Associação Brasileira das Indústrias de Óleos Vegetais",
+          "url": "https://abiove.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["soja", "óleo", "associação"],
+          "priority": "medium"
+        },
+        {
+          "name": "ABAG - Associação Brasileira do Agronegócio",
+          "url": "https://www.abag.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["agronegócio", "associação", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "CNA - Confederação da Agricultura e Pecuária do Brasil",
+          "url": "https://www.cnabrasil.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["agricultura", "confederação", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "FAEP - Federação da Agricultura do Estado do Piauí",
+          "url": "https://www.faep.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["piauí", "agricultura", "federação"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Governamentais",
+      "sources": [
+        {
+          "name": "MAPA - Ministério da Agricultura",
+          "url": "https://www.gov.br/agricultura/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["agricultura", "governo", "política agrícola"],
+          "priority": "high"
+        },
+        {
+          "name": "EMBRAPA",
+          "url": "https://www.embrapa.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["pesquisa", "agricultura", "tecnologia"],
+          "priority": "medium"
+        },
+        {
+          "name": "CONAB - Companhia Nacional de Abastecimento",
+          "url": "https://www.conab.gov.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["safra", "preços", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "IBGE - Pesquisa Agrícola",
+          "url": "https://www.ibge.gov.br/estatisticas/economicas/agricultura-e-pecuaria.html",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["estatísticas", "agricultura", "dados"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e CS Infra",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Site Oficial)",
+          "url": "https://csinfra.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs infra", "institucional", "próprio"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "CS Infra (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-infra",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs grãos do piauí",
+    "cs grãos",
+    "cs infra",
+    "simpar",
+    "grupo simpar",
+    "piauí",
+    "matopiba",
+    "agronegócio",
+    "agricultura",
+    "grãos",
+    "soja",
+    "milho",
+    "algodão",
+    "safra",
+    "colheita",
+    "plantio",
+    "produção agrícola",
+    "commodities",
+    "exportação de grãos",
+    "logística agrícola",
+    "rodovias",
+    "transporte de grãos",
+    "armazenagem",
+    "silos",
+    "preço de grãos",
+    "mercado agrícola",
+    "clima",
+    "chuvas",
+    "seca"
+  ],
+  "total_sources": 42,
+  "last_updated": "2026-01-26"
+}

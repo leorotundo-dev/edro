@@ -1,0 +1,361 @@
+{
+  "client": "CS Frotas",
+  "client_id": "cs-frotas",
+  "description": "Fontes de notícias para monitoramento de gestão de frotas, setor público, licitações, mobilidade elétrica e administração pública",
+  "categories": [
+    {
+      "name": "Gestão Pública e Administração",
+      "sources": [
+        {
+          "name": "Portal da Transparência",
+          "url": "https://portaldatransparencia.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transparência", "governo", "gastos públicos"],
+          "priority": "medium"
+        },
+        {
+          "name": "Diário Oficial da União",
+          "url": "https://www.in.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["dou", "legislação", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal de Compras Governamentais",
+          "url": "https://www.gov.br/compras/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["compras públicas", "licitações", "governo"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Licitações e Contratos Públicos",
+      "sources": [
+        {
+          "name": "Licitações-e (Portal Nacional)",
+          "url": "https://www.gov.br/pncp/pt-br",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["licitações", "contratos", "pncp"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal de Licitações",
+          "url": "https://www.portaldatransparencia.gov.br/licitacoes",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["licitações", "transparência", "editais"],
+          "priority": "high"
+        },
+        {
+          "name": "Tribunal de Contas da União (TCU)",
+          "url": "https://portal.tcu.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["tcu", "fiscalização", "contratos"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Setor de Frotas e Locação",
+      "sources": [
+        {
+          "name": "ABLA - Associação Brasileira das Locadoras de Automóveis",
+          "url": "http://www.abla.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["locação", "frotas", "associação"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Frota&Cia",
+          "url": "https://www.revistafrotacia.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["frotas", "gestão", "veículos"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Gestão de Frotas",
+          "url": "https://www.gestaodefrota.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["frotas", "gestão", "tecnologia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mobilidade Elétrica e Sustentabilidade",
+      "sources": [
+        {
+          "name": "Mobilidade Elétrica",
+          "url": "https://mobilidadeeletrica.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["elétricos", "sustentabilidade", "veículos"],
+          "priority": "high"
+        },
+        {
+          "name": "ABVE - Associação Brasileira do Veículo Elétrico",
+          "url": "http://www.abve.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["elétricos", "associação", "mobilidade"],
+          "priority": "high"
+        },
+        {
+          "name": "Um Só Planeta (G1)",
+          "url": "https://g1.globo.com/meio-ambiente/",
+          "rss": "https://g1.globo.com/dynamo/meio-ambiente/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "clima"],
+          "priority": "medium"
+        },
+        {
+          "name": "Conexão Planeta",
+          "url": "https://conexaoplaneta.com.br/",
+          "rss": "https://conexaoplaneta.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "brasil"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Mercado Automotivo",
+      "sources": [
+        {
+          "name": "AutoData",
+          "url": "https://www.autodata.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["automotivo", "mercado", "estatísticas"],
+          "priority": "high"
+        },
+        {
+          "name": "Automotive Business",
+          "url": "https://www.automotivebusiness.com.br/",
+          "rss": "https://www.automotivebusiness.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["automotivo", "indústria", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "ANFAVEA - Associação Nacional dos Fabricantes de Veículos",
+          "url": "https://anfavea.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "fabricantes", "estatísticas"],
+          "priority": "medium"
+        },
+        {
+          "name": "Fenabrave - Federação Nacional da Distribuição de Veículos",
+          "url": "http://www3.fenabrave.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "vendas", "concessionárias"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Saneamento e Energia (Clientes)",
+      "sources": [
+        {
+          "name": "Portal Saneamento Básico",
+          "url": "https://www.saneamentobasico.com.br/",
+          "rss": "https://www.saneamentobasico.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["saneamento", "água", "esgoto"],
+          "priority": "medium"
+        },
+        {
+          "name": "Canal Energia",
+          "url": "https://www.canalenergia.com.br/",
+          "rss": "https://www.canalenergia.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["energia", "elétrica", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "ABCE - Associação Brasileira de Concessionárias de Energia Elétrica",
+          "url": "http://www.abce.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["energia", "concessionárias", "associação"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Segurança Pública (Clientes)",
+      "sources": [
+        {
+          "name": "Ministério da Justiça e Segurança Pública",
+          "url": "https://www.gov.br/mj/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["segurança", "justiça", "governo"],
+          "priority": "medium"
+        },
+        {
+          "name": "Fórum Brasileiro de Segurança Pública",
+          "url": "https://forumseguranca.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["segurança", "políticas", "pesquisa"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Economia e Negócios",
+      "sources": [
+        {
+          "name": "Valor Econômico",
+          "url": "https://valor.globo.com/",
+          "rss": "https://valor.globo.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado"],
+          "priority": "medium"
+        },
+        {
+          "name": "Estadão - Economia",
+          "url": "https://www.estadao.com.br/economia/",
+          "rss": "https://www.estadao.com.br/rss/economia.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado"],
+          "priority": "medium"
+        },
+        {
+          "name": "Exame",
+          "url": "https://exame.com/",
+          "rss": "https://exame.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "economia", "empresas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e Movida",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "Movida (Site Oficial)",
+          "url": "https://www.movida.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["movida", "locação", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Frotas (Site Oficial)",
+          "url": "https://csfrotas.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs frotas", "próprio", "institucional"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Seminovos (Site Oficial)",
+          "url": "https://csseminovos.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["cs seminovos", "relacionado", "vendas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "CS Frotas (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-frotas",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["linkedin", "próprio", "institucional"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        },
+        {
+          "name": "Movida (LinkedIn)",
+          "url": "https://www.linkedin.com/company/movida",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["movida", "linkedin", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs frotas",
+    "cs seminovos",
+    "simpar",
+    "grupo simpar",
+    "movida",
+    "gestão de frotas",
+    "gtf",
+    "terceirização de frotas",
+    "locação de veículos",
+    "setor público",
+    "licitações",
+    "contratos públicos",
+    "administração pública",
+    "governo",
+    "transparência",
+    "compliance",
+    "mobilidade elétrica",
+    "veículos elétricos",
+    "sustentabilidade",
+    "esg",
+    "frotas públicas",
+    "viaturas",
+    "saneamento",
+    "energia elétrica",
+    "segurança pública",
+    "economia mista",
+    "concessões",
+    "ppp"
+  ],
+  "total_sources": 38,
+  "last_updated": "2026-01-26"
+}

@@ -1,0 +1,411 @@
+{
+  "client": "CS Portos (CS Porto Aratu)",
+  "client_id": "cs-portos-detalhado",
+  "description": "Fontes de notícias para monitoramento do setor portuário, comércio exterior, logística marítima, Porto de Aratu e Bahia",
+  "categories": [
+    {
+      "name": "Setor Portuário Nacional",
+      "sources": [
+        {
+          "name": "Portos e Navios",
+          "url": "https://www.portosenavios.com.br/",
+          "rss": "https://www.portosenavios.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "navegação", "logística"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Portuário",
+          "url": "https://www.portalportuario.com.br/",
+          "rss": "https://www.portalportuario.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "navegação", "comércio exterior"],
+          "priority": "high"
+        },
+        {
+          "name": "Portos e Logística",
+          "url": "https://www.portoselogistica.com.br/",
+          "rss": "https://www.portoselogistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "logística", "infraestrutura"],
+          "priority": "high"
+        },
+        {
+          "name": "Mundo Marítimo",
+          "url": "https://www.mundomaritimo.com.br/",
+          "rss": "https://www.mundomaritimo.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marítimo", "portos", "navegação"],
+          "priority": "medium"
+        },
+        {
+          "name": "Revista Tecnologística",
+          "url": "https://www.tecnologistica.com.br/",
+          "rss": "https://www.tecnologistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["logística", "transporte", "portos"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Comércio Exterior",
+      "sources": [
+        {
+          "name": "ComexStat (MDIC)",
+          "url": "http://comexstat.mdic.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "exportação", "importação"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Siscomex",
+          "url": "https://www.gov.br/siscomex/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "governo", "siscomex"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Comércio Exterior",
+          "url": "https://www.comexdobrasil.com/",
+          "rss": "https://www.comexdobrasil.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["comércio exterior", "exportação", "mercado"],
+          "priority": "medium"
+        },
+        {
+          "name": "AEB - Associação de Comércio Exterior do Brasil",
+          "url": "http://www.aeb.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "associação", "exportação"],
+          "priority": "medium"
+        },
+        {
+          "name": "SECEX - Secretaria de Comércio Exterior",
+          "url": "https://www.gov.br/produtividade-e-comercio-exterior/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "governo", "política comercial"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Regulatórios e Governamentais",
+      "sources": [
+        {
+          "name": "ANTAQ - Agência Nacional de Transportes Aquaviários",
+          "url": "https://www.gov.br/antaq/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "regulação", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Ministério dos Portos e Aeroportos",
+          "url": "https://www.gov.br/portos-e-aeroportos/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "governo", "infraestrutura"],
+          "priority": "high"
+        },
+        {
+          "name": "Marinha do Brasil",
+          "url": "https://www.marinha.mil.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["marinha", "navegação", "segurança"],
+          "priority": "medium"
+        },
+        {
+          "name": "Receita Federal",
+          "url": "https://www.gov.br/receitafederal/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["alfândega", "comércio exterior", "governo"],
+          "priority": "medium"
+        },
+        {
+          "name": "CONIT - Conselho Nacional de Integração de Políticas de Transporte",
+          "url": "https://www.gov.br/infraestrutura/pt-br/assuntos/transporte-terrestre/conit",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["transporte", "política", "governo"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Bahia e Porto de Aratu",
+      "sources": [
+        {
+          "name": "G1 Bahia",
+          "url": "https://g1.globo.com/ba/bahia/",
+          "rss": "https://g1.globo.com/dynamo/ba/bahia/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["bahia", "notícias locais", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "Correio da Bahia",
+          "url": "https://www.correio24horas.com.br/",
+          "rss": "https://www.correio24horas.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["bahia", "notícias locais", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "A Tarde",
+          "url": "https://atarde.com.br/",
+          "rss": "https://atarde.com.br/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["bahia", "notícias locais", "salvador"],
+          "priority": "medium"
+        },
+        {
+          "name": "Bahia Notícias",
+          "url": "https://www.bahianoticias.com.br/",
+          "rss": "https://www.bahianoticias.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["bahia", "notícias locais", "economia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Governo da Bahia",
+          "url": "https://www.ba.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["bahia", "governo", "estadual"],
+          "priority": "medium"
+        },
+        {
+          "name": "CODEBA - Companhia das Docas do Estado da Bahia",
+          "url": "http://www.codeba.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "bahia", "aratu"],
+          "priority": "high"
+        },
+        {
+          "name": "FIEB - Federação das Indústrias do Estado da Bahia",
+          "url": "https://www.fieb.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["bahia", "indústria", "economia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Associações e Entidades Setoriais",
+      "sources": [
+        {
+          "name": "ABTP - Associação Brasileira dos Terminais Portuários",
+          "url": "https://www.abtp.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "terminais", "associação"],
+          "priority": "high"
+        },
+        {
+          "name": "ANTAQ - Anuário Estatístico",
+          "url": "https://www.gov.br/antaq/pt-br/central-de-conteudos/publicacoes/anuario-estatistico",
+          "type": "scrape",
+          "frequency": "yearly",
+          "tags": ["portos", "estatísticas", "dados"],
+          "priority": "high"
+        },
+        {
+          "name": "ABAC - Associação Brasileira dos Armadores de Cabotagem",
+          "url": "http://www.abac.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["navegação", "cabotagem", "associação"],
+          "priority": "medium"
+        },
+        {
+          "name": "Syndarma - Sindicato Nacional das Empresas de Navegação Marítima",
+          "url": "http://www.syndarma.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["navegação", "marítimo", "sindicato"],
+          "priority": "medium"
+        },
+        {
+          "name": "ABDIB - Associação Brasileira da Infraestrutura",
+          "url": "https://www.abdib.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "portos"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Infraestrutura e Concessões",
+      "sources": [
+        {
+          "name": "Revista Infraestrutura Urbana",
+          "url": "https://infraestruturaurbana.pini.com.br/",
+          "rss": "https://infraestruturaurbana.pini.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "urbano"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal PPI (Parcerias Público-Privadas)",
+          "url": "https://www.gov.br/ppi/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["ppp", "concessões", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Infraestrutura Brasileira",
+          "url": "https://infraestruturabrasileira.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "projetos"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Economia e Negócios",
+      "sources": [
+        {
+          "name": "Valor Econômico",
+          "url": "https://valor.globo.com/",
+          "rss": "https://valor.globo.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Economia",
+          "url": "https://www.estadao.com.br/economia/",
+          "rss": "https://www.estadao.com.br/rss/economia.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado"],
+          "priority": "medium"
+        },
+        {
+          "name": "Exame",
+          "url": "https://exame.com/",
+          "rss": "https://exame.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "economia", "empresas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e CS Infra",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Site Oficial)",
+          "url": "https://csinfra.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs infra", "institucional", "próprio"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "CS Infra (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-infra",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        },
+        {
+          "name": "CS Infra (Instagram)",
+          "url": "https://www.instagram.com/csinfraoficial/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs portos",
+    "cs porto aratu",
+    "porto de aratu",
+    "porto aratu",
+    "cs infra",
+    "simpar",
+    "grupo simpar",
+    "portos",
+    "setor portuário",
+    "terminal portuário",
+    "movimentação portuária",
+    "comércio exterior",
+    "exportação",
+    "importação",
+    "navegação",
+    "cabotagem",
+    "logística portuária",
+    "infraestrutura portuária",
+    "concessão portuária",
+    "antaq",
+    "codeba",
+    "bahia",
+    "salvador",
+    "região metropolitana de salvador",
+    "polo industrial de camaçari",
+    "granéis líquidos",
+    "granéis sólidos",
+    "contêineres",
+    "carga geral"
+  ],
+  "total_sources": 41,
+  "last_updated": "2026-01-26"
+}

@@ -1,0 +1,395 @@
+{
+  "client": "Mercado Municipal Miguel Sutil",
+  "client_id": "mercado-miguel-sutil",
+  "description": "Fontes de notícias para monitoramento do Mercado Municipal Miguel Sutil, gastronomia, turismo, comércio local e centro histórico de Cuiabá",
+  "categories": [
+    {
+      "name": "Gastronomia e Alimentação",
+      "sources": [
+        {
+          "name": "Paladar (Estadão)",
+          "url": "https://paladar.estadao.com.br/",
+          "rss": "https://paladar.estadao.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["gastronomia", "culinária", "restaurantes"],
+          "priority": "high"
+        },
+        {
+          "name": "Veja Comer & Beber",
+          "url": "https://vejasp.abril.com.br/comer-beber/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["gastronomia", "restaurantes", "bares"],
+          "priority": "high"
+        },
+        {
+          "name": "Panelinha (Rita Lobo)",
+          "url": "https://www.panelinha.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["culinária", "receitas", "gastronomia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Cozinha Prática",
+          "url": "https://www.cozinhapratica.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["culinária", "receitas", "alimentação"],
+          "priority": "medium"
+        },
+        {
+          "name": "Revista Menu",
+          "url": "https://revistamenu.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["gastronomia", "restaurantes", "chefs"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Turismo e Cultura",
+      "sources": [
+        {
+          "name": "Viagem e Turismo (Abril)",
+          "url": "https://viagemeturismo.abril.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["turismo", "viagem", "destinos"],
+          "priority": "high"
+        },
+        {
+          "name": "Panrotas (Turismo)",
+          "url": "https://www.panrotas.com.br/",
+          "rss": "https://www.panrotas.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["turismo", "hotelaria", "viagens"],
+          "priority": "high"
+        },
+        {
+          "name": "MTur - Ministério do Turismo",
+          "url": "https://www.gov.br/turismo/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["turismo", "governo", "políticas"],
+          "priority": "medium"
+        },
+        {
+          "name": "Embratur",
+          "url": "https://www.embratur.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["turismo", "brasil", "promoção"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Comércio e Varejo",
+      "sources": [
+        {
+          "name": "Mercado & Consumo",
+          "url": "https://www.mercadoeconsumo.com.br/",
+          "rss": "https://www.mercadoeconsumo.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["varejo", "consumo", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Supermercado Moderno",
+          "url": "https://www.sm.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["varejo", "supermercados", "food service"],
+          "priority": "high"
+        },
+        {
+          "name": "ABRASEL - Associação Brasileira de Bares e Restaurantes",
+          "url": "https://abrasel.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["restaurantes", "bares", "food service"],
+          "priority": "high"
+        },
+        {
+          "name": "ABIA - Associação Brasileira da Indústria de Alimentos",
+          "url": "https://www.abia.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["alimentos", "indústria", "setor"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Patrimônio e Revitalização Urbana",
+      "sources": [
+        {
+          "name": "ArchDaily Brasil",
+          "url": "https://www.archdaily.com.br/",
+          "rss": "https://www.archdaily.com.br/br/rss/all",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["arquitetura", "urbanismo", "revitalização"],
+          "priority": "medium"
+        },
+        {
+          "name": "AU - Arquitetura e Urbanismo",
+          "url": "https://www.au.pini.com.br/",
+          "rss": "https://www.au.pini.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["arquitetura", "urbanismo", "patrimônio"],
+          "priority": "medium"
+        },
+        {
+          "name": "IPHAN - Instituto do Patrimônio Histórico",
+          "url": "http://portal.iphan.gov.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["patrimônio", "histórico", "preservação"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Local - Cuiabá e Mato Grosso",
+      "sources": [
+        {
+          "name": "G1 Mato Grosso",
+          "url": "https://g1.globo.com/mt/mato-grosso/",
+          "rss": "https://g1.globo.com/dynamo/mt/mato-grosso/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mato grosso", "cuiabá", "notícias locais"],
+          "priority": "high"
+        },
+        {
+          "name": "RD News (Cuiabá)",
+          "url": "https://www.rdnews.com.br/",
+          "rss": "https://www.rdnews.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["cuiabá", "notícias", "mato grosso"],
+          "priority": "high"
+        },
+        {
+          "name": "Só Notícias (Cuiabá)",
+          "url": "https://www.sonoticias.com.br/",
+          "rss": "https://www.sonoticias.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["cuiabá", "notícias", "cidade"],
+          "priority": "high"
+        },
+        {
+          "name": "Midiamax (Mato Grosso)",
+          "url": "https://midiamax.uol.com.br/",
+          "rss": "https://midiamax.uol.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mato grosso", "notícias", "região"],
+          "priority": "medium"
+        },
+        {
+          "name": "Olhar Direto (Cuiabá)",
+          "url": "https://www.olhardireto.com.br/",
+          "rss": "https://www.olhardireto.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["cuiabá", "notícias", "política"],
+          "priority": "medium"
+        },
+        {
+          "name": "Circuito Mato Grosso",
+          "url": "https://www.circuitomt.com.br/",
+          "rss": "https://www.circuitomt.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mato grosso", "notícias", "interior"],
+          "priority": "medium"
+        },
+        {
+          "name": "Mato Grosso Econômico",
+          "url": "https://matogrossoeconomico.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["mato grosso", "economia", "negócios"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Governo e Instituições",
+      "sources": [
+        {
+          "name": "Prefeitura de Cuiabá",
+          "url": "https://www.cuiaba.mt.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cuiabá", "prefeitura", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Governo de Mato Grosso",
+          "url": "https://www.mt.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["mato grosso", "governo", "estadual"],
+          "priority": "medium"
+        },
+        {
+          "name": "SEDTUR - Secretaria de Turismo de Cuiabá",
+          "url": "https://www.cuiaba.mt.gov.br/secretarias/secretaria-de-cultura-esporte-e-lazer/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["cuiabá", "turismo", "cultura"],
+          "priority": "medium"
+        },
+        {
+          "name": "IPDU - Instituto de Planejamento e Desenvolvimento Urbano",
+          "url": "https://www.cuiaba.mt.gov.br/ipdu/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["cuiabá", "urbanismo", "planejamento"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Sustentabilidade e Meio Ambiente",
+      "sources": [
+        {
+          "name": "Um Só Planeta (G1)",
+          "url": "https://g1.globo.com/meio-ambiente/",
+          "rss": "https://g1.globo.com/dynamo/meio-ambiente/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "clima"],
+          "priority": "medium"
+        },
+        {
+          "name": "Conexão Planeta",
+          "url": "https://conexaoplaneta.com.br/",
+          "rss": "https://conexaoplaneta.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["meio ambiente", "sustentabilidade", "brasil"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ciclo Vivo",
+          "url": "https://ciclovivo.com.br/",
+          "rss": "https://ciclovivo.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["sustentabilidade", "meio ambiente", "inovação"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e CS Mobi",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Mobi Cuiabá (Site Oficial)",
+          "url": "https://csmobicuiaba.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs mobi", "cuiabá", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Site Oficial)",
+          "url": "https://csinfra.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs infra", "institucional", "grupo"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "CS Mobi Cuiabá (Instagram)",
+          "url": "https://www.instagram.com/csmobicuiaba/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["instagram", "próprio", "cuiabá"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-infra",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "grupo"],
+          "priority": "medium"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "mercado municipal miguel sutil",
+    "mercado miguel sutil",
+    "mercado municipal cuiabá",
+    "novo mercado cuiabá",
+    "cs mobi cuiabá",
+    "cs mobi",
+    "cs infra",
+    "simpar",
+    "centro histórico cuiabá",
+    "revitalização cuiabá",
+    "gastronomia cuiabá",
+    "turismo cuiabá",
+    "culinária regional",
+    "produtos regionais",
+    "mato grosso",
+    "comércio local",
+    "feira gastronômica",
+    "mercado público",
+    "food hall",
+    "praça de alimentação",
+    "rooftop cuiabá",
+    "happy hour cuiabá",
+    "artesanato cuiabá",
+    "cultura cuiabana",
+    "patrimônio histórico cuiabá",
+    "av generoso ponce",
+    "sustentabilidade urbana",
+    "fachada verde",
+    "smart parking"
+  ],
+  "total_sources": 38,
+  "last_updated": "2026-01-26"
+}
