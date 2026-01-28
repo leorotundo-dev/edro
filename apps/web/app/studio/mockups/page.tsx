@@ -229,7 +229,7 @@ export default function Page() {
   const [displayMap, setDisplayMap] = useState<Record<string, string>>({});
   const [context, setContext] = useState<Record<string, any>>({});
   const [clientLogo, setClientLogo] = useState<string>('');
-  const [zoomLevel, setZoomLevel] = useState<number>(0.92);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [syncing, setSyncing] = useState<boolean>(false);
 
   const resolveClientId = (ctx?: Record<string, any>) => {
@@ -610,9 +610,9 @@ export default function Page() {
     setMockups((prev) => prev.map((item) => ({ ...item, generated: true })));
   };
 
-  const handleZoomIn = () => setZoomLevel((value) => Math.min(1, Number((value + 0.08).toFixed(2))));
-  const handleZoomOut = () => setZoomLevel((value) => Math.max(0.4, Number((value - 0.08).toFixed(2))));
-  const handleZoomReset = () => setZoomLevel(0.92);
+  const handleZoomIn = () => setZoomLevel((value) => Math.min(1.2, Number((value + 0.08).toFixed(2))));
+  const handleZoomOut = () => setZoomLevel((value) => Math.max(0.6, Number((value - 0.08).toFixed(2))));
+  const handleZoomReset = () => setZoomLevel(1);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -829,88 +829,43 @@ export default function Page() {
 
   return (
     <AppShell title="Creative Studio Mockups" topbarLeft={topbarLeft}>
-      <div className="flex-1 p-8 flex flex-col">
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h2 className="font-serif text-4xl text-slate-900 leading-tight mb-2">Geração de Mockups</h2>
-            <p className="text-slate-500 text-base">Visualize sua marca aplicada em cenários reais de alta fidelidade.</p>
+      <div className="flex-1 p-8 flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <h2 className="font-serif text-4xl text-slate-900 leading-tight mb-2">Geração de Mockups</h2>
+              <p className="text-slate-500 text-base">Mockups realistas para aprovação e exportação imediata.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600">
+              <span className="px-3 py-2 rounded-full border border-slate-200 bg-white">
+                {generatedCount} de {mockups.length} gerados
+              </span>
+              <span className="px-3 py-2 rounded-full border border-slate-200 bg-white">
+                {platformsCount} plataformas
+              </span>
+              <span className="px-3 py-2 rounded-full border border-slate-200 bg-white">
+                {selectedCount ? `${selectedCount} selecionado(s)` : 'Nenhuma seleção'}
+              </span>
+            </div>
           </div>
-        </div>
-
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 relative flex items-center justify-center p-8 overflow-hidden">
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md border border-slate-200 rounded-full px-4 py-2 flex items-center gap-4 z-10">
-              <div className="flex items-center gap-1 border-r border-white/10 pr-4">
-                <button className="p-1.5 text-slate-600 hover:text-primary transition-colors" type="button" onClick={handleZoomIn}>
-                  <span className="material-symbols-outlined">zoom_in</span>
-                </button>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1">
                 <button className="p-1.5 text-slate-600 hover:text-primary transition-colors" type="button" onClick={handleZoomOut}>
                   <span className="material-symbols-outlined">zoom_out</span>
                 </button>
                 <button className="p-1.5 text-slate-600 hover:text-primary transition-colors" type="button" onClick={handleZoomReset}>
                   <span className="material-symbols-outlined">restart_alt</span>
                 </button>
-              </div>
-              <div className="flex items-center gap-4">
-                <button className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors" type="button">
-                  <span className="material-symbols-outlined">edit_note</span>
-                  ANOTAÇÕES
-                </button>
-                <button className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors" type="button">
-                  <span className="material-symbols-outlined">grid_view</span>
-                  GRADE
+                <button className="p-1.5 text-slate-600 hover:text-primary transition-colors" type="button" onClick={handleZoomIn}>
+                  <span className="material-symbols-outlined">zoom_in</span>
                 </button>
               </div>
-            </div>
-
-            <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-10 overflow-y-auto custom-scrollbar p-6">
-              {orderedMockups.length ? (
-                orderedMockups.map((item) => {
-                  const isSelected = selectedIds.includes(item.id);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      data-mockup-id={item.id}
-                      onClick={() => toggleSelect(item.id)}
-                      className={`flex items-center justify-center min-h-[560px] text-left transition-all ${
-                        isSelected ? 'ring-2 ring-primary/70 ring-offset-8 ring-offset-slate-200' : ''
-                      }`}
-                    >
-                      <div data-export-root className="origin-center" style={{ transform: `scale(${zoomLevel})` }}>
-                        {renderMockup(item)}
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="col-span-3 text-sm text-slate-400">Nenhum formato selecionado ainda.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="h-20 bg-white/70 border-t border-slate-100 px-6 flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="flex -space-x-2">
-                <div className="size-8 rounded-full border-2 border-white bg-slate-200 overflow-hidden">
-                  <div className="w-full h-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                    {displayName.slice(0, 2).toUpperCase()}
-                  </div>
-                </div>
-                <div className="size-8 rounded-full border-2 border-white bg-slate-200 overflow-hidden">
-                  <div className="w-full h-full bg-slate-900/10 flex items-center justify-center text-[10px] font-bold text-slate-700">CP</div>
-                </div>
-                <div className="size-8 rounded-full border-2 border-white bg-slate-200 overflow-hidden">
-                  <div className="w-full h-full bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-600">BR</div>
-                </div>
-              </div>
-              <div className="text-xs">
-                <p className="font-bold text-slate-900 uppercase tracking-wider">Ativos Aplicados</p>
-                <p className="text-slate-500">{platformsCount} plataformas • {mockups.length} formatos selecionados</p>
+              <div className="text-[11px] text-slate-400 uppercase tracking-[0.2em]">
+                {syncing ? 'Sincronizando...' : 'Grade dinâmica'}
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className="text-slate-500">{selectedCount ? `${selectedCount} selecionado(s)` : 'Nenhum selecionado'}</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
               <button
                 type="button"
                 onClick={handleSelectAll}
@@ -953,7 +908,43 @@ export default function Page() {
           </div>
         </div>
 
-        <div className="mt-8 flex justify-between items-center">
+        <div className="flex-1 relative">
+          <div className="absolute inset-0 pointer-events-none opacity-30 bg-[linear-gradient(transparent_23px,#e2e8f0_24px),linear-gradient(90deg,transparent_23px,#e2e8f0_24px)] bg-[size:24px_24px]" />
+          <div className="relative w-full h-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-12 py-6">
+            {orderedMockups.length ? (
+              orderedMockups.map((item) => {
+                const isSelected = selectedIds.includes(item.id);
+                const label = resolveLabel(item.platform, item.format);
+                const statusLabel = item.status === 'saved' ? 'Salvo' : item.status === 'draft' ? 'Rascunho' : 'Novo';
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    data-mockup-id={item.id}
+                    onClick={() => toggleSelect(item.id)}
+                    className={`group relative flex items-center justify-center transition-all ${
+                      isSelected ? 'ring-2 ring-primary/70 ring-offset-8 ring-offset-slate-50' : 'hover:shadow-xl'
+                    }`}
+                  >
+                    <div className="absolute top-4 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                      {label}
+                    </div>
+                    <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                      {statusLabel}
+                    </div>
+                    <div data-export-root className="origin-center" style={{ transform: `scale(${zoomLevel})` }}>
+                      {renderMockup(item)}
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-sm text-slate-400">Nenhum formato selecionado ainda.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
           <Link href="/studio/editor" className="flex items-center gap-2 px-5 py-2.5 text-slate-400 hover:text-slate-900 font-bold text-sm transition-all">
             <span className="material-symbols-outlined">arrow_back</span>
             Voltar ao Passo 3
@@ -977,7 +968,7 @@ export default function Page() {
             </Link>
           </div>
         </div>
-        <div className="mt-6 text-xs text-slate-500">
+        <div className="text-xs text-slate-500">
           {syncing ? 'Sincronizando mockups...' : `${generatedCount} de ${mockups.length} mockups gerados`}
         </div>
       </div>
