@@ -1146,12 +1146,19 @@
       if (!Array.isArray(copies) || !copies.length || !copyField) return;
       const key = `${platform}::${format}`;
       const versionStore = safeParse(safeGet(copyVersionKey), {});
-      let desiredId = versionStore?.[key];
+      const desiredId = versionStore?.[key];
+      const matchesCurrentFormat = (item) => {
+        const meta = item?.payload?._edro || item?.payload?.metadata || item?.payload?.edro_context || item?.payload?.context || {};
+        const metaPlatform = meta?.platform || item?.payload?.platform || item?.payload?.plataforma || '';
+        const metaFormat = meta?.format || item?.payload?.formato || '';
+        if (!metaPlatform || !metaFormat) return false;
+        return normalizeKey(metaPlatform) === normalizeKey(platform) && normalizeKey(metaFormat) === normalizeKey(format);
+      };
+      const matchingCopies = copies.filter(matchesCurrentFormat);
       let latest = desiredId ? copies.find((item) => item?.id === desiredId) : null;
-      if (!latest) {
-        latest = [...copies]
-          .sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime())[0]
-          || copies[0];
+      if (!latest && matchingCopies.length) {
+        latest = [...matchingCopies]
+          .sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime())[0];
         if (latest?.id) {
           versionStore[key] = latest.id;
           safeSet(copyVersionKey, JSON.stringify(versionStore));
@@ -1328,7 +1335,13 @@
           task_type: taskType,
           tier,
           pipeline,
-          force_provider: forceProvider || undefined
+          force_provider: forceProvider || undefined,
+          metadata: {
+            platform,
+            format,
+            platformLabel,
+            productionType: resolveProductionType()
+          }
         })
       });
       const copy = response?.data?.copy;
