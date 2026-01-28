@@ -1,0 +1,432 @@
+{
+  "client": "Marketing Digital, Social Media e IA - Transversal",
+  "client_id": "marketing-digital-ia-transversal",
+  "description": "Fontes de notícias sobre tendências de marketing digital, redes sociais, publicidade, IA generativa e inovações para todos os clientes da agência",
+  "categories": [
+    {
+      "name": "IA Generativa e Ferramentas",
+      "sources": [
+        {
+          "name": "OpenAI Blog",
+          "url": "https://openai.com/blog/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["ia", "chatgpt", "openai"],
+          "priority": "high"
+        },
+        {
+          "name": "The Verge - AI",
+          "url": "https://www.theverge.com/ai-artificial-intelligence",
+          "rss": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["ia", "tecnologia", "inovação"],
+          "priority": "high"
+        },
+        {
+          "name": "TechCrunch - AI",
+          "url": "https://techcrunch.com/category/artificial-intelligence/",
+          "rss": "https://techcrunch.com/category/artificial-intelligence/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["ia", "startups", "tecnologia"],
+          "priority": "high"
+        },
+        {
+          "name": "AI News (Artificial Intelligence News)",
+          "url": "https://www.artificialintelligence-news.com/",
+          "rss": "https://www.artificialintelligence-news.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["ia", "notícias", "tendências"],
+          "priority": "medium"
+        },
+        {
+          "name": "Canaltech - Inteligência Artificial",
+          "url": "https://canaltech.com.br/inteligencia-artificial/",
+          "rss": "https://canaltech.com.br/rss/inteligencia-artificial/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["ia", "brasil", "tecnologia"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "IA em Marketing e Publicidade",
+      "sources": [
+        {
+          "name": "MarTech (Marketing Technology)",
+          "url": "https://martech.org/",
+          "rss": "https://martech.org/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["martech", "ia", "marketing"],
+          "priority": "high"
+        },
+        {
+          "name": "AI in Marketing",
+          "url": "https://www.aiinmarketing.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["ia", "marketing", "automação"],
+          "priority": "medium"
+        },
+        {
+          "name": "Marketing AI Institute",
+          "url": "https://www.marketingaiinstitute.com/blog",
+          "rss": "https://www.marketingaiinstitute.com/blog/rss.xml",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["ia", "marketing", "pesquisa"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Meta (Facebook, Instagram, WhatsApp)",
+      "sources": [
+        {
+          "name": "Meta for Business Blog",
+          "url": "https://www.facebook.com/business/news",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["meta", "facebook", "instagram"],
+          "priority": "high"
+        },
+        {
+          "name": "Instagram Blog",
+          "url": "https://about.instagram.com/blog",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["instagram", "meta", "social"],
+          "priority": "high"
+        },
+        {
+          "name": "Social Media Today",
+          "url": "https://www.socialmediatoday.com/",
+          "rss": "https://www.socialmediatoday.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["social media", "tendências", "marketing"],
+          "priority": "high"
+        },
+        {
+          "name": "Later Blog (Instagram Marketing)",
+          "url": "https://later.com/blog/",
+          "rss": "https://later.com/blog/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["instagram", "marketing", "dicas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Google (Ads, Analytics, Search)",
+      "sources": [
+        {
+          "name": "Google Ads Blog",
+          "url": "https://blog.google/products/ads-commerce/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["google ads", "publicidade", "google"],
+          "priority": "high"
+        },
+        {
+          "name": "Google Marketing Platform Blog",
+          "url": "https://blog.google/products/marketingplatform/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["google", "analytics", "marketing"],
+          "priority": "high"
+        },
+        {
+          "name": "Search Engine Land",
+          "url": "https://searchengineland.com/",
+          "rss": "https://searchengineland.com/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["seo", "google", "search"],
+          "priority": "high"
+        },
+        {
+          "name": "Search Engine Journal",
+          "url": "https://www.searchenginejournal.com/",
+          "rss": "https://www.searchenginejournal.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["seo", "marketing", "google"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "TikTok e Vídeo Marketing",
+      "sources": [
+        {
+          "name": "TikTok for Business",
+          "url": "https://www.tiktok.com/business/en/blog",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["tiktok", "vídeo", "marketing"],
+          "priority": "high"
+        },
+        {
+          "name": "Tubular Insights (Vídeo Marketing)",
+          "url": "https://tubularinsights.com/",
+          "rss": "https://tubularinsights.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["vídeo", "youtube", "marketing"],
+          "priority": "medium"
+        },
+        {
+          "name": "Vidyard Blog (Vídeo Marketing)",
+          "url": "https://www.vidyard.com/blog/",
+          "rss": "https://www.vidyard.com/blog/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["vídeo", "marketing", "b2b"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "LinkedIn e B2B Marketing",
+      "sources": [
+        {
+          "name": "LinkedIn Marketing Blog",
+          "url": "https://www.linkedin.com/business/marketing/blog",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["linkedin", "b2b", "marketing"],
+          "priority": "high"
+        },
+        {
+          "name": "B2B Marketing",
+          "url": "https://www.b2bmarketing.net/",
+          "rss": "https://www.b2bmarketing.net/en/rss.xml",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["b2b", "marketing", "estratégia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Publicidade Digital e Performance",
+      "sources": [
+        {
+          "name": "AdAge",
+          "url": "https://adage.com/",
+          "rss": "https://adage.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["publicidade", "advertising", "criatividade"],
+          "priority": "high"
+        },
+        {
+          "name": "AdWeek",
+          "url": "https://www.adweek.com/",
+          "rss": "https://www.adweek.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["publicidade", "advertising", "marcas"],
+          "priority": "high"
+        },
+        {
+          "name": "The Drum",
+          "url": "https://www.thedrum.com/",
+          "rss": "https://www.thedrum.com/rss/news",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["publicidade", "marketing", "criatividade"],
+          "priority": "medium"
+        },
+        {
+          "name": "Digiday",
+          "url": "https://digiday.com/",
+          "rss": "https://digiday.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mídia digital", "publicidade", "tendências"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Marketing de Conteúdo e Criatividade",
+      "sources": [
+        {
+          "name": "Content Marketing Institute",
+          "url": "https://contentmarketinginstitute.com/",
+          "rss": "https://contentmarketinginstitute.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["conteúdo", "marketing", "estratégia"],
+          "priority": "high"
+        },
+        {
+          "name": "HubSpot Marketing Blog",
+          "url": "https://blog.hubspot.com/marketing",
+          "rss": "https://blog.hubspot.com/marketing/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marketing", "inbound", "conteúdo"],
+          "priority": "high"
+        },
+        {
+          "name": "Copyblogger",
+          "url": "https://copyblogger.com/",
+          "rss": "https://copyblogger.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["copywriting", "conteúdo", "marketing"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Influenciadores e Creator Economy",
+      "sources": [
+        {
+          "name": "Influencer Marketing Hub",
+          "url": "https://influencermarketinghub.com/",
+          "rss": "https://influencermarketinghub.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["influenciadores", "marketing", "creators"],
+          "priority": "high"
+        },
+        {
+          "name": "Creator Economy",
+          "url": "https://creatoreconomy.so/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["creators", "economia", "conteúdo"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mídia e Marketing Brasil",
+      "sources": [
+        {
+          "name": "Meio & Mensagem",
+          "url": "https://www.meioemensagem.com.br/",
+          "rss": "https://www.meioemensagem.com.br/feed",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["marketing", "publicidade", "brasil"],
+          "priority": "high"
+        },
+        {
+          "name": "PropMark",
+          "url": "https://propmark.com.br/",
+          "rss": "https://propmark.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["publicidade", "propaganda", "brasil"],
+          "priority": "high"
+        },
+        {
+          "name": "B9 (Tecnologia e Inovação)",
+          "url": "https://www.b9.com.br/",
+          "rss": "https://www.b9.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["tecnologia", "inovação", "brasil"],
+          "priority": "medium"
+        },
+        {
+          "name": "Update or Die",
+          "url": "https://www.updateordie.com/",
+          "rss": "https://www.updateordie.com/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["marketing digital", "brasil", "tendências"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Tendências e Inovação",
+      "sources": [
+        {
+          "name": "Trend Hunter",
+          "url": "https://www.trendhunter.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["tendências", "inovação", "futuro"],
+          "priority": "medium"
+        },
+        {
+          "name": "PSFK",
+          "url": "https://www.psfk.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["tendências", "inovação", "retail"],
+          "priority": "low"
+        },
+        {
+          "name": "Think with Google",
+          "url": "https://www.thinkwithgoogle.com/intl/pt-br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["google", "insights", "tendências"],
+          "priority": "high"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "inteligência artificial",
+    "ia generativa",
+    "chatgpt",
+    "midjourney",
+    "stable diffusion",
+    "openai",
+    "ia em marketing",
+    "automação",
+    "meta",
+    "facebook",
+    "instagram",
+    "whatsapp",
+    "google ads",
+    "google analytics",
+    "seo",
+    "sem",
+    "tiktok",
+    "linkedin",
+    "twitter",
+    "x",
+    "publicidade digital",
+    "marketing digital",
+    "performance marketing",
+    "mídia programática",
+    "influenciadores",
+    "creators",
+    "ugc",
+    "user generated content",
+    "marketing de conteúdo",
+    "copywriting",
+    "social media",
+    "redes sociais",
+    "algoritmo",
+    "engagement",
+    "reach",
+    "impressões",
+    "conversão",
+    "roi",
+    "ctr",
+    "cpc",
+    "cpm",
+    "tendências",
+    "inovação",
+    "martech",
+    "adtech"
+  ],
+  "total_sources": 42,
+  "last_updated": "2026-01-26"
+}

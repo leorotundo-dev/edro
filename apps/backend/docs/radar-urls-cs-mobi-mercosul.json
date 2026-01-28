@@ -1,0 +1,389 @@
+{
+  "client": "CS Mobi Mercosul (CUF São Borja–Santo Tomé)",
+  "client_id": "cs-mobi-mercosul",
+  "description": "Fontes de notícias para monitoramento do Centro Unificado de Fronteira, Ponte São Borja–Santo Tomé, comércio Mercosul, logística internacional e fronteira Brasil-Argentina",
+  "categories": [
+    {
+      "name": "Comércio Exterior e Mercosul",
+      "sources": [
+        {
+          "name": "ComexStat (MDIC)",
+          "url": "http://comexstat.mdic.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "exportação", "importação"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Siscomex",
+          "url": "https://www.gov.br/produtividade-e-comercio-exterior/pt-br/assuntos/comercio-exterior/siscomex",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["siscomex", "comércio exterior", "aduana"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Comércio Exterior",
+          "url": "https://www.revistacomercioexterior.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "importação", "exportação"],
+          "priority": "medium"
+        },
+        {
+          "name": "AEB - Associação de Comércio Exterior do Brasil",
+          "url": "http://www.aeb.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["comércio exterior", "associação", "mercosul"],
+          "priority": "medium"
+        },
+        {
+          "name": "Mercosul (Site Oficial)",
+          "url": "https://www.mercosur.int/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["mercosul", "integração", "acordos"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Logística e Transporte Internacional",
+      "sources": [
+        {
+          "name": "Diário do Transporte",
+          "url": "https://diariodotransporte.com.br/",
+          "rss": "https://diariodotransporte.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["transporte", "logística", "caminhões"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Tecnologística",
+          "url": "https://www.tecnologistica.com.br/",
+          "rss": "https://www.tecnologistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["logística", "transporte", "supply chain"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal NTC&Logística",
+          "url": "https://www.portalntc.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "logística", "carga"],
+          "priority": "medium"
+        },
+        {
+          "name": "CNT - Confederação Nacional do Transporte",
+          "url": "https://cnt.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "confederação", "setor"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Aduanas e Fronteiras",
+      "sources": [
+        {
+          "name": "Receita Federal",
+          "url": "https://www.gov.br/receitafederal/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["receita federal", "aduana", "alfândega"],
+          "priority": "high"
+        },
+        {
+          "name": "Aduana News",
+          "url": "https://aduananews.com/pt/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["aduana", "alfândega", "comércio exterior"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Aduaneiras",
+          "url": "https://www.aduaneiras.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["aduana", "despacho", "logística"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Local - São Borja e Região",
+      "sources": [
+        {
+          "name": "Portal das Missões",
+          "url": "https://www.portaldasmissoes.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["são borja", "missões", "região"],
+          "priority": "high"
+        },
+        {
+          "name": "G1 Rio Grande do Sul",
+          "url": "https://g1.globo.com/rs/rio-grande-do-sul/",
+          "rss": "https://g1.globo.com/dynamo/rs/rio-grande-do-sul/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio grande do sul", "notícias", "regional"],
+          "priority": "high"
+        },
+        {
+          "name": "GaúchaZH",
+          "url": "https://gauchazh.clicrbs.com.br/",
+          "rss": "https://gauchazh.clicrbs.com.br/rss/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio grande do sul", "notícias", "gaúcha"],
+          "priority": "medium"
+        },
+        {
+          "name": "Sul21",
+          "url": "https://sul21.com.br/",
+          "rss": "https://sul21.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["rio grande do sul", "notícias", "política"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Argentina",
+      "sources": [
+        {
+          "name": "La Nación (Argentina)",
+          "url": "https://www.lanacion.com.ar/",
+          "rss": "https://www.lanacion.com.ar/arcio/rss/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["argentina", "notícias", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "Clarín (Argentina)",
+          "url": "https://www.clarin.com/",
+          "rss": "https://www.clarin.com/rss/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["argentina", "notícias", "economia"],
+          "priority": "high"
+        },
+        {
+          "name": "Ámbito Financiero (Argentina)",
+          "url": "https://www.ambito.com/",
+          "rss": "https://www.ambito.com/rss/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["argentina", "economia", "finanças"],
+          "priority": "medium"
+        },
+        {
+          "name": "El Litoral (Corrientes/Argentina)",
+          "url": "https://www.ellitoral.com.ar/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["corrientes", "argentina", "regional"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Governo e Regulatórios",
+      "sources": [
+        {
+          "name": "Ministério dos Transportes",
+          "url": "https://www.gov.br/transportes/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "transportes", "concessões"],
+          "priority": "high"
+        },
+        {
+          "name": "ANTT - Agência Nacional de Transportes Terrestres",
+          "url": "https://www.gov.br/antt/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["antt", "regulação", "rodovias"],
+          "priority": "high"
+        },
+        {
+          "name": "Governo do Rio Grande do Sul",
+          "url": "https://www.estado.rs.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["rio grande do sul", "governo", "estadual"],
+          "priority": "medium"
+        },
+        {
+          "name": "Prefeitura de São Borja",
+          "url": "https://www.saoborja.rs.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["são borja", "prefeitura", "municipal"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ministério de Relações Exteriores",
+          "url": "https://www.gov.br/mre/pt-br",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["relações exteriores", "diplomacia", "mercosul"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Turismo e Comércio de Fronteira",
+      "sources": [
+        {
+          "name": "Panrotas (Turismo)",
+          "url": "https://www.panrotas.com.br/",
+          "rss": "https://www.panrotas.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["turismo", "viagens", "hotelaria"],
+          "priority": "medium"
+        },
+        {
+          "name": "MTur - Ministério do Turismo",
+          "url": "https://www.gov.br/turismo/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["turismo", "governo", "políticas"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Infraestrutura e Concessões",
+      "sources": [
+        {
+          "name": "Revista Infraestrutura Urbana",
+          "url": "https://infraestruturaurbana.pini.com.br/",
+          "rss": "https://infraestruturaurbana.pini.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "obras"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal PPI",
+          "url": "https://www.gov.br/ppi/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["ppp", "concessões", "governo"],
+          "priority": "medium"
+        },
+        {
+          "name": "ABDIB - Associação Brasileira da Infraestrutura",
+          "url": "https://www.abdib.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "associação"],
+          "priority": "medium"
+        },
+        {
+          "name": "Agência Infra",
+          "url": "https://agenciainfra.com/",
+          "rss": "https://agenciainfra.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["infraestrutura", "concessões", "notícias"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e CS Infra",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Site Oficial)",
+          "url": "https://csinfra.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs infra", "institucional", "próprio"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "CS Infra (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-infra",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs mobi mercosul",
+    "cs rodovias mercosul",
+    "cuf são borja",
+    "cuf santo tomé",
+    "centro unificado de fronteira",
+    "ponte são borja santo tomé",
+    "ponte internacional da integração",
+    "são borja",
+    "santo tomé",
+    "fronteira brasil argentina",
+    "mercosul",
+    "comércio exterior",
+    "aduana",
+    "alfândega",
+    "receita federal",
+    "siscomex",
+    "importação",
+    "exportação",
+    "logística internacional",
+    "transporte internacional",
+    "caminhões",
+    "carga",
+    "turismo de fronteira",
+    "free shop",
+    "cs infra",
+    "simpar",
+    "concessão",
+    "ponte binacional",
+    "rio uruguai"
+  ],
+  "total_sources": 40,
+  "last_updated": "2026-01-26"
+}

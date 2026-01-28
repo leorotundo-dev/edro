@@ -1,0 +1,379 @@
+{
+  "client": "VIP Leilões",
+  "client_id": "vip-leiloes",
+  "description": "Fontes de notícias para monitoramento do setor de leilões, mercado automotivo, imobiliário, seguradoras e poder judiciário",
+  "categories": [
+    {
+      "name": "Mercado Automotivo",
+      "sources": [
+        {
+          "name": "AutoData",
+          "url": "https://www.autodata.com.br/",
+          "rss": "https://www.autodata.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["automotivo", "veículos", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Automotive Business",
+          "url": "https://www.automotivebusiness.com.br/",
+          "rss": "https://www.automotivebusiness.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["automotivo", "indústria", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "Quatro Rodas - Notícias",
+          "url": "https://quatrorodas.abril.com.br/noticias/",
+          "rss": "https://quatrorodas.abril.com.br/noticias/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["carros", "automotivo", "consumidor"],
+          "priority": "medium"
+        },
+        {
+          "name": "Motor1 Brasil",
+          "url": "https://motor1.uol.com.br/",
+          "rss": "https://motor1.uol.com.br/rss/all/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["carros", "automotivo", "notícias"],
+          "priority": "medium"
+        },
+        {
+          "name": "ANFAVEA - Associação Nacional dos Fabricantes de Veículos",
+          "url": "https://anfavea.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "indústria", "estatísticas"],
+          "priority": "high"
+        },
+        {
+          "name": "Fenabrave - Federação Nacional da Distribuição de Veículos",
+          "url": "https://www.fenabrave.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "vendas", "estatísticas"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Seguradoras e Sinistros",
+      "sources": [
+        {
+          "name": "Portal Seguro",
+          "url": "https://www.portalseguro.com.br/",
+          "rss": "https://www.portalseguro.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["seguros", "seguradoras", "sinistros"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Apólice",
+          "url": "https://www.revistaapolice.com.br/",
+          "rss": "https://www.revistaapolice.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["seguros", "mercado", "seguradoras"],
+          "priority": "high"
+        },
+        {
+          "name": "Cobertura Seguro",
+          "url": "https://coberturaseguro.com.br/",
+          "rss": "https://coberturaseguro.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["seguros", "notícias", "mercado"],
+          "priority": "medium"
+        },
+        {
+          "name": "CNseg - Confederação Nacional das Seguradoras",
+          "url": "https://cnseg.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["seguros", "confederação", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "SUSEP - Superintendência de Seguros Privados",
+          "url": "https://www.gov.br/susep/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["seguros", "regulação", "governo"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mercado Imobiliário",
+      "sources": [
+        {
+          "name": "Infomoney - Imóveis",
+          "url": "https://www.infomoney.com.br/guias/imoveis/",
+          "rss": "https://www.infomoney.com.br/guias/imoveis/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["imóveis", "mercado imobiliário", "investimentos"],
+          "priority": "high"
+        },
+        {
+          "name": "Exame - Imóveis",
+          "url": "https://exame.com/imoveis/",
+          "rss": "https://exame.com/imoveis/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["imóveis", "mercado", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Imóveis",
+          "url": "https://www.estadao.com.br/economia/imoveis/",
+          "rss": "https://www.estadao.com.br/rss/economia/imoveis.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["imóveis", "mercado", "economia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Secovi Brasil",
+          "url": "https://www.secovi.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["imóveis", "mercado", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "CBIC - Câmara Brasileira da Indústria da Construção",
+          "url": "https://cbic.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["construção", "imóveis", "indústria"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Poder Judiciário e Leilões Judiciais",
+      "sources": [
+        {
+          "name": "Consultor Jurídico (ConJur)",
+          "url": "https://www.conjur.com.br/",
+          "rss": "https://www.conjur.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["jurídico", "justiça", "direito"],
+          "priority": "medium"
+        },
+        {
+          "name": "Migalhas",
+          "url": "https://www.migalhas.com.br/",
+          "rss": "https://www.migalhas.com.br/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["jurídico", "justiça", "notícias"],
+          "priority": "medium"
+        },
+        {
+          "name": "CNJ - Conselho Nacional de Justiça",
+          "url": "https://www.cnj.jus.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["justiça", "judiciário", "governo"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal de Leilões Judiciais",
+          "url": "https://www.leilaojudicial.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["leilões", "judiciário", "imóveis"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Bancos e Crédito",
+      "sources": [
+        {
+          "name": "Valor Econômico - Finanças",
+          "url": "https://valor.globo.com/financas/",
+          "rss": "https://valor.globo.com/financas/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["finanças", "bancos", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "InfoMoney - Finanças",
+          "url": "https://www.infomoney.com.br/mercados/",
+          "rss": "https://www.infomoney.com.br/mercados/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado financeiro", "bancos", "crédito"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal do Crédito",
+          "url": "https://portaldocredito.com.br/",
+          "rss": "https://portaldocredito.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["crédito", "financiamento", "bancos"],
+          "priority": "medium"
+        },
+        {
+          "name": "FEBRABAN - Federação Brasileira de Bancos",
+          "url": "https://portal.febraban.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["bancos", "setor bancário", "federação"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Economia e Negócios",
+      "sources": [
+        {
+          "name": "Estadão - Economia",
+          "url": "https://www.estadao.com.br/economia/",
+          "rss": "https://www.estadao.com.br/rss/economia.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Folha - Mercado",
+          "url": "https://www1.folha.uol.com.br/mercado/",
+          "rss": "https://www1.folha.uol.com.br/mercado/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado", "economia", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "Exame",
+          "url": "https://exame.com/",
+          "rss": "https://exame.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "economia", "empresas"],
+          "priority": "medium"
+        },
+        {
+          "name": "Brazil Journal",
+          "url": "https://braziljournal.com/",
+          "rss": "https://braziljournal.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "mercado", "economia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Locadoras e Seminovos",
+      "sources": [
+        {
+          "name": "Movida (Locação de Carros)",
+          "url": "https://www.movida.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["locação", "seminovos", "veículos"],
+          "priority": "medium"
+        },
+        {
+          "name": "Localiza",
+          "url": "https://www.localiza.com/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["locação", "seminovos", "veículos"],
+          "priority": "medium"
+        },
+        {
+          "name": "Unidas",
+          "url": "https://www.unidas.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["locação", "seminovos", "veículos"],
+          "priority": "low"
+        },
+        {
+          "name": "ABLA - Associação Brasileira das Locadoras de Automóveis",
+          "url": "http://www.abla.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["locação", "associação", "setor"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "VIP Leilões (Instagram)",
+          "url": "https://www.instagram.com/vipleiloes/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "VIP Leilões (Facebook)",
+          "url": "https://www.facebook.com/vipleiloes/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "facebook", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "VIP Leilões (YouTube)",
+          "url": "https://www.youtube.com/channel/UC35rRZHjwStUYq91uTRJgHg",
+          "type": "social",
+          "frequency": "weekly",
+          "tags": ["institucional", "youtube", "próprio"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "vip leilões",
+    "leilão",
+    "leilões",
+    "leilão de veículos",
+    "leilão de carros",
+    "leilão de motos",
+    "leilão de caminhões",
+    "leilão de imóveis",
+    "leilão judicial",
+    "leilão extrajudicial",
+    "veículos sinistrados",
+    "carros sinistrados",
+    "seminovos",
+    "usados",
+    "arrematação",
+    "arrematar",
+    "lance",
+    "lances",
+    "mercado automotivo",
+    "seguradoras",
+    "bancos",
+    "retomada",
+    "retomados",
+    "financiamento",
+    "crédito",
+    "inadimplência",
+    "mercado imobiliário",
+    "locadoras",
+    "renovação de frota"
+  ],
+  "total_sources": 36,
+  "last_updated": "2026-01-26"
+}

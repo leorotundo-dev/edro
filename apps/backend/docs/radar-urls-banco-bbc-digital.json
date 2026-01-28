@@ -1,0 +1,401 @@
+{
+  "client": "Banco BBC Digital",
+  "client_id": "banco-bbc-digital",
+  "description": "Fontes de notícias para monitoramento do setor financeiro, fintechs, crédito para veículos, mercado automotivo e Grupo SIMPAR",
+  "categories": [
+    {
+      "name": "Mídia Financeira e Bancária",
+      "sources": [
+        {
+          "name": "Valor Econômico - Finanças",
+          "url": "https://valor.globo.com/financas/",
+          "rss": "https://valor.globo.com/financas/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["finanças", "bancos", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "InfoMoney - Finanças",
+          "url": "https://www.infomoney.com.br/mercados/",
+          "rss": "https://www.infomoney.com.br/mercados/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado financeiro", "investimentos", "bancos"],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Economia",
+          "url": "https://www.estadao.com.br/economia/",
+          "rss": "https://www.estadao.com.br/rss/economia.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "finanças", "bancos"],
+          "priority": "high"
+        },
+        {
+          "name": "Folha - Mercado",
+          "url": "https://www1.folha.uol.com.br/mercado/",
+          "rss": "https://www1.folha.uol.com.br/mercado/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado", "economia", "finanças"],
+          "priority": "high"
+        },
+        {
+          "name": "Exame - Finanças",
+          "url": "https://exame.com/financas/",
+          "rss": "https://exame.com/financas/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["finanças", "bancos", "investimentos"],
+          "priority": "high"
+        },
+        {
+          "name": "Brazil Journal",
+          "url": "https://braziljournal.com/",
+          "rss": "https://braziljournal.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "finanças", "mercado"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Fintechs e Bancos Digitais",
+      "sources": [
+        {
+          "name": "Fintechs Brasil",
+          "url": "https://fintechsbrasil.com.br/",
+          "rss": "https://fintechsbrasil.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["fintechs", "inovação", "tecnologia financeira"],
+          "priority": "high"
+        },
+        {
+          "name": "Startupi",
+          "url": "https://startupi.com.br/",
+          "rss": "https://startupi.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["startups", "fintechs", "inovação"],
+          "priority": "high"
+        },
+        {
+          "name": "NeoFeed",
+          "url": "https://neofeed.com.br/",
+          "rss": "https://neofeed.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["fintechs", "tecnologia", "inovação"],
+          "priority": "high"
+        },
+        {
+          "name": "Fintech Lab",
+          "url": "https://fintechlab.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["fintechs", "inovação", "ecossistema"],
+          "priority": "medium"
+        },
+        {
+          "name": "ABFintechs - Associação Brasileira de Fintechs",
+          "url": "https://abfintechs.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["fintechs", "associação", "setor"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Crédito e Financiamento",
+      "sources": [
+        {
+          "name": "Portal do Crédito",
+          "url": "https://portaldocredito.com.br/",
+          "rss": "https://portaldocredito.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["crédito", "financiamento", "bancos"],
+          "priority": "high"
+        },
+        {
+          "name": "Serasa Experian - Notícias",
+          "url": "https://www.serasa.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["crédito", "score", "inadimplência"],
+          "priority": "medium"
+        },
+        {
+          "name": "SPC Brasil - Notícias",
+          "url": "https://www.spcbrasil.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["crédito", "consumidor", "inadimplência"],
+          "priority": "medium"
+        },
+        {
+          "name": "ANEFAC - Associação Nacional dos Executivos de Finanças",
+          "url": "https://www.anefac.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["crédito", "juros", "economia"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mercado Automotivo",
+      "sources": [
+        {
+          "name": "AutoData",
+          "url": "https://www.autodata.com.br/",
+          "rss": "https://www.autodata.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["automotivo", "veículos", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "Automotive Business",
+          "url": "https://www.automotivebusiness.com.br/",
+          "rss": "https://www.automotivebusiness.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["automotivo", "indústria", "negócios"],
+          "priority": "high"
+        },
+        {
+          "name": "Quatro Rodas - Notícias",
+          "url": "https://quatrorodas.abril.com.br/noticias/",
+          "rss": "https://quatrorodas.abril.com.br/noticias/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["carros", "automotivo", "consumidor"],
+          "priority": "medium"
+        },
+        {
+          "name": "Motor1 Brasil",
+          "url": "https://motor1.uol.com.br/",
+          "rss": "https://motor1.uol.com.br/rss/all/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["carros", "automotivo", "notícias"],
+          "priority": "medium"
+        },
+        {
+          "name": "ANFAVEA - Associação Nacional dos Fabricantes de Veículos",
+          "url": "https://anfavea.com.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "indústria", "estatísticas"],
+          "priority": "high"
+        },
+        {
+          "name": "Fenabrave - Federação Nacional da Distribuição de Veículos",
+          "url": "https://www.fenabrave.org.br/",
+          "type": "scrape",
+          "frequency": "monthly",
+          "tags": ["automotivo", "vendas", "estatísticas"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Transporte de Cargas e Caminhões",
+      "sources": [
+        {
+          "name": "Revista Tecnologística",
+          "url": "https://www.tecnologistica.com.br/",
+          "rss": "https://www.tecnologistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["logística", "transporte", "caminhões"],
+          "priority": "high"
+        },
+        {
+          "name": "Diário do Transporte",
+          "url": "https://diariodotransporte.com.br/",
+          "rss": "https://diariodotransporte.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["transporte", "logística", "caminhoneiros"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal NTC&Logística",
+          "url": "https://www.portalntc.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "logística", "caminhoneiros"],
+          "priority": "medium"
+        },
+        {
+          "name": "CNT - Confederação Nacional do Transporte",
+          "url": "https://cnt.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "caminhoneiros", "setor"],
+          "priority": "medium"
+        },
+        {
+          "name": "Caminhoneiro.com",
+          "url": "https://caminhoneiro.com/",
+          "rss": "https://caminhoneiro.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["caminhoneiros", "transporte", "profissional"],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Regulatórios e Governamentais",
+      "sources": [
+        {
+          "name": "Banco Central do Brasil",
+          "url": "https://www.bcb.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["banco central", "regulação", "política monetária"],
+          "priority": "high"
+        },
+        {
+          "name": "CVM - Comissão de Valores Mobiliários",
+          "url": "https://www.gov.br/cvm/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["mercado financeiro", "regulação", "empresas"],
+          "priority": "medium"
+        },
+        {
+          "name": "Ministério da Fazenda",
+          "url": "https://www.gov.br/fazenda/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "economia", "política fiscal"],
+          "priority": "medium"
+        },
+        {
+          "name": "FEBRABAN - Federação Brasileira de Bancos",
+          "url": "https://portal.febraban.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["bancos", "setor bancário", "federação"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e Empresas Relacionadas",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "Movida (Locação de Carros)",
+          "url": "https://www.movida.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["movida", "locação", "grupo simpar"],
+          "priority": "medium"
+        },
+        {
+          "name": "Vamos (Locação de Caminhões)",
+          "url": "https://www.vamos.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["vamos", "locação", "grupo simpar"],
+          "priority": "medium"
+        },
+        {
+          "name": "JSL (Logística)",
+          "url": "https://www.jsl.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["jsl", "logística", "grupo simpar"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais",
+      "sources": [
+        {
+          "name": "Banco BBC Digital (LinkedIn)",
+          "url": "https://www.linkedin.com/company/bancobbcdigital",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "Banco BBC Digital (Instagram)",
+          "url": "https://www.instagram.com/bbcdigital/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "banco bbc",
+    "bbc digital",
+    "simpar",
+    "grupo simpar",
+    "financiamento de veículos",
+    "financiamento de carros",
+    "financiamento de caminhões",
+    "crédito para veículos",
+    "leasing",
+    "cdc",
+    "banco digital",
+    "fintech",
+    "conta digital",
+    "caminhoneiros",
+    "motoristas profissionais",
+    "mercado automotivo",
+    "venda de carros",
+    "venda de caminhões",
+    "movida",
+    "vamos",
+    "jsl",
+    "seminovos",
+    "crédito",
+    "inadimplência",
+    "juros",
+    "banco central",
+    "taxa selic",
+    "open banking",
+    "pix"
+  ],
+  "total_sources": 38,
+  "last_updated": "2026-01-26"
+}

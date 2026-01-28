@@ -53,3 +53,9 @@ apps/backend/uploads/
 codex-x86_64-pc-windows-msvc.exe
 *_IMPLEMENTACAO_COMPLETA.txt
 *_DEPLOY_RAPIDO.txt
+client_secret*.json
+*googleusercontent.com*.json
+
+# Local inbox for imported assets
+/_inbox/
+

@@ -1,0 +1,404 @@
+{
+  "client": "CS Infra (Holding)",
+  "client_id": "cs-infra-holding",
+  "description": "Fontes de notícias para monitoramento estratégico do Grupo SIMPAR, setor de infraestrutura, concessões e mercado de capitais no Brasil",
+  "categories": [
+    {
+      "name": "Mídia Corporativa e Financeira",
+      "sources": [
+        {
+          "name": "Valor Econômico",
+          "url": "https://valor.globo.com/",
+          "rss": "https://valor.globo.com/rss",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "Brazil Journal",
+          "url": "https://braziljournal.com/",
+          "rss": "https://braziljournal.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "startups", "mercado"],
+          "priority": "high"
+        },
+        {
+          "name": "InfoMoney",
+          "url": "https://www.infomoney.com.br/",
+          "rss": "https://www.infomoney.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado financeiro", "investimentos", "empresas"],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Economia",
+          "url": "https://www.estadao.com.br/economia/",
+          "rss": "https://www.estadao.com.br/rss/economia.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "empresas"],
+          "priority": "high"
+        },
+        {
+          "name": "Folha - Mercado",
+          "url": "https://www1.folha.uol.com.br/mercado/",
+          "rss": "https://www1.folha.uol.com.br/mercado/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mercado", "economia", "empresas"],
+          "priority": "high"
+        },
+        {
+          "name": "Exame",
+          "url": "https://exame.com/",
+          "rss": "https://exame.com/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["negócios", "economia", "empresas"],
+          "priority": "high"
+        },
+        {
+          "name": "IstoÉ Dinheiro",
+          "url": "https://www.istoedinheiro.com.br/",
+          "rss": "https://www.istoedinheiro.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["economia", "negócios", "finanças"],
+          "priority": "medium"
+        },
+        {
+          "name": "Bloomberg Brasil",
+          "url": "https://www.bloomberg.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["mercado financeiro", "economia", "internacional"],
+          "priority": "medium"
+        },
+        {
+          "name": "Reuters Brasil",
+          "url": "https://www.reuters.com/world/americas/brazil/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["internacional", "economia", "notícias"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Infraestrutura e Concessões",
+      "sources": [
+        {
+          "name": "Revista Infraestrutura Urbana",
+          "url": "https://infraestruturaurbana.pini.com.br/",
+          "rss": "https://infraestruturaurbana.pini.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "urbano"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista O Empreiteiro",
+          "url": "https://revistaoe.com.br/",
+          "rss": "https://revistaoe.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["construção", "infraestrutura", "concessões"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal PPI (Parcerias Público-Privadas)",
+          "url": "https://www.gov.br/ppi/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["ppp", "concessões", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Infraestrutura Brasileira",
+          "url": "https://infraestruturabrasileira.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "concessões", "projetos"],
+          "priority": "high"
+        },
+        {
+          "name": "ABDIB - Associação Brasileira da Infraestrutura",
+          "url": "https://www.abdib.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["infraestrutura", "associação", "setor"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Concessões BR",
+          "url": "https://www.concessoesbr.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["concessões", "ppp", "infraestrutura"],
+          "priority": "medium"
+        },
+        {
+          "name": "Construção Mercado",
+          "url": "https://construcaomercado.pini.com.br/",
+          "rss": "https://construcaomercado.pini.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["construção", "mercado", "infraestrutura"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Transporte e Logística",
+      "sources": [
+        {
+          "name": "Diário do Transporte",
+          "url": "https://diariodotransporte.com.br/",
+          "rss": "https://diariodotransporte.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["transporte", "logística", "mobilidade"],
+          "priority": "high"
+        },
+        {
+          "name": "Mobilize Brasil",
+          "url": "https://www.mobilize.org.br/",
+          "rss": "https://www.mobilize.org.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["mobilidade", "transporte", "urbano"],
+          "priority": "high"
+        },
+        {
+          "name": "Revista Tecnologística",
+          "url": "https://www.tecnologistica.com.br/",
+          "rss": "https://www.tecnologistica.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": ["logística", "transporte", "tecnologia"],
+          "priority": "medium"
+        },
+        {
+          "name": "Portal NTC&Logística",
+          "url": "https://www.portalntc.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "logística", "associação"],
+          "priority": "medium"
+        },
+        {
+          "name": "ANTT - Agência Nacional de Transportes Terrestres",
+          "url": "https://www.gov.br/antt/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["regulação", "transporte", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "CNT - Confederação Nacional do Transporte",
+          "url": "https://cnt.org.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["transporte", "confederação", "setor"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Portos e Navegação",
+      "sources": [
+        {
+          "name": "Portos e Navios",
+          "url": "https://www.portosenavios.com.br/",
+          "rss": "https://www.portosenavios.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "navegação", "logística"],
+          "priority": "high"
+        },
+        {
+          "name": "Portal Portuário",
+          "url": "https://www.portalportuario.com.br/",
+          "rss": "https://www.portalportuario.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": ["portos", "navegação", "comércio exterior"],
+          "priority": "high"
+        },
+        {
+          "name": "ANTAQ - Agência Nacional de Transportes Aquaviários",
+          "url": "https://www.gov.br/antaq/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "regulação", "governo"],
+          "priority": "high"
+        },
+        {
+          "name": "Ministério dos Portos e Aeroportos",
+          "url": "https://www.gov.br/portos-e-aeroportos/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["portos", "governo", "infraestrutura"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Governamentais e Regulatórios",
+      "sources": [
+        {
+          "name": "Ministério dos Transportes",
+          "url": "https://www.gov.br/transportes/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "transporte", "infraestrutura"],
+          "priority": "high"
+        },
+        {
+          "name": "Ministério das Cidades",
+          "url": "https://www.gov.br/cidades/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "mobilidade", "infraestrutura"],
+          "priority": "high"
+        },
+        {
+          "name": "TCU - Tribunal de Contas da União",
+          "url": "https://portal.tcu.gov.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "fiscalização", "concessões"],
+          "priority": "medium"
+        },
+        {
+          "name": "CGU - Controladoria-Geral da União",
+          "url": "https://www.gov.br/cgu/pt-br",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["governo", "transparência", "fiscalização"],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Grupo SIMPAR e Mercado",
+      "sources": [
+        {
+          "name": "SIMPAR (Site Oficial)",
+          "url": "https://simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "institucional", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR Relações com Investidores",
+          "url": "https://ri.simpar.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["simpar", "ri", "mercado financeiro"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Site Oficial)",
+          "url": "https://csinfra.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["cs infra", "institucional", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "CVM - Comissão de Valores Mobiliários",
+          "url": "https://www.gov.br/cvm/pt-br",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["mercado financeiro", "regulação", "empresas"],
+          "priority": "medium"
+        },
+        {
+          "name": "B3 - Bolsa de Valores",
+          "url": "https://www.b3.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": ["bolsa", "mercado financeiro", "ações"],
+          "priority": "medium"
+        },
+        {
+          "name": "JSL (Logística - Grupo SIMPAR)",
+          "url": "https://www.jsl.com.br/",
+          "type": "scrape",
+          "frequency": "weekly",
+          "tags": ["jsl", "logística", "grupo simpar"],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais e LinkedIn",
+      "sources": [
+        {
+          "name": "CS Infra (LinkedIn)",
+          "url": "https://www.linkedin.com/company/cs-infra",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "linkedin", "próprio"],
+          "priority": "high"
+        },
+        {
+          "name": "SIMPAR (LinkedIn)",
+          "url": "https://www.linkedin.com/company/simpar",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["simpar", "linkedin", "grupo"],
+          "priority": "high"
+        },
+        {
+          "name": "CS Infra (Instagram)",
+          "url": "https://www.instagram.com/csinfraoficial/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": ["institucional", "instagram", "próprio"],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs infra",
+    "cs infraestrutura",
+    "simpar",
+    "grupo simpar",
+    "júlio simões",
+    "concessão",
+    "concessões",
+    "ppp",
+    "parceria público-privada",
+    "infraestrutura",
+    "mobilidade urbana",
+    "transporte público",
+    "rodovias",
+    "portos",
+    "terminais",
+    "brt",
+    "cs mobi",
+    "cs rodovias",
+    "cs portos",
+    "cs grãos",
+    "ponte internacional",
+    "holding",
+    "aquisição",
+    "fusão",
+    "mercado de capitais",
+    "bolsa de valores",
+    "b3",
+    "leilão",
+    "edital",
+    "antt",
+    "antaq"
+  ],
+  "total_sources": 40,
+  "last_updated": "2026-01-26"
+}
