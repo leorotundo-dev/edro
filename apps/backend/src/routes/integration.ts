@@ -8,7 +8,7 @@ import { PerformanceScorer } from '../integration/PerformanceScorer';
 import { ContextualRecommender } from '../integration/ContextualRecommender';
 
 const briefingSchema = z.object({
-  objetivo: z.string().min(3),
+  objetivo: z.string().trim().min(3).or(z.literal('')).default(''),
   publico: z.string().optional().default(''),
   plataformas: z.array(z.string()).optional().default([]),
   budget: z.number().optional().default(0),

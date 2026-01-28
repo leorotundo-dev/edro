@@ -622,6 +622,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       tier: z.string().optional(),
       pipeline: z.enum(['simple', 'standard', 'premium']).optional(),
       force_provider: z.enum(['openai', 'gemini', 'claude']).optional(),
+      metadata: z.record(z.any()).optional(),
       created_by: z.string().optional(),
       notify_traffic: z.boolean().optional(),
       traffic_channels: z.array(z.string()).optional(),
@@ -697,13 +698,30 @@ export default async function edroRoutes(app: FastifyInstance) {
       }
     }
 
+    let enrichedPayload = payload ?? null;
+    if (body.metadata && Object.keys(body.metadata).length) {
+      const basePayload =
+        payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? payload
+          : payload
+            ? { raw: payload }
+            : {};
+      enrichedPayload = {
+        ...basePayload,
+        _edro: {
+          ...(basePayload as any)._edro,
+          ...body.metadata,
+        },
+      };
+    }
+
     const copy = await createCopyVersion({
       briefingId: briefing.id,
       language: body.language,
       model,
       prompt: prompt ?? null,
       output,
-      payload,
+      payload: enrichedPayload,
       createdBy: body.created_by ?? user.email,
     });
 
