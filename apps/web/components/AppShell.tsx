@@ -80,7 +80,7 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
             <img className="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Edro logo" />
           </div>
         </div>
-        <nav className="px-4 py-2 space-y-1 text-sm">
+        <nav className="px-4 py-2 space-y-1 text-[13px]">
           {NAV_ITEMS.map((item) => {
             const active = getActive(pathname, item.href);
             return (
@@ -88,7 +88,9 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                  active ? 'sidebar-item-active font-semibold' : 'text-slate-600 hover:bg-slate-50'
+                }`}
               >
                 <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                 <span>{item.label}</span>
