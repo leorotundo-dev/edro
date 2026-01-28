@@ -28,6 +28,10 @@ type MockupItem = {
   serverId?: string;
   status?: string | null;
   title?: string | null;
+  baseId?: string;
+  variantIndex?: number;
+  variantLabel?: string;
+  variantCopy?: string;
 };
 
 type ServerMockup = {
@@ -112,6 +116,105 @@ const wrapText = (text: string, maxChars = 24, maxLines = 5) => {
   return lines.slice(0, maxLines);
 };
 
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const removeAccents = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const normalizeProductionType = (value: string) =>
+  removeAccents(normalizeWhitespace(value || ''))
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .replace(/\s+/g, '-');
+
+const normalizeCatalogToken = (value: string) =>
+  removeAccents(normalizeWhitespace(value || ''));
+
+const stripMarkdown = (value: string) =>
+  value
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^>\s?/gm, '')
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .trim();
+
+const extractCopyVariants = (raw: string) => {
+  const normalized = raw.replace(/\r/g, '').trim();
+  if (!normalized) return [];
+  const markerRegex = /(?:^|\n)\s*(?:\d+[\.)]|op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi;
+  const markers = Array.from(normalized.matchAll(markerRegex));
+  if (markers.length >= 2) {
+    const slices = markers.map((match) => match.index ?? 0);
+    const variants = slices.map((start, index) => {
+      const end = index < slices.length - 1 ? slices[index + 1] : normalized.length;
+      const chunk = normalized.slice(start, end);
+      return chunk.replace(markerRegex, '').trim();
+    });
+    return variants.filter(Boolean);
+  }
+  if (normalized.includes('\n---\n')) {
+    const parts = normalized.split(/\n---\n/g).map((part) => part.trim()).filter(Boolean);
+    if (parts.length > 1) return parts;
+  }
+  return [normalized];
+};
+
+const extractCopyFields = (raw: string) => {
+  const cleaned = stripMarkdown(raw || '');
+  const lines = cleaned
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const fields: Record<string, string> = {};
+  const labelMatchers: Array<{ key: string; regex: RegExp }> = [
+    { key: 'headline', regex: /^(?:t[ií]tulo|headline|chamada|assunto)\s*[:\-]\s*/i },
+    { key: 'body', regex: /^(?:corpo|mensagem|texto)\s*[:\-]\s*/i },
+    { key: 'cta', regex: /^(?:cta|chamada\s+para\s+a[cç][aã]o|acao)\s*[:\-]\s*/i },
+  ];
+  let currentKey = '';
+
+  lines.forEach((line) => {
+    const matcher = labelMatchers.find(({ regex }) => regex.test(line));
+    if (matcher) {
+      currentKey = matcher.key;
+      const value = line.replace(matcher.regex, '').trim();
+      if (value) {
+        fields[currentKey] = fields[currentKey]
+          ? `${fields[currentKey]} ${value}`
+          : value;
+      }
+      return;
+    }
+    if (currentKey) {
+      fields[currentKey] = fields[currentKey]
+        ? `${fields[currentKey]} ${line}`
+        : line;
+      return;
+    }
+    if (!fields.headline) {
+      fields.headline = line;
+    } else if (!fields.body) {
+      fields.body = line;
+    } else {
+      fields.body = `${fields.body} ${line}`.trim();
+    }
+  });
+
+  return {
+    headline: fields.headline || '',
+    body: fields.body || '',
+    cta: fields.cta || '',
+    fullText: cleaned,
+  };
+};
+
+const clampText = (value: string, max = 140) => {
+  const normalized = normalizeWhitespace(value || '');
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1)}…`;
+};
+
 const createSvgDataUri = (text: string, width: number, height: number, accent = '#ff6600') => {
   const safeText = text || 'Preview';
   const lines = wrapText(safeText, 26, 6);
@@ -149,6 +252,29 @@ const getCopyFor = (platform: string, format: string, context: Record<string, an
   const key = `${platform}::${format}`;
   const raw = map[key] ?? context?.message ?? context?.event ?? '';
   return typeof raw === 'string' ? raw : String(raw);
+};
+
+const expandMockups = (items: MockupItem[], context: Record<string, any>) => {
+  const expanded: MockupItem[] = [];
+  items.forEach((item) => {
+    const copy = item.variantCopy ?? getCopyFor(item.platform, item.format, context);
+    const variants = extractCopyVariants(copy);
+    if (!variants.length) {
+      expanded.push({ ...item, baseId: item.baseId || item.id, variantIndex: 0, variantCopy: copy });
+      return;
+    }
+    variants.forEach((variant, index) => {
+      expanded.push({
+        ...item,
+        id: `${item.id}::v${index + 1}`,
+        baseId: item.baseId || item.id,
+        variantIndex: index,
+        variantLabel: `Opção ${index + 1}`,
+        variantCopy: variant,
+      });
+    });
+  });
+  return expanded;
 };
 
 const buildMockups = (inventory: InventoryItem[]): MockupItem[] =>
@@ -242,15 +368,16 @@ export default function Page() {
       context?.production_type ||
       safeGet('edro_studio_production_type') ||
       '';
-    const copy = getCopyFor(item.platform, item.format, context);
-    const captionLines = copy.split('\n').filter(Boolean);
-    const captionText = captionLines.join(' ').trim();
-    const shortText = captionLines[0] || captionText || `${item.platform} ${item.format}`;
+    const rawCopy = item.variantCopy ?? getCopyFor(item.platform, item.format, context);
+    const variant = extractCopyVariants(rawCopy)[item.variantIndex ?? 0] || rawCopy;
+    const fields = extractCopyFields(variant);
+    const captionText = normalizeWhitespace(fields.body || fields.fullText || rawCopy);
+    const shortText = clampText(fields.headline || captionText || `${item.platform} ${item.format}`, 120);
     const payload = {
       platform: item.platform,
       format: item.format,
       productionType,
-      copy: captionText || copy,
+      copy: captionText || rawCopy,
       shortText,
       client: context?.client || context?.clientName || '',
       event: context?.event || '',
@@ -268,7 +395,7 @@ export default function Page() {
       htmlBody = `<div style="padding:24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
   <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${escapeHtml(item.platform)} • ${escapeHtml(item.format)}</h2>
   <p style="margin:0;font-size:14px;color:#475569;white-space:pre-line;">${escapeHtml(
-        captionText || copy || 'Mockup gerado no Creative Studio.'
+        captionText || rawCopy || 'Mockup gerado no Creative Studio.'
       )}</p>
 </div>`;
     }
@@ -276,7 +403,7 @@ export default function Page() {
     return {
       payload,
       html: buildHtmlDocument(htmlBody, payload),
-      copy: captionText || copy,
+      copy: captionText || rawCopy,
       productionType,
     };
   };
@@ -432,10 +559,12 @@ export default function Page() {
     safeSet('edro_mockups', JSON.stringify(mockups));
   }, [mockups]);
 
+  const displayMockups = useMemo(() => expandMockups(mockups, context), [mockups, context]);
+
   useEffect(() => {
     if (!selectedIds.length) return;
-    setSelectedIds((prev) => prev.filter((id) => mockups.some((item) => item.id === id)));
-  }, [mockups, selectedIds.length]);
+    setSelectedIds((prev) => prev.filter((id) => displayMockups.some((item) => item.id === id)));
+  }, [displayMockups, selectedIds.length]);
 
   useEffect(() => {
     const hydrateFromBriefing = async () => {
@@ -503,15 +632,21 @@ export default function Page() {
 
   const orderedMockups = useMemo(
     () =>
-      [...mockups].sort((a, b) => {
+      [...displayMockups].sort((a, b) => {
         const aTime = new Date(a.createdAt || 0).getTime();
         const bTime = new Date(b.createdAt || 0).getTime();
         return bTime - aTime;
       }),
-    [mockups]
+    [displayMockups]
   );
-  const generatedCount = useMemo(() => mockups.filter((item) => item.generated).length, [mockups]);
-  const platformsCount = useMemo(() => new Set(mockups.map((item) => item.platform)).size, [mockups]);
+  const generatedCount = useMemo(
+    () => displayMockups.filter((item) => item.generated).length,
+    [displayMockups]
+  );
+  const platformsCount = useMemo(
+    () => new Set(displayMockups.map((item) => item.platform)).size,
+    [displayMockups]
+  );
   const selectedCount = selectedIds.length;
 
   const username = useMemo(() => {
@@ -572,12 +707,19 @@ export default function Page() {
 
   const persistSelected = async (ids: string[], statusOverride?: string) => {
     if (!ids.length) return;
+    const displayMap = new Map(displayMockups.map((item) => [item.id, item]));
+    const targetsMap = new Map<string, MockupItem>();
+    ids.forEach((id) => {
+      const item = displayMap.get(id);
+      if (!item) return;
+      const baseKey = item.baseId || item.id;
+      targetsMap.set(baseKey, item);
+    });
+    const targets = Array.from(targetsMap.values());
     const updates = await Promise.allSettled(
-      ids.map(async (id) => {
-        const item = mockups.find((mockup) => mockup.id === id);
-        if (!item) return null;
+      targets.map(async (item) => {
         const record = await persistMockup(item, statusOverride);
-        return { id, record };
+        return { id: item.baseId || item.id, record };
       })
     );
 
@@ -590,8 +732,7 @@ export default function Page() {
 
     setMockups((prev) =>
       prev.map((item) => {
-        if (!ids.includes(item.id)) return item;
-        const record = recordMap.get(item.id);
+        const record = recordMap.get(item.id) || recordMap.get(item.baseId || '');
         if (!record) return item;
         return {
           ...item,
@@ -618,20 +759,26 @@ export default function Page() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const handleSelectAll = () => setSelectedIds(mockups.map((item) => item.id));
+  const handleSelectAll = () => setSelectedIds(displayMockups.map((item) => item.id));
 
   const handleClearSelection = () => setSelectedIds([]);
 
   const handleDeleteSelected = async () => {
     if (!selectedIds.length) return;
-    const ids = [...selectedIds];
-    const targets = mockups.filter((item) => ids.includes(item.id) && item.serverId);
+    const displayMap = new Map(displayMockups.map((item) => [item.id, item]));
+    const baseIds = new Set<string>();
+    selectedIds.forEach((id) => {
+      const item = displayMap.get(id);
+      if (!item) return;
+      baseIds.add(item.baseId || item.id);
+    });
+    const targets = mockups.filter((item) => baseIds.has(item.id) && item.serverId);
     if (targets.length) {
       await Promise.allSettled(
         targets.map((item) => api.delete(`/mockups/${item.serverId}`))
       );
     }
-    setMockups((prev) => prev.filter((item) => !ids.includes(item.id)));
+    setMockups((prev) => prev.filter((item) => !baseIds.has(item.id)));
     setSelectedIds([]);
   };
 
@@ -648,8 +795,8 @@ export default function Page() {
   };
 
   const handleExportSelected = async () => {
-    if (!mockups.length) return;
-    const ids = selectedIds.length ? selectedIds : mockups.map((item) => item.id);
+    if (!displayMockups.length) return;
+    const ids = selectedIds.length ? selectedIds : displayMockups.map((item) => item.id);
     try {
       const [{ toPng }, jsZipModule] = await Promise.all([import('html-to-image'), import('jszip')]);
       const JSZip = jsZipModule.default;
@@ -695,13 +842,14 @@ export default function Page() {
       context?.production_type ||
       safeGet('edro_studio_production_type') ||
       '';
-    const copy = getCopyFor(item.platform, item.format, context);
-    const caption = copy || 'Digite ou gere o copy para visualizar o mockup.';
-    const captionLines = caption.split('\n').filter(Boolean);
-    const captionText = captionLines.join(' ').slice(0, 2200);
-    const shortText = captionLines[0] || captionText;
+    const rawCopy = item.variantCopy ?? getCopyFor(item.platform, item.format, context);
+    const variant = extractCopyVariants(rawCopy)[item.variantIndex ?? 0] || rawCopy;
+    const fields = extractCopyFields(variant);
+    const caption = fields.fullText || rawCopy || 'Digite ou gere o copy para visualizar o mockup.';
+    const captionText = normalizeWhitespace(fields.body || caption).slice(0, 2200);
+    const shortText = clampText(fields.headline || captionText || `${item.platform} ${item.format}`, 90);
+    const subheadline = clampText(fields.body || fields.cta || captionText, 140);
     const profileImage = clientLogo || context?.logo_url || context?.logo || '/assets/logo-studio.png';
-    const platformLabel = displayMap[item.platform] || item.platform;
     const likes = Math.max(120, Math.round((context?.score || 60) * 25));
     const comments = Math.max(12, Math.round(likes / 18));
     const shares = Math.max(5, Math.round(likes / 30));
@@ -713,12 +861,15 @@ export default function Page() {
       profileImage,
       avatar: profileImage,
       logo: profileImage,
+      brandLogo: profileImage,
       channelImage: profileImage,
       channelName: displayName,
       postText: captionText,
       caption: captionText,
       description: captionText,
       title: shortText,
+      headline: shortText,
+      subheadline,
       subtitle: context?.event || '',
       timeAgo: '2h',
       likes,
@@ -732,9 +883,18 @@ export default function Page() {
       bannerImage: wideImage,
       storyImage: tallImage,
       videoThumbnail: wideImage,
+      adImage: wideImage,
     };
-    const catalogKey = buildCatalogKey(productionType, item.platform, item.format);
-    const componentName = mockupCatalogMap[catalogKey];
+    const normalizedPlatform = normalizeCatalogToken(item.platform || '');
+    const normalizedFormat = normalizeCatalogToken(item.format || '');
+    const productionKey = normalizeProductionType(productionType);
+    const catalogKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat);
+    const fallbackKey = buildCatalogKey(productionKey, normalizedPlatform, normalizedFormat).toLowerCase();
+    const componentName =
+      mockupCatalogMap[catalogKey] ||
+      Object.entries(mockupCatalogMap).find(
+        ([key]) => removeAccents(key).toLowerCase() === fallbackKey
+      )?.[1];
     const RegistryComponent = componentName ? mockupRegistry[normalizeMockupKey(componentName)] : null;
 
     if (componentName === 'InstagramStoryMockup') {
@@ -838,7 +998,7 @@ export default function Page() {
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600">
               <span className="px-3 py-2 rounded-full border border-slate-200 bg-white">
-                {generatedCount} de {mockups.length} gerados
+                {generatedCount} de {displayMockups.length} gerados
               </span>
               <span className="px-3 py-2 rounded-full border border-slate-200 bg-white">
                 {platformsCount} plataformas
@@ -899,7 +1059,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={handleExportSelected}
-                disabled={!mockups.length || syncing}
+                disabled={!displayMockups.length || syncing}
                 className="px-4 py-1.5 bg-primary text-white rounded-full hover:bg-orange-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Exportar ZIP
@@ -915,6 +1075,7 @@ export default function Page() {
               orderedMockups.map((item) => {
                 const isSelected = selectedIds.includes(item.id);
                 const label = resolveLabel(item.platform, item.format);
+                const optionLabel = item.variantLabel ? `${label} • ${item.variantLabel}` : label;
                 const statusLabel = item.status === 'saved' ? 'Salvo' : item.status === 'draft' ? 'Rascunho' : 'Novo';
                 return (
                   <button
@@ -927,7 +1088,7 @@ export default function Page() {
                     }`}
                   >
                     <div className="absolute top-4 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                      {label}
+                      {optionLabel}
                     </div>
                     <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                       {statusLabel}
@@ -953,7 +1114,7 @@ export default function Page() {
             <button
               type="button"
               onClick={handleSaveDraftAll}
-              disabled={syncing || !mockups.length}
+              disabled={syncing || !displayMockups.length}
               className="px-5 py-2.5 border border-slate-900 text-slate-900 text-sm font-bold rounded hover:bg-slate-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Salvar como Rascunho
@@ -969,7 +1130,9 @@ export default function Page() {
           </div>
         </div>
         <div className="text-xs text-slate-500">
-          {syncing ? 'Sincronizando mockups...' : `${generatedCount} de ${mockups.length} mockups gerados`}
+          {syncing
+            ? 'Sincronizando mockups...'
+            : `${generatedCount} de ${displayMockups.length} mockups gerados`}
         </div>
       </div>
     </AppShell>
