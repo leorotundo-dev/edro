@@ -149,11 +149,12 @@ const extractCopyVariants = (raw: string) => {
   if (!normalized) return [];
   const withBreaks = normalized
     .replace(/([^\n])\s+(\d{1,2}[\.)]\s+)/g, '$1\n$2')
+    .replace(/([^\n])\s+(\d{1,2}\s*[-–—]\s+)/g, '$1\n$2')
     .replace(
-      /([^\n])\s+(op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi,
+      /([^\n])\s+(op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-–—]?\s*/gi,
       '$1\n$2 '
     );
-  const markerRegex = /(?:^|\n)\s*(?:\d{1,2}[\.)]|op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi;
+  const markerRegex = /(?:^|\n)\s*(?:\d{1,2}[\.)]|\d{1,2}\s*[-–—]|op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-–—]?\s*/gi;
   const markers = Array.from(withBreaks.matchAll(markerRegex));
   if (markers.length >= 2) {
     const slices = markers.map((match) => match.index ?? 0);
@@ -1027,11 +1028,13 @@ export default function Page() {
     return resolveFrameSize(item.format, item.platform, ratio);
   };
 
-  const getMeasureFrameWidth = (item: MockupItem) => {
+  const getMeasureFrameSize = (item: MockupItem) => {
     const key = `${productionTypeKey}::${item.platform}::${item.format}`;
     const ratio = catalogRatios[key] || catalogRatios[`${item.platform}::${item.format}`];
     const frame = resolveFrameSize(item.format, item.platform, ratio);
-    return Math.max(960, Math.round(frame.width * 1.4));
+    const width = Math.max(960, Math.round(frame.width * 1.4));
+    const height = Math.max(320, Math.round(width / frame.ratio));
+    return { width, height };
   };
 
   const renderMockup = (item: MockupItem) => {
@@ -1294,14 +1297,14 @@ export default function Page() {
                 const statusLabel = item.status === 'saved' ? 'Salvo' : item.status === 'draft' ? 'Rascunho' : 'Novo';
                 const baseKey = item.baseId || item.id;
                 const shouldMeasure = (item.variantIndex ?? 0) === 0;
-                const measureWidth = getMeasureFrameWidth(item);
+                const measureSize = getMeasureFrameSize(item);
                 return (
                   <div key={item.id} className="relative">
                     {shouldMeasure ? (
                       <div
                         ref={buildMeasureRef(baseKey)}
                         className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
-                        style={{ width: measureWidth }}
+                        style={{ width: measureSize.width, height: measureSize.height }}
                       >
                         {renderMockup(item)}
                       </div>
