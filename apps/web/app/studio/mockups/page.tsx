@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { api } from '@/lib/api';
 import { InstagramFeedMockup } from '@/components/mockups/instagram/InstagramFeedMockup';
@@ -147,22 +147,28 @@ const stripMarkdown = (value: string) =>
 const extractCopyVariants = (raw: string) => {
   const normalized = raw.replace(/\r/g, '').trim();
   if (!normalized) return [];
-  const markerRegex = /(?:^|\n)\s*(?:\d+[\.)]|op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi;
-  const markers = Array.from(normalized.matchAll(markerRegex));
+  const withBreaks = normalized
+    .replace(/([^\n])\s+(\d{1,2}[\.)]\s+)/g, '$1\n$2')
+    .replace(
+      /([^\n])\s+(op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi,
+      '$1\n$2 '
+    );
+  const markerRegex = /(?:^|\n)\s*(?:\d{1,2}[\.)]|op[cç]a?o\s*\d+|varia[cç][aã]o\s*\d+)\s*[:\-]?\s*/gi;
+  const markers = Array.from(withBreaks.matchAll(markerRegex));
   if (markers.length >= 2) {
     const slices = markers.map((match) => match.index ?? 0);
     const variants = slices.map((start, index) => {
-      const end = index < slices.length - 1 ? slices[index + 1] : normalized.length;
-      const chunk = normalized.slice(start, end);
+      const end = index < slices.length - 1 ? slices[index + 1] : withBreaks.length;
+      const chunk = withBreaks.slice(start, end);
       return chunk.replace(markerRegex, '').trim();
     });
     return variants.filter(Boolean);
   }
-  if (normalized.includes('\n---\n')) {
-    const parts = normalized.split(/\n---\n/g).map((part) => part.trim()).filter(Boolean);
+  if (withBreaks.includes('\n---\n')) {
+    const parts = withBreaks.split(/\n---\n/g).map((part) => part.trim()).filter(Boolean);
     if (parts.length > 1) return parts;
   }
-  return [normalized];
+  return [withBreaks];
 };
 
 const extractCopyFields = (raw: string) => {
@@ -237,15 +243,27 @@ const resolveFormatRatio = (format: string, platform?: string) => {
   return null;
 };
 
-const resolveFrameSize = (format: string, platform?: string) => {
-  const ratio = resolveFormatRatio(format, platform) ?? 4 / 3;
-  let width = 360;
-  if (ratio >= 2.4) width = 560;
-  else if (ratio >= 1.8) width = 480;
-  else if (ratio >= 1.4) width = 420;
-  else if (ratio <= 0.8) width = 260;
-  const height = Math.round(width / ratio);
-  return { width, height };
+const resolveFrameSize = (format: string, platform?: string, ratioOverride?: number | null) => {
+  const ratio = ratioOverride ?? resolveFormatRatio(format, platform) ?? 4 / 3;
+  let width = 420;
+  if (ratio >= 2.8) width = 900;
+  else if (ratio >= 2.4) width = 780;
+  else if (ratio >= 2.0) width = 700;
+  else if (ratio >= 1.6) width = 600;
+  else if (ratio >= 1.2) width = 520;
+  else if (ratio <= 0.8) width = 340;
+  const height = Math.max(220, Math.round(width / ratio));
+  return { width, height, ratio };
+};
+
+const parseRatioValue = (value?: string | null) => {
+  if (!value) return null;
+  const match = String(value).match(/(\d+(?:\.\d+)?)\s*[:x]\s*(\d+(?:\.\d+)?)/i);
+  if (!match) return null;
+  const w = parseFloat(match[1]);
+  const h = parseFloat(match[2]);
+  if (!w || !h) return null;
+  return w / h;
 };
 
 const createSvgDataUri = (text: string, width: number, height: number, accent = '#ff6600') => {
@@ -427,9 +445,60 @@ export default function Page() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [displayMap, setDisplayMap] = useState<Record<string, string>>({});
   const [context, setContext] = useState<Record<string, any>>({});
+  const [catalogRatios, setCatalogRatios] = useState<Record<string, number>>({});
+  const [measuredSizes, setMeasuredSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [clientLogo, setClientLogo] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [syncing, setSyncing] = useState<boolean>(false);
+  const sizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map());
+
+  const buildMeasureRef = useCallback(
+    (key: string) => (node: HTMLDivElement | null) => {
+      const observers = sizeObserversRef.current;
+      const currentObserver = observers.get(key);
+      if (currentObserver) {
+        currentObserver.disconnect();
+        observers.delete(key);
+      }
+      if (!node) return;
+
+      const updateSize = (rect: DOMRectReadOnly) => {
+        const nextWidth = Math.round(rect.width);
+        const nextHeight = Math.round(rect.height);
+        if (!nextWidth || !nextHeight) return;
+        setMeasuredSizes((prev) => {
+          const current = prev[key];
+          if (
+            current &&
+            Math.abs(current.width - nextWidth) < 2 &&
+            Math.abs(current.height - nextHeight) < 2
+          ) {
+            return prev;
+          }
+          return { ...prev, [key]: { width: nextWidth, height: nextHeight } };
+        });
+      };
+
+      updateSize(node.getBoundingClientRect());
+      const observer = new ResizeObserver((entries) => {
+        entries.forEach((entry) => updateSize(entry.contentRect));
+      });
+      observer.observe(node);
+      observers.set(key, observer);
+    },
+    []
+  );
+
+  const productionTypeKey = useMemo(
+    () =>
+      normalizeProductionType(
+        context?.productionType ||
+          context?.production_type ||
+          safeGet('edro_studio_production_type') ||
+          ''
+      ),
+    [context]
+  );
 
   const resolveClientId = (ctx?: Record<string, any>) => {
     return ctx?.clientId || ctx?.client_id || safeGet('edro_client_id') || '';
@@ -626,6 +695,40 @@ export default function Page() {
 
     syncRemoteMockups(inventory, storedContext).catch(() => null);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      sizeObserversRef.current.forEach((observer) => observer.disconnect());
+      sizeObserversRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!productionTypeKey) return;
+    api
+      .get(`/production/catalog?production_type=${productionTypeKey}`)
+      .then((response: any) => {
+        const payload = response?.data || response;
+        const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+        const next: Record<string, number> = {};
+        items.forEach((item: any) => {
+          const ratio =
+            parseRatioValue(item?.specs?.ratio) ||
+            (item?.specs?.width_px && item?.specs?.height_px
+              ? Number(item.specs.width_px) / Number(item.specs.height_px)
+              : null);
+          if (!ratio || !item?.format_name) return;
+          const productionType = normalizeProductionType(item.production_type || productionTypeKey);
+          const platform = String(item.platform || '').trim();
+          const format = String(item.format_name || '').trim();
+          if (!platform || !format) return;
+          next[`${productionType}::${platform}::${format}`] = ratio;
+          next[`${platform}::${format}`] = ratio;
+        });
+        setCatalogRatios(next);
+      })
+      .catch(() => null);
+  }, [productionTypeKey]);
 
   useEffect(() => {
     if (!mockups.length) return;
@@ -909,6 +1012,28 @@ export default function Page() {
     return `${label} • ${format}`;
   };
 
+  const getFrameSizeForItem = (item: MockupItem) => {
+    const key = `${productionTypeKey}::${item.platform}::${item.format}`;
+    const ratio = catalogRatios[key] || catalogRatios[`${item.platform}::${item.format}`];
+    const baseKey = item.baseId || item.id;
+    const measured = measuredSizes[baseKey];
+    if (measured?.width && measured?.height) {
+      return {
+        width: measured.width,
+        height: measured.height,
+        ratio: measured.width / measured.height,
+      };
+    }
+    return resolveFrameSize(item.format, item.platform, ratio);
+  };
+
+  const getMeasureFrameWidth = (item: MockupItem) => {
+    const key = `${productionTypeKey}::${item.platform}::${item.format}`;
+    const ratio = catalogRatios[key] || catalogRatios[`${item.platform}::${item.format}`];
+    const frame = resolveFrameSize(item.format, item.platform, ratio);
+    return Math.max(960, Math.round(frame.width * 1.4));
+  };
+
   const renderMockup = (item: MockupItem) => {
     try {
       const productionType =
@@ -927,7 +1052,11 @@ export default function Page() {
       const likes = Math.max(120, Math.round((context?.score || 60) * 25));
       const comments = Math.max(12, Math.round(likes / 18));
       const shares = Math.max(5, Math.round(likes / 30));
-      const wideImage = createSvgDataUri(shortText, 1280, 720);
+      const frame = getFrameSizeForItem(item);
+      const ratio = frame.ratio || 16 / 9;
+      const wideWidth = Math.max(960, Math.round(frame.width * 2));
+      const wideHeight = Math.max(320, Math.round(wideWidth / ratio));
+      const wideImage = createSvgDataUri(shortText, wideWidth, wideHeight);
       const squareImage = createSvgDataUri(shortText, 1080, 1080);
       const tallImage = createSvgDataUri(shortText, 1080, 1920);
       const baseProps: Record<string, any> = {
@@ -1163,39 +1292,52 @@ export default function Page() {
                 const optionLabel = item.variantLabel ? `${label} • ${item.variantLabel}` : label;
                 const providerLabel = resolveProviderLabel(getCopyMetaFor(item.platform, item.format));
                 const statusLabel = item.status === 'saved' ? 'Salvo' : item.status === 'draft' ? 'Rascunho' : 'Novo';
+                const baseKey = item.baseId || item.id;
+                const shouldMeasure = (item.variantIndex ?? 0) === 0;
+                const measureWidth = getMeasureFrameWidth(item);
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    data-mockup-id={item.id}
-                    onClick={() => toggleSelect(item.id)}
-                    className={`group relative flex items-center justify-center transition-all ${
-                      isSelected ? 'ring-2 ring-primary/70 ring-offset-8 ring-offset-slate-50' : 'hover:shadow-xl'
-                    }`}
-                  >
-                    <div className="absolute top-4 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                      {optionLabel}
-                    </div>
-                    {providerLabel ? (
-                      <div className="absolute top-10 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-300">
-                        {providerLabel}
+                  <div key={item.id} className="relative">
+                    {shouldMeasure ? (
+                      <div
+                        ref={buildMeasureRef(baseKey)}
+                        className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+                        style={{ width: measureWidth }}
+                      >
+                        {renderMockup(item)}
                       </div>
                     ) : null}
-                    <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                      {statusLabel}
-                    </div>
-                    <div
-                      data-export-root
-                      className="origin-center flex items-center justify-center"
-                      style={{
-                        transform: `scale(${zoomLevel})`,
-                        width: resolveFrameSize(item.format, item.platform).width,
-                        height: resolveFrameSize(item.format, item.platform).height,
-                      }}
+                    <button
+                      type="button"
+                      data-mockup-id={item.id}
+                      onClick={() => toggleSelect(item.id)}
+                      className={`group relative flex items-center justify-center transition-all ${
+                        isSelected ? 'ring-2 ring-primary/70 ring-offset-8 ring-offset-slate-50' : 'hover:shadow-xl'
+                      }`}
                     >
-                      {renderMockup(item)}
-                    </div>
-                  </button>
+                      <div className="absolute top-4 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                        {optionLabel}
+                      </div>
+                      {providerLabel ? (
+                        <div className="absolute top-10 left-4 text-[10px] font-semibold uppercase tracking-widest text-slate-300">
+                          {providerLabel}
+                        </div>
+                      ) : null}
+                      <div className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                        {statusLabel}
+                      </div>
+                      <div
+                        data-export-root
+                        className="origin-center flex items-center justify-center overflow-visible"
+                        style={{
+                          transform: `scale(${zoomLevel})`,
+                          width: getFrameSizeForItem(item).width,
+                          height: getFrameSizeForItem(item).height,
+                        }}
+                      >
+                        {renderMockup(item)}
+                      </div>
+                    </button>
+                  </div>
                 );
               })
             ) : (
