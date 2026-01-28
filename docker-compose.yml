@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: edro-postgres
     restart: unless-stopped
     environment:
@@ -32,25 +32,76 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL}
+      GEMINI_ENDPOINT: ${GEMINI_ENDPOINT}
+      REPORTEI_BASE_URL: ${REPORTEI_BASE_URL}
+      REPORTEI_TOKEN: ${REPORTEI_TOKEN}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
+      GOOGLE_TRENDS_SERVICE_URL: ${GOOGLE_TRENDS_SERVICE_URL:-http://trends_py:8088}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       EDRO_ALLOWED_DOMAINS: ${EDRO_ALLOWED_DOMAINS:-edro.digital}
       EDRO_ADMIN_EMAILS: ${EDRO_ADMIN_EMAILS:-leo.rotundo@edro.digital}
+      EDRO_LOGIN_ECHO_CODE: ${EDRO_LOGIN_ECHO_CODE}
+      MASTER_KEY_B64: ${MASTER_KEY_B64}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
+      WEB_URL: ${WEB_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      PUBLISHER_GATEWAY_URL: ${PUBLISHER_GATEWAY_URL:-http://publisher:4444/publish}
+      GATEWAY_SHARED_SECRET: ${GATEWAY_SHARED_SECRET}
+      ENABLE_METRICS: ${ENABLE_METRICS}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
+      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/app/apps/backend/storage}
+      JOBS_RUNNER_ENABLED: ${JOBS_RUNNER_ENABLED:-true}
+      JOBS_RUNNER_INTERVAL_MS: ${JOBS_RUNNER_INTERVAL_MS:-5000}
     ports:
       - "${BACKEND_PORT:-3333}:3333"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - edro_storage:/app/apps/backend/storage
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3333/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  trends_py:
+    build:
+      context: ./services/trends_py
+    container_name: edro-trends-py
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+
+  redis:
+    image: redis:7-alpine
+    container_name: edro-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  publisher:
+    build:
+      context: ./apps/publisher
+    container_name: edro-publisher
+    restart: unless-stopped
+    environment:
+      GATEWAY_SHARED_SECRET: ${GATEWAY_SHARED_SECRET}
+    ports:
+      - "4444:4444"
 
   web:
     build:
@@ -61,7 +112,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3333
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:3333}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      EDRO_BACKEND_URL: ${EDRO_BACKEND_URL:-http://backend:3333}
     ports:
       - "${WEB_PORT:-3000}:3333"
     depends_on:
@@ -70,4 +122,6 @@ services:
 
 volumes:
   edro_postgres_data:
+    driver: local
+  edro_storage:
     driver: local
