@@ -539,9 +539,10 @@ export default function Page() {
     [context]
   );
 
-  const resolveClientId = (ctx?: Record<string, any>) => {
-    return ctx?.clientId || ctx?.client_id || safeGet('edro_client_id') || '';
-  };
+  const resolveClientId = useCallback((ctx?: Record<string, any>) => {
+    const resolved = ctx ?? getContext();
+    return resolved?.clientId || resolved?.client_id || safeGet('edro_client_id') || '';
+  }, []);
 
   const buildSnapshotPayload = (item: MockupItem) => {
     const productionType =
@@ -589,9 +590,10 @@ export default function Page() {
     };
   };
 
-  const syncRemoteMockups = async (inventory: InventoryItem[], ctx?: Record<string, any>) => {
+  const syncRemoteMockups = useCallback(async (inventory: InventoryItem[], ctx?: Record<string, any>) => {
     const briefingId = safeGet('edro_briefing_id');
-    const clientId = resolveClientId(ctx || context);
+    const resolvedContext = ctx ?? getContext();
+    const clientId = resolveClientId(resolvedContext);
     if (!briefingId && !clientId) return;
     const params = new URLSearchParams();
     if (briefingId) params.set('briefing_id', briefingId);
@@ -693,7 +695,7 @@ export default function Page() {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [resolveClientId]);
 
   useEffect(() => {
     const storedContext = getContext();
@@ -733,12 +735,13 @@ export default function Page() {
     }
 
     syncRemoteMockups(inventory, storedContext).catch(() => null);
-  }, []);
+  }, [resolveClientId, syncRemoteMockups]);
 
   useEffect(() => {
+    const observers = sizeObserversRef.current;
     return () => {
-      sizeObserversRef.current.forEach((observer) => observer.disconnect());
-      sizeObserversRef.current.clear();
+      observers.forEach((observer) => observer.disconnect());
+      observers.clear();
     };
   }, []);
 
@@ -837,7 +840,7 @@ export default function Page() {
     };
 
     hydrateFromBriefing();
-  }, []);
+  }, [syncRemoteMockups]);
 
   useEffect(() => {
     const briefingId = safeGet('edro_briefing_id');
