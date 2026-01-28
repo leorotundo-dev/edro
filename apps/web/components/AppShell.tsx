@@ -114,7 +114,7 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 border-b border-slate-200 bg-surface-light/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10 shrink-0">
+        <header className="h-16 border-b border-slate-200 bg-surface-light/90 backdrop-blur-md flex items-center justify-between px-10 sticky top-0 z-10 shrink-0 shadow-[0_1px_0_rgba(15,23,42,0.05)]">
           <div className="flex items-center gap-4">
             {topbarLeft ? (
               topbarLeft
