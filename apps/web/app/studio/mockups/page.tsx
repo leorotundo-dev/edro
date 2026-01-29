@@ -228,6 +228,14 @@ const clampText = (value: string, max = 140) => {
 };
 
 const DISPLAY_SCALE = 0.72;
+const GRID_GAP_PX = 48;
+
+const getGridColumns = (width: number) => {
+  if (width >= 1536) return 4;
+  if (width >= 1280) return 3;
+  if (width >= 768) return 2;
+  return 1;
+};
 
 const buildMinimalCopy = (
   item: MockupItem,
@@ -486,10 +494,12 @@ export default function Page() {
   const [context, setContext] = useState<Record<string, any>>({});
   const [catalogRatios, setCatalogRatios] = useState<Record<string, number>>({});
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, { width: number; height: number }>>({});
+  const [gridColumnWidth, setGridColumnWidth] = useState<number | null>(null);
   const [clientLogo, setClientLogo] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [syncing, setSyncing] = useState<boolean>(false);
   const sizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map());
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
   const buildMeasureRef = useCallback(
     (key: string) => (node: HTMLDivElement | null) => {
@@ -743,6 +753,27 @@ export default function Page() {
       observers.forEach((observer) => observer.disconnect());
       observers.clear();
     };
+  }, []);
+
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+
+    const update = () => {
+      const rect = node.getBoundingClientRect();
+      const width = Math.max(0, rect.width);
+      if (!width) return;
+      const columns = getGridColumns(width);
+      const totalGap = GRID_GAP_PX * Math.max(0, columns - 1);
+      const columnWidth = (width - totalGap) / columns;
+      if (!columnWidth || Number.isNaN(columnWidth)) return;
+      setGridColumnWidth(Math.max(220, Math.floor(columnWidth)));
+    };
+
+    update();
+    const observer = new ResizeObserver(() => update());
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -1056,22 +1087,27 @@ export default function Page() {
 
   const getFrameSizeForItem = (item: MockupItem) => {
     const key = `${productionTypeKey}::${item.platform}::${item.format}`;
-    const ratio = catalogRatios[key] || catalogRatios[`${item.platform}::${item.format}`];
+    const ratioOverride = catalogRatios[key] || catalogRatios[`${item.platform}::${item.format}`];
     const baseKey = item.baseId || item.id;
     const measured = measuredSizes[baseKey];
+
+    const applyClamp = (width: number, ratio: number) => {
+      const cappedWidth = gridColumnWidth ? Math.min(width, gridColumnWidth) : width;
+      const safeWidth = Math.max(220, Math.round(cappedWidth));
+      const safeHeight = Math.max(180, Math.round(safeWidth / ratio));
+      return { width: safeWidth, height: safeHeight, ratio: safeWidth / safeHeight };
+    };
+
     if (measured?.width && measured?.height) {
-      const scaledWidth = Math.max(220, Math.round(measured.width * DISPLAY_SCALE));
-      const scaledHeight = Math.max(180, Math.round(measured.height * DISPLAY_SCALE));
-      return {
-        width: scaledWidth,
-        height: scaledHeight,
-        ratio: scaledWidth / scaledHeight,
-      };
+      const ratio = measured.width / measured.height;
+      const scaledWidth = Math.round(measured.width * DISPLAY_SCALE);
+      return applyClamp(scaledWidth, ratio || 1);
     }
-    const frame = resolveFrameSize(item.format, item.platform, ratio);
-    const scaledWidth = Math.max(220, Math.round(frame.width * DISPLAY_SCALE));
-    const scaledHeight = Math.max(180, Math.round(frame.height * DISPLAY_SCALE));
-    return { width: scaledWidth, height: scaledHeight, ratio: scaledWidth / scaledHeight };
+
+    const frame = resolveFrameSize(item.format, item.platform, ratioOverride);
+    const ratio = frame.ratio || frame.width / frame.height || 1;
+    const scaledWidth = Math.round(frame.width * DISPLAY_SCALE);
+    return applyClamp(scaledWidth, ratio);
   };
 
   const getMeasureFrameSize = (item: MockupItem) => {
@@ -1404,7 +1440,10 @@ export default function Page() {
 
         <div className="flex-1 relative">
           <div className="absolute inset-0 pointer-events-none opacity-30 bg-[linear-gradient(transparent_23px,#e2e8f0_24px),linear-gradient(90deg,transparent_23px,#e2e8f0_24px)] bg-[size:24px_24px]" />
-          <div className="relative w-full h-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-12 py-6">
+          <div
+            ref={gridRef}
+            className="relative w-full h-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-12 py-6"
+          >
             {orderedMockups.length ? (
               orderedMockups.map((item) => {
                 const isSelected = selectedIds.includes(item.id);
