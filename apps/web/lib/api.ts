@@ -19,6 +19,9 @@ function resolveApiBase() {
   const raw = RAW_API_URL || PROXY_PATH;
   if (typeof window !== 'undefined') {
     if (/^https?:\/\//i.test(raw)) {
+      return PROXY_PATH;
+    }
+    if (/^https?:\/\//i.test(raw)) {
       try {
         const url = new URL(raw);
         if (url.origin === window.location.origin) {
@@ -110,8 +113,30 @@ function getAuthHeaders(): HeadersInit {
   return headers;
 }
 
+// Mutex to prevent concurrent refresh token requests
+let refreshPromise: Promise<boolean> | null = null;
+
 async function refreshAccessToken(): Promise<boolean> {
+  // If there's already a refresh in progress, wait for it
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  // Start a new refresh and store the promise
+  refreshPromise = performRefresh();
+
+  try {
+    const result = await refreshPromise;
+    return result;
+  } finally {
+    // Clear the promise after completion (success or failure)
+    refreshPromise = null;
+  }
+}
+
+async function performRefresh(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
+
   const refreshToken = localStorage.getItem('edro_refresh');
   const userRaw = localStorage.getItem('edro_user');
   if (!refreshToken || !userRaw) return false;
@@ -127,7 +152,14 @@ async function refreshAccessToken(): Promise<boolean> {
     });
 
     const text = await response.text();
-    if (!response.ok) return false;
+    if (!response.ok) {
+      // Clear tokens on refresh failure
+      localStorage.removeItem('edro_token');
+      localStorage.removeItem('edro_refresh');
+      localStorage.removeItem('edro_user');
+      return false;
+    }
+
     const data = JSON.parse(text);
 
     if (data?.accessToken) {
@@ -137,7 +169,11 @@ async function refreshAccessToken(): Promise<boolean> {
       localStorage.setItem('edro_refresh', data.refreshToken);
     }
     return true;
-  } catch {
+  } catch (error) {
+    // Clear tokens on any error
+    localStorage.removeItem('edro_token');
+    localStorage.removeItem('edro_refresh');
+    localStorage.removeItem('edro_user');
     return false;
   }
 }
