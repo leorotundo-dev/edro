@@ -25,8 +25,16 @@ type Stage = {
   status: string;
 };
 
+type User = {
+  id?: string;
+  email?: string;
+  role?: string;
+  name?: string;
+};
+
 export default function ProducaoClient({ briefingId }: { briefingId: string }) {
   const router = useRouter();
+  const [user, setUser] = useState<User>({});
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [copies, setCopies] = useState<Copy[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -76,6 +84,17 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('edro_user');
+    if (!stored) return;
+    try {
+      setUser(JSON.parse(stored));
+    } catch {
+      setUser({});
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -148,6 +167,7 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
 
   const producaoStage = stages.find((s) => s.stage === 'producao');
   const canAssign = producaoStage?.status === 'pending' || producaoStage?.status === 'in_progress';
+  const hasPermission = user?.role === 'gestor' || user?.role === 'admin' || user?.role === 'staff';
 
   if (!canAssign) {
     return (
@@ -157,6 +177,26 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
           <h3 className="text-xl font-semibold text-slate-900 mb-2">Produção não disponível</h3>
           <p className="text-slate-600 mb-4">
             A etapa de produção ainda não foi liberada ou já foi concluída.
+          </p>
+          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
+            Voltar para Briefing
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🚫</div>
+          <h3 className="text-xl font-semibold text-slate-900 mb-2">Acesso Negado</h3>
+          <p className="text-slate-600 mb-2">
+            Apenas usuários com perfil <strong>Gestor</strong>, <strong>Admin</strong> ou <strong>Staff</strong> podem atribuir designers.
+          </p>
+          <p className="text-sm text-slate-500 mb-4">
+            Seu perfil atual: <strong>{user?.role || 'Não identificado'}</strong>
           </p>
           <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
             Voltar para Briefing

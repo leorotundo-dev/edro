@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { WORKFLOW_STAGES, WorkflowStage } from '../utils/workflow';
+import { WORKFLOW_STAGES, WorkflowStage } from '@edro/shared/workflow';
 
 export interface EdroClient {
   id: string;
@@ -487,6 +487,81 @@ export async function updateBriefingStageStatus(params: {
       params.updatedBy ?? null,
       params.metadata ?? null,
     ]
+  );
+  return rows[0] ?? null;
+}
+
+export async function listAllTasks(filters?: {
+  briefingId?: string;
+  status?: string;
+  type?: string;
+  assignedTo?: string;
+}): Promise<EdroTask[]> {
+  const conditions: string[] = [];
+  const values: any[] = [];
+  let paramIndex = 1;
+
+  if (filters?.briefingId) {
+    conditions.push(`briefing_id = $${paramIndex++}`);
+    values.push(filters.briefingId);
+  }
+
+  if (filters?.status) {
+    conditions.push(`status = $${paramIndex++}`);
+    values.push(filters.status);
+  }
+
+  if (filters?.type) {
+    conditions.push(`type = $${paramIndex++}`);
+    values.push(filters.type);
+  }
+
+  if (filters?.assignedTo) {
+    conditions.push(`assigned_to = $${paramIndex++}`);
+    values.push(filters.assignedTo);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await query<EdroTask>(
+    `
+      SELECT *
+      FROM edro_tasks
+      ${whereClause}
+      ORDER BY created_at DESC
+    `,
+    values
+  );
+  return rows;
+}
+
+export async function getTaskById(taskId: string): Promise<EdroTask | null> {
+  const { rows } = await query<EdroTask>(
+    `
+      SELECT *
+      FROM edro_tasks
+      WHERE id = $1
+    `,
+    [taskId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateTaskStatus(params: {
+  taskId: string;
+  status: string;
+  payload?: Record<string, any> | null;
+}): Promise<EdroTask | null> {
+  const { rows } = await query<EdroTask>(
+    `
+      UPDATE edro_tasks
+      SET status = $2,
+          payload = COALESCE($3::jsonb, payload),
+          updated_at = now()
+      WHERE id = $1
+      RETURNING *
+    `,
+    [params.taskId, params.status, params.payload ?? null]
   );
   return rows[0] ?? null;
 }

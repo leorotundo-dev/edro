@@ -25,12 +25,15 @@ import {
   ensureBriefingStages,
   getBriefingById,
   getOrCreateClientByName,
+  getTaskById,
+  listAllTasks,
   listBriefings,
   listBriefingStages,
   listCopyVersions,
   listTasks,
   updateBriefingStageStatus,
   updateBriefingStatus,
+  updateTaskStatus,
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
 import {
@@ -39,7 +42,7 @@ import {
   getNextStage,
   getStageIndex,
   isWorkflowStage,
-} from '../utils/workflow';
+} from '@edro/shared/workflow';
 import { env } from '../env';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
@@ -1480,6 +1483,128 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(500).send({
         success: false,
         error: 'Erro ao gerar criativo visual.',
+      });
+    }
+  });
+
+  // ========================================
+  // Task Endpoints
+  // ========================================
+
+  app.get('/edro/tasks', async (request, reply) => {
+    const querySchema = z.object({
+      briefing_id: z.string().uuid().optional(),
+      status: z.string().optional(),
+      type: z.string().optional(),
+      assigned_to: z.string().optional(),
+    });
+
+    try {
+      const filters = querySchema.parse(request.query);
+      const tasks = await listAllTasks({
+        briefingId: filters.briefing_id,
+        status: filters.status,
+        type: filters.type,
+        assignedTo: filters.assigned_to,
+      });
+
+      return reply.send({ success: true, data: tasks });
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send({
+          success: false,
+          error: 'Invalid query parameters',
+          details: err.errors,
+        });
+      }
+
+      request.log?.error({ err }, 'list_tasks_failed');
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to list tasks',
+      });
+    }
+  });
+
+  app.get('/edro/tasks/:id', async (request, reply) => {
+    const paramsSchema = z.object({
+      id: z.string().uuid(),
+    });
+
+    try {
+      const params = paramsSchema.parse(request.params);
+      const task = await getTaskById(params.id);
+
+      if (!task) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Task not found',
+        });
+      }
+
+      return reply.send({ success: true, data: task });
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send({
+          success: false,
+          error: 'Invalid task ID',
+        });
+      }
+
+      request.log?.error({ err }, 'get_task_failed');
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to get task',
+      });
+    }
+  });
+
+  app.patch('/edro/tasks/:id', async (request, reply) => {
+    const paramsSchema = z.object({
+      id: z.string().uuid(),
+    });
+
+    const bodySchema = z.object({
+      status: z.string().min(1),
+      payload: z.record(z.any()).optional(),
+    });
+
+    try {
+      const params = paramsSchema.parse(request.params);
+      const body = bodySchema.parse(request.body);
+
+      const task = await getTaskById(params.id);
+      if (!task) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Task not found',
+        });
+      }
+
+      const updatedTask = await updateTaskStatus({
+        taskId: params.id,
+        status: body.status,
+        payload: body.payload,
+      });
+
+      return reply.send({
+        success: true,
+        data: updatedTask,
+        message: 'Task updated successfully',
+      });
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send({
+          success: false,
+          error: 'Invalid request',
+          details: err.errors,
+        });
+      }
+
+      request.log?.error({ err }, 'update_task_failed');
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to update task',
       });
     }
   });

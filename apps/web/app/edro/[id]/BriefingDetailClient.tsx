@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { WORKFLOW_STAGES_UI, STAGE_COLORS } from '@edro/shared/workflow';
 
 type Briefing = {
   id: string;
@@ -41,27 +42,6 @@ type Task = {
   assigned_to: string;
   status: string;
   created_at: string;
-};
-
-const WORKFLOW_STAGES = [
-  { key: 'briefing', label: 'Briefing', icon: 'description', color: 'blue' },
-  { key: 'iclips_in', label: 'iClips Entrada', icon: 'input', color: 'purple' },
-  { key: 'alinhamento', label: 'Alinhamento', icon: 'groups', color: 'yellow' },
-  { key: 'copy_ia', label: 'Copy IA', icon: 'psychology', color: 'cyan' },
-  { key: 'aprovacao', label: 'Aprovação', icon: 'check_circle', color: 'orange' },
-  { key: 'producao', label: 'Produção', icon: 'palette', color: 'pink' },
-  { key: 'revisao', label: 'Revisão', icon: 'rate_review', color: 'indigo' },
-  { key: 'iclips_out', label: 'iClips Saída', icon: 'output', color: 'purple' },
-];
-
-const STAGE_COLORS: Record<string, string> = {
-  blue: 'bg-blue-100 text-blue-700 border-blue-300',
-  purple: 'bg-purple-100 text-purple-700 border-purple-300',
-  yellow: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  cyan: 'bg-cyan-100 text-cyan-700 border-cyan-300',
-  orange: 'bg-orange-100 text-orange-700 border-orange-300',
-  pink: 'bg-pink-100 text-pink-700 border-pink-300',
-  indigo: 'bg-indigo-100 text-indigo-700 border-indigo-300',
 };
 
 export default function BriefingDetailClient({ briefingId }: { briefingId: string }) {
@@ -268,7 +248,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
         {/* Kanban Board */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          {WORKFLOW_STAGES.map((workflowStage) => {
+          {WORKFLOW_STAGES_UI.map((workflowStage) => {
             const stageData = getStageStatus(workflowStage.key);
             const status = stageData?.status || 'pending';
             const colorClass = STAGE_COLORS[workflowStage.color] || STAGE_COLORS.blue;

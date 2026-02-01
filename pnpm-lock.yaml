@@ -13,6 +13,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.975.0
         version: 3.975.0
+      '@edro/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@fastify/cors':
         specifier: ^9.0.0
         version: 9.0.1
@@ -116,6 +119,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@edro/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       html-to-image:
         specifier: ^1.11.11
         version: 1.11.13
@@ -162,6 +168,12 @@ importers:
       tailwindcss:
         specifier: ^4.0.0
         version: 4.1.18
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/shared:
+    devDependencies:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
