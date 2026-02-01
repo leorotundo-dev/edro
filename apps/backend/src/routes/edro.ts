@@ -9,6 +9,7 @@ import {
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
+import { generateAdCreative } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
@@ -43,6 +44,10 @@ import { env } from '../env';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value?: string | null) => Boolean(value && UUID_REGEX.test(value));
 
 type RequestUser = {
   sub?: string;
@@ -355,7 +360,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   app.get('/edro/briefings', async (request, reply) => {
     const querySchema = z.object({
       status: z.string().optional(),
-      clientId: z.string().uuid().optional(),
+      clientId: z.string().optional(),
       limit: z.string().optional(),
       offset: z.string().optional(),
     });
@@ -377,7 +382,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   app.post('/edro/briefings', async (request, reply) => {
     const bodySchema = z
       .object({
-        client_id: z.string().uuid().optional(),
+        client_id: z.string().optional(),
         client_name: z.string().min(2).optional(),
         client_segment: z.string().optional(),
         client_timezone: z.string().optional(),
@@ -405,12 +410,35 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'due_at invalido' });
     }
 
+    const tenantId = (request.user as any)?.tenant_id;
     let clientId = body.client_id || null;
-    if (!clientId && body.client_name) {
+    let clientName = body.client_name ?? null;
+    let clientSegment = body.client_segment ?? null;
+    let clientTimezone = body.client_timezone ?? null;
+    const payload = { ...(body.payload ?? {}) } as Record<string, any>;
+
+    if (clientId && !isUuid(clientId)) {
+      if (tenantId) {
+        const coreClient = await getClientById(tenantId, clientId);
+        if (coreClient) {
+          clientName = coreClient.name;
+          clientSegment = clientSegment ?? coreClient.segment_primary ?? null;
+          clientTimezone = clientTimezone ?? coreClient.timezone ?? null;
+        }
+      }
+      if (!clientName) clientName = clientId;
+      payload.client_ref = {
+        id: clientId,
+        name: clientName ?? null,
+      };
+      clientId = null;
+    }
+
+    if (!clientId && clientName) {
       const client = await getOrCreateClientByName({
-        name: body.client_name,
-        segment: body.client_segment ?? null,
-        timezone: body.client_timezone ?? null,
+        name: clientName,
+        segment: clientSegment ?? null,
+        timezone: clientTimezone ?? null,
       });
       clientId = client.id;
     }
@@ -419,7 +447,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       clientId,
       title: body.title,
       status: 'briefing',
-      payload: body.payload ?? {},
+      payload,
       createdBy: body.created_by ?? user.email,
       trafficOwner: body.traffic_owner ?? null,
       meetingUrl: body.meeting_url ?? null,
@@ -1206,5 +1234,253 @@ export default async function edroRoutes(app: FastifyInstance) {
           : null,
       },
     });
+  });
+
+  app.get('/edro/metrics', async (request, reply) => {
+    try {
+      // Total briefings
+      const { rows: totalRows } = await query<any>('SELECT COUNT(*) as count FROM edro_briefings');
+      const total = Number(totalRows[0]?.count || 0);
+
+      // By status
+      const { rows: statusRows } = await query<any>(`
+        SELECT status, COUNT(*) as count
+        FROM edro_briefings
+        GROUP BY status
+      `);
+
+      // Average time per stage (in hours)
+      const { rows: stageTimeRows } = await query<any>(`
+        SELECT
+          stage,
+          AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600) as avg_hours
+        FROM edro_briefing_stages
+        WHERE status = 'done'
+        GROUP BY stage
+      `);
+
+      // Copies generated
+      const { rows: copiesRows } = await query<any>('SELECT COUNT(*) as count FROM edro_copy_versions');
+      const totalCopies = Number(copiesRows[0]?.count || 0);
+
+      // Tasks by type
+      const { rows: tasksRows } = await query<any>(`
+        SELECT type, COUNT(*) as count
+        FROM edro_tasks
+        GROUP BY type
+      `);
+
+      // Recent activity (last 7 days)
+      const { rows: recentRows } = await query<any>(`
+        SELECT COUNT(*) as count
+        FROM edro_briefings
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+      `);
+      const recentBriefings = Number(recentRows[0]?.count || 0);
+
+      // Bottlenecks (stages with most in_progress)
+      const { rows: bottleneckRows } = await query<any>(`
+        SELECT stage, COUNT(*) as count
+        FROM edro_briefing_stages
+        WHERE status = 'in_progress'
+        GROUP BY stage
+        ORDER BY count DESC
+        LIMIT 3
+      `);
+
+      return reply.send({
+        success: true,
+        data: {
+          total,
+          byStatus: statusRows.reduce((acc: any, row: any) => {
+            acc[row.status] = Number(row.count);
+            return acc;
+          }, {}),
+          avgTimePerStage: stageTimeRows.reduce((acc: any, row: any) => {
+            acc[row.stage] = Math.round(Number(row.avg_hours || 0) * 10) / 10;
+            return acc;
+          }, {}),
+          totalCopies,
+          tasksByType: tasksRows.reduce((acc: any, row: any) => {
+            acc[row.type] = Number(row.count);
+            return acc;
+          }, {}),
+          recentBriefings,
+          bottlenecks: bottleneckRows.map((row: any) => ({
+            stage: row.stage,
+            count: Number(row.count),
+          })),
+        },
+      });
+    } catch (err: any) {
+      request.log?.error({ err }, 'metrics_failed');
+      return reply.status(500).send({ success: false, error: 'Erro ao buscar métricas.' });
+    }
+  });
+
+  app.get('/edro/reports/export', async (request, reply) => {
+    const querySchema = z.object({
+      format: z.enum(['csv', 'json']).default('csv'),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    });
+
+    const query_params = querySchema.parse(request.query);
+
+    try {
+      let sql = `
+        SELECT
+          b.id,
+          b.client_name,
+          b.title,
+          b.status,
+          b.source,
+          b.traffic_owner,
+          b.created_at,
+          b.due_at,
+          b.payload,
+          COUNT(DISTINCT cv.id) as copy_count,
+          COUNT(DISTINCT t.id) as task_count
+        FROM edro_briefings b
+        LEFT JOIN edro_copy_versions cv ON cv.briefing_id = b.id
+        LEFT JOIN edro_tasks t ON t.briefing_id = b.id
+      `;
+
+      const params: any[] = [];
+      const conditions: string[] = [];
+
+      if (query_params.startDate) {
+        conditions.push(`b.created_at >= $${params.length + 1}`);
+        params.push(query_params.startDate);
+      }
+
+      if (query_params.endDate) {
+        conditions.push(`b.created_at <= $${params.length + 1}`);
+        params.push(query_params.endDate);
+      }
+
+      if (conditions.length > 0) {
+        sql += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      sql += ` GROUP BY b.id ORDER BY b.created_at DESC`;
+
+      const { rows } = await query<any>(sql, params);
+
+      if (query_params.format === 'json') {
+        return reply.send({ success: true, data: rows });
+      }
+
+      // CSV format
+      const headers = [
+        'ID',
+        'Cliente',
+        'Título',
+        'Status',
+        'Fonte',
+        'Responsável',
+        'Data Criação',
+        'Prazo',
+        'Copies Geradas',
+        'Tarefas',
+      ];
+
+      const csvRows = rows.map((row: any) => [
+        row.id,
+        row.client_name || '',
+        row.title,
+        row.status,
+        row.source || '',
+        row.traffic_owner || '',
+        new Date(row.created_at).toISOString(),
+        row.due_at ? new Date(row.due_at).toISOString() : '',
+        row.copy_count,
+        row.task_count,
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...csvRows.map((row: any[]) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ),
+      ].join('\n');
+
+      return reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="edro-briefings-${Date.now()}.csv"`)
+        .send(csvContent);
+    } catch (err: any) {
+      request.log?.error({ err }, 'export_failed');
+      return reply.status(500).send({ success: false, error: 'Erro ao exportar relatório.' });
+    }
+  });
+
+  app.post('/edro/briefings/:id/generate-creative', async (request, reply) => {
+    const paramsSchema = z.object({ id: z.string().uuid() });
+    const bodySchema = z.object({
+      copy_version_id: z.string().uuid(),
+      format: z.string().default('instagram-feed'),
+      style: z.string().optional(),
+    });
+
+    const params = paramsSchema.parse(request.params);
+    const body = bodySchema.parse(request.body);
+
+    const briefing = await getBriefingById(params.id);
+    if (!briefing) {
+      return reply.status(404).send({ success: false, error: 'Briefing não encontrado' });
+    }
+
+    const copies = await listCopyVersions(params.id);
+    const selectedCopy = copies.find((c) => c.id === body.copy_version_id);
+
+    if (!selectedCopy) {
+      return reply.status(404).send({ success: false, error: 'Copy não encontrada' });
+    }
+
+    try {
+      const result = await generateAdCreative({
+        copy: selectedCopy.output,
+        format: body.format,
+        brand: briefing.client_name || undefined,
+        style: body.style,
+      });
+
+      if (!result.success) {
+        return reply.status(500).send({
+          success: false,
+          error: result.error || 'Erro ao gerar criativo',
+        });
+      }
+
+      // Store creative in task or attachment table
+      const user = resolveUser(request);
+      await createTask({
+        briefingId: briefing.id,
+        type: 'creative_generated',
+        assignedTo: user.email || 'system',
+        channels: ['portal'],
+        payload: {
+          copyVersionId: selectedCopy.id,
+          imageUrl: result.image_url,
+          format: body.format,
+          style: body.style,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          image_url: result.image_url,
+          format: body.format,
+        },
+      });
+    } catch (err: any) {
+      request.log?.error({ err }, 'generate_creative_failed');
+      return reply.status(500).send({
+        success: false,
+        error: 'Erro ao gerar criativo visual.',
+      });
+    }
   });
 }

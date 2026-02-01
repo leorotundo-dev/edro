@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import StudioContextBar from './StudioContextBar';
 
 type NavItem = {
   label: string;
@@ -27,6 +28,7 @@ type AppShellProps = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '/', icon: 'home' },
+  { label: 'Edro Briefings', href: '/edro', icon: 'automation' },
   { label: 'Clients', href: '/clients', icon: 'group' },
   { label: 'Calendar', href: '/calendar', icon: 'calendar_month' },
   { label: 'Kanban', href: '/board', icon: 'view_kanban' },
@@ -49,6 +51,7 @@ function getActive(pathname: string, href: string) {
 export default function AppShell({ title, meta, action, topbarExtra, topbarLeft, children }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<UserInfo>({});
+  const isStudio = pathname.startsWith('/studio');
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -155,6 +158,7 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
             </div>
           </div>
         </header>
+        {isStudio ? <StudioContextBar /> : null}
         {children}
       </main>
     </div>
