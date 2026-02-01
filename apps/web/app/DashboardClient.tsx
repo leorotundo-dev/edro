@@ -23,6 +23,15 @@ type Task = {
   created_at: string;
 };
 
+type CalendarEvent = {
+  id: string;
+  name: string;
+  slug: string;
+  categories: string[];
+  score: number;
+  tier: string;
+};
+
 type DashboardStats = {
   today: {
     activeBriefings: number;
@@ -46,6 +55,7 @@ export default function DashboardClient() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentBriefings, setRecentBriefings] = useState<Briefing[]>([]);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
     loadDashboard();
@@ -62,6 +72,21 @@ export default function DashboardClient() {
 
       // Carregar tasks de hoje
       const tasksRes = await apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending');
+
+      // Carregar eventos do calendário do mês atual
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const today = now.toISOString().split('T')[0];
+
+      const calendarRes = await apiGet<{
+        success?: boolean;
+        month: string;
+        days: Record<string, CalendarEvent[]>;
+      }>(`/calendar/events/${currentMonth}`);
+
+      if (calendarRes?.days && calendarRes.days[today]) {
+        setTodayEvents(calendarRes.days[today].slice(0, 3)); // Top 3 eventos
+      }
 
       if (metricsRes?.data) {
         const metrics = metricsRes.data;
@@ -184,6 +209,32 @@ export default function DashboardClient() {
               <div className="text-3xl font-bold text-slate-900">{stats?.today.tasksToday || 0}</div>
             </div>
           </div>
+
+          {/* Celebrações do Dia */}
+          {todayEvents.length > 0 && (
+            <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-purple-600">celebration</span>
+                <h3 className="font-semibold text-slate-900">Celebrações de Hoje</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {todayEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="px-3 py-1.5 bg-white rounded-full border border-purple-200 text-sm flex items-center gap-2"
+                  >
+                    <span className="text-purple-600">🎉</span>
+                    <span className="text-slate-700">{event.name}</span>
+                    {event.tier === 'A' && (
+                      <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
+                        Top
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Próximas Datas Relevantes */}
