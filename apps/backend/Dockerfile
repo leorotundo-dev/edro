@@ -8,10 +8,12 @@ RUN npm install -g ts-node
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
 COPY apps/backend/package.json ./apps/backend/
+COPY packages/shared/package.json ./packages/shared/
 
 RUN pnpm install --filter "@edro/backend..." --prod --no-frozen-lockfile
 
 COPY apps/backend ./apps/backend
+COPY packages/shared ./packages/shared
 
 WORKDIR /app/apps/backend
 
