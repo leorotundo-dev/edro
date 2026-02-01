@@ -23,6 +23,7 @@ type AppShellProps = {
   action?: ActionButton;
   topbarExtra?: React.ReactNode;
   topbarLeft?: React.ReactNode;
+  topbarRight?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -48,7 +49,7 @@ function getActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
-export default function AppShell({ title, meta, action, topbarExtra, topbarLeft, children }: AppShellProps) {
+export default function AppShell({ title, meta, action, topbarExtra, topbarLeft, topbarRight, children }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<UserInfo>({});
   const isStudio = pathname.startsWith('/studio');
@@ -145,6 +146,7 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
               </button>
             ) : null}
             {topbarExtra}
+            {topbarRight}
             <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" type="button">
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white" />
