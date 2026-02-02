@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiDelete, apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 
@@ -20,6 +21,22 @@ type ClientRow = {
 type ConnectorRow = {
   provider: string;
   updated_at?: string | null;
+};
+
+type ClientInsight = {
+  summary?: Record<string, any> | null;
+  created_at?: string | null;
+};
+
+type ClientSource = {
+  id: string;
+  source_type: string;
+  platform?: string | null;
+  url: string;
+  handle?: string | null;
+  status: string;
+  last_fetched_at?: string | null;
+  last_content_at?: string | null;
 };
 
 type ClientForm = {
@@ -197,6 +214,9 @@ const buildFormFromClient = (client: ClientRow): ClientForm => {
 };
 
 export default function ClientsClient() {
+  const searchParams = useSearchParams();
+  const urlClientId = searchParams?.get('clientId') || '';
+  const urlNew = searchParams?.get('new') === '1';
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<ClientForm>(() => emptyForm());
@@ -215,6 +235,13 @@ export default function ClientsClient() {
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planMissing, setPlanMissing] = useState<string[]>([]);
+  const [intel, setIntel] = useState<ClientInsight | null>(null);
+  const [intelSources, setIntelSources] = useState<ClientSource[]>([]);
+  const [intelLoading, setIntelLoading] = useState(false);
+  const [intelActionLoading, setIntelActionLoading] = useState(false);
+  const [intelError, setIntelError] = useState('');
+  const [autoIntelRefresh, setAutoIntelRefresh] = useState(true);
+  const intelRef = useRef<HTMLDivElement | null>(null);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -222,7 +249,7 @@ export default function ClientsClient() {
     try {
       const response = await apiGet<ClientRow[]>('/clients');
       setClients(response || []);
-      if (response?.length && !selectedId && !isNew) {
+      if (response?.length && !selectedId && !isNew && !urlClientId && !urlNew) {
         setSelectedId(response[0].id);
         setForm(buildFormFromClient(response[0]));
       }
@@ -231,7 +258,25 @@ export default function ClientsClient() {
     } finally {
       setLoading(false);
     }
-  }, [selectedId, isNew]);
+  }, [selectedId, isNew, urlClientId, urlNew]);
+
+  const loadIntelligence = useCallback(async (clientId: string) => {
+    setIntelLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiGet<{ insight: ClientInsight | null; sources: ClientSource[] }>(
+        `/clients/${clientId}/intelligence`
+      );
+      setIntel(response?.insight ?? null);
+      setIntelSources(response?.sources ?? []);
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao carregar inteligência.');
+      setIntel(null);
+      setIntelSources([]);
+    } finally {
+      setIntelLoading(false);
+    }
+  }, []);
 
   const loadClientDetail = useCallback(async (clientId: string) => {
     setLoading(true);
@@ -255,18 +300,71 @@ export default function ClientsClient() {
     }
   }, []);
 
+  const syncIntelSources = useCallback(async (clientId: string) => {
+    setIntelActionLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiPost<{ sources: ClientSource[] }>(
+        `/clients/${clientId}/sources/sync`,
+        {}
+      );
+      if (response?.sources) setIntelSources(response.sources);
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao sincronizar fontes.');
+    } finally {
+      setIntelActionLoading(false);
+    }
+  }, []);
+
+  const refreshIntelligence = useCallback(async (clientId: string) => {
+    setIntelActionLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiPost<{ insight?: ClientInsight; queued?: boolean }>(
+        `/clients/${clientId}/intelligence/refresh`,
+        {}
+      );
+      if (response?.insight) setIntel(response.insight);
+      if (response?.queued) {
+        setSuccess('Atualização iniciada. Isso pode levar alguns segundos.');
+        setTimeout(() => loadIntelligence(clientId), 4000);
+      }
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao atualizar inteligência.');
+    } finally {
+      setIntelActionLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadClients();
   }, [loadClients]);
 
   useEffect(() => {
+    if (urlNew) {
+      setIsNew(true);
+      setSelectedId(null);
+      setForm(emptyForm());
+      setConnectors([]);
+      return;
+    }
+    if (urlClientId) {
+      setIsNew(false);
+      setSelectedId(urlClientId);
+    }
+  }, [urlClientId, urlNew]);
+
+  useEffect(() => {
     if (selectedId) {
       loadClientDetail(selectedId);
       loadConnectors(selectedId);
+      loadIntelligence(selectedId);
     } else {
       setConnectors([]);
+      setIntel(null);
+      setIntelSources([]);
     }
-  }, [selectedId, loadClientDetail, loadConnectors]);
+  }, [selectedId, loadClientDetail, loadConnectors, loadIntelligence]);
 
   const filteredClients = useMemo(() => {
     if (!filter.trim()) return clients;
@@ -500,11 +598,19 @@ export default function ClientsClient() {
         setIsNew(false);
         setSelectedId(created.id);
         await loadClients();
+        if (autoIntelRefresh) {
+          await syncIntelSources(created.id);
+          await refreshIntelligence(created.id);
+        }
       } else if (selectedId) {
         const updated = await apiPatch<ClientRow>(`/clients/${selectedId}`, payload);
         setSuccess('Cliente atualizado.');
         setForm(buildFormFromClient(updated));
         await loadClients();
+        if (autoIntelRefresh) {
+          await syncIntelSources(selectedId);
+          await refreshIntelligence(selectedId);
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar cliente.');
@@ -574,6 +680,71 @@ export default function ClientsClient() {
     }
   };
 
+  const parseSummary = (summary: any): Record<string, any> => {
+    if (!summary) return {};
+    const parseJson = (text: string) => {
+      const trimmed = text.trim();
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        const start = trimmed.indexOf('{');
+        const end = trimmed.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          try {
+            return JSON.parse(trimmed.slice(start, end + 1));
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+    };
+    if (typeof summary === 'string') {
+      const parsed = parseJson(summary);
+      return parsed || { summary_text: summary };
+    }
+    if (typeof summary === 'object') {
+      const summaryText = typeof summary.summary_text === 'string' ? summary.summary_text : '';
+      const parsed = summaryText ? parseJson(summaryText) : null;
+      if (parsed) {
+        return { ...summary, ...parsed, summary_text: parsed.summary_text || summaryText };
+      }
+      return summary;
+    }
+    return {};
+  };
+
+  const intelSummary = useMemo(() => parseSummary(intel?.summary), [intel?.summary]);
+  const lastIntelUpdate = intel?.created_at ? new Date(intel.created_at) : null;
+  const lastFetchedAt = useMemo(() => {
+    const timestamps = intelSources
+      .map((source) => (source.last_fetched_at ? new Date(source.last_fetched_at).getTime() : 0))
+      .filter((time) => Number.isFinite(time) && time > 0);
+    if (!timestamps.length) return null;
+    return new Date(Math.max(...timestamps));
+  }, [intelSources]);
+  const activeSources = useMemo(
+    () => intelSources.filter((source) => source.status === 'active').length,
+    [intelSources]
+  );
+  const formatList = (value: any) => {
+    if (!value) return '';
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item || '').trim()).filter(Boolean).join(', ');
+    }
+    return String(value);
+  };
+  const scrollToIntelligence = () => {
+    if (!intelRef.current) return;
+    intelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const handleOpenClient = () => {
+    if (!selectedId || typeof window === 'undefined') return;
+    window.history.replaceState(null, '', `/clients?clientId=${selectedId}`);
+    setIsNew(false);
+    requestAnimationFrame(() => scrollToIntelligence());
+  };
+
   if (loading && clients.length === 0 && !isNew) {
     return (
       <div className="loading-screen">
@@ -633,6 +804,61 @@ export default function ClientsClient() {
           </aside>
 
           <section className="panel-main">
+            <div className="card">
+              <div className="card-top">
+                <span className="badge">Resumo do cliente</span>
+                <div className="form-actions">
+                  <button className="btn ghost" type="button" onClick={handleOpenClient} disabled={!selectedId}>
+                    Ver cliente
+                  </button>
+                  <button className="btn ghost" type="button" onClick={scrollToIntelligence} disabled={!selectedId}>
+                    Ver inteligência
+                  </button>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/connectors`)}
+                    disabled={!selectedId}
+                  >
+                    🔌 Manage Integrations
+                  </button>
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  Cliente
+                  <div className="field-static">{form.name || selectedId || '—'}</div>
+                </div>
+                <div className="field">
+                  Segmento
+                  <div className="field-static">{form.segment_primary || '—'}</div>
+                </div>
+                <div className="field">
+                  Local
+                  <div className="field-static">
+                    {[form.city, form.uf].filter(Boolean).join(' · ') || '—'}
+                  </div>
+                </div>
+                <div className="field">
+                  Inteligência atualizada
+                  <div className="field-static">
+                    {lastIntelUpdate ? lastIntelUpdate.toLocaleString('pt-BR') : 'Sem atualização'}
+                  </div>
+                </div>
+                <div className="field">
+                  Última coleta
+                  <div className="field-static">
+                    {lastFetchedAt ? lastFetchedAt.toLocaleString('pt-BR') : 'Sem coleta'}
+                  </div>
+                </div>
+                <div className="field">
+                  Fontes
+                  <div className="field-static">
+                    {intelSources.length ? `${activeSources} ativas / ${intelSources.length}` : '0'}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="card">
               <div className="card-top">
                 <span className="badge">Planejamento Estratégico</span>
@@ -859,6 +1085,135 @@ export default function ClientsClient() {
                   />
                 </label>
               </div>
+            </div>
+
+            <div className="card" ref={intelRef}>
+              <div className="card-top">
+                <span className="badge">Inteligência automática</span>
+              </div>
+              {!selectedId ? (
+                <div className="empty">Salve o cliente para habilitar a inteligência.</div>
+              ) : (
+                <>
+                  {intelError ? <div className="notice error">{intelError}</div> : null}
+                  <div className="form-actions">
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      onClick={() => selectedId && syncIntelSources(selectedId)}
+                      disabled={intelActionLoading || intelLoading}
+                    >
+                      {intelActionLoading ? 'Sincronizando...' : 'Sincronizar fontes'}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      onClick={() => selectedId && refreshIntelligence(selectedId)}
+                      disabled={intelActionLoading || intelLoading}
+                    >
+                      {intelActionLoading ? 'Atualizando...' : 'Atualizar inteligência'}
+                    </button>
+                    <label className="field checkbox">
+                      <input
+                        type="checkbox"
+                        checked={autoIntelRefresh}
+                        onChange={(event) => setAutoIntelRefresh(event.target.checked)}
+                      />
+                      Atualizar ao salvar
+                    </label>
+                  </div>
+
+                  <div className="detail-list">
+                    <div className="copy-block">
+                      <div className="card-title">
+                        <h3>Resumo IA</h3>
+                        <span className="status">
+                          {intel?.created_at
+                            ? new Date(intel.created_at).toLocaleString()
+                            : 'Sem atualização'}
+                        </span>
+                      </div>
+                      <p className="card-text">
+                        {intelSummary.summary_text || 'Nenhum resumo disponível ainda.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="form-grid">
+                    <div className="field">
+                      Indústria
+                      <div className="field-static">{intelSummary.industry || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Negócio
+                      <div className="field-static">{intelSummary.business || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Posicionamento
+                      <div className="field-static">{intelSummary.positioning || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Territórios
+                      <div className="field-static">{formatList(intelSummary.territories) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Canais
+                      <div className="field-static">{formatList(intelSummary.channels) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Produtos
+                      <div className="field-static">{formatList(intelSummary.products) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Serviços
+                      <div className="field-static">{formatList(intelSummary.services) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Personas
+                      <div className="field-static">{formatList(intelSummary.personas) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Concorrentes
+                      <div className="field-static">{formatList(intelSummary.competitors) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Oportunidades
+                      <div className="field-static">{formatList(intelSummary.opportunities) || '-'}</div>
+                    </div>
+                    <div className="field">
+                      Riscos
+                      <div className="field-static">{formatList(intelSummary.risks) || '-'}</div>
+                    </div>
+                  </div>
+
+                  <div className="detail-list">
+                    <div className="card-title">
+                      <h3>Fontes monitoradas</h3>
+                      <span className="status">{intelSources.length} fontes</span>
+                    </div>
+                    {intelSources.length ? (
+                      intelSources.map((source) => (
+                        <div key={source.id} className="copy-block">
+                          <div className="card-title">
+                            <h3>
+                              {(source.platform || source.source_type || 'fonte').toUpperCase()}
+                            </h3>
+                            <span className="status">{source.status}</span>
+                          </div>
+                          <div className="field-static">{source.url || source.handle}</div>
+                          {source.last_fetched_at ? (
+                            <div className="card-text">
+                              Última coleta: {new Date(source.last_fetched_at).toLocaleString()}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty">Nenhuma fonte sincronizada.</div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="card">

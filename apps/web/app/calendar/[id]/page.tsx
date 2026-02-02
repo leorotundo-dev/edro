@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import BulkPostActions from '@/components/BulkPostActions';
 import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
 
 type PostAsset = {
@@ -66,6 +67,7 @@ export default function CalendarReviewPage() {
   const [sourcesTarget, setSourcesTarget] = useState<PostAsset | null>(null);
   const [sources, setSources] = useState<any[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -258,6 +260,13 @@ export default function CalendarReviewPage() {
               Selected {indices.length} posts
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                className="px-3 py-2 text-xs font-semibold border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                type="button"
+                onClick={() => setShowBulkActions(true)}
+              >
+                🔧 Advanced Bulk Actions
+              </button>
               <button
                 className={`px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg transition-colors ${
                   hasSelection ? 'hover:text-primary' : 'opacity-50 cursor-not-allowed'
@@ -460,6 +469,13 @@ export default function CalendarReviewPage() {
           </div>
         )}
       </Modal>
+
+      <BulkPostActions
+        calendarId={calendarId}
+        isOpen={showBulkActions}
+        onClose={() => setShowBulkActions(false)}
+        onSuccess={loadPosts}
+      />
     </AppShell>
   );
 }

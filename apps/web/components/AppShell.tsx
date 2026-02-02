@@ -35,7 +35,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Kanban', href: '/board', icon: 'view_kanban' },
   { label: 'Creative Studio', href: '/studio', icon: 'palette' },
   { label: 'Radar', href: '/clipping', icon: 'content_cut' },
+  { label: 'Clipping Analytics', href: '/clipping/dashboard', icon: 'monitoring' },
   { label: 'Social Listening', href: '/social-listening', icon: 'graphic_eq' },
+  { label: 'Production Catalog', href: '/production/catalog', icon: 'inventory_2' },
+];
+
+const ADMIN_ITEMS: NavItem[] = [
+  { label: 'System Admin', href: '/admin/system', icon: 'admin_panel_settings' },
+  { label: 'Import Events', href: '/admin/events/import', icon: 'upload' },
 ];
 
 type UserInfo = {
@@ -102,7 +109,26 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
             );
           })}
         </nav>
-        <div className="mt-auto p-6 space-y-1">
+        <div className="mt-auto p-4 space-y-1">
+          <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Admin
+          </div>
+          {ADMIN_ITEMS.map((item) => {
+            const active = getActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-[13px] ${
+                  active ? 'bg-red-50 text-red-700 font-semibold' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <div className="h-px bg-slate-200 my-2" />
           <Link
             href="/settings"
             className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
