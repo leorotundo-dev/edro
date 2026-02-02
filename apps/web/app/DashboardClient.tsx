@@ -158,7 +158,7 @@ export default function DashboardClient() {
     <AppShell title="Dashboard">
       <div className="p-6 space-y-6">
         {/* Header com Data */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-700 rounded-lg p-6 text-white">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-700 rounded-3xl p-8 text-white shadow-feature animate-fade-in">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">
@@ -171,29 +171,29 @@ export default function DashboardClient() {
         </div>
 
         {/* Visão do Dia Atual */}
-        <div>
+        <div className="animate-slide-up">
           <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined">today</span>
             Hoje
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-600">Briefings Ativos</span>
-                <span className="material-symbols-outlined text-blue-600">folder_open</span>
+                <span className="material-symbols-outlined text-info-600">folder_open</span>
               </div>
               <div className="text-3xl font-bold text-slate-900">{stats?.today.activeBriefings || 0}</div>
             </div>
 
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-600">Aprovações Pendentes</span>
-                <span className="material-symbols-outlined text-orange-600">pending_actions</span>
+                <span className="material-symbols-outlined text-warning-600">pending_actions</span>
               </div>
               <div className="text-3xl font-bold text-slate-900">{stats?.today.pendingApprovals || 0}</div>
             </div>
 
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-600">Vencem Hoje</span>
                 <span className="material-symbols-outlined text-red-600">alarm</span>

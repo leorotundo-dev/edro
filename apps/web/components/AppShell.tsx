@@ -85,10 +85,10 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
 
   return (
     <div className="min-h-screen flex bg-background-light text-slate-900 antialiased overflow-hidden">
-      <aside className="w-36 shrink-0 border-r border-slate-200 bg-surface-light h-screen sticky top-0 flex flex-col overflow-y-auto">
+      <aside className="w-36 shrink-0 border-r border-slate-200 bg-surface-light h-screen sticky top-0 flex flex-col overflow-y-auto shadow-sm">
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center gap-3">
-            <img className="h-16 w-16 rounded-xl object-contain" src="/assets/logo-studio.png" alt="Edro logo" />
+            <img className="h-16 w-16 rounded-2xl object-contain" src="/assets/logo-studio.png" alt="Edro logo" />
           </div>
         </div>
         <nav className="px-4 py-2 space-y-1 text-[13px]">
@@ -99,8 +99,10 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  active ? 'sidebar-item-active font-semibold' : 'text-slate-600 hover:bg-slate-50'
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
+                  active
+                    ? 'bg-primary-50 text-primary-600 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
@@ -119,8 +121,10 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-[13px] ${
-                  active ? 'bg-red-50 text-red-700 font-semibold' : 'text-slate-600 hover:bg-slate-50'
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 text-[13px] ${
+                  active
+                    ? 'bg-error-50 text-error-600 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
@@ -128,13 +132,13 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
               </Link>
             );
           })}
-          <div className="h-px bg-slate-200 my-2" />
+          <div className="h-px bg-slate-200 my-3" />
           <Link
             href="/settings"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
               getActive(pathname, '/settings')
-                ? 'text-primary bg-orange-50 font-semibold'
-                : 'text-slate-600 hover:bg-slate-50'
+                ? 'text-primary bg-primary-50 font-semibold shadow-xs'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
             }`}
           >
             <span className="material-symbols-outlined text-xl">settings</span>
@@ -144,7 +148,7 @@ export default function AppShell({ title, meta, action, topbarExtra, topbarLeft,
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 border-b border-slate-200 bg-surface-light/90 backdrop-blur-md flex items-center justify-between px-10 sticky top-0 z-10 shrink-0 shadow-[0_1px_0_rgba(15,23,42,0.05)]">
+        <header className="h-16 border-b border-slate-200 bg-surface-light/95 backdrop-blur-lg flex items-center justify-between px-10 sticky top-0 z-10 shrink-0 shadow-sm">
           <div className="flex items-center gap-4">
             {topbarLeft ? (
               topbarLeft

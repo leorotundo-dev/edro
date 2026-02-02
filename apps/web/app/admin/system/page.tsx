@@ -158,10 +158,10 @@ export default function AdminSystemPage() {
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+        <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-card hover:shadow-card-hover transition-all duration-200">
           {flags.length > 0 ? (
             flags.map((flag) => (
-              <div key={flag.key} className="p-4 flex items-center justify-between">
+              <div key={flag.key} className="p-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors duration-200 first:rounded-t-2xl last:rounded-b-2xl">
                 <div className="flex-1">
                   <div className="font-medium text-slate-900">{flag.key}</div>
                   {flag.description && (
@@ -199,7 +199,7 @@ export default function AdminSystemPage() {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Immutable Field Audit Logs</h3>
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-200">
           {loadingSecurity ? (
             <div className="text-center py-8">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
@@ -306,7 +306,7 @@ export default function AdminSystemPage() {
         <p className="text-sm text-slate-600 mb-6">Acione jobs de processamento manualmente</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h4 className="font-medium text-slate-900 mb-1">Library Processing Job</h4>
@@ -358,17 +358,17 @@ export default function AdminSystemPage() {
         </div>
       ) : securityDashboard ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
             <div className="text-sm text-slate-600 mb-2">Total Immutable Changes</div>
-            <div className="text-3xl font-bold text-red-600">
+            <div className="text-3xl font-bold text-error-600">
               {securityDashboard.total_immutable_changes}
             </div>
             <div className="text-xs text-slate-500 mt-2">Tentativas de alterar campos imutáveis</div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
             <div className="text-sm text-slate-600 mb-2">Total Access Logs</div>
-            <div className="text-3xl font-bold text-blue-600">{securityDashboard.total_access_logs}</div>
+            <div className="text-3xl font-bold text-info-600">{securityDashboard.total_access_logs}</div>
             <div className="text-xs text-slate-500 mt-2">Registros de acesso ao banco</div>
           </div>
 
