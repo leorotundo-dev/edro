@@ -5,9 +5,13 @@ import mime from 'mime-types';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
-import { createClient, getClientById, updateClient, deleteClient } from '../repos/clientsRepo';
+import { createClient, getClientById, updateClient, deleteClient, listClients } from '../repos/clientsRepo';
+import { ClientIntelligenceService } from '../services/clientIntelligence';
+import { syncReporteiInsightsForClient } from '../services/reporteiInsights';
+import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
 import { OpenAIService } from '../services/ai/openaiService';
+import { query } from '../db';
 
 type PlanExtraction = {
   name?: string;
@@ -177,6 +181,16 @@ export default async function clientsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', tenantGuard());
 
   app.get(
+    '/clients',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const clients = await listClients(tenantId);
+      return reply.send(clients);
+    }
+  );
+
+  app.get(
     '/clients/:id',
     { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
@@ -190,16 +204,104 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.post(
-    '/clients',
-    { preHandler: [requirePerm('clients:write')] },
+  app.get(
+    '/clients/:id/intelligence',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
-      const body = baseClientSchema.parse(request.body);
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
       const tenantId = (request.user as any).tenant_id;
-      const client = await createClient({ tenantId, payload: body });
-      return reply.status(201).send(client);
+
+      const insight = await getLatestClientInsight({ tenantId, clientId: params.id });
+      const sources = await listClientSources({ tenantId, clientId: params.id });
+      return reply.send({ insight, sources });
     }
   );
+
+  app.get(
+    '/clients/:id/insights/reportei',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const { rows } = await query<any>(
+        `
+        SELECT DISTINCT ON (platform)
+          platform,
+          time_window,
+          payload,
+          created_at
+        FROM learned_insights
+        WHERE tenant_id=$1
+          AND client_id=$2
+        ORDER BY platform, created_at DESC
+        `,
+        [tenantId, params.id]
+      );
+
+      const items = (rows || []).map((row: any) => {
+        const payload = row?.payload;
+        if (payload && typeof payload === 'object') {
+          const { raw, ...rest } = payload;
+          return {
+            platform: row.platform,
+            time_window: row.time_window,
+            created_at: row.created_at,
+            payload: rest,
+          };
+        }
+        return {
+          platform: row.platform,
+          time_window: row.time_window,
+          created_at: row.created_at,
+          payload,
+        };
+      });
+
+      const updatedAt =
+        items.reduce((latest: string | null, item: any) => {
+          if (!item?.created_at) return latest;
+          if (!latest) return item.created_at;
+          return new Date(item.created_at).getTime() > new Date(latest).getTime() ? item.created_at : latest;
+        }, null) || null;
+
+        return reply.send({ items, updated_at: updatedAt });
+      }
+    );
+
+    app.post(
+      '/clients/:id/insights/reportei/sync',
+      { preHandler: [requirePerm('clients:write'), requireClientPerm('publish')] },
+      async (request: any, reply) => {
+        const paramsSchema = z.object({ id: z.string().min(1) });
+        const bodySchema = z
+          .object({
+            platforms: z.array(z.string()).optional(),
+            windows: z.array(z.string()).optional(),
+          })
+          .optional();
+
+        const params = paramsSchema.parse(request.params);
+        const body = bodySchema.parse(request.body ?? {}) || {};
+        const tenantId = (request.user as any).tenant_id;
+
+        const client = await getClientById(tenantId, params.id);
+        if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+        const result = await syncReporteiInsightsForClient(client, {
+          tenantId,
+          platforms: body.platforms,
+          windows: body.windows,
+        });
+
+        return reply.send({ ok: true, ...result });
+      }
+    );
 
   app.post(
     '/clients/plan/analyze',
@@ -232,6 +334,44 @@ export default async function clientsRoutes(app: FastifyInstance) {
           message: error?.message || 'Falha ao analisar planejamento.',
         });
       }
+    }
+  );
+
+  app.post(
+    '/clients/:id/sources/sync',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const service = new ClientIntelligenceService(tenantId);
+      await service.syncSourcesFromProfile(params.id);
+      const sources = await listClientSources({ tenantId, clientId: params.id });
+      return reply.send({ sources });
+    }
+  );
+
+  app.post(
+    '/clients/:id/intelligence/refresh',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const service = new ClientIntelligenceService(tenantId);
+      const insight = await getLatestClientInsight({ tenantId, clientId: params.id });
+
+      setImmediate(async () => {
+        try {
+          await service.refreshClient(params.id);
+        } catch (error: any) {
+          request.log.error({ err: error, clientId: params.id }, 'client_intelligence_refresh_failed');
+        }
+      });
+
+      return reply.send({ queued: true, insight });
     }
   );
 

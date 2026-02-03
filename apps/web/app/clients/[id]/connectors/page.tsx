@@ -7,10 +7,9 @@ import { apiGet, apiPost } from '@/lib/api';
 
 type Connector = {
   provider: string;
-  enabled: boolean;
-  config: Record<string, any>;
-  last_sync?: string;
-  status?: string;
+  payload?: Record<string, any> | null;
+  secrets_meta?: Record<string, any> | null;
+  updated_at?: string | null;
 };
 
 type AvailableProvider = {
@@ -34,9 +33,12 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     description: 'Integração com Reportei para métricas de redes sociais',
     icon: '📊',
     configFields: [
-      { key: 'api_key', label: 'API Key', type: 'password', required: true },
-      { key: 'account_id', label: 'Account ID', type: 'text', required: true },
-      { key: 'sync_frequency', label: 'Frequência de Sync', type: 'select', required: true, options: ['daily', 'weekly', 'monthly'] },
+      { key: 'reportei_account_id', label: 'Reportei Account ID', type: 'text', required: true },
+      { key: 'reportei_company_id', label: 'Reportei Company ID (opcional)', type: 'text', required: false },
+      { key: 'dashboard_url', label: 'Reportei Dashboard URL (opcional)', type: 'url', required: false },
+      { key: 'embed_url', label: 'Reportei Embed URL (opcional)', type: 'url', required: false },
+      { key: 'base_url', label: 'Reportei Base URL (opcional)', type: 'url', required: false },
+      { key: 'sync_frequency', label: 'Frequência de Sync', type: 'select', required: false, options: ['daily', 'weekly', 'monthly'] },
     ],
   },
   {
@@ -102,12 +104,9 @@ export default function ClientConnectorsPage() {
   const loadConnectors = async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ success: boolean; connectors: Connector[] }>(
-        `/clients/${clientId}/connectors`
-      );
-      if (res?.connectors) {
-        setConnectors(res.connectors);
-      }
+      const res = await apiGet<any>(`/clients/${clientId}/connectors`);
+      const list = Array.isArray(res) ? res : res?.connectors || [];
+      setConnectors(list);
     } catch (error) {
       console.error('Failed to load connectors:', error);
     } finally {
@@ -121,11 +120,10 @@ export default function ClientConnectorsPage() {
 
     // Load existing config if available
     try {
-      const res = await apiGet<{ success: boolean; connector: Connector }>(
-        `/clients/${clientId}/connectors/${provider}`
-      );
-      if (res?.connector?.config) {
-        setConfigForm(res.connector.config);
+      const res = await apiGet<any>(`/clients/${clientId}/connectors/${provider}`);
+      const connector = res?.connector ?? res ?? null;
+      if (connector?.payload) {
+        setConfigForm(connector.payload);
       } else {
         setConfigForm({});
       }
@@ -146,9 +144,27 @@ export default function ClientConnectorsPage() {
     setSaving(true);
     setSaveStatus('');
     try {
+      const provider = AVAILABLE_PROVIDERS.find((item) => item.id === selectedProvider);
+      const payload: Record<string, any> = {};
+      const secrets: Record<string, any> = {};
+
+      if (provider?.configFields?.length) {
+        provider.configFields.forEach((field) => {
+          const value = configForm[field.key];
+          if (value === undefined || value === null || value === '') return;
+          if (field.type === 'password') {
+            secrets[field.key] = value;
+          } else {
+            payload[field.key] = value;
+          }
+        });
+      } else {
+        Object.assign(payload, configForm);
+      }
+
       await apiPost(`/clients/${clientId}/connectors/${selectedProvider}`, {
-        enabled: true,
-        config: configForm,
+        payload,
+        secrets: Object.keys(secrets).length ? secrets : undefined,
       });
       setSaveStatus('Connector saved successfully!');
       await loadConnectors();
@@ -175,7 +191,7 @@ export default function ClientConnectorsPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Loading connectors...</div>
+          <div className="mt-4 text-muted">Loading connectors...</div>
         </div>
       </div>
     );
@@ -193,26 +209,26 @@ export default function ClientConnectorsPage() {
             <span className="material-symbols-outlined text-sm">arrow_back</span>
             Voltar para Cliente
           </button>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Integrations & Connectors</h1>
-          <p className="text-slate-600">Configure integrações com plataformas externas</p>
+          <h1 className="text-2xl font-bold text-ink mb-2">Integrations & Connectors</h1>
+          <p className="text-muted">Configure integrações com plataformas externas</p>
         </div>
 
         {/* Available Connectors */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {AVAILABLE_PROVIDERS.map((provider) => {
             const status = getConnectorStatus(provider.id);
-            const isConnected = status?.enabled || false;
+            const isConnected = Boolean(status);
 
             return (
               <div
                 key={provider.id}
-                className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition-shadow"
+                className="bg-card rounded-lg border border-border p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="text-4xl">{provider.icon}</div>
                     <div>
-                      <h3 className="font-semibold text-slate-900">{provider.name}</h3>
+                      <h3 className="font-semibold text-ink">{provider.name}</h3>
                       {isConnected && (
                         <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-1">
                           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -223,11 +239,11 @@ export default function ClientConnectorsPage() {
                   </div>
                 </div>
 
-                <p className="text-sm text-slate-600 mb-4">{provider.description}</p>
+                <p className="text-sm text-muted mb-4">{provider.description}</p>
 
-                {status?.last_sync && (
-                  <div className="text-xs text-slate-500 mb-4">
-                    Último sync: {new Date(status.last_sync).toLocaleString('pt-BR')}
+                {status?.updated_at && (
+                  <div className="text-xs text-muted mb-4">
+                    Atualizado em: {new Date(status.updated_at).toLocaleString('pt-BR')}
                   </div>
                 )}
 
@@ -235,7 +251,7 @@ export default function ClientConnectorsPage() {
                   onClick={() => openConfigModal(provider.id)}
                   className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isConnected
-                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? 'bg-card-strong text-muted hover:bg-card-strong'
                       : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
                 >
@@ -249,19 +265,19 @@ export default function ClientConnectorsPage() {
         {/* Config Modal */}
         {selectedProvider && providerInfo && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-slate-200">
+            <div className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="text-3xl">{providerInfo.icon}</div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-900">{providerInfo.name}</h2>
-                      <p className="text-sm text-slate-600">{providerInfo.description}</p>
+                      <h2 className="text-xl font-bold text-ink">{providerInfo.name}</h2>
+                      <p className="text-sm text-muted">{providerInfo.description}</p>
                     </div>
                   </div>
                   <button
                     onClick={closeConfigModal}
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-slate-400 hover:text-muted"
                   >
                     <span className="material-symbols-outlined">close</span>
                   </button>
@@ -271,7 +287,7 @@ export default function ClientConnectorsPage() {
               <div className="p-6 space-y-4">
                 {providerInfo.configFields.map((field) => (
                   <div key={field.key}>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-muted mb-2">
                       {field.label}
                       {field.required && <span className="text-red-500 ml-1">*</span>}
                     </label>
@@ -279,7 +295,7 @@ export default function ClientConnectorsPage() {
                       <select
                         value={configForm[field.key] || ''}
                         onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required={field.required}
                       >
                         <option value="">Selecione...</option>
@@ -294,7 +310,7 @@ export default function ClientConnectorsPage() {
                         type={field.type}
                         value={configForm[field.key] || ''}
                         onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required={field.required}
                         placeholder={`Enter ${field.label.toLowerCase()}`}
                       />
@@ -315,10 +331,10 @@ export default function ClientConnectorsPage() {
                 )}
               </div>
 
-              <div className="p-6 border-t border-slate-200 flex gap-3">
+              <div className="p-6 border-t border-border flex gap-3">
                 <button
                   onClick={closeConfigModal}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+                  className="flex-1 px-4 py-2 border border-border text-muted rounded-lg hover:bg-paper"
                 >
                   Cancelar
                 </button>

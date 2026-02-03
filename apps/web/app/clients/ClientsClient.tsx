@@ -20,6 +20,8 @@ type ClientRow = {
 
 type ConnectorRow = {
   provider: string;
+  payload?: Record<string, any> | null;
+  secrets_meta?: Record<string, any> | null;
   updated_at?: string | null;
 };
 
@@ -37,6 +39,44 @@ type ClientSource = {
   status: string;
   last_fetched_at?: string | null;
   last_content_at?: string | null;
+};
+
+type ReporteiKpi = {
+  metric: string;
+  value: number;
+};
+
+type ReporteiByFormat = {
+  format: string;
+  score: number;
+  kpis?: ReporteiKpi[];
+  notes?: string[];
+};
+
+type ReporteiByTag = {
+  tag: string;
+  score: number;
+  kpis?: ReporteiKpi[];
+};
+
+type ReporteiPayload = {
+  by_format?: ReporteiByFormat[];
+  by_tag?: ReporteiByTag[];
+  editorial_insights?: string[];
+  observed_at?: string;
+  window?: string;
+};
+
+type ReporteiInsight = {
+  platform?: string;
+  time_window?: string;
+  created_at?: string;
+  payload?: ReporteiPayload;
+};
+
+type ReporteiResponse = {
+  items?: ReporteiInsight[];
+  updated_at?: string | null;
 };
 
 type ClientForm = {
@@ -152,6 +192,44 @@ const normalizeNumber = (value: number, fallback: number) => {
   return value;
 };
 
+const KPI_LABELS: Record<string, string> = {
+  impressions: 'Impressoes',
+  reach: 'Alcance',
+  engagements: 'Engajamentos',
+  engagement_rate: 'Taxa de engajamento',
+  clicks: 'Cliques',
+  ctr: 'CTR',
+  cpc: 'CPC',
+  cpm: 'CPM',
+  conversions: 'Conversoes',
+  cost: 'Custo',
+};
+
+const RATE_METRICS = new Set(['ctr', 'engagement_rate']);
+const CURRENCY_METRICS = new Set(['cpc', 'cpm', 'cost']);
+
+const formatCurrency = (value?: number | null) => {
+  if (!Number.isFinite(value)) return '--';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value));
+};
+
+const formatKpiValue = (metric: string, value: number) => {
+  if (!Number.isFinite(value)) return '--';
+  if (RATE_METRICS.has(metric)) {
+    const display = value > 1 ? value : value * 100;
+    return `${display.toFixed(2)}%`;
+  }
+  if (CURRENCY_METRICS.has(metric)) {
+    return formatCurrency(value);
+  }
+  return new Intl.NumberFormat('pt-BR').format(Number(value));
+};
+
+const pickTop = <T extends { score?: number }>(items?: T[]) => {
+  if (!items || items.length === 0) return null;
+  return [...items].sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0))[0] || null;
+};
+
 const buildFormFromClient = (client: ClientRow): ClientForm => {
   const profile = client.profile || {};
   const calendarProfile = profile.calendar_profile || {};
@@ -213,9 +291,11 @@ const buildFormFromClient = (client: ClientRow): ClientForm => {
   };
 };
 
-export default function ClientsClient() {
+export default function ClientsClient({ clientId }: { clientId?: string }) {
   const searchParams = useSearchParams();
   const urlClientId = searchParams?.get('clientId') || '';
+  const lockedClientId = clientId || urlClientId;
+  const isLocked = Boolean(clientId);
   const urlNew = searchParams?.get('new') === '1';
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -240,6 +320,12 @@ export default function ClientsClient() {
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelActionLoading, setIntelActionLoading] = useState(false);
   const [intelError, setIntelError] = useState('');
+  const [reporteiItems, setReporteiItems] = useState<ReporteiInsight[]>([]);
+  const [reporteiUpdatedAt, setReporteiUpdatedAt] = useState<string | null>(null);
+  const [reporteiLoading, setReporteiLoading] = useState(false);
+  const [reporteiError, setReporteiError] = useState('');
+  const [reporteiSyncing, setReporteiSyncing] = useState(false);
+  const [reporteiSyncStatus, setReporteiSyncStatus] = useState('');
   const [autoIntelRefresh, setAutoIntelRefresh] = useState(true);
   const intelRef = useRef<HTMLDivElement | null>(null);
 
@@ -249,7 +335,7 @@ export default function ClientsClient() {
     try {
       const response = await apiGet<ClientRow[]>('/clients');
       setClients(response || []);
-      if (response?.length && !selectedId && !isNew && !urlClientId && !urlNew) {
+      if (response?.length && !selectedId && !isNew && !lockedClientId && !urlNew) {
         setSelectedId(response[0].id);
         setForm(buildFormFromClient(response[0]));
       }
@@ -258,7 +344,7 @@ export default function ClientsClient() {
     } finally {
       setLoading(false);
     }
-  }, [selectedId, isNew, urlClientId, urlNew]);
+  }, [selectedId, isNew, lockedClientId, urlNew]);
 
   const loadIntelligence = useCallback(async (clientId: string) => {
     setIntelLoading(true);
@@ -300,6 +386,37 @@ export default function ClientsClient() {
     }
   }, []);
 
+  const loadReportei = useCallback(async (clientId: string) => {
+    setReporteiLoading(true);
+    setReporteiError('');
+    try {
+      const response = await apiGet<ReporteiResponse>(`/clients/${clientId}/insights/reportei`);
+      setReporteiItems(response?.items || []);
+      setReporteiUpdatedAt(response?.updated_at || null);
+    } catch (err: any) {
+      setReporteiItems([]);
+      setReporteiUpdatedAt(null);
+      setReporteiError(err?.message || 'Falha ao carregar Reportei.');
+    } finally {
+      setReporteiLoading(false);
+    }
+  }, []);
+
+  const syncReportei = useCallback(async () => {
+    if (!selectedId) return;
+    setReporteiSyncing(true);
+    setReporteiSyncStatus('');
+    try {
+      await apiPost(`/clients/${selectedId}/insights/reportei/sync`, {});
+      await loadReportei(selectedId);
+      setReporteiSyncStatus('Reportei atualizado com sucesso.');
+    } catch (err: any) {
+      setReporteiSyncStatus(err?.message || 'Falha ao sincronizar Reportei.');
+    } finally {
+      setReporteiSyncing(false);
+    }
+  }, [selectedId, loadReportei]);
+
   const syncIntelSources = useCallback(async (clientId: string) => {
     setIntelActionLoading(true);
     setIntelError('');
@@ -337,10 +454,16 @@ export default function ClientsClient() {
   }, []);
 
   useEffect(() => {
+    if (isLocked && lockedClientId) {
+      setIsNew(false);
+      setSelectedId(lockedClientId);
+      return;
+    }
     loadClients();
-  }, [loadClients]);
+  }, [isLocked, lockedClientId, loadClients]);
 
   useEffect(() => {
+    if (isLocked) return;
     if (urlNew) {
       setIsNew(true);
       setSelectedId(null);
@@ -352,19 +475,25 @@ export default function ClientsClient() {
       setIsNew(false);
       setSelectedId(urlClientId);
     }
-  }, [urlClientId, urlNew]);
+  }, [isLocked, urlClientId, urlNew]);
 
   useEffect(() => {
+    setReporteiSyncStatus('');
+    setReporteiSyncing(false);
     if (selectedId) {
       loadClientDetail(selectedId);
       loadConnectors(selectedId);
       loadIntelligence(selectedId);
+      loadReportei(selectedId);
     } else {
       setConnectors([]);
       setIntel(null);
       setIntelSources([]);
+      setReporteiItems([]);
+      setReporteiUpdatedAt(null);
+      setReporteiError('');
     }
-  }, [selectedId, loadClientDetail, loadConnectors, loadIntelligence]);
+  }, [selectedId, loadClientDetail, loadConnectors, loadIntelligence, loadReportei]);
 
   const filteredClients = useMemo(() => {
     if (!filter.trim()) return clients;
@@ -727,6 +856,37 @@ export default function ClientsClient() {
     () => intelSources.filter((source) => source.status === 'active').length,
     [intelSources]
   );
+  const reporteiConnector = useMemo(
+    () => connectors.find((connector) => connector.provider === 'reportei') || null,
+    [connectors]
+  );
+  const reporteiDashboardUrl = useMemo(() => {
+    const payload = reporteiConnector?.payload || {};
+    const companyId =
+      payload.reportei_company_id || payload.company_id || payload.reporteiCompanyId || payload.companyId;
+    const explicitUrl =
+      payload.reportei_dashboard_url || payload.dashboard_url || payload.reporteiDashboardUrl || payload.dashboardUrl;
+    if (explicitUrl) return String(explicitUrl);
+    if (companyId) return `https://app.reportei.com/company/${companyId}`;
+    return '';
+  }, [reporteiConnector]);
+  const reporteiEmbedUrl = useMemo(() => {
+    const payload = reporteiConnector?.payload || {};
+    const explicit =
+      payload.reportei_embed_url || payload.embed_url || payload.reporteiEmbedUrl || payload.embedUrl;
+    return explicit ? String(explicit) : reporteiDashboardUrl;
+  }, [reporteiConnector, reporteiDashboardUrl]);
+  const reporteiAccountId = useMemo(() => {
+    const payload = reporteiConnector?.payload || {};
+    return (
+      payload.reportei_account_id ||
+      payload.account_id ||
+      payload.id ||
+      form.reportei_account_id ||
+      ''
+    );
+  }, [reporteiConnector, form.reportei_account_id]);
+  const hasReporteiAccount = Boolean(reporteiAccountId);
   const formatList = (value: any) => {
     if (!value) return '';
     if (Array.isArray(value)) {
@@ -740,9 +900,7 @@ export default function ClientsClient() {
   };
   const handleOpenClient = () => {
     if (!selectedId || typeof window === 'undefined') return;
-    window.history.replaceState(null, '', `/clients?clientId=${selectedId}`);
-    setIsNew(false);
-    requestAnimationFrame(() => scrollToIntelligence());
+    window.location.href = `/clients/${selectedId}`;
   };
 
   if (loading && clients.length === 0 && !isNew) {
@@ -756,11 +914,15 @@ export default function ClientsClient() {
   return (
     <AppShell
       title="Clients"
-      action={{
-        label: 'Novo cliente',
-        icon: 'add',
-        onClick: handleNewClient,
-      }}
+      action={
+        isLocked
+          ? undefined
+          : {
+              label: 'Novo cliente',
+              icon: 'add',
+              onClick: handleNewClient,
+            }
+      }
     >
       <div className="page-content">
         {error ? <div className="notice error">{error}</div> : null}
@@ -771,37 +933,39 @@ export default function ClientsClient() {
           </div>
         ) : null}
 
-        <div className="panel-grid">
-          <aside className="panel-sidebar">
-            <div className="toolbar">
-              <input
-                className="edro-input"
-                placeholder="Buscar cliente"
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
-              />
-              <button className="btn primary" type="button" onClick={handleNewClient}>
-                Novo
-              </button>
-            </div>
-            <div className="panel-list">
-              {filteredClients.length === 0 ? (
-                <div className="empty">Nenhum cliente cadastrado.</div>
-              ) : (
-                filteredClients.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    className={`panel-item ${client.id === selectedId && !isNew ? 'active' : ''}`}
-                    onClick={() => handleSelectClient(client.id)}
-                  >
-                    <strong>{client.name}</strong>
-                    <span>{client.segment_primary || 'Sem segmento'}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </aside>
+        <div className="panel-grid" style={isLocked ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}>
+          {!isLocked ? (
+            <aside className="panel-sidebar">
+              <div className="toolbar">
+                <input
+                  className="edro-input"
+                  placeholder="Buscar cliente"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                />
+                <button className="btn primary" type="button" onClick={handleNewClient}>
+                  Novo
+                </button>
+              </div>
+              <div className="panel-list">
+                {filteredClients.length === 0 ? (
+                  <div className="empty">Nenhum cliente cadastrado.</div>
+                ) : (
+                  filteredClients.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      className={`panel-item ${client.id === selectedId && !isNew ? 'active' : ''}`}
+                      onClick={() => handleSelectClient(client.id)}
+                    >
+                      <strong>{client.name}</strong>
+                      <span>{client.segment_primary || 'Sem segmento'}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </aside>
+          ) : null}
 
           <section className="panel-main">
             <div className="card">
@@ -810,6 +974,22 @@ export default function ClientsClient() {
                 <div className="form-actions">
                   <button className="btn ghost" type="button" onClick={handleOpenClient} disabled={!selectedId}>
                     Ver cliente
+                  </button>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/insights`)}
+                    disabled={!selectedId}
+                  >
+                    Insights
+                  </button>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => selectedId && (window.location.href = `/social-listening?clientId=${selectedId}`)}
+                    disabled={!selectedId}
+                  >
+                    Social Listening
                   </button>
                   <button className="btn ghost" type="button" onClick={scrollToIntelligence} disabled={!selectedId}>
                     Ver inteligência
@@ -859,10 +1039,153 @@ export default function ClientsClient() {
                 </div>
               </div>
             </div>
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Planejamento Estratégico</span>
-                <span className="badge outline">Upload + IA</span>
+            {selectedId ? (
+              <div className="card">
+                <div className="card-top flex items-center justify-between">
+                  <span className="badge">Reportei Performance</span>
+                  <span className="text-xs text-muted">
+                    {reporteiUpdatedAt
+                      ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
+                      : 'Sem atualizacao recente'}
+                  </span>
+                </div>
+
+                {reporteiError ? <div className="notice error">{reporteiError}</div> : null}
+
+                {reporteiLoading ? (
+                  <div className="empty">Carregando dados do Reportei...</div>
+                ) : reporteiItems.length ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {reporteiItems.map((item, index) => {
+                      const payload = item.payload || {};
+                      const topFormat = pickTop(payload.by_format);
+                      const topTag = pickTop(payload.by_tag);
+                      const kpis = (topFormat?.kpis?.length ? topFormat.kpis : topTag?.kpis || []).slice(0, 4);
+                      const editorial = (payload.editorial_insights || []).slice(0, 3);
+
+                      return (
+                        <div key={item.platform || `reportei-${index}`} className="copy-block">
+                          <div className="card-title">
+                            <h3>{item.platform || 'Plataforma'}</h3>
+                            <span className="status">{item.time_window || '30d'}</span>
+                          </div>
+
+                          <div className="space-y-2 text-sm text-muted">
+                            <div className="flex items-center justify-between">
+                              <span>Top formato</span>
+                              <strong className="text-ink">
+                                {topFormat?.format || 'N/A'}{' '}
+                                {topFormat?.score != null ? `(${Math.round(topFormat.score)})` : ''}
+                              </strong>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Top tag</span>
+                              <strong className="text-ink">
+                                {topTag?.tag || 'N/A'} {topTag?.score != null ? `(${Math.round(topTag.score)})` : ''}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {kpis.length ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {kpis.map((kpi) => (
+                                <span key={`${item.platform}-${kpi.metric}`} className="chip">
+                                  {KPI_LABELS[kpi.metric] || kpi.metric}: {formatKpiValue(kpi.metric, kpi.value)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-3 text-xs text-muted">Sem KPIs disponiveis.</div>
+                          )}
+
+                          {editorial.length ? (
+                            <div className="mt-3 text-xs text-muted">
+                              <strong className="text-ink">Insights:</strong>
+                              <ul className="list-disc list-inside mt-1 space-y-1">
+                                {editorial.map((line, idx) => (
+                                  <li key={`${item.platform}-insight-${idx}`}>{line}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="empty">Sem dados do Reportei para este cliente.</div>
+                )}
+              </div>
+              ) : null}
+              {selectedId ? (
+                <div className="card">
+                  <div className="card-top flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="badge">Reportei Dashboard</span>
+                      {reporteiUpdatedAt ? (
+                        <span className="text-xs text-muted">
+                          Atualizado em {new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted">Sem atualização recente</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {reporteiDashboardUrl ? (
+                        <a
+                          className="btn outline"
+                          href={reporteiDashboardUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir no Reportei
+                        </a>
+                      ) : null}
+                      <button
+                        className="btn primary"
+                        type="button"
+                        onClick={syncReportei}
+                        disabled={reporteiSyncing || !hasReporteiAccount}
+                      >
+                        {reporteiSyncing ? 'Sincronizando...' : 'Atualizar dados'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {reporteiSyncStatus ? (
+                    <div
+                      className={`notice ${
+                        reporteiSyncStatus.toLowerCase().includes('falha') ? 'error' : 'success'
+                      }`}
+                    >
+                      {reporteiSyncStatus}
+                    </div>
+                  ) : null}
+
+                  {reporteiEmbedUrl ? (
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted">
+                        Se o embed não carregar, use o botão “Abrir no Reportei”.
+                      </div>
+                      <iframe
+                        title="Reportei Dashboard"
+                        src={reporteiEmbedUrl}
+                        className="w-full h-[520px] rounded-2xl border border-border bg-paper"
+                        loading="lazy"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      />
+                    </div>
+                  ) : (
+                    <div className="empty">
+                      Configure o link do dashboard do Reportei em “Integrações” para exibir aqui.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              <div className="card">
+                <div className="card-top">
+                  <span className="badge">Planejamento Estratégico</span>
+                  <span className="badge outline">Upload + IA</span>
               </div>
               <div className="form-grid">
                 <label className="field full">
