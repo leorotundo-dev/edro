@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { hasClientPerm } from '../auth/clientPerms';
+import { getClientById } from '../repos/clientsRepo';
+import { query } from '../db';
 import { SocialListeningService } from '../socialListening/SocialListeningService';
 
 const platformEnum = z.enum(['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin', 'instagram', 'facebook']);
@@ -266,6 +268,69 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
       const service = new SocialListeningService(request.user.tenant_id);
       const stats = await service.getStats({ clientId: query.clientId });
       return reply.send(stats);
+    }
+  );
+
+  app.get(
+    '/social-listening/reportei',
+    { preHandler: [requirePerm('clipping:read')] },
+    async (request: any, reply) => {
+      const querySchema = z.object({
+        clientId: z.string().min(1),
+      });
+      const queryParams = querySchema.parse(request.query);
+
+      const allowed = await assertClientAccess(request, queryParams.clientId, 'read');
+      if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+
+      const tenantId = request.user?.tenant_id;
+      const client = await getClientById(tenantId, queryParams.clientId);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const { rows } = await query<any>(
+        `
+        SELECT DISTINCT ON (platform)
+          platform,
+          time_window,
+          payload,
+          created_at
+        FROM learned_insights
+        WHERE tenant_id=$1
+          AND client_id=$2
+        ORDER BY platform, created_at DESC
+        `,
+        [tenantId, queryParams.clientId]
+      );
+
+      const items = (rows || []).map((row: any) => {
+        const payload = row?.payload;
+        if (payload && typeof payload === 'object') {
+          const { raw, ...rest } = payload;
+          return {
+            platform: row.platform,
+            time_window: row.time_window,
+            created_at: row.created_at,
+            payload: rest,
+          };
+        }
+        return {
+          platform: row.platform,
+          time_window: row.time_window,
+          created_at: row.created_at,
+          payload,
+        };
+      });
+
+      const updatedAt =
+        items.reduce((latest: string | null, item: any) => {
+          if (!item?.created_at) return latest;
+          if (!latest) return item.created_at;
+          return new Date(item.created_at).getTime() > new Date(latest).getTime()
+            ? item.created_at
+            : latest;
+        }, null) || null;
+
+      return reply.send({ items, updated_at: updatedAt });
     }
   );
 }
