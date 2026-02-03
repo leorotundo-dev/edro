@@ -194,6 +194,13 @@ export type CalendarEvent = {
   platform_fit?: Platform[] | null;
   notes?: string | null;
   source_hint?: string | null;
+  impact_level?: string | null;
+  score_editorial?: number | null;
+  formatos_sugeridos?: string[] | null;
+  codigo_evento?: string | null;
+  evento_key?: string | null;
+  confidence_level?: number | null;
+  venue?: string | null;
 
   segment_boosts: Partial<Record<SegmentCode, number>>; // 0-60
   platform_affinity: Partial<Record<Platform, number>>; // -20..+20
@@ -1019,12 +1026,12 @@ function filterEventsByCalendarProfile(
 8) RETAIL BOOSTS & CATEGORY BOOSTS
 ============================================================================ */
 
-function categoryBoost(ev: CalendarEvent, client: ClientProfile): number {
+function categoryBoost(ev: CalendarEvent, client: ClientProfile, hasStrategic: boolean): number {
   let boost = 0;
   const cats = new Set(ev.categories);
 
   if (cats.has('comercial')) boost += 25;
-  if (cats.has('sazonalidade')) boost += 20;
+  if (cats.has('sazonalidade') && (cats.has('comercial') || hasStrategic)) boost += 20;
 
   const isGastro =
     cats.has('cultural') &&
@@ -1044,15 +1051,194 @@ function categoryBoost(ev: CalendarEvent, client: ClientProfile): number {
   return boost;
 }
 
+function isRetailSegment(segment: SegmentCode) {
+  return segment.startsWith('varejo_') || segment === 'alimentacao_foodservice';
+}
+
+function isRetailClient(client: ClientProfile) {
+  if (isRetailSegment(client.segment_primary)) return true;
+  return client.segment_secondary.some((seg) => isRetailSegment(seg));
+}
+
+const B2B_SEGMENTS: Set<SegmentCode> = new Set([
+  'industria_manufatura',
+  'tecnologia_saas_b2b',
+  'construcao_civil_b2b',
+  'agronegocio_logistica_graos',
+]);
+
+function isB2BClient(client: ClientProfile) {
+  if (B2B_SEGMENTS.has(client.segment_primary)) return true;
+  return client.segment_secondary.some((seg) => B2B_SEGMENTS.has(seg));
+}
+
+function setorialBoost(ev: CalendarEvent, client: ClientProfile): number {
+  if (!ev.categories.includes('setorial')) return 0;
+  return isB2BClient(client) ? 5 : 0;
+}
+
+function impactBoost(ev: CalendarEvent): number {
+  const raw = (ev.impact_level || '').toString().trim().toLowerCase();
+  if (!raw) return 0;
+  if (raw === 'peak' || raw === 'pico') return 8;
+  if (raw === 'alto') return 6;
+  if (raw === 'medio' || raw === 'médio') return 3;
+  if (raw === 'pre' || raw === 'post') return 1;
+  return 0;
+}
+
 function segmentBoost(ev: CalendarEvent, client: ClientProfile): number {
-  const primary = ev.segment_boosts[client.segment_primary] ?? 0;
-  const secondary = client.segment_secondary.map((segment) => ev.segment_boosts[segment] ?? 0);
+  const normalizeSegmentKey = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const resolveBoost = (segment?: string | null) => {
+    if (!segment) return 0;
+    const direct = ev.segment_boosts[segment as any];
+    if (typeof direct === 'number') return direct;
+    const normalized = normalizeSegmentKey(segment);
+    const normalizedBoost = ev.segment_boosts[normalized as any];
+    return typeof normalizedBoost === 'number' ? normalizedBoost : 0;
+  };
+
+  const primary = resolveBoost(client.segment_primary);
+  const secondary = client.segment_secondary.map((segment) => resolveBoost(segment));
   const bestSecondary = secondary.length ? Math.max(...secondary) : 0;
   return primary + bestSecondary;
 }
 
 function platformAffinity(ev: CalendarEvent, platform: Platform): number {
   return ev.platform_affinity[platform] ?? 0;
+}
+
+const GENERIC_STRATEGIC_TAGS = new Set([
+  'feriado',
+  'oficial',
+  'profissao',
+  'profissão',
+  'historico',
+  'histórico',
+  'cultural',
+  'cultura',
+  'religiao',
+  'religião',
+  'data',
+  'evento',
+  'comemoracao',
+  'comemoração',
+  'celebracao',
+  'celebração',
+  'festa',
+  'natureza',
+  'fauna',
+  'capital',
+  'seguranca',
+  'segurança',
+  'industria',
+  'indústria',
+  'civico',
+  'cívico',
+  'nacional',
+  'regional',
+]);
+
+function normalizeTagKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeStrategicTags(list?: string[]) {
+  return (list || [])
+    .map((tag) => normalizeTagKey(tag))
+    .filter(Boolean)
+    .filter((tag) => !GENERIC_STRATEGIC_TAGS.has(tag));
+}
+
+function getStrategicTagMatches(ev: CalendarEvent, client: ClientProfile) {
+  const eventTags = new Set(normalizeStrategicTags(ev.tags));
+  if (!eventTags.size) return { count: 0, matches: [] as string[] };
+
+  const keywords = normalizeStrategicTags(client.keywords);
+  const pillars = normalizeStrategicTags(client.pillars);
+  const candidates = new Set([...keywords, ...pillars]);
+  const matches = Array.from(candidates).filter((tag) => eventTags.has(tag));
+  return { count: matches.length, matches };
+}
+
+function hasStrategicMatch(
+  ev: CalendarEvent,
+  client: ClientProfile,
+  segmentScore: number,
+  tagMatchCount: number
+) {
+  if (segmentScore > 0) return true;
+
+  const cats = new Set(ev.categories || []);
+  if (cats.has('sazonalidade') && isRetailClient(client)) return true;
+  if (cats.has('comercial') && isRetailClient(client)) return true;
+
+  const lowFitCategory = isLowFitCategory(cats, false);
+  const requiredMatches = lowFitCategory ? 2 : 1;
+  return tagMatchCount >= requiredMatches;
+}
+
+function isLowFitCategory(cats: Set<CalendarCategory>, hasStrategic: boolean) {
+  const baseLowFit =
+    cats.has('cultural') ||
+    cats.has('profissao') ||
+    cats.has('local') ||
+    cats.has('oficial') ||
+    cats.has('causa_social');
+  if (baseLowFit) return true;
+  if (cats.has('sazonalidade') && !cats.has('comercial') && !hasStrategic) return true;
+  return false;
+}
+
+function categoryAllowed(ev: CalendarEvent, client: ClientProfile) {
+  const cats = new Set(ev.categories || []);
+  if (cats.has('cultural') && !client.calendar_profile.allow_cultural_opportunities) {
+    return { allowed: false, reason: 'profile:block:cultural' };
+  }
+  if (cats.has('geek_pop') && !client.calendar_profile.allow_geek_pop) {
+    return { allowed: false, reason: 'profile:block:geek_pop' };
+  }
+  if (cats.has('profissao') && !client.calendar_profile.allow_profession_days) {
+    return { allowed: false, reason: 'profile:block:profissao' };
+  }
+  if (cats.has('causa_social') && client.calendar_profile.restrict_sensitive_causes) {
+    return { allowed: false, reason: 'profile:block:causa_social' };
+  }
+  return { allowed: true, reason: '' };
+}
+
+function strategicFitPenalty(ev: CalendarEvent, hasStrategic: boolean) {
+  const cats = new Set(ev.categories || []);
+  if (hasStrategic) return 0;
+  const lowFitCategory = isLowFitCategory(cats, hasStrategic);
+  if (!lowFitCategory) return 0;
+
+  let penalty = 20;
+  if (cats.has('profissao')) penalty = Math.max(penalty, 30);
+  if (cats.has('local')) penalty = Math.max(penalty, 30);
+  if (cats.has('oficial')) penalty = Math.max(penalty, 30);
+  if (cats.has('cultural')) penalty = Math.max(penalty, 25);
+  if (cats.has('causa_social')) penalty = Math.max(penalty, 30);
+  return penalty;
+}
+
+function fitFactor(ev: CalendarEvent, hasStrategic: boolean) {
+  const cats = new Set(ev.categories || []);
+  if (hasStrategic) return 1;
+  const lowFitCategory = isLowFitCategory(cats, hasStrategic);
+  if (!lowFitCategory) return 1;
+  return 0.25;
 }
 
 /* ============================================================================
@@ -1175,31 +1361,48 @@ export function scoreEvent(
   trends: TrendSignal[],
   state: SaturationState
 ): EventScore {
-  const base = ev.base_relevance * rules.weights.base;
-  const seg = segmentBoost(ev, client) * rules.weights.segment;
+  const allowed = categoryAllowed(ev, client);
+  if (!allowed.allowed) {
+    return { event: ev, score: 0, tier: 'C', why: allowed.reason };
+  }
+
+  const segBase = segmentBoost(ev, client);
+  const tagMatch = getStrategicTagMatches(ev, client);
+  const strategicMatch = hasStrategicMatch(ev, client, segBase, tagMatch.count);
+  const fit = fitFactor(ev, strategicMatch);
+  const base = Math.round(ev.base_relevance * fit) * rules.weights.base;
+  const seg = segBase * rules.weights.segment;
   const loc = 0;
   const plat = platformAffinity(ev, platform) * rules.weights.platform;
-  const cat = categoryBoost(ev, client);
+  const cat = categoryBoost(ev, client, strategicMatch);
   const trb = trendBoostForEvent(ev, client, trends) * rules.weights.trend;
   const seas = seasonalityBoost(ev, client) * rules.weights.seasonality;
+  const imp = impactBoost(ev);
+  const set = setorialBoost(ev, client);
 
   const sat = saturationPenalty(ev, state, rules);
   const risk = riskPenalty(ev, client, rules);
+  const fitPenalty = strategicFitPenalty(ev, strategicMatch);
 
-  const scoreRaw = base + seg + loc + plat + cat + trb + seas - sat - risk;
+  const scoreRaw = base + seg + loc + plat + cat + trb + seas + imp + set - sat - risk - fitPenalty;
   const score = Math.max(0, Math.min(100, Math.round(scoreRaw)));
 
   const tier = computeTier(score, rules);
 
   const why = [
-    `base:${ev.base_relevance}`,
+    `base:${Math.round(ev.base_relevance * fit)}`,
     `segment:+${seg}`,
     `platform:${plat >= 0 ? '+' : ''}${plat}`,
     `category:+${cat}`,
+    `tag:${tagMatch.count}`,
     trb ? `trend:+${trb}` : 'trend:+0',
     `season:+${seas}`,
+    fit < 1 ? `fit_factor:${fit}` : '',
+    imp ? `impact:+${imp}` : '',
+    set ? `setorial:+${set}` : '',
     sat ? `sat:-${sat}` : '',
     risk ? `risk:-${risk}` : '',
+    fitPenalty ? `fit:-${fitPenalty}` : '',
   ]
     .filter(Boolean)
     .join(' | ');
@@ -1217,18 +1420,30 @@ export function scoreEventRelevance(
     return { score: 0, tier: 'C', why: 'override:exclude' };
   }
 
+  const allowed = categoryAllowed(ev, client);
+  if (!allowed.allowed && !override?.force_include) {
+    return { score: 0, tier: 'C', why: allowed.reason };
+  }
+
   const baseRelevance =
     override?.custom_priority != null
       ? Math.max(1, Math.min(10, override.custom_priority)) * 10
       : ev.base_relevance;
 
-  const base = baseRelevance * rules.weights.base;
-  const seg = segmentBoost(ev, client) * rules.weights.segment;
-  const cat = categoryBoost(ev, client);
+  const segBase = segmentBoost(ev, client);
+  const tagMatch = getStrategicTagMatches(ev, client);
+  const strategicMatch = hasStrategicMatch(ev, client, segBase, tagMatch.count);
+  const fit = fitFactor(ev, strategicMatch);
+  const base = Math.round(baseRelevance * fit) * rules.weights.base;
+  const seg = segBase * rules.weights.segment;
+  const cat = categoryBoost(ev, client, strategicMatch);
   const seas = seasonalityBoost(ev, client) * rules.weights.seasonality;
+  const imp = impactBoost(ev);
+  const set = setorialBoost(ev, client);
   const risk = riskPenalty(ev, client, rules);
+  const fitPenalty = strategicFitPenalty(ev, strategicMatch);
 
-  let scoreRaw = base + seg + cat + seas - risk;
+  let scoreRaw = base + seg + cat + seas + imp + set - risk - fitPenalty;
   if (override?.force_include) {
     scoreRaw = Math.max(scoreRaw, rules.tier_b_min);
   }
@@ -1236,11 +1451,16 @@ export function scoreEventRelevance(
   const tier = computeTier(score, rules);
 
   const why = [
-    `base:${baseRelevance}`,
+    `base:${Math.round(baseRelevance * fit)}`,
     `segment:+${seg}`,
     `category:+${cat}`,
+    `tag:${tagMatch.count}`,
     `season:+${seas}`,
+    fit < 1 ? `fit_factor:${fit}` : '',
+    imp ? `impact:+${imp}` : '',
+    set ? `setorial:+${set}` : '',
     risk ? `risk:-${risk}` : '',
+    fitPenalty ? `fit:-${fitPenalty}` : '',
     override?.force_include ? 'override:include' : '',
     override?.custom_priority != null ? `override:priority:${override.custom_priority}` : '',
   ]
