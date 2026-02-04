@@ -746,6 +746,73 @@ export default async function calendarRoutes(app: FastifyInstance) {
   );
 
   // ========================================
+  // ENDPOINT: Importar descrições de IA em lote (Admin)
+  // ========================================
+  app.post(
+    '/calendar/admin/import-descriptions',
+    { preHandler: [requirePerm('admin')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        descriptions: z.array(z.object({
+          name: z.string(),
+          date: z.string(), // YYYY-MM-DD format
+          descricao_ai: z.string(),
+          origem_ai: z.string().optional(),
+          curiosidade_ai: z.string().optional(),
+        })),
+      });
+
+      const body = bodySchema.parse(request.body);
+      const { descriptions } = body;
+
+      let updated = 0;
+      let notFound = 0;
+
+      for (const desc of descriptions) {
+        const result = await query(
+          `UPDATE events
+           SET payload = jsonb_set(
+             jsonb_set(
+               jsonb_set(
+                 COALESCE(payload, '{}'),
+                 '{descricao_ai}',
+                 $1::jsonb
+               ),
+               '{origem_ai}',
+               $2::jsonb
+             ),
+             '{curiosidade_ai}',
+             $3::jsonb
+           )
+           WHERE name = $4 AND date = $5
+           RETURNING id`,
+          [
+            JSON.stringify(desc.descricao_ai),
+            JSON.stringify(desc.origem_ai || ''),
+            JSON.stringify(desc.curiosidade_ai || ''),
+            desc.name,
+            desc.date
+          ]
+        );
+
+        if (result.rows.length > 0) {
+          updated++;
+        } else {
+          notFound++;
+        }
+      }
+
+      return reply.send({
+        success: true,
+        message: `${updated} eventos atualizados, ${notFound} não encontrados`,
+        updated,
+        notFound,
+        total: descriptions.length,
+      });
+    }
+  );
+
+  // ========================================
   // ENDPOINT: Remover eventos duplicados (Admin)
   // ========================================
   app.post(
