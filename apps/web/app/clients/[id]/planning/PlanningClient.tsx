@@ -65,8 +65,8 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
   const loadPlanning = useCallback(async () => {
     try {
-      const res = await apiGet<{ planning: PlanningData }>(`/clients/${clientId}/planning`).catch(() => ({ planning: {} }));
-      const planning = res.planning || {};
+      const res = await apiGet<{ planning: PlanningData }>(`/clients/${clientId}/planning`).catch(() => ({ planning: {} as PlanningData }));
+      const planning: PlanningData = res.planning || {};
       setData({
         ...planning,
         pillars: planning.pillars?.length ? planning.pillars : DEFAULT_PILLARS,
