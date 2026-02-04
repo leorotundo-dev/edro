@@ -37,6 +37,24 @@ type CalendarEventItem = {
   score: number;
   tier: 'A' | 'B' | 'C';
   why?: string;
+  descricao_ai?: string | null;
+  origem_ai?: string | null;
+  curiosidade_ai?: string | null;
+};
+
+type EventRelevanceItem = {
+  client_id: string;
+  name: string;
+  score: number;
+  tier: 'A' | 'B' | 'C';
+  is_relevant: boolean;
+  why?: string;
+};
+
+type EventRelevanceResponse = {
+  event_id: string;
+  relevant_client_ids: string[];
+  clients: EventRelevanceItem[];
 };
 
 type MonthEventsResponse = {
@@ -182,6 +200,7 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [calendars, setCalendars] = useState<CalendarRow[]>([]);
   const [eventsByDate, setEventsByDate] = useState<Map<string, CalendarEventItem[]>>(new Map());
   const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
@@ -195,6 +214,9 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
   const [selectedDayISO, setSelectedDayISO] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
   const [selectedEventDateISO, setSelectedEventDateISO] = useState<string | null>(null);
+  const [relevanceByClientId, setRelevanceByClientId] = useState<Record<string, EventRelevanceItem>>({});
+  const [relevanceLoading, setRelevanceLoading] = useState(false);
+  const [showAllClients, setShowAllClients] = useState(false);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -204,7 +226,20 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
       setClients(response || []);
       if (response?.length) {
         const desired = initialClientId || searchParams.get('clientId');
-        const match = desired ? response.find((client: ClientRow) => client.id === desired) : null;
+        let match = desired ? response.find((client: ClientRow) => client.id === desired) : null;
+        if (!match && typeof window !== 'undefined') {
+          const stored = window.localStorage.getItem('edro_active_client_id');
+          if (stored === 'all') {
+            setSelectedClient(null);
+            return;
+          }
+          if (stored) {
+            match = response.find((client: ClientRow) => client.id === stored) || null;
+          }
+        }
+        if (!match) {
+          match = response[0] || null;
+        }
         setSelectedClient(match || null);
       } else {
         setSelectedClient(null);
@@ -281,10 +316,57 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
   }, [selectedClient, monthFilter, loadCalendars, loadMonthEvents]);
 
   useEffect(() => {
+    if (!selectedClient?.id) return;
+    if (selectedClientIds.includes(selectedClient.id)) return;
+    if (selectedEvent) {
+      const relevance = relevanceByClientId[selectedClient.id];
+      if (relevance && !relevance.is_relevant) return;
+    }
+    setSelectedClientIds((prev) => [...prev, selectedClient.id]);
+  }, [selectedClient, selectedClientIds, selectedEvent, relevanceByClientId]);
+
+  useEffect(() => {
     setSelectedDayISO(null);
     setSelectedEvent(null);
     setSelectedEventDateISO(null);
+    setRelevanceByClientId({});
+    setShowAllClients(false);
   }, [selectedClient, monthFilter]);
+
+  const loadEventRelevance = useCallback(
+    async (eventId: string) => {
+      setRelevanceLoading(true);
+      try {
+        const response = (await apiGet(`/calendar/events/${eventId}/relevance`)) as EventRelevanceResponse;
+        const map: Record<string, EventRelevanceItem> = {};
+        (response?.clients || []).forEach((item) => {
+          map[item.client_id] = item;
+        });
+        setRelevanceByClientId(map);
+        const recommendedIds = response?.relevant_client_ids || [];
+        setSelectedClientIds(recommendedIds);
+      } catch (err: any) {
+        setRelevanceByClientId({});
+      } finally {
+        setRelevanceLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!selectedEvent?.id) {
+      setRelevanceByClientId({});
+      setShowAllClients(false);
+      return;
+    }
+    if (selectedClient?.id) {
+      setRelevanceByClientId({});
+      setSelectedClientIds([selectedClient.id]);
+      return;
+    }
+    loadEventRelevance(selectedEvent.id);
+  }, [selectedEvent?.id, loadEventRelevance, selectedClient]);
 
   useEffect(() => {
     if (!activeDateISO.startsWith(monthFilter)) {
@@ -408,6 +490,30 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
     return location ? `${selectedClient.name} / ${location}` : selectedClient.name;
   }, [selectedClient]);
 
+  const selectedClients = useMemo(() => {
+    if (!selectedClientIds.length) return [];
+    return clients.filter((client) => selectedClientIds.includes(client.id));
+  }, [clients, selectedClientIds]);
+
+  const isFilteredToClient = Boolean(selectedClient?.id);
+
+  const recommendedClientIds = useMemo(
+    () => Object.values(relevanceByClientId).filter((item) => item.is_relevant).map((item) => item.client_id),
+    [relevanceByClientId]
+  );
+
+  const recommendedClients = useMemo(
+    () => clients.filter((client) => recommendedClientIds.includes(client.id)),
+    [clients, recommendedClientIds]
+  );
+
+  const visibleClients = useMemo(() => {
+    if (isFilteredToClient && selectedClient) return [selectedClient];
+    if (showAllClients || !selectedEvent) return clients;
+    if (!recommendedClients.length) return [];
+    return recommendedClients;
+  }, [clients, recommendedClients, selectedEvent, showAllClients, isFilteredToClient, selectedClient]);
+
   const selectedDayLabel = useMemo(() => {
     if (!selectedDayISO) return '';
     return formatDayLabel(selectedDayISO);
@@ -442,16 +548,27 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
     setSelectedDayISO(dateISO);
     setSelectedEvent(event);
     setSelectedEventDateISO(dateISO);
-  }, []);
+    if (!selectedClient?.id) {
+      setSelectedClientIds([]);
+      setShowAllClients(false);
+    }
+  }, [selectedClient]);
 
   const buildStudioUrl = useCallback(
     (event: CalendarEventItem, dateISO: string) => {
       const params = new URLSearchParams();
-      if (selectedClient?.name) params.set('client', selectedClient.name);
-      if (selectedClient?.id) params.set('clientId', selectedClient.id);
-      if (selectedClient?.segment_primary) params.set('segment', selectedClient.segment_primary);
-      const location = [selectedClient?.city, selectedClient?.uf].filter(Boolean).join(' / ');
-      if (location) params.set('location', location);
+      const primaryClient = selectedClients[0];
+      if (selectedClients.length === 1 && primaryClient) {
+        if (primaryClient.name) params.set('client', primaryClient.name);
+        if (primaryClient.id) params.set('clientId', primaryClient.id);
+        if (primaryClient.segment_primary) params.set('segment', primaryClient.segment_primary);
+        const location = [primaryClient.city, primaryClient.uf].filter(Boolean).join(' / ');
+        if (location) params.set('location', location);
+      }
+      if (selectedClients.length) {
+        params.set('clientIds', selectedClients.map((client) => client.id).join(','));
+        params.set('clients', selectedClients.map((client) => client.name).join(','));
+      }
       if (dateISO) params.set('date', dateISO);
       if (event?.name) params.set('event', event.name);
       if (Number.isFinite(event?.score)) params.set('score', String(event.score));
@@ -463,8 +580,65 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
       const query = params.toString();
       return query ? `/studio?${query}` : '/studio';
     },
-    [selectedClient]
+    [selectedClients]
   );
+
+  const handleToggleClient = (clientId: string) => {
+    if (isFilteredToClient) return;
+    setSelectedClientIds((prev) => {
+      if (prev.includes(clientId)) {
+        return prev.filter((id) => id !== clientId);
+      }
+      return [...prev, clientId];
+    });
+  };
+
+  const handleSelectAllClients = () => {
+    if (isFilteredToClient && selectedClient?.id) {
+      setSelectedClientIds([selectedClient.id]);
+      return;
+    }
+    setSelectedClientIds(clients.map((client) => client.id));
+  };
+
+  const handleClearClients = () => {
+    if (isFilteredToClient && selectedClient?.id) {
+      setSelectedClientIds([selectedClient.id]);
+      return;
+    }
+    setSelectedClientIds([]);
+  };
+
+  const persistStudioContext = (event: CalendarEventItem, dateISO: string) => {
+    if (typeof window === 'undefined') return;
+    const selected = selectedClients;
+    window.localStorage.setItem('edro_selected_clients', JSON.stringify(selected));
+    const activeId = selected[0]?.id || '';
+    if (activeId) window.localStorage.setItem('edro_active_client_id', activeId);
+    const context = {
+      client: selected[0]?.name || '',
+      clientId: selected[0]?.id || '',
+      segment: selected[0]?.segment_primary || '',
+      date: dateISO,
+      event: event?.name || '',
+      score: event?.score,
+      tags: event?.tags?.join(', ') || '',
+      categories: event?.categories?.join(', ') || '',
+      source: event?.source || '',
+      why: event?.why || '',
+    };
+    window.localStorage.setItem('edro_studio_context', JSON.stringify(context));
+    window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
+  };
+
+  const handleCreatePost = (event: CalendarEventItem, dateISO: string) => {
+    if (!selectedClientIds.length) {
+      setError('Selecione ao menos um cliente para criar o post.');
+      return;
+    }
+    persistStudioContext(event, dateISO);
+    router.push(buildStudioUrl(event, dateISO));
+  };
 
   const handlePrev = () => {
     if (view === 'month') {
@@ -533,10 +707,16 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
               onChange={(event) => {
                 if (!event.target.value) {
                   setSelectedClient(null);
+                  if (typeof window !== 'undefined') {
+                    window.localStorage.setItem('edro_active_client_id', 'all');
+                  }
                   return;
                 }
                 const next = clients.find((client) => client.id === event.target.value) || null;
                 setSelectedClient(next);
+                if (typeof window !== 'undefined' && next?.id) {
+                  window.localStorage.setItem('edro_active_client_id', next.id);
+                }
               }}
             >
               <option value="">All Clients</option>
@@ -750,12 +930,12 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
               </div>
             ) : (
               <div className="p-4 lg:p-6">
-                <div className="border-b border-slate-200 pb-4 mb-4">
+                <div className="border-b border-border pb-4 mb-4">
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">
                     Selected day
                   </div>
                   <h3 className="calendar-month-label mt-2">{formatDayLabel(activeDateISO)}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {activeDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric' })}
                   </p>
                 </div>
@@ -913,7 +1093,7 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
                             <span>{selectedEventDateLabel || eventDetailDateISO}</span>
                           </li>
                           <li>
-                            <span>Relevance</span>
+                            <span>{selectedClient ? 'Relevance' : 'Base relevance'}</span>
                             <span>{selectedEvent.score}</span>
                           </li>
                           <li>
@@ -942,6 +1122,22 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
                         {selectedEvent.why ? (
                           <div className="detail-text">{formatEventWhy(selectedEvent.why)}</div>
                         ) : null}
+                        {selectedEvent.descricao_ai ? (
+                          <div>
+                            <div className="card-sub">Sobre esta data</div>
+                            <div className="detail-text text-sm leading-relaxed">{selectedEvent.descricao_ai}</div>
+                            {selectedEvent.origem_ai ? (
+                              <div className="detail-text text-xs text-muted mt-2">
+                                <strong>Origem:</strong> {selectedEvent.origem_ai}
+                              </div>
+                            ) : null}
+                            {selectedEvent.curiosidade_ai ? (
+                              <div className="detail-text text-xs text-muted mt-1">
+                                <strong>Curiosidade:</strong> {selectedEvent.curiosidade_ai}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {selectedEvent.categories?.length ? (
                           <div>
                             <div className="card-sub">Categories</div>
@@ -966,10 +1162,61 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
                             </div>
                           </div>
                         ) : null}
+                        <div>
+                          <div className="card-sub">Clientes do job</div>
+                          {selectedEvent ? (
+                            <div className="detail-text">
+                              Relevantes: {recommendedClientIds.length} de {clients.length}
+                            </div>
+                          ) : null}
+                          {isFilteredToClient && selectedClient ? (
+                            <div className="card-tags">
+                              <span className="chip active">{selectedClient.name}</span>
+                            </div>
+                          ) : (
+                            <>
+                              {relevanceLoading ? <div className="empty">Calculando relevancia...</div> : null}
+                              {!relevanceLoading && !visibleClients.length ? (
+                                <div className="empty">Nenhum cliente relevante para este evento.</div>
+                              ) : (
+                                <div className="card-tags">
+                                  {visibleClients.map((client) => (
+                                    <button
+                                      key={client.id}
+                                      type="button"
+                                      className={`chip ${selectedClientIds.includes(client.id) ? 'active' : ''}`}
+                                      onClick={() => handleToggleClient(client.id)}
+                                    >
+                                      {client.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <button className="btn ghost" type="button" onClick={handleSelectAllClients}>
+                                  Selecionar todos
+                                </button>
+                                <button className="btn ghost" type="button" onClick={handleClearClients}>
+                                  Limpar
+                                </button>
+                                {selectedEvent && !showAllClients ? (
+                                  <button className="btn ghost" type="button" onClick={() => setShowAllClients(true)}>
+                                    Mostrar todos
+                                  </button>
+                                ) : null}
+                                {selectedEvent && showAllClients ? (
+                                  <button className="btn ghost" type="button" onClick={() => setShowAllClients(false)}>
+                                    Mostrar apenas relevantes
+                                  </button>
+                                ) : null}
+                              </div>
+                            </>
+                          )}
+                        </div>
                         <button
                           className="btn primary w-full"
                           type="button"
-                          onClick={() => router.push(buildStudioUrl(selectedEvent, eventDetailDateISO))}
+                          onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}
                         >
                           Create post
                         </button>
