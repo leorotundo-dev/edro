@@ -300,6 +300,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
     for (const hit of hits) {
       const score = Number(hit.event.base_relevance ?? 50);
       const tier = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
+      const eventAny = hit.event as any;
       for (const date of hit.hitDates) {
         if (!days[date]) days[date] = [];
         days[date].push({
@@ -312,6 +313,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
           score,
           tier,
           why: `base_relevance:${score}`,
+          descricao_ai: eventAny.descricao_ai || eventAny.payload?.descricao_ai || null,
+          origem_ai: eventAny.origem_ai || eventAny.payload?.origem_ai || null,
+          curiosidade_ai: eventAny.curiosidade_ai || eventAny.payload?.curiosidade_ai || null,
         });
         totalEvents += 1;
       }
