@@ -1,10 +1,9 @@
-import UxFrame from '@/components/UxFrame';
+import ClientLibraryClient from './ClientLibraryClient';
 
-export default function Page() {
-  return (
-    <UxFrame
-      title="Client Library"
-      src="/ux/edro_command_center_home_18/code.html"
-    />
-  );
+type ClientLibraryPageProps = {
+  params: { id: string };
+};
+
+export default function Page({ params }: ClientLibraryPageProps) {
+  return <ClientLibraryClient clientId={params.id} />;
 }

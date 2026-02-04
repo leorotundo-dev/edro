@@ -1,10 +1,9 @@
-import { Suspense } from 'react';
-import CalendarClient from '@/app/calendar/CalendarClient';
+import ClientCalendarClient from './ClientCalendarClient';
 
-export default function Page({ params }: { params: { id: string } }) {
-  return (
-    <Suspense fallback={<div className="loading-screen">Carregando calendario...</div>}>
-      <CalendarClient initialClientId={params.id} />
-    </Suspense>
-  );
+type ClientCalendarPageProps = {
+  params: { id: string };
+};
+
+export default function Page({ params }: ClientCalendarPageProps) {
+  return <ClientCalendarClient clientId={params.id} />;
 }

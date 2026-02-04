@@ -1,10 +1,9 @@
-import UxFrame from '@/components/UxFrame';
+import ClientPerformanceClient from './ClientPerformanceClient';
 
-export default function Page() {
-  return (
-    <UxFrame
-      title="Client Performance"
-      src="/ux/edro_command_center_home_13/code.html"
-    />
-  );
+type ClientPerformancePageProps = {
+  params: { id: string };
+};
+
+export default function Page({ params }: ClientPerformancePageProps) {
+  return <ClientPerformanceClient clientId={params.id} />;
 }

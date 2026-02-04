@@ -1,15 +1,6 @@
-import UxFrame from '@/components/UxFrame';
+import { redirect } from 'next/navigation';
 
 export default function Page({ params }: { params: { id: string } }) {
-  const query = params?.id ? `clientId=${params.id}` : '';
-  const src = query
-    ? `/ux/edro_creative_studio_step0/code.html?${query}`
-    : '/ux/edro_creative_studio_step0/code.html';
-
-  return (
-    <UxFrame
-      title="Client Creative Studio"
-      src={src}
-    />
-  );
+  const query = params?.id ? `?clientId=${params.id}` : '';
+  redirect(`/studio${query}`);
 }

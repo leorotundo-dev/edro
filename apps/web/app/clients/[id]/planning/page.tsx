@@ -1,10 +1,10 @@
-import UxFrame from '@/components/UxFrame';
+import { Suspense } from 'react';
+import PlanningClient from './PlanningClient';
 
-export default function Page() {
+export default function Page({ params }: { params: { id: string } }) {
   return (
-    <UxFrame
-      title="Client Strategic Planning"
-      src="/ux/edro_command_center_home_17/code.html"
-    />
+    <Suspense fallback={<div className="loading-screen">Carregando planning...</div>}>
+      <PlanningClient clientId={params.id} />
+    </Suspense>
   );
 }

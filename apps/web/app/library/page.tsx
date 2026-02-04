@@ -1,10 +1,10 @@
-import UxFrame from '@/components/UxFrame';
+import AppShell from '@/components/AppShell';
+import GlobalLibraryClient from './GlobalLibraryClient';
 
 export default function Page() {
   return (
-    <UxFrame
-      title="Global Reference Library"
-      src="/ux/edro_command_center_home_22/code.html"
-    />
+    <AppShell title="Global Reference Library">
+      <GlobalLibraryClient />
+    </AppShell>
   );
 }

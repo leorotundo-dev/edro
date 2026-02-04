@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import AppShell from '@/components/AppShell';
 import { apiGet, apiPost } from '@/lib/api';
 
 type Connector = {
@@ -198,7 +197,6 @@ export default function ClientConnectorsPage() {
   }
 
   return (
-    <AppShell title="Integrations">
       <div className="p-6">
         {/* Header */}
         <div className="mb-6">
@@ -350,6 +348,5 @@ export default function ClientConnectorsPage() {
           </div>
         )}
       </div>
-    </AppShell>
   );
 }

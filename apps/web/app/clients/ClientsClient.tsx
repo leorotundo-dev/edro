@@ -291,7 +291,7 @@ const buildFormFromClient = (client: ClientRow): ClientForm => {
   };
 };
 
-export default function ClientsClient({ clientId }: { clientId?: string }) {
+export default function ClientsClient({ clientId, noShell }: { clientId?: string; noShell?: boolean }) {
   const searchParams = useSearchParams();
   const urlClientId = searchParams?.get('clientId') || '';
   const lockedClientId = clientId || urlClientId;
@@ -320,6 +320,7 @@ export default function ClientsClient({ clientId }: { clientId?: string }) {
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelActionLoading, setIntelActionLoading] = useState(false);
   const [intelError, setIntelError] = useState('');
+  const [bulkIntelLoading, setBulkIntelLoading] = useState(false);
   const [reporteiItems, setReporteiItems] = useState<ReporteiInsight[]>([]);
   const [reporteiUpdatedAt, setReporteiUpdatedAt] = useState<string | null>(null);
   const [reporteiLoading, setReporteiLoading] = useState(false);
@@ -450,6 +451,25 @@ export default function ClientsClient({ clientId }: { clientId?: string }) {
       setIntelError(err?.message || 'Falha ao atualizar inteligência.');
     } finally {
       setIntelActionLoading(false);
+    }
+  }, []);
+
+  const refreshAllIntelligence = useCallback(async () => {
+    setBulkIntelLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiPost<{ queued?: boolean; total?: number }>(
+        '/clients/intelligence/refresh-all',
+        {}
+      );
+      if (response?.queued) {
+        const totalLabel = response.total ? ` (${response.total} clientes)` : '';
+        setSuccess(`Atualização em lote iniciada${totalLabel}.`);
+      }
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao atualizar inteligência em lote.');
+    } finally {
+      setBulkIntelLoading(false);
     }
   }, []);
 
@@ -911,20 +931,8 @@ export default function ClientsClient({ clientId }: { clientId?: string }) {
     );
   }
 
-  return (
-    <AppShell
-      title="Clients"
-      action={
-        isLocked
-          ? undefined
-          : {
-              label: 'Novo cliente',
-              icon: 'add',
-              onClick: handleNewClient,
-            }
-      }
-    >
-      <div className="page-content">
+  const content = (
+    <div className="page-content">
         {error ? <div className="notice error">{error}</div> : null}
         {success ? <div className="notice success">{success}</div> : null}
         {planMissing.length ? (
@@ -943,6 +951,14 @@ export default function ClientsClient({ clientId }: { clientId?: string }) {
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                 />
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={refreshAllIntelligence}
+                  disabled={bulkIntelLoading}
+                >
+                  {bulkIntelLoading ? 'Atualizando...' : 'Atualizar todos'}
+                </button>
                 <button className="btn primary" type="button" onClick={handleNewClient}>
                   Novo
                 </button>
@@ -1806,6 +1822,26 @@ export default function ClientsClient({ clientId }: { clientId?: string }) {
           </section>
         </div>
       </div>
+  );
+
+  if (noShell) {
+    return content;
+  }
+
+  return (
+    <AppShell
+      title="Clients"
+      action={
+        isLocked
+          ? undefined
+          : {
+              label: 'Novo cliente',
+              icon: 'add',
+              onClick: handleNewClient,
+            }
+      }
+    >
+      {content}
     </AppShell>
   );
 }

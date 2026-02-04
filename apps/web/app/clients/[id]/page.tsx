@@ -1,10 +1,9 @@
-import UxFrame from '@/components/UxFrame';
+import OverviewClient from './OverviewClient';
 
-export default function Page() {
-  return (
-    <UxFrame
-      title="Client Overview"
-      src="/ux/edro_command_center_home_16/code.html"
-    />
-  );
+type ClientPageProps = {
+  params: { id: string };
+};
+
+export default function Page({ params }: ClientPageProps) {
+  return <OverviewClient clientId={params.id} />;
 }

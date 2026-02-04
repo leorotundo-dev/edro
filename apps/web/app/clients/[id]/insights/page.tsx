@@ -1,10 +1,9 @@
-import UxFrame from '@/components/UxFrame';
+import ClientInsightsClient from './ClientInsightsClient';
 
-export default function Page() {
-  return (
-    <UxFrame
-      title="Client Insights"
-      src="/ux/edro_command_center_home_10/code.html"
-    />
-  );
+type ClientInsightsPageProps = {
+  params: { id: string };
+};
+
+export default function Page({ params }: ClientInsightsPageProps) {
+  return <ClientInsightsClient clientId={params.id} />;
 }
