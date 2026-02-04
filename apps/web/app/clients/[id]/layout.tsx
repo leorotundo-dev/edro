@@ -81,21 +81,21 @@ export default function ClientLayout({ children, params }: ClientLayoutProps) {
 
   return (
     <AppShell title={client?.name || 'Cliente'}>
-      <div className="client-page-wrapper">
+      <div className="client-page-wrapper light bg-[#F9FAFB] min-h-screen text-slate-900">
         {/* Client Header - Azul Mockup Style */}
-        <div className="px-8 pt-10 pb-2 bg-card">
+        <div className="px-8 pt-10 pb-2 bg-white">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-6">
               <button
                 type="button"
                 onClick={() => router.push('/clients')}
-                className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                 title="Voltar para Clientes"
               >
                 <span className="material-symbols-outlined text-slate-500">arrow_back</span>
               </button>
               <div>
-                <h1 className="font-display text-5xl md:text-6xl text-slate-900 dark:text-white leading-tight">
+                <h1 className="font-display text-5xl md:text-6xl text-slate-900 leading-tight">
                   {client?.name || 'Cliente'}
                 </h1>
                 <p className="text-slate-500 text-sm mt-1">
@@ -105,7 +105,7 @@ export default function ClientLayout({ children, params }: ClientLayoutProps) {
             </div>
             <Link
               href={`/clients/${clientId}`}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm"
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-sm"
             >
               <span className="material-symbols-outlined text-sm text-slate-500">edit</span>
               Edit Client
@@ -113,7 +113,7 @@ export default function ClientLayout({ children, params }: ClientLayoutProps) {
           </div>
 
           {/* Tab Navigation - Azul Mockup Style */}
-          <div className="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <div className="border-b border-slate-200 overflow-x-auto">
             <nav className="flex space-x-8 min-w-max">
               {CLIENT_TABS.map((tab) => {
                 const isActive = activeTab === tab.path;

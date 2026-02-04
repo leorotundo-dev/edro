@@ -90,11 +90,11 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
     <div className="space-y-6">
       {/* Header Actions */}
       <div className="flex items-center justify-end gap-3">
-        <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-semibold text-sm">
+        <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all font-semibold text-sm">
           <span className="material-symbols-outlined text-sm">refresh</span>
           Update Intelligence
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-sm">
           <span className="material-symbols-outlined text-sm text-slate-500">ios_share</span>
           Export
         </button>
@@ -107,7 +107,7 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
           {/* Patterns Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Patterns That Work */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-green-500">trending_up</span>
@@ -119,10 +119,10 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                 {patterns.positive.map((pattern) => (
                   <div
                     key={pattern.id}
-                    className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:border-green-100 dark:hover:border-green-900/30 transition-colors"
+                    className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:border-green-100 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center text-slate-400">
+                      <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400">
                         <span className="material-symbols-outlined">play_circle</span>
                       </div>
                       <div>
@@ -143,7 +143,7 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
             </div>
 
             {/* Patterns to Avoid */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-red-500">trending_down</span>
@@ -155,10 +155,10 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                 {patterns.negative.map((pattern) => (
                   <div
                     key={pattern.id}
-                    className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:border-red-100 dark:hover:border-red-900/30 transition-colors"
+                    className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:border-red-100 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center text-slate-400">
+                      <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400">
                         <span className="material-symbols-outlined">notes</span>
                       </div>
                       <div>
@@ -180,11 +180,11 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
           </div>
 
           {/* Engagement Trends Chart */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Engagement Trends</h3>
-                <p className="text-lg font-bold mt-1 text-slate-700 dark:text-slate-200">
+                <p className="text-lg font-bold mt-1 text-slate-700">
                   Correlation: Content Pillars vs. ROI
                 </p>
               </div>
@@ -213,7 +213,7 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                   stroke="#E2E8F0"
                   strokeWidth="2"
                 />
-                <line className="text-slate-100 dark:text-slate-800" stroke="currentColor" strokeWidth="1" x1="0" x2="1000" y1="200" y2="200" />
+                <line className="text-slate-100" stroke="currentColor" strokeWidth="1" x1="0" x2="1000" y1="200" y2="200" />
               </svg>
               <div className="flex justify-between mt-4 text-[10px] font-bold text-slate-400 uppercase">
                 <span>Week 1</span>
@@ -225,10 +225,10 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
           </div>
 
           {/* AI Feedback Aggregator */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Feedback Aggregator</h3>
-              <div className="flex items-center gap-2 px-2 py-1 bg-blue-50 dark:bg-blue-950/30 text-blue-600 text-[10px] font-bold rounded">
+              <div className="flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded">
                 <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
                 AI ANALYZED
               </div>
@@ -240,9 +240,9 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                   <span className="material-symbols-outlined text-sm">sentiment_satisfied</span>
                   <span className="text-[10px] font-bold uppercase">Positive Sentiment</span>
                 </div>
-                <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                <ul className="text-sm text-slate-600 space-y-2">
                   {positiveFeedback.map((item, idx) => (
-                    <li key={idx} className="pl-3 border-l-2 border-green-200 dark:border-green-900">
+                    <li key={idx} className="pl-3 border-l-2 border-green-200">
                       "{item.text}"
                     </li>
                   ))}
@@ -255,9 +255,9 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                   <span className="material-symbols-outlined text-sm">sentiment_neutral</span>
                   <span className="text-[10px] font-bold uppercase">Neutral Observations</span>
                 </div>
-                <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                <ul className="text-sm text-slate-600 space-y-2">
                   {neutralFeedback.map((item, idx) => (
-                    <li key={idx} className="pl-3 border-l-2 border-yellow-200 dark:border-yellow-900">
+                    <li key={idx} className="pl-3 border-l-2 border-yellow-200">
                       "{item.text}"
                     </li>
                   ))}
@@ -270,9 +270,9 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
                   <span className="material-symbols-outlined text-sm">sentiment_dissatisfied</span>
                   <span className="text-[10px] font-bold uppercase">Critical Feedback</span>
                 </div>
-                <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                <ul className="text-sm text-slate-600 space-y-2">
                   {negativeFeedback.map((item, idx) => (
-                    <li key={idx} className="pl-3 border-l-2 border-red-200 dark:border-red-900">
+                    <li key={idx} className="pl-3 border-l-2 border-red-200">
                       "{item.text}"
                     </li>
                   ))}
@@ -282,11 +282,11 @@ export default function ClientInsightsClient({ clientId }: ClientInsightsClientP
           </div>
 
           {/* Empty State / Request Intelligence */}
-          <div className="py-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+          <div className="py-16 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-slate-400 text-3xl">analytics</span>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No insights generated yet</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">No insights generated yet</h3>
             <p className="text-slate-500 text-sm max-w-sm mb-6">
               Our intelligence engine is still processing the latest campaign data. This usually takes 24-48 hours after launch.
             </p>

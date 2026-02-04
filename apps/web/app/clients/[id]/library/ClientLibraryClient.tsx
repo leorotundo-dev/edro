@@ -21,24 +21,24 @@ function getFileIcon(type: string, title: string): { icon: string; bgColor: stri
   const ext = title?.split('.').pop()?.toLowerCase() || '';
 
   if (type === 'link') {
-    return { icon: 'link', bgColor: 'bg-purple-50 dark:bg-purple-900/20', textColor: 'text-purple-600' };
+    return { icon: 'link', bgColor: 'bg-purple-50 textColor: 'text-purple-600' };
   }
   if (type === 'note') {
-    return { icon: 'description', bgColor: 'bg-slate-50 dark:bg-slate-800', textColor: 'text-slate-600' };
+    return { icon: 'description', bgColor: 'bg-slate-50 textColor: 'text-slate-600' };
   }
   if (ext === 'pdf') {
-    return { icon: 'picture_as_pdf', bgColor: 'bg-red-50 dark:bg-red-900/20', textColor: 'text-red-600' };
+    return { icon: 'picture_as_pdf', bgColor: 'bg-red-50 textColor: 'text-red-600' };
   }
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
-    return { icon: 'image', bgColor: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600' };
+    return { icon: 'image', bgColor: 'bg-blue-50 textColor: 'text-blue-600' };
   }
   if (['mp4', 'mov', 'avi', 'webm'].includes(ext)) {
-    return { icon: 'movie', bgColor: 'bg-orange-50 dark:bg-orange-900/20', textColor: 'text-orange-600' };
+    return { icon: 'movie', bgColor: 'bg-orange-50 textColor: 'text-orange-600' };
   }
   if (['doc', 'docx'].includes(ext)) {
-    return { icon: 'article', bgColor: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600' };
+    return { icon: 'article', bgColor: 'bg-blue-50 textColor: 'text-blue-600' };
   }
-  return { icon: 'draft', bgColor: 'bg-slate-50 dark:bg-slate-800', textColor: 'text-slate-600' };
+  return { icon: 'draft', bgColor: 'bg-slate-50 textColor: 'text-slate-600' };
 }
 
 function formatFileSize(bytes?: number): string {
@@ -180,15 +180,15 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
   return (
     <div className="space-y-8">
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
           {error}
         </div>
       )}
 
       {/* Upload Zone */}
-      <div className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center transition-all hover:border-[#FF6600]/40 group">
+      <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center transition-all hover:border-[#FF6600]/40 group">
         <div className="max-w-md mx-auto">
-          <div className="w-16 h-16 bg-orange-50 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+          <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
             <span className="material-symbols-outlined text-[#FF6600] text-3xl">upload_file</span>
           </div>
           <h2 className="text-xl font-bold mb-2">Upload Reference Materials</h2>
@@ -210,21 +210,21 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
           </label>
 
           {/* Add Links Section */}
-          <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-6 text-left">
+          <div className="mt-6 border-t border-slate-100 pt-6 text-left">
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Add Links</div>
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Reference URL</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Reference URL</label>
                 <div className="flex items-center gap-2">
                   <input
-                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
                     placeholder="Paste a website or drive link"
                     type="url"
                     value={referenceUrl}
                     onChange={(e) => setReferenceUrl(e.target.value)}
                   />
                   <button
-                    className="px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
+                    className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
                     type="button"
                     onClick={() => addUrl(referenceUrl, 'reference')}
                   >
@@ -233,17 +233,17 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                 </div>
               </div>
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Social Link</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Social Link</label>
                 <div className="flex items-center gap-2">
                   <input
-                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
                     placeholder="Paste Instagram, TikTok, YouTube, LinkedIn..."
                     type="url"
                     value={socialLink}
                     onChange={(e) => setSocialLink(e.target.value)}
                   />
                   <button
-                    className="px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
+                    className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
                     type="button"
                     onClick={() => addUrl(socialLink, 'social')}
                   >
@@ -271,7 +271,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
             <div className="relative">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
               <input
-                className="pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm w-64 focus:ring-[#FF6600] focus:border-[#FF6600]"
+                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:ring-[#FF6600] focus:border-[#FF6600]"
                 placeholder="Search assets..."
                 type="text"
                 value={query}
@@ -280,7 +280,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
             </div>
             <div className="relative">
               <select
-                className="pl-4 pr-10 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm appearance-none focus:ring-[#FF6600] focus:border-[#FF6600]"
+                className="pl-4 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-sm appearance-none focus:ring-[#FF6600] focus:border-[#FF6600]"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
@@ -293,10 +293,10 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+              <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Name</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date Added</th>
@@ -304,7 +304,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
@@ -321,7 +321,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                 items.map((item) => {
                   const { icon, bgColor, textColor } = getFileIcon(item.type, item.title);
                   return (
-                    <tr key={item.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded ${bgColor} flex items-center justify-center ${textColor}`}>
@@ -331,7 +331,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded uppercase">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase">
                           {(item.category || 'general').replace(/_/g, ' ')}
                         </span>
                       </td>
@@ -344,13 +344,13 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                               href={item.source_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-[#FF6600] transition-colors"
+                              className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-[#FF6600] transition-colors"
                             >
                               <span className="material-symbols-outlined text-lg">open_in_new</span>
                             </a>
                           ) : (
                             <button
-                              className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-[#FF6600] transition-colors"
+                              className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-[#FF6600] transition-colors"
                               type="button"
                               onClick={() => downloadFile(item.id, item.title)}
                             >
@@ -358,7 +358,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                             </button>
                           )}
                           <button
-                            className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded border border-transparent hover:border-slate-200 dark:hover:border-slate-600 text-slate-400 hover:text-red-500 transition-colors"
+                            className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-red-500 transition-colors"
                             type="button"
                             onClick={() => deleteItem(item.id)}
                           >

@@ -26,18 +26,18 @@ function formatShortDate(date: Date): string {
 }
 
 function getTierStyle(tier?: string): string {
-  if (tier === 'A') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
-  if (tier === 'B') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+  if (tier === 'A') return 'bg-emerald-100 text-emerald-800
+  if (tier === 'B') return 'bg-yellow-100 text-yellow-800
+  return 'bg-slate-100 text-slate-700
 }
 
 function getIconForCategory(categories: string[] = [], tags: string[] = []): { icon: string; bgClass: string } {
   const tokens = [...categories, ...tags].map(t => t.toLowerCase());
-  if (tokens.some(t => t.includes('comercial') || t.includes('promo'))) return { icon: 'local_offer', bgClass: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' };
-  if (tokens.some(t => t.includes('cultural') || t.includes('arte'))) return { icon: 'theater_comedy', bgClass: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' };
-  if (tokens.some(t => t.includes('esportivo') || t.includes('esporte'))) return { icon: 'sports_soccer', bgClass: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' };
-  if (tokens.some(t => t.includes('social') || t.includes('causa'))) return { icon: 'volunteer_activism', bgClass: 'bg-rose-100 dark:bg-rose-900/30 text-rose-600' };
-  return { icon: 'event', bgClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' };
+  if (tokens.some(t => t.includes('comercial') || t.includes('promo'))) return { icon: 'local_offer', bgClass: 'bg-orange-100 text-orange-600' };
+  if (tokens.some(t => t.includes('cultural') || t.includes('arte'))) return { icon: 'theater_comedy', bgClass: 'bg-purple-100 text-purple-600' };
+  if (tokens.some(t => t.includes('esportivo') || t.includes('esporte'))) return { icon: 'sports_soccer', bgClass: 'bg-emerald-100 text-emerald-600' };
+  if (tokens.some(t => t.includes('social') || t.includes('causa'))) return { icon: 'volunteer_activism', bgClass: 'bg-rose-100 text-rose-600' };
+  return { icon: 'event', bgClass: 'bg-blue-100 text-blue-600' };
 }
 
 export default function ClientCalendarClient({ clientId }: ClientCalendarClientProps) {
@@ -86,20 +86,20 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
   return (
     <div className="space-y-10">
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
           {error}
         </div>
       )}
 
       {/* Today Hero Block */}
-      <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-        <div className="p-8 flex flex-wrap justify-between items-end gap-6 border-b border-slate-200 dark:border-slate-800">
+      <section className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="p-8 flex flex-wrap justify-between items-end gap-6 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="font-display text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+              <h2 className="font-display text-5xl font-black text-slate-900 tracking-tight">
                 {String(today.getDate()).padStart(2, '0')}/{String(today.getMonth() + 1).padStart(2, '0')}
               </h2>
-              <span className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800/40">
+              <span className="px-3 py-1 rounded-full border border-slate-200 text-xs font-bold text-slate-500 bg-slate-100">
                 {formatDate(today).split(',')[0]}
               </span>
             </div>
@@ -114,7 +114,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
               Create post
             </button>
             <button
-              className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+              className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 text-slate-900 font-bold rounded-lg hover:bg-slate-50 transition-all"
               onClick={() => router.push(`/calendar?date=${todayISO}`)}
             >
               <span className="material-symbols-outlined text-sm">calendar_view_day</span>
@@ -147,7 +147,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
                   return (
                     <div
                       key={idx}
-                      className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-[#FF6600]/50 transition-colors cursor-pointer"
+                      className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:border-[#FF6600]/50 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bgClass}`}>
@@ -170,16 +170,16 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
 
           {/* At a glance */}
           <div className="space-y-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">At a glance</p>
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Total observances</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{events.length}</span>
+                  <span className="font-semibold text-slate-900">{events.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Clients impacted</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">1</span>
+                  <span className="font-semibold text-slate-900">1</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Pending actions</span>
@@ -188,7 +188,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Priority segments</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {priorityTags.length === 0 ? (
@@ -229,7 +229,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
               return (
                 <div
                   key={item.date}
-                  className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#FF6600]/50 transition-all cursor-pointer"
+                  className="bg-white p-5 rounded-xl border border-slate-200 hover:border-[#FF6600]/50 transition-all cursor-pointer"
                   onClick={() => router.push(`/calendar?date=${item.date}`)}
                 >
                   <div className="flex justify-between items-start mb-4">
@@ -237,9 +237,9 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
                       <p className="text-[10px] font-bold text-slate-500 uppercase">{formatShortDate(eventDate)}</p>
                       <h4 className="font-bold text-sm">{item.event.name}</h4>
                     </div>
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">Relevance {score}%</span>
+                    <span className="text-xs bg-slate-100 px-2 py-1 rounded">Relevance {score}%</span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                     <div className="bg-[#FF6600] h-full" style={{ width: `${score}%` }} />
                   </div>
                 </div>
@@ -254,13 +254,13 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
         <h2 className="font-display text-2xl font-bold">Weekly Performance</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Best Post */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-green-500 shadow-sm border border-y border-r border-slate-200 dark:border-slate-800 p-5">
+          <div className="bg-white rounded-xl border-l-4 border-green-500 shadow-sm border border-y border-r border-slate-200 p-5">
             <div className="flex justify-between items-start mb-4">
               <span className="text-[10px] font-black uppercase text-green-600 tracking-tighter">Best Post of the Week</span>
               <span className="material-symbols-outlined text-green-500">trending_up</span>
             </div>
             <div className="flex gap-4 items-center">
-              <div className="w-16 h-16 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-slate-400">image</span>
               </div>
               <div className="flex-1">
@@ -268,7 +268,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
                 <h5 className="text-sm font-bold leading-tight">Weekly highlight post</h5>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between">
               <div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Engagement Rate</p>
                 <p className="text-lg font-black text-green-600">8.42%</p>
@@ -281,13 +281,13 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
           </div>
 
           {/* Worst Post */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-red-400 shadow-sm border border-y border-r border-slate-200 dark:border-slate-800 p-5 opacity-80">
+          <div className="bg-white rounded-xl border-l-4 border-red-400 shadow-sm border border-y border-r border-slate-200 p-5 opacity-80">
             <div className="flex justify-between items-start mb-4">
               <span className="text-[10px] font-black uppercase text-red-500 tracking-tighter">Underperforming</span>
               <span className="material-symbols-outlined text-red-400">trending_down</span>
             </div>
             <div className="flex gap-4 items-center">
-              <div className="w-16 h-16 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center grayscale">
+              <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center grayscale">
                 <span className="material-symbols-outlined text-slate-400">image</span>
               </div>
               <div className="flex-1">
@@ -295,7 +295,7 @@ export default function ClientCalendarClient({ clientId }: ClientCalendarClientP
                 <h5 className="text-sm font-bold leading-tight">Lowest engagement content</h5>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between">
               <div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Engagement Rate</p>
                 <p className="text-lg font-black text-red-400">0.12%</p>

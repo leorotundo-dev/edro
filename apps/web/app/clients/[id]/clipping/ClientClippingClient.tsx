@@ -62,9 +62,9 @@ function formatDate(value?: string | null): string {
 
 function getSentimentBadge(sentiment?: string | null): { className: string; label: string } {
   const s = (sentiment || 'neutral').toLowerCase();
-  if (s === 'positive') return { className: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400', label: 'Positive' };
-  if (s === 'negative') return { className: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400', label: 'Negative' };
-  return { className: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', label: 'Neutral' };
+  if (s === 'positive') return { className: 'bg-green-50 text-green-700 label: 'Positive' };
+  if (s === 'negative') return { className: 'bg-red-50 text-red-700 label: 'Negative' };
+  return { className: 'bg-amber-50 text-amber-700 label: 'Neutral' };
 }
 
 export default function ClientClippingClient({ clientId }: ClientClippingClientProps) {
@@ -181,12 +181,12 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-4xl text-slate-900 dark:text-white mb-1">Social Listening</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Monitoring brand conversations and trends</p>
+          <h1 className="font-display text-4xl text-slate-900 mb-1">Social Listening</h1>
+          <p className="text-slate-500 text-sm">Monitoring brand conversations and trends</p>
         </div>
         <div className="flex items-center gap-3">
           <button
-            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
             type="button"
             onClick={loadData}
           >
@@ -205,31 +205,31 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
 
       {/* Notifications */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
           {error}
         </div>
       )}
       {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-xl text-sm">
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
           {success}
         </div>
       )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatNumber(stats.items_last_7_days)}</div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">{formatNumber(stats.items_last_7_days)}</div>
           <div className="text-sm text-slate-500 mt-1">Mentions (7 days)</div>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <div className="text-3xl font-bold text-green-600">{formatNumber(stats.positive)}</div>
           <div className="text-sm text-slate-500 mt-1">Positive</div>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <div className="text-3xl font-bold text-amber-600">{formatNumber(stats.neutral)}</div>
           <div className="text-sm text-slate-500 mt-1">Neutral</div>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <div className="text-3xl font-bold text-red-600">{formatNumber(stats.negative)}</div>
           <div className="text-sm text-slate-500 mt-1">Negative</div>
         </div>
@@ -240,16 +240,16 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
         {/* Left Column - Mentions & Trends */}
         <div className="lg:col-span-2 space-y-6">
           {/* Recent Mentions */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 dark:text-white">Recent Mentions</h3>
+              <h3 className="font-bold text-slate-900">Recent Mentions</h3>
               <span className="text-sm text-slate-400">{items.length} items</span>
             </div>
             <div className="space-y-3">
               {loading ? (
                 <div className="text-sm text-slate-400 py-4 text-center">Loading...</div>
               ) : items.length === 0 ? (
-                <div className="text-sm text-slate-400 py-4 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                <div className="text-sm text-slate-400 py-4 border border-dashed border-slate-200 rounded-xl text-center">
                   No recent mentions found.
                 </div>
               ) : (
@@ -259,18 +259,18 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
                     <button
                       key={item.id}
                       type="button"
-                      className="w-full text-left border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-[#FF6600]/40 transition-colors"
+                      className="w-full text-left border border-slate-200 rounded-xl p-4 hover:border-[#FF6600]/40 transition-colors"
                       onClick={() => router.push(`/clipping/${item.id}`)}
                     >
                       <div className="flex items-center justify-between gap-3 mb-2">
-                        <span className="font-semibold text-sm text-slate-900 dark:text-white">
+                        <span className="font-semibold text-sm text-slate-900">
                           {item.platform || item.source_name || 'Social'}
                         </span>
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${sentiment.className}`}>
                           {sentiment.label}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">
+                      <p className="text-sm text-slate-600 line-clamp-2 mb-2">
                         {item.title || item.snippet || 'No content'}
                       </p>
                       <div className="text-xs text-slate-400">
@@ -284,24 +284,24 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
           </div>
 
           {/* Trends */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 dark:text-white">Trends</h3>
+              <h3 className="font-bold text-slate-900">Trends</h3>
               <span className="text-sm text-slate-400">{keywords.filter(k => k.is_active).length} active</span>
             </div>
             <div className="space-y-3">
               {keywords.length === 0 ? (
-                <div className="text-sm text-slate-400 py-4 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                <div className="text-sm text-slate-400 py-4 border border-dashed border-slate-200 rounded-xl text-center">
                   No trends registered yet.
                 </div>
               ) : (
                 keywords.slice(0, 5).map((kw) => (
-                  <div key={kw.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                  <div key={kw.id} className="border border-slate-200 rounded-xl p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-semibold text-sm">{kw.keyword}</span>
                         {kw.category && (
-                          <span className="ml-2 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] rounded-full">
+                          <span className="ml-2 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded-full">
                             {kw.category}
                           </span>
                         )}
@@ -320,23 +320,23 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
         {/* Right Column - Keywords & Platforms */}
         <div className="space-y-6">
           {/* Keywords */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 dark:text-white">Monitored Keywords</h3>
+              <h3 className="font-bold text-slate-900">Monitored Keywords</h3>
               <span className="text-sm text-slate-400">{keywords.length} keywords</span>
             </div>
             <div className="space-y-2 mb-4">
               {keywords.length === 0 ? (
-                <div className="text-sm text-slate-400 py-3 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                <div className="text-sm text-slate-400 py-3 border border-dashed border-slate-200 rounded-xl text-center">
                   No keywords registered.
                 </div>
               ) : (
                 keywords.map((kw) => (
-                  <div key={kw.id} className="flex items-center justify-between gap-2 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+                  <div key={kw.id} className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{kw.keyword}</span>
                       {kw.category && (
-                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] rounded-full">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded-full">
                           {kw.category}
                         </span>
                       )}
@@ -345,8 +345,8 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
                       type="button"
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors ${
                         kw.is_active
-                          ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
-                          : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                          ? 'border-green-200 bg-green-50 text-green-700
+                          : 'border-slate-200 bg-slate-50 text-slate-500
                       }`}
                       onClick={() => toggleKeyword(kw)}
                     >
@@ -356,15 +356,15 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
                 ))
               )}
             </div>
-            <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="space-y-2 pt-4 border-t border-slate-100">
               <input
-                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-[#FF6600] focus:border-[#FF6600]"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-[#FF6600] focus:border-[#FF6600]"
                 placeholder="New keyword"
                 value={newKeyword}
                 onChange={(e) => setNewKeyword(e.target.value)}
               />
               <input
-                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-[#FF6600] focus:border-[#FF6600]"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-[#FF6600] focus:border-[#FF6600]"
                 placeholder="Category (optional)"
                 value={newKeywordCategory}
                 onChange={(e) => setNewKeywordCategory(e.target.value)}
@@ -381,21 +381,21 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
           </div>
 
           {/* Platforms */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 dark:text-white">Platforms</h3>
+              <h3 className="font-bold text-slate-900">Platforms</h3>
             </div>
             <div className="space-y-2">
               {platforms.length === 0 ? (
-                <div className="text-sm text-slate-400 py-3 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
+                <div className="text-sm text-slate-400 py-3 border border-dashed border-slate-200 rounded-xl text-center">
                   No platform data available.
                 </div>
               ) : (
                 platforms.map((p) => (
-                  <div key={p.platform} className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-3">
+                  <div key={p.platform} className="border border-slate-200 rounded-lg px-3 py-3">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-sm">{p.platform}</span>
-                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs rounded-full">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded-full">
                         {p.total} mentions
                       </span>
                     </div>

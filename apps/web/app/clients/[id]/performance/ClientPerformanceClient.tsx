@@ -92,7 +92,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
       setPlatforms([
         { platform: 'Instagram', percent: 60, color: 'bg-[#FF6600]' },
         { platform: 'LinkedIn', percent: 25, color: 'bg-slate-400' },
-        { platform: 'Other', percent: 15, color: 'bg-slate-200 dark:bg-slate-700' },
+        { platform: 'Other', percent: 15, color: 'bg-slate-200 },
       ]);
       setLoading(false);
     }, 600);
@@ -100,10 +100,10 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
 
   const getPlatformBadge = (platform: string) => {
     const styles: Record<string, string> = {
-      Instagram: 'bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400',
-      LinkedIn: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-      Twitter: 'bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
-      TikTok: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+      Instagram: 'bg-pink-50 text-pink-600
+      LinkedIn: 'bg-blue-50 text-blue-600
+      Twitter: 'bg-sky-50 text-sky-600
+      TikTok: 'bg-slate-100 text-slate-700
     };
     return styles[platform] || styles.TikTok;
   };
@@ -112,7 +112,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
     <div className="space-y-6">
       {/* Header Actions */}
       <div className="flex items-center justify-end gap-3">
-        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm">
+        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-sm">
           <span className="material-symbols-outlined text-sm text-slate-500">file_download</span>
           Export Report
         </button>
@@ -123,12 +123,12 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl">
+      <div className="px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Platform:</span>
             <select
-              className="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-md focus:ring-[#FF6600] focus:border-[#FF6600]"
+              className="text-sm border-slate-200 rounded-md focus:ring-[#FF6600] focus:border-[#FF6600]"
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
             >
@@ -141,7 +141,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Period:</span>
-            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-slate-300">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-slate-300">
               <span className="material-symbols-outlined text-sm text-slate-400">calendar_month</span>
               <span>Last 30 Days</span>
               <span className="material-symbols-outlined text-sm text-slate-400">expand_more</span>
@@ -159,7 +159,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
             {kpis.map((kpi, idx) => (
               <div
                 key={idx}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm"
+                className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm"
               >
                 <div className="flex justify-between items-start mb-4">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
@@ -172,7 +172,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
                     {kpi.change}%
                   </span>
                 </div>
-                <h3 className="text-3xl font-display text-slate-900 dark:text-white">{kpi.value}</h3>
+                <h3 className="text-3xl font-display text-slate-900">{kpi.value}</h3>
                 <div className="mt-4 h-10 w-full flex items-end gap-1">
                   {[60, 80, 50, 90, 75].map((h, i) => (
                     <div
@@ -191,7 +191,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
           </div>
 
           {/* Engagement Over Time Chart */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Engagement Over Time</h3>
@@ -208,7 +208,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
                 </div>
               </div>
             </div>
-            <div className="h-80 w-full relative border-l border-b border-slate-200 dark:border-slate-700">
+            <div className="h-80 w-full relative border-l border-b border-slate-200">
               <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
                 <path
                   d="M 0 280 Q 150 240 300 180 T 600 140 T 900 60 T 1200 100"
@@ -238,13 +238,13 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
           {/* Distribution & Formats Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Platform Distribution */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Platform Distribution</h3>
               <div className="flex items-center gap-8 h-48">
                 <div className="relative w-40 h-40">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                     <circle
-                      className="stroke-slate-100 dark:stroke-slate-800"
+                      className="stroke-slate-100"
                       cx="18"
                       cy="18"
                       fill="none"
@@ -292,7 +292,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
             </div>
 
             {/* Top Performing Formats */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Top Performing Formats</h3>
               <div className="space-y-4">
                 {formats.map((f, idx) => (
@@ -301,7 +301,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
                       <span>{f.format}</span>
                       <span>{f.engagement}</span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full">
+                    <div className="w-full bg-slate-100 h-2 rounded-full">
                       <div
                         className="bg-[#FF6600] h-full rounded-full"
                         style={{ width: `${f.percent}%`, opacity: 1 - idx * 0.2 }}
@@ -314,15 +314,15 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
           </div>
 
           {/* Recent Post Performance Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Post Performance</h3>
               <button className="text-[#FF6600] text-xs font-bold hover:underline">View Detailed Table</button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                  <tr className="bg-slate-50 border-b border-slate-100">
                     <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
                     <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform</th>
                     <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Content</th>
@@ -337,9 +337,9 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100">
                   {posts.map((post) => (
-                    <tr key={post.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <tr key={post.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 text-sm text-slate-500">{post.date}</td>
                       <td className="px-6 py-4">
                         <span
@@ -352,7 +352,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded bg-slate-100 border border-slate-200 flex items-center justify-center">
                             <span className="material-symbols-outlined text-slate-400 text-sm">image</span>
                           </div>
                           <span className="text-sm font-medium truncate max-w-[150px]">{post.content}</span>
@@ -369,11 +369,11 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
           </div>
 
           {/* Disconnected State */}
-          <div className="bg-slate-100/50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-12 flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-sm">
+          <div className="bg-slate-100/50 border-2 border-dashed border-slate-200 rounded-xl p-12 flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm">
               <span className="material-symbols-outlined text-3xl text-slate-300">link_off</span>
             </div>
-            <h4 className="text-xl font-display text-slate-900 dark:text-white mb-2">Analytics Disconnected</h4>
+            <h4 className="text-xl font-display text-slate-900 mb-2">Analytics Disconnected</h4>
             <p className="text-slate-500 text-sm max-w-sm mb-8">
               Certain data sources have been disconnected or need re-authorization to display real-time insights.
             </p>

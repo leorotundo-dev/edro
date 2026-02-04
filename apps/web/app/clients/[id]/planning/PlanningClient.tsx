@@ -111,7 +111,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       <div className="flex items-center justify-end gap-3">
         <button
           type="button"
-          className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-semibold text-sm"
+          className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-sm"
         >
           <span className="material-symbols-outlined text-sm text-slate-500">file_download</span>
           Export PDF
@@ -133,22 +133,22 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Brand Positioning */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
             <h3 className="font-display text-3xl mb-4">Brand Positioning</h3>
-            <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-lg italic">
+            <p className="text-slate-600 leading-relaxed text-lg italic">
               {data.brand_positioning ||
                 '"Our client offers a premium experience that connects modern lifestyle with authentic sustainable practices, focused on quality and heritage."'}
             </p>
-            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="mt-6 pt-6 border-t border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Primary Voice</p>
-              <p className="font-medium text-slate-800 dark:text-slate-200">
+              <p className="font-medium text-slate-800">
                 {data.primary_voice || 'Sophisticated, Earnest, Timeless'}
               </p>
             </div>
           </div>
 
           {/* Strategic Objectives */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
             <h3 className="font-display text-3xl mb-4">Strategic Objectives</h3>
             <ul className="space-y-4">
               {(data.objectives || [
@@ -158,7 +158,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               ]).map((obj) => (
                 <li key={obj.id} className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-[#FF6600] mt-1">check_circle</span>
-                  <span className="text-slate-600 dark:text-slate-300">{obj.text}</span>
+                  <span className="text-slate-600">{obj.text}</span>
                 </li>
               ))}
             </ul>
@@ -172,12 +172,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
           <span className="w-8 h-[1px] bg-[#FF6600]" />
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Direction</h2>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm relative overflow-hidden">
           <div className="max-w-4xl">
             <h3 className="font-display text-4xl mb-6">
               {data.creative_direction_title || 'Minimalist Elegance & Tactile Heritage'}
             </h3>
-            <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed mb-6">
+            <p className="text-slate-600 text-lg leading-relaxed mb-6">
               {data.creative_direction_description ||
                 'The visual strategy centers on authentic aesthetics. We will transition from high-gloss studio environments to natural, high-contrast natural light photography. The color palette remains anchored with seasonal accents introduced through prop styling.'}
             </p>
@@ -185,7 +185,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               {(data.creative_tags || ['Natural Grain', 'Architectural Framing', 'Human Centric']).map((tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-full uppercase"
+                  className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full uppercase"
                 >
                   {tag}
                 </span>
@@ -205,16 +205,16 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
           {(data.pillars || DEFAULT_PILLARS).map((pillar) => (
             <div
               key={pillar.id}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm hover:border-[#FF6600]/50 transition-colors cursor-pointer group"
+              className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:border-[#FF6600]/50 transition-colors cursor-pointer group"
             >
-              <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 text-[#FF6600] rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 bg-orange-50 text-[#FF6600] rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                 <span className="material-symbols-outlined">{pillar.icon}</span>
               </div>
               <h4 className="font-bold text-sm mb-2">{pillar.title}</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{pillar.description}</p>
+              <p className="text-xs text-slate-500 leading-relaxed">{pillar.description}</p>
             </div>
           ))}
-          <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer group">
             <span className="material-symbols-outlined text-slate-400 group-hover:text-[#FF6600] mb-2">add_circle</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Add Pillar</span>
           </div>
@@ -227,13 +227,13 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
           <span className="w-8 h-[1px] bg-[#FF6600]" />
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Annual Roadmap</h2>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
           {/* Quarter Headers */}
-          <div className="grid grid-cols-4 mb-8 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="grid grid-cols-4 mb-8 border-b border-slate-100 pb-4">
             {['Q1', 'Q2', 'Q3', 'Q4'].map((q, idx) => (
               <div
                 key={q}
-                className={`text-center font-display text-2xl text-slate-400 ${idx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''}`}
+                className={`text-center font-display text-2xl text-slate-400 ${idx > 0 ? 'border-l border-slate-100 : ''}`}
               >
                 {q}
               </div>
@@ -244,7 +244,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
             {/* Grid Lines */}
             <div className="absolute inset-0 flex justify-between pointer-events-none opacity-20">
               {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-[1px] h-full bg-slate-300 dark:bg-slate-700" />
+                <div key={i} className="w-[1px] h-full bg-slate-300" />
               ))}
             </div>
             {/* Items */}
@@ -273,15 +273,15 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
           <span className="w-8 h-[1px] bg-[#FF6600]" />
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Notes</h2>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
           <textarea
-            className="w-full h-48 bg-transparent border-none focus:ring-0 p-6 text-slate-600 dark:text-slate-300 resize-none placeholder:text-slate-400"
+            className="w-full h-48 bg-transparent border-none focus:ring-0 p-6 text-slate-600 resize-none placeholder:text-slate-400"
             placeholder="Type collaborative notes here... These are persistent across the creative team."
             value={notesText}
             onChange={(e) => setNotesText(e.target.value)}
             disabled={!editingNotes}
           />
-          <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-between items-center">
+          <div className="px-6 py-3 bg-slate-50 rounded-b-lg flex justify-between items-center">
             <span className="text-[10px] font-bold text-slate-400 uppercase">
               {data.notes_updated_at
                 ? `Last updated ${new Date(data.notes_updated_at).toLocaleDateString()}`
