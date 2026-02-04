@@ -16,6 +16,7 @@ import { listApprovedEventsForYear } from '../repos/eventsRepo';
 import { listOverridesForClient, upsertOverride } from '../repos/calendarOverridesRepo';
 import { upsertRelevance } from '../repos/calendarRelevanceRepo';
 import { query } from '../db';
+import { generateEventDescription } from '../services/calendarDescriptionService';
 
 const platformSchema = z.enum([
   'Instagram',
@@ -33,6 +34,8 @@ const objectiveSchema = z.enum(['awareness', 'engagement', 'conversion', 'leads'
 
 const toneSchema = z.enum(['conservative', 'balanced', 'bold']);
 const riskSchema = z.enum(['low', 'medium', 'high']);
+
+const RELEVANCE_THRESHOLD = 55;
 
 const calendarProfileSchema = z.object({
   enable_calendar_total: z.boolean().optional().default(true),
@@ -179,6 +182,109 @@ export default async function calendarRoutes(app: FastifyInstance) {
     async () => RETAIL_BR_EVENTS
   );
 
+  app.get(
+    '/calendar/events/:eventId/relevance',
+    { preHandler: [requirePerm('calendars:read')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const eventId = String(request.params.eventId || '');
+      if (!eventId) return reply.status(400).send({ error: 'event_id_required' });
+
+      const { rows: events } = await query<any>(
+        `SELECT payload, id, name, slug, date_type, date, rule, start_date, end_date,
+                scope, country, uf, city, categories, tags, base_relevance,
+                segment_boosts, platform_affinity, avoid_segments, is_trend_sensitive, source
+         FROM events
+         WHERE id=$1 AND (tenant_id=$2 OR tenant_id IS NULL)
+         LIMIT 1`,
+        [eventId, tenantId]
+      );
+      if (!events[0]) {
+        return reply.status(404).send({ error: 'event_not_found' });
+      }
+      const payload =
+        events[0]?.payload ||
+        ({
+          id: events[0].id,
+          name: events[0].name,
+          slug: events[0].slug,
+          date_type: events[0].date_type,
+          date: events[0].date,
+          rule: events[0].rule,
+          start_date: events[0].start_date,
+          end_date: events[0].end_date,
+          scope: events[0].scope,
+          country: events[0].country,
+          uf: events[0].uf,
+          city: events[0].city,
+          categories: events[0].categories ?? [],
+          tags: events[0].tags ?? [],
+          base_relevance: events[0].base_relevance ?? 50,
+          segment_boosts: events[0].segment_boosts ?? {},
+          platform_affinity: events[0].platform_affinity ?? {},
+          avoid_segments: events[0].avoid_segments ?? [],
+          is_trend_sensitive: events[0].is_trend_sensitive ?? true,
+          source: events[0].source,
+        } as any);
+
+      const { rows: clients } = await query<any>(
+        `SELECT * FROM clients WHERE tenant_id=$1 ORDER BY name ASC`,
+        [tenantId]
+      );
+
+      const { rows: overrides } = await query<any>(
+        `SELECT calendar_event_id, client_id, force_include, force_exclude, custom_priority, notes
+         FROM calendar_event_overrides
+         WHERE tenant_id=$1 AND calendar_event_id=$2`,
+        [tenantId, eventId]
+      );
+      const overrideMap = new Map(overrides.map((o) => [o.client_id, o]));
+
+      const items = clients.map((row) => {
+        const client = buildClientProfile(row);
+        const override = overrideMap.get(client.id);
+        if (override?.force_exclude) {
+          return {
+            client_id: client.id,
+            name: client.name,
+            score: 0,
+            tier: 'C',
+            is_relevant: false,
+            why: 'override:exclude',
+          };
+        }
+        if (!override?.force_include && !matchesLocality(payload, client)) {
+          return {
+            client_id: client.id,
+            name: client.name,
+            score: 0,
+            tier: 'C',
+            is_relevant: false,
+            why: 'locality:mismatch',
+          };
+        }
+        const relevance = scoreEventRelevance(payload, client, override);
+        return {
+          client_id: client.id,
+          name: client.name,
+          score: relevance.score,
+          tier: relevance.tier,
+          is_relevant: relevance.score >= RELEVANCE_THRESHOLD,
+          why: relevance.why,
+        };
+      });
+
+      items.sort((a, b) => b.score - a.score);
+      const relevantClientIds = items.filter((item) => item.is_relevant).map((item) => item.client_id);
+
+      return reply.send({
+        event_id: eventId,
+        relevant_client_ids: relevantClientIds,
+        clients: items,
+      });
+    }
+  );
+
   app.get('/calendar/events/:month', { preHandler: [requirePerm('calendars:read')] }, async (request, reply) => {
     const params = monthParamSchema.parse(request.params);
     const tenantId = (request.user as any).tenant_id;
@@ -193,7 +299,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
 
     for (const hit of hits) {
       const score = Number(hit.event.base_relevance ?? 50);
-      const tier = score >= 80 ? 'A' : score >= 55 ? 'B' : 'C';
+      const tier = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
       for (const date of hit.hitDates) {
         if (!days[date]) days[date] = [];
         days[date].push({
@@ -255,6 +361,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
         if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
 
         const relevance = scoreEventRelevance(hit.event, client, override);
+        if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         for (const date of hit.hitDates) {
           if (!days[date]) days[date] = [];
           days[date].push({
@@ -317,6 +424,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
         if (override?.force_exclude) continue;
         if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
         const relevance = scoreEventRelevance(hit.event, client, override);
+        if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         items.push({
           id: hit.event.id,
           name: hit.event.name,
@@ -389,6 +497,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
             if (override?.force_exclude) continue;
             if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
             const relevance = scoreEventRelevance(hit.event, client, override);
+            if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
             items.push({
               date: dateISO,
               id: hit.event.id,
@@ -497,7 +606,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
               clientId: client.id,
               calendarEventId: hit.event.id,
               relevanceScore: relevance.score,
-              isRelevant: relevance.score >= 55,
+              isRelevant: relevance.score >= RELEVANCE_THRESHOLD,
               relevanceReason: { why: relevance.why, tier: relevance.tier },
             });
             touched.add(hit.event.id);
@@ -531,4 +640,240 @@ export default async function calendarRoutes(app: FastifyInstance) {
       posts,
     });
   });
+
+  // ========================================
+  // ENDPOINT: Gerar descrição de evento com IA
+  // ========================================
+  app.post(
+    '/calendar/events/:eventId/description',
+    { preHandler: [requirePerm('calendars:write')] },
+    async (request: any, reply) => {
+      const eventId = String(request.params.eventId || '');
+      const tenantId = (request.user as any).tenant_id;
+
+      if (!eventId) {
+        return reply.status(400).send({ error: 'event_id_required' });
+      }
+
+      // Buscar evento no banco
+      const { rows: events } = await query<any>(
+        `SELECT id, name, slug, date, categories, tags
+         FROM events
+         WHERE id=$1 AND (tenant_id=$2 OR tenant_id IS NULL)
+         LIMIT 1`,
+        [eventId, tenantId]
+      );
+
+      if (!events[0]) {
+        return reply.status(404).send({ error: 'event_not_found' });
+      }
+
+      const event = events[0];
+
+      try {
+        const result = await generateEventDescription({
+          evento: event.name,
+          data: event.date || '',
+          tipo_evento: event.categories?.[0] || '',
+          tags: event.tags?.join(', ') || '',
+        });
+
+        // Salvar descrição no banco (opcional)
+        if (result.descricao) {
+          await query(
+            `UPDATE events SET payload = jsonb_set(
+              COALESCE(payload, '{}'),
+              '{ai_description}',
+              $1::jsonb
+            ) WHERE id=$2`,
+            [JSON.stringify({
+              descricao: result.descricao,
+              origem: result.origem,
+              curiosidade: result.curiosidade,
+              generated_at: new Date().toISOString(),
+            }), eventId]
+          );
+        }
+
+        return reply.send({
+          event_id: eventId,
+          event_name: event.name,
+          ...result,
+        });
+      } catch (error) {
+        console.error('Error generating event description:', error);
+        return reply.status(500).send({
+          error: 'ai_generation_failed',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  );
+
+  // ========================================
+  // ENDPOINT: Buscar descrição de evento por nome
+  // ========================================
+  app.post(
+    '/calendar/describe',
+    { preHandler: [requirePerm('calendars:read')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        evento: z.string().min(2),
+        data: z.string().optional(),
+        tipo_evento: z.string().optional(),
+        tags: z.string().optional(),
+      });
+
+      const body = bodySchema.parse(request.body);
+
+      try {
+        const result = await generateEventDescription({
+          evento: body.evento,
+          data: body.data || '',
+          tipo_evento: body.tipo_evento || '',
+          tags: body.tags || '',
+        });
+
+        return reply.send(result);
+      } catch (error) {
+        console.error('Error generating event description:', error);
+        return reply.status(500).send({
+          error: 'ai_generation_failed',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  );
+
+  // ========================================
+  // ENDPOINT: Remover eventos duplicados (Admin)
+  // ========================================
+  app.post(
+    '/calendar/admin/remove-duplicates',
+    { preHandler: [requirePerm('admin')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        dryRun: z.boolean().optional().default(true),
+      });
+
+      const body = bodySchema.parse(request.body || {});
+      const dryRun = body.dryRun;
+
+      const results = {
+        dryRun,
+        totalEventsBefore: 0,
+        totalEventsAfter: 0,
+        duplicatesByNameDate: [] as { name: string; date: string; count: number; kept: string; removed: string[] }[],
+        duplicatesBySimilarName: [] as { date: string; variations: string[]; kept: string; removed: string[] }[],
+        totalRemoved: 0,
+      };
+
+      // 1. Contar total de eventos antes
+      const { rows: countRows } = await query<{ count: string }>('SELECT COUNT(*) as count FROM events');
+      results.totalEventsBefore = parseInt(countRows[0].count, 10);
+
+      // 2. Encontrar duplicados por nome + data exatos
+      const { rows: duplicates } = await query<{ name: string; date: string; cnt: string; ids: string[] }>(`
+        SELECT
+          name,
+          date,
+          COUNT(*) as cnt,
+          array_agg(id ORDER BY created_at ASC) as ids
+        FROM events
+        WHERE date IS NOT NULL
+        GROUP BY name, date
+        HAVING COUNT(*) > 1
+        ORDER BY cnt DESC, name ASC
+      `);
+
+      const idsToRemove: string[] = [];
+
+      for (const dup of duplicates) {
+        const count = parseInt(dup.cnt, 10);
+        const extraIds = dup.ids.slice(1); // Manter o primeiro (mais antigo)
+        idsToRemove.push(...extraIds);
+
+        results.duplicatesByNameDate.push({
+          name: dup.name,
+          date: dup.date,
+          count,
+          kept: dup.ids[0],
+          removed: extraIds,
+        });
+      }
+
+      // 3. Encontrar duplicados por nome normalizado + data
+      const { rows: similarDups } = await query<{ date: string; normalized: string; cnt: string; ids: string[]; names: string[] }>(`
+        SELECT
+          date,
+          LOWER(TRIM(REGEXP_REPLACE(
+            REGEXP_REPLACE(name, '[áàâãä]', 'a', 'gi'),
+            '[éèêë]', 'e', 'gi'
+          ))) as normalized,
+          COUNT(*) as cnt,
+          array_agg(id ORDER BY base_relevance DESC) as ids,
+          array_agg(name ORDER BY base_relevance DESC) as names
+        FROM events
+        WHERE date IS NOT NULL
+        GROUP BY date, LOWER(TRIM(REGEXP_REPLACE(
+          REGEXP_REPLACE(name, '[áàâãä]', 'a', 'gi'),
+          '[éèêë]', 'e', 'gi'
+        )))
+        HAVING COUNT(*) > 1
+        ORDER BY cnt DESC
+      `);
+
+      // Filtrar apenas os que têm nomes DIFERENTES (variações)
+      const realSimilarDups = similarDups.filter(dup => {
+        const uniqueNames = new Set(dup.names);
+        return uniqueNames.size > 1;
+      });
+
+      const similarIdsToRemove: string[] = [];
+
+      for (const dup of realSimilarDups) {
+        const extraIds = dup.ids.slice(1);
+        similarIdsToRemove.push(...extraIds);
+
+        results.duplicatesBySimilarName.push({
+          date: dup.date,
+          variations: dup.names,
+          kept: dup.ids[0],
+          removed: extraIds,
+        });
+      }
+
+      // 4. Remover duplicados se não for dry-run
+      const allIdsToRemove = [...new Set([...idsToRemove, ...similarIdsToRemove])];
+
+      if (!dryRun && allIdsToRemove.length > 0) {
+        // Deletar em lotes de 100
+        const batchSize = 100;
+        for (let i = 0; i < allIdsToRemove.length; i += batchSize) {
+          const batch = allIdsToRemove.slice(i, i + batchSize);
+          const placeholders = batch.map((_, idx) => `$${idx + 1}`).join(',');
+          await query(`DELETE FROM events WHERE id IN (${placeholders})`, batch);
+        }
+      }
+
+      results.totalRemoved = dryRun ? 0 : allIdsToRemove.length;
+
+      // 5. Contar total de eventos depois
+      const { rows: finalCount } = await query<{ count: string }>('SELECT COUNT(*) as count FROM events');
+      results.totalEventsAfter = parseInt(finalCount[0].count, 10);
+
+      return reply.send({
+        success: true,
+        message: dryRun
+          ? `Modo dry-run: ${allIdsToRemove.length} eventos seriam removidos`
+          : `${results.totalRemoved} eventos duplicados removidos`,
+        ...results,
+        duplicatesFound: {
+          byExactNameDate: results.duplicatesByNameDate.length,
+          bySimilarName: results.duplicatesBySimilarName.length,
+          totalIdsToRemove: allIdsToRemove.length,
+        },
+      });
+    }
+  );
 }
