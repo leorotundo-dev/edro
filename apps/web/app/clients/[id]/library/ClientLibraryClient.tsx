@@ -15,6 +15,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import { IconExternalLink, IconFileDownload, IconFileUpload, IconLink, IconSearch, IconTrash } from '@tabler/icons-react';
 import InputAdornment from '@mui/material/InputAdornment';
 
@@ -54,6 +55,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
   const [referenceUrl, setReferenceUrl] = useState('');
   const [socialLink, setSocialLink] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [clientName, setClientName] = useState<string>('');
 
   const CATEGORIES = [
     { value: '', label: 'Todos' },
@@ -83,6 +85,13 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  useEffect(() => {
+    apiGet<any>(`/clients/${clientId}`).then((res) => {
+      const name = res?.client?.name ?? res?.data?.client?.name ?? res?.data?.name ?? res?.name ?? '';
+      setClientName(name);
+    }).catch(() => {});
+  }, [clientId]);
 
   const uploadFile = async (file: File) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
@@ -189,6 +198,11 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Envie brandbooks, logos e ativos usados pela IA.
                 </Typography>
+                {clientName && (
+                  <Alert severity="info" sx={{ mb: 2, py: 0 }}>
+                    Enviando para: <strong>{clientName}</strong>
+                  </Alert>
+                )}
                 <Button
                   variant="outlined"
                   component="label"

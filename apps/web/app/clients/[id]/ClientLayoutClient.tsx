@@ -81,21 +81,10 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const activeTab = getActiveTab();
   const tabValue = activeTab || 'overview';
 
-  if (loading) {
-    return (
-      <AppShell title="Carregando...">
-        <Box sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Stack alignItems="center" spacing={2}>
-            <CircularProgress size={32} />
-            <Typography variant="body2" color="text.secondary">Carregando cliente...</Typography>
-          </Stack>
-        </Box>
-      </AppShell>
-    );
-  }
+  const clientName = client?.name || 'Cliente';
 
   return (
-    <AppShell title={client?.name || 'Cliente'}>
+    <AppShell title={clientName}>
       <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <Card variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack
@@ -113,10 +102,19 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 <IconChevronLeft size={18} />
               </IconButton>
               <Box>
-                <Typography variant="h4">{client?.name || 'Cliente'}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {client?.segment_primary || client?.profile?.knowledge_base?.description || 'Sem segmento definido'}
-                </Typography>
+                {loading ? (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <CircularProgress size={16} />
+                    <Typography variant="h4" color="text.secondary">Carregando...</Typography>
+                  </Stack>
+                ) : (
+                  <>
+                    <Typography variant="h4">{clientName}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {client?.segment_primary || client?.profile?.knowledge_base?.description || 'Sem segmento definido'}
+                    </Typography>
+                  </>
+                )}
               </Box>
             </Stack>
             <Button
