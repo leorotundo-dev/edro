@@ -201,7 +201,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
   const uploadFile = async (file: File) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return;
+    if (!token) {
+      setLibraryError('Sessão expirada. Faça login novamente.');
+      return;
+    }
     setUploading(true);
     setLibraryError('');
     const form = new FormData();
@@ -213,7 +216,14 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      if (!response.ok) throw new Error('Falha ao enviar o arquivo.');
+      if (!response.ok) {
+        let serverMsg = '';
+        try {
+          const data = await response.json();
+          serverMsg = data?.error || data?.message || '';
+        } catch { /* ignore parse errors */ }
+        throw new Error(serverMsg || `Falha ao enviar (${response.status}).`);
+      }
       await loadLibrary();
     } catch (err: any) {
       setLibraryError(err?.message || 'Falha ao enviar o arquivo.');
@@ -227,7 +237,11 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     setUploading(true);
     setLibraryError('');
     try {
-      await apiPost(`/clients/${clientId}/library/link`, { url: referenceUrl });
+      await apiPost(`/clients/${clientId}/library`, {
+        type: 'link',
+        title: referenceUrl,
+        source_url: referenceUrl,
+      });
       setReferenceUrl('');
       await loadLibrary();
     } catch (err: any) {

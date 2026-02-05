@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'node:buffer';
 
+// Allow larger request bodies for file uploads (50MB)
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: false,
+  },
+};
+
 const DEFAULT_BACKEND_URL = 'http://localhost:3333';
-const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 20000);
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 30000);
 const API_SUFFIX_REGEX = /\/api$/i;
 
 function isAbortError(error: unknown) {
