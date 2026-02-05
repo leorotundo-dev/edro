@@ -289,35 +289,46 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const sendChat = async () => {
     if (!chatInput.trim()) return;
     setChatLoading(true);
-    const payload = {
-      clientId,
-      provider,
-      mode: chatMode,
-      conversationId,
-      message: chatInput,
-    };
+    const msg = chatInput;
 
     setChatMessages((prev) => [
       ...prev,
-      { role: 'user', content: chatInput, timestamp: new Date().toISOString() },
+      { role: 'user', content: msg, timestamp: new Date().toISOString() },
     ]);
     setChatInput('');
 
     try {
-      const response = await apiPost<{ data?: { reply?: ChatMessage; conversationId?: string } }>(
-        '/planning/chat',
-        payload
+      const response = await apiPost<{
+        success?: boolean;
+        data?: {
+          response?: string;
+          conversationId?: string;
+          provider?: string;
+          stages?: any[];
+          action?: any;
+        };
+      }>(
+        `/clients/${clientId}/planning/chat`,
+        { message: msg, provider, mode: chatMode, conversationId }
       );
       if (response?.data?.conversationId) {
         setConversationId(response.data.conversationId);
       }
-      if (response?.data?.reply) {
-        setChatMessages((prev) => [...prev, response.data.reply as ChatMessage]);
+      if (response?.data?.response) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: response.data!.response!,
+            timestamp: new Date().toISOString(),
+            provider: response.data!.provider,
+          } as ChatMessage,
+        ]);
       }
-    } catch (err) {
+    } catch (err: any) {
       setChatMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Erro ao conversar com a IA.', timestamp: new Date().toISOString() },
+        { role: 'assistant', content: err?.message || 'Erro ao conversar com a IA.', timestamp: new Date().toISOString() },
       ]);
     } finally {
       setChatLoading(false);

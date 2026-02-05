@@ -11,8 +11,10 @@ import {
   upsertDoc,
   updateLibraryItem,
 } from './libraryRepo';
+import { UrlScraper } from '../clipping/urlScraper';
 
 const embedder = new OpenAIEmbeddings();
+const scraper = new UrlScraper({ timeout: 20000, maxRetries: 2 });
 
 export async function runLibraryWorkerOnce() {
   const jobs = await fetchJobs('process_library_item', 3);
@@ -30,7 +32,29 @@ export async function runLibraryWorkerOnce() {
       let rawText = '';
       if (item.type === 'note') rawText = item.notes || '';
       if (item.type === 'link') {
-        rawText = `${item.title}\n\n${item.source_url || ''}\n\n${item.description || ''}\n\n${item.notes || ''}`;
+        const meta = [item.title, item.description, item.notes].filter(Boolean).join('\n\n');
+        if (item.source_url) {
+          try {
+            const scraped = await scraper.scrape(item.source_url);
+            const parts = [
+              scraped.title ? `Titulo: ${scraped.title}` : '',
+              scraped.siteName ? `Fonte: ${scraped.siteName}` : '',
+              scraped.excerpt ? `Resumo: ${scraped.excerpt}` : '',
+              scraped.contentText || '',
+              meta ? `\n--- Notas do usuario ---\n${meta}` : '',
+            ].filter(Boolean);
+            rawText = parts.join('\n\n');
+            // Update item title if it was just the URL
+            if (scraped.title && item.title === item.source_url) {
+              await updateLibraryItem(item.id, item.tenant_id, { title: scraped.title });
+            }
+          } catch (scrapeErr: any) {
+            // Scrape failed — fall back to metadata only
+            rawText = `${item.source_url}\n\n${meta}`;
+          }
+        } else {
+          rawText = meta;
+        }
       }
       if (item.type === 'file') {
         const buffer = await readFile(item.file_key);

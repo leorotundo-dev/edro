@@ -336,70 +336,78 @@ export default async function planningRoutes(app: FastifyInstance) {
     let resultModel = '';
     let resultStages: any[] | undefined;
 
-    if (provider === 'collaborative' && mode === 'chat') {
-      // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
-      const collabResult = await runCollaborativePipeline({
-        analysisPrompt: [
-          'Voce e um analista estrategico de comunicacao de agencia.',
-          'Analise o contexto do cliente e a conversa abaixo.',
-          'Extraia os pontos mais relevantes e prepare um briefing de insights para o estrategista.',
-          'Retorne texto estruturado com: insights-chave, contexto relevante do cliente, e abordagem recomendada.',
-          '',
-          'CONTEXTO DO CLIENTE:',
-          combinedContext,
-          '',
-          'CONVERSA:',
-          historyContext,
-          '',
-          'MENSAGEM ATUAL:',
-          message,
-        ].join('\n'),
-        creativePrompt: (analysisOutput: string) => [
-          'Voce e um estrategista de planejamento de comunicacao.',
-          'Use os INSIGHTS DO ANALISTA abaixo para elaborar uma resposta completa, estrategica e criativa.',
-          'Responda em portugues brasileiro, de forma clara, pratica e acionavel.',
-          'Inclua sugestoes concretas e proximos passos quando relevante.',
-          '',
-          'INSIGHTS DO ANALISTA:',
-          analysisOutput,
-          '',
-          'CONTEXTO DO CLIENTE:',
-          combinedContext,
-          '',
-          'MENSAGEM DO USUARIO:',
-          message,
-        ].join('\n'),
-        reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
-          'Voce e o diretor de planejamento de uma agencia de comunicacao premium.',
-          'Revise e refine a resposta do estrategista abaixo.',
-          'Garanta que esta:',
-          '- Alinhada com o posicionamento e tom da marca do cliente',
-          '- Pratica, acionavel e com proximos passos claros',
-          '- Estrategicamente fundamentada nos insights do analista',
-          '- Bem estruturada e em portugues brasileiro natural',
-          'Se necessario, melhore a resposta. Retorne APENAS a resposta final refinada.',
-          '',
-          'INSIGHTS DO ANALISTA:',
-          analysisOutput,
-          '',
-          'RESPOSTA DO ESTRATEGISTA:',
-          strategicOutput,
-        ].join('\n'),
+    try {
+      if (provider === 'collaborative' && mode === 'chat') {
+        // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
+        const collabResult = await runCollaborativePipeline({
+          analysisPrompt: [
+            'Voce e um analista estrategico de comunicacao de agencia.',
+            'Analise o contexto do cliente e a conversa abaixo.',
+            'Extraia os pontos mais relevantes e prepare um briefing de insights para o estrategista.',
+            'Retorne texto estruturado com: insights-chave, contexto relevante do cliente, e abordagem recomendada.',
+            '',
+            'CONTEXTO DO CLIENTE:',
+            combinedContext,
+            '',
+            'CONVERSA:',
+            historyContext,
+            '',
+            'MENSAGEM ATUAL:',
+            message,
+          ].join('\n'),
+          creativePrompt: (analysisOutput: string) => [
+            'Voce e um estrategista de planejamento de comunicacao.',
+            'Use os INSIGHTS DO ANALISTA abaixo para elaborar uma resposta completa, estrategica e criativa.',
+            'Responda em portugues brasileiro, de forma clara, pratica e acionavel.',
+            'Inclua sugestoes concretas e proximos passos quando relevante.',
+            '',
+            'INSIGHTS DO ANALISTA:',
+            analysisOutput,
+            '',
+            'CONTEXTO DO CLIENTE:',
+            combinedContext,
+            '',
+            'MENSAGEM DO USUARIO:',
+            message,
+          ].join('\n'),
+          reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
+            'Voce e o diretor de planejamento de uma agencia de comunicacao premium.',
+            'Revise e refine a resposta do estrategista abaixo.',
+            'Garanta que esta:',
+            '- Alinhada com o posicionamento e tom da marca do cliente',
+            '- Pratica, acionavel e com proximos passos claros',
+            '- Estrategicamente fundamentada nos insights do analista',
+            '- Bem estruturada e em portugues brasileiro natural',
+            'Se necessario, melhore a resposta. Retorne APENAS a resposta final refinada.',
+            '',
+            'INSIGHTS DO ANALISTA:',
+            analysisOutput,
+            '',
+            'RESPOSTA DO ESTRATEGISTA:',
+            strategicOutput,
+          ].join('\n'),
+        });
+        resultOutput = collabResult.output;
+        resultProvider = 'collaborative';
+        resultModel = collabResult.model;
+        resultStages = collabResult.stages;
+      } else {
+        const singleResult = await generateWithProvider(copyProvider, {
+          prompt: fullPrompt,
+          systemPrompt,
+          temperature: mode === 'command' ? 0.2 : 0.7,
+          maxTokens: 2000,
+        });
+        resultOutput = singleResult.output;
+        resultProvider = singleResult.provider;
+        resultModel = singleResult.model;
+      }
+    } catch (aiError: any) {
+      request.log?.error({ err: aiError }, 'planning_chat_ai_failed');
+      return reply.status(500).send({
+        success: false,
+        error: aiError?.message || 'Falha ao gerar resposta da IA.',
       });
-      resultOutput = collabResult.output;
-      resultProvider = 'collaborative';
-      resultModel = collabResult.model;
-      resultStages = collabResult.stages;
-    } else {
-      const singleResult = await generateWithProvider(copyProvider, {
-        prompt: fullPrompt,
-        systemPrompt,
-        temperature: mode === 'command' ? 0.2 : 0.7,
-        maxTokens: 2000,
-      });
-      resultOutput = singleResult.output;
-      resultProvider = singleResult.provider;
-      resultModel = singleResult.model;
     }
 
     let assistantContent = resultOutput;
