@@ -1,5 +1,5 @@
 import { env } from '../../env';
-import { CopyOrchestrator, TaskType, CopyProvider } from './copyOrchestrator';
+import { CopyOrchestrator, TaskType, CopyProvider, UsageContext } from './copyOrchestrator';
 
 export { CopyProvider, TaskType };
 
@@ -13,6 +13,7 @@ type GenerateParams = {
 type OrchestratedGenerateParams = GenerateParams & {
   taskType?: TaskType;
   forceProvider?: CopyProvider;
+  usageContext?: UsageContext;
 };
 
 type ValidationResult = {
@@ -91,7 +92,7 @@ export async function generateCopy(params: OrchestratedGenerateParams): Promise<
       systemPrompt: params.systemPrompt,
       temperature: params.temperature ?? 0.6,
       maxTokens: params.maxTokens ?? 1500,
-    });
+    }, params.usageContext);
 
     return {
       output: result.output,
@@ -110,7 +111,7 @@ export async function generateCopy(params: OrchestratedGenerateParams): Promise<
     systemPrompt: params.systemPrompt,
     temperature: params.temperature ?? 0.6,
     maxTokens: params.maxTokens ?? 1500,
-  });
+  }, params.usageContext);
 
   return {
     output: result.output,
@@ -127,7 +128,7 @@ export async function generateCopy(params: OrchestratedGenerateParams): Promise<
  * Pipeline completo: gera copy (criativo) + valida (revisor).
  * Usa orquestrador para escolher as IAs apropriadas para cada etapa.
  */
-export async function generateCopyWithValidation(params: GenerateParams): Promise<CopyPipelineResult> {
+export async function generateCopyWithValidation(params: GenerateParams & { usageContext?: UsageContext }): Promise<CopyPipelineResult> {
   const providers = CopyOrchestrator.getAvailableProvidersInfo();
 
   if (providers.available.length === 0) {
@@ -140,7 +141,7 @@ export async function generateCopyWithValidation(params: GenerateParams): Promis
     systemPrompt: params.systemPrompt,
     temperature: params.temperature ?? 0.6,
     maxTokens: params.maxTokens ?? 1500,
-  });
+  }, params.usageContext);
 
   // Etapa 2: Validação (tier: fast)
   const validationPrompt = buildValidationPrompt({
@@ -153,7 +154,7 @@ export async function generateCopyWithValidation(params: GenerateParams): Promis
       prompt: validationPrompt,
       temperature: 0.2,
       maxTokens: 1500,
-    });
+    }, params.usageContext);
 
     const validation = parseJsonFromText(validationResult.output);
     if (!validation.formatted_text || !Array.isArray(validation.copys)) {
@@ -196,14 +197,14 @@ export async function generateCopyWithValidation(params: GenerateParams): Promis
  * Pipeline premium: usa Claude para copy institucional/campanhas.
  * Inclui revisão estratégica de alta qualidade.
  */
-export async function generatePremiumCopy(params: GenerateParams): Promise<CopyPipelineResult> {
+export async function generatePremiumCopy(params: GenerateParams & { usageContext?: UsageContext }): Promise<CopyPipelineResult> {
   // Etapa 1: Geração premium (Claude)
   const copyResult = await CopyOrchestrator.orchestrate('institutional_copy', {
     prompt: params.prompt,
     systemPrompt: params.systemPrompt,
     temperature: params.temperature ?? 0.5,
     maxTokens: params.maxTokens ?? 2000,
-  });
+  }, params.usageContext);
 
   // Etapa 2: Revisão estratégica (Claude)
   try {
@@ -214,7 +215,7 @@ export async function generatePremiumCopy(params: GenerateParams): Promise<CopyP
       }),
       temperature: 0.2,
       maxTokens: 1500,
-    });
+    }, params.usageContext);
 
     const validation = parseJsonFromText(reviewResult.output);
 
@@ -262,6 +263,7 @@ export async function generateCollaborativeCopy(params: {
   reporteiHint?: string;
   clientName?: string;
   instructions?: string;
+  usageContext?: UsageContext;
 }): Promise<CopyPipelineResult> {
   const analysisPrompt = [
     'Voce e um estrategista de comunicacao de uma agencia de publicidade.',
@@ -330,6 +332,7 @@ export async function generateCollaborativeCopy(params: {
       analysisPrompt,
       creativePrompt: buildCreativePrompt,
       reviewPrompt: buildReviewPrompt,
+      usageContext: params.usageContext,
     });
 
     return {
@@ -351,6 +354,7 @@ export async function generateCollaborativeCopy(params: {
         params.knowledgeBlock ? `\nBASE DO CLIENTE:\n${params.knowledgeBlock}` : '',
         params.instructions ? `\nInstrucoes: ${params.instructions}` : '',
       ].filter(Boolean).join('\n'),
+      usageContext: params.usageContext,
     });
   }
 }

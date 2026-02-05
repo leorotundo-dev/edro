@@ -2,6 +2,8 @@ import { env } from '../../env';
 import { OpenAIService } from './openaiService';
 import { GeminiService } from './geminiService';
 import { ClaudeService } from './claudeService';
+import type { AiCompletionResult } from './claudeService';
+import { logAiUsage } from './aiUsageLogger';
 
 export type CopyProvider = 'openai' | 'gemini' | 'claude';
 
@@ -98,7 +100,7 @@ function getFallbackProvider(preferred: CopyProvider): CopyProvider {
 async function callProvider(
   provider: CopyProvider,
   params: CompletionParams
-): Promise<string> {
+): Promise<AiCompletionResult> {
   switch (provider) {
     case 'openai':
       return OpenAIService.generateCompletion(params);
@@ -111,20 +113,38 @@ async function callProvider(
   }
 }
 
+export type UsageContext = { tenant_id: string; feature: string; metadata?: Record<string, any> };
+
+function fireAndForgetLog(ctx: UsageContext | undefined, provider: string, result: AiCompletionResult, durationMs?: number) {
+  if (!ctx) return;
+  logAiUsage({
+    tenant_id: ctx.tenant_id,
+    provider,
+    model: result.model,
+    feature: ctx.feature,
+    input_tokens: result.usage.input_tokens,
+    output_tokens: result.usage.output_tokens,
+    duration_ms: durationMs,
+    metadata: ctx.metadata,
+  }).catch(() => {});
+}
+
 export async function orchestrate(
   taskType: TaskType,
-  params: CompletionParams
+  params: CompletionParams,
+  usageContext?: UsageContext
 ): Promise<OrchestrationResult> {
   const routing = TASK_ROUTING[taskType];
   const provider = getFallbackProvider(routing.provider);
-  const model = PROVIDER_MODELS[provider];
 
-  const output = await callProvider(provider, params);
+  const t = Date.now();
+  const result = await callProvider(provider, params);
+  fireAndForgetLog(usageContext, provider, result, Date.now() - t);
 
   return {
-    output,
+    output: result.text,
     provider,
-    model: `${provider}:${model}`,
+    model: `${provider}:${result.model}`,
     tier: routing.tier,
     taskType,
   };
@@ -132,17 +152,19 @@ export async function orchestrate(
 
 export async function generateWithProvider(
   provider: CopyProvider,
-  params: CompletionParams
+  params: CompletionParams,
+  usageContext?: UsageContext
 ): Promise<OrchestrationResult> {
   const actualProvider = getFallbackProvider(provider);
-  const model = PROVIDER_MODELS[actualProvider];
 
-  const output = await callProvider(actualProvider, params);
+  const t = Date.now();
+  const result = await callProvider(actualProvider, params);
+  fireAndForgetLog(usageContext, actualProvider, result, Date.now() - t);
 
   return {
-    output,
+    output: result.text,
     provider: actualProvider,
-    model: `${actualProvider}:${model}`,
+    model: `${actualProvider}:${result.model}`,
     tier: 'creative',
     taskType: 'social_post',
   };
@@ -189,6 +211,7 @@ export async function runCollaborativePipeline(params: {
   reviewPrompt: (analysisOutput: string, creativeOutput: string) => string;
   temperature?: { analysis?: number; creative?: number; review?: number };
   maxTokens?: { analysis?: number; creative?: number; review?: number };
+  usageContext?: UsageContext;
 }): Promise<CollaborativePipelineResult> {
   const available = getAvailableProviders();
   if (available.length === 0) {
@@ -200,19 +223,22 @@ export async function runCollaborativePipeline(params: {
 
   // --- Etapa 1: Analysis (Gemini preferred) ---
   const analystProvider = getFallbackProvider('gemini');
-  const analystModel = PROVIDER_MODELS[analystProvider];
   const t1 = Date.now();
-  const analysisOutput = await callProvider(analystProvider, {
+  const analysisResult = await callProvider(analystProvider, {
     prompt: params.analysisPrompt,
     temperature: params.temperature?.analysis ?? 0.3,
     maxTokens: params.maxTokens?.analysis ?? 1200,
   });
+  const d1 = Date.now() - t1;
   stages.push({
     provider: analystProvider,
     role: 'analyst',
-    model: `${analystProvider}:${analystModel}`,
-    duration_ms: Date.now() - t1,
+    model: `${analystProvider}:${analysisResult.model}`,
+    duration_ms: d1,
   });
+  fireAndForgetLog(params.usageContext, analystProvider, analysisResult, d1);
+
+  const analysisOutput = analysisResult.text;
 
   let analysisJson: Record<string, any> | null = null;
   try {
@@ -228,40 +254,44 @@ export async function runCollaborativePipeline(params: {
 
   // --- Etapa 2: Creative (OpenAI preferred) ---
   const creatorProvider = getFallbackProvider('openai');
-  const creatorModel = PROVIDER_MODELS[creatorProvider];
   const t2 = Date.now();
-  const creativeOutput = await callProvider(creatorProvider, {
+  const creativeResult = await callProvider(creatorProvider, {
     prompt: params.creativePrompt(analysisOutput),
     temperature: params.temperature?.creative ?? 0.7,
     maxTokens: params.maxTokens?.creative ?? 2000,
   });
+  const d2 = Date.now() - t2;
   stages.push({
     provider: creatorProvider,
     role: 'creator',
-    model: `${creatorProvider}:${creatorModel}`,
-    duration_ms: Date.now() - t2,
+    model: `${creatorProvider}:${creativeResult.model}`,
+    duration_ms: d2,
   });
+  fireAndForgetLog(params.usageContext, creatorProvider, creativeResult, d2);
+
+  const creativeOutput = creativeResult.text;
 
   // --- Etapa 3: Editorial Review (Claude preferred) ---
   const editorProvider = getFallbackProvider('claude');
-  const editorModel = PROVIDER_MODELS[editorProvider];
   const t3 = Date.now();
-  const reviewOutput = await callProvider(editorProvider, {
+  const reviewResult = await callProvider(editorProvider, {
     prompt: params.reviewPrompt(analysisOutput, creativeOutput),
     temperature: params.temperature?.review ?? 0.4,
     maxTokens: params.maxTokens?.review ?? 2500,
   });
+  const d3 = Date.now() - t3;
   stages.push({
     provider: editorProvider,
     role: 'editor',
-    model: `${editorProvider}:${editorModel}`,
-    duration_ms: Date.now() - t3,
+    model: `${editorProvider}:${reviewResult.model}`,
+    duration_ms: d3,
   });
+  fireAndForgetLog(params.usageContext, editorProvider, reviewResult, d3);
 
   const providers = stages.map((s) => s.provider).join('+');
 
   return {
-    output: reviewOutput,
+    output: reviewResult.text,
     model: `collaborative:${providers}`,
     stages,
     analysis_json: analysisJson,

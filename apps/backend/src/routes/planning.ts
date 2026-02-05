@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
-import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline } from '../services/ai/copyOrchestrator';
+import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline, UsageContext } from '../services/ai/copyOrchestrator';
 import { generateCopy, generateCollaborativeCopy } from '../services/ai/copyService';
 import { getClientById } from '../repos/clientsRepo';
 import {
@@ -336,10 +336,15 @@ export default async function planningRoutes(app: FastifyInstance) {
     let resultModel = '';
     let resultStages: any[] | undefined;
 
+    const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
+      ? { tenant_id: tenantId, feature: 'planning_chat' }
+      : undefined;
+
     try {
       if (provider === 'collaborative' && mode === 'chat') {
         // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
         const collabResult = await runCollaborativePipeline({
+          usageContext: usageCtx,
           analysisPrompt: [
             'Voce e um analista estrategico de comunicacao de agencia.',
             'Analise o contexto do cliente e a conversa abaixo.',
@@ -397,7 +402,7 @@ export default async function planningRoutes(app: FastifyInstance) {
           systemPrompt,
           temperature: mode === 'command' ? 0.2 : 0.7,
           maxTokens: 2000,
-        });
+        }, usageCtx);
         resultOutput = singleResult.output;
         resultProvider = singleResult.provider;
         resultModel = singleResult.model;
@@ -766,12 +771,15 @@ For each opportunity, provide:
 
 Return as JSON array with keys: title, description, source, suggestedAction, priority, confidence`;
 
+    const oppUsageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
+      ? { tenant_id: tenantId, feature: 'opportunities_generate' }
+      : undefined;
     const result = await generateWithProvider('claude', {
       prompt,
       systemPrompt: 'You are a strategic marketing analyst. Return only valid JSON.',
       temperature: 0.7,
       maxTokens: 2000,
-    });
+    }, oppUsageCtx);
 
     // Parse AI response
     let opportunities: any[] = [];
@@ -965,8 +973,12 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         }).join('\n')
       : 'Nenhum dado de performance disponivel (Reportei nao sincronizado).';
 
+    const analyzeUsageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
+      ? { tenant_id: tenantId, feature: 'client_analysis' }
+      : undefined;
     try {
       const result = await runCollaborativePipeline({
+        usageContext: analyzeUsageCtx,
         analysisPrompt: [
           'Voce e um analista de dados senior de uma agencia de comunicacao.',
           'Analise TODOS os dados abaixo sobre o cliente e extraia insights estruturados.',

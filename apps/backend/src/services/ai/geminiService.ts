@@ -1,4 +1,6 @@
 import { env } from '../../env';
+import type { AiCompletionResult } from './claudeService';
+import { estimateTokens } from './aiUsageLogger';
 
 type CompletionParams = {
   prompt: string;
@@ -13,13 +15,18 @@ type GeminiResponse = {
       parts?: Array<{ text?: string }>;
     };
   }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
 };
 
 const BASE_URL = env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = env.GEMINI_MODEL || 'gemini-1.5-flash';
 const RESPONSE_MIME = env.GEMINI_RESPONSE_MIME;
 
-export async function generateCompletion(params: CompletionParams): Promise<string> {
+export async function generateCompletion(params: CompletionParams): Promise<AiCompletionResult> {
   if (!env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY_NOT_SET');
   }
@@ -63,7 +70,17 @@ export async function generateCompletion(params: CompletionParams): Promise<stri
     throw new Error('Gemini returned empty response');
   }
 
-  return text;
+  const inputTokens = data.usageMetadata?.promptTokenCount || estimateTokens(params.prompt + (params.systemPrompt || ''));
+  const outputTokens = data.usageMetadata?.candidatesTokenCount || estimateTokens(text);
+
+  return {
+    text,
+    usage: {
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+    },
+    model: DEFAULT_MODEL,
+  };
 }
 
 export const GeminiService = {

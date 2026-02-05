@@ -24,6 +24,7 @@ import socialListeningRoutes from './socialListening';
 import integrationRoutes from './integration';
 import mockupsRoutes from './mockups';
 import planningRoutes from './planning';
+import adminAiCostsRoutes from './adminAiCosts';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(healthRoutes);
@@ -51,4 +52,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(integrationRoutes, { prefix: '/api' });
   app.register(mockupsRoutes, { prefix: '/api' });
   app.register(planningRoutes, { prefix: '/api' });
+  app.register(adminAiCostsRoutes, { prefix: '/api' });
 }

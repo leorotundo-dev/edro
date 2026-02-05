@@ -12,6 +12,7 @@ import {
   IconShieldCheck,
   IconUpload,
   IconSettings,
+  IconCoin,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -115,6 +116,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'System Admin',
         icon: IconShieldCheck,
         href: '/admin/system',
+      },
+      {
+        id: 'admin-ai-costs',
+        title: 'AI Costs',
+        icon: IconCoin,
+        href: '/admin/ai-costs',
       },
       {
         id: 'admin-import',

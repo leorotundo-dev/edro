@@ -841,6 +841,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         const pipeline = body.pipeline ?? 'standard';
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
         const knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
+        const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
         let result;
         if (pipeline === 'collaborative') {
           result = await generateCollaborativeCopy({
@@ -850,17 +851,19 @@ export default async function edroRoutes(app: FastifyInstance) {
             reporteiHint: reporteiContext?.promptBlock || undefined,
             clientName: briefing.client_name || metadata.client_name || undefined,
             instructions: body.instructions || undefined,
+            usageContext: usageCtx,
           });
         } else if (pipeline === 'simple') {
           result = await generateCopy({
             ...baseParams,
             taskType,
             forceProvider: body.force_provider,
+            usageContext: usageCtx,
           });
         } else if (pipeline === 'premium') {
-          result = await generatePremiumCopy(baseParams);
+          result = await generatePremiumCopy({ ...baseParams, usageContext: usageCtx });
         } else {
-          result = await generateCopyWithValidation(baseParams);
+          result = await generateCopyWithValidation({ ...baseParams, usageContext: usageCtx });
         }
         output = result.output;
         model = result.model;
@@ -1090,11 +1093,13 @@ export default async function edroRoutes(app: FastifyInstance) {
     const taskType = (body.taskType ?? body.task_type) as TaskType | undefined;
     const forceProvider = body.forceProvider ?? body.force_provider;
 
+    const testTenantId = (request.user as any)?.tenant_id || 'test';
     try {
       const result = await generateCopy({
         prompt: body.prompt,
         taskType,
         forceProvider,
+        usageContext: { tenant_id: testTenantId, feature: 'orchestrator_test' },
       });
 
       return reply.send({
@@ -1339,6 +1344,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         prompt,
         taskType: 'campaign_strategy',
         maxTokens: 300,
+        usageContext: tenantId ? { tenant_id: tenantId, feature: 'format_recommendation' } : undefined,
       });
       if (ai?.output) reason = ai.output;
     } catch {

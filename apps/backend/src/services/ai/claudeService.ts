@@ -7,6 +7,12 @@ type CompletionParams = {
   maxTokens?: number;
 };
 
+export type AiCompletionResult = {
+  text: string;
+  usage: { input_tokens: number; output_tokens: number };
+  model: string;
+};
+
 type AnthropicResponse = {
   content: Array<{
     type: string;
@@ -21,11 +27,13 @@ type AnthropicResponse = {
 
 const API_VERSION = '2023-06-01';
 
-export async function generateCompletion(params: CompletionParams): Promise<string> {
+export async function generateCompletion(params: CompletionParams): Promise<AiCompletionResult> {
   const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY_NOT_SET');
   }
+
+  const model = env.ANTHROPIC_MODEL;
 
   const response = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
     method: 'POST',
@@ -35,7 +43,7 @@ export async function generateCompletion(params: CompletionParams): Promise<stri
       'anthropic-version': API_VERSION,
     },
     body: JSON.stringify({
-      model: env.ANTHROPIC_MODEL,
+      model,
       max_tokens: params.maxTokens ?? 1500,
       system: params.systemPrompt,
       messages: [
@@ -61,7 +69,14 @@ export async function generateCompletion(params: CompletionParams): Promise<stri
     throw new Error('Claude returned empty response');
   }
 
-  return text;
+  return {
+    text,
+    usage: {
+      input_tokens: data.usage?.input_tokens || 0,
+      output_tokens: data.usage?.output_tokens || 0,
+    },
+    model: data.model || model,
+  };
 }
 
 export const ClaudeService = {
