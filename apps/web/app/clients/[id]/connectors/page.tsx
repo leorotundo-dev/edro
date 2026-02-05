@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -195,6 +195,24 @@ export default function ClientConnectorsPage() {
     }
   };
 
+  const disconnectConnector = async () => {
+    if (!selectedProvider) return;
+    setSaving(true);
+    setSaveStatus('');
+    try {
+      await apiDelete(`/clients/${clientId}/connectors/${selectedProvider}`);
+      setSaveStatus('Connector desconectado!');
+      await loadConnectors();
+      setTimeout(() => {
+        closeConfigModal();
+      }, 1000);
+    } catch (error: any) {
+      setSaveStatus(`Error: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getConnectorStatus = (provider: string): Connector | null => {
     return connectors.find((c) => c.provider === provider) || null;
   };
@@ -350,18 +368,33 @@ export default function ClientConnectorsPage() {
               )}
             </DialogContent>
 
-            <DialogActions>
-              <Button variant="outlined" onClick={closeConfigModal}>
-                Cancelar
-              </Button>
-              <Button
-                variant="contained"
-                onClick={saveConnector}
-                disabled={saving}
-                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-              >
-                {saving ? 'Salvando...' : 'Salvar connector'}
-              </Button>
+            <DialogActions sx={{ justifyContent: 'space-between' }}>
+              <Box>
+                {getConnectorStatus(selectedProvider!) && (
+                  <Button
+                    variant="text"
+                    color="error"
+                    size="small"
+                    onClick={disconnectConnector}
+                    disabled={saving}
+                  >
+                    Desconectar
+                  </Button>
+                )}
+              </Box>
+              <Stack direction="row" spacing={1}>
+                <Button variant="outlined" onClick={closeConfigModal}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={saveConnector}
+                  disabled={saving}
+                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+                >
+                  {saving ? 'Salvando...' : 'Salvar connector'}
+                </Button>
+              </Stack>
             </DialogActions>
           </>
         )}

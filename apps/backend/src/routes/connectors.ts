@@ -209,4 +209,18 @@ export default async function connectorsRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  app.delete(
+    '/clients/:clientId/connectors/:provider',
+    { preHandler: [tenantGuard(), requirePerm('integrations:write'), requireClientPerm('publish')] },
+    async (request: any) => {
+      const params = z.object({ clientId: z.string(), provider: z.string() }).parse(request.params);
+      await ensureConnectorsTable();
+      await query(
+        `DELETE FROM connectors WHERE tenant_id=$1 AND client_id=$2 AND provider=$3`,
+        [(request.user as any).tenant_id, params.clientId, params.provider]
+      );
+      return { ok: true };
+    }
+  );
 }
