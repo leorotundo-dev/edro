@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
-import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import PlanningClient from './PlanningClient';
 
-export default function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <Suspense
       fallback={
@@ -17,7 +17,7 @@ export default function Page({ params }: { params: { id: string } }) {
         </Stack>
       }
     >
-      <PlanningClient clientId={params.id} />
+      <PlanningClient clientId={id} />
     </Suspense>
   );
 }

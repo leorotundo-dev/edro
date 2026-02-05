@@ -1,9 +1,10 @@
 import SocialListeningClient from '@/app/social-listening/SocialListeningClient';
 
 type ClientSocialListeningPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: ClientSocialListeningPageProps) {
-  return <SocialListeningClient clientId={params.id} noShell embedded />;
+export default async function Page({ params }: ClientSocialListeningPageProps) {
+  const { id } = await params;
+  return <SocialListeningClient clientId={id} noShell embedded />;
 }

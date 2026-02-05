@@ -1,9 +1,10 @@
 import ClientInsightsClient from './ClientInsightsClient';
 
 type ClientInsightsPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: ClientInsightsPageProps) {
-  return <ClientInsightsClient clientId={params.id} />;
+export default async function Page({ params }: ClientInsightsPageProps) {
+  const { id } = await params;
+  return <ClientInsightsClient clientId={id} />;
 }

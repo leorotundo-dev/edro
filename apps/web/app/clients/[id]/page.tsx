@@ -1,9 +1,10 @@
 import OverviewClient from './OverviewClient';
 
 type ClientPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: ClientPageProps) {
-  return <OverviewClient clientId={params.id} />;
+export default async function Page({ params }: ClientPageProps) {
+  const { id } = await params;
+  return <OverviewClient clientId={id} />;
 }

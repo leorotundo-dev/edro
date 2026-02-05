@@ -1,9 +1,10 @@
 import ClientLibraryClient from './ClientLibraryClient';
 
 type ClientLibraryPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: ClientLibraryPageProps) {
-  return <ClientLibraryClient clientId={params.id} />;
+export default async function Page({ params }: ClientLibraryPageProps) {
+  const { id } = await params;
+  return <ClientLibraryClient clientId={id} />;
 }

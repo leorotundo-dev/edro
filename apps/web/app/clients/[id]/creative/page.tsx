@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
-export default function Page({ params }: { params: { id: string } }) {
-  const query = params?.id ? `?clientId=${params.id}` : '';
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const query = id ? `?clientId=${id}` : '';
   redirect(`/studio${query}`);
 }
