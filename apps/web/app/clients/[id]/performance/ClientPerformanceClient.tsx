@@ -9,7 +9,9 @@ import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { IconExternalLink, IconPlugConnected } from '@tabler/icons-react';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import { IconExternalLink, IconPlugConnected, IconSettings } from '@tabler/icons-react';
 
 type ClientPerformanceClientProps = {
   clientId: string;
@@ -77,7 +79,25 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
   }
 
   return (
-    <Box sx={{ width: '100%', height: 'calc(100vh - 200px)', minHeight: 600 }}>
+    <Box sx={{ width: '100%', height: 'calc(100vh - 200px)', minHeight: 600, position: 'relative' }}>
+      <Tooltip title="Configurar conector Reportei">
+        <IconButton
+          component="a"
+          href={`/clients/${clientId}/connectors`}
+          size="small"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 10,
+            bgcolor: 'background.paper',
+            boxShadow: 1,
+            '&:hover': { bgcolor: 'grey.100' },
+          }}
+        >
+          <IconSettings size={18} />
+        </IconButton>
+      </Tooltip>
       <Box
         component="iframe"
         title="Reportei Dashboard"
