@@ -23,7 +23,27 @@ import {
   IconBulb,
   IconAlertTriangle,
   IconArrowRight,
+  IconBrandInstagram,
+  IconBrandFacebook,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandYoutube,
+  IconBrandX,
+  IconBrandPinterest,
+  IconBrandSpotify,
+  IconBrandGoogle,
+  IconBrandWhatsapp,
+  IconBrandTelegram,
+  IconBrandAmazon,
+  IconBrandApple,
+  IconBrandMeta,
+  IconBrandWindows,
+  IconMail,
+  IconBell,
+  IconDeviceMobile,
+  IconAd,
 } from '@tabler/icons-react';
+import type { ComponentType } from 'react';
 
 type RecommendedFormat = {
   format_id: string;
@@ -139,7 +159,7 @@ const productionLabel = (value?: string) => {
   return value || 'Geral';
 };
 
-const platformMeta = (platform?: string) => {
+const platformMeta = (platform?: string): { label: string; abbr: string; color: string; icon: ComponentType<{ size?: number }> } => {
   const label = platform || 'Plataforma';
   const key = label.toLowerCase();
   const abbr = (value: string) =>
@@ -151,20 +171,26 @@ const platformMeta = (platform?: string) => {
       .slice(0, 2)
       .toUpperCase();
 
-  if (key.includes('instagram')) return { label: 'Instagram', abbr: 'IG', color: '#E1306C' };
-  if (key.includes('facebook') || key === 'meta') return { label: 'Facebook', abbr: 'FB', color: '#1877F2' };
-  if (key.includes('linkedin')) return { label: 'LinkedIn', abbr: 'IN', color: '#0A66C2' };
-  if (key.includes('tiktok')) return { label: 'TikTok', abbr: 'TT', color: '#0F172A' };
-  if (key.includes('youtube')) return { label: 'YouTube', abbr: 'YT', color: '#FF0000' };
-  if (key === 'x' || key.includes('twitter')) return { label: 'X', abbr: 'X', color: '#0F172A' };
-  if (key.includes('pinterest')) return { label: 'Pinterest', abbr: 'PT', color: '#E60023' };
-  if (key.includes('spotify')) return { label: 'Spotify', abbr: 'SP', color: '#1DB954' };
-  if (key.includes('google')) return { label: 'Google', abbr: 'GO', color: '#4285F4' };
-  if (key.includes('whatsapp')) return { label: 'WhatsApp', abbr: 'WA', color: '#25D366' };
-  if (key.includes('telegram')) return { label: 'Telegram', abbr: 'TG', color: '#229ED9' };
-  if (key.includes('email')) return { label: 'Email', abbr: 'EM', color: '#7C3AED' };
+  if (key.includes('instagram')) return { label: 'Instagram', abbr: 'IG', color: '#E1306C', icon: IconBrandInstagram };
+  if (key.includes('facebook') || key === 'meta') return { label: 'Facebook', abbr: 'FB', color: '#1877F2', icon: IconBrandFacebook };
+  if (key.includes('linkedin')) return { label: 'LinkedIn', abbr: 'IN', color: '#0A66C2', icon: IconBrandLinkedin };
+  if (key.includes('tiktok')) return { label: 'TikTok', abbr: 'TT', color: '#0F172A', icon: IconBrandTiktok };
+  if (key.includes('youtube')) return { label: 'YouTube', abbr: 'YT', color: '#FF0000', icon: IconBrandYoutube };
+  if (key === 'x' || key.includes('twitter')) return { label: 'X', abbr: 'X', color: '#0F172A', icon: IconBrandX };
+  if (key.includes('pinterest')) return { label: 'Pinterest', abbr: 'PT', color: '#E60023', icon: IconBrandPinterest };
+  if (key.includes('spotify')) return { label: 'Spotify', abbr: 'SP', color: '#1DB954', icon: IconBrandSpotify };
+  if (key.includes('google')) return { label: 'Google', abbr: 'GO', color: '#4285F4', icon: IconBrandGoogle };
+  if (key.includes('whatsapp')) return { label: 'WhatsApp', abbr: 'WA', color: '#25D366', icon: IconBrandWhatsapp };
+  if (key.includes('telegram')) return { label: 'Telegram', abbr: 'TG', color: '#229ED9', icon: IconBrandTelegram };
+  if (key.includes('amazon')) return { label: 'Amazon Ads', abbr: 'AA', color: '#FF9900', icon: IconBrandAmazon };
+  if (key.includes('apple')) return { label: 'Apple Search Ads', abbr: 'AS', color: '#0F172A', icon: IconBrandApple };
+  if (key.includes('meta audience') || key.includes('audience network')) return { label: 'Meta Audience Network', abbr: 'MA', color: '#0668E1', icon: IconBrandMeta };
+  if (key.includes('microsoft') || key.includes('bing')) return { label: 'Microsoft Ads', abbr: 'MA', color: '#00A4EF', icon: IconBrandWindows };
+  if (key.includes('email') || key.includes('newsletter')) return { label: 'Email', abbr: 'EM', color: '#7C3AED', icon: IconMail };
+  if (key.includes('push') || key.includes('notification')) return { label: 'Push Notifications', abbr: 'PN', color: '#F97316', icon: IconBell };
+  if (key.includes('in-app') || key.includes('inapp') || key.includes('app ad')) return { label: 'In-App Ads', abbr: 'IA', color: '#6366F1', icon: IconDeviceMobile };
 
-  return { label, abbr: abbr(label) || 'ED', color: '#0F172A' };
+  return { label, abbr: abbr(label) || 'ED', color: '#0F172A', icon: IconAd };
 };
 
 const buildPreviewLines = (format: SelectableFormat, recommended?: RecommendedFormat) => {
@@ -843,8 +869,8 @@ export default function PlatformClient() {
                       <CardContent>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                           <Stack direction="row" spacing={1} alignItems="center">
-                            <Avatar sx={{ width: 32, height: 32, bgcolor: meta.color, fontSize: 12, fontWeight: 700 }}>
-                              {meta.abbr}
+                            <Avatar sx={{ width: 36, height: 36, bgcolor: meta.color }}>
+                              <meta.icon size={20} />
                             </Avatar>
                             <Box>
                               <Typography variant="subtitle2" fontWeight={600}>{meta.label}</Typography>
@@ -962,8 +988,8 @@ export default function PlatformClient() {
                             {format.format_name}
                           </Typography>
                           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1 }}>
-                            <Avatar sx={{ width: 20, height: 20, bgcolor: meta.color, fontSize: 9, fontWeight: 700 }}>
-                              {meta.abbr}
+                            <Avatar sx={{ width: 22, height: 22, bgcolor: meta.color }}>
+                              <meta.icon size={14} />
                             </Avatar>
                             <Typography variant="caption" color="text.secondary">{meta.label}</Typography>
                             <Chip size="small" variant="outlined" label={productionLabel(format.production_type)} sx={{ ml: 'auto', height: 20, fontSize: 10 }} />
