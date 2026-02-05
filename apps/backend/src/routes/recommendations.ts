@@ -6,6 +6,23 @@ import { getClientById } from '../repos/clientsRepo';
 import { EnxovalRecommendationService } from '../recommendation/EnxovalRecommendationService';
 import { getRecommendationCatalogStats, loadRecommendationCatalog } from '../recommendation/catalogAdapter';
 
+const ENXOVAL_TIMEOUT_MS = Number(process.env.ENXOVAL_TIMEOUT_MS || 15000);
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const requestSchema = z.object({
   briefing_text: z.string().min(1),
   structured_params: z.record(z.any()).optional(),
@@ -109,12 +126,42 @@ export default async function recommendationRoutes(app: FastifyInstance) {
         }
       }
 
-      const recommendation = await cachedService.generateRecommendation({
-        text: body.briefing_text,
-        structured,
-        client_id: body.client_id,
-        tenant_id: tenantId ?? null,
-      });
+      let recommendation;
+      try {
+        recommendation = await withTimeout(
+          cachedService.generateRecommendation({
+            text: body.briefing_text,
+            structured,
+            client_id: body.client_id,
+            tenant_id: tenantId ?? null,
+          }),
+          ENXOVAL_TIMEOUT_MS,
+          `Recommendation timeout after ${ENXOVAL_TIMEOUT_MS}ms`
+        );
+      } catch (error) {
+        request.log?.warn?.(error, 'Recommendation timeout, using fallback.');
+        try {
+          recommendation = await cachedService.generateRecommendation({
+            text: '',
+            structured,
+            client_id: body.client_id,
+            tenant_id: tenantId ?? null,
+          });
+          recommendation.warnings = [
+            ...(recommendation.warnings || []),
+            'Recomendacao gerada em modo rapido por timeout.',
+          ];
+        } catch (fallbackError) {
+          request.log?.error?.(fallbackError, 'Recommendation fallback failed.');
+          return reply.send({
+            recommended_formats: [],
+            summary: { total_formats: 0 },
+            warnings: ['Falha ao gerar recomendacao.'],
+            suggestions: [],
+            briefing: { extracted_parameters: structured },
+          });
+        }
+      }
 
       return reply.send({
         ...recommendation,

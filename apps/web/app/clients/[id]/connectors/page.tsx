@@ -3,6 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconArrowLeft, IconX } from '@tabler/icons-react';
 
 type Connector = {
   provider: string;
@@ -30,7 +48,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     id: 'reportei',
     name: 'Reportei',
     description: 'Integração com Reportei para métricas de redes sociais',
-    icon: '📊',
+    icon: '\uD83D\uDCCA',
     configFields: [
       { key: 'reportei_account_id', label: 'Reportei Account ID', type: 'text', required: true },
       { key: 'reportei_company_id', label: 'Reportei Company ID (opcional)', type: 'text', required: false },
@@ -44,7 +62,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     id: 'meta_ads',
     name: 'Meta Ads',
     description: 'Integração com Facebook/Instagram Ads Manager',
-    icon: '📘',
+    icon: '\uD83D\uDCD8',
     configFields: [
       { key: 'access_token', label: 'Access Token', type: 'password', required: true },
       { key: 'ad_account_id', label: 'Ad Account ID', type: 'text', required: true },
@@ -54,7 +72,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     id: 'google_ads',
     name: 'Google Ads',
     description: 'Integração com Google Ads para performance de campanhas',
-    icon: '🔍',
+    icon: '\uD83D\uDD0D',
     configFields: [
       { key: 'client_id', label: 'Client ID', type: 'text', required: true },
       { key: 'client_secret', label: 'Client Secret', type: 'password', required: true },
@@ -66,7 +84,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     id: 'google_analytics',
     name: 'Google Analytics',
     description: 'Dados de tráfego e conversões do Google Analytics',
-    icon: '📈',
+    icon: '\uD83D\uDCC8',
     configFields: [
       { key: 'view_id', label: 'View ID', type: 'text', required: true },
       { key: 'service_account_json', label: 'Service Account JSON', type: 'password', required: true },
@@ -76,7 +94,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     id: 'webhook',
     name: 'Custom Webhook',
     description: 'Webhook personalizado para receber dados externos',
-    icon: '🔗',
+    icon: '\uD83D\uDD17',
     configFields: [
       { key: 'webhook_url', label: 'Webhook URL', type: 'url', required: true },
       { key: 'secret_key', label: 'Secret Key', type: 'password', required: false },
@@ -187,166 +205,167 @@ export default function ClientConnectorsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-muted">Loading connectors...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">Loading connectors...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   return (
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.push(`/clients/${clientId}`)}
-            className="text-sm text-blue-600 hover:text-blue-700 mb-2 flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-sm">arrow_back</span>
-            Voltar para Cliente
-          </button>
-          <h1 className="text-2xl font-bold text-ink mb-2">Integrations & Connectors</h1>
-          <p className="text-muted">Configure integrações com plataformas externas</p>
-        </div>
+    <Stack spacing={3}>
+      <Box>
+        <Button
+          size="small"
+          variant="text"
+          startIcon={<IconArrowLeft size={14} />}
+          onClick={() => router.push(`/clients/${clientId}`)}
+          sx={{ mb: 1, textTransform: 'none' }}
+        >
+          Voltar para Cliente
+        </Button>
+        <Typography variant="h5">Integracoes &amp; Connectors</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Configure integrações com plataformas externas.
+        </Typography>
+      </Box>
 
-        {/* Available Connectors */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {AVAILABLE_PROVIDERS.map((provider) => {
-            const status = getConnectorStatus(provider.id);
-            const isConnected = Boolean(status);
+      <Grid container spacing={2}>
+        {AVAILABLE_PROVIDERS.map((provider) => {
+          const status = getConnectorStatus(provider.id);
+          const isConnected = Boolean(status);
 
-            return (
-              <div
-                key={provider.id}
-                className="bg-card rounded-lg border border-border p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-4xl">{provider.icon}</div>
-                    <div>
-                      <h3 className="font-semibold text-ink">{provider.name}</h3>
-                      {isConnected && (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-1">
-                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          Conectado
-                        </span>
+          return (
+            <Grid key={provider.id} size={{ xs: 12, md: 6, lg: 4 }}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                      <Box>
+                        <Typography variant="h6">{provider.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {provider.description}
+                        </Typography>
+                      </Box>
+                      {isConnected ? (
+                        <Chip size="small" color="success" label="Conectado" />
+                      ) : (
+                        <Chip size="small" variant="outlined" label="Novo" />
                       )}
-                    </div>
-                  </div>
-                </div>
+                    </Stack>
 
-                <p className="text-sm text-muted mb-4">{provider.description}</p>
+                    <Typography variant="h4">{provider.icon}</Typography>
 
-                {status?.updated_at && (
-                  <div className="text-xs text-muted mb-4">
-                    Atualizado em: {new Date(status.updated_at).toLocaleString('pt-BR')}
-                  </div>
-                )}
-
-                <button
-                  onClick={() => openConfigModal(provider.id)}
-                  className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isConnected
-                      ? 'bg-card-strong text-muted hover:bg-card-strong'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {isConnected ? 'Gerenciar' : 'Configurar'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Config Modal */}
-        {selectedProvider && providerInfo && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl">{providerInfo.icon}</div>
-                    <div>
-                      <h2 className="text-xl font-bold text-ink">{providerInfo.name}</h2>
-                      <p className="text-sm text-muted">{providerInfo.description}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={closeConfigModal}
-                    className="text-slate-400 hover:text-muted"
-                  >
-                    <span className="material-symbols-outlined">close</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 space-y-4">
-                {providerInfo.configFields.map((field) => (
-                  <div key={field.key}>
-                    <label className="block text-sm font-medium text-muted mb-2">
-                      {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    {field.type === 'select' ? (
-                      <select
-                        value={configForm[field.key] || ''}
-                        onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required={field.required}
-                      >
-                        <option value="">Selecione...</option>
-                        {field.options?.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                    {status?.updated_at ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Atualizado em {new Date(status.updated_at).toLocaleString('pt-BR')}
+                      </Typography>
                     ) : (
-                      <input
-                        type={field.type}
-                        value={configForm[field.key] || ''}
-                        onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required={field.required}
-                        placeholder={`Enter ${field.label.toLowerCase()}`}
-                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Sem sincronizacao recente.
+                      </Typography>
                     )}
-                  </div>
+
+                    <Button
+                      variant={isConnected ? 'outlined' : 'contained'}
+                      onClick={() => openConfigModal(provider.id)}
+                    >
+                      {isConnected ? 'Gerenciar' : 'Configurar'}
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+
+      {/* Config Modal */}
+      <Dialog
+        open={Boolean(selectedProvider && providerInfo)}
+        onClose={closeConfigModal}
+        maxWidth="sm"
+        fullWidth
+      >
+        {providerInfo && (
+          <>
+            <DialogTitle>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="h6">{providerInfo.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {providerInfo.description}
+                  </Typography>
+                </Box>
+                <IconButton onClick={closeConfigModal} size="small">
+                  <IconX size={18} />
+                </IconButton>
+              </Stack>
+            </DialogTitle>
+
+            <DialogContent dividers>
+              <Stack spacing={2} sx={{ pt: 1 }}>
+                {providerInfo.configFields.map((field) => (
+                  field.type === 'select' ? (
+                    <TextField
+                      key={field.key}
+                      fullWidth
+                      size="small"
+                      select
+                      label={field.label}
+                      value={configForm[field.key] || ''}
+                      onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
+                      required={field.required}
+                    >
+                      <MenuItem value="">Selecione...</MenuItem>
+                      {field.options?.map((opt) => (
+                        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                      ))}
+                    </TextField>
+                  ) : (
+                    <TextField
+                      key={field.key}
+                      fullWidth
+                      size="small"
+                      label={field.label}
+                      type={field.type}
+                      value={configForm[field.key] || ''}
+                      onChange={(e) => setConfigForm({ ...configForm, [field.key]: e.target.value })}
+                      required={field.required}
+                      placeholder={`Informe ${field.label.toLowerCase()}`}
+                    />
+                  )
                 ))}
+              </Stack>
 
-                {saveStatus && (
-                  <div
-                    className={`p-4 rounded-lg ${
-                      saveStatus.startsWith('Error')
-                        ? 'bg-red-50 text-red-700'
-                        : 'bg-green-50 text-green-700'
-                    }`}
-                  >
-                    {saveStatus}
-                  </div>
-                )}
-              </div>
+              {saveStatus && (
+                <Alert
+                  severity={saveStatus.startsWith('Error') ? 'error' : 'success'}
+                  sx={{ mt: 2 }}
+                >
+                  {saveStatus}
+                </Alert>
+              )}
+            </DialogContent>
 
-              <div className="p-6 border-t border-border flex gap-3">
-                <button
-                  onClick={closeConfigModal}
-                  className="flex-1 px-4 py-2 border border-border text-muted rounded-lg hover:bg-paper"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={saveConnector}
-                  disabled={saving}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? 'Salvando...' : 'Salvar Connector'}
-                </button>
-              </div>
-            </div>
-          </div>
+            <DialogActions>
+              <Button variant="outlined" onClick={closeConfigModal}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                onClick={saveConnector}
+                disabled={saving}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+              >
+                {saving ? 'Salvando...' : 'Salvar connector'}
+              </Button>
+            </DialogActions>
+          </>
         )}
-      </div>
+      </Dialog>
+    </Stack>
   );
 }

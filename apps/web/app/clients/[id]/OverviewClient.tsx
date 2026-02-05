@@ -3,6 +3,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import { IconBriefcase, IconCalendar, IconChartPie, IconDotsVertical, IconSparkles } from '@tabler/icons-react';
 
 type ClientData = {
   id: string;
@@ -43,7 +56,7 @@ type OverviewClientProps = {
 
 export default function OverviewClient({ clientId }: OverviewClientProps) {
   const [client, setClient] = useState<ClientData | null>(null);
-  const [stats, setStats] = useState<PlanningStats>({ total_posts: 25, approved_posts: 18, pending_posts: 7, progress_percent: 72 });
+  const [stats] = useState<PlanningStats>({ total_posts: 25, approved_posts: 18, pending_posts: 7, progress_percent: 72 });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [events, setEvents] = useState<ClientEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,13 +64,17 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const loadData = useCallback(async () => {
     try {
       const [clientRes, eventsRes] = await Promise.all([
-        apiGet<{ client: ClientData }>(`/clients/${clientId}`),
+        apiGet(`/clients/${clientId}`),
         apiGet<{ events: ClientEvent[] }>(`/clients/${clientId}/calendar/upcoming?limit=5`).catch(() => ({ events: [] })),
       ]);
-      setClient(clientRes.client);
+      const payload =
+        (clientRes as { client?: ClientData })?.client ??
+        (clientRes as { data?: { client?: ClientData } })?.data?.client ??
+        (clientRes as { data?: ClientData })?.data ??
+        (clientRes as ClientData);
+      setClient(payload || null);
       setEvents(eventsRes.events || []);
 
-      // Mock campaigns for now
       setCampaigns([
         { id: '1', title: 'Summer Launch 2024', type: 'Digital, Social, OOH', status: 'on_track' },
         { id: '2', title: 'Holiday Promo', type: 'Influencer Campaign', status: 'review' },
@@ -73,10 +90,15 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     loadData();
   }, [loadData]);
 
+  const clientName = client?.name || 'Cliente';
+  const clientSummary =
+    client?.profile?.knowledge_base?.description ||
+    `${clientName} é um cliente estratégico com foco em conteúdo e presença digital.`;
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return {
-      month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+      month: date.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase(),
       day: date.getDate().toString().padStart(2, '0'),
     };
   };
@@ -84,11 +106,11 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'on_track':
-        return <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">On Track</span>;
+        return <Chip size="small" color="success" label="No prazo" />;
       case 'review':
-        return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full uppercase">Review</span>;
+        return <Chip size="small" color="warning" label="Em revisão" />;
       case 'delayed':
-        return <span className="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase">Delayed</span>;
+        return <Chip size="small" color="default" label="Atrasado" />;
       default:
         return null;
     }
@@ -97,202 +119,241 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const getEventStatus = (status: string) => {
     switch (status) {
       case 'ready':
-        return { color: 'bg-green-500', label: 'Ready to post' };
+        return { color: 'success', label: 'Ready to post' } as const;
       case 'copywriting':
-        return { color: 'bg-yellow-500', label: 'Copywriting' };
+        return { color: 'warning', label: 'Copywriting' } as const;
       default:
-        return { color: 'bg-slate-400', label: 'Pending' };
+        return { color: 'default', label: 'Pending' } as const;
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-400">Carregando...</div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
+        <CircularProgress size={28} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando...
+        </Typography>
+      </Stack>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* Main Content - 8 columns */}
-      <div className="lg:col-span-8 space-y-6">
-        {/* Client Summary */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-start justify-between mb-6">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Client Summary</h3>
-            <span className="px-2 py-0.5 bg-orange-50 text-[#FF6600] text-[10px] font-bold rounded uppercase">Active Client</span>
-          </div>
-          <p className="text-slate-600 leading-relaxed mb-6">
-            {client?.profile?.knowledge_base?.description ||
-              `${client?.name} is a valued client focused on strategic content and digital presence. Our collaboration aims to expand their market footprint through narrative-driven campaigns and high-production content for digital platforms.`}
-          </p>
-          <div className="grid grid-cols-2 gap-8 border-t border-slate-100 pt-6">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Segment</p>
-              <p className="font-semibold">{client?.segment_primary || 'Not defined'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Key Account Managers</p>
-              <div className="flex -space-x-2">
-                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                  A
-                </div>
-                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                  B
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <Box>
+      <Grid container spacing={2} alignItems="flex-start">
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Resumo do cliente
+                  </Typography>
+                  <Chip size="small" color="primary" label="Cliente ativo" />
+                </Stack>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                  {clientSummary}
+                </Typography>
+                <Divider sx={{ my: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Segmento
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      {client?.segment_primary || 'Não definido'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Key Account Managers
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                      <Avatar sx={{ width: 28, height: 28, bgcolor: 'grey.200', fontSize: 12 }}>A</Avatar>
+                      <Avatar sx={{ width: 28, height: 28, bgcolor: 'grey.200', fontSize: 12 }}>B</Avatar>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-        {/* Planning Status */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Planning Status</h3>
-              <p className="text-lg font-bold mt-1">Current Content Cycle</p>
-            </div>
-            <div className="text-right">
-              <span className="text-3xl font-display text-[#FF6600]">{stats.progress_percent}%</span>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Ready for Publish</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="bg-[#FF6600] h-full transition-all"
-                style={{ width: `${stats.progress_percent}%` }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-center gap-2 text-green-600 mb-1">
-                  <span className="material-symbols-outlined text-sm">check_circle</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Approved</span>
-                </div>
-                <p className="text-2xl font-display">
-                  {stats.approved_posts} <span className="text-sm font-sans text-slate-400">/ {stats.total_posts} posts</span>
-                </p>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-center gap-2 text-yellow-600 mb-1">
-                  <span className="material-symbols-outlined text-sm">schedule</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Pending Review</span>
-                </div>
-                <p className="text-2xl font-display">
-                  {stats.pending_posts} <span className="text-sm font-sans text-slate-400">/ {stats.total_posts} posts</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-end" spacing={2} sx={{ mb: 2 }}>
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">
+                      Status de planejamento
+                    </Typography>
+                    <Typography variant="h6">Ciclo atual</Typography>
+                  </Box>
+                  <Box textAlign="right">
+                    <Typography variant="h4" color="primary">
+                      {stats.progress_percent}%
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Pronto para publicar
+                    </Typography>
+                  </Box>
+                </Stack>
+                <LinearProgress variant="determinate" value={stats.progress_percent} sx={{ height: 8, borderRadius: 999 }} />
+                <Grid container spacing={2} sx={{ mt: 2 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                      <CardContent>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                          <Avatar sx={{ bgcolor: 'success.light', width: 28, height: 28 }}>
+                            <IconBriefcase size={16} />
+                          </Avatar>
+                          <Typography variant="caption" color="text.secondary">
+                            Aprovados
+                          </Typography>
+                        </Stack>
+                        <Typography variant="h6">
+                          {stats.approved_posts}{' '}
+                          <Typography component="span" variant="body2" color="text.secondary">
+                            / {stats.total_posts} posts
+                          </Typography>
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                      <CardContent>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                          <Avatar sx={{ bgcolor: 'warning.light', width: 28, height: 28 }}>
+                            <IconCalendar size={16} />
+                          </Avatar>
+                          <Typography variant="caption" color="text.secondary">
+                            Pendentes
+                          </Typography>
+                        </Stack>
+                        <Typography variant="h6">
+                          {stats.pending_posts}{' '}
+                          <Typography component="span" variant="body2" color="text.secondary">
+                            / {stats.total_posts} posts
+                          </Typography>
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-        {/* Active Campaigns */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Campaigns</h3>
-            <Link href={`/clients/${clientId}/campaigns`} className="text-[#FF6600] text-xs font-bold hover:underline">
-              View All
-            </Link>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {campaigns.length > 0 ? campaigns.map((campaign) => (
-              <div key={campaign.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded flex items-center justify-center ${
-                    campaign.status === 'on_track' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
-                  }`}>
-                    <span className="material-symbols-outlined">
-                      {campaign.status === 'on_track' ? 'waves' : 'celebration'}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm">{campaign.title}</h4>
-                    <p className="text-xs text-slate-400">{campaign.type}</p>
-                  </div>
-                </div>
-                {getStatusBadge(campaign.status)}
-              </div>
-            )) : (
-              <div className="p-8 text-center bg-slate-50/50">
-                <p className="text-slate-400 text-xs italic">Start by creating your first campaign to see more metrics.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Campanhas ativas
+                  </Typography>
+                  <Button size="small" component={Link} href={`/clients/${clientId}/campaigns`}>
+                    Ver tudo
+                  </Button>
+                </Stack>
+                <Stack spacing={1} divider={<Divider flexItem />}>
+                  {campaigns.length > 0 ? (
+                    campaigns.map((campaign) => (
+                      <Stack key={campaign.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1 }}>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar variant="rounded" sx={{ bgcolor: 'grey.100' }}>
+                            <IconBriefcase size={18} />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="subtitle2">{campaign.title}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {campaign.type}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        {getStatusBadge(campaign.status)}
+                      </Stack>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+                      Crie a primeira campanha para ver métricas.
+                    </Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
 
-      {/* Sidebar - 4 columns */}
-      <div className="lg:col-span-4 space-y-6">
-        {/* Quick Actions */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Quick Actions</h3>
-          <div className="space-y-3">
-            <Link
-              href={`/studio?clientId=${clientId}`}
-              className="w-full bg-[#FF6600] hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20"
-            >
-              <span className="material-symbols-outlined">add</span> Create post
-            </Link>
-            <Link
-              href={`/clients/${clientId}/calendar`}
-              className="w-full bg-white border border-slate-200 hover:border-[#FF6600] text-slate-700 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all"
-            >
-              <span className="material-symbols-outlined">calendar_today</span> View calendar
-            </Link>
-          </div>
-          <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
-            <Link
-              href={`/clients/${clientId}/library`}
-              className="flex flex-col items-center p-3 hover:bg-slate-50 rounded-lg transition-colors group"
-            >
-              <span className="material-symbols-outlined text-slate-400 group-hover:text-[#FF6600] mb-1">upload</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Upload Assets</span>
-            </Link>
-            <Link
-              href={`/clients/${clientId}/insights`}
-              className="flex flex-col items-center p-3 hover:bg-slate-50 rounded-lg transition-colors group"
-            >
-              <span className="material-symbols-outlined text-slate-400 group-hover:text-[#FF6600] mb-1">description</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase">New Report</span>
-            </Link>
-          </div>
-        </div>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  Ações rápidas
+                </Typography>
+                <Stack spacing={1.5} sx={{ mt: 2 }}>
+                  <Button variant="contained" startIcon={<IconSparkles size={16} />} component={Link} href={`/studio?clientId=${clientId}`}>
+                    Criar post
+                  </Button>
+                  <Button variant="outlined" startIcon={<IconCalendar size={16} />} component={Link} href={`/clients/${clientId}/calendar`}>
+                    Ver calendário
+                  </Button>
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Grid container spacing={1}>
+                  <Grid size={{ xs: 6 }}>
+                    <Button fullWidth variant="text" startIcon={<IconBriefcase size={16} />} component={Link} href={`/clients/${clientId}/library`}>
+                      Biblioteca
+                    </Button>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <Button fullWidth variant="text" startIcon={<IconChartPie size={16} />} component={Link} href={`/clients/${clientId}/insights`}>
+                      Insights
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-        {/* Client Events */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Client Events</h3>
-            <button type="button" className="material-symbols-outlined text-slate-400 hover:text-slate-600">more_horiz</button>
-          </div>
-          <div className="space-y-6">
-            {events.length > 0 ? events.slice(0, 4).map((event, idx) => {
-              const { month, day } = formatDate(event.date_ref);
-              const status = getEventStatus(event.status || 'pending');
-              const isActive = idx === 0;
-
-              return (
-                <div key={event.id} className="flex gap-4">
-                  <div className="flex-shrink-0 w-10 text-center">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{month}</p>
-                    <p className={`text-xl font-display ${isActive ? 'text-[#FF6600]' : 'text-slate-300'}`}>{day}</p>
-                  </div>
-                  <div className={`flex-1 border-l-2 pl-4 ${isActive ? 'border-orange-100 : 'border-slate-100
-                    <h4 className="font-bold text-sm leading-none mb-2">{event.name}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${status.color}`} />
-                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">{status.label}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            }) : (
-              <p className="text-sm text-slate-400 text-center py-4">No upcoming events</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Datas do cliente
+                  </Typography>
+                  <IconDotsVertical size={16} />
+                </Stack>
+                <Stack spacing={2}>
+                  {events.length > 0 ? (
+                    events.slice(0, 4).map((event, idx) => {
+                      const { month, day } = formatDate(event.date_ref);
+                      const status = getEventStatus(event.status || 'pending');
+                      return (
+                        <Stack key={event.id} direction="row" spacing={2} alignItems="center">
+                          <Box textAlign="center" sx={{ minWidth: 46 }}>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {month}
+                            </Typography>
+                            <Typography variant="h6" color={idx === 0 ? 'primary' : 'text.primary'}>
+                              {day}
+                            </Typography>
+                          </Box>
+                          <Box flex={1}>
+                            <Typography variant="subtitle2">{event.name}</Typography>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Chip size="small" color={status.color} label={status.label} />
+                            </Stack>
+                          </Box>
+                        </Stack>
+                      );
+                    })
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                      Sem eventos previstos
+                    </Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

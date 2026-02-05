@@ -98,6 +98,14 @@ export async function getClientById(tenantId: string, id: string) {
   return rows[0] ?? null;
 }
 
+export async function listClients(tenantId: string) {
+  const { rows } = await query<any>(
+    `SELECT * FROM clients WHERE tenant_id=$1 ORDER BY updated_at DESC NULLS LAST, name ASC`,
+    [tenantId]
+  );
+  return rows;
+}
+
 export async function createClient(params: { tenantId: string; payload: ClientPayload }) {
   const id = params.payload.id || buildClientId(params.payload.name);
   const profile = normalizeProfile({}, params.payload);

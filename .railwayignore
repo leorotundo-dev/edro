@@ -6,3 +6,8 @@ dist/
 **/dist/**
 .turbo/
 **/.turbo/**
+docs/
+**/docs/**
+_inbox/
+**/_inbox/**
+**/*.zip

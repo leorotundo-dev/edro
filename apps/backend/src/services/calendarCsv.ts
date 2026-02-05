@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import crypto from 'crypto';
 import { parse } from 'csv-parse/sync';
 import type { CalendarEvent, CalendarCategory, Scope, Platform } from './calendarTotal';
 
@@ -48,6 +49,40 @@ const EVENT_TYPE_CATEGORY: Record<string, CalendarCategory[]> = {
   behavior: ['sazonalidade'],
   industry: ['setorial'],
   regional: ['local'],
+  data_comemorativa: ['sazonalidade'],
+  politico_civico: ['oficial'],
+  saude: ['causa_social'],
+};
+
+const SEGMENT_CODE_MAP: Record<string, string> = {
+  agropecuario: 'agronegocio_logistica_graos',
+  agronegocio: 'agronegocio_logistica_graos',
+  tecnologia: 'tecnologia_saas_b2b',
+  saude: 'saude',
+  industria: 'industria_manufatura',
+  manufatura: 'industria_manufatura',
+  construcao: 'construcao_civil_b2b',
+  automotivo: 'automotivo',
+  logistica: 'logistica_transporte',
+  educacao: 'educacao',
+  varejo: 'varejo_supermercado',
+  atacado: 'varejo_atacado_cashcarry',
+  ecommerce: 'varejo_ecommerce',
+  moda: 'varejo_moda',
+  beleza: 'varejo_farmacia_saude',
+  alimentos: 'alimentacao_foodservice',
+  alimenticio: 'alimentacao_foodservice',
+  financeiro: 'banco_fintech',
+  fintech: 'banco_fintech',
+  seguros: 'seguros',
+  pagamentos: 'meios_pagamento',
+  mobilidade: 'mobilidade_urbana',
+  rodovias: 'rodovias_concessao',
+  concessoes: 'concessoes_ppp',
+  metal_mecanica: 'industria_manufatura',
+  meio_ambiente: 'industria_manufatura',
+  laboratorios: 'saude',
+  mineracao: 'industria_manufatura',
 };
 
 function slugify(value: string) {
@@ -97,6 +132,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function parseBoolean(value?: string) {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return ['true', '1', 'sim', 'yes', 'y'].includes(normalized);
+}
+
 function normalizeDate(value?: string) {
   if (!value) return null;
   const trimmed = value.trim();
@@ -124,9 +165,65 @@ function normalizeScope(input?: string, country?: string, uf?: string | null, ci
   return country || 'BR';
 }
 
+function normalizeScopeFromCalendar(
+  abrangencia?: string | null,
+  territory?: string | null,
+  city?: string | null,
+  uf?: string | null,
+  country?: string
+) {
+  const normalized = (abrangencia || '').trim().toLowerCase();
+  if (normalized) {
+    if (['national', 'nacional'].includes(normalized)) return 'BR';
+    if (['municipal', 'city', 'cidade'].includes(normalized)) return 'CITY';
+    if (['mundial', 'global', 'world', 'international'].includes(normalized)) return 'global';
+    if (['state', 'uf', 'estado'].includes(normalized)) return 'UF';
+  }
+  if (territory && /^[a-z]{2}$/i.test(territory.trim())) return 'UF';
+  return country || 'BR';
+}
+
+function normalizeImpactLevel(value?: string) {
+  if (!value) return null;
+  const raw = value.trim().toLowerCase();
+  if (!raw) return null;
+  if (raw === 'pico') return 'peak';
+  if (raw === 'peak') return 'peak';
+  if (raw === 'medio' || raw === 'médio') return 'medio';
+  if (raw === 'alto') return 'alto';
+  if (raw === 'pre') return 'pre';
+  if (raw === 'post') return 'post';
+  return raw;
+}
+
 function normalizePlatform(value: string) {
   const key = value.toLowerCase().trim();
   return PLATFORM_ALIASES[key] || null;
+}
+
+function normalizeSegmentKey(value?: string) {
+  if (!value) return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function buildSegmentBoosts(segmentLabel?: string | null, extraTags: string[] = []) {
+  const boosts: Record<string, number> = {};
+  const addBoost = (label?: string | null) => {
+    const normalized = normalizeSegmentKey(label || '');
+    if (!normalized) return;
+    boosts[normalized] = Math.max(boosts[normalized] ?? 0, 18);
+    const mapped = SEGMENT_CODE_MAP[normalized];
+    if (mapped) boosts[mapped] = Math.max(boosts[mapped] ?? 0, 28);
+  };
+
+  addBoost(segmentLabel);
+  extraTags.forEach((tag) => addBoost(tag));
+  return boosts;
 }
 
 function parsePlatformFit(value?: string): Platform[] {
@@ -141,8 +238,11 @@ function parsePlatformFit(value?: string): Platform[] {
 function normalizeCategories(eventType?: string, rawCategories?: string): CalendarCategory[] {
   const categories = rawCategories ? splitValues(rawCategories) : [];
   const lower = categories.map((category) => category.toLowerCase().trim());
-  const mapped = EVENT_TYPE_CATEGORY[(eventType || '').toLowerCase()];
+  const typeKey = (eventType || '').toLowerCase().trim();
+  const mapped = EVENT_TYPE_CATEGORY[typeKey];
+  const isFairLike = /feira|congresso|expo|exposicao|simp[oó]sio/.test(typeKey);
   const merged = mapped ? [...mapped, ...lower] : lower;
+  if (isFairLike) merged.push('setorial');
   const unique = Array.from(new Set(merged)).filter(Boolean);
   return unique as CalendarCategory[];
 }
@@ -167,7 +267,7 @@ export function parseCalendarCsv(csvText: string, options: ParseOptions = {}): P
     const dateIso =
       normalizeDate(getField(row, ['date_iso', 'date', 'data', 'dia'])) ||
       normalizeDate(getField(row, ['start_date', 'data_inicio']));
-    const name = getField(row, ['event_name', 'name', 'nome', 'titulo', 'title'])?.trim();
+    const name = getField(row, ['evento', 'event_name', 'name', 'nome', 'titulo', 'title'])?.trim();
 
     if (!name || !dateIso) {
       errors.push({ row: idx + 2, error: 'missing_name_or_date' });
@@ -175,29 +275,65 @@ export function parseCalendarCsv(csvText: string, options: ParseOptions = {}): P
     }
 
     const eventType = getField(row, ['event_type', 'tipo', 'tipo_evento'])?.trim();
-    const segmentTags = splitValues(getField(row, ['segment_tags', 'segments', 'tags', 'tag']));
-    const country = getField(row, ['country', 'pais'])?.trim() || options.defaults?.country || 'BR';
-    const uf = getField(row, ['state', 'uf', 'estado'])?.trim() || null;
+    const segmentLabel = getField(row, ['segmento', 'segment', 'segmento_principal'])?.trim();
+    const baseTags = splitValues(getField(row, ['segment_tags', 'segments', 'tags', 'tag']));
+    const editorialTags = splitValues(getField(row, ['tags_editoriais', 'tags_editorial']));
+    const segmentTags = Array.from(new Set([...baseTags, ...editorialTags]));
+    if (segmentLabel) {
+      segmentTags.push(segmentLabel);
+      const normalizedSegment = normalizeSegmentKey(segmentLabel);
+      if (normalizedSegment) segmentTags.push(normalizedSegment);
+    }
+    const territoryRaw = getField(row, ['territorio'])?.trim();
+    let country = options.defaults?.country || 'BR';
+    let uf = getField(row, ['state', 'uf', 'estado'])?.trim() || null;
+    if (territoryRaw) {
+      const territory = territoryRaw.trim().toUpperCase();
+      if (territory === 'BR' || territory === 'BRA' || territory === 'BRASIL') {
+        country = 'BR';
+      } else if (/^[A-Z]{2}$/.test(territory)) {
+        country = 'BR';
+        uf = territory;
+      } else {
+        country = territory;
+      }
+    }
     const city = getField(row, ['city', 'cidade'])?.trim() || null;
-    const recurrence = getField(row, ['recurrence', 'recorrencia'])?.trim() || null;
-    const priority = clamp(
-      parseNumber(getField(row, ['priority_0_100', 'priority', 'peso', 'score']), 60),
-      0,
-      100,
+    const recurrence = getField(row, ['periodicidade', 'recurrence', 'recorrencia'])?.trim() || null;
+    const priorityRaw = parseNumber(
+      getField(row, ['score_relevancia', 'priority_0_100', 'priority', 'peso', 'score', 'base_priority']),
+      60,
     );
+    const priority = clamp(priorityRaw <= 10 ? priorityRaw * 10 : priorityRaw, 0, 100);
     const riskWeight = clamp(
       parseNumber(getField(row, ['risk_weight_0_100', 'risk_weight', 'risk']), 50),
       0,
       100,
     );
-    const windowKey = getField(row, ['window_key'])?.trim() || null;
-    const windowPhase = getField(row, ['window_phase'])?.trim() || null;
-    const localityScope = getField(row, ['locality_scope', 'scope'])?.trim() || null;
-    const contentAngles = splitValues(getField(row, ['content_angles', 'angles', 'angulos']));
-    const defaultCta = getField(row, ['default_cta', 'cta'])?.trim() || null;
-    const platformFit = parsePlatformFit(getField(row, ['platform_fit', 'platforms', 'plataformas']));
+    const windowKey = getField(row, ['janela_ativacao', 'window_key'])?.trim() || null;
+    const windowPhase = getField(row, ['momento_no_ano', 'window_phase'])?.trim() || null;
+    const abrangencia = getField(row, ['abrangencia'])?.trim() || null;
+    const localityScope = abrangencia || getField(row, ['locality_scope', 'scope'])?.trim() || null;
+    const contentAngles = splitValues(
+      getField(row, ['abordagem_editorial', 'content_angles', 'angles', 'angulos'])
+    );
+    const defaultCta = getField(row, ['cta_sugerido', 'default_cta', 'cta'])?.trim() || null;
+    const platformFit = parsePlatformFit(
+      getField(row, ['canais_sugeridos', 'platform_fit', 'platforms', 'plataformas'])
+    );
+    const formatosSugeridos = splitValues(
+      getField(row, ['formato_sugerido', 'formatos_sugeridos', 'format_suggestions'])
+    );
     const notes = getField(row, ['notes', 'nota', 'observacao'])?.trim() || null;
     const sourceHint = getField(row, ['source_hint', 'fonte'])?.trim() || null;
+    const scoreEditorialRaw = getField(row, ['score_editorial']);
+    const scoreEditorial = scoreEditorialRaw
+      ? clamp(parseNumber(scoreEditorialRaw, 0), 0, 100)
+      : null;
+    const impactLevel = normalizeImpactLevel(getField(row, ['nivel_impacto', 'impact_level']));
+    const eventKeyRaw = getField(row, ['evento_key', 'event_key', 'slug'])?.trim();
+    const eventCode = getField(row, ['codigo_evento', 'event_code'])?.trim() || null;
+    const isOfficial = parseBoolean(getField(row, ['oficial']));
     const dateType =
       getField(row, ['date_type', 'tipo_data'])?.trim() ||
       (getField(row, ['rule']) ? 'movable_rule' : 'fixed');
@@ -211,16 +347,26 @@ export function parseCalendarCsv(csvText: string, options: ParseOptions = {}): P
     if (!categories.length && options.defaults?.category) {
       categories.push(options.defaults.category);
     }
+    if (isOfficial && !categories.includes('oficial')) {
+      categories.push('oficial');
+    }
 
-    const slug = slugify(name);
-    const scope = normalizeScope(localityScope, country, uf, city) as Scope;
+    const slug = eventKeyRaw ? slugify(eventKeyRaw) : slugify(name);
+    const hasCalendarScope = Boolean(abrangencia || territoryRaw);
+    const scope = hasCalendarScope
+      ? (normalizeScopeFromCalendar(localityScope, territoryRaw || null, city, uf, country) as Scope)
+      : (normalizeScope(localityScope, country, uf, city) as Scope);
     const key = `${sourceLabel}|${dateIso}|${name}|${scope}|${uf || ''}|${city || ''}`;
-    const id = getField(row, ['id'])?.trim() || hashId('calendar', key);
+    const id =
+      getField(row, ['id'])?.trim() ||
+      (eventCode ? `calendar_${eventCode}_${dateIso}` : hashId('calendar', key));
 
     events.push({
       id,
       name,
       slug,
+      evento_key: eventKeyRaw || null,
+      codigo_evento: eventCode,
       event_type: eventType || null,
       recurrence,
       date_type: dateType as any,
@@ -233,7 +379,7 @@ export function parseCalendarCsv(csvText: string, options: ParseOptions = {}): P
       uf,
       city,
       categories,
-      tags: segmentTags,
+      tags: Array.from(new Set(segmentTags.map((tag) => tag.toLowerCase().trim()))).filter(Boolean),
       base_relevance: priority,
       risk_weight: riskWeight,
       window_key: windowKey,
@@ -242,9 +388,12 @@ export function parseCalendarCsv(csvText: string, options: ParseOptions = {}): P
       content_angles: contentAngles,
       default_cta: defaultCta,
       platform_fit: platformFit,
+      formatos_sugeridos: formatosSugeridos.length ? formatosSugeridos : null,
       notes,
       source_hint: sourceHint,
-      segment_boosts: {},
+      impact_level: impactLevel,
+      score_editorial: scoreEditorial,
+      segment_boosts: buildSegmentBoosts(segmentLabel, segmentTags),
       platform_affinity: {},
       avoid_segments: [],
       is_trend_sensitive: true,

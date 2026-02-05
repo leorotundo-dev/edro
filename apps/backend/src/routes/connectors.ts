@@ -60,7 +60,7 @@ export default async function connectorsRoutes(app: FastifyInstance) {
     async (request: any) => {
       const params = z.object({ clientId: z.string() }).parse(request.params);
       const { rows } = await query<any>(
-        `SELECT provider, updated_at
+        `SELECT provider, payload, secrets_meta, updated_at
          FROM connectors
          WHERE tenant_id=$1 AND client_id=$2
          ORDER BY provider ASC`,

@@ -202,6 +202,92 @@ async function fetchPerformanceHint(tenantId: string, clientId?: string | null, 
   };
 }
 
+function formatReporteiKpi(metric?: string, value?: any) {
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return value != null ? String(value) : '';
+  if (metric === 'ctr' || metric === 'engagement_rate') {
+    return `${(numeric * 100).toFixed(2)}%`;
+  }
+  if (numeric >= 1000) {
+    return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(numeric);
+  }
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2);
+}
+
+function buildReporteiCopyContext(params: {
+  payload?: any | null;
+  selectedFormat?: string | null;
+  selectedPlatform?: string | null;
+}) {
+  if (!params.payload) return { promptBlock: '', summary: null as any };
+  const byFormat = Array.isArray(params.payload.by_format) ? params.payload.by_format : [];
+  const byTag = Array.isArray(params.payload.by_tag) ? params.payload.by_tag : [];
+  const editorialInsights = Array.isArray(params.payload.editorial_insights)
+    ? params.payload.editorial_insights
+    : [];
+  if (!byFormat.length && !byTag.length && !editorialInsights.length) {
+    return { promptBlock: '', summary: null as any };
+  }
+
+  const normalize = (value?: string) => String(value || '').trim().toLowerCase();
+  const selectedFormatKey = normalize(params.selectedFormat || '');
+  const sortedFormats = [...byFormat].sort((a, b) => Number(b?.score ?? 0) - Number(a?.score ?? 0));
+  const sortedTags = [...byTag].sort((a, b) => Number(b?.score ?? 0) - Number(a?.score ?? 0));
+
+  const matchedFormat =
+    selectedFormatKey && byFormat.length
+      ? byFormat.find((item) => normalize(item?.format) === selectedFormatKey)
+      : null;
+  const topFormat = matchedFormat || sortedFormats[0] || null;
+  const topTag = sortedTags[0] || null;
+
+  const kpis =
+    topFormat?.kpis?.length
+      ? topFormat.kpis
+          .slice(0, 3)
+          .map((kpi: any) => `${kpi.metric}: ${formatReporteiKpi(kpi.metric, kpi.value)}`)
+      : [];
+  const insightsForPrompt = editorialInsights.slice(0, 3);
+  const insightsFull = editorialInsights;
+
+  const windowLabel = params.payload?.window || params.payload?.time_window || '30d';
+  const summary = {
+    source: 'reportei',
+    platform: params.selectedPlatform || params.payload?.platform || null,
+    window: windowLabel,
+    format: topFormat
+      ? {
+          name: topFormat.format,
+          score: Number(topFormat.score ?? 0),
+          basis: matchedFormat ? 'selected' : 'top',
+        }
+      : null,
+    tag: topTag
+      ? {
+          name: topTag.tag,
+          score: Number(topTag.score ?? 0),
+        }
+      : null,
+    kpis,
+    insights: insightsFull,
+    used_in_prompt: true,
+  };
+
+  const lines = [
+    `Dados Reportei (${windowLabel}):`,
+    topFormat ? `- Formato destaque: ${topFormat.format} (score ${Math.round(topFormat.score ?? 0)}).` : '',
+    topTag ? `- Tag destaque: ${topTag.tag} (score ${Math.round(topTag.score ?? 0)}).` : '',
+    kpis.length ? `- KPIs: ${kpis.join(', ')}.` : '',
+    insightsForPrompt.length ? `- Insights editoriais: ${insightsForPrompt.join(' | ')}.` : '',
+    'Use esses sinais para priorizar estrutura, CTA e tom, sem sair do formato selecionado.',
+  ].filter(Boolean);
+
+  return {
+    promptBlock: lines.join('\n'),
+    summary,
+  };
+}
+
 function resolveUser(request: any) {
   const user = request.user as RequestUser | undefined;
   return {
@@ -264,6 +350,7 @@ function buildCopyPrompt(params: {
   count: number;
   instructions?: string | null;
   clientKnowledge?: ClientKnowledge | null;
+  reporteiHint?: string | null;
 }): string {
   const languageLabel = params.language === 'es' ? 'espanhol' : 'portugues';
   const payloadText = JSON.stringify(params.briefing.payload || {}, null, 2);
@@ -276,6 +363,7 @@ function buildCopyPrompt(params: {
     'Formato: lista numerada. Cada item deve ter titulo curto, corpo e CTA.',
     `Cliente: ${params.briefing.client_name || 'nao informado'}.`,
     knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
+    params.reporteiHint ? params.reporteiHint : '',
     `Titulo do briefing: ${params.briefing.title}.`,
     'Detalhes do briefing (JSON):',
     payloadText,
@@ -671,15 +759,58 @@ export default async function edroRoutes(app: FastifyInstance) {
     const user = resolveUser(request);
     const tenantId = (request.user as any).tenant_id as string | undefined;
     const clientKnowledge = await loadClientKnowledge(tenantId, briefing);
+    const metadata = (body.metadata || {}) as Record<string, any>;
+    const selectedPlatform =
+      typeof metadata.platform === 'string'
+        ? metadata.platform
+        : typeof (briefing.payload as any)?.platform === 'string'
+          ? (briefing.payload as any).platform
+          : null;
+    const selectedFormat =
+      typeof metadata.format === 'string'
+        ? metadata.format
+        : typeof (briefing.payload as any)?.format === 'string'
+          ? (briefing.payload as any).format
+          : null;
+    const selectedClientId =
+      typeof metadata.client_id === 'string'
+        ? metadata.client_id
+        : typeof (briefing as any)?.client_id === 'string'
+          ? (briefing as any).client_id
+          : null;
+    const performanceHint = selectedPlatform
+      ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
+      : null;
+    const reporteiContext = buildReporteiCopyContext({
+      payload: performanceHint?.payload,
+      selectedFormat,
+      selectedPlatform,
+    });
     const stages = await ensureBriefingStages(briefing.id, user.email);
     const unlock = ensureStageUnlocked('copy_ia', stages as any);
+    const allowAutoStage = Boolean(
+      body.metadata &&
+        (body.metadata.allow_auto_stage ||
+          body.metadata.source === 'studio' ||
+          body.metadata.origin === 'studio' ||
+          body.metadata.format ||
+          body.metadata.platform ||
+          body.metadata.production_type)
+    );
 
     if (!unlock.ok) {
-      return reply.status(409).send({
-        success: false,
-        error: 'Etapas anteriores pendentes.',
-        missing: unlock.missing,
-      });
+      if (allowAutoStage || unlock.missing.length) {
+        for (const stage of unlock.missing) {
+          await updateBriefingStageStatus({
+            briefingId: briefing.id,
+            stage,
+            status: 'done',
+            updatedBy: user.email,
+            metadata: { autoCompleted: true },
+          });
+        }
+        await promoteStageIfPending(briefing.id, 'copy_ia', user.email);
+      }
     }
 
     const count = body.count ?? 10;
@@ -697,6 +828,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           count,
           instructions: body.instructions ?? null,
           clientKnowledge,
+          reporteiHint: reporteiContext?.promptBlock || null,
         });
 
       try {
@@ -729,20 +861,26 @@ export default async function edroRoutes(app: FastifyInstance) {
       }
     }
 
+    const basePayload =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? payload
+        : payload
+          ? { raw: payload }
+          : {};
+    const edroPayload = {
+      ...(basePayload as any)._edro,
+      ...(body.metadata && Object.keys(body.metadata).length ? body.metadata : {}),
+    } as Record<string, any>;
+    if (reporteiContext?.summary) {
+      edroPayload.reportei = reporteiContext.summary;
+    }
+    const hasEdroPayload = Object.keys(edroPayload).length > 0;
+    const hasBasePayload = Object.keys(basePayload).length > 0;
     let enrichedPayload = payload ?? null;
-    if (body.metadata && Object.keys(body.metadata).length) {
-      const basePayload =
-        payload && typeof payload === 'object' && !Array.isArray(payload)
-          ? payload
-          : payload
-            ? { raw: payload }
-            : {};
+    if (hasBasePayload || hasEdroPayload) {
       enrichedPayload = {
         ...basePayload,
-        _edro: {
-          ...(basePayload as any)._edro,
-          ...body.metadata,
-        },
+        ...(hasEdroPayload ? { _edro: edroPayload } : {}),
       };
     }
 

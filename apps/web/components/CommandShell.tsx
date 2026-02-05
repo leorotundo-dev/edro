@@ -46,7 +46,7 @@ export default function CommandShell({ children }: CommandShellProps) {
   return (
     <div className="command-shell bg-background-light dark:bg-background-dark text-[#1d130c] dark:text-[#fcf9f8]">
       <div className="flex min-h-screen">
-        <aside className="w-44 border-r border-[#f4ece6] dark:border-[#3a2a1f] bg-white dark:bg-[#1a110a] flex flex-col sticky top-0 h-screen overflow-y-auto">
+        <aside className="w-44 border-r border-[#f4ece6] dark:border-[#3a2a1f] bg-card dark:bg-[#1a110a] flex flex-col sticky top-0 h-screen overflow-y-auto">
           <div className="p-6 flex items-center gap-3">
             <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white">
               <span className="material-symbols-outlined">keyboard_command_key</span>
@@ -66,13 +66,13 @@ export default function CommandShell({ children }: CommandShellProps) {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                     active
                       ? 'sidebar-item-active'
-                      : 'hover:bg-gray-100 dark:hover:bg-[#2a1d14]'
+                      : 'hover:bg-card-strong dark:hover:bg-[#2a1d14]'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                   <span
                     className={`text-sm font-medium ${
-                      active ? '' : 'text-gray-600 dark:text-gray-400'
+                      active ? '' : 'text-muted dark:text-gray-400'
                     }`}
                   >
                     {item.label}
@@ -84,14 +84,14 @@ export default function CommandShell({ children }: CommandShellProps) {
           <div className="p-4 border-t border-[#f4ece6] dark:border-[#3a2a1f] space-y-1">
             <Link
               href="/settings"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a1d14]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-strong dark:hover:bg-[#2a1d14]"
             >
               <span className="material-symbols-outlined text-[20px]">settings</span>
               <span className="text-sm font-medium">Settings</span>
             </Link>
             <Link
               href="/support"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a1d14]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-strong dark:hover:bg-[#2a1d14]"
             >
               <span className="material-symbols-outlined text-[20px]">support_agent</span>
               <span className="text-sm font-medium">Support</span>
@@ -100,13 +100,13 @@ export default function CommandShell({ children }: CommandShellProps) {
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark">
-          <header className="h-16 bg-white dark:bg-[#1a110a] border-b border-[#f4ece6] dark:border-[#3a2a1f] flex items-center justify-between px-8 sticky top-0 z-10">
+          <header className="h-16 bg-card dark:bg-[#1a110a] border-b border-[#f4ece6] dark:border-[#3a2a1f] flex items-center justify-between px-8 sticky top-0 z-10">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#a16a45]">calendar_month</span>
               <span className="text-sm font-semibold">{todayLabel}</span>
             </div>
             <div className="flex items-center gap-6">
-              <button className="relative p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#2a1d14] rounded-lg">
+              <button className="relative p-2 text-muted hover:bg-card-strong dark:hover:bg-[#2a1d14] rounded-lg">
                 <span className="material-symbols-outlined">notifications</span>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-[#1a110a]" />
               </button>

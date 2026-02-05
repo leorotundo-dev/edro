@@ -1,6 +1,7 @@
 import type { PerformanceProvider, PerformanceBreakdown, TimeWindow, KPI } from '../contracts';
 import type { ClientProfile, Platform } from '../../types';
 import { ReporteiClient } from './reporteiClient';
+import { getReporteiConnector } from './reporteiConnector';
 
 function normalizeKPI(metric: string, value: any): KPI | null {
   const v = Number(value);
@@ -38,7 +39,16 @@ export class ReporteiPerformanceProvider implements PerformanceProvider {
     platform: Platform;
     window: TimeWindow;
   }): Promise<PerformanceBreakdown> {
-    if (!this.client.ok()) {
+    const tenantId = params.client?.tenant_id;
+    const connector =
+      tenantId && params.client?.id
+        ? await getReporteiConnector(tenantId, params.client.id)
+        : null;
+
+    const baseUrl = connector?.baseUrl || process.env.REPORTEI_BASE_URL || '';
+    const token = connector?.token || process.env.REPORTEI_TOKEN || '';
+
+    if (!this.client.ok({ baseUrl, token })) {
       return {
         platform: params.platform,
         window: params.window,
@@ -49,7 +59,8 @@ export class ReporteiPerformanceProvider implements PerformanceProvider {
       };
     }
 
-    const reporteiAccountId = (params.client as any).reportei_account_id;
+    const reporteiAccountId =
+      connector?.accountId || (params.client as any).reportei_account_id;
     if (!reporteiAccountId) {
       return {
         platform: params.platform,
@@ -64,7 +75,8 @@ export class ReporteiPerformanceProvider implements PerformanceProvider {
     let raw: any;
     try {
       raw = await this.client.get(
-        `/v1/accounts/${reporteiAccountId}/performance?platform=${params.platform}&window=${params.window}`
+        `/v1/accounts/${reporteiAccountId}/performance?platform=${params.platform}&window=${params.window}`,
+        { baseUrl, token }
       );
     } catch (error: any) {
       return {

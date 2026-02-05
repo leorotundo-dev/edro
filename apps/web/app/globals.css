@@ -15,7 +15,7 @@
 :root {
   color-scheme: light;
   --edro-primary: #ff6600;
-  --edro-bg-light: #f9fafb;
+  --edro-bg-light: #f5f5f5;
   --edro-bg-dark: #0f172a;
   --edro-card-light: #ffffff;
   --edro-card-dark: #1e293b;
@@ -24,13 +24,13 @@
   --edro-sidebar-dark: #0f172a;
   --edro-border-light: #e5e7eb;
   --edro-border-dark: #262626;
-  --paper: #f8f9fa;
+  --paper: #f5f5f5;
   --ink: #0a0a0a;
   --muted: #6b7280;
   --accent: #ff5c00;
   --accent-strong: #111827;
   --accent-sun: #f59e0b;
-  --accent-cool: #0ea5e9;
+  --accent-cool: #94a3b8;
   --card: #ffffff;
   --card-strong: #f3f4f6;
   --border: #e5e7eb;

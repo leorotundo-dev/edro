@@ -1,9 +1,22 @@
 import { Suspense } from 'react';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import PlanningClient from './PlanningClient';
 
 export default function Page({ params }: { params: { id: string } }) {
   return (
-    <Suspense fallback={<div className="loading-screen">Carregando planning...</div>}>
+    <Suspense
+      fallback={
+        <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
+          <CircularProgress size={28} />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Carregando planning...
+          </Typography>
+        </Stack>
+      }
+    >
       <PlanningClient clientId={params.id} />
     </Suspense>
   );

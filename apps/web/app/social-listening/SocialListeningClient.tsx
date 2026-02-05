@@ -4,6 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Chart from '@/components/charts/Chart';
+import { IconRefresh, IconPlus, IconTrash } from '@tabler/icons-react';
 
 type ClientRow = {
   id: string;
@@ -98,6 +112,8 @@ type ReporteiResponse = {
 
 type SocialListeningClientProps = {
   clientId?: string;
+  noShell?: boolean;
+  embedded?: boolean;
 };
 
 const PLATFORM_OPTIONS = [
@@ -175,7 +191,7 @@ function getSentimentLabel(sentiment?: string | null) {
   return 'Indefinido';
 }
 
-export default function SocialListeningClient({ clientId }: SocialListeningClientProps) {
+export default function SocialListeningClient({ clientId, noShell, embedded }: SocialListeningClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const lockedClientId = clientId || searchParams.get('clientId') || '';
@@ -196,9 +212,9 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
   const [success, setSuccess] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
-  const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState('');
   const [sentimentFilter, setSentimentFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
   const [collecting, setCollecting] = useState(false);
 
@@ -258,28 +274,15 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
     }
   }, [selectedClient]);
 
-  const loadTrends = useCallback(async () => {
-    if (!selectedClient) return;
-    const qs = new URLSearchParams();
-    qs.set('clientId', selectedClient.id);
-    if (platformFilter) qs.set('platform', platformFilter);
-    if (keywordFilter) qs.set('keyword', keywordFilter);
-    try {
-      const response = await apiGet<TrendRow[]>(`/social-listening/trends?${qs.toString()}`);
-      setTrends(response || []);
-    } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar tendencias.');
-    }
-  }, [selectedClient, platformFilter, keywordFilter]);
-
   const loadMentions = useCallback(async () => {
     if (!selectedClient) return;
     const qs = new URLSearchParams();
     qs.set('clientId', selectedClient.id);
     if (platformFilter) qs.set('platform', platformFilter);
     if (sentimentFilter) qs.set('sentiment', sentimentFilter);
+    if (search) qs.set('search', search);
     if (keywordFilter) qs.set('keyword', keywordFilter);
-    if (search) qs.set('q', search);
+
     try {
       const response = await apiGet<{ mentions: MentionRow[] }>(
         `/social-listening/mentions?${qs.toString()}`
@@ -290,13 +293,23 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
     }
   }, [keywordFilter, platformFilter, search, selectedClient, sentimentFilter]);
 
+  const loadTrends = useCallback(async () => {
+    if (!selectedClient) return;
+    try {
+      const response = await apiGet<TrendRow[]>(`/social-listening/trends?clientId=${selectedClient.id}`);
+      setTrends(response || []);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao carregar tendencias.');
+    }
+  }, [selectedClient]);
+
   const loadReportei = useCallback(async () => {
     if (!selectedClient) return;
     setReporteiLoading(true);
     setReporteiError('');
     try {
       const response = await apiGet<ReporteiResponse>(
-        `/social-listening/reportei?clientId=${selectedClient.id}`
+        `/clients/${selectedClient.id}/insights/reportei`
       );
       setReporteiItems(response?.items || []);
       setReporteiUpdatedAt(response?.updated_at || null);
@@ -321,26 +334,22 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
     if (!selectedClient) return;
     loadStats();
     loadKeywords();
-    loadTrends();
     loadMentions();
+    loadTrends();
     loadReportei();
   }, [selectedClient, loadStats, loadKeywords, loadMentions, loadTrends, loadReportei]);
 
-  useEffect(() => {
-    if (!selectedClient) return;
-    loadMentions();
-    loadTrends();
-  }, [platformFilter, sentimentFilter, keywordFilter, search, selectedClient, loadMentions, loadTrends]);
-
   const handleAddKeyword = async () => {
-    if (!keywordInput.trim() || !selectedClient) return;
+    if (!selectedClient) return;
+    if (!keywordInput.trim()) return;
+
     setError('');
     setSuccess('');
     try {
       await apiPost('/social-listening/keywords', {
+        clientId: selectedClient.id,
         keyword: keywordInput.trim(),
-        category: categoryInput.trim() || undefined,
-        client_id: selectedClient.id,
+        category: categoryInput.trim() || null,
       });
       setKeywordInput('');
       setCategoryInput('');
@@ -353,6 +362,7 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
 
   const toggleKeyword = async (keyword: KeywordRow) => {
     setError('');
+    setSuccess('');
     try {
       await apiPatch(`/social-listening/keywords/${keyword.id}`, { is_active: !keyword.is_active });
       await loadKeywords();
@@ -362,9 +372,8 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
   };
 
   const deleteKeyword = async (keyword: KeywordRow) => {
-    const ok = window.confirm(`Remover keyword "${keyword.keyword}"?`);
-    if (!ok) return;
     setError('');
+    setSuccess('');
     try {
       await apiDelete(`/social-listening/keywords/${keyword.id}`);
       await loadKeywords();
@@ -379,12 +388,10 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
     setError('');
     setSuccess('');
     try {
-      const body: Record<string, any> = { clientId: selectedClient.id, limit: 20 };
-      if (platformFilter) body.platforms = [platformFilter];
-      await apiPost('/social-listening/collect', body);
-      setSuccess('Coleta disparada. Atualizando resultados...');
-      await loadStats();
+      await apiPost('/social-listening/collect', { clientId: selectedClient.id });
+      setSuccess('Coleta iniciada.');
       await loadMentions();
+      await loadStats();
       await loadTrends();
     } catch (err: any) {
       setError(err?.message || 'Falha ao coletar mencoes.');
@@ -399,130 +406,197 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
 
   if (loading && clients.length === 0) {
     return (
-      <div className="loading-screen">
-        <div className="pulse">Carregando Social Listening...</div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 200 }}>
+        <CircularProgress size={28} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando Social Listening...
+        </Typography>
+      </Stack>
     );
   }
 
-  return (
-    <AppShell
-      title="Social Listening"
-      topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <span className="text-muted">Radar</span>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-ink font-medium">Social Listening</span>
-        </nav>
-      }
-    >
-      <div className="page-content">
-        <div>
-          <h1>Social Listening</h1>
-          <p>Monitoramento em tempo real das conversas e tendencias para cada cliente.</p>
-        </div>
+  const sentimentChartOptions: ApexCharts.ApexOptions = {
+    chart: { type: 'donut' },
+    labels: ['Positivas', 'Neutras', 'Negativas'],
+    colors: ['#4caf50', '#ff9800', '#f44336'],
+    legend: { position: 'bottom' },
+  };
+  const sentimentChartSeries = [
+    Number(summary.positive || 0),
+    Number(summary.neutral || 0),
+    Number(summary.negative || 0),
+  ];
+  const hasSentimentData = sentimentChartSeries.some((v) => v > 0);
 
-        {error ? <div className="notice error">{error}</div> : null}
-        {success ? <div className="notice success">{success}</div> : null}
+  const platformChartOptions: ApexCharts.ApexOptions = {
+    chart: { type: 'bar' },
+    xaxis: { categories: platforms.map((p) => p.platform) },
+    colors: ['#49beff'],
+    plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+  };
+  const platformChartSeries = [{ name: 'Total', data: platforms.map((p) => p.total) }];
 
-        <div className="edro-hero-stats">
-          <div className="stat-card">
-            <span>Total 7 dias</span>
-            <strong>{formatNumber(summary.total)}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Positivas</span>
-            <strong>{formatNumber(summary.positive)}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Neutras</span>
-            <strong>{formatNumber(summary.neutral)}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Negativas</span>
-            <strong>{formatNumber(summary.negative)}</strong>
-          </div>
-          <div className="stat-card accent">
-            <span>Sentimento medio</span>
-            <strong>{formatNumber(summary.avg_score)}%</strong>
-          </div>
-        </div>
+  const keywordChartOptions: ApexCharts.ApexOptions = {
+    chart: { type: 'bar' },
+    xaxis: { categories: topKeywords.map((kw) => kw.keyword) },
+    colors: ['#5d87ff'],
+    plotOptions: { bar: { borderRadius: 4 } },
+  };
+  const keywordChartSeries = [{ name: 'Mencoes', data: topKeywords.map((kw) => kw.total) }];
 
-        <div className="filter-bar">
-          <div className="filter-meta">
-            <span>Cliente</span>
-            <strong>{selectedClient?.name || 'Global'}</strong>
-            <small>
-              {selectedClient?.segment_primary
-                ? `${selectedClient.segment_primary} • ${selectedClient.city || ''}`
-                : 'Base global'}
-            </small>
-          </div>
-          <div className="filter-actions">
-            <select
-              className="edro-select"
-              value={selectedClient?.id || ''}
-              onChange={(event) => {
-                const match = clients.find((client) => client.id === event.target.value) || null;
-                setSelectedClient(match);
-                if (match) router.replace(`/social-listening?clientId=${match.id}`);
-              }}
-              disabled={isLocked}
-            >
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="edro-select"
-              value={platformFilter}
-              onChange={(event) => setPlatformFilter(event.target.value)}
-            >
-              {PLATFORM_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className="edro-select"
-              value={sentimentFilter}
-              onChange={(event) => setSentimentFilter(event.target.value)}
-            >
-              {SENTIMENT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <input
-              className="edro-input"
-              placeholder="Buscar por termo ou autor"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <button className="btn primary" type="button" onClick={handleCollect} disabled={collecting}>
-              {collecting ? 'Coletando...' : 'Atualizar'}
-            </button>
-          </div>
-        </div>
+  const content = (
+    <Stack spacing={3} sx={{ minWidth: 0 }}>
+      <Box>
+        <Typography variant="h4">Social Listening</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Monitoramento em tempo real das conversas e tendencias para cada cliente.
+        </Typography>
+      </Box>
 
-        <div className="card">
-          <div className="card-top flex items-center justify-between">
-            <span className="badge">Reportei Performance</span>
-            <span className="text-xs text-muted">
-              {reporteiUpdatedAt ? `Atualizado em ${formatDate(reporteiUpdatedAt)}` : 'Sem atualizacao recente'}
-            </span>
-          </div>
+      {error ? (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography color="error">{error}</Typography>
+          </CardContent>
+        </Card>
+      ) : null}
+      {success ? (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography color="success.main">{success}</Typography>
+          </CardContent>
+        </Card>
+      ) : null}
 
-          {reporteiError ? <div className="notice error">{reporteiError}</div> : null}
+      <Grid container spacing={2}>
+        {[
+          { label: 'Total 7 dias', value: summary.total },
+          { label: 'Positivas', value: summary.positive },
+          { label: 'Neutras', value: summary.neutral },
+          { label: 'Negativas', value: summary.negative },
+          { label: 'Sentimento médio', value: `${formatNumber(summary.avg_score)}%` },
+        ].map((metric) => (
+          <Grid key={metric.label} size={{ xs: 12, sm: 6, md: 3 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  {metric.label}
+                </Typography>
+                <Typography variant="h5">{metric.value}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Charts row */}
+      {hasSentimentData ? (
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1 }}>Sentimento</Typography>
+                <Chart options={sentimentChartOptions} series={sentimentChartSeries} type="donut" height={260} />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1 }}>Top Keywords</Typography>
+                {topKeywords.length ? (
+                  <Chart options={keywordChartOptions} series={keywordChartSeries} type="bar" height={260} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem dados.</Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1 }}>Por Plataforma</Typography>
+                {platforms.length ? (
+                  <Chart options={platformChartOptions} series={platformChartSeries} type="bar" height={260} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem dados.</Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      ) : null}
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography variant="overline" color="text.secondary">Filtros</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {selectedClient?.name || 'Global'} · {selectedClient?.segment_primary || 'Base global'}
+              </Typography>
+            </Box>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <TextField
+                select
+                value={selectedClient?.id || ''}
+                onChange={(event) => {
+                  const match = clients.find((client) => client.id === event.target.value) || null;
+                  setSelectedClient(match);
+                  if (match) router.replace(`/social-listening?clientId=${match.id}`);
+                }}
+                disabled={isLocked}
+                size="small"
+              >
+                {clients.map((client) => (
+                  <MenuItem key={client.id} value={client.id}>
+                    {client.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} size="small">
+                {PLATFORM_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField select value={sentimentFilter} onChange={(event) => setSentimentFilter(event.target.value)} size="small">
+                {SENTIMENT_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                size="small"
+                placeholder="Buscar termo ou autor"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Button variant="contained" startIcon={<IconRefresh size={16} />} onClick={handleCollect} disabled={collecting}>
+                {collecting ? 'Coletando...' : 'Atualizar'}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="overline" color="text.secondary">Reportei Performance</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {reporteiUpdatedAt ? `Atualizado em ${formatDate(reporteiUpdatedAt)}` : 'Sem atualização recente'}
+            </Typography>
+          </Stack>
+
+          {reporteiError ? <Typography color="error">{reporteiError}</Typography> : null}
 
           {reporteiLoading ? (
-            <div className="empty">Carregando dados do Reportei...</div>
+            <Typography variant="body2" color="text.secondary">Carregando dados do Reportei...</Typography>
           ) : reporteiItems.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Grid container spacing={2}>
               {reporteiItems.map((item, index) => {
                 const payload = item.payload || {};
                 const topFormat = pickTop(payload.by_format);
@@ -531,225 +605,246 @@ export default function SocialListeningClient({ clientId }: SocialListeningClien
                 const editorial = (payload.editorial_insights || []).slice(0, 3);
 
                 return (
-                  <div key={item.platform || `reportei-${index}`} className="copy-block">
-                    <div className="card-title">
-                      <h3>{item.platform || 'Plataforma'}</h3>
-                      <span className="status">{item.time_window || '30d'}</span>
-                    </div>
+                  <Grid key={item.platform || `reportei-${index}`} size={{ xs: 12, md: 6, lg: 4 }}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                          <Typography variant="subtitle2">{item.platform || 'Plataforma'}</Typography>
+                          <Chip size="small" label={item.time_window || '30d'} />
+                        </Stack>
 
-                    <div className="space-y-2 text-sm text-muted">
-                      <div className="flex items-center justify-between">
-                        <span>Top formato</span>
-                        <strong className="text-ink">
-                          {topFormat?.format || 'N/A'} {topFormat?.score != null ? `(${Math.round(topFormat.score)})` : ''}
-                        </strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Top tag</span>
-                        <strong className="text-ink">
-                          {topTag?.tag || 'N/A'} {topTag?.score != null ? `(${Math.round(topTag.score)})` : ''}
-                        </strong>
-                      </div>
-                    </div>
+                        <Stack spacing={1} sx={{ mb: 2 }}>
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="caption" color="text.secondary">Top formato</Typography>
+                            <Typography variant="caption">{topFormat?.format || 'N/A'}</Typography>
+                          </Stack>
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="caption" color="text.secondary">Top tag</Typography>
+                            <Typography variant="caption">{topTag?.tag || 'N/A'}</Typography>
+                          </Stack>
+                        </Stack>
 
-                    {kpis.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {kpis.map((kpi) => (
-                          <span key={`${item.platform}-${kpi.metric}`} className="chip">
-                            {KPI_LABELS[kpi.metric] || kpi.metric}: {formatKpiValue(kpi.metric, kpi.value)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="mt-3 text-xs text-muted">Sem KPIs disponiveis.</div>
-                    )}
+                        {kpis.length ? (
+                          <Stack spacing={1} sx={{ mb: 2 }}>
+                            {kpis.map((kpi) => (
+                              <Chip key={`${item.platform}-${kpi.metric}`} size="small" label={`${KPI_LABELS[kpi.metric] || kpi.metric}: ${formatKpiValue(kpi.metric, kpi.value)}`} />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">Sem KPIs disponíveis.</Typography>
+                        )}
 
-                    {editorial.length ? (
-                      <div className="mt-3 text-xs text-muted">
-                        <strong className="text-ink">Insights:</strong>
-                        <ul className="list-disc list-inside mt-1 space-y-1">
-                          {editorial.map((line, idx) => (
-                            <li key={`${item.platform}-insight-${idx}`}>{line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
+                        {editorial.length ? (
+                          <Stack spacing={0.5}>
+                            <Typography variant="caption" color="text.secondary">Insights:</Typography>
+                            {editorial.map((line, idx) => (
+                              <Typography key={`${item.platform}-insight-${idx}`} variant="caption" color="text.secondary">
+                                • {line}
+                              </Typography>
+                            ))}
+                          </Stack>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 );
               })}
-            </div>
+            </Grid>
           ) : (
-            <div className="empty">Sem dados do Reportei para este cliente.</div>
+            <Typography variant="body2" color="text.secondary">Sem dados do Reportei para este cliente.</Typography>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="panel-grid">
-          <aside className="panel-sidebar space-y-4">
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Keywords ativas</span>
-              </div>
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                <label className="field">
-                  Nova keyword
-                  <input
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">Keywords ativas</Typography>
+                <Stack spacing={2} sx={{ mt: 2 }}>
+                  <TextField
+                    label="Nova keyword"
                     value={keywordInput}
                     onChange={(event) => setKeywordInput(event.target.value)}
                     placeholder="Ex: mobilidade"
                   />
-                </label>
-                <label className="field">
-                  Categoria
-                  <input
+                  <TextField
+                    label="Categoria"
                     value={categoryInput}
                     onChange={(event) => setCategoryInput(event.target.value)}
                     placeholder="Ex: setor"
                   />
-                </label>
-                <button className="btn primary" type="button" onClick={handleAddKeyword}>
-                  Adicionar keyword
-                </button>
-              </div>
-              <div className="detail-list">
-                {keywords.length ? (
-                  keywords.map((keyword) => (
-                    <div key={keyword.id} className="copy-block">
-                      <div className="card-title">
-                        <h3>{keyword.keyword}</h3>
-                        <span className="status">{keyword.category || 'geral'}</span>
-                      </div>
-                      <div className="card-actions">
-                        <button className="btn ghost" type="button" onClick={() => toggleKeyword(keyword)}>
-                          {keyword.is_active ? 'Desativar' : 'Ativar'}
-                        </button>
-                        <button className="btn danger" type="button" onClick={() => deleteKeyword(keyword)}>
-                          Remover
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty">Nenhuma keyword ativa.</div>
-                )}
-              </div>
-            </div>
+                  <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={handleAddKeyword}>
+                    Adicionar keyword
+                  </Button>
+                </Stack>
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {keywords.length ? (
+                    keywords.map((keyword) => (
+                      <Box key={keyword.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="subtitle2">{keyword.keyword}</Typography>
+                          <Chip size="small" label={keyword.category || 'geral'} />
+                        </Stack>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                          <Button size="small" variant="text" onClick={() => toggleKeyword(keyword)}>
+                            {keyword.is_active ? 'Desativar' : 'Ativar'}
+                          </Button>
+                          <Button size="small" color="error" variant="text" startIcon={<IconTrash size={14} />} onClick={() => deleteKeyword(keyword)}>
+                            Remover
+                          </Button>
+                        </Stack>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Nenhuma keyword ativa.</Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Tendencias (24h)</span>
-              </div>
-              <div className="detail-list">
-                {trends.length ? (
-                  trends.map((trend) => (
-                    <div key={`${trend.keyword}-${trend.platform}`} className="copy-block">
-                      <div className="card-title">
-                        <h3>{trend.keyword}</h3>
-                        <span className="status">{trend.platform}</span>
-                      </div>
-                      <p className="card-text">
-                        {formatNumber(trend.mention_count)} mencoes • {formatNumber(trend.total_engagement)} engajamentos
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty">Sem tendencias disponiveis.</div>
-                )}
-              </div>
-            </div>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">Tendências (24h)</Typography>
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {trends.length ? (
+                    trends.map((trend) => (
+                      <Box key={`${trend.keyword}-${trend.platform}`}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="body2">{trend.keyword}</Typography>
+                          <Chip size="small" label={trend.platform} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatNumber(trend.mention_count)} menções • {formatNumber(trend.total_engagement)} engajamentos
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Sem tendências disponíveis.</Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Plataformas</span>
-              </div>
-              <div className="detail-list">
-                {platforms.length ? (
-                  platforms.map((platform) => (
-                    <div key={platform.platform} className="detail-list" style={{ gap: '4px' }}>
-                      <div className="card-title">
-                        <h3>{platform.platform}</h3>
-                        <span className="status">{formatNumber(platform.total)}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty">Sem dados por plataforma.</div>
-                )}
-              </div>
-            </div>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">Plataformas</Typography>
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {platforms.length ? (
+                    platforms.map((platform) => (
+                      <Stack key={platform.platform} direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2">{platform.platform}</Typography>
+                        <Chip size="small" label={formatNumber(platform.total)} />
+                      </Stack>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Sem dados por plataforma.</Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Top keywords</span>
-              </div>
-              <div className="detail-list">
-                {topKeywords.length ? (
-                  topKeywords.map((keyword) => (
-                    <div key={keyword.keyword} className="card-title">
-                      <h3>{keyword.keyword}</h3>
-                      <span className="status">{formatNumber(keyword.total)}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty">Sem palavras-chave.</div>
-                )}
-              </div>
-            </div>
-          </aside>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">Top keywords</Typography>
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {topKeywords.length ? (
+                    topKeywords.map((keyword) => (
+                      <Stack key={keyword.keyword} direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2">{keyword.keyword}</Typography>
+                        <Chip size="small" label={formatNumber(keyword.total)} />
+                      </Stack>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Sem palavras-chave.</Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
 
-          <section className="panel-main">
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Mencoes recentes</span>
-                <select
-                  className="edro-select"
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Card variant="outlined">
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="overline" color="text.secondary">Menções recentes</Typography>
+                <TextField
+                  select
+                  size="small"
                   value={keywordFilter}
                   onChange={(event) => setKeywordFilter(event.target.value)}
                 >
-                  <option value="">Todas keywords</option>
+                  <MenuItem value="">Todas keywords</MenuItem>
                   {keywords.map((keyword) => (
-                    <option key={keyword.id} value={keyword.keyword}>
+                    <MenuItem key={keyword.id} value={keyword.keyword}>
                       {keyword.keyword}
-                    </option>
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
+                </TextField>
+              </Stack>
 
-              <div className="detail-list">
+              <Stack spacing={1}>
                 {mentions.length ? (
                   mentions.map((mention) => (
-                    <div key={mention.id} className="copy-block">
-                      <div className="card-title">
-                        <div>
-                          <h3>{mention.author || 'Anonimo'}</h3>
-                          <p>{mention.platform} • {mention.keyword}</p>
-                        </div>
-                        <span className="status">{getSentimentLabel(mention.sentiment)}</span>
-                      </div>
-                      <p className="card-text">{mention.content}</p>
-                      <div className="card-footer">
-                        <div className="card-tags">
-                          <span className="chip">❤ {formatNumber(mention.engagement_likes)}</span>
-                          <span className="chip">💬 {formatNumber(mention.engagement_comments)}</span>
-                          <span className="chip">↗ {formatNumber(mention.engagement_shares)}</span>
-                          <span className="chip">▶ {formatNumber(mention.engagement_views)}</span>
-                        </div>
-                        <div className="text-xs text-slate-400">{formatDate(mention.published_at)}</div>
-                      </div>
+                    <Box key={mention.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Box>
+                          <Typography variant="subtitle2">{mention.author || 'Anônimo'}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {mention.platform} • {mention.keyword}
+                          </Typography>
+                        </Box>
+                        <Chip size="small" label={getSentimentLabel(mention.sentiment)} />
+                      </Stack>
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        {mention.content}
+                      </Typography>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 1 }} alignItems={{ xs: 'flex-start', md: 'center' }}>
+                        <Chip size="small" label={`❤ ${formatNumber(mention.engagement_likes)}`} />
+                        <Chip size="small" label={`💬 ${formatNumber(mention.engagement_comments)}`} />
+                        <Chip size="small" label={`↗ ${formatNumber(mention.engagement_shares)}`} />
+                        <Chip size="small" label={`▶ ${formatNumber(mention.engagement_views)}`} />
+                        <Typography variant="caption" color="text.secondary">
+                          {formatDate(mention.published_at)}
+                        </Typography>
+                      </Stack>
                       {mention.url ? (
-                        <a className="text-xs text-primary" href={mention.url} target="_blank" rel="noreferrer">
+                        <Button size="small" variant="text" href={mention.url} target="_blank" rel="noreferrer">
                           Abrir fonte
-                        </a>
+                        </Button>
                       ) : null}
-                    </div>
+                    </Box>
                   ))
                 ) : (
-                  <div className="empty">Nenhuma mencao encontrada.</div>
+                  <Typography variant="body2" color="text.secondary">Nenhuma menção encontrada.</Typography>
                 )}
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Stack>
+  );
+
+  if (noShell) {
+    return content;
+  }
+
+  return (
+    <AppShell
+      title="Social Listening"
+      topbarLeft={
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="body2" color="text.secondary">Radar</Typography>
+          <Typography variant="body2" color="text.secondary">/</Typography>
+          <Typography variant="body2" fontWeight={600}>Social Listening</Typography>
+        </Stack>
+      }
+    >
+      {content}
     </AppShell>
   );
 }

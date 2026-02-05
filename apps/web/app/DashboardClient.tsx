@@ -2,8 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
+import Grid from '@mui/material/Grid';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Avatar from '@mui/material/Avatar';
+import Divider from '@mui/material/Divider';
+import LinearProgress from '@mui/material/LinearProgress';
+import CircularProgress from '@mui/material/CircularProgress';
 import AppShell from '@/components/AppShell';
+import TopCards from '@/components/dashboards/TopCards';
+import StatusChip from '@/components/shared/StatusChip';
 import { apiGet } from '@/lib/api';
+import {
+  IconCalendar,
+  IconClipboardList,
+  IconFileText,
+  IconChartLine,
+  IconUsers,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -28,8 +49,13 @@ type CalendarEvent = {
   name: string;
   slug: string;
   categories: string[];
+  tags?: string[];
   score: number;
   tier: string;
+};
+
+type CalendarEventWithDate = CalendarEvent & {
+  date: string;
 };
 
 type DashboardStats = {
@@ -56,6 +82,8 @@ export default function DashboardClient() {
   const [recentBriefings, setRecentBriefings] = useState<Briefing[]>([]);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventWithDate[]>([]);
+  const [priorityTags, setPriorityTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadDashboard();
@@ -64,16 +92,10 @@ export default function DashboardClient() {
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      // Carregar métricas
       const metricsRes = await apiGet<{ success: boolean; data: any }>('/edro/metrics');
-
-      // Carregar briefings recentes
       const briefingsRes = await apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10');
-
-      // Carregar tasks de hoje
       const tasksRes = await apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending');
 
-      // Carregar eventos do calendário do mês atual
       const now = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = now.toISOString().split('T')[0];
@@ -84,20 +106,43 @@ export default function DashboardClient() {
         days: Record<string, CalendarEvent[]>;
       }>(`/calendar/events/${currentMonth}`);
 
-      if (calendarRes?.days && calendarRes.days[today]) {
-        setTodayEvents(calendarRes.days[today].slice(0, 3)); // Top 3 eventos
+      if (calendarRes?.days) {
+        const todaysList = calendarRes.days[today] || [];
+        setTodayEvents(todaysList.slice(0, 8));
+
+        const upcoming = Object.entries(calendarRes.days)
+          .filter(([date]) => date > today)
+          .flatMap(([date, events]) => events.map((event) => ({ ...event, date })))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8);
+        setUpcomingEvents(upcoming);
+
+        const tagCounts = new Map<string, number>();
+        todaysList.forEach((event) => {
+          [...(event.tags || []), ...(event.categories || [])].forEach((tag) => {
+            const normalized = String(tag || '').trim().toLowerCase();
+            if (!normalized) return;
+            tagCounts.set(normalized, (tagCounts.get(normalized) || 0) + 1);
+          });
+        });
+        const sortedTags = Array.from(tagCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([tag]) => tag)
+          .slice(0, 6);
+        setPriorityTags(sortedTags);
       }
 
       if (metricsRes?.data) {
         const metrics = metricsRes.data;
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
+        const dueTodayCount = (briefingsRes?.data || []).filter((briefing) =>
+          briefing.due_at?.startsWith(today)
+        ).length;
 
         setStats({
           today: {
-            activeBriefings: metrics.byStatus?.['copy_ia'] || 0 + metrics.byStatus?.['aprovacao'] || 0,
+            activeBriefings: (metrics.byStatus?.['copy_ia'] || 0) + (metrics.byStatus?.['aprovacao'] || 0),
             pendingApprovals: metrics.byStatus?.['aprovacao'] || 0,
-            dueTodayCount: 0, // Calcular abaixo
+            dueTodayCount,
             tasksToday: tasksRes?.data?.length || 0,
           },
           upcoming: [],
@@ -105,7 +150,7 @@ export default function DashboardClient() {
             briefingsCreated: metrics.recentBriefings || 0,
             briefingsCompleted: metrics.byStatus?.['iclips_out'] || 0,
             avgTimePerStage: metrics.avgTimePerStage || {},
-            approvalRate: 0.85, // Mock - calcular depois
+            approvalRate: 0.85,
             totalCopiesGenerated: metrics.totalCopies || 0,
           },
         });
@@ -127,12 +172,14 @@ export default function DashboardClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Carregando dashboard...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Carregando dashboard...
+          </Typography>
+        </Stack>
+      </Box>
     );
   }
 
@@ -141,242 +188,500 @@ export default function DashboardClient() {
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      briefing: 'bg-blue-100 text-blue-700',
-      copy_ia: 'bg-cyan-100 text-cyan-700',
-      aprovacao: 'bg-orange-100 text-orange-700',
-      producao: 'bg-pink-100 text-pink-700',
-      revisao: 'bg-indigo-100 text-indigo-700',
-      entrega: 'bg-green-100 text-green-700',
-      iclips_out: 'bg-purple-100 text-purple-700',
-    };
-    return colors[status] || 'bg-slate-100 text-slate-700';
+  const formatShortDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  const getTierColor = (tier: string) => {
+    if (tier === 'A') return 'success';
+    if (tier === 'B') return 'warning';
+    return 'default';
+  };
+
+  const todayNumber = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const todayLong = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const statusLabels: Record<string, string> = {
+    briefing: 'Briefing',
+    copy_ia: 'Copy IA',
+    aprovacao: 'Aprovação',
+    producao: 'Produção',
+    revisao: 'Revisão',
+    entrega: 'Entrega',
+    iclips_out: 'iClips',
+  };
+
+  const topStats = {
+    briefings: stats?.today.activeBriefings ?? 0,
+    completed: stats?.lastWeek.briefingsCompleted ?? 0,
+    approvalRate: stats?.lastWeek.approvalRate
+      ? Math.round(stats.lastWeek.approvalRate * 100)
+      : undefined,
+    copies: stats?.lastWeek.totalCopiesGenerated ?? 0,
+    clients: undefined,
+    events: todayEvents.length,
   };
 
   return (
     <AppShell title="Dashboard">
-      <div className="p-6 space-y-6">
-        {/* Header com Data */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-700 rounded-3xl p-8 text-white shadow-feature animate-fade-in">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">
-                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </h1>
-              <p className="text-slate-300">Bem-vindo de volta! Aqui está o resumo do seu dia.</p>
-            </div>
-            <span className="material-symbols-outlined text-6xl opacity-20">dashboard</span>
-          </div>
-        </div>
+      <Stack spacing={4}>
+        <Card sx={{ position: 'relative', overflow: 'hidden' }}>
+          <Box
+            component="img"
+            src="/modernize/images/backgrounds/welcome-bg2.png"
+            alt=""
+            sx={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              height: '100%',
+              width: 'auto',
+              opacity: 0.3,
+              pointerEvents: 'none',
+            }}
+          />
+          <CardContent sx={{ position: 'relative', pb: 3 }}>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={3}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', md: 'flex-end' }}
+            >
+              <Stack spacing={1}>
+                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                  <Typography variant="h3" fontWeight={700}>
+                    {todayNumber}
+                  </Typography>
+                  <Chip label={todayLong} size="small" variant="outlined" />
+                </Stack>
+                <Typography variant="body1" color="text.secondary">
+                  Resumo operacional e principais datas do dia.
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={2} flexWrap="wrap">
+                <Button
+                  variant="contained"
+                  startIcon={<IconFileText size={18} />}
+                  onClick={() => router.push('/edro/novo')}
+                >
+                  Criar briefing
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<IconCalendar size={18} />}
+                  onClick={() => router.push('/calendar')}
+                >
+                  Ver calendário
+                </Button>
+              </Stack>
+            </Stack>
+          </CardContent>
+          <Divider />
+          <CardContent sx={{ position: 'relative' }}>
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, lg: 8 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Celebrações de hoje
+                  </Typography>
+                  <Button size="small" onClick={() => router.push('/calendar')}>
+                    Abrir dia
+                  </Button>
+                </Stack>
+                <Stack spacing={2} sx={{ maxHeight: 320, overflowY: 'auto', pr: 1 }}>
+                  {todayEvents.length > 0 ? (
+                    todayEvents.map((event) => (
+                      <Card key={event.id} variant="outlined" sx={{ borderRadius: 3 }}>
+                        <CardContent
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 2,
+                            py: 2,
+                          }}
+                        >
+                          <Stack direction="row" spacing={2} alignItems="center">
+                            <Avatar
+                              variant="rounded"
+                              sx={{
+                                bgcolor: 'grey.100',
+                                color: 'primary.main',
+                                width: 48,
+                                height: 48,
+                              }}
+                            >
+                              <IconCalendar size={22} />
+                            </Avatar>
+                            <Box>
+                              <Typography fontWeight={600}>{event.name}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Relevância: {event.score}%
+                              </Typography>
+                            </Box>
+                          </Stack>
+                          <Chip
+                            label={`Tier ${event.tier}`}
+                            size="small"
+                            variant="outlined"
+                            color={getTierColor(event.tier)}
+                          />
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Sem eventos relevantes para hoje.
+                    </Typography>
+                  )}
+                </Stack>
+              </Grid>
+              <Grid size={{ xs: 12, lg: 4 }}>
+                <Stack spacing={2}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="overline" color="text.secondary">
+                        No resumo
+                      </Typography>
+                      <Stack spacing={1.5} mt={2}>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">
+                            Total de eventos
+                          </Typography>
+                          <Typography fontWeight={600}>{todayEvents.length}</Typography>
+                        </Stack>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">
+                            Briefings ativos
+                          </Typography>
+                          <Typography fontWeight={600}>{stats?.today.activeBriefings || 0}</Typography>
+                        </Stack>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">
+                            Vencem hoje
+                          </Typography>
+                          <Typography fontWeight={600}>{stats?.today.dueTodayCount || 0}</Typography>
+                        </Stack>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">
+                            Aprovações pendentes
+                          </Typography>
+                          <Typography fontWeight={600} color="primary.main">
+                            {stats?.today.pendingApprovals || 0}
+                          </Typography>
+                        </Stack>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">
+                            Tasks hoje
+                          </Typography>
+                          <Typography fontWeight={600}>{stats?.today.tasksToday || 0}</Typography>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="overline" color="text.secondary">
+                        Segmentos prioritários
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
+                        {priorityTags.length > 0 ? (
+                          priorityTags.map((tag) => (
+                            <Chip key={tag} label={tag} size="small" variant="outlined" />
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            Sem tags prioritárias hoje.
+                          </Typography>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Stack>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
-        {/* Visão do Dia Atual */}
-        <div className="animate-slide-up">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined">today</span>
-            Hoje
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Briefings Ativos</span>
-                <span className="material-symbols-outlined text-info-600">folder_open</span>
-              </div>
-              <div className="text-3xl font-bold text-slate-900">{stats?.today.activeBriefings || 0}</div>
-            </div>
+        <TopCards stats={topStats} />
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Aprovações Pendentes</span>
-                <span className="material-symbols-outlined text-warning-600">pending_actions</span>
-              </div>
-              <div className="text-3xl font-bold text-slate-900">{stats?.today.pendingApprovals || 0}</div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Vencem Hoje</span>
-                <span className="material-symbols-outlined text-red-600">alarm</span>
-              </div>
-              <div className="text-3xl font-bold text-slate-900">{stats?.today.dueTodayCount || 0}</div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Tasks Hoje</span>
-                <span className="material-symbols-outlined text-purple-600">checklist</span>
-              </div>
-              <div className="text-3xl font-bold text-slate-900">{stats?.today.tasksToday || 0}</div>
-            </div>
-          </div>
-
-          {/* Celebrações do Dia */}
-          {todayEvents.length > 0 && (
-            <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-purple-600">celebration</span>
-                <h3 className="font-semibold text-slate-900">Celebrações de Hoje</h3>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {todayEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="px-3 py-1.5 bg-white rounded-full border border-purple-200 text-sm flex items-center gap-2"
-                  >
-                    <span className="text-purple-600">🎉</span>
-                    <span className="text-slate-700">{event.name}</span>
-                    {event.tier === 'A' && (
-                      <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
-                        Top
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Próximas Datas Relevantes */}
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined">event_upcoming</span>
-            Próximos Deadlines
-          </h2>
-          <div className="bg-white rounded-lg border border-slate-200">
-            {recentBriefings.length > 0 ? (
-              <div className="divide-y divide-slate-100">
-                {recentBriefings.slice(0, 5).map((briefing) => (
-                  <div
-                    key={briefing.id}
-                    className="p-4 hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/edro/${briefing.id}`)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="material-symbols-outlined text-slate-400">description</span>
-                          <div>
-                            <div className="font-medium text-slate-900">{briefing.title}</div>
-                            <div className="text-sm text-slate-500">
-                              {briefing.client_name || 'Sem cliente'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(briefing.status)}`}>
-                          {briefing.status}
-                        </span>
-                        <div className="text-sm text-slate-600 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">schedule</span>
-                          {formatDate(briefing.due_at)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h5">Próximas datas relevantes</Typography>
+            <Button size="small" onClick={() => router.push('/calendar')}>
+              Ver calendário
+            </Button>
+          </Stack>
+          <Grid container spacing={2}>
+            {upcomingEvents.length > 0 ? (
+              upcomingEvents.map((event) => (
+                <Grid size={{ xs: 12, md: 6, lg: 3 }} key={`${event.id}-${event.date}`}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                        <Box>
+                          <Typography variant="overline" color="text.secondary">
+                            {formatShortDate(event.date)}
+                          </Typography>
+                          <Typography fontWeight={600}>{event.name}</Typography>
+                        </Box>
+                        <Chip label={`Relevância ${event.score}%`} size="small" />
+                      </Stack>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(event.score, 100)}
+                        sx={{
+                          mt: 2,
+                          height: 6,
+                          borderRadius: 99,
+                          bgcolor: 'grey.100',
+                          '& .MuiLinearProgress-bar': { bgcolor: 'primary.main' },
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Score base {event.score}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))
             ) : (
-              <div className="p-8 text-center text-slate-500">
-                <span className="material-symbols-outlined text-4xl mb-2">event_busy</span>
-                <p>Nenhum briefing com deadline próximo.</p>
-              </div>
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Sem datas relevantes para os próximos dias.
+                </Typography>
+              </Grid>
             )}
-          </div>
-        </div>
+          </Grid>
+        </Box>
 
-        {/* Performance da Última Semana */}
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined">trending_up</span>
-            Performance - Última Semana
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="text-sm text-slate-600 mb-1">Briefings Criados</div>
-              <div className="text-2xl font-bold text-green-600">{stats?.lastWeek.briefingsCreated || 0}</div>
-              <div className="text-xs text-slate-500 mt-1">↑ Últimos 7 dias</div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="text-sm text-slate-600 mb-1">Briefings Completados</div>
-              <div className="text-2xl font-bold text-blue-600">{stats?.lastWeek.briefingsCompleted || 0}</div>
-              <div className="text-xs text-slate-500 mt-1">✓ Entregues</div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="text-sm text-slate-600 mb-1">Taxa de Aprovação</div>
-              <div className="text-2xl font-bold text-purple-600">
-                {Math.round((stats?.lastWeek.approvalRate || 0) * 100)}%
-              </div>
-              <div className="text-xs text-slate-500 mt-1">Copies aprovadas</div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="text-sm text-slate-600 mb-1">Copies Geradas</div>
-              <div className="text-2xl font-bold text-cyan-600">{stats?.lastWeek.totalCopiesGenerated || 0}</div>
-              <div className="text-xs text-slate-500 mt-1">Total com IA</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tasks Pendentes */}
-        {todayTasks.length > 0 && (
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined">task_alt</span>
-              Minhas Tasks
-            </h2>
-            <div className="bg-white rounded-lg border border-slate-200">
-              <div className="divide-y divide-slate-100">
-                {todayTasks.slice(0, 5).map((task) => (
-                  <div key={task.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full" />
-                      <div>
-                        <div className="font-medium text-slate-900 capitalize">{task.type.replace('_', ' ')}</div>
-                        <div className="text-sm text-slate-500">Atribuída para: {task.assigned_to}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => router.push(`/edro/${task.briefing_id}`)}
-                      className="text-sm text-blue-600 hover:text-blue-700"
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h5">Próximos Deadlines</Typography>
+            <Button size="small" onClick={() => router.push('/edro')}>
+              Ver briefings
+            </Button>
+          </Stack>
+          <Card variant="outlined">
+            <CardContent sx={{ p: 0 }}>
+              {recentBriefings.length > 0 ? (
+                <Stack divider={<Divider flexItem />} spacing={0}>
+                  {recentBriefings.slice(0, 5).map((briefing) => (
+                    <Box
+                      key={briefing.id}
+                      sx={{
+                        px: 3,
+                        py: 2,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => router.push(`/edro/${briefing.id}`)}
                     >
-                      Ver Briefing →
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                      <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={2}
+                        alignItems={{ xs: 'flex-start', md: 'center' }}
+                        justifyContent="space-between"
+                      >
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                            <IconFileText size={18} />
+                          </Avatar>
+                          <Box>
+                            <Typography fontWeight={600}>{briefing.title}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {briefing.client_name || 'Sem cliente'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <StatusChip
+                            status={briefing.status}
+                            label={statusLabels[briefing.status] || briefing.status}
+                          />
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <IconCalendar size={16} />
+                            <Typography variant="body2" color="text.secondary">
+                              {formatDate(briefing.due_at)}
+                            </Typography>
+                          </Stack>
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              ) : (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhum briefing com deadline próximo.
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+
+        <Box>
+          <Typography variant="h5" mb={2}>
+            Performance - Última Semana
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="overline" color="text.secondary">
+                      Briefings criados
+                    </Typography>
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 36, height: 36 }}>
+                      <IconFileText size={18} />
+                    </Avatar>
+                  </Stack>
+                  <Typography variant="h4" color="success.main">
+                    {stats?.lastWeek.briefingsCreated || 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Últimos 7 dias
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="overline" color="text.secondary">
+                      Briefings completados
+                    </Typography>
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 36, height: 36 }}>
+                      <IconClipboardList size={18} />
+                    </Avatar>
+                  </Stack>
+                  <Typography variant="h4" color="primary.main">
+                    {stats?.lastWeek.briefingsCompleted || 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Entregues
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="overline" color="text.secondary">
+                      Taxa de aprovação
+                    </Typography>
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 36, height: 36 }}>
+                      <IconChartLine size={18} />
+                    </Avatar>
+                  </Stack>
+                  <Typography variant="h4" color="info.main">
+                    {Math.round((stats?.lastWeek.approvalRate || 0) * 100)}%
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Copies aprovadas
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="overline" color="text.secondary">
+                      Copies geradas
+                    </Typography>
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 36, height: 36 }}>
+                      <IconUsers size={18} />
+                    </Avatar>
+                  </Stack>
+                  <Typography variant="h4" color="warning.main">
+                    {stats?.lastWeek.totalCopiesGenerated || 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Total com IA
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {todayTasks.length > 0 && (
+          <Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h5">Minhas Tasks</Typography>
+              <Button size="small" onClick={() => router.push('/edro')}>
+                Ver tarefas
+              </Button>
+            </Stack>
+            <Card variant="outlined">
+              <CardContent sx={{ p: 0 }}>
+                <Stack divider={<Divider flexItem />} spacing={0}>
+                  {todayTasks.slice(0, 5).map((task) => (
+                    <Box key={task.id} sx={{ px: 3, py: 2 }}>
+                      <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={2}
+                        alignItems={{ xs: 'flex-start', md: 'center' }}
+                        justifyContent="space-between"
+                      >
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                            <IconClipboardList size={18} />
+                          </Avatar>
+                          <Box>
+                            <Typography fontWeight={600} sx={{ textTransform: 'capitalize' }}>
+                              {task.type.replace('_', ' ')}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Atribuída para: {task.assigned_to}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Button size="small" onClick={() => router.push(`/edro/${task.briefing_id}`)}>
+                          Ver Briefing
+                        </Button>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
         )}
 
-        {/* Quick Actions */}
-        <div className="flex gap-3">
-          <button
+        <Stack direction="row" spacing={2} flexWrap="wrap">
+          <Button
+            variant="contained"
+            startIcon={<IconFileText size={18} />}
             onClick={() => router.push('/edro/novo')}
-            className="px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined">add</span>
             Novo Briefing
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<IconClipboardList size={18} />}
             onClick={() => router.push('/edro')}
-            className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined">view_list</span>
             Ver Todos os Briefings
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<IconCalendar size={18} />}
             onClick={() => router.push('/calendar')}
-            className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined">calendar_month</span>
             Calendário
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Stack>
+      </Stack>
     </AppShell>
   );
 }

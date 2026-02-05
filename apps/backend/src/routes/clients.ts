@@ -375,6 +375,29 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  app.post(
+    '/clients/intelligence/refresh-all',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query<any>(`SELECT id FROM clients WHERE tenant_id=$1`, [tenantId]);
+      const ids = rows.map((row) => row.id).filter(Boolean);
+      const service = new ClientIntelligenceService(tenantId);
+
+      setImmediate(async () => {
+        for (const clientId of ids) {
+          try {
+            await service.refreshClient(clientId);
+          } catch (error: any) {
+            request.log.error({ err: error, clientId }, 'client_intelligence_refresh_failed');
+          }
+        }
+      });
+
+      return reply.send({ queued: true, total: ids.length });
+    }
+  );
+
   app.patch(
     '/clients/:id',
     { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },

@@ -19,7 +19,7 @@
     "migrate": "pnpm --filter @edro/backend db:migrate || true"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {}
 }

@@ -1,8 +1,10 @@
-import StudioFrame from '@/components/StudioFrame';
+import { redirect } from 'next/navigation';
 
 type StudioSearchParams = {
   client?: string | string[];
   clientId?: string | string[];
+  clientIds?: string | string[];
+  clients?: string | string[];
   segment?: string | string[];
   location?: string | string[];
   date?: string | string[];
@@ -13,6 +15,12 @@ type StudioSearchParams = {
   categories?: string | string[];
   why?: string | string[];
   source?: string | string[];
+  objective?: string | string[];
+  message?: string | string[];
+  tone?: string | string[];
+  notes?: string | string[];
+  productionType?: string | string[];
+  production_type?: string | string[];
 };
 
 export default function Page({ searchParams }: { searchParams?: StudioSearchParams }) {
@@ -20,6 +28,8 @@ export default function Page({ searchParams }: { searchParams?: StudioSearchPara
   const allowedKeys: Array<keyof StudioSearchParams> = [
     'client',
     'clientId',
+    'clientIds',
+    'clients',
     'segment',
     'location',
     'date',
@@ -30,6 +40,12 @@ export default function Page({ searchParams }: { searchParams?: StudioSearchPara
     'categories',
     'why',
     'source',
+    'objective',
+    'message',
+    'tone',
+    'notes',
+    'productionType',
+    'production_type',
   ];
 
   allowedKeys.forEach((key) => {
@@ -43,9 +59,5 @@ export default function Page({ searchParams }: { searchParams?: StudioSearchPara
   });
 
   const query = params.toString();
-  const src = query
-    ? `/ux/edro_creative_studio_step0/code.html?${query}`
-    : '/ux/edro_creative_studio_step0/code.html';
-
-  return <StudioFrame title="Creative Studio Start" src={src} stepLabel="Etapa 0 de 6" />;
+  redirect(query ? `/studio/brief?${query}` : '/studio/brief');
 }

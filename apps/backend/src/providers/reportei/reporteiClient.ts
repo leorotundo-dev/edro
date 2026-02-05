@@ -13,15 +13,28 @@ export class ReporteiClient {
     };
   }
 
-  ok() {
-    return !!this.cfg.baseUrl && !!this.cfg.token;
+  private resolveConfig(overrides?: Partial<ReporteiConfig>) {
+    return {
+      baseUrl: overrides?.baseUrl ?? this.cfg.baseUrl,
+      token: overrides?.token ?? this.cfg.token,
+    };
   }
 
-  async get(path: string) {
-    const url = `${this.cfg.baseUrl.replace(/\/$/, '')}${path}`;
+  ok(overrides?: Partial<ReporteiConfig>) {
+    const cfg = this.resolveConfig(overrides);
+    return !!cfg.baseUrl && !!cfg.token;
+  }
+
+  async get(path: string, overrides?: Partial<ReporteiConfig>) {
+    const cfg = this.resolveConfig(overrides);
+    if (!cfg.baseUrl || !cfg.token) {
+      throw new Error('Reportei not configured');
+    }
+
+    const url = `${cfg.baseUrl.replace(/\/$/, '')}${path}`;
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${this.cfg.token}`,
+        Authorization: `Bearer ${cfg.token}`,
         'Content-Type': 'application/json',
       },
     });

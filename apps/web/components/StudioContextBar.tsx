@@ -88,7 +88,11 @@ const emitContextChange = () => {
   window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
 };
 
-export default function StudioContextBar() {
+type StudioContextBarProps = {
+  variant?: 'default' | 'compact';
+};
+
+export default function StudioContextBar({ variant = 'default' }: StudioContextBarProps) {
   const [context, setContext] = useState<StudioContext>({});
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selected, setSelected] = useState<StoredClient[]>([]);
@@ -230,6 +234,67 @@ export default function StudioContextBar() {
 
   const eventLabel = context?.event || 'Sem evento selecionado';
   const dateLabel = context?.date || 'Sem data';
+
+  if (variant === 'compact') {
+    return (
+      <div className="studio-context-bar compact">
+        <div className="studio-context-inline-event">
+          <span className="studio-context-label">Evento</span>
+          <span className="studio-context-value">{eventLabel}</span>
+          <span className="studio-context-sub">{dateLabel}</span>
+        </div>
+        <div className="studio-context-inline-clients">
+          <div className="studio-context-chips">
+            {selected.length ? (
+              selected.map((client) => (
+                <div key={client.id} className="studio-context-chip">
+                  <span>{client.name}</span>
+                  <button
+                    type="button"
+                    className="studio-context-chip-remove"
+                    onClick={() => handleRemoveClient(client.id)}
+                    aria-label={`Remover ${client.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            ) : (
+              <span className="studio-context-empty">Nenhum cliente</span>
+            )}
+          </div>
+          <div className="studio-context-actions">
+            <select
+              className="edro-select"
+              onChange={(event) => {
+                if (event.target.value) {
+                  handleSelectClient(event.target.value);
+                  event.target.value = '';
+                }
+              }}
+              value=""
+              disabled={loading}
+            >
+              <option value="">Adicionar cliente</option>
+              {clients
+                .filter((client) => !selected.some((item) => item.id === client.id))
+                .map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+            </select>
+            <button className="btn ghost" type="button" onClick={handleSelectAll} disabled={loading}>
+              Todos
+            </button>
+            <button className="btn ghost" type="button" onClick={handleClear} disabled={loading}>
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="studio-context-bar">

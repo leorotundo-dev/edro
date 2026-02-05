@@ -3,7 +3,35 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import DashboardCard from '@/components/shared/DashboardCard';
+import Chart from '@/components/charts/Chart';
 import { apiGet } from '@/lib/api';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import {
+  IconRefresh,
+  IconList,
+  IconRss,
+  IconNews,
+  IconCalendar,
+  IconStarFilled,
+  IconChartPie,
+  IconTrendingUp,
+  IconTrendingDown,
+  IconMinus,
+  IconFlame,
+  IconClock,
+  IconSettings,
+} from '@tabler/icons-react';
 
 type ClippingDashboard = {
   total_sources: number;
@@ -20,9 +48,9 @@ type ClippingDashboard = {
     last_item_date?: string;
   }[];
   by_score: {
-    high: number; // score >= 70
-    medium: number; // 40 <= score < 70
-    low: number; // score < 40
+    high: number;
+    medium: number;
+    low: number;
   };
   top_items: {
     id: string;
@@ -46,6 +74,19 @@ type ClippingDashboard = {
     url?: string;
   }[];
 };
+
+function formatNumber(value?: number | null) {
+  if (!Number.isFinite(value)) return '0';
+  return new Intl.NumberFormat('pt-BR').format(Number(value));
+}
+
+const STAT_CARDS = [
+  { key: 'total_sources', label: 'Total fontes', icon: IconRss, color: '#5D87FF' },
+  { key: 'total_items', label: 'Total itens', icon: IconNews, color: '#13DEB9' },
+  { key: 'items_this_week', label: 'Esta semana', icon: IconCalendar, color: '#FFAE1F' },
+  { key: 'by_score_high', label: 'Score alto', icon: IconStarFilled, color: '#FA896B' },
+  { key: 'by_score_medium', label: 'Score medio', icon: IconChartPie, color: '#7C3AED' },
+] as const;
 
 export default function ClippingDashboardPage() {
   const router = useRouter();
@@ -75,276 +116,331 @@ export default function ClippingDashboardPage() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-green-600 bg-green-100';
-    if (score >= 40) return 'text-orange-600 bg-orange-100';
-    return 'text-red-600 bg-red-100';
+    if (score >= 70) return 'success';
+    if (score >= 40) return 'warning';
+    return 'error';
   };
 
   const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
-    if (trend === 'up') return { icon: 'trending_up', color: 'text-green-600' };
-    if (trend === 'down') return { icon: 'trending_down', color: 'text-red-600' };
-    return { icon: 'trending_flat', color: 'text-muted' };
+    if (trend === 'up') return { Icon: IconTrendingUp, color: '#13DEB9' };
+    if (trend === 'down') return { Icon: IconTrendingDown, color: '#FA896B' };
+    return { Icon: IconMinus, color: '#7C4DFF' };
+  };
+
+  const getStatValue = (key: string): number => {
+    if (!dashboard) return 0;
+    if (key === 'by_score_high') return dashboard.by_score?.high || 0;
+    if (key === 'by_score_medium') return dashboard.by_score?.medium || 0;
+    if (key === 'items_this_week') {
+      if (timeRange === 'today') return dashboard.items_today || 0;
+      if (timeRange === 'month') return dashboard.items_this_month || 0;
+      return dashboard.items_this_week || 0;
+    }
+    return (dashboard as any)?.[key] || 0;
+  };
+
+  /* ---------- Chart data ---------- */
+  const scoreDonutSeries = dashboard?.by_score
+    ? [dashboard.by_score.high, dashboard.by_score.medium, dashboard.by_score.low]
+    : [];
+  const scoreDonutOptions: ApexCharts.ApexOptions = {
+    labels: ['Alto (>= 70)', 'Medio (40-69)', 'Baixo (< 40)'],
+    colors: ['#13DEB9', '#FFAE1F', '#FA896B'],
+    legend: { position: 'bottom', fontSize: '12px' },
+    dataLabels: { enabled: true },
+    plotOptions: { pie: { donut: { size: '60%', labels: { show: true, total: { show: true, label: 'Total', fontSize: '14px' } } } } },
+    stroke: { width: 0 },
+  };
+
+  const sourceBarSeries = dashboard?.by_source?.length
+    ? [{ name: 'Itens', data: dashboard.by_source.slice(0, 8).map((s) => s.item_count) }]
+    : [];
+  const sourceBarOptions: ApexCharts.ApexOptions = {
+    chart: { toolbar: { show: false } },
+    xaxis: { categories: (dashboard?.by_source || []).slice(0, 8).map((s) => s.source_name.length > 18 ? s.source_name.slice(0, 18) + '...' : s.source_name) },
+    colors: ['#5D87FF'],
+    plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+    dataLabels: { enabled: true },
+    grid: { borderColor: '#f0f0f0' },
+  };
+
+  const trendBarSeries = dashboard?.trends?.length
+    ? [{ name: 'Mencoes', data: dashboard.trends.slice(0, 10).map((t) => t.count) }]
+    : [];
+  const trendBarOptions: ApexCharts.ApexOptions = {
+    chart: { toolbar: { show: false } },
+    xaxis: { categories: (dashboard?.trends || []).slice(0, 10).map((t) => t.keyword) },
+    colors: ['#7C3AED'],
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '50%' } },
+    dataLabels: { enabled: false },
+    grid: { borderColor: '#f0f0f0' },
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-muted">Loading clipping dashboard...</div>
-        </div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 400 }}>
+        <CircularProgress size={32} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando clipping dashboard...
+        </Typography>
+      </Stack>
     );
   }
 
   return (
-    <AppShell title="Clipping Dashboard">
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-ink mb-2">Clipping Dashboard</h1>
-              <p className="text-muted">Monitore conteúdos capturados e tendências</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={loadDashboard}
-                className="px-4 py-2 border border-border rounded-lg hover:bg-paper flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">refresh</span>
-                Refresh
-              </button>
-              <button
-                onClick={() => router.push('/clipping')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">view_list</span>
-                View All Items
-              </button>
-            </div>
-          </div>
+    <AppShell
+      title="Clipping Dashboard"
+      topbarLeft={
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="body2" color="text.secondary">Radar</Typography>
+          <Typography variant="body2" color="text.secondary">/</Typography>
+          <Typography variant="body2" fontWeight={600}>Clipping Dashboard</Typography>
+        </Stack>
+      }
+    >
+      <Stack spacing={3}>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>Clipping Dashboard</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Monitore conteudos capturados e tendencias.
+          </Typography>
+        </Box>
 
-          {/* Time Range Selector */}
-          <div className="flex gap-2">
+        {/* KPI stat cards */}
+        <Grid container spacing={2}>
+          {STAT_CARDS.map((metric) => (
+            <Grid key={metric.key} size={{ xs: 6, sm: 4, md: 2.4 }}>
+              <DashboardCard hoverable sx={{ height: '100%' }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Avatar sx={{ bgcolor: `${metric.color}22`, color: metric.color, width: 44, height: 44 }}>
+                    <metric.icon size={22} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" noWrap>
+                      {metric.label}
+                    </Typography>
+                    <Typography variant="h5" fontWeight={700}>
+                      {formatNumber(getStatValue(metric.key))}
+                    </Typography>
+                    {metric.key === 'total_sources' && (
+                      <Typography variant="caption" color="text.secondary">
+                        {formatNumber(dashboard?.active_sources || 0)} ativas
+                      </Typography>
+                    )}
+                  </Box>
+                </Stack>
+              </DashboardCard>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Time range filters */}
+        <DashboardCard title="Filtros" subtitle="Selecione o recorte para as metricas.">
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {(['today', 'week', 'month'] as const).map((range) => (
-              <button
+              <Button
                 key={range}
                 onClick={() => setTimeRange(range)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  timeRange === range
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-card text-muted border border-border hover:bg-paper'
-                }`}
+                variant={timeRange === range ? 'contained' : 'outlined'}
+                size="small"
               >
-                {range === 'today' ? 'Hoje' : range === 'week' ? 'Esta Semana' : 'Este Mês'}
-              </button>
+                {range === 'today' ? 'Hoje' : range === 'week' ? 'Esta Semana' : 'Este Mes'}
+              </Button>
             ))}
-          </div>
-        </div>
+            <Button variant="outlined" size="small" startIcon={<IconRefresh size={16} />} onClick={loadDashboard}>
+              Atualizar
+            </Button>
+            <Button variant="contained" size="small" startIcon={<IconList size={16} />} onClick={() => router.push('/clipping')}>
+              Ver itens
+            </Button>
+          </Stack>
+        </DashboardCard>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-card rounded-lg border border-border p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted">Total Sources</span>
-              <span className="material-symbols-outlined text-blue-600">rss_feed</span>
-            </div>
-            <div className="text-3xl font-bold text-ink">{dashboard?.total_sources || 0}</div>
-            <div className="text-xs text-green-600 mt-1">
-              {dashboard?.active_sources || 0} active
-            </div>
-          </div>
-
-          <div className="bg-card rounded-lg border border-border p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted">Total Items</span>
-              <span className="material-symbols-outlined text-purple-600">article</span>
-            </div>
-            <div className="text-3xl font-bold text-ink">{dashboard?.total_items || 0}</div>
-            <div className="text-xs text-muted mt-1">All time</div>
-          </div>
-
-          <div className="bg-card rounded-lg border border-border p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted">
-                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'This Week' : 'This Month'}
-              </span>
-              <span className="material-symbols-outlined text-green-600">trending_up</span>
-            </div>
-            <div className="text-3xl font-bold text-ink">
-              {timeRange === 'today'
-                ? dashboard?.items_today || 0
-                : timeRange === 'week'
-                ? dashboard?.items_this_week || 0
-                : dashboard?.items_this_month || 0}
-            </div>
-            <div className="text-xs text-muted mt-1">New items</div>
-          </div>
-
-          <div className="bg-card rounded-lg border border-border p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted">High Score Items</span>
-              <span className="material-symbols-outlined text-orange-600">star</span>
-            </div>
-            <div className="text-3xl font-bold text-ink">{dashboard?.by_score?.high || 0}</div>
-            <div className="text-xs text-muted mt-1">Score ≥ 70</div>
-          </div>
-        </div>
-
-        {/* Score Distribution */}
+        {/* Score distribution chart + sources chart */}
         {dashboard?.by_score && (
-          <div className="bg-card rounded-lg border border-border p-6 mb-6">
-            <h3 className="font-semibold text-ink mb-4">Score Distribution</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-700">{dashboard.by_score.high}</div>
-                <div className="text-sm text-green-600 mt-1">High (≥70)</div>
-              </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-700">{dashboard.by_score.medium}</div>
-                <div className="text-sm text-orange-600 mt-1">Medium (40-69)</div>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-700">{dashboard.by_score.low}</div>
-                <div className="text-sm text-red-600 mt-1">Low (&lt;40)</div>
-              </div>
-            </div>
-          </div>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 5 }}>
+              <DashboardCard title="Distribuicao de score" subtitle="Ultimo periodo">
+                {scoreDonutSeries.length > 0 ? (
+                  <Chart type="donut" series={scoreDonutSeries} options={scoreDonutOptions} height={300} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    Sem dados de score.
+                  </Typography>
+                )}
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {[
+                    { label: 'Score alto', range: '>= 70', value: dashboard.by_score.high, color: '#13DEB9' },
+                    { label: 'Score medio', range: '40 - 69', value: dashboard.by_score.medium, color: '#FFAE1F' },
+                    { label: 'Score baixo', range: '< 40', value: dashboard.by_score.low, color: '#FA896B' },
+                  ].map((row) => {
+                    const total = (dashboard.by_score.high + dashboard.by_score.medium + dashboard.by_score.low) || 1;
+                    const pct = Math.round((row.value / total) * 100);
+                    return (
+                      <Box key={row.label}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: row.color }} />
+                            <Typography variant="body2">{row.label}</Typography>
+                          </Stack>
+                          <Typography variant="body2" fontWeight={600}>
+                            {formatNumber(row.value)} ({pct}%)
+                          </Typography>
+                        </Stack>
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          sx={{ mt: 0.5, height: 6, borderRadius: 3, bgcolor: 'grey.100', '& .MuiLinearProgress-bar': { bgcolor: row.color, borderRadius: 3 } }}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </DashboardCard>
+            </Grid>
+            <Grid size={{ xs: 12, md: 7 }}>
+              <DashboardCard title="Top fontes" subtitle={`${dashboard?.by_source?.length || 0} fontes`}>
+                {sourceBarSeries.length > 0 && sourceBarSeries[0].data.length > 0 ? (
+                  <Chart type="bar" series={sourceBarSeries} options={sourceBarOptions} height={340} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    Nenhuma fonte encontrada.
+                  </Typography>
+                )}
+              </DashboardCard>
+            </Grid>
+          </Grid>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Top Sources */}
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="font-semibold text-ink mb-4">Top Sources</h3>
-            <div className="space-y-3">
-              {dashboard?.by_source && dashboard.by_source.length > 0 ? (
-                dashboard.by_source.slice(0, 5).map((source) => (
-                  <div
-                    key={source.source_id}
-                    className="flex items-center justify-between p-3 bg-paper rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium text-ink">{source.source_name}</div>
-                      <div className="text-xs text-muted truncate">{source.source_url}</div>
-                      {source.last_item_date && (
-                        <div className="text-xs text-slate-400 mt-1">
-                          Last: {new Date(source.last_item_date).toLocaleDateString('pt-BR')}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-blue-600">{source.item_count}</div>
-                      <div className="text-xs text-muted">items</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted">No sources found</div>
+        {/* Trending keywords chart */}
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, md: 7 }}>
+            <DashboardCard title="Trending Keywords" subtitle={`${dashboard?.trends?.length || 0} termos`}>
+              {trendBarSeries.length > 0 && trendBarSeries[0].data.length > 0 ? (
+                <Chart type="bar" series={trendBarSeries} options={trendBarOptions} height={300} />
+              ) : null}
+              <Stack spacing={1} sx={{ mt: 2 }}>
+                {dashboard?.trends && dashboard.trends.length > 0 ? (
+                  dashboard.trends.slice(0, 10).map((trend, idx) => {
+                    const { Icon, color } = getTrendIcon(trend.trend);
+                    return (
+                      <Stack
+                        key={idx}
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 2,
+                          transition: 'all 0.2s',
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                      >
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Avatar sx={{ bgcolor: `${color}22`, color, width: 32, height: 32 }}>
+                            <Icon size={16} />
+                          </Avatar>
+                          <Typography variant="body2" fontWeight={500}>{trend.keyword}</Typography>
+                        </Stack>
+                        <Chip size="small" label={formatNumber(trend.count)} color="primary" variant="outlined" />
+                      </Stack>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    Sem tendencias disponiveis.
+                  </Typography>
+                )}
+              </Stack>
+            </DashboardCard>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Stack spacing={3}>
+              {/* Top items by score */}
+              {dashboard?.top_items && dashboard.top_items.length > 0 && (
+                <DashboardCard title="Top itens por score" action={<Chip size="small" icon={<IconFlame size={14} />} label={`${dashboard.top_items.length} itens`} variant="outlined" />}>
+                  <Stack spacing={1}>
+                    {dashboard.top_items.map((item) => (
+                      <Box
+                        key={item.id}
+                        sx={{
+                          p: 1.5,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 2,
+                          cursor: item.url ? 'pointer' : 'default',
+                          transition: 'all 0.2s',
+                          '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+                        }}
+                        onClick={() => item.url && window.open(item.url, '_blank')}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="subtitle2" sx={{ maxWidth: '70%' }} noWrap>{item.title}</Typography>
+                          <Chip size="small" label={item.score} color={getScoreColor(item.score) as any} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">{item.source_name}</Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {new Date(item.published_at).toLocaleString('pt-BR')}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </DashboardCard>
               )}
-            </div>
-          </div>
 
-          {/* Trending Keywords */}
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="font-semibold text-ink mb-4">Trending Keywords</h3>
-            <div className="space-y-2">
-              {dashboard?.trends && dashboard.trends.length > 0 ? (
-                dashboard.trends.slice(0, 10).map((trend, idx) => {
-                  const trendInfo = getTrendIcon(trend.trend);
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 hover:bg-paper rounded"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`material-symbols-outlined text-sm ${trendInfo.color}`}>
-                          {trendInfo.icon}
-                        </span>
-                        <span className="text-sm text-ink">{trend.keyword}</span>
-                      </div>
-                      <span className="text-sm font-semibold text-muted">{trend.count}</span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-muted">No trends available</div>
+              {/* Recent items */}
+              {dashboard?.recent_items && dashboard.recent_items.length > 0 && (
+                <DashboardCard title="Itens recentes" action={<Chip size="small" icon={<IconClock size={14} />} label={`${dashboard.recent_items.length} itens`} variant="outlined" />}>
+                  <Stack spacing={1}>
+                    {dashboard.recent_items.map((item) => (
+                      <Box
+                        key={item.id}
+                        sx={{
+                          p: 1.5,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 2,
+                          cursor: item.url ? 'pointer' : 'default',
+                          transition: 'all 0.2s',
+                          '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+                        }}
+                        onClick={() => item.url && window.open(item.url, '_blank')}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="subtitle2" sx={{ maxWidth: '70%' }} noWrap>{item.title}</Typography>
+                          <Chip size="small" label={item.score} color={getScoreColor(item.score) as any} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">{item.source_name}</Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {new Date(item.published_at).toLocaleString('pt-BR')}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </DashboardCard>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Top Items */}
-        {dashboard?.top_items && dashboard.top_items.length > 0 && (
-          <div className="bg-card rounded-lg border border-border p-6 mb-6">
-            <h3 className="font-semibold text-ink mb-4">Top Scored Items</h3>
-            <div className="space-y-3">
-              {dashboard.top_items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start justify-between p-4 bg-paper rounded-lg hover:bg-card-strong cursor-pointer"
-                  onClick={() => item.url && window.open(item.url, '_blank')}
-                >
-                  <div className="flex-1">
-                    <div className="font-medium text-ink mb-1">{item.title}</div>
-                    <div className="text-sm text-muted">{item.source_name}</div>
-                    <div className="text-xs text-muted mt-1">
-                      {new Date(item.published_at).toLocaleString('pt-BR')}
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getScoreColor(item.score)}`}>
-                      {item.score}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Recent Items */}
-        {dashboard?.recent_items && dashboard.recent_items.length > 0 && (
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="font-semibold text-ink mb-4">Recent Items</h3>
-            <div className="space-y-2">
-              {dashboard.recent_items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 hover:bg-paper rounded-lg cursor-pointer"
-                  onClick={() => item.url && window.open(item.url, '_blank')}
-                >
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-ink">{item.title}</div>
-                    <div className="text-xs text-muted flex items-center gap-2 mt-1">
-                      <span>{item.source_name}</span>
-                      <span>•</span>
-                      <span>{new Date(item.published_at).toLocaleString('pt-BR')}</span>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${getScoreColor(item.score)}`}>
-                    {item.score}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+            </Stack>
+          </Grid>
+        </Grid>
 
         {!dashboard && (
-          <div className="bg-card rounded-lg border border-border p-12 text-center">
-            <span className="material-symbols-outlined text-6xl text-slate-300 mb-4">inbox</span>
-            <h3 className="text-lg font-semibold text-ink mb-2">No Data Available</h3>
-            <p className="text-muted">Configure clipping sources to start monitoring content</p>
-            <button
-              onClick={() => router.push('/clipping')}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Configure Sources
-            </button>
-          </div>
+          <DashboardCard>
+            <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
+              <Avatar sx={{ bgcolor: 'grey.100', width: 64, height: 64 }}>
+                <IconSettings size={32} />
+              </Avatar>
+              <Typography variant="h6">Nenhum dado disponivel</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Configure fontes para iniciar o clipping.
+              </Typography>
+              <Button variant="contained" onClick={() => router.push('/clipping')}>
+                Configurar fontes
+              </Button>
+            </Stack>
+          </DashboardCard>
         )}
-      </div>
+      </Stack>
     </AppShell>
   );
 }

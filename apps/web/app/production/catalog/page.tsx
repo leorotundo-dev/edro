@@ -1,9 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { apiGet } from '@/lib/api';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Typography from '@mui/material/Typography';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import { IconRefresh } from '@tabler/icons-react';
+
+const PRODUCT_IMAGES = [
+  '/modernize/images/products/s1.jpg',
+  '/modernize/images/products/s2.jpg',
+  '/modernize/images/products/s3.jpg',
+  '/modernize/images/products/s4.jpg',
+  '/modernize/images/products/s5.jpg',
+  '/modernize/images/products/s6.jpg',
+  '/modernize/images/products/s7.jpg',
+  '/modernize/images/products/s8.jpg',
+  '/modernize/images/products/s9.jpg',
+  '/modernize/images/products/s10.jpg',
+  '/modernize/images/products/s11.jpg',
+  '/modernize/images/products/s12.jpg',
+];
 
 type ProductionFormat = {
   id: string;
@@ -48,7 +82,6 @@ type CatalogStats = {
 };
 
 export default function ProductionCatalogPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [formats, setFormats] = useState<ProductionFormat[]>([]);
   const [stats, setStats] = useState<CatalogStats | null>(null);
@@ -95,268 +128,325 @@ export default function ProductionCatalogPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Loading production catalog...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Carregando catálogo...
+          </Typography>
+        </Stack>
+      </Box>
     );
   }
 
   return (
     <AppShell title="Production Catalog">
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Production Format Catalog</h1>
-          <p className="text-slate-600">Navegue e gerencie formatos de produção disponíveis</p>
-        </div>
+      <Stack spacing={3}>
+        <Box>
+          <Typography variant="h4">Production Catalog</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Base de formatos com inteligência de performance e tendências.
+          </Typography>
+        </Box>
 
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="text-sm text-slate-600 mb-1">Total Formats</div>
-              <div className="text-2xl font-bold text-slate-900">{stats.total_formats}</div>
-            </div>
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="text-sm text-slate-600 mb-1">Types</div>
-              <div className="text-2xl font-bold text-blue-600">{Object.keys(stats.by_type).length}</div>
-            </div>
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="text-sm text-slate-600 mb-1">Categories</div>
-              <div className="text-2xl font-bold text-purple-600">{Object.keys(stats.by_category).length}</div>
-            </div>
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="text-sm text-slate-600 mb-1">Platforms</div>
-              <div className="text-2xl font-bold text-green-600">{Object.keys(stats.by_platform).length}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search formats..."
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Types</option>
-                {types.map((type) => (
-                  <option key={type} value={type}>
-                    {type} ({stats?.by_type[type]})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Categories</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category} ({stats?.by_category[category]})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">View</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`flex-1 px-3 py-2 rounded-lg border ${
-                    viewMode === 'grid'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-slate-700 border-slate-300'
-                  }`}
-                >
-                  Grid
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex-1 px-3 py-2 rounded-lg border ${
-                    viewMode === 'list'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-slate-700 border-slate-300'
-                  }`}
-                >
-                  List
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Results Count */}
-        <div className="mb-4 text-sm text-slate-600">
-          Showing {filteredFormats.length} of {formats.length} formats
-        </div>
-
-        {/* Formats Grid/List */}
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredFormats.map((format) => (
-              <div
-                key={format.id}
-                className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 mb-1">{format.name}</h3>
-                    <div className="flex gap-2">
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
-                        {format.type}
-                      </span>
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
-                        {format.category}
-                      </span>
-                    </div>
-                  </div>
-                  {format.ml_insights?.trending && (
-                    <span className="material-symbols-outlined text-orange-500">trending_up</span>
-                  )}
-                </div>
-
-                {format.description && (
-                  <p className="text-sm text-slate-600 mb-3 line-clamp-2">{format.description}</p>
-                )}
-
-                {format.dimensions && (
-                  <div className="text-xs text-slate-500 mb-2">
-                    {format.dimensions.width && format.dimensions.height && (
-                      <div>📐 {format.dimensions.width}x{format.dimensions.height}px</div>
-                    )}
-                    {format.dimensions.duration && <div>⏱️ {format.dimensions.duration}s</div>}
-                  </div>
-                )}
-
-                {format.platforms && format.platforms.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {format.platforms.map((platform) => (
-                      <span
-                        key={platform}
-                        className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
+        <Grid container spacing={2} alignItems="flex-start">
+          <Grid size={{ xs: 12, lg: 3 }}>
+            <Stack spacing={2}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Filtros
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Refine por tipo, categoria e busca.
+                      </Typography>
+                    </Box>
+                    <TextField
+                      label="Buscar"
+                      placeholder="Buscar formatos..."
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      size="small"
+                      fullWidth
+                    />
+                    <TextField
+                      select
+                      label="Tipo"
+                      value={selectedType}
+                      onChange={(event) => setSelectedType(event.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="all">Todos os tipos</MenuItem>
+                      {types.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type} ({stats?.by_type[type]})
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="Categoria"
+                      value={selectedCategory}
+                      onChange={(event) => setSelectedCategory(event.target.value)}
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="all">Todas as categorias</MenuItem>
+                      {categories.map((category) => (
+                        <MenuItem key={category} value={category}>
+                          {category} ({stats?.by_category[category]})
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Visualização
+                      </Typography>
+                      <ToggleButtonGroup
+                        value={viewMode}
+                        exclusive
+                        size="small"
+                        onChange={(_, value) => {
+                          if (value) setViewMode(value);
+                        }}
+                        sx={{ mt: 1 }}
                       >
-                        {platform}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                        <ToggleButton value="grid">Grade</ToggleButton>
+                        <ToggleButton value="list">Lista</ToggleButton>
+                      </ToggleButtonGroup>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
 
-                {format.metrics && (
-                  <div className="border-t border-slate-100 pt-3 mt-3">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {format.metrics.total_uses !== undefined && (
-                        <div>
-                          <div className="text-slate-500">Uses</div>
-                          <div className="font-semibold text-slate-900">{format.metrics.total_uses}</div>
-                        </div>
-                      )}
-                      {format.ml_insights?.predicted_performance !== undefined && (
-                        <div>
-                          <div className="text-slate-500">Score</div>
-                          <div className="font-semibold text-green-600">
-                            {Math.round(format.ml_insights.predicted_performance * 100)}%
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Platforms</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Uses</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredFormats.map((format) => (
-                  <tr key={format.id} className="hover:bg-slate-50 cursor-pointer">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{format.name}</div>
-                      {format.description && (
-                        <div className="text-sm text-slate-500 truncate max-w-xs">{format.description}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
-                        {format.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
-                        {format.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {format.platforms?.slice(0, 3).map((platform) => (
-                          <span
-                            key={platform}
-                            className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
-                          >
-                            {platform}
-                          </span>
+              {stats && (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2">Resumo rápido</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Volume atual do catálogo.
+                      </Typography>
+                    </Stack>
+                    <Grid container spacing={2} sx={{ mt: 1 }}>
+                      <Grid size={{ xs: 6 }}>
+                        <Typography variant="caption" color="text.secondary">Total</Typography>
+                        <Typography variant="h6">{stats.total_formats}</Typography>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <Typography variant="caption" color="text.secondary">Tipos</Typography>
+                        <Typography variant="h6">{Object.keys(stats.by_type).length}</Typography>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <Typography variant="caption" color="text.secondary">Categorias</Typography>
+                        <Typography variant="h6">{Object.keys(stats.by_category).length}</Typography>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <Typography variant="caption" color="text.secondary">Plataformas</Typography>
+                        <Typography variant="h6">{Object.keys(stats.by_platform).length}</Typography>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+            </Stack>
+          </Grid>
+
+          <Grid size={{ xs: 12, lg: 9 }}>
+            <Stack spacing={2}>
+              {stats && (
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Total de formatos</Typography>
+                        <Typography variant="h5">{stats.total_formats}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Tipos ativos</Typography>
+                        <Typography variant="h5">{Object.keys(stats.by_type).length}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Categorias</Typography>
+                        <Typography variant="h5">{Object.keys(stats.by_category).length}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Plataformas</Typography>
+                        <Typography variant="h5">{Object.keys(stats.by_platform).length}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              )}
+
+              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2}>
+                <Typography variant="body2" color="text.secondary">
+                  Mostrando {filteredFormats.length} de {formats.length} formatos
+                </Typography>
+                <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={loadCatalog}>
+                  Atualizar
+                </Button>
+              </Stack>
+
+              {viewMode === 'grid' ? (
+                <Grid container spacing={2}>
+                  {filteredFormats.map((format, index) => {
+                    const image = PRODUCT_IMAGES[index % PRODUCT_IMAGES.length];
+                    return (
+                      <Grid size={{ xs: 12, md: 6, lg: 4 }} key={format.id}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <Box
+                            sx={{
+                              height: 180,
+                              backgroundImage: `url(${image})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              borderTopLeftRadius: 16,
+                              borderTopRightRadius: 16,
+                            }}
+                          />
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                  {format.name}
+                                </Typography>
+                                {format.ml_insights?.trending && (
+                                  <Chip size="small" color="primary" label="Em alta" />
+                                )}
+                              </Stack>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                <Chip size="small" variant="outlined" label={format.type} />
+                                <Chip size="small" variant="outlined" label={format.category} />
+                              </Stack>
+                              {format.description && (
+                                <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                  {format.description}
+                                </Typography>
+                              )}
+                              {format.platforms && format.platforms.length > 0 && (
+                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                  {format.platforms.slice(0, 3).map((platform) => (
+                                    <Chip key={platform} size="small" label={platform} />
+                                  ))}
+                                  {format.platforms.length > 3 && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      +{format.platforms.length - 3}
+                                    </Typography>
+                                  )}
+                                </Stack>
+                              )}
+                              <Divider />
+                              <Stack direction="row" justifyContent="space-between">
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">Usos</Typography>
+                                  <Typography variant="subtitle2">{format.metrics?.total_uses || 0}</Typography>
+                                </Box>
+                                <Box textAlign="right">
+                                  <Typography variant="caption" color="text.secondary">Score</Typography>
+                                  <Typography variant="subtitle2">
+                                    {format.ml_insights?.predicted_performance !== undefined
+                                      ? `${Math.round(format.ml_insights.predicted_performance * 100)}%`
+                                      : '--'}
+                                  </Typography>
+                                </Box>
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              ) : (
+                <Card variant="outlined">
+                  <CardContent sx={{ p: 0 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Formato</TableCell>
+                          <TableCell>Tipo</TableCell>
+                          <TableCell>Categoria</TableCell>
+                          <TableCell>Plataformas</TableCell>
+                          <TableCell>Usos</TableCell>
+                          <TableCell>Score</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredFormats.map((format) => (
+                          <TableRow key={format.id}>
+                            <TableCell>
+                              <Typography fontWeight={600}>{format.name}</Typography>
+                              {format.description && (
+                                <Typography variant="body2" color="text.secondary">
+                                  {format.description}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Chip size="small" variant="outlined" label={format.type} />
+                            </TableCell>
+                            <TableCell>
+                              <Chip size="small" variant="outlined" label={format.category} />
+                            </TableCell>
+                            <TableCell>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                {format.platforms?.slice(0, 2).map((platform) => (
+                                  <Chip key={platform} size="small" label={platform} />
+                                ))}
+                                {format.platforms && format.platforms.length > 2 && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    +{format.platforms.length - 2}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{format.metrics?.total_uses || 0}</TableCell>
+                            <TableCell>
+                              {format.ml_insights?.predicted_performance !== undefined
+                                ? `${Math.round(format.ml_insights.predicted_performance * 100)}%`
+                                : '--'}
+                            </TableCell>
+                          </TableRow>
                         ))}
-                        {format.platforms && format.platforms.length > 3 && (
-                          <span className="text-xs text-slate-500">+{format.platforms.length - 3}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-900">
-                      {format.metrics?.total_uses || 0}
-                    </td>
-                    <td className="px-4 py-3">
-                      {format.ml_insights?.predicted_performance !== undefined && (
-                        <span className="text-sm font-semibold text-green-600">
-                          {Math.round(format.ml_insights.predicted_performance * 100)}%
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
 
-        {filteredFormats.length === 0 && (
-          <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
-            <span className="material-symbols-outlined text-6xl text-slate-300 mb-4">search_off</span>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No formats found</h3>
-            <p className="text-slate-600">Try adjusting your filters or search query</p>
-          </div>
-        )}
-      </div>
+              {filteredFormats.length === 0 && (
+                <Card variant="outlined">
+                  <CardContent sx={{ textAlign: 'center', py: 6 }}>
+                    <Box component="img" src="/modernize/images/svgs/no-data.webp" alt="Sem dados" sx={{ width: 120, mb: 2 }} />
+                    <Typography variant="h6" gutterBottom>
+                      Nenhum formato encontrado
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Tente ajustar filtros ou termo de busca.
+                    </Typography>
+                  </CardContent>
+                </Card>
+              )}
+            </Stack>
+          </Grid>
+        </Grid>
+      </Stack>
     </AppShell>
   );
 }

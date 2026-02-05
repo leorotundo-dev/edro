@@ -1,6 +1,8 @@
 import { runLibraryWorkerOnce } from '../library/processWorker';
 import { runClippingWorkerOnce } from '../clipping/worker';
 import { runSocialListeningWorkerOnce } from '../socialListening/worker';
+import { runClientIntelligenceWorkerOnce } from '../clientIntelligence/worker';
+import { runCalendarRelevanceWorkerOnce } from './calendarRelevanceWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -13,6 +15,8 @@ export function startJobsRunner() {
       await runLibraryWorkerOnce();
       await runClippingWorkerOnce();
       await runSocialListeningWorkerOnce();
+      await runClientIntelligenceWorkerOnce();
+      await runCalendarRelevanceWorkerOnce();
     } catch {
       // ignore loop errors
     }

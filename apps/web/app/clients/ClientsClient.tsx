@@ -4,6 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiDelete, apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconPlus } from '@tabler/icons-react';
 
 type ClientRow = {
   id: string;
@@ -925,903 +940,747 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
 
   if (loading && clients.length === 0 && !isNew) {
     return (
-      <div className="loading-screen">
-        <div className="pulse">Carregando clientes...</div>
-      </div>
+      <Box sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={28} />
+          <Typography variant="body2" color="text.secondary">Carregando clientes...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   const content = (
-    <div className="page-content">
-        {error ? <div className="notice error">{error}</div> : null}
-        {success ? <div className="notice success">{success}</div> : null}
-        {planMissing.length ? (
-          <div className="notice error">
-            Informações faltando: {planMissing.map((key) => missingLabels[key] || key).join(', ')}.
-          </div>
-        ) : null}
+    <Stack spacing={2}>
+      {error && <Alert severity="error">{error}</Alert>}
+      {success && <Alert severity="success">{success}</Alert>}
+      {planMissing.length > 0 && (
+        <Alert severity="warning">
+          Informações faltando: {planMissing.map((key) => missingLabels[key] || key).join(', ')}.
+        </Alert>
+      )}
 
-        <div className="panel-grid" style={isLocked ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}>
-          {!isLocked ? (
-            <aside className="panel-sidebar">
-              <div className="toolbar">
-                <input
-                  className="edro-input"
-                  placeholder="Buscar cliente"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={refreshAllIntelligence}
-                  disabled={bulkIntelLoading}
-                >
-                  {bulkIntelLoading ? 'Atualizando...' : 'Atualizar todos'}
-                </button>
-                <button className="btn primary" type="button" onClick={handleNewClient}>
-                  Novo
-                </button>
-              </div>
-              <div className="panel-list">
-                {filteredClients.length === 0 ? (
-                  <div className="empty">Nenhum cliente cadastrado.</div>
-                ) : (
-                  filteredClients.map((client) => (
-                    <button
-                      key={client.id}
-                      type="button"
-                      className={`panel-item ${client.id === selectedId && !isNew ? 'active' : ''}`}
-                      onClick={() => handleSelectClient(client.id)}
+      <Grid container spacing={2}>
+        {/* Sidebar */}
+        {!isLocked && (
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Buscar cliente"
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                  />
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={refreshAllIntelligence}
+                      disabled={bulkIntelLoading}
                     >
-                      <strong>{client.name}</strong>
-                      <span>{client.segment_primary || 'Sem segmento'}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </aside>
-          ) : null}
+                      {bulkIntelLoading ? 'Atualizando...' : 'Atualizar todos'}
+                    </Button>
+                    <Button size="small" variant="contained" onClick={handleNewClient}>
+                      Novo
+                    </Button>
+                  </Stack>
+                </Stack>
+                <Divider sx={{ my: 1 }} />
+                <Stack spacing={0.5} sx={{ maxHeight: 500, overflow: 'auto' }}>
+                  {filteredClients.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                      Nenhum cliente cadastrado.
+                    </Typography>
+                  ) : (
+                    filteredClients.map((client) => (
+                      <Card
+                        key={client.id}
+                        variant="outlined"
+                        sx={{
+                          cursor: 'pointer',
+                          p: 1.5,
+                          bgcolor: client.id === selectedId && !isNew ? 'action.selected' : 'background.paper',
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                        onClick={() => handleSelectClient(client.id)}
+                      >
+                        <Typography variant="subtitle2">{client.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {client.segment_primary || 'Sem segmento'}
+                        </Typography>
+                      </Card>
+                    ))
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
-          <section className="panel-main">
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Resumo do cliente</span>
-                <div className="form-actions">
-                  <button className="btn ghost" type="button" onClick={handleOpenClient} disabled={!selectedId}>
-                    Ver cliente
-                  </button>
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/insights`)}
-                    disabled={!selectedId}
-                  >
-                    Insights
-                  </button>
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => selectedId && (window.location.href = `/social-listening?clientId=${selectedId}`)}
-                    disabled={!selectedId}
-                  >
-                    Social Listening
-                  </button>
-                  <button className="btn ghost" type="button" onClick={scrollToIntelligence} disabled={!selectedId}>
-                    Ver inteligência
-                  </button>
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/connectors`)}
-                    disabled={!selectedId}
-                  >
-                    🔌 Manage Integrations
-                  </button>
-                </div>
-              </div>
-              <div className="form-grid">
-                <div className="field">
-                  Cliente
-                  <div className="field-static">{form.name || selectedId || '—'}</div>
-                </div>
-                <div className="field">
-                  Segmento
-                  <div className="field-static">{form.segment_primary || '—'}</div>
-                </div>
-                <div className="field">
-                  Local
-                  <div className="field-static">
-                    {[form.city, form.uf].filter(Boolean).join(' · ') || '—'}
-                  </div>
-                </div>
-                <div className="field">
-                  Inteligência atualizada
-                  <div className="field-static">
-                    {lastIntelUpdate ? lastIntelUpdate.toLocaleString('pt-BR') : 'Sem atualização'}
-                  </div>
-                </div>
-                <div className="field">
-                  Última coleta
-                  <div className="field-static">
-                    {lastFetchedAt ? lastFetchedAt.toLocaleString('pt-BR') : 'Sem coleta'}
-                  </div>
-                </div>
-                <div className="field">
-                  Fontes
-                  <div className="field-static">
-                    {intelSources.length ? `${activeSources} ativas / ${intelSources.length}` : '0'}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {selectedId ? (
-              <div className="card">
-                <div className="card-top flex items-center justify-between">
-                  <span className="badge">Reportei Performance</span>
-                  <span className="text-xs text-muted">
-                    {reporteiUpdatedAt
-                      ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
-                      : 'Sem atualizacao recente'}
-                  </span>
-                </div>
+        {/* Main panel */}
+        <Grid size={{ xs: 12, md: isLocked ? 12 : 9 }}>
+          <Stack spacing={2}>
+            {/* Summary Card */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Chip size="small" label="Resumo do cliente" />
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Button size="small" variant="outlined" onClick={handleOpenClient} disabled={!selectedId}>
+                      Ver cliente
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/insights`)}
+                      disabled={!selectedId}
+                    >
+                      Insights
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => selectedId && (window.location.href = `/social-listening?clientId=${selectedId}`)}
+                      disabled={!selectedId}
+                    >
+                      Social Listening
+                    </Button>
+                    <Button size="small" variant="outlined" onClick={scrollToIntelligence} disabled={!selectedId}>
+                      Ver inteligência
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => selectedId && (window.location.href = `/clients/${selectedId}/connectors`)}
+                      disabled={!selectedId}
+                    >
+                      Manage Integrations
+                    </Button>
+                  </Stack>
+                </Stack>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Cliente</Typography>
+                    <Typography variant="body2">{form.name || selectedId || '\u2014'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Segmento</Typography>
+                    <Typography variant="body2">{form.segment_primary || '\u2014'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Local</Typography>
+                    <Typography variant="body2">
+                      {[form.city, form.uf].filter(Boolean).join(' \u00B7 ') || '\u2014'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Inteligência atualizada</Typography>
+                    <Typography variant="body2">
+                      {lastIntelUpdate ? lastIntelUpdate.toLocaleString('pt-BR') : 'Sem atualização'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Última coleta</Typography>
+                    <Typography variant="body2">
+                      {lastFetchedAt ? lastFetchedAt.toLocaleString('pt-BR') : 'Sem coleta'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 4 }}>
+                    <Typography variant="caption" color="text.secondary">Fontes</Typography>
+                    <Typography variant="body2">
+                      {intelSources.length ? `${activeSources} ativas / ${intelSources.length}` : '0'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-                {reporteiError ? <div className="notice error">{reporteiError}</div> : null}
+            {/* Reportei Performance */}
+            {selectedId && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Chip size="small" label="Reportei Performance" />
+                    <Typography variant="caption" color="text.secondary">
+                      {reporteiUpdatedAt
+                        ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
+                        : 'Sem atualizacao recente'}
+                    </Typography>
+                  </Stack>
 
-                {reporteiLoading ? (
-                  <div className="empty">Carregando dados do Reportei...</div>
-                ) : reporteiItems.length ? (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {reporteiItems.map((item, index) => {
-                      const payload = item.payload || {};
-                      const topFormat = pickTop(payload.by_format);
-                      const topTag = pickTop(payload.by_tag);
-                      const kpis = (topFormat?.kpis?.length ? topFormat.kpis : topTag?.kpis || []).slice(0, 4);
-                      const editorial = (payload.editorial_insights || []).slice(0, 3);
+                  {reporteiError && <Alert severity="error" sx={{ mb: 1 }}>{reporteiError}</Alert>}
 
-                      return (
-                        <div key={item.platform || `reportei-${index}`} className="copy-block">
-                          <div className="card-title">
-                            <h3>{item.platform || 'Plataforma'}</h3>
-                            <span className="status">{item.time_window || '30d'}</span>
-                          </div>
+                  {reporteiLoading ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      Carregando dados do Reportei...
+                    </Typography>
+                  ) : reporteiItems.length ? (
+                    <Grid container spacing={2}>
+                      {reporteiItems.map((item, index) => {
+                        const payload = item.payload || {};
+                        const topFormat = pickTop(payload.by_format);
+                        const topTag = pickTop(payload.by_tag);
+                        const kpis = (topFormat?.kpis?.length ? topFormat.kpis : topTag?.kpis || []).slice(0, 4);
+                        const editorial = (payload.editorial_insights || []).slice(0, 3);
 
-                          <div className="space-y-2 text-sm text-muted">
-                            <div className="flex items-center justify-between">
-                              <span>Top formato</span>
-                              <strong className="text-ink">
-                                {topFormat?.format || 'N/A'}{' '}
-                                {topFormat?.score != null ? `(${Math.round(topFormat.score)})` : ''}
-                              </strong>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>Top tag</span>
-                              <strong className="text-ink">
-                                {topTag?.tag || 'N/A'} {topTag?.score != null ? `(${Math.round(topTag.score)})` : ''}
-                              </strong>
-                            </div>
-                          </div>
+                        return (
+                          <Grid key={item.platform || `reportei-${index}`} size={{ xs: 12, md: 6, xl: 4 }}>
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                                  <Typography variant="subtitle2">{item.platform || 'Plataforma'}</Typography>
+                                  <Chip size="small" variant="outlined" label={item.time_window || '30d'} />
+                                </Stack>
 
-                          {kpis.length ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {kpis.map((kpi) => (
-                                <span key={`${item.platform}-${kpi.metric}`} className="chip">
-                                  {KPI_LABELS[kpi.metric] || kpi.metric}: {formatKpiValue(kpi.metric, kpi.value)}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="mt-3 text-xs text-muted">Sem KPIs disponiveis.</div>
-                          )}
+                                <Stack spacing={0.5}>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">Top formato</Typography>
+                                    <Typography variant="caption" fontWeight={600}>
+                                      {topFormat?.format || 'N/A'}{' '}
+                                      {topFormat?.score != null ? `(${Math.round(topFormat.score)})` : ''}
+                                    </Typography>
+                                  </Stack>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">Top tag</Typography>
+                                    <Typography variant="caption" fontWeight={600}>
+                                      {topTag?.tag || 'N/A'} {topTag?.score != null ? `(${Math.round(topTag.score)})` : ''}
+                                    </Typography>
+                                  </Stack>
+                                </Stack>
 
-                          {editorial.length ? (
-                            <div className="mt-3 text-xs text-muted">
-                              <strong className="text-ink">Insights:</strong>
-                              <ul className="list-disc list-inside mt-1 space-y-1">
-                                {editorial.map((line, idx) => (
-                                  <li key={`${item.platform}-insight-${idx}`}>{line}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="empty">Sem dados do Reportei para este cliente.</div>
-                )}
-              </div>
-              ) : null}
-              {selectedId ? (
-                <div className="card">
-                  <div className="card-top flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="badge">Reportei Dashboard</span>
-                      {reporteiUpdatedAt ? (
-                        <span className="text-xs text-muted">
-                          Atualizado em {new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted">Sem atualização recente</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {reporteiDashboardUrl ? (
-                        <a
-                          className="btn outline"
+                                {kpis.length ? (
+                                  <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 1 }}>
+                                    {kpis.map((kpi) => (
+                                      <Chip
+                                        key={`${item.platform}-${kpi.metric}`}
+                                        size="small"
+                                        variant="outlined"
+                                        label={`${KPI_LABELS[kpi.metric] || kpi.metric}: ${formatKpiValue(kpi.metric, kpi.value)}`}
+                                      />
+                                    ))}
+                                  </Stack>
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                                    Sem KPIs disponiveis.
+                                  </Typography>
+                                )}
+
+                                {editorial.length > 0 && (
+                                  <Box sx={{ mt: 1 }}>
+                                    <Typography variant="caption" fontWeight={600}>Insights:</Typography>
+                                    <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                                      {editorial.map((line, idx) => (
+                                        <Typography key={`${item.platform}-insight-${idx}`} component="li" variant="caption" color="text.secondary">
+                                          {line}
+                                        </Typography>
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      Sem dados do Reportei para este cliente.
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Reportei Dashboard */}
+            {selectedId && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 2, gap: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip size="small" label="Reportei Dashboard" />
+                      <Typography variant="caption" color="text.secondary">
+                        {reporteiUpdatedAt
+                          ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
+                          : 'Sem atualização recente'}
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      {reporteiDashboardUrl && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          component="a"
                           href={reporteiDashboardUrl}
                           target="_blank"
                           rel="noreferrer"
                         >
                           Abrir no Reportei
-                        </a>
-                      ) : null}
-                      <button
-                        className="btn primary"
-                        type="button"
+                        </Button>
+                      )}
+                      <Button
+                        size="small"
+                        variant="contained"
                         onClick={syncReportei}
                         disabled={reporteiSyncing || !hasReporteiAccount}
                       >
                         {reporteiSyncing ? 'Sincronizando...' : 'Atualizar dados'}
-                      </button>
-                    </div>
-                  </div>
+                      </Button>
+                    </Stack>
+                  </Stack>
 
-                  {reporteiSyncStatus ? (
-                    <div
-                      className={`notice ${
-                        reporteiSyncStatus.toLowerCase().includes('falha') ? 'error' : 'success'
-                      }`}
+                  {reporteiSyncStatus && (
+                    <Alert
+                      severity={reporteiSyncStatus.toLowerCase().includes('falha') ? 'error' : 'success'}
+                      sx={{ mb: 1 }}
                     >
                       {reporteiSyncStatus}
-                    </div>
-                  ) : null}
+                    </Alert>
+                  )}
 
                   {reporteiEmbedUrl ? (
-                    <div className="space-y-2">
-                      <div className="text-xs text-muted">
-                        Se o embed não carregar, use o botão “Abrir no Reportei”.
-                      </div>
-                      <iframe
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                        Se o embed não carregar, use o botão "Abrir no Reportei".
+                      </Typography>
+                      <Box
+                        component="iframe"
                         title="Reportei Dashboard"
                         src={reporteiEmbedUrl}
-                        className="w-full h-[520px] rounded-2xl border border-border bg-paper"
+                        sx={{ width: '100%', height: 520, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'grey.50' }}
                         loading="lazy"
                         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                       />
-                    </div>
+                    </Box>
                   ) : (
-                    <div className="empty">
-                      Configure o link do dashboard do Reportei em “Integrações” para exibir aqui.
-                    </div>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      Configure o link do dashboard do Reportei em "Integrações" para exibir aqui.
+                    </Typography>
                   )}
-                </div>
-              ) : null}
-              <div className="card">
-                <div className="card-top">
-                  <span className="badge">Planejamento Estratégico</span>
-                  <span className="badge outline">Upload + IA</span>
-              </div>
-              <div className="form-grid">
-                <label className="field full">
-                  Arquivo (PDF, DOCX ou TXT)
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    onChange={(event) => setPlanFile(event.target.files?.[0] || null)}
-                  />
-                </label>
-                <div className="form-actions">
-                  <button
-                    className="btn primary"
-                    type="button"
-                    onClick={analyzePlanFile}
-                    disabled={planLoading}
-                  >
-                    {planLoading ? 'Analisando...' : 'Analisar e preencher'}
-                  </button>
-                </div>
-              </div>
-            </div>
+                </CardContent>
+              </Card>
+            )}
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Dados Corporativos</span>
-                <span className="badge outline">{isNew ? 'Novo cliente' : form.name || 'Cliente'}</span>
-              </div>
-              <div className="form-grid">
-                <label className="field">
-                  Nome do cliente
-                  <input
-                    value={form.name}
-                    onChange={(event) => updateForm({ name: event.target.value })}
-                    placeholder="Nome oficial"
-                  />
-                </label>
-                <label className="field">
-                  ID (opcional)
-                  <input
-                    value={form.id || ''}
-                    onChange={(event) => updateForm({ id: event.target.value })}
-                    placeholder="cli_nome_0000"
-                  />
-                </label>
-                <label className="field">
-                  Segmento primário
-                  <input
-                    value={form.segment_primary}
-                    onChange={(event) => updateForm({ segment_primary: event.target.value })}
-                    placeholder="Segmento principal"
-                  />
-                </label>
-                <label className="field">
-                  Segmentos secundários
-                  <input
-                    value={form.segment_secondary_text}
-                    onChange={(event) => updateForm({ segment_secondary_text: event.target.value })}
-                    placeholder="Ex: varejo, mobilidade, saúde"
-                  />
-                </label>
-                <label className="field">
-                  País
-                  <input
-                    value={form.country}
-                    onChange={(event) => updateForm({ country: event.target.value })}
-                    placeholder="BR"
-                  />
-                </label>
-                <label className="field">
-                  UF
-                  <input value={form.uf} onChange={(event) => updateForm({ uf: event.target.value })} />
-                </label>
-                <label className="field">
-                  Cidade
-                  <input value={form.city} onChange={(event) => updateForm({ city: event.target.value })} />
-                </label>
-                <label className="field">
-                  Reportei Account ID
-                  <input
-                    value={form.reportei_account_id}
-                    onChange={(event) => updateForm({ reportei_account_id: event.target.value })}
-                    placeholder="ID da conta Reportei"
-                  />
-                </label>
-              </div>
-            </div>
+            {/* Planejamento Estratégico */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <Chip size="small" label="Planejamento Estratégico" />
+                  <Chip size="small" variant="outlined" label="Upload + IA" />
+                </Stack>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="file"
+                      inputProps={{ accept: '.pdf,.doc,.docx,.txt' }}
+                      label="Arquivo (PDF, DOCX ou TXT)"
+                      InputLabelProps={{ shrink: true }}
+                      onChange={(event: any) => setPlanFile(event.target.files?.[0] || null)}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Button variant="contained" onClick={analyzePlanFile} disabled={planLoading}>
+                      {planLoading ? 'Analisando...' : 'Analisar e preencher'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Perfil de Comunicação</span>
-              </div>
-              <div className="form-grid">
-                <label className="field">
-                  Site oficial
-                  <input
-                    value={form.knowledge.website}
-                    onChange={(event) => updateKnowledge({ website: event.target.value })}
-                    placeholder="https://cliente.com.br"
-                  />
-                </label>
-                <label className="field">
-                  Tom de voz
-                  <select
-                    value={form.tone_profile}
-                    onChange={(event) => updateForm({ tone_profile: event.target.value })}
-                  >
-                    <option value="">Selecione</option>
-                    <option value="conservative">Conservador</option>
-                    <option value="balanced">Equilibrado</option>
-                    <option value="bold">Ousado</option>
-                  </select>
-                </label>
-                <label className="field">
-                  Tolerância a risco
-                  <select
-                    value={form.risk_tolerance}
-                    onChange={(event) => updateForm({ risk_tolerance: event.target.value })}
-                  >
-                    <option value="">Selecione</option>
-                    <option value="low">Baixa</option>
-                    <option value="medium">Média</option>
-                    <option value="high">Alta</option>
-                  </select>
-                </label>
-                <label className="field">
-                  Público-alvo
-                  <input
-                    value={form.knowledge.audience}
-                    onChange={(event) => updateKnowledge({ audience: event.target.value })}
-                    placeholder="Quem precisa ouvir essa marca"
-                  />
-                </label>
-                <label className="field">
-                  Proposta de valor
-                  <input
-                    value={form.knowledge.brand_promise}
-                    onChange={(event) => updateKnowledge({ brand_promise: event.target.value })}
-                    placeholder="O que a marca promete entregar"
-                  />
-                </label>
-                <label className="field full">
-                  Descrição da marca
-                  <textarea
-                    value={form.knowledge.description}
-                    onChange={(event) => updateKnowledge({ description: event.target.value })}
-                    rows={3}
-                  />
-                </label>
-                <label className="field full">
-                  Diferenciais competitivos
-                  <textarea
-                    value={form.knowledge.differentiators}
-                    onChange={(event) => updateKnowledge({ differentiators: event.target.value })}
-                    rows={2}
-                  />
-                </label>
-              </div>
-            </div>
+            {/* Dados Corporativos */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <Chip size="small" label="Dados Corporativos" />
+                  <Chip size="small" variant="outlined" label={isNew ? 'Novo cliente' : form.name || 'Cliente'} />
+                </Stack>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Nome do cliente" value={form.name} onChange={(e) => updateForm({ name: e.target.value })} placeholder="Nome oficial" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="ID (opcional)" value={form.id || ''} onChange={(e) => updateForm({ id: e.target.value })} placeholder="cli_nome_0000" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Segmento primário" value={form.segment_primary} onChange={(e) => updateForm({ segment_primary: e.target.value })} placeholder="Segmento principal" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Segmentos secundários" value={form.segment_secondary_text} onChange={(e) => updateForm({ segment_secondary_text: e.target.value })} placeholder="Ex: varejo, mobilidade, saúde" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="País" value={form.country} onChange={(e) => updateForm({ country: e.target.value })} placeholder="BR" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="UF" value={form.uf} onChange={(e) => updateForm({ uf: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Cidade" value={form.city} onChange={(e) => updateForm({ city: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Reportei Account ID" value={form.reportei_account_id} onChange={(e) => updateForm({ reportei_account_id: e.target.value })} placeholder="ID da conta Reportei" />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Presença Digital</span>
-              </div>
-              <div className="form-grid">
-                <label className="field">
-                  Instagram
-                  <input
-                    value={form.knowledge.socials.instagram}
-                    onChange={(event) => updateSocials({ instagram: event.target.value })}
-                    placeholder="@cliente ou URL"
-                  />
-                </label>
-                <label className="field">
-                  Facebook
-                  <input
-                    value={form.knowledge.socials.facebook}
-                    onChange={(event) => updateSocials({ facebook: event.target.value })}
-                    placeholder="URL da página"
-                  />
-                </label>
-                <label className="field">
-                  LinkedIn
-                  <input
-                    value={form.knowledge.socials.linkedin}
-                    onChange={(event) => updateSocials({ linkedin: event.target.value })}
-                    placeholder="URL da empresa"
-                  />
-                </label>
-                <label className="field">
-                  TikTok
-                  <input
-                    value={form.knowledge.socials.tiktok}
-                    onChange={(event) => updateSocials({ tiktok: event.target.value })}
-                    placeholder="@cliente ou URL"
-                  />
-                </label>
-                <label className="field">
-                  YouTube
-                  <input
-                    value={form.knowledge.socials.youtube}
-                    onChange={(event) => updateSocials({ youtube: event.target.value })}
-                    placeholder="URL do canal"
-                  />
-                </label>
-                <label className="field">
-                  X (Twitter)
-                  <input
-                    value={form.knowledge.socials.x}
-                    onChange={(event) => updateSocials({ x: event.target.value })}
-                    placeholder="@cliente ou URL"
-                  />
-                </label>
-                <label className="field full">
-                  Outras redes
-                  <input
-                    value={form.knowledge.socials.other}
-                    onChange={(event) => updateSocials({ other: event.target.value })}
-                    placeholder="Ex: WhatsApp, Threads, Pinterest, etc."
-                  />
-                </label>
-              </div>
-            </div>
+            {/* Perfil de Comunicação */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Perfil de Comunicação" sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Site oficial" value={form.knowledge.website} onChange={(e) => updateKnowledge({ website: e.target.value })} placeholder="https://cliente.com.br" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" select label="Tom de voz" value={form.tone_profile} onChange={(e) => updateForm({ tone_profile: e.target.value })}>
+                      <MenuItem value="">Selecione</MenuItem>
+                      <MenuItem value="conservative">Conservador</MenuItem>
+                      <MenuItem value="balanced">Equilibrado</MenuItem>
+                      <MenuItem value="bold">Ousado</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" select label="Tolerância a risco" value={form.risk_tolerance} onChange={(e) => updateForm({ risk_tolerance: e.target.value })}>
+                      <MenuItem value="">Selecione</MenuItem>
+                      <MenuItem value="low">Baixa</MenuItem>
+                      <MenuItem value="medium">Média</MenuItem>
+                      <MenuItem value="high">Alta</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Público-alvo" value={form.knowledge.audience} onChange={(e) => updateKnowledge({ audience: e.target.value })} placeholder="Quem precisa ouvir essa marca" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Proposta de valor" value={form.knowledge.brand_promise} onChange={(e) => updateKnowledge({ brand_promise: e.target.value })} placeholder="O que a marca promete entregar" />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField fullWidth size="small" multiline rows={3} label="Descrição da marca" value={form.knowledge.description} onChange={(e) => updateKnowledge({ description: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField fullWidth size="small" multiline rows={2} label="Diferenciais competitivos" value={form.knowledge.differentiators} onChange={(e) => updateKnowledge({ differentiators: e.target.value })} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-            <div className="card" ref={intelRef}>
-              <div className="card-top">
-                <span className="badge">Inteligência automática</span>
-              </div>
-              {!selectedId ? (
-                <div className="empty">Salve o cliente para habilitar a inteligência.</div>
-              ) : (
-                <>
-                  {intelError ? <div className="notice error">{intelError}</div> : null}
-                  <div className="form-actions">
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      onClick={() => selectedId && syncIntelSources(selectedId)}
-                      disabled={intelActionLoading || intelLoading}
-                    >
-                      {intelActionLoading ? 'Sincronizando...' : 'Sincronizar fontes'}
-                    </button>
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      onClick={() => selectedId && refreshIntelligence(selectedId)}
-                      disabled={intelActionLoading || intelLoading}
-                    >
-                      {intelActionLoading ? 'Atualizando...' : 'Atualizar inteligência'}
-                    </button>
-                    <label className="field checkbox">
-                      <input
-                        type="checkbox"
-                        checked={autoIntelRefresh}
-                        onChange={(event) => setAutoIntelRefresh(event.target.checked)}
-                      />
-                      Atualizar ao salvar
-                    </label>
-                  </div>
+            {/* Presença Digital */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Presença Digital" sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Instagram" value={form.knowledge.socials.instagram} onChange={(e) => updateSocials({ instagram: e.target.value })} placeholder="@cliente ou URL" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Facebook" value={form.knowledge.socials.facebook} onChange={(e) => updateSocials({ facebook: e.target.value })} placeholder="URL da página" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="LinkedIn" value={form.knowledge.socials.linkedin} onChange={(e) => updateSocials({ linkedin: e.target.value })} placeholder="URL da empresa" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="TikTok" value={form.knowledge.socials.tiktok} onChange={(e) => updateSocials({ tiktok: e.target.value })} placeholder="@cliente ou URL" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="YouTube" value={form.knowledge.socials.youtube} onChange={(e) => updateSocials({ youtube: e.target.value })} placeholder="URL do canal" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="X (Twitter)" value={form.knowledge.socials.x} onChange={(e) => updateSocials({ x: e.target.value })} placeholder="@cliente ou URL" />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField fullWidth size="small" label="Outras redes" value={form.knowledge.socials.other} onChange={(e) => updateSocials({ other: e.target.value })} placeholder="Ex: WhatsApp, Threads, Pinterest, etc." />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
 
-                  <div className="detail-list">
-                    <div className="copy-block">
-                      <div className="card-title">
-                        <h3>Resumo IA</h3>
-                        <span className="status">
-                          {intel?.created_at
-                            ? new Date(intel.created_at).toLocaleString()
-                            : 'Sem atualização'}
-                        </span>
-                      </div>
-                      <p className="card-text">
-                        {intelSummary.summary_text || 'Nenhum resumo disponível ainda.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="form-grid">
-                    <div className="field">
-                      Indústria
-                      <div className="field-static">{intelSummary.industry || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Negócio
-                      <div className="field-static">{intelSummary.business || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Posicionamento
-                      <div className="field-static">{intelSummary.positioning || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Territórios
-                      <div className="field-static">{formatList(intelSummary.territories) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Canais
-                      <div className="field-static">{formatList(intelSummary.channels) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Produtos
-                      <div className="field-static">{formatList(intelSummary.products) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Serviços
-                      <div className="field-static">{formatList(intelSummary.services) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Personas
-                      <div className="field-static">{formatList(intelSummary.personas) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Concorrentes
-                      <div className="field-static">{formatList(intelSummary.competitors) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Oportunidades
-                      <div className="field-static">{formatList(intelSummary.opportunities) || '-'}</div>
-                    </div>
-                    <div className="field">
-                      Riscos
-                      <div className="field-static">{formatList(intelSummary.risks) || '-'}</div>
-                    </div>
-                  </div>
-
-                  <div className="detail-list">
-                    <div className="card-title">
-                      <h3>Fontes monitoradas</h3>
-                      <span className="status">{intelSources.length} fontes</span>
-                    </div>
-                    {intelSources.length ? (
-                      intelSources.map((source) => (
-                        <div key={source.id} className="copy-block">
-                          <div className="card-title">
-                            <h3>
-                              {(source.platform || source.source_type || 'fonte').toUpperCase()}
-                            </h3>
-                            <span className="status">{source.status}</span>
-                          </div>
-                          <div className="field-static">{source.url || source.handle}</div>
-                          {source.last_fetched_at ? (
-                            <div className="card-text">
-                              Última coleta: {new Date(source.last_fetched_at).toLocaleString()}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="empty">Nenhuma fonte sincronizada.</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Radar &amp; Insights</span>
-              </div>
-              <div className="form-grid">
-                <label className="field">
-                  Keywords (Radar)
-                  <input
-                    value={form.keywords_text}
-                    onChange={(event) => updateForm({ keywords_text: event.target.value })}
-                    placeholder="palavras-chave separadas por vírgula"
-                  />
-                </label>
-                <label className="field">
-                  Pillars (Radar)
-                  <input
-                    value={form.pillars_text}
-                    onChange={(event) => updateForm({ pillars_text: event.target.value })}
-                    placeholder="pilares estratégicos"
-                  />
-                </label>
-                <label className="field">
-                  Hashtags oficiais
-                  <input
-                    value={form.knowledge.hashtags_text}
-                    onChange={(event) => updateKnowledge({ hashtags_text: event.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  Menções obrigatórias
-                  <input
-                    value={form.knowledge.must_mentions_text}
-                    onChange={(event) => updateKnowledge({ must_mentions_text: event.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  Termos aprovados
-                  <input
-                    value={form.knowledge.approved_terms_text}
-                    onChange={(event) => updateKnowledge({ approved_terms_text: event.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  Claims proibidos
-                  <input
-                    value={form.knowledge.forbidden_claims_text}
-                    onChange={(event) => updateKnowledge({ forbidden_claims_text: event.target.value })}
-                  />
-                </label>
-                <label className="field full">
-                  Observações estratégicas
-                  <textarea
-                    value={form.knowledge.notes}
-                    onChange={(event) => updateKnowledge({ notes: event.target.value })}
-                    rows={2}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Calendário Inteligente</span>
-              </div>
-              <div className="form-grid">
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.enable_calendar_total}
-                    onChange={(event) => updateCalendar({ enable_calendar_total: event.target.checked })}
-                  />
-                  Ativar calendário total
-                </label>
-                <label className="field">
-                  Peso do calendário
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={form.calendar_profile.calendar_weight}
-                    onChange={(event) => updateCalendar({ calendar_weight: Number(event.target.value) })}
-                  />
-                </label>
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.retail_mode}
-                    onChange={(event) => updateCalendar({ retail_mode: event.target.checked })}
-                  />
-                  Modo varejo
-                </label>
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.allow_cultural_opportunities}
-                    onChange={(event) =>
-                      updateCalendar({ allow_cultural_opportunities: event.target.checked })
-                    }
-                  />
-                  Oportunidades culturais
-                </label>
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.allow_geek_pop}
-                    onChange={(event) => updateCalendar({ allow_geek_pop: event.target.checked })}
-                  />
-                  Geek &amp; Pop
-                </label>
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.allow_profession_days}
-                    onChange={(event) => updateCalendar({ allow_profession_days: event.target.checked })}
-                  />
-                  Datas profissionais
-                </label>
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.calendar_profile.restrict_sensitive_causes}
-                    onChange={(event) =>
-                      updateCalendar({ restrict_sensitive_causes: event.target.checked })
-                    }
-                  />
-                  Restringir causas sensíveis
-                </label>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Tendências &amp; Performance</span>
-              </div>
-              <div className="form-grid">
-                <label className="field checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.trend_profile.enable_trends}
-                    onChange={(event) => updateTrend({ enable_trends: event.target.checked })}
-                  />
-                  Ativar tendências
-                </label>
-                <label className="field">
-                  Peso de tendências
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={form.trend_profile.trend_weight}
-                    onChange={(event) => updateTrend({ trend_weight: Number(event.target.value) })}
-                  />
-                </label>
-                <label className="field full">
-                  Fontes de tendências (ex: google, youtube)
-                  <input
-                    value={form.trend_profile.sources_text}
-                    onChange={(event) => updateTrend({ sources_text: event.target.value })}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Preferências de Plataforma</span>
-              </div>
-              <div className="form-grid">
-                <label className="field full">
-                  JSON (preferredFormats, blockedFormats, mix, etc.)
-                  <textarea
-                    value={form.platform_preferences_text}
-                    onChange={(event) => updateForm({ platform_preferences_text: event.target.value })}
-                    rows={4}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-top">
-                <span className="badge">Integrações</span>
-              </div>
-              {!selectedId ? (
-                <div className="empty">Salve o cliente para habilitar integrações.</div>
-              ) : (
-                <>
-                  <div className="detail-list">
-                    {connectors.length ? (
-                      connectors.map((connector) => (
-                        <div key={connector.provider} className="copy-block">
-                          <div className="card-title">
-                            <h3>{connector.provider}</h3>
-                            <span className="status">
-                              {connector.updated_at ? new Date(connector.updated_at).toLocaleDateString() : 'OK'}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="empty">Nenhum conector cadastrado.</div>
-                    )}
-                  </div>
-                  <div className="form-grid">
-                    <label className="field">
-                      Provider
-                      <select
-                        value={connectorProvider}
-                        onChange={(event) => setConnectorProvider(event.target.value)}
+            {/* Inteligência automática */}
+            <Card variant="outlined" ref={intelRef}>
+              <CardContent>
+                <Chip size="small" label="Inteligência automática" sx={{ mb: 2 }} />
+                {!selectedId ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                    Salve o cliente para habilitar a inteligência.
+                  </Typography>
+                ) : (
+                  <>
+                    {intelError && <Alert severity="error" sx={{ mb: 1 }}>{intelError}</Alert>}
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => selectedId && syncIntelSources(selectedId)}
+                        disabled={intelActionLoading || intelLoading}
                       >
-                        <option value="reportei">Reportei</option>
-                        <option value="meta">Meta</option>
-                        <option value="linkedin">LinkedIn</option>
-                        <option value="tiktok">TikTok</option>
-                        <option value="youtube">YouTube</option>
-                        <option value="x">X (Twitter)</option>
-                        <option value="google_ads">Google Ads</option>
-                      </select>
-                    </label>
-                    <label className="field full">
-                      Payload (JSON)
-                      <textarea
-                        value={connectorPayload}
-                        onChange={(event) => setConnectorPayload(event.target.value)}
-                        rows={3}
-                        placeholder='{"reportei_account_id":"123"}'
-                      />
-                    </label>
-                    <label className="field full">
-                      Secrets (JSON)
-                      <textarea
-                        value={connectorSecrets}
-                        onChange={(event) => setConnectorSecrets(event.target.value)}
-                        rows={3}
-                        placeholder='{"token":"..."}'
-                      />
-                    </label>
-                    <div className="form-actions">
-                      <button
-                        className="btn primary"
-                        type="button"
-                        onClick={handleSaveConnector}
-                        disabled={connectorSaving}
+                        {intelActionLoading ? 'Sincronizando...' : 'Sincronizar fontes'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => selectedId && refreshIntelligence(selectedId)}
+                        disabled={intelActionLoading || intelLoading}
                       >
-                        {connectorSaving ? 'Salvando...' : 'Salvar conector'}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                        {intelActionLoading ? 'Atualizando...' : 'Atualizar inteligência'}
+                      </Button>
+                      <Stack direction="row" alignItems="center" spacing={0.5}>
+                        <Switch
+                          size="small"
+                          checked={autoIntelRefresh}
+                          onChange={(e) => setAutoIntelRefresh(e.target.checked)}
+                        />
+                        <Typography variant="caption">Atualizar ao salvar</Typography>
+                      </Stack>
+                    </Stack>
 
-            <div className="card">
-              <div className="form-actions">
-                {!isNew && selectedId ? (
-                  <button className="btn danger" type="button" onClick={handleDelete} disabled={deleting}>
-                    {deleting ? 'Excluindo...' : 'Excluir cliente'}
-                  </button>
-                ) : null}
-                <button className="btn primary" type="button" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar cliente'}
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
+                    <Card variant="outlined" sx={{ bgcolor: 'grey.50', mb: 2 }}>
+                      <CardContent>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                          <Typography variant="subtitle2">Resumo IA</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {intel?.created_at ? new Date(intel.created_at).toLocaleString() : 'Sem atualização'}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {intelSummary.summary_text || 'Nenhum resumo disponível ainda.'}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+
+                    <Grid container spacing={2} sx={{ mb: 2 }}>
+                      {(['industry', 'business', 'positioning', 'territories', 'channels', 'products', 'services', 'personas', 'competitors', 'opportunities', 'risks'] as const).map((key) => (
+                        <Grid key={key} size={{ xs: 6, md: 4 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{key === 'industry' ? 'Indústria' : key === 'business' ? 'Negócio' : key === 'positioning' ? 'Posicionamento' : key === 'territories' ? 'Territórios' : key === 'channels' ? 'Canais' : key === 'products' ? 'Produtos' : key === 'services' ? 'Serviços' : key === 'personas' ? 'Personas' : key === 'competitors' ? 'Concorrentes' : key === 'opportunities' ? 'Oportunidades' : 'Riscos'}</Typography>
+                          <Typography variant="body2">{formatList(intelSummary[key]) || '-'}</Typography>
+                        </Grid>
+                      ))}
+                    </Grid>
+
+                    <Box sx={{ mb: 2 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2">Fontes monitoradas</Typography>
+                        <Chip size="small" variant="outlined" label={`${intelSources.length} fontes`} />
+                      </Stack>
+                      {intelSources.length ? (
+                        <Stack spacing={1}>
+                          {intelSources.map((source) => (
+                            <Card key={source.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                              <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                  <Typography variant="subtitle2" sx={{ textTransform: 'uppercase' }}>
+                                    {(source.platform || source.source_type || 'fonte').toUpperCase()}
+                                  </Typography>
+                                  <Chip size="small" variant="outlined" label={source.status} />
+                                </Stack>
+                                <Typography variant="caption">{source.url || source.handle}</Typography>
+                                {source.last_fetched_at && (
+                                  <Typography variant="caption" color="text.secondary" display="block">
+                                    Última coleta: {new Date(source.last_fetched_at).toLocaleString()}
+                                  </Typography>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 1 }}>
+                          Nenhuma fonte sincronizada.
+                        </Typography>
+                      )}
+                    </Box>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Radar & Insights */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Radar & Insights" sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Keywords (Radar)" value={form.keywords_text} onChange={(e) => updateForm({ keywords_text: e.target.value })} placeholder="palavras-chave separadas por vírgula" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Pillars (Radar)" value={form.pillars_text} onChange={(e) => updateForm({ pillars_text: e.target.value })} placeholder="pilares estratégicos" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Hashtags oficiais" value={form.knowledge.hashtags_text} onChange={(e) => updateKnowledge({ hashtags_text: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Menções obrigatórias" value={form.knowledge.must_mentions_text} onChange={(e) => updateKnowledge({ must_mentions_text: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Termos aprovados" value={form.knowledge.approved_terms_text} onChange={(e) => updateKnowledge({ approved_terms_text: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Claims proibidos" value={form.knowledge.forbidden_claims_text} onChange={(e) => updateKnowledge({ forbidden_claims_text: e.target.value })} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField fullWidth size="small" multiline rows={2} label="Observações estratégicas" value={form.knowledge.notes} onChange={(e) => updateKnowledge({ notes: e.target.value })} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Calendário Inteligente */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Calendário Inteligente" sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.enable_calendar_total} onChange={(e) => updateCalendar({ enable_calendar_total: e.target.checked })} />
+                      <Typography variant="body2">Ativar calendário total</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" type="number" label="Peso do calendário" inputProps={{ min: 0, max: 100 }} value={form.calendar_profile.calendar_weight} onChange={(e) => updateCalendar({ calendar_weight: Number(e.target.value) })} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.retail_mode} onChange={(e) => updateCalendar({ retail_mode: e.target.checked })} />
+                      <Typography variant="body2">Modo varejo</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.allow_cultural_opportunities} onChange={(e) => updateCalendar({ allow_cultural_opportunities: e.target.checked })} />
+                      <Typography variant="body2">Oportunidades culturais</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.allow_geek_pop} onChange={(e) => updateCalendar({ allow_geek_pop: e.target.checked })} />
+                      <Typography variant="body2">Geek &amp; Pop</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.allow_profession_days} onChange={(e) => updateCalendar({ allow_profession_days: e.target.checked })} />
+                      <Typography variant="body2">Datas profissionais</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.calendar_profile.restrict_sensitive_causes} onChange={(e) => updateCalendar({ restrict_sensitive_causes: e.target.checked })} />
+                      <Typography variant="body2">Restringir causas sensíveis</Typography>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Tendências & Performance */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Tendências & Performance" sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Switch checked={form.trend_profile.enable_trends} onChange={(e) => updateTrend({ enable_trends: e.target.checked })} />
+                      <Typography variant="body2">Ativar tendências</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" type="number" label="Peso de tendências" inputProps={{ min: 0, max: 100 }} value={form.trend_profile.trend_weight} onChange={(e) => updateTrend({ trend_weight: Number(e.target.value) })} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField fullWidth size="small" label="Fontes de tendências (ex: google, youtube)" value={form.trend_profile.sources_text} onChange={(e) => updateTrend({ sources_text: e.target.value })} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Preferências de Plataforma */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Preferências de Plataforma" sx={{ mb: 2 }} />
+                <TextField fullWidth size="small" multiline rows={4} label="JSON (preferredFormats, blockedFormats, mix, etc.)" value={form.platform_preferences_text} onChange={(e) => updateForm({ platform_preferences_text: e.target.value })} />
+              </CardContent>
+            </Card>
+
+            {/* Integrações */}
+            <Card variant="outlined">
+              <CardContent>
+                <Chip size="small" label="Integrações" sx={{ mb: 2 }} />
+                {!selectedId ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                    Salve o cliente para habilitar integrações.
+                  </Typography>
+                ) : (
+                  <>
+                    {connectors.length > 0 && (
+                      <Stack spacing={1} sx={{ mb: 2 }}>
+                        {connectors.map((connector) => (
+                          <Card key={connector.provider} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Typography variant="subtitle2">{connector.provider}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {connector.updated_at ? new Date(connector.updated_at).toLocaleDateString() : 'OK'}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    )}
+                    {connectors.length === 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
+                        Nenhum conector cadastrado.
+                      </Typography>
+                    )}
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField fullWidth size="small" select label="Provider" value={connectorProvider} onChange={(e) => setConnectorProvider(e.target.value)}>
+                          <MenuItem value="reportei">Reportei</MenuItem>
+                          <MenuItem value="meta">Meta</MenuItem>
+                          <MenuItem value="linkedin">LinkedIn</MenuItem>
+                          <MenuItem value="tiktok">TikTok</MenuItem>
+                          <MenuItem value="youtube">YouTube</MenuItem>
+                          <MenuItem value="x">X (Twitter)</MenuItem>
+                          <MenuItem value="google_ads">Google Ads</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField fullWidth size="small" multiline rows={3} label="Payload (JSON)" value={connectorPayload} onChange={(e) => setConnectorPayload(e.target.value)} placeholder='{"reportei_account_id":"123"}' />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField fullWidth size="small" multiline rows={3} label="Secrets (JSON)" value={connectorSecrets} onChange={(e) => setConnectorSecrets(e.target.value)} placeholder='{"token":"..."}' />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Button variant="contained" onClick={handleSaveConnector} disabled={connectorSaving}>
+                          {connectorSaving ? 'Salvando...' : 'Salvar conector'}
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Actions */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+                  {!isNew && selectedId && (
+                    <Button variant="outlined" color="error" onClick={handleDelete} disabled={deleting}>
+                      {deleting ? 'Excluindo...' : 'Excluir cliente'}
+                    </Button>
+                  )}
+                  <Button variant="contained" onClick={handleSave} disabled={saving}>
+                    {saving ? 'Salvando...' : 'Salvar cliente'}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+      </Grid>
+    </Stack>
   );
 
   if (noShell) {
@@ -1836,7 +1695,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
           ? undefined
           : {
               label: 'Novo cliente',
-              icon: 'add',
+              icon: <IconPlus size={18} />,
               onClick: handleNewClient,
             }
       }

@@ -5,6 +5,23 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { WORKFLOW_STAGES_UI, STAGE_COLORS } from '@edro/shared/workflow';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import {
+  IconBuilding,
+  IconCheck,
+  IconChevronRight,
+  IconPhoto,
+  IconUser,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -146,30 +163,25 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Carregando briefing...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">Carregando briefing...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (error || !briefing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Erro</h3>
-          <p className="text-slate-600 mb-4">{error || 'Briefing não encontrado.'}</p>
-          <button
-            onClick={handleBack}
-            className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800"
-          >
-            Voltar
-          </button>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x26A0;&#xFE0F;</Typography>
+          <Typography variant="h6">Erro</Typography>
+          <Typography variant="body2" color="text.secondary">{error || 'Briefing não encontrado.'}</Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -181,221 +193,260 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     <AppShell
       title={briefing.title}
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <button
-            onClick={handleBack}
-            className="text-slate-500 hover:text-slate-700 transition-colors"
-          >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button size="small" onClick={handleBack} sx={{ color: 'text.secondary', textTransform: 'none' }}>
             Edro
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium truncate max-w-md">{briefing.title}</span>
-        </nav>
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 400 }}>
+            {briefing.title}
+          </Typography>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-7xl mx-auto">
+      <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
         {/* Header */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">{briefing.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-slate-600">
-                {briefing.client_name && (
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">business</span>
-                    {briefing.client_name}
-                  </div>
-                )}
-                {briefing.traffic_owner && (
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">person</span>
-                    {briefing.traffic_owner}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-slate-500">Status Atual</div>
-              <div className="text-lg font-semibold text-slate-900 capitalize">
-                {briefing.status.replace('_', ' ')}
-              </div>
-            </div>
-          </div>
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography variant="h4" sx={{ mb: 1 }}>{briefing.title}</Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  {briefing.client_name && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconBuilding size={16} />
+                      <Typography variant="body2" color="text.secondary">{briefing.client_name}</Typography>
+                    </Stack>
+                  )}
+                  {briefing.traffic_owner && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconUser size={16} />
+                      <Typography variant="body2" color="text.secondary">{briefing.traffic_owner}</Typography>
+                    </Stack>
+                  )}
+                </Stack>
+              </Box>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" color="text.secondary">Status Atual</Typography>
+                <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>
+                  {briefing.status.replace('_', ' ')}
+                </Typography>
+              </Box>
+            </Stack>
 
-          {briefing.payload && (
-            <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-sm">
-              {briefing.payload.objective && (
-                <div>
-                  <div className="text-slate-500">Objetivo</div>
-                  <div className="text-slate-900 font-medium">{briefing.payload.objective}</div>
-                </div>
-              )}
-              {briefing.payload.target_audience && (
-                <div>
-                  <div className="text-slate-500">Público-Alvo</div>
-                  <div className="text-slate-900">{briefing.payload.target_audience}</div>
-                </div>
-              )}
-              {briefing.payload.channels && (
-                <div>
-                  <div className="text-slate-500">Canais</div>
-                  <div className="text-slate-900">{briefing.payload.channels}</div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            {briefing.payload && (
+              <Grid container spacing={2} sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                {briefing.payload.objective && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="body2" color="text.secondary">Objetivo</Typography>
+                    <Typography variant="body2" fontWeight={500}>{briefing.payload.objective}</Typography>
+                  </Grid>
+                )}
+                {briefing.payload.target_audience && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="body2" color="text.secondary">Público-Alvo</Typography>
+                    <Typography variant="body2">{briefing.payload.target_audience}</Typography>
+                  </Grid>
+                )}
+                {briefing.payload.channels && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="body2" color="text.secondary">Canais</Typography>
+                    <Typography variant="body2">{briefing.payload.channels}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Kanban Board */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <Grid container spacing={2} sx={{ mb: 3 }}>
           {WORKFLOW_STAGES_UI.map((workflowStage) => {
             const stageData = getStageStatus(workflowStage.key);
             const status = stageData?.status || 'pending';
-            const colorClass = STAGE_COLORS[workflowStage.color] || STAGE_COLORS.blue;
 
             const isPending = status === 'pending';
             const isInProgress = status === 'in_progress';
             const isDone = status === 'done';
 
             return (
-              <div
-                key={workflowStage.key}
-                className={`rounded-lg border-2 p-4 transition-all ${
-                  isDone
-                    ? 'bg-green-50 border-green-300'
-                    : isInProgress
-                      ? `${colorClass} border-2`
-                      : 'bg-slate-50 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <span
-                    className={`material-symbols-outlined text-2xl ${
-                      isDone ? 'text-green-600' : isInProgress ? '' : 'text-slate-400'
-                    }`}
-                  >
-                    {isDone ? 'check_circle' : workflowStage.icon}
-                  </span>
-                  <div>
-                    <div className="font-semibold text-sm">{workflowStage.label}</div>
-                    <div className="text-xs text-slate-500 capitalize">{status}</div>
-                  </div>
-                </div>
+              <Grid key={workflowStage.key} size={{ xs: 12, sm: 6, md: 3 }}>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    height: '100%',
+                    borderWidth: 2,
+                    borderColor: isDone
+                      ? 'success.light'
+                      : isInProgress
+                        ? 'primary.light'
+                        : 'divider',
+                    bgcolor: isDone
+                      ? 'success.50'
+                      : isInProgress
+                        ? 'primary.50'
+                        : 'background.paper',
+                  }}
+                >
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                    {isDone ? (
+                      <IconCheck size={24} color="green" />
+                    ) : (
+                      <Typography variant="h6" sx={{ color: isInProgress ? 'primary.main' : 'text.disabled' }}>
+                        {workflowStage.icon}
+                      </Typography>
+                    )}
+                    <Box>
+                      <Typography variant="subtitle2">{workflowStage.label}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                        {status}
+                      </Typography>
+                    </Box>
+                  </Stack>
 
-                {isPending && (
-                  <button
-                    onClick={() => handleStageAction(workflowStage.key, 'start')}
-                    disabled={actionLoading === workflowStage.key}
-                    className="w-full px-3 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 transition-colors disabled:opacity-50"
-                  >
-                    {actionLoading === workflowStage.key ? 'Iniciando...' : 'Iniciar'}
-                  </button>
-                )}
-
-                {isInProgress && (
-                  <div className="space-y-2">
-                    {workflowStage.key === 'copy_ia' && copies.length === 0 && (
-                      <button
-                        onClick={handleGenerateCopy}
-                        disabled={actionLoading === 'copy_ia'}
-                        className="w-full px-3 py-2 text-sm bg-cyan-600 text-white rounded hover:bg-cyan-700 transition-colors disabled:opacity-50"
-                      >
-                        {actionLoading === 'copy_ia' ? 'Gerando...' : 'Gerar Copies'}
-                      </button>
-                    )}
-                    {workflowStage.key === 'aprovacao' && copies.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
-                        className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
-                      >
-                        Aprovar Copies
-                      </button>
-                    )}
-                    {workflowStage.key === 'producao' && (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/edro/${briefingId}/producao`)}
-                        className="w-full px-3 py-2 text-sm bg-pink-600 text-white rounded hover:bg-pink-700 transition-colors"
-                      >
-                        Atribuir Designer
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleStageAction(workflowStage.key, 'complete')}
+                  {isPending && (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      size="small"
+                      onClick={() => handleStageAction(workflowStage.key, 'start')}
                       disabled={actionLoading === workflowStage.key}
-                      className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
                     >
-                      {actionLoading === workflowStage.key ? 'Concluindo...' : 'Concluir'}
-                    </button>
-                  </div>
-                )}
+                      {actionLoading === workflowStage.key ? 'Iniciando...' : 'Iniciar'}
+                    </Button>
+                  )}
 
-                {isDone && stageData?.updated_at && (
-                  <div className="text-xs text-slate-500">
-                    {new Date(stageData.updated_at).toLocaleString('pt-BR')}
-                  </div>
-                )}
-              </div>
+                  {isInProgress && (
+                    <Stack spacing={1}>
+                      {workflowStage.key === 'copy_ia' && copies.length === 0 && (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          size="small"
+                          color="info"
+                          onClick={handleGenerateCopy}
+                          disabled={actionLoading === 'copy_ia'}
+                        >
+                          {actionLoading === 'copy_ia' ? 'Gerando...' : 'Gerar Copies'}
+                        </Button>
+                      )}
+                      {workflowStage.key === 'aprovacao' && copies.length > 0 && (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          size="small"
+                          color="warning"
+                          onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
+                        >
+                          Aprovar Copies
+                        </Button>
+                      )}
+                      {workflowStage.key === 'producao' && (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          size="small"
+                          sx={{ bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark' } }}
+                          onClick={() => router.push(`/edro/${briefingId}/producao`)}
+                        >
+                          Atribuir Designer
+                        </Button>
+                      )}
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        size="small"
+                        color="success"
+                        onClick={() => handleStageAction(workflowStage.key, 'complete')}
+                        disabled={actionLoading === workflowStage.key}
+                      >
+                        {actionLoading === workflowStage.key ? 'Concluindo...' : 'Concluir'}
+                      </Button>
+                    </Stack>
+                  )}
+
+                  {isDone && stageData?.updated_at && (
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(stageData.updated_at).toLocaleString('pt-BR')}
+                    </Typography>
+                  )}
+                </Card>
+              </Grid>
             );
           })}
-        </div>
+        </Grid>
 
         {/* Copies Section */}
         {copies.length > 0 && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Copies Geradas ({copies.length})
-            </h2>
-            <div className="space-y-4">
-              {copies.map((copy, index) => (
-                <div key={copy.id} className="p-4 bg-slate-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-medium text-slate-900">Versão {index + 1}</div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateCreative(copy.id)}
-                        disabled={actionLoading === 'creative'}
-                        className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-sm">image</span>
-                        {actionLoading === 'creative' ? 'Gerando...' : 'Gerar Criativo'}
-                      </button>
-                      <div className="text-xs text-slate-500">
-                        {new Date(copy.created_at).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-slate-700 whitespace-pre-wrap">{copy.output}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Copies Geradas ({copies.length})
+              </Typography>
+              <Stack spacing={2}>
+                {copies.map((copy, index) => (
+                  <Card key={copy.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2">Versão {index + 1}</Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="secondary"
+                            startIcon={<IconPhoto size={14} />}
+                            onClick={() => handleGenerateCreative(copy.id)}
+                            disabled={actionLoading === 'creative'}
+                          >
+                            {actionLoading === 'creative' ? 'Gerando...' : 'Gerar Criativo'}
+                          </Button>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(copy.created_at).toLocaleString('pt-BR')}
+                          </Typography>
+                        </Stack>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {copy.output}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
         )}
 
         {/* Tasks Section */}
         {tasks.length > 0 && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Tarefas ({tasks.length})
-            </h2>
-            <div className="space-y-3">
-              {tasks.map((task) => (
-                <div key={task.id} className="p-4 bg-slate-50 rounded-lg flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-slate-900 capitalize">{task.type}</div>
-                    <div className="text-sm text-slate-600">Atribuído: {task.assigned_to}</div>
-                  </div>
-                  <div className="px-3 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-medium capitalize">
-                    {task.status}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Tarefas ({tasks.length})
+              </Typography>
+              <Stack spacing={1.5}>
+                {tasks.map((task) => (
+                  <Card key={task.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
+                            {task.type}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Atribuído: {task.assigned_to}
+                          </Typography>
+                        </Box>
+                        <Chip size="small" label={task.status} sx={{ textTransform: 'capitalize' }} />
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
         )}
-      </div>
+      </Box>
     </AppShell>
   );
 }

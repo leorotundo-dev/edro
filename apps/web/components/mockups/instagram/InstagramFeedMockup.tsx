@@ -7,139 +7,754 @@ interface InstagramFeedMockupProps {
   likes?: number;
   caption?: string;
   comments?: Array<{ username: string; text: string }>;
+  location?: string;
+  dateLabel?: string;
+  likedBy?: string;
 }
 
+const styles = `.rectangle {
+  width: 375px;
+  height: 54px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  background: white;
+  box-shadow: 0px 0.33000001311302185px 0px rgba(60, 60, 67, 0.29);
+}
+
+.tokyojapan_span {
+  color: #262626;
+  font-size: 11px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.07px;
+  word-wrap: break-word;
+}
+
+.tokyo-japan {
+  left: 52px;
+  top: 30px;
+  position: absolute;
+}
+
+.joshua_l_span {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 600;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.joshua_l {
+  left: 52px;
+  top: 11px;
+  position: absolute;
+}
+
+.oval {
+  width: 32px;
+  height: 32px;
+  left: 10px;
+  top: 11px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.rectangle_01 {
+  width: 375px;
+  height: 375px;
+  left: 0px;
+  top: 240px;
+  position: absolute;
+}
+
+.rectangle_02 {
+  width: 34px;
+  height: 26px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  background: rgba(18, 18, 18, 0.70);
+  border-radius: 13px;
+}
+
+.f3_span {
+  color: #F9F9F9;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.text-13 {
+  left: 8px;
+  top: 6px;
+  position: absolute;
+}
+
+.rectangle_03 {
+  width: 375px;
+  height: 147px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  background: white;
+}
+
+.september19_span {
+  color: rgba(0, 0, 0, 0.40);
+  font-size: 11px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.05px;
+  word-wrap: break-word;
+}
+
+.september-19 {
+  left: 15px;
+  top: 121px;
+  position: absolute;
+}
+
+.joshua_lthegamein_span_01 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 600;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.joshua_lthegamein_span_02 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.joshua_lthegamein_span_03 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.joshua_l-the-game-in {
+  width: 345px;
+  left: 15px;
+  top: 72px;
+  position: absolute;
+}
+
+.likedbycraig_love_span_01 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.likedbycraig_love_span_02 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 600;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.likedbycraig_love_span_03 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.likedbycraig_love_span_04 {
+  color: #262626;
+  font-size: 13px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 600;
+  line-height: 18px;
+  word-wrap: break-word;
+}
+
+.liked-by-craig_love {
+  left: 24px;
+  top: 0px;
+  position: absolute;
+}
+
+.oval_01 {
+  width: 17px;
+  height: 17px;
+  left: 0.50px;
+  top: 2px;
+  position: absolute;
+}
+
+.oval_02 {
+  width: 6px;
+  height: 6px;
+  left: 174.50px;
+  top: 21px;
+  position: absolute;
+  background: #3897F0;
+}
+
+.oval_03 {
+  width: 6px;
+  height: 6px;
+  left: 184.50px;
+  top: 21px;
+  position: absolute;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.oval_04 {
+  width: 6px;
+  height: 6px;
+  left: 194.50px;
+  top: 21px;
+  position: absolute;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.mask {
+  width: 375px;
+  height: 98px;
+  left: 0px;
+  top: 88px;
+  position: absolute;
+  background: white;
+  box-shadow: 0px 0.33000001311302185px 0px rgba(60, 60, 67, 0.29);
+}
+
+.mask_01 {
+  width: 375px;
+  height: 98px;
+  left: 0px;
+  top: 88px;
+  position: absolute;
+  background: white;
+  box-shadow: 0px 0.33000001311302185px 0px rgba(60, 60, 67, 0.29);
+}
+
+.oval-copy {
+  width: 62px;
+  height: 62px;
+  left: 10px;
+  top: 97px;
+  position: absolute;
+  outline: 2px #FBAA47 solid;
+  outline-offset: -1px;
+}
+
+.inner-oval {
+  width: 56px;
+  height: 56px;
+  left: 13px;
+  top: 100px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.yourstory_span {
+  color: #262626;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.your-story {
+  left: 11.50px;
+  top: 164px;
+  position: absolute;
+  text-align: center;
+}
+
+.oval-copy_01 {
+  width: 62px;
+  height: 62px;
+  left: 174px;
+  top: 97px;
+  position: absolute;
+  outline: 2px #FBAA47 solid;
+  outline-offset: -1px;
+}
+
+.inner-oval_01 {
+  width: 56px;
+  height: 56px;
+  left: 177px;
+  top: 100px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.zackjohn_span {
+  color: #262626;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.zackjohn {
+  left: 179.50px;
+  top: 164px;
+  position: absolute;
+  text-align: center;
+}
+
+.oval-copy_02 {
+  width: 62px;
+  height: 62px;
+  left: 256px;
+  top: 97px;
+  position: absolute;
+  outline: 2px #FBAA47 solid;
+  outline-offset: -1px;
+}
+
+.inner-oval_02 {
+  width: 56px;
+  height: 56px;
+  left: 259px;
+  top: 100px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.kieron_d_span {
+  color: #262626;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.kieron_d {
+  left: 263px;
+  top: 164px;
+  position: absolute;
+  text-align: center;
+}
+
+.oval-copy_03 {
+  width: 62px;
+  height: 62px;
+  left: 338px;
+  top: 97px;
+  position: absolute;
+  outline: 2px #FBAA47 solid;
+  outline-offset: -1px;
+}
+
+.inner-oval_03 {
+  width: 56px;
+  height: 56px;
+  left: 341px;
+  top: 100px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.craig_love_span {
+  color: #262626;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.craig_love {
+  left: 340.50px;
+  top: 164px;
+  position: absolute;
+  text-align: center;
+}
+
+.oval-copy_04 {
+  width: 62px;
+  height: 62px;
+  left: 92px;
+  top: 97px;
+  position: absolute;
+  outline: 2px #E20337 solid;
+  outline-offset: -1px;
+}
+
+.inner-oval_04 {
+  width: 56px;
+  height: 56px;
+  left: 95px;
+  top: 100px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.karennne_span {
+  color: #262626;
+  font-size: 12px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.karennne {
+  left: 97px;
+  top: 164px;
+  position: absolute;
+  text-align: center;
+}
+
+.rectangle_04 {
+  width: 26px;
+  height: 16px;
+  left: 110px;
+  top: 148px;
+  position: absolute;
+  background: linear-gradient(126deg, #C90083 0%, #D22463 22%, #E10038 100%);
+  border-radius: 3px;
+  outline: 2px #FEFEFE solid;
+  outline-offset: -1px;
+}
+
+.live_span {
+  color: #FEFEFE;
+  font-size: 8px;
+  font-family: "SF Pro Display", "Inter", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.50px;
+  word-wrap: break-word;
+}
+
+.live {
+  left: 114px;
+  top: 151px;
+  position: absolute;
+  text-align: center;
+}
+
+.rectangle_05 {
+  width: 375px;
+  height: 79px;
+  left: 0px;
+  top: 733px;
+  position: absolute;
+  background: #FAFAFA;
+  box-shadow: 0px -0.33000001311302185px 0px #A6A6AA;
+}
+
+.rectangle_06 {
+  width: 75px;
+  height: 50px;
+  left: 300px;
+  top: 733px;
+  position: absolute;
+  background: rgba(250, 250, 250, 0);
+}
+
+.oval_05 {
+  width: 23px;
+  height: 23px;
+  left: 326px;
+  top: 744px;
+  position: absolute;
+  border: 0.50px rgba(0, 0, 0, 0.10) solid;
+}
+
+.rectangle_07 {
+  width: 75px;
+  height: 50px;
+  left: 225px;
+  top: 733px;
+  position: absolute;
+  background: rgba(250, 250, 250, 0);
+}
+
+.rectangle_08 {
+  width: 75px;
+  height: 50px;
+  left: 150px;
+  top: 733px;
+  position: absolute;
+  background: rgba(250, 250, 250, 0);
+}
+
+.rectangle_09 {
+  width: 75px;
+  height: 50px;
+  left: 75px;
+  top: 733px;
+  position: absolute;
+  background: rgba(250, 250, 250, 0);
+}
+
+.rectangle_10 {
+  width: 75px;
+  height: 50px;
+  left: 0px;
+  top: 733px;
+  position: absolute;
+  background: rgba(250, 250, 250, 0);
+}
+
+.shape_09 {
+  width: 22px;
+  height: 23.38px;
+  left: 26px;
+  top: 743.62px;
+  position: absolute;
+  background: #262626;
+}
+
+.rectangle_11 {
+  width: 375px;
+  height: 88px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  background: #FAFAFA;
+  box-shadow: 0px 0.33000001311302185px 0px #A6A6AA;
+}
+
+.oval_06 {
+  width: 8px;
+  height: 8px;
+  left: 310px;
+  top: 54.25px;
+  position: absolute;
+  background: #ED4956;
+}
+
+.rectangle--background {
+  width: 375px;
+  height: 44px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+}
+
+.rectangle_15 {
+  width: 18px;
+  height: 6.50px;
+  left: 338px;
+  top: 20px;
+  position: absolute;
+  background: #060606;
+  border-radius: 1px;
+}
+
+.f41_span {
+  color: #171717;
+  font-size: 15px;
+  font-family: "SF Pro Text", "Inter", sans-serif;
+  font-weight: 600;
+  word-wrap: break-word;
+}
+
+.text-941 {
+  width: 54px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  text-align: center;
+}
+
+.rectangle--background_01 {
+  width: 375px;
+  height: 34px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+}
+
+.line {
+  width: 134px;
+  height: 5px;
+  left: 121px;
+  top: 20px;
+  position: absolute;
+  background: #060606;
+  border-radius: 100px;
+}
+
+.time-style {
+  width: 54px;
+  height: 18px;
+  left: 21px;
+  top: 14px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.post-top {
+  width: 375px;
+  height: 54px;
+  left: 0px;
+  top: 186px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.photo-number {
+  width: 34px;
+  height: 26px;
+  left: 327px;
+  top: 254px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.likes-info {
+  width: 263px;
+  height: 19px;
+  left: 15px;
+  top: 48px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.bars-home-indicator {
+  width: 375px;
+  height: 34px;
+  left: 0px;
+  top: 778px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.bars-status-bar-iphone-x {
+  width: 375px;
+  height: 44px;
+  left: 0px;
+  top: 0px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.post-bottom {
+  width: 375px;
+  height: 147px;
+  left: 0px;
+  top: 615px;
+  position: absolute;
+  overflow: hidden;
+}
+
+.instagram-main {
+  width: 375px;
+  height: 812px;
+  position: relative;
+  background: white;
+  overflow: hidden;
+}`;
+
 export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
-  username = 'username',
+  username = 'joshua_l',
   profileImage = '',
   postImage = '',
-  likes = 131,
-  caption = 'Any example text will goes here',
-  comments = [
-    { username: 'example_user', text: 'Wonderful' },
-    { username: 'user_example', text: 'Loved this one!' }
-  ]
+  likes = 44686,
+  caption = 'The game in Japan was amazing and I want to share some photos',
+  comments = [],
+  location = 'Tokyo, Japan',
+  dateLabel = 'September 19',
+  likedBy,
 }) => {
+  const assetBase = '/ux/instagram-figma';
+  const resolvedProfileImage = profileImage || `${assetBase}/Oval_32x32.png`;
+  const resolvedPostImage = postImage || `${assetBase}/Rectangle_375x375.png`;
+  const resolvedLikedBy = likedBy || comments[0]?.username || 'craig_love';
+  const likesLabel = typeof likes === 'number' ? likes.toLocaleString('en-US') : String(likes);
+
   return (
-    <div className="w-[375px] h-[667px] bg-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col relative">
-      {/* Status Bar */}
-      <div className="h-11 bg-white flex items-center justify-between px-6">
-        <span className="text-sm font-semibold">9:41</span>
-        <div className="flex items-center gap-1">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-          </svg>
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-          </svg>
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <rect x="1" y="5" width="22" height="14" rx="2"/>
-          </svg>
+    <>
+      <div className="instagram-main">
+        <div className="post-top">
+          <div className="rectangle"></div>
+          <div className="tokyo-japan"><span className="tokyojapan_span">{location}</span></div>
+          <div className="joshua_l"><span className="joshua_l_span">{username}</span></div>
+          <img className="oval" src={resolvedProfileImage} alt={`${username} avatar`} />
         </div>
-      </div>
-
-      {/* Instagram Header */}
-      <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-        </svg>
-        <span className="font-semibold text-base">Posts</span>
-        <div className="w-6" />
-      </div>
-
-      {/* Post Header */}
-      <div className="h-14 bg-white flex items-center justify-between px-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 p-[2px]">
-            <div className="w-full h-full rounded-full bg-white p-[2px]">
-              {profileImage ? (
-                <img src={profileImage} alt={username} className="w-full h-full rounded-full object-cover" />
-              ) : (
-                <div className="w-full h-full rounded-full bg-gray-200" />
-              )}
-            </div>
+        <img className="rectangle_01" src={resolvedPostImage} alt="Post" />
+        <div className="photo-number">
+          <div className="rectangle_02"></div>
+          <div className="text-13"><span className="f3_span">1/3</span></div>
+        </div>
+        <div className="post-bottom">
+          <div className="rectangle_03"></div>
+          <div className="september-19"><span className="september19_span">{dateLabel}</span></div>
+          <div className="joshua_l-the-game-in">
+            <span className="joshua_lthegamein_span_01">{username}</span>
+            <span className="joshua_lthegamein_span_02"> </span>
+            <span className="joshua_lthegamein_span_03">{caption}</span>
           </div>
-          <span className="font-semibold text-sm">{username}</span>
+          <div className="likes-info">
+            <div className="liked-by-craig_love">
+              <span className="likedbycraig_love_span_01">Liked by </span>
+              <span className="likedbycraig_love_span_02">{resolvedLikedBy}</span>
+              <span className="likedbycraig_love_span_03"> and </span>
+              <span className="likedbycraig_love_span_04">{likesLabel} others</span>
+            </div>
+            <img className="oval_01" src={`${assetBase}/Oval_17x17.png`} alt="Like" />
+          </div>
+          <div className="oval_02"></div>
+          <div className="oval_03"></div>
+          <div className="oval_04"></div>
         </div>
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <circle cx="12" cy="5" r="2"/>
-          <circle cx="12" cy="12" r="2"/>
-          <circle cx="12" cy="19" r="2"/>
-        </svg>
-      </div>
-
-      {/* Post Image */}
-      <div className="w-full aspect-square bg-gray-100 relative flex items-center justify-center">
-        {postImage ? (
-          <img src={postImage} alt="Post" className="w-full h-full object-cover" />
-        ) : (
-          <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21" strokeWidth="2"/>
-          </svg>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div className="h-12 bg-white flex items-center justify-between px-3">
-        <div className="flex items-center gap-4">
-          <svg className="w-7 h-7 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-          </svg>
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
-          </svg>
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
+        <div className="mask"></div>
+        <div className="mask_01"></div>
+        <div className="oval-copy"></div>
+        <img className="inner-oval" src={`${assetBase}/Inner_Oval_56x56.png`} alt="Story" />
+        <div className="your-story"><span className="yourstory_span">Your Story</span></div>
+        <div className="oval-copy_01"></div>
+        <img className="inner-oval_01" src={`${assetBase}/Inner_Oval_56x56_1.png`} alt="Story" />
+        <div className="zackjohn"><span className="zackjohn_span">zackjohn</span></div>
+        <div className="oval-copy_02"></div>
+        <img className="inner-oval_02" src={`${assetBase}/Inner_Oval_56x56_2.png`} alt="Story" />
+        <div className="kieron_d"><span className="kieron_d_span">kieron_d</span></div>
+        <div className="oval-copy_03"></div>
+        <img className="inner-oval_03" src={`${assetBase}/Inner_Oval_56x56_3.png`} alt="Story" />
+        <div className="craig_love"><span className="craig_love_span">craig_love</span></div>
+        <div className="oval-copy_04"></div>
+        <img className="inner-oval_04" src={`${assetBase}/Inner_Oval_56x56_4.png`} alt="Story" />
+        <div className="karennne"><span className="karennne_span">karennne</span></div>
+        <div className="rectangle_04"></div>
+        <div className="live"><span className="live_span">LIVE</span></div>
+        <div className="rectangle_05"></div>
+        <div className="rectangle_06"></div>
+        <img className="oval_05" src={`${assetBase}/Oval_23x23.png`} alt="Live" />
+        <div className="rectangle_07"></div>
+        <div className="rectangle_08"></div>
+        <div className="rectangle_09"></div>
+        <div className="rectangle_10"></div>
+        <div className="shape_09"></div>
+        <div className="rectangle_11"></div>
+        <div className="oval_06"></div>
+        <div className="bars-status-bar-iphone-x">
+          <div className="rectangle--background"></div>
+          <div className="rectangle_15"></div>
+          <div className="time-style">
+            <div className="text-941"><span className="f41_span">9:41</span></div>
+          </div>
         </div>
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
-        </svg>
-      </div>
-
-      {/* Likes and Caption */}
-      <div className="flex-1 bg-white px-3 overflow-y-auto">
-        <p className="font-semibold text-sm mb-1">{likes} likes</p>
-        <p className="text-sm">
-          <span className="font-semibold">{username}</span> {caption}
-        </p>
-        
-        {/* Comments */}
-        <div className="mt-2 space-y-1">
-          {comments.map((comment, idx) => (
-            <p key={idx} className="text-sm">
-              <span className="font-semibold">{comment.username}</span> {comment.text}
-            </p>
-          ))}
+        <div className="bars-home-indicator">
+          <div className="rectangle--background_01"></div>
+          <div className="line"></div>
         </div>
       </div>
-
-      {/* Bottom Navigation */}
-      <div className="h-14 bg-white border-t border-gray-200 flex items-center justify-around">
-        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-        </svg>
-        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-        </svg>
-        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5"/>
-          <path d="M21 15l-5-5L5 21"/>
-        </svg>
-        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <rect x="2" y="7" width="20" height="14" rx="2"/>
-          <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
-        </svg>
-        <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 16v-4M12 8h.01"/>
-        </svg>
-      </div>
-    </div>
+      <style jsx>{styles}</style>
+    </>
   );
 };

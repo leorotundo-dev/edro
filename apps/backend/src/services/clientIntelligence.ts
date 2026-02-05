@@ -35,6 +35,114 @@ const DEFAULT_MAX_URLS = Number(process.env.CLIENT_INTEL_MAX_URLS || 60);
 const DEFAULT_MAX_DOCS = Number(process.env.CLIENT_INTEL_MAX_DOCS || 80);
 const DEFAULT_MAX_CHARS = Number(process.env.CLIENT_INTEL_MAX_CHARS || 20000);
 
+const GENERIC_KEYWORDS = new Set([
+  'feriado',
+  'oficial',
+  'profissao',
+  'profissão',
+  'historico',
+  'histórico',
+  'cultural',
+  'cultura',
+  'religiao',
+  'religião',
+  'catolico',
+  'católico',
+  'data',
+  'evento',
+  'comemoracao',
+  'comemoração',
+  'comemorativo',
+  'comemorativa',
+  'comemorativas',
+  'datas_comemorativas',
+  'celebracao',
+  'celebração',
+  'festa',
+  'natureza',
+  'fauna',
+  'capital',
+  'seguranca',
+  'segurança',
+  'industria',
+  'indústria',
+  'civico',
+  'cívico',
+  'nacional',
+  'regional',
+  'internacional',
+  'mundial',
+  'global',
+  'institucional',
+  'editorial',
+  'pauta_livre',
+  'orgulho_local',
+  'orgulho local',
+  'pertencimento',
+  'planejamento',
+  'promo',
+  'promocao',
+  'promoção',
+  'comunicacao',
+  'comunicação',
+  'turismo',
+  'lazer',
+  'arte',
+  'comportamental',
+  'pauta',
+  'celebrativo',
+  'datas',
+]);
+
+const STOPWORDS = new Set([
+  'dia',
+  'dias',
+  'do',
+  'da',
+  'dos',
+  'das',
+  'de',
+  'del',
+  'della',
+  'e',
+  'em',
+  'no',
+  'na',
+  'nos',
+  'nas',
+  'para',
+  'por',
+  'com',
+  'sem',
+  'a',
+  'o',
+  'as',
+  'os',
+  'um',
+  'uma',
+  'uns',
+  'umas',
+  'ao',
+  'aos',
+  'sao',
+  'são',
+  'santo',
+  'santa',
+  'sa',
+  's/a',
+  'ltda',
+  'me',
+  'eireli',
+  'holding',
+  'grupo',
+  'companhia',
+  'empresa',
+  'servico',
+  'servicos',
+  'serviço',
+  'serviços',
+]);
+
 type SocialProfile = Record<string, string[]>;
 
 const SOCIAL_PLATFORM_MAP: Record<string, string> = {
@@ -77,6 +185,64 @@ function normalizeMulti(value: string) {
     .split(/[,;\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeList(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return normalizeMulti(value);
+  }
+  return [];
+}
+
+function normalizeKeyword(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function cleanKeywordList(list: string[], max = 40) {
+  const dedup = new Map<string, string>();
+  list.forEach((item) => {
+    const raw = String(item || '').trim();
+    if (!raw) return;
+    const normalized = normalizeKeyword(raw);
+    if (!normalized) return;
+    if (normalized.length < 3) return;
+    if (/^\d+$/.test(normalized)) return;
+    if (STOPWORDS.has(normalized)) return;
+    if (GENERIC_KEYWORDS.has(normalized)) return;
+    if (!dedup.has(normalized)) dedup.set(normalized, raw);
+  });
+  return Array.from(dedup.values()).slice(0, max);
+}
+
+function mergeKeywordLists(base: string[], extra: string[], max = 40) {
+  const merged = [...base, ...extra];
+  return cleanKeywordList(merged, max);
+}
+
+function extractUrlsFromText(text: string) {
+  if (!text) return [];
+  const urls = Array.from(String(text).matchAll(/https?:\/\/[^\s)]+/gi)).map((match) => match[0]);
+  return urls.map((url) => url.replace(/[),.]+$/, ''));
+}
+
+function resolveSourceType(url: string) {
+  const lower = url.toLowerCase();
+  if (lower.includes('instagram.com')) return { type: 'social', platform: 'instagram' };
+  if (lower.includes('facebook.com')) return { type: 'social', platform: 'facebook' };
+  if (lower.includes('linkedin.com')) return { type: 'social', platform: 'linkedin' };
+  if (lower.includes('tiktok.com')) return { type: 'social', platform: 'tiktok' };
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) return { type: 'social', platform: 'youtube' };
+  if (lower.includes('twitter.com') || lower.includes('x.com')) return { type: 'social', platform: 'twitter' };
+  if (lower.includes('reddit.com')) return { type: 'social', platform: 'reddit' };
+  return { type: 'website', platform: 'website' };
 }
 
 function safeJsonParse(text: string): Record<string, any> | null {
@@ -208,6 +374,40 @@ export class ClientIntelligenceService {
         source_type: 'website',
         platform: 'website',
         url: website,
+        status: 'active',
+      });
+    }
+
+    const knowledge = client.profile?.knowledge_base || {};
+    const extraFields = [
+      knowledge.pages,
+      knowledge.urls,
+      knowledge.sources,
+      knowledge.links,
+      knowledge.extra_pages,
+      knowledge.extra_urls,
+    ];
+    const extraUrls = [
+      ...extraFields.flatMap((field: any) => normalizeList(field)),
+      ...extractUrlsFromText(knowledge.description || ''),
+      ...extractUrlsFromText(knowledge.notes || ''),
+      ...extractUrlsFromText(knowledge.differentiators || ''),
+    ];
+    const trendSources = normalizeList(client.profile?.trend_profile?.sources || []);
+    extraUrls.push(...trendSources);
+
+    const normalizedExtras = Array.from(
+      new Set(extraUrls.map((item) => normalizeUrl(item)).filter(Boolean))
+    );
+    for (const url of normalizedExtras) {
+      const resolved = resolveSourceType(url);
+      await upsertClientSource({
+        tenantId: this.tenantId,
+        clientId,
+        source_type: resolved.type,
+        platform: resolved.platform,
+        url,
+        handle: resolved.type === 'social' ? normalizeHandle(url) : null,
         status: 'active',
       });
     }
@@ -556,7 +756,34 @@ export class ClientIntelligenceService {
     });
     if (!docs.length) return;
 
-    const content = docs
+    const scoreDoc = (doc: any) => {
+      const url = String(doc.url || '').toLowerCase();
+      let score = 0;
+      if (doc.source_type === 'website') score += 40;
+      if (doc.source_type === 'sitemap') score += 30;
+      if (doc.source_type === 'rss') score += 20;
+      if (url.endsWith('/')) score += 5;
+      if (url.includes('/sobre') || url.includes('quem-somos')) score += 30;
+      if (url.includes('institucional') || url.includes('empresa')) score += 20;
+      if (url.includes('servicos') || url.includes('serviços') || url.includes('solucoes') || url.includes('soluções')) {
+        score += 18;
+      }
+      if (url.includes('produtos') || url.includes('portfolio')) score += 18;
+      if (url.includes('concess')) score += 18;
+      if (url.includes('infraestrutura')) score += 15;
+      if (url.includes('sustentabilidade') || url.includes('esg')) score += 12;
+      if (url.includes('investidores') || url.includes('relatorio') || url.includes('relatório')) score += 10;
+      if (url.includes('contato')) score += 8;
+      if (url.includes('blog') || url.includes('noticia') || url.includes('notícia') || url.includes('news')) {
+        score += 6;
+      }
+      if (url.includes('privacidade') || url.includes('cookies') || url.includes('termos')) score -= 40;
+      return score;
+    };
+
+    const prioritizedDocs = [...docs].sort((a, b) => scoreDoc(b) - scoreDoc(a));
+
+    const content = prioritizedDocs
       .map((doc) => `URL: ${doc.url || 'n/a'}\nTITULO: ${doc.title || ''}\nTEXTO: ${doc.content_text || ''}`)
       .join('\n\n---\n\n')
       .slice(0, DEFAULT_MAX_CHARS);
@@ -568,7 +795,9 @@ language (array), territories (array), industry (string), business (string), cha
 products (array), services (array), audience (string), personas (array), positioning (string),
 tone (string), qualitative_insights (array), quantitative_signals (array),
 keywords (array), pillars (array), competitors (array), opportunities (array),
-risks (array), summary_text (string).
+risks (array), strategic_terms (array), brand_entities (array),
+hashtags (array), must_mentions (array), approved_terms (array), forbidden_claims (array),
+strategic_notes (array), summary_text (string).
 `;
 
     const prompt = `Conteúdos:\n${content}\n\nRetorne apenas JSON.`;
@@ -616,8 +845,32 @@ risks (array), summary_text (string).
       };
     }
 
+    const normalizedSummary: Record<string, any> = { ...(parsed || {}) };
+    const normalizeFieldList = (value: any) => normalizeList(value);
+
+    normalizedSummary.language = normalizeFieldList(normalizedSummary.language);
+    normalizedSummary.territories = normalizeFieldList(normalizedSummary.territories);
+    normalizedSummary.channels = normalizeFieldList(normalizedSummary.channels);
+    normalizedSummary.products = normalizeFieldList(normalizedSummary.products);
+    normalizedSummary.services = normalizeFieldList(normalizedSummary.services);
+    normalizedSummary.personas = normalizeFieldList(normalizedSummary.personas);
+    normalizedSummary.qualitative_insights = normalizeFieldList(normalizedSummary.qualitative_insights);
+    normalizedSummary.quantitative_signals = normalizeFieldList(normalizedSummary.quantitative_signals);
+    normalizedSummary.keywords = normalizeFieldList(normalizedSummary.keywords);
+    normalizedSummary.pillars = normalizeFieldList(normalizedSummary.pillars);
+    normalizedSummary.competitors = normalizeFieldList(normalizedSummary.competitors);
+    normalizedSummary.opportunities = normalizeFieldList(normalizedSummary.opportunities);
+    normalizedSummary.risks = normalizeFieldList(normalizedSummary.risks);
+    normalizedSummary.strategic_terms = normalizeFieldList(normalizedSummary.strategic_terms);
+    normalizedSummary.brand_entities = normalizeFieldList(normalizedSummary.brand_entities);
+    normalizedSummary.hashtags = normalizeFieldList(normalizedSummary.hashtags);
+    normalizedSummary.must_mentions = normalizeFieldList(normalizedSummary.must_mentions);
+    normalizedSummary.approved_terms = normalizeFieldList(normalizedSummary.approved_terms);
+    normalizedSummary.forbidden_claims = normalizeFieldList(normalizedSummary.forbidden_claims);
+    normalizedSummary.strategic_notes = normalizeFieldList(normalizedSummary.strategic_notes);
+
     const summary = {
-      ...parsed,
+      ...normalizedSummary,
       sources: docs.length,
       updated_at: new Date().toISOString(),
     };
@@ -629,11 +882,12 @@ risks (array), summary_text (string).
     });
 
     // Update client profile knowledge base with intelligence summary
-    const { rows } = await query<any>(`SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2`, [
+    const { rows } = await query<any>(`SELECT name, profile FROM clients WHERE tenant_id=$1 AND id=$2`, [
       this.tenantId,
       clientId,
     ]);
     const row = rows[0];
+    const clientName = row?.name ? String(row.name) : '';
     const profile = row?.profile || {};
     const knowledge = profile.knowledge_base || {};
     knowledge.intelligence = {
@@ -641,6 +895,79 @@ risks (array), summary_text (string).
       summary_text: summary.summary_text || '',
       updated_at: summary.updated_at,
     };
+    knowledge.ai = {
+      ...knowledge.ai,
+      summary,
+      updated_at: summary.updated_at,
+    };
+
+    const fillField = (key: string, value: any) => {
+      if (!value) return;
+      const current = knowledge[key];
+      if (Array.isArray(value)) {
+        if (!Array.isArray(current) || current.length === 0) knowledge[key] = value;
+        return;
+      }
+      if (typeof value === 'string') {
+        if (!current || String(current).trim() === '') knowledge[key] = value;
+      }
+    };
+
+    fillField('industry', summary.industry);
+    fillField('business', summary.business);
+    fillField('positioning', summary.positioning);
+    fillField('audience', summary.audience);
+    fillField('territories', summary.territories);
+    fillField('channels', summary.channels);
+    fillField('products', summary.products);
+    fillField('services', summary.services);
+    fillField('personas', summary.personas);
+    fillField('competitors', summary.competitors);
+    fillField('opportunities', summary.opportunities);
+    fillField('risks', summary.risks);
+    fillField('keywords', summary.keywords);
+    fillField('pillars', summary.pillars);
+    fillField('hashtags', summary.hashtags);
+    fillField('must_mentions', summary.must_mentions);
+    fillField('approved_terms', summary.approved_terms);
+    fillField('forbidden_claims', summary.forbidden_claims);
+    fillField('notes', Array.isArray(summary.strategic_notes) ? summary.strategic_notes.join('\n') : summary.strategic_notes);
+
+    const derivedKeywords = cleanKeywordList([
+      ...normalizeList(summary.keywords),
+      ...normalizeList(summary.pillars),
+      ...normalizeList(summary.strategic_terms),
+      ...normalizeList(summary.brand_entities),
+      ...normalizeList(summary.hashtags),
+      ...normalizeList(summary.must_mentions),
+      ...normalizeList(summary.approved_terms),
+      ...normalizeList(summary.products),
+      ...normalizeList(summary.services),
+      ...normalizeList(summary.channels),
+      ...normalizeList(summary.territories),
+      ...normalizeList(summary.competitors),
+      ...(summary.industry ? [summary.industry] : []),
+      ...(summary.business ? [summary.business] : []),
+      ...(summary.positioning ? [summary.positioning] : []),
+      ...(clientName ? [clientName] : []),
+    ]);
+
+    const derivedPillars = cleanKeywordList(
+      [
+        ...normalizeList(summary.pillars),
+        ...normalizeList(summary.qualitative_insights),
+        ...normalizeList(summary.opportunities),
+      ],
+      20
+    );
+
+    profile.keywords = mergeKeywordLists(normalizeList(profile.keywords), derivedKeywords, 50);
+    if (normalizeList(profile.pillars).length) {
+      profile.pillars = mergeKeywordLists(normalizeList(profile.pillars), derivedPillars, 25);
+    } else {
+      profile.pillars = derivedPillars;
+    }
+
     profile.knowledge_base = knowledge;
 
     await query(`UPDATE clients SET profile=$3::jsonb, updated_at=NOW() WHERE tenant_id=$1 AND id=$2`, [

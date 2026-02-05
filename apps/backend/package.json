@@ -10,7 +10,8 @@
     "start": "node -e \"console.log('[start] backend start override'); require('ts-node/register/transpile-only'); require('./src/index.ts')\"",
     "db:migrate": "ts-node --transpile-only src/db/migrate.ts",
     "calendar:generate": "ts-node --transpile-only src/scripts/generateEdroCalendarMaster.ts",
-    "calendar:import": "ts-node --transpile-only src/scripts/importCalendarMaster.ts"
+    "calendar:import": "ts-node --transpile-only src/scripts/importCalendarCsv.ts",
+    "calendar:recalc": "ts-node --transpile-only src/scripts/recalcCalendarRelevance.ts"
   },
   "dependencies": {
     "@edro/shared": "workspace:*",

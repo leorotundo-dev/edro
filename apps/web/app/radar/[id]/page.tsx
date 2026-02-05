@@ -1,10 +1,9 @@
-import UxFrame from '@/components/UxFrame';
+import ClippingDetailClient from '@/app/clipping/ClippingDetailClient';
 
-export default function RadarDetailPage() {
-  return (
-    <UxFrame
-      title="Radar Detail"
-      src="/ux/edro_command_center_home_22_detail/code.html"
-    />
-  );
+type RadarDetailPageProps = {
+  params: { id: string };
+};
+
+export default function RadarDetailPage({ params }: RadarDetailPageProps) {
+  return <ClippingDetailClient itemId={params.id} />;
 }

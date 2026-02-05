@@ -1,0 +1,42 @@
+{
+  "name": "midia-on-mockups-completo",
+  "version": "1.0.0",
+  "description": "88 componentes React minimalistas para formatos digitais - Mídia ON completo",
+  "main": "index.js",
+  "keywords": [
+    "mockup",
+    "react",
+    "typescript",
+    "tailwind",
+    "social-media",
+    "instagram",
+    "facebook",
+    "linkedin",
+    "twitter",
+    "youtube",
+    "tiktok",
+    "whatsapp",
+    "pinterest",
+    "spotify",
+    "google-ads",
+    "display-ads",
+    "banners",
+    "digital-marketing",
+    "midia-on"
+  ],
+  "author": "MemoDrops",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "lucide-react": "^0.263.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0",
+    "tailwindcss": "^3.0.0",
+    "postcss": "^8.0.0",
+    "autoprefixer": "^10.0.0"
+  }
+}

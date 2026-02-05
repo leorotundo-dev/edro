@@ -148,33 +148,48 @@ export async function generateCopyWithValidation(params: GenerateParams): Promis
     creativeOutput: creativeResult.output,
   });
 
-  const validationResult = await CopyOrchestrator.orchestrate('validation', {
-    prompt: validationPrompt,
-    temperature: 0.2,
-    maxTokens: 1500,
-  });
+  try {
+    const validationResult = await CopyOrchestrator.orchestrate('validation', {
+      prompt: validationPrompt,
+      temperature: 0.2,
+      maxTokens: 1500,
+    });
 
-  const validation = parseJsonFromText(validationResult.output);
-  if (!validation.formatted_text || !Array.isArray(validation.copys)) {
-    throw new Error('Validation response missing formatted_text or copys');
+    const validation = parseJsonFromText(validationResult.output);
+    if (!validation.formatted_text || !Array.isArray(validation.copys)) {
+      throw new Error('Validation response missing formatted_text or copys');
+    }
+
+    return {
+      output: validation.formatted_text,
+      model: validationResult.model,
+      payload: {
+        creative_provider: creativeResult.provider,
+        creative_model: creativeResult.model,
+        creative_tier: creativeResult.tier,
+        creative_output: creativeResult.output,
+        review_provider: validationResult.provider,
+        review_model: validationResult.model,
+        review_tier: validationResult.tier,
+        review_json: validation,
+        review_raw: validationResult.output,
+        formatted_text: validation.formatted_text,
+      },
+    };
+  } catch (error: any) {
+    return {
+      output: creativeResult.output,
+      model: creativeResult.model,
+      payload: {
+        creative_provider: creativeResult.provider,
+        creative_model: creativeResult.model,
+        creative_tier: creativeResult.tier,
+        creative_output: creativeResult.output,
+        review_error: error?.message || 'validation_failed',
+        fallback: true,
+      },
+    };
   }
-
-  return {
-    output: validation.formatted_text,
-    model: validationResult.model,
-    payload: {
-      creative_provider: creativeResult.provider,
-      creative_model: creativeResult.model,
-      creative_tier: creativeResult.tier,
-      creative_output: creativeResult.output,
-      review_provider: validationResult.provider,
-      review_model: validationResult.model,
-      review_tier: validationResult.tier,
-      review_json: validation,
-      review_raw: validationResult.output,
-      formatted_text: validation.formatted_text,
-    },
-  };
 }
 
 /**
@@ -191,33 +206,49 @@ export async function generatePremiumCopy(params: GenerateParams): Promise<CopyP
   });
 
   // Etapa 2: Revisão estratégica (Claude)
-  const reviewResult = await CopyOrchestrator.orchestrate('final_review', {
-    prompt: buildValidationPrompt({
-      prompt: params.prompt,
-      creativeOutput: copyResult.output,
-    }),
-    temperature: 0.2,
-    maxTokens: 1500,
-  });
+  try {
+    const reviewResult = await CopyOrchestrator.orchestrate('final_review', {
+      prompt: buildValidationPrompt({
+        prompt: params.prompt,
+        creativeOutput: copyResult.output,
+      }),
+      temperature: 0.2,
+      maxTokens: 1500,
+    });
 
-  const validation = parseJsonFromText(reviewResult.output);
+    const validation = parseJsonFromText(reviewResult.output);
 
-  return {
-    output: validation.formatted_text || copyResult.output,
-    model: copyResult.model,
-    payload: {
-      creative_provider: copyResult.provider,
-      creative_model: copyResult.model,
-      creative_tier: copyResult.tier,
-      creative_output: copyResult.output,
-      review_provider: reviewResult.provider,
-      review_model: reviewResult.model,
-      review_tier: reviewResult.tier,
-      review_json: validation,
-      formatted_text: validation.formatted_text,
-      premium: true,
-    },
-  };
+    return {
+      output: validation.formatted_text || copyResult.output,
+      model: copyResult.model,
+      payload: {
+        creative_provider: copyResult.provider,
+        creative_model: copyResult.model,
+        creative_tier: copyResult.tier,
+        creative_output: copyResult.output,
+        review_provider: reviewResult.provider,
+        review_model: reviewResult.model,
+        review_tier: reviewResult.tier,
+        review_json: validation,
+        formatted_text: validation.formatted_text,
+        premium: true,
+      },
+    };
+  } catch (error: any) {
+    return {
+      output: copyResult.output,
+      model: copyResult.model,
+      payload: {
+        creative_provider: copyResult.provider,
+        creative_model: copyResult.model,
+        creative_tier: copyResult.tier,
+        creative_output: copyResult.output,
+        review_error: error?.message || 'final_review_failed',
+        premium: true,
+        fallback: true,
+      },
+    };
+  }
 }
 
 /**

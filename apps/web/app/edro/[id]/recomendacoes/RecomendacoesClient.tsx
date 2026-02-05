@@ -4,6 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPost } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import {
+  IconChevronRight,
+  IconPlugConnected,
+  IconBulb,
+  IconSparkles,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -86,26 +102,24 @@ export default function RecomendacoesClient({ briefingId }: { briefingId: string
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Carregando...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">Carregando...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (!briefing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <p className="text-slate-600 mb-4">{error || 'Briefing não encontrado.'}</p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar
-          </button>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x26A0;&#xFE0F;</Typography>
+          <Typography variant="body2" color="text.secondary">{error || 'Briefing não encontrado.'}</Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -113,140 +127,170 @@ export default function RecomendacoesClient({ briefingId }: { briefingId: string
     <AppShell
       title="Recomendações IA"
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <button onClick={() => router.push('/edro')} className="text-slate-500 hover:text-slate-700 transition-colors">
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            size="small"
+            onClick={() => router.push('/edro')}
+            sx={{ color: 'text.secondary', textTransform: 'none' }}
+          >
             Edro
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <button onClick={handleBack} className="text-slate-500 hover:text-slate-700 transition-colors truncate max-w-xs">
+          </Button>
+          <IconChevronRight size={14} />
+          <Button
+            size="small"
+            onClick={handleBack}
+            sx={{ color: 'text.secondary', textTransform: 'none', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {briefing.title}
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium">Recomendações</span>
-        </nav>
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={500}>Recomendações</Typography>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-6xl mx-auto">
+      <Box sx={{ p: 3, maxWidth: 1100, mx: 'auto' }}>
         {/* Header */}
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <span className="material-symbols-outlined text-4xl text-purple-600">lightbulb</span>
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 mb-2">Recomendações de Plataforma</h2>
-                <p className="text-slate-700 text-sm mb-2">
-                  <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
-                </p>
-                <p className="text-slate-600 text-sm">
-                  Use IA para analisar o briefing e recomendar as melhores plataformas e formatos para a campanha.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {generating ? (
-                <>
-                  <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                  Gerando...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined">auto_awesome</span>
-                  Gerar Recomendações
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <Card
+          variant="outlined"
+          sx={{ mb: 3, bgcolor: 'secondary.50', borderColor: 'secondary.200' }}
+        >
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Stack direction="row" spacing={2} alignItems="flex-start">
+                <IconBulb size={36} color="#7c3aed" />
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>Recomendações de Plataforma</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                    <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Use IA para analisar o briefing e recomendar as melhores plataformas e formatos para a campanha.
+                  </Typography>
+                </Box>
+              </Stack>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={handleGenerate}
+                disabled={generating}
+                startIcon={
+                  generating
+                    ? <CircularProgress size={16} color="inherit" />
+                    : <IconSparkles size={16} />
+                }
+              >
+                {generating ? 'Gerando...' : 'Gerar Recomendações'}
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-700">{error}</p>
-          </div>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
         )}
 
         {/* Recommendations */}
         {recommendations.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          <Stack spacing={2}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
               Plataformas Recomendadas ({recommendations.length})
-            </h3>
+            </Typography>
             {recommendations.map((rec, index) => (
-              <div key={index} className="bg-white rounded-lg border border-slate-200 p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-3xl text-purple-600">hub</span>
-                    <div>
-                      <h4 className="text-lg font-semibold text-slate-900 capitalize">{rec.platform}</h4>
-                      <p className="text-sm text-slate-600">Formato: {rec.format}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-500">Confiança:</span>
-                    <div className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
-                      {Math.round(rec.confidence * 100)}%
-                    </div>
-                  </div>
-                </div>
+              <Card key={index} variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <IconPlugConnected size={28} color="#7c3aed" />
+                      <Box>
+                        <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{rec.platform}</Typography>
+                        <Typography variant="body2" color="text.secondary">Formato: {rec.format}</Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Confiança:</Typography>
+                      <Chip
+                        size="small"
+                        color="secondary"
+                        label={`${Math.round(rec.confidence * 100)}%`}
+                      />
+                    </Stack>
+                  </Stack>
 
-                <div className="space-y-4">
-                  <div>
-                    <h5 className="text-sm font-semibold text-slate-700 mb-2">Análise:</h5>
-                    <p className="text-slate-600 text-sm">{rec.reasoning}</p>
-                  </div>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>Análise:</Typography>
+                      <Typography variant="body2" color="text.secondary">{rec.reasoning}</Typography>
+                    </Box>
 
-                  {rec.contentHints && rec.contentHints.length > 0 && (
-                    <div>
-                      <h5 className="text-sm font-semibold text-slate-700 mb-2">Dicas de Conteúdo:</h5>
-                      <ul className="list-disc list-inside space-y-1">
-                        {rec.contentHints.map((hint, i) => (
-                          <li key={i} className="text-slate-600 text-sm">{hint}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    {rec.contentHints && rec.contentHints.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          Dicas de Conteúdo:
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                          {rec.contentHints.map((hint, i) => (
+                            <Typography key={i} component="li" variant="body2" color="text.secondary">
+                              {hint}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
 
-                  {rec.performanceHints && rec.performanceHints.length > 0 && (
-                    <div>
-                      <h5 className="text-sm font-semibold text-slate-700 mb-2">Dicas de Performance:</h5>
-                      <ul className="list-disc list-inside space-y-1">
-                        {rec.performanceHints.map((hint, i) => (
-                          <li key={i} className="text-slate-600 text-sm">{hint}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    {rec.performanceHints && rec.performanceHints.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          Dicas de Performance:
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                          {rec.performanceHints.map((hint, i) => (
+                            <Typography key={i} component="li" variant="body2" color="text.secondary">
+                              {hint}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
 
-                  {rec.measurability !== undefined && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                      <span className="text-sm text-slate-500">Mensurabilidade:</span>
-                      <div className="flex-1 bg-slate-100 rounded-full h-2">
-                        <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{ width: `${rec.measurability * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">
-                        {Math.round(rec.measurability * 100)}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    {rec.measurability !== undefined && (
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}
+                      >
+                        <Typography variant="body2" color="text.secondary">Mensurabilidade:</Typography>
+                        <Box sx={{ flex: 1 }}>
+                          <LinearProgress
+                            variant="determinate"
+                            value={rec.measurability * 100}
+                            color="success"
+                            sx={{ height: 8, borderRadius: 4 }}
+                          />
+                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          {Math.round(rec.measurability * 100)}%
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
             ))}
-          </div>
+          </Stack>
         )}
 
         {!generating && recommendations.length === 0 && (
-          <div className="text-center py-12">
-            <span className="material-symbols-outlined text-6xl text-slate-300 mb-4">sentiment_satisfied</span>
-            <p className="text-slate-500">Clique em "Gerar Recomendações" para começar.</p>
-          </div>
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <IconBulb size={64} color="#d1d5db" />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              Clique em "Gerar Recomendações" para começar.
+            </Typography>
+          </Box>
         )}
-      </div>
+      </Box>
     </AppShell>
   );
 }

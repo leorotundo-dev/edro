@@ -80,15 +80,15 @@ export default async function clippingRoutes(app: FastifyInstance) {
         scope: z.enum(SOURCE_SCOPES).optional(),
         clientId: z.string().optional(),
       });
-      const query = querySchema.parse(request.query);
+      const queryParams = querySchema.parse(request.query);
       const tenantId = (request.user as any).tenant_id;
 
-      if (query.clientId) {
+      if (queryParams.clientId) {
         const allowed = await hasClientPerm({
           tenantId,
           userId: (request.user as any).sub,
           role: (request.user as any).role,
-          clientId: query.clientId,
+          clientId: queryParams.clientId,
           perm: 'read',
         });
         if (!allowed) {
@@ -100,13 +100,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const params: any[] = [tenantId];
       let idx = 2;
 
-      if (query.scope) {
+      if (queryParams.scope) {
         where.push(`scope=$${idx++}`);
-        params.push(query.scope);
+        params.push(queryParams.scope);
       }
-      if (query.clientId) {
+      if (queryParams.clientId) {
         where.push(`client_id=$${idx++}`);
-        params.push(query.clientId);
+        params.push(queryParams.clientId);
       }
 
       const { rows } = await query<unknown>(
@@ -1142,20 +1142,160 @@ export default async function clippingRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clipping:read')] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
-      const { rows } = await query<any>(
+      const range = String(request.query?.range || 'week');
+      const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
+      const windowInterval = `${windowDays} days`;
+
+      const [{ rows: sourceRows }, { rows: itemRows }] = await Promise.all([
+        query<any>(
+          `
+          SELECT
+            COUNT(*) AS total_sources,
+            COUNT(*) FILTER (WHERE is_active) AS active_sources
+          FROM clipping_sources
+          WHERE tenant_id=$1
+          `,
+          [tenantId]
+        ),
+        query<any>(
+          `
+          SELECT
+            COUNT(*) AS total_items,
+            COUNT(*) FILTER (WHERE status='NEW') AS new_items,
+            COUNT(*) FILTER (WHERE status='TRIAGED') AS triaged_items,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') AS items_today,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS items_this_week,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS items_this_month,
+            AVG(score)::numeric(10,2) AS avg_score,
+            COUNT(*) FILTER (WHERE score >= 70) AS high,
+            COUNT(*) FILTER (WHERE score >= 40 AND score < 70) AS medium,
+            COUNT(*) FILTER (WHERE score < 40) AS low
+          FROM clipping_items
+          WHERE tenant_id=$1
+          `,
+          [tenantId]
+        ),
+      ]);
+
+      const { rows: bySourceRows } = await query<any>(
         `
         SELECT
-          COUNT(*) AS total_items,
-          COUNT(*) FILTER (WHERE status = 'NEW') AS new_items,
-          COUNT(*) FILTER (WHERE status = 'TRIAGED') AS triaged_items,
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS items_last_7_days,
-          AVG(score) FILTER (WHERE score > 0) AS avg_score
-        FROM clipping_items
-        WHERE tenant_id = $1
+          cs.id AS source_id,
+          cs.name AS source_name,
+          cs.url AS source_url,
+          COUNT(ci.id) AS item_count,
+          MAX(COALESCE(ci.published_at, ci.created_at)) AS last_item_date
+        FROM clipping_sources cs
+        LEFT JOIN clipping_items ci
+          ON ci.source_id = cs.id
+         AND ci.tenant_id = cs.tenant_id
+         AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+        WHERE cs.tenant_id=$1
+        GROUP BY cs.id
+        HAVING COUNT(ci.id) > 0
+        ORDER BY item_count DESC, cs.name ASC
+        LIMIT 10
         `,
         [tenantId]
       );
-      return { stats: rows[0] };
+
+      const { rows: topItemsRows } = await query<any>(
+        `
+        SELECT
+          ci.id,
+          ci.title,
+          cs.name AS source_name,
+          ci.score,
+          COALESCE(ci.published_at, ci.created_at) AS published_at,
+          ci.url
+        FROM clipping_items ci
+        JOIN clipping_sources cs ON cs.id = ci.source_id
+        WHERE ci.tenant_id=$1
+          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+        ORDER BY ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
+        LIMIT 10
+        `,
+        [tenantId]
+      );
+
+      const { rows: recentItemsRows } = await query<any>(
+        `
+        SELECT
+          ci.id,
+          ci.title,
+          cs.name AS source_name,
+          ci.score,
+          COALESCE(ci.published_at, ci.created_at) AS published_at,
+          ci.url
+        FROM clipping_items ci
+        JOIN clipping_sources cs ON cs.id = ci.source_id
+        WHERE ci.tenant_id=$1
+          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+        ORDER BY ci.published_at DESC NULLS LAST, ci.created_at DESC
+        LIMIT 10
+        `,
+        [tenantId]
+      );
+
+      const { rows: trendRows } = await query<any>(
+        `
+        SELECT LOWER(unnest(segments)) AS keyword, COUNT(*)::int AS count
+        FROM clipping_items
+        WHERE tenant_id=$1
+          AND created_at >= NOW() - INTERVAL '${windowInterval}'
+        GROUP BY keyword
+        ORDER BY count DESC
+        LIMIT 15
+        `,
+        [tenantId]
+      );
+
+      const { rows: prevTrendRows } = await query<any>(
+        `
+        SELECT LOWER(unnest(segments)) AS keyword, COUNT(*)::int AS count
+        FROM clipping_items
+        WHERE tenant_id=$1
+          AND created_at < NOW() - INTERVAL '${windowInterval}'
+          AND created_at >= NOW() - INTERVAL '${windowInterval}' * 2
+        GROUP BY keyword
+        `,
+        [tenantId]
+      );
+
+      const prevMap = new Map<string, number>();
+      for (const row of prevTrendRows) {
+        if (row?.keyword) prevMap.set(String(row.keyword), Number(row.count || 0));
+      }
+
+      const trends = trendRows.map((row: any) => {
+        const keyword = String(row.keyword || '').trim();
+        const count = Number(row.count || 0);
+        const prev = prevMap.get(keyword) ?? 0;
+        const trend = count > prev ? 'up' : count < prev ? 'down' : 'stable';
+        return { keyword, count, trend };
+      });
+
+      return {
+        total_sources: Number(sourceRows?.[0]?.total_sources ?? 0),
+        active_sources: Number(sourceRows?.[0]?.active_sources ?? 0),
+        total_items: Number(itemRows?.[0]?.total_items ?? 0),
+        new_items: Number(itemRows?.[0]?.new_items ?? 0),
+        triaged_items: Number(itemRows?.[0]?.triaged_items ?? 0),
+        items_today: Number(itemRows?.[0]?.items_today ?? 0),
+        items_this_week: Number(itemRows?.[0]?.items_this_week ?? 0),
+        items_this_month: Number(itemRows?.[0]?.items_this_month ?? 0),
+        items_last_7_days: Number(itemRows?.[0]?.items_this_week ?? 0),
+        avg_score: Number(itemRows?.[0]?.avg_score ?? 0),
+        by_source: bySourceRows || [],
+        by_score: {
+          high: Number(itemRows?.[0]?.high ?? 0),
+          medium: Number(itemRows?.[0]?.medium ?? 0),
+          low: Number(itemRows?.[0]?.low ?? 0),
+        },
+        top_items: topItemsRows || [],
+        trends,
+        recent_items: recentItemsRows || [],
+      };
     }
   );
 

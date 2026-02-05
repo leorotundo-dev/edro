@@ -4,6 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import {
+  IconCheck,
+  IconCheckbox,
+  IconChevronRight,
+  IconX,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -151,26 +167,24 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Carregando...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">Carregando...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (error || !briefing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <p className="text-slate-600 mb-4">{error || 'Briefing não encontrado.'}</p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar
-          </button>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x26A0;&#xFE0F;</Typography>
+          <Typography variant="body2" color="text.secondary">{error || 'Briefing não encontrado.'}</Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -180,55 +194,49 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
 
   if (!isAprovacaoActive) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Aprovação não disponível</h3>
-          <p className="text-slate-600 mb-4">
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x1F512;</Typography>
+          <Typography variant="h6">Aprovação não disponível</Typography>
+          <Typography variant="body2" color="text.secondary">
             A etapa de aprovação ainda não foi iniciada ou já foi concluída.
-          </p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar para Briefing
-          </button>
-        </div>
-      </div>
+          </Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar para Briefing</Button>
+        </Stack>
+      </Box>
     );
   }
 
   if (!canApprove) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🚫</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Acesso Negado</h3>
-          <p className="text-slate-600 mb-2">
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x1F6AB;</Typography>
+          <Typography variant="h6">Acesso Negado</Typography>
+          <Typography variant="body2" color="text.secondary">
             Apenas usuários com perfil <strong>Gestor</strong> ou <strong>Admin</strong> podem aprovar copies.
-          </p>
-          <p className="text-sm text-slate-500 mb-4">
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
             Seu perfil atual: <strong>{user?.role || 'Não identificado'}</strong>
-          </p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar para Briefing
-          </button>
-        </div>
-      </div>
+          </Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar para Briefing</Button>
+        </Stack>
+      </Box>
     );
   }
 
   if (copies.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">📝</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Nenhuma copy disponível</h3>
-          <p className="text-slate-600 mb-4">
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x1F4DD;</Typography>
+          <Typography variant="h6">Nenhuma copy disponível</Typography>
+          <Typography variant="body2" color="text.secondary">
             Aguarde a geração das copies pela IA antes de aprovar.
-          </p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar
-          </button>
-        </div>
-      </div>
+          </Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -238,127 +246,159 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
     <AppShell
       title="Aprovação de Copy"
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <button onClick={handleBack} className="text-slate-500 hover:text-slate-700 transition-colors">
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button size="small" onClick={handleBack} sx={{ color: 'text.secondary', textTransform: 'none' }}>
             Edro
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <button onClick={handleBack} className="text-slate-500 hover:text-slate-700 transition-colors truncate max-w-xs">
+          </Button>
+          <IconChevronRight size={14} />
+          <Button
+            size="small"
+            onClick={handleBack}
+            sx={{ color: 'text.secondary', textTransform: 'none', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {briefing.title}
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium">Aprovação</span>
-        </nav>
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={500}>Aprovação</Typography>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-7xl mx-auto">
+      <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
         {/* Header */}
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
-          <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-4xl text-orange-600">
-              check_circle
-            </span>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                Aprovação de Copy - {briefing.title}
-              </h2>
-              <p className="text-slate-700 mb-1">
-                <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
-              </p>
-              {briefing.payload?.objective && (
-                <p className="text-slate-700">
-                  <strong>Objetivo:</strong> {briefing.payload.objective}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <Alert
+          severity="warning"
+          icon={<IconCheckbox size={28} />}
+          sx={{ mb: 3 }}
+        >
+          <Typography variant="h6" sx={{ mb: 0.5 }}>
+            Aprovação de Copy - {briefing.title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
+          </Typography>
+          {briefing.payload?.objective && (
+            <Typography variant="body2" color="text.secondary">
+              <strong>Objetivo:</strong> {briefing.payload.objective}
+            </Typography>
+          )}
+        </Alert>
 
-        <div className="grid grid-cols-3 gap-6">
+        <Grid container spacing={3}>
           {/* Sidebar - Lista de Copies */}
-          <div className="col-span-1 space-y-3">
-            <h3 className="font-semibold text-slate-900 mb-3">
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
               Copies Disponíveis ({copies.length})
-            </h3>
-            {copies.map((copy, index) => (
-              <button
-                key={copy.id}
-                onClick={() => setSelectedCopy(copy.id)}
-                className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                  selectedCopy === copy.id
-                    ? 'border-slate-900 bg-slate-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="font-medium text-slate-900 mb-1">Versão {index + 1}</div>
-                <div className="text-xs text-slate-500">
-                  {new Date(copy.created_at).toLocaleString('pt-BR')}
-                </div>
-                <div className="mt-2 text-sm text-slate-600 line-clamp-3">
-                  {copy.output.substring(0, 100)}...
-                </div>
-              </button>
-            ))}
-          </div>
+            </Typography>
+            <Stack spacing={1.5}>
+              {copies.map((copy, index) => (
+                <Card
+                  key={copy.id}
+                  variant="outlined"
+                  sx={{
+                    cursor: 'pointer',
+                    borderWidth: 2,
+                    borderColor: selectedCopy === copy.id ? 'primary.main' : 'divider',
+                    bgcolor: selectedCopy === copy.id ? 'grey.50' : 'background.paper',
+                    '&:hover': { borderColor: selectedCopy === copy.id ? 'primary.main' : 'grey.400' },
+                  }}
+                  onClick={() => setSelectedCopy(copy.id)}
+                >
+                  <CardContent>
+                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Versão {index + 1}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(copy.created_at).toLocaleString('pt-BR')}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        mt: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {copy.output.substring(0, 100)}...
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          </Grid>
 
           {/* Main - Copy Selecionada */}
-          <div className="col-span-2 space-y-6">
-            {selectedCopyData && (
-              <div className="bg-white rounded-lg border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Versão {copies.findIndex((c) => c.id === selectedCopy) + 1}
-                  </h3>
-                  <div className="text-sm text-slate-500">
-                    {new Date(selectedCopyData.created_at).toLocaleString('pt-BR')}
-                  </div>
-                </div>
+          <Grid size={{ xs: 12, md: 8 }}>
+            <Stack spacing={3}>
+              {selectedCopyData && (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="h6">
+                        Versão {copies.findIndex((c) => c.id === selectedCopy) + 1}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {new Date(selectedCopyData.created_at).toLocaleString('pt-BR')}
+                      </Typography>
+                    </Stack>
 
-                <div className="prose max-w-none">
-                  <div className="text-slate-900 whitespace-pre-wrap bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    {selectedCopyData.output}
-                  </div>
-                </div>
-              </div>
-            )}
+                    <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                      <CardContent>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {selectedCopyData.output}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* Comentários e Ações */}
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h3 className="font-semibold text-slate-900 mb-3">Comentários (Opcional)</h3>
-              <textarea
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                placeholder="Adicione comentários sobre a aprovação ou motivos de rejeição..."
-              />
+              {/* Comentários e Ações */}
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
+                    Comentários (Opcional)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
+                    placeholder="Adicione comentários sobre a aprovação ou motivos de rejeição..."
+                  />
 
-              <div className="mt-6 flex gap-3 justify-end">
-                <button
-                  onClick={handleReject}
-                  disabled={actionLoading}
-                  className="px-6 py-3 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                  Rejeitar
-                </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={actionLoading}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {actionLoading ? (
-                    <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                  ) : (
-                    <span className="material-symbols-outlined">check</span>
-                  )}
-                  Aprovar Copy
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  <Stack direction="row" spacing={1.5} justifyContent="flex-end" sx={{ mt: 3 }}>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<IconX size={16} />}
+                      onClick={handleReject}
+                      disabled={actionLoading}
+                    >
+                      Rejeitar
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={
+                        actionLoading
+                          ? <CircularProgress size={16} color="inherit" />
+                          : <IconCheck size={16} />
+                      }
+                      onClick={handleApprove}
+                      disabled={actionLoading}
+                    >
+                      Aprovar Copy
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Box>
     </AppShell>
   );
 }

@@ -1,10 +1,5 @@
-import AppShell from '@/components/AppShell';
-import GlobalClippingClient from './GlobalClippingClient';
+import ClippingClient from './ClippingClient';
 
 export default function Page() {
-  return (
-    <AppShell title="Global Radar Inbox">
-      <GlobalClippingClient />
-    </AppShell>
-  );
+  return <ClippingClient />;
 }

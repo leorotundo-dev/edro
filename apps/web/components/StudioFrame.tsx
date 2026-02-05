@@ -29,21 +29,21 @@ export default function StudioFrame({ src, title, stepLabel }: StudioFrameProps)
   const topbarLeft = (
     <div className="flex items-center gap-6">
       <div className="flex items-center gap-3">
-        <h1 className="font-display text-2xl text-slate-900">Creative Studio</h1>
+        <h1 className="font-display text-2xl text-ink">Creative Studio</h1>
         {stepLabel ? (
           <span className="text-[10px] font-bold uppercase tracking-widest text-primary bg-orange-50 px-2 py-1 rounded">
             {stepLabel}
           </span>
         ) : null}
       </div>
-      <nav className="hidden md:flex items-center gap-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+      <nav className="hidden md:flex items-center gap-4 text-[11px] font-semibold uppercase tracking-widest text-muted">
         {STUDIO_NAV.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={active ? 'text-primary' : 'hover:text-slate-700'}
+              className={active ? 'text-primary' : 'hover:text-muted'}
             >
               {item.label}
             </Link>

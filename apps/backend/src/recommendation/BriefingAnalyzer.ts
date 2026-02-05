@@ -156,6 +156,23 @@ const PRODUCTION_TYPE_MAP: Record<string, string> = {
   'streaming-podcast': 'streaming-podcast',
 };
 
+const BRIEFING_LLM_TIMEOUT_MS = 15000;
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 export class BriefingAnalyzer {
   constructor() {
     // usa copyService
@@ -187,12 +204,16 @@ export class BriefingAnalyzer {
     const prompt = promptParts.join('\n\n');
 
     try {
-      const completion = await generateCopy({
-        prompt,
-        taskType: 'briefing_analysis',
-        tier: 'fast',
-        maxTokens: 2000,
-      });
+      const completion = await withTimeout(
+        generateCopy({
+          prompt,
+          taskType: 'briefing_analysis',
+          tier: 'fast',
+          maxTokens: 2000,
+        }),
+        BRIEFING_LLM_TIMEOUT_MS,
+        `LLM timeout after ${BRIEFING_LLM_TIMEOUT_MS}ms`
+      );
 
       const extracted = this.parseJson(completion.output);
       const validated = this.validateAndNormalize(extracted, partialStructured);

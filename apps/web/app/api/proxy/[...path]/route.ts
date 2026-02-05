@@ -125,9 +125,9 @@ async function proxyFetch(init: RequestInit, path: string, query = '') {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const pathSegments = params.path || [];
+  const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
@@ -147,9 +147,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const pathSegments = params.path || [];
+  const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
 
   try {
@@ -167,9 +167,9 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const pathSegments = params.path || [];
+  const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
 
   try {
@@ -187,9 +187,9 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const pathSegments = params.path || [];
+  const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
 
   try {
@@ -207,9 +207,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const pathSegments = params.path || [];
+  const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
 
   try {

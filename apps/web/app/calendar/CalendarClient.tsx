@@ -2,8 +2,41 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Calendar, momentLocalizer, type View } from 'react-big-calendar';
+import moment from 'moment';
 import AppShell from '@/components/AppShell';
+import DashboardCard from '@/components/shared/DashboardCard';
+import StatusChip from '@/components/shared/StatusChip';
 import { apiGet, buildApiUrl } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Typography from '@mui/material/Typography';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconX,
+  IconPlus,
+  IconChecklist,
+} from '@tabler/icons-react';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './calendar-rbc.css';
 
 type ClientRow = {
   id: string;
@@ -40,6 +73,20 @@ type CalendarEventItem = {
   descricao_ai?: string | null;
   origem_ai?: string | null;
   curiosidade_ai?: string | null;
+};
+
+type CalendarRbcEvent = {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  allDay?: boolean;
+  tier: 'A' | 'B' | 'C';
+  score: number;
+  resource: {
+    event: CalendarEventItem;
+    dateISO: string;
+  };
 };
 
 type EventRelevanceItem = {
@@ -80,7 +127,23 @@ type CalendarCell = {
   inMonth: boolean;
 };
 
+moment.locale('pt-br');
+const localizer = momentLocalizer(moment);
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const CALENDAR_MESSAGES = {
+  today: 'Hoje',
+  previous: 'Anterior',
+  next: 'Próximo',
+  month: 'Mês',
+  week: 'Semana',
+  day: 'Dia',
+  agenda: 'Agenda',
+  date: 'Data',
+  time: 'Hora',
+  event: 'Evento',
+  noEventsInRange: 'Nenhum evento no período.',
+  showMore: (total: number) => `+${total} mais`,
+};
 const EVENT_TIER_CLASSES: Record<CalendarEventItem['tier'], string> = {
   A: 'tier-a',
   B: 'tier-b',
@@ -89,6 +152,9 @@ const EVENT_TIER_CLASSES: Record<CalendarEventItem['tier'], string> = {
 
 type CalendarHubProps = {
   initialClientId?: string | null;
+  noShell?: boolean;
+  embedded?: boolean;
+  lockClient?: boolean;
 };
 
 function parseISODate(dateISO: string) {
@@ -118,7 +184,7 @@ function formatMonthLabel(month: string) {
   const [year, monthNum] = month.split('-').map(Number);
   if (!year || !monthNum) return month;
   const date = new Date(year, monthNum - 1, 1);
-  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -139,7 +205,7 @@ function toISODate(date: Date) {
 function formatDayLabel(dateISO: string) {
   const date = parseISODate(dateISO);
   if (!date) return dateISO;
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -150,7 +216,7 @@ function formatEventWhy(value?: string) {
   if (!value) return '';
   const match = value.match(/base_relevance[:=]\s*(\d+)/i);
   if (!match) return value;
-  return `Relevância: ${match[1]}%`;
+  return `Relevancia: ${match[1]}%`;
 }
 
 function buildMonthGrid(month: string): CalendarCell[] {
@@ -195,7 +261,13 @@ function getDayTierClass(events: CalendarEventItem[]) {
   return '';
 }
 
-export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
+const TIER_COLORS: Record<string, string> = {
+  A: 'error',
+  B: 'warning',
+  C: 'default',
+};
+
+export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -205,7 +277,7 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
   const [eventsByDate, setEventsByDate] = useState<Map<string, CalendarEventItem[]>>(new Map());
   const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
   const [activeDateISO, setActiveDateISO] = useState(toISODate(new Date()));
-  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [view, setView] = useState<View>('month');
   const [activeCalendarId, setActiveCalendarId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -217,6 +289,8 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
   const [relevanceByClientId, setRelevanceByClientId] = useState<Record<string, EventRelevanceItem>>({});
   const [relevanceLoading, setRelevanceLoading] = useState(false);
   const [showAllClients, setShowAllClients] = useState(false);
+
+  const isLocked = Boolean(lockClient && initialClientId);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -240,7 +314,12 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
         if (!match) {
           match = response[0] || null;
         }
-        setSelectedClient(match || null);
+        if (isLocked && match) {
+          setClients([match]);
+          setSelectedClient(match);
+        } else {
+          setSelectedClient(match || null);
+        }
       } else {
         setSelectedClient(null);
       }
@@ -249,7 +328,7 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
     } finally {
       setLoading(false);
     }
-  }, [initialClientId, searchParams]);
+  }, [initialClientId, isLocked, searchParams]);
 
   const loadCalendars = useCallback(async (clientId: string, month?: string) => {
     setLoading(true);
@@ -439,6 +518,28 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
     }
     return map;
   }, [visibleCalendars]);
+
+  const calendarEvents = useMemo<CalendarRbcEvent[]>(() => {
+    const output: CalendarRbcEvent[] = [];
+    eventsByDate.forEach((items, dateISO) => {
+      const startDate = parseISODate(dateISO);
+      if (!startDate) return;
+      const endDate = addDays(startDate, 1);
+      items.forEach((item, index) => {
+        output.push({
+          id: `${item.id}-${dateISO}-${index}`,
+          title: item.name,
+          start: startDate,
+          end: endDate,
+          allDay: true,
+          tier: item.tier,
+          score: item.score,
+          resource: { event: item, dateISO },
+        });
+      });
+    });
+    return output;
+  }, [eventsByDate]);
 
   const dayEvents = useMemo(() => {
     return eventsByDate.get(activeDateISO) || [];
@@ -658,51 +759,89 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
     setActiveDateISO(toISODate(addDays(activeDate, delta)));
   };
 
+  const handleRbcNavigate = useCallback(
+    (date: Date) => {
+      const nextMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      setMonthFilter(nextMonth);
+      setActiveDateISO(toISODate(date));
+    },
+    []
+  );
+
+  const handleRbcSelectSlot = useCallback(
+    (slotInfo: { start: Date }) => {
+      const dateISO = toISODate(slotInfo.start);
+      handleSelectDay(dateISO);
+    },
+    [handleSelectDay]
+  );
+
+  const handleRbcSelectEvent = useCallback(
+    (event: CalendarRbcEvent) => {
+      handleSelectEvent(event.resource.event, event.resource.dateISO);
+    },
+    [handleSelectEvent]
+  );
+
+  const rbcEventPropGetter = useCallback((event: CalendarRbcEvent) => {
+    return { className: `tier-${event.tier.toLowerCase()}` };
+  }, []);
+
+  const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => (
+    <span className="rbc-event-content">
+      <span className="truncate">{event.title}</span>
+      <span className="rbc-event-score">{Math.round(event.score)}%</span>
+    </span>
+  );
+
   if (loading && clients.length === 0) {
     return (
-      <div className="loading-screen">
-        <div className="pulse">Carregando calendario...</div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
+        <CircularProgress size={28} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando calendario...
+        </Typography>
+      </Stack>
     );
   }
 
-  return (
-    <AppShell title="Global Operational Calendar">
-      <div className="page-content">
-        {error ? (
-          <div className="notice error" style={{ margin: 0 }}>
-            {error}
-          </div>
-        ) : null}
+  const content = (
+    <Stack spacing={3} sx={{ minWidth: 0 }}>
+      {error ? <Alert severity="error">{error}</Alert> : null}
 
-        <div className="calendar-month">
-          <div className="calendar-controls">
-            <div className="toolbar">
-              {(['month', 'week', 'day'] as const).map((item) => (
-                <button
-                  key={item}
-                  className={`btn ${view === item ? 'primary' : 'ghost'}`}
-                  type="button"
-                  aria-pressed={view === item}
-                  onClick={() => setView(item)}
-                >
-                  {item === 'month' ? 'Month' : item === 'week' ? 'Week' : 'Day'}
-                </button>
-              ))}
-            </div>
-            <div className="calendar-controls">
-              <button className="icon-btn ghost" type="button" onClick={handlePrev}>
-                <span className="material-symbols-outlined">chevron_left</span>
-              </button>
-              <div className="calendar-month-label">{headerLabel}</div>
-              <button className="icon-btn ghost" type="button" onClick={handleNext}>
-                <span className="material-symbols-outlined">chevron_right</span>
-              </button>
-            </div>
-          </div>
-          <div className="calendar-filters">
-            <select
-              className="edro-select"
+      {/* Calendar controls and filters */}
+      <DashboardCard>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+            <ToggleButtonGroup
+              value={view}
+              exclusive
+              size="small"
+              onChange={(_, newView) => { if (newView) setView(newView); }}
+            >
+              <ToggleButton value="month">Month</ToggleButton>
+              <ToggleButton value="week">Week</ToggleButton>
+              <ToggleButton value="day">Day</ToggleButton>
+            </ToggleButtonGroup>
+
+            <Stack direction="row" spacing={1} alignItems="center">
+              <IconButton size="small" onClick={handlePrev}>
+                <IconChevronLeft size={20} />
+              </IconButton>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 180, textAlign: 'center' }}>
+                {headerLabel}
+              </Typography>
+              <IconButton size="small" onClick={handleNext}>
+                <IconChevronRight size={20} />
+              </IconButton>
+            </Stack>
+          </Stack>
+
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <TextField
+              select
+              size="small"
+              label="Client"
               value={selectedClient?.id || ''}
               onChange={(event) => {
                 if (!event.target.value) {
@@ -718,518 +857,343 @@ export default function CalendarHubPage({ initialClientId }: CalendarHubProps) {
                   window.localStorage.setItem('edro_active_client_id', next.id);
                 }
               }}
+              disabled={isLocked}
+              sx={{ minWidth: 180 }}
             >
-              <option value="">All Clients</option>
-              {clients.length === 0 ? null : (
-                clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <select
-              className="edro-select"
+              <MenuItem value="">All Clients</MenuItem>
+              {clients.map((client) => (
+                <MenuItem key={client.id} value={client.id}>{client.name}</MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              size="small"
+              label="Calendar"
               value={activeCalendarId}
               onChange={(event) => setActiveCalendarId(event.target.value)}
+              sx={{ minWidth: 200 }}
             >
-              {calendars.length > 1 ? <option value="all">All Calendars</option> : null}
+              {calendars.length > 1 ? <MenuItem value="all">All Calendars</MenuItem> : null}
               {calendars.map((calendar) => (
-                <option key={calendar.id} value={calendar.id}>
-                  {calendar.platform} • {calendar.objective}
-                </option>
+                <MenuItem key={calendar.id} value={calendar.id}>
+                  {calendar.platform} - {calendar.objective}
+                </MenuItem>
               ))}
-            </select>
-            <input
-              className="edro-input"
+            </TextField>
+
+            <TextField
               type="month"
+              size="small"
+              label="Month"
               value={monthFilter}
               onChange={(event) => setMonthFilter(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 160 }}
             />
+
             {activeCalendar ? (
-              <button
-                className="btn primary"
-                type="button"
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<IconChecklist size={16} />}
                 onClick={() => router.push(`/calendar/${activeCalendar.id}`)}
               >
-                <span className="material-symbols-outlined">fact_check</span>
                 Review calendar
-              </button>
+              </Button>
             ) : null}
-          </div>
-        </div>
-  
-        <div className="calendar-legend">
-          <span className="legend-item tier-a">High</span>
-          <span className="legend-item tier-b">Medium</span>
-          <span className="legend-item tier-c">Low</span>
-          <span className="legend-status">{selectionLabel}</span>
-          <span className="legend-status">{totalPosts} posts</span>
-          <span className="legend-status">{totalEvents} dates</span>
-          {eventsLoading ? <span className="legend-status">Loading dates...</span> : null}
-        </div>
-  
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="calendar-surface flex-1">
-            {view === 'month' ? (
-              <div className="min-w-[900px]">
-                <div className="calendar-weekdays">
-                  {WEEKDAYS.map((day) => (
-                    <span key={day}>{day}</span>
-                  ))}
-                </div>
-                <div className="calendar-grid">
-                  {monthCells.map((cell) => {
-                    const posts = postsByDate.get(cell.dateISO) || [];
-                    const events = eventsByDate.get(cell.dateISO) || [];
-                    const visibleEvents = events.slice(0, 2);
-                    const extraEvents = events.length - visibleEvents.length;
-                    const visiblePosts = posts.slice(0, 2);
-                    const extraPosts = posts.length - visiblePosts.length;
-                    const isToday = cell.dateISO === todayISO;
-                    const tierClass = getDayTierClass(events);
-  
-                    return (
-                      <div
-                        key={cell.dateISO}
-                        className={`calendar-day ${cell.inMonth ? '' : 'muted'} ${isToday ? 'today' : ''} ${tierClass}`}
-                      >
-                        <button
-                          type="button"
-                          className="calendar-day-head bg-transparent border-0 p-0 text-left"
-                          onClick={() => handleSelectDay(cell.dateISO)}
-                        >
-                          <span className="calendar-day-number">{cell.day}</span>
-                          <div className="calendar-day-meta">
-                            {events.length ? (
-                              <span className="calendar-day-count events">{events.length} events</span>
-                            ) : null}
-                            {posts.length ? (
-                              <span className="calendar-day-count posts">{posts.length} posts</span>
-                            ) : null}
-                          </div>
-                        </button>
-                        <div className="calendar-day-items">
-                          {visibleEvents.map((event) => (
-                            <button
-                              key={`${event.id}-${cell.dateISO}`}
-                              type="button"
-                              className={`calendar-event ${EVENT_TIER_CLASSES[event.tier]}`}
-                              onClick={() => handleSelectDay(cell.dateISO)}
-                            >
-                              <span className="calendar-event-title">{event.name}</span>
-                              <span className="calendar-event-score">{event.score}</span>
-                            </button>
-                          ))}
-                          {visiblePosts.map((post, idx) => (
-                            <button
-                              key={`${post.id || idx}-${post.calendarId}`}
-                              type="button"
-                              className="calendar-chip"
-                              onClick={() => router.push(`/calendar/${post.calendarId}`)}
-                            >
-                              <span className="truncate">
-                                {post.platform} · {post.copy?.headline || post.theme}
-                              </span>
-                            </button>
-                          ))}
-                          {extraEvents > 0 ? (
-                            <div className="calendar-more">+{extraEvents} more events</div>
-                          ) : null}
-                          {extraPosts > 0 ? (
-                            <div className="calendar-more">+{extraPosts} more posts</div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : view === 'week' ? (
-              <div className="min-w-[900px]">
-                <div className="calendar-weekdays">
-                  {weekDays.map((day) => (
-                    <span key={day.toISOString()}>
-                      {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                    </span>
-                  ))}
-                </div>
-                <div className="calendar-grid">
-                  {weekDays.map((day) => {
-                    const dateISO = toISODate(day);
-                    const posts = postsByDate.get(dateISO) || [];
-                    const events = eventsByDate.get(dateISO) || [];
-                    const visibleEvents = events.slice(0, 3);
-                    const extraEvents = events.length - visibleEvents.length;
-                    const visiblePosts = posts.slice(0, 2);
-                    const extraPosts = posts.length - visiblePosts.length;
-                    const isToday = dateISO === todayISO;
-                    const inMonth = dateISO.startsWith(monthFilter);
-                    const tierClass = getDayTierClass(events);
-  
-                    return (
-                      <div
-                        key={dateISO}
-                        className={`calendar-day ${inMonth ? '' : 'muted'} ${isToday ? 'today' : ''} ${tierClass}`}
-                      >
-                        <button
-                          type="button"
-                          className="calendar-day-head bg-transparent border-0 p-0 text-left"
-                          onClick={() => handleSelectDay(dateISO)}
-                        >
-                          <span className="calendar-day-number">
-                            {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                          <div className="calendar-day-meta">
-                            {events.length ? (
-                              <span className="calendar-day-count events">{events.length} events</span>
-                            ) : null}
-                            {posts.length ? (
-                              <span className="calendar-day-count posts">{posts.length} posts</span>
-                            ) : null}
-                          </div>
-                        </button>
-                        <div className="calendar-day-items">
-                          {visibleEvents.map((event) => (
-                            <button
-                              key={`${event.id}-${dateISO}`}
-                              type="button"
-                              className={`calendar-event ${EVENT_TIER_CLASSES[event.tier]}`}
-                              onClick={() => handleSelectDay(dateISO)}
-                            >
-                              <span className="calendar-event-title">{event.name}</span>
-                              <span className="calendar-event-score">{event.score}</span>
-                            </button>
-                          ))}
-                          {visiblePosts.map((post, idx) => (
-                            <button
-                              key={`${post.id || idx}-${post.calendarId}`}
-                              type="button"
-                              className="calendar-chip"
-                              onClick={() => router.push(`/calendar/${post.calendarId}`)}
-                            >
-                              <span className="truncate">
-                                {post.platform} · {post.copy?.headline || post.theme}
-                              </span>
-                            </button>
-                          ))}
-                          {extraEvents > 0 ? (
-                            <div className="calendar-more">+{extraEvents} more events</div>
-                          ) : null}
-                          {extraPosts > 0 ? (
-                            <div className="calendar-more">+{extraPosts} more posts</div>
-                          ) : null}
-                          {events.length === 0 && posts.length === 0 ? (
-                            <div className="calendar-more">No items</div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 lg:p-6">
-                <div className="border-b border-border pb-4 mb-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">
-                    Selected day
-                  </div>
-                  <h3 className="calendar-month-label mt-2">{formatDayLabel(activeDateISO)}</h3>
-                  <p className="text-xs text-muted mt-1">
-                    {activeDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric' })}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="card">
-                    <div className="card-top">
-                      <span className="badge">Daily events</span>
-                      <span className="badge outline">{dayEvents.length} tasks</span>
-                    </div>
-                    {dayEvents.length ? (
-                      <div className="calendar-day-items">
-                        {dayEvents.map((event) => (
-                          <button
-                            key={event.id}
-                            type="button"
-                            className="copy-block text-left cursor-pointer"
-                            aria-pressed={selectedEvent?.id === event.id}
-                            onClick={() => handleSelectEvent(event, activeDateISO)}
-                          >
-                            <div className={`calendar-event ${EVENT_TIER_CLASSES[event.tier]}`}>
-                              <span className="calendar-event-title">{event.name}</span>
-                              <span className="calendar-event-score">{`${Math.round(event.score)}%`}</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="empty">No events for this day.</div>
-                    )}
-                  </div>
-                  <div className="card">
-                    <div className="card-top">
-                      <span className="badge">Scheduled posts</span>
-                      <span className="badge outline">{dayPosts.length} posts</span>
-                    </div>
-                    {dayPosts.length ? (
-                      <div className="calendar-day-items">
-                        {dayPosts.map((post, idx) => (
-                          <button
-                            key={`${post.id || idx}-${post.calendarId}`}
-                            type="button"
-                            className="calendar-chip"
-                            onClick={() => router.push(`/calendar/${post.calendarId}`)}
-                          >
-                            <span className="truncate">
-                              {post.platform} · {post.copy?.headline || post.theme || 'Post'}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="empty">No posts for this day.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-  
-          {selectedDayISO ? (
-            <aside className="card w-full lg:w-96 self-start">
-              <div className="card-top">
-                <div>
-                  <div className="card-sub">Selected day</div>
-                  <h3 className="font-display text-xl">{selectedDayLabel || 'Selected day'}</h3>
-                </div>
-                <button
-                  className="icon-btn ghost"
-                  type="button"
-                  onClick={() => {
-                    setSelectedDayISO(null);
-                    setSelectedEvent(null);
-                    setSelectedEventDateISO(null);
-                  }}
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-              <div className="detail-grid">
-                <div>
-                  <div className="card-top">
-                    <span className="badge">Daily events</span>
-                    <span className="badge outline">{selectedDayEvents.length} tasks</span>
-                  </div>
+          </Stack>
+        </Stack>
+      </DashboardCard>
+
+      {/* Legend */}
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+        <Chip size="small" label="High" color="error" variant="filled" />
+        <Chip size="small" label="Medium" color="warning" variant="filled" />
+        <Chip size="small" label="Low" variant="outlined" />
+        <Chip size="small" label={selectionLabel} variant="outlined" />
+        <Chip size="small" label={`${totalPosts} posts`} variant="outlined" />
+        <Chip size="small" label={`${totalEvents} dates`} variant="outlined" />
+        {eventsLoading ? <Chip size="small" label="Loading dates..." variant="outlined" /> : null}
+      </Stack>
+
+      {/* Calendar + Day panel */}
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+        <Card variant="outlined" sx={{ flex: 1 }}>
+          <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              view={view}
+              date={activeDate}
+              toolbar={false}
+              selectable
+              popup
+              messages={CALENDAR_MESSAGES}
+              onNavigate={handleRbcNavigate}
+              onView={(nextView) => setView(nextView)}
+              onSelectSlot={handleRbcSelectSlot}
+              onSelectEvent={handleRbcSelectEvent}
+              eventPropGetter={rbcEventPropGetter}
+              components={{ event: CalendarEventContent }}
+              style={{ height: 720 }}
+            />
+          </CardContent>
+        </Card>
+
+        {selectedDayISO ? (
+          <Card variant="outlined" sx={{ width: { xs: '100%', lg: 384 }, flexShrink: 0, alignSelf: 'flex-start' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">Selected day</Typography>
+                    <Typography variant="h6">{selectedDayLabel || 'Selected day'}</Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setSelectedDayISO(null);
+                      setSelectedEvent(null);
+                      setSelectedEventDateISO(null);
+                    }}
+                  >
+                    <IconX size={18} />
+                  </IconButton>
+                </Stack>
+
+                <Divider />
+
+                {/* Daily events */}
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <Chip size="small" label="Daily events" />
+                    <Chip size="small" label={`${selectedDayEvents.length} tasks`} variant="outlined" />
+                  </Stack>
                   {selectedDayEvents.length ? (
-                    <div className="calendar-day-items">
+                    <List dense disablePadding>
                       {selectedDayEvents.map((event) => (
-                        <button
+                        <ListItemButton
                           key={event.id}
-                          type="button"
-                          className="copy-block text-left cursor-pointer"
-                          aria-pressed={selectedEvent?.id === event.id}
+                          selected={selectedEvent?.id === event.id}
                           onClick={() => handleSelectEvent(event, selectedDayISO || activeDateISO)}
+                          sx={{ borderRadius: 1, mb: 0.5 }}
                         >
-                          <div className={`calendar-event ${EVENT_TIER_CLASSES[event.tier]}`}>
-                            <span className="calendar-event-title">{event.name}</span>
-                            <span className="calendar-event-score">{`${Math.round(event.score)}%`}</span>
-                          </div>
-                        </button>
+                          <ListItemText
+                            primary={event.name}
+                            secondary={`${Math.round(event.score)}%`}
+                          />
+                          <Chip
+                            size="small"
+                            label={`Tier ${event.tier}`}
+                            color={(TIER_COLORS[event.tier] || 'default') as any}
+                          />
+                        </ListItemButton>
                       ))}
-                    </div>
+                    </List>
                   ) : (
-                    <div className="empty">No events for this day.</div>
+                    <Typography variant="body2" color="text.secondary">No events for this day.</Typography>
                   )}
-                </div>
-                <div>
-                  <div className="card-top">
-                    <span className="badge">Scheduled posts</span>
-                    <span className="badge outline">{selectedDayPosts.length} posts</span>
-                  </div>
+                </Box>
+
+                <Divider />
+
+                {/* Scheduled posts */}
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <Chip size="small" label="Scheduled posts" />
+                    <Chip size="small" label={`${selectedDayPosts.length} posts`} variant="outlined" />
+                  </Stack>
                   {selectedDayPosts.length ? (
-                    <div className="calendar-day-items">
+                    <List dense disablePadding>
                       {selectedDayPosts.map((post, idx) => (
-                        <button
+                        <ListItemButton
                           key={`${post.id || idx}-${post.calendarId}`}
-                          type="button"
-                          className="calendar-chip"
                           onClick={() => router.push(`/calendar/${post.calendarId}`)}
+                          sx={{ borderRadius: 1, mb: 0.5 }}
                         >
-                          <span className="truncate">
-                            {post.platform} · {post.copy?.headline || post.theme || 'Post'}
-                          </span>
-                        </button>
+                          <ListItemText
+                            primary={`${post.platform} - ${post.copy?.headline || post.theme || 'Post'}`}
+                          />
+                        </ListItemButton>
                       ))}
-                    </div>
-                    ) : (
-                      <div className="empty">No posts for this day.</div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="card-top">
-                      <span className="badge">Event details</span>
-                      {selectedEvent ? (
-                        <button
-                          className="icon-btn ghost"
-                          type="button"
-                          onClick={() => {
-                            setSelectedEvent(null);
-                            setSelectedEventDateISO(null);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">close</span>
-                        </button>
-                      ) : null}
-                    </div>
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No posts for this day.</Typography>
+                  )}
+                </Box>
+
+                <Divider />
+
+                {/* Event details */}
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Chip size="small" label="Event details" />
                     {selectedEvent ? (
-                      <div className="copy-block">
-                        <div className="card-title">
-                          <h3>{selectedEvent.name}</h3>
-                          <span className="status">Tier {selectedEvent.tier}</span>
-                        </div>
-                        <ul className="detail-list">
-                          <li>
-                            <span>Date</span>
-                            <span>{selectedEventDateLabel || eventDetailDateISO}</span>
-                          </li>
-                          <li>
-                            <span>{selectedClient ? 'Relevance' : 'Base relevance'}</span>
-                            <span>{selectedEvent.score}</span>
-                          </li>
-                          <li>
-                            <span>Client</span>
-                            <span>{selectedClient?.name || 'Global calendar'}</span>
-                          </li>
-                          {selectedClient?.segment_primary ? (
-                            <li>
-                              <span>Segment</span>
-                              <span>{selectedClient.segment_primary}</span>
-                            </li>
-                          ) : null}
-                          {[selectedClient?.city, selectedClient?.uf].filter(Boolean).length ? (
-                            <li>
-                              <span>Location</span>
-                              <span>{[selectedClient?.city, selectedClient?.uf].filter(Boolean).join(' / ')}</span>
-                            </li>
-                          ) : null}
-                          {selectedEvent.source ? (
-                            <li>
-                              <span>Source</span>
-                              <span>{selectedEvent.source}</span>
-                            </li>
-                          ) : null}
-                        </ul>
-                        {selectedEvent.why ? (
-                          <div className="detail-text">{formatEventWhy(selectedEvent.why)}</div>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setSelectedEvent(null);
+                          setSelectedEventDateISO(null);
+                        }}
+                      >
+                        <IconX size={16} />
+                      </IconButton>
+                    ) : null}
+                  </Stack>
+                  {selectedEvent ? (
+                    <Stack spacing={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="subtitle1" fontWeight={600}>{selectedEvent.name}</Typography>
+                        <StatusChip status={selectedEvent.tier === 'A' ? 'high' : selectedEvent.tier === 'B' ? 'medium' : 'low'} label={`Tier ${selectedEvent.tier}`} />
+                      </Stack>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Date</Typography>
+                        <Typography variant="body2">{selectedEventDateLabel || eventDetailDateISO}</Typography>
+                        <Typography variant="caption" color="text.secondary">{selectedClient ? 'Relevance' : 'Base relevance'}</Typography>
+                        <Typography variant="body2">{selectedEvent.score}</Typography>
+                        <Typography variant="caption" color="text.secondary">Client</Typography>
+                        <Typography variant="body2">{selectedClient?.name || 'Global calendar'}</Typography>
+                        {selectedClient?.segment_primary ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">Segment</Typography>
+                            <Typography variant="body2">{selectedClient.segment_primary}</Typography>
+                          </>
                         ) : null}
-                        {selectedEvent.descricao_ai ? (
-                          <div>
-                            <div className="card-sub">Sobre esta data</div>
-                            <div className="detail-text text-sm leading-relaxed">{selectedEvent.descricao_ai}</div>
-                            {selectedEvent.origem_ai ? (
-                              <div className="detail-text text-xs text-muted mt-2">
-                                <strong>Origem:</strong> {selectedEvent.origem_ai}
-                              </div>
+                        {[selectedClient?.city, selectedClient?.uf].filter(Boolean).length ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">Location</Typography>
+                            <Typography variant="body2">{[selectedClient?.city, selectedClient?.uf].filter(Boolean).join(' / ')}</Typography>
+                          </>
+                        ) : null}
+                        {selectedEvent.source ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">Source</Typography>
+                            <Typography variant="body2">{selectedEvent.source}</Typography>
+                          </>
+                        ) : null}
+                      </Box>
+                      {selectedEvent.why ? (
+                        <Typography variant="body2" color="text.secondary">{formatEventWhy(selectedEvent.why)}</Typography>
+                      ) : null}
+                      {selectedEvent.descricao_ai ? (
+                        <Box>
+                          <Typography variant="overline" color="text.secondary">Sobre esta data</Typography>
+                          <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{selectedEvent.descricao_ai}</Typography>
+                          {selectedEvent.origem_ai ? (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                              <strong>Origem:</strong> {selectedEvent.origem_ai}
+                            </Typography>
+                          ) : null}
+                          {selectedEvent.curiosidade_ai ? (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                              <strong>Curiosidade:</strong> {selectedEvent.curiosidade_ai}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      ) : null}
+                      {selectedEvent.categories?.length ? (
+                        <Box>
+                          <Typography variant="overline" color="text.secondary">Categories</Typography>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                            {selectedEvent.categories.map((category) => (
+                              <Chip key={category} label={category} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </Box>
+                      ) : null}
+                      {selectedEvent.tags?.length ? (
+                        <Box>
+                          <Typography variant="overline" color="text.secondary">Tags</Typography>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                            {selectedEvent.tags.map((tag) => (
+                              <Chip key={tag} label={tag} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </Box>
+                      ) : null}
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Clientes do job</Typography>
+                        {selectedEvent ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Relevantes: {recommendedClientIds.length} de {clients.length}
+                          </Typography>
+                        ) : null}
+                        {isFilteredToClient && selectedClient ? (
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                            <Chip label={selectedClient.name} size="small" color="primary" />
+                          </Stack>
+                        ) : (
+                          <>
+                            {relevanceLoading ? (
+                              <Typography variant="body2" color="text.secondary">Calculando relevancia...</Typography>
                             ) : null}
-                            {selectedEvent.curiosidade_ai ? (
-                              <div className="detail-text text-xs text-muted mt-1">
-                                <strong>Curiosidade:</strong> {selectedEvent.curiosidade_ai}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {selectedEvent.categories?.length ? (
-                          <div>
-                            <div className="card-sub">Categories</div>
-                            <div className="card-tags">
-                              {selectedEvent.categories.map((category) => (
-                                <span key={category} className="chip">
-                                  {category}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                        {selectedEvent.tags?.length ? (
-                          <div>
-                            <div className="card-sub">Tags</div>
-                            <div className="card-tags">
-                              {selectedEvent.tags.map((tag) => (
-                                <span key={tag} className="chip">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                        <div>
-                          <div className="card-sub">Clientes do job</div>
-                          {selectedEvent ? (
-                            <div className="detail-text">
-                              Relevantes: {recommendedClientIds.length} de {clients.length}
-                            </div>
-                          ) : null}
-                          {isFilteredToClient && selectedClient ? (
-                            <div className="card-tags">
-                              <span className="chip active">{selectedClient.name}</span>
-                            </div>
-                          ) : (
-                            <>
-                              {relevanceLoading ? <div className="empty">Calculando relevancia...</div> : null}
-                              {!relevanceLoading && !visibleClients.length ? (
-                                <div className="empty">Nenhum cliente relevante para este evento.</div>
-                              ) : (
-                                <div className="card-tags">
-                                  {visibleClients.map((client) => (
-                                    <button
-                                      key={client.id}
-                                      type="button"
-                                      className={`chip ${selectedClientIds.includes(client.id) ? 'active' : ''}`}
-                                      onClick={() => handleToggleClient(client.id)}
-                                    >
-                                      {client.name}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                <button className="btn ghost" type="button" onClick={handleSelectAllClients}>
-                                  Selecionar todos
-                                </button>
-                                <button className="btn ghost" type="button" onClick={handleClearClients}>
-                                  Limpar
-                                </button>
-                                {selectedEvent && !showAllClients ? (
-                                  <button className="btn ghost" type="button" onClick={() => setShowAllClients(true)}>
-                                    Mostrar todos
-                                  </button>
-                                ) : null}
-                                {selectedEvent && showAllClients ? (
-                                  <button className="btn ghost" type="button" onClick={() => setShowAllClients(false)}>
-                                    Mostrar apenas relevantes
-                                  </button>
-                                ) : null}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <button
-                          className="btn primary w-full"
-                          type="button"
-                          onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}
-                        >
-                          Create post
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="empty">Select an event to see details.</div>
-                    )}
-                  </div>
-                </div>
-            </aside>
-          ) : null}
-        </div>
-      </div>
+                            {!relevanceLoading && !visibleClients.length ? (
+                              <Typography variant="body2" color="text.secondary">Nenhum cliente relevante para este evento.</Typography>
+                            ) : (
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                {visibleClients.map((client) => (
+                                  <Chip
+                                    key={client.id}
+                                    label={client.name}
+                                    size="small"
+                                    color={selectedClientIds.includes(client.id) ? 'primary' : 'default'}
+                                    variant={selectedClientIds.includes(client.id) ? 'filled' : 'outlined'}
+                                    onClick={() => handleToggleClient(client.id)}
+                                  />
+                                ))}
+                              </Stack>
+                            )}
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                              <Button size="small" variant="text" onClick={handleSelectAllClients}>
+                                Selecionar todos
+                              </Button>
+                              <Button size="small" variant="text" onClick={handleClearClients}>
+                                Limpar
+                              </Button>
+                              {selectedEvent && !showAllClients ? (
+                                <Button size="small" variant="text" onClick={() => setShowAllClients(true)}>
+                                  Mostrar todos
+                                </Button>
+                              ) : null}
+                              {selectedEvent && showAllClients ? (
+                                <Button size="small" variant="text" onClick={() => setShowAllClients(false)}>
+                                  Mostrar apenas relevantes
+                                </Button>
+                              ) : null}
+                            </Stack>
+                          </>
+                        )}
+                      </Box>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}
+                      >
+                        Create post
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Select an event to see details.</Typography>
+                  )}
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        ) : null}
+      </Stack>
+    </Stack>
+  );
+
+  if (noShell) {
+    return content;
+  }
+
+  return (
+    <AppShell title="Global Operational Calendar">
+      {content}
     </AppShell>
   );
 }

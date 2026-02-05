@@ -4,6 +4,32 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPost } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
+import Tab from '@mui/material/Tab';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Tabs from '@mui/material/Tabs';
+import Typography from '@mui/material/Typography';
+import {
+  IconRefresh,
+  IconPlayerPlay,
+  IconChartBar,
+} from '@tabler/icons-react';
 
 type FeatureFlag = {
   key: string;
@@ -44,7 +70,7 @@ type SecurityDashboard = {
 
 export default function AdminSystemPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'flags' | 'security' | 'jobs' | 'dashboard'>('flags');
+  const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
 
   // Feature Flags
@@ -60,13 +86,15 @@ export default function AdminSystemPage() {
   // Jobs
   const [jobStatus, setJobStatus] = useState<string>('');
   const [loadingJob, setLoadingJob] = useState(false);
+  const [insightsStatus, setInsightsStatus] = useState<string>('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 'flags') {
+    if (activeTab === 0) {
       loadFlags();
-    } else if (activeTab === 'security') {
+    } else if (activeTab === 1) {
       loadSecurityLogs();
-    } else if (activeTab === 'dashboard') {
+    } else if (activeTab === 3) {
       loadSecurityDashboard();
     }
   }, [activeTab]);
@@ -138,336 +166,391 @@ export default function AdminSystemPage() {
     }
   };
 
+  const triggerInsightsJob = async () => {
+    setLoadingInsights(true);
+    setInsightsStatus('');
+    try {
+      const res = await apiPost<{ ok?: boolean }>('/admin/jobs/insights', {});
+      setInsightsStatus(res?.ok ? 'Insights atualizados com sucesso.' : 'Job de insights iniciado.');
+    } catch (error: any) {
+      setInsightsStatus(`Error: ${error.message}`);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  const getOperationColor = (operation: string): 'info' | 'success' | 'warning' | 'error' => {
+    if (operation === 'SELECT') return 'info';
+    if (operation === 'INSERT') return 'success';
+    if (operation === 'UPDATE') return 'warning';
+    return 'error';
+  };
+
   const renderFeatureFlags = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">Feature Flags</h3>
-          <p className="text-sm text-slate-600">Gerencie features toggles do sistema</p>
-        </div>
-        <button
-          onClick={loadFlags}
-          className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-        >
-          <span className="material-symbols-outlined text-sm">refresh</span>
-        </button>
-      </div>
+    <Stack spacing={3}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Box>
+          <Typography variant="h6">Feature Flags</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gerencie features toggles do sistema
+          </Typography>
+        </Box>
+        <IconButton onClick={loadFlags}>
+          <IconRefresh size={20} />
+        </IconButton>
+      </Stack>
 
       {loadingFlags ? (
-        <div className="text-center py-8">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-        </div>
+        <Stack alignItems="center" sx={{ py: 4 }}>
+          <CircularProgress size={32} />
+        </Stack>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-card hover:shadow-card-hover transition-all duration-200">
+        <Card variant="outlined">
           {flags.length > 0 ? (
-            flags.map((flag) => (
-              <div key={flag.key} className="p-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors duration-200 first:rounded-t-2xl last:rounded-b-2xl">
-                <div className="flex-1">
-                  <div className="font-medium text-slate-900">{flag.key}</div>
-                  {flag.description && (
-                    <div className="text-sm text-slate-500 mt-1">{flag.description}</div>
-                  )}
-                  {flag.updated_at && (
-                    <div className="text-xs text-slate-400 mt-1">
-                      Updated: {new Date(flag.updated_at).toLocaleString('pt-BR')}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => toggleFlag(flag.key, flag.enabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    flag.enabled ? 'bg-blue-600' : 'bg-slate-200'
-                  }`}
+            flags.map((flag, index) => (
+              <Box key={flag.key}>
+                {index > 0 && <Divider />}
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ px: 3, py: 2, '&:hover': { bgcolor: 'action.hover' } }}
                 >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      flag.enabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2">{flag.key}</Typography>
+                    {flag.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {flag.description}
+                      </Typography>
+                    )}
+                    {flag.updated_at && (
+                      <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                        Updated: {new Date(flag.updated_at).toLocaleString('pt-BR')}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Switch
+                    checked={flag.enabled}
+                    onChange={() => toggleFlag(flag.key, flag.enabled)}
                   />
-                </button>
-              </div>
+                </Stack>
+              </Box>
             ))
           ) : (
-            <div className="p-8 text-center text-slate-500">Nenhum feature flag encontrado</div>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                Nenhum feature flag encontrado
+              </Typography>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
-    </div>
+    </Stack>
   );
 
   const renderSecurityLogs = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Immutable Field Audit Logs</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-200">
+    <Stack spacing={4}>
+      <Box>
+        <Typography variant="h6" sx={{ mb: 2 }}>Immutable Field Audit Logs</Typography>
+        <Card variant="outlined">
           {loadingSecurity ? (
-            <div className="text-center py-8">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-            </div>
+            <Stack alignItems="center" sx={{ py: 4 }}>
+              <CircularProgress size={32} />
+            </Stack>
           ) : securityLogs.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Timestamp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">User</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Action</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Entity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Field</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Old Value</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">New Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Timestamp</TableCell>
+                    <TableCell>User</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>Entity</TableCell>
+                    <TableCell>Field</TableCell>
+                    <TableCell>Old Value</TableCell>
+                    <TableCell>New Value</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {securityLogs.slice(0, 50).map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-sm text-slate-900">
-                        {new Date(log.timestamp).toLocaleString('pt-BR')}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-900">{log.user_id}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {log.entity_type} ({log.entity_id})
-                      </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-900">{log.field_name}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">{log.old_value}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">{log.new_value}</td>
-                    </tr>
+                    <TableRow key={log.id} hover>
+                      <TableCell>{new Date(log.timestamp).toLocaleString('pt-BR')}</TableCell>
+                      <TableCell>{log.user_id}</TableCell>
+                      <TableCell>
+                        <Chip size="small" color="error" label={log.action} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {log.entity_type} ({log.entity_id})
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {log.field_name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 200 }}>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {log.old_value}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 200 }}>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {log.new_value}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
           ) : (
-            <div className="p-8 text-center text-slate-500">Nenhum log de auditoria encontrado</div>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                Nenhum log de auditoria encontrado
+              </Typography>
+            </CardContent>
           )}
-        </div>
-      </div>
+        </Card>
+      </Box>
 
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Access Logs</h3>
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <Box>
+        <Typography variant="h6" sx={{ mb: 2 }}>Access Logs</Typography>
+        <Card variant="outlined">
           {accessLogs.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Timestamp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">User</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Table</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Operation</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600">Record ID</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Timestamp</TableCell>
+                    <TableCell>User</TableCell>
+                    <TableCell>Table</TableCell>
+                    <TableCell>Operation</TableCell>
+                    <TableCell>Record ID</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {accessLogs.slice(0, 50).map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-sm text-slate-900">
-                        {new Date(log.timestamp).toLocaleString('pt-BR')}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-900">{log.user_id}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600">{log.table_name}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            log.operation === 'SELECT'
-                              ? 'bg-blue-100 text-blue-700'
-                              : log.operation === 'INSERT'
-                              ? 'bg-green-100 text-green-700'
-                              : log.operation === 'UPDATE'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {log.operation}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{log.record_id}</td>
-                    </tr>
+                    <TableRow key={log.id} hover>
+                      <TableCell>{new Date(log.timestamp).toLocaleString('pt-BR')}</TableCell>
+                      <TableCell>{log.user_id}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }} color="text.secondary">
+                          {log.table_name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" color={getOperationColor(log.operation)} label={log.operation} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {log.record_id}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
           ) : (
-            <div className="p-8 text-center text-slate-500">Nenhum access log encontrado</div>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                Nenhum access log encontrado
+              </Typography>
+            </CardContent>
           )}
-        </div>
-      </div>
-    </div>
+        </Card>
+      </Box>
+    </Stack>
   );
 
   const renderJobs = () => (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Manual Job Triggers</h3>
-        <p className="text-sm text-slate-600 mb-6">Acione jobs de processamento manualmente</p>
-      </div>
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="h6">Manual Job Triggers</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Acione jobs de processamento manualmente
+        </Typography>
+      </Box>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h4 className="font-medium text-slate-900 mb-1">Library Processing Job</h4>
-            <p className="text-sm text-slate-600">
-              Processa arquivos pendentes na biblioteca de clientes (OCR, embeddings, etc.)
-            </p>
-          </div>
-          <button
-            onClick={triggerLibraryJob}
-            disabled={loadingJob}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {loadingJob ? (
-              <>
-                <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                Processando...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-sm">play_arrow</span>
-                Executar Job
-              </>
-            )}
-          </button>
-        </div>
+      <Card variant="outlined">
+        <CardContent>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle1" gutterBottom>Library Processing Job</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Processa arquivos pendentes na biblioteca de clientes (OCR, embeddings, etc.)
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              onClick={triggerLibraryJob}
+              disabled={loadingJob}
+              startIcon={loadingJob ? <CircularProgress size={16} color="inherit" /> : <IconPlayerPlay size={16} />}
+            >
+              {loadingJob ? 'Processando...' : 'Executar Job'}
+            </Button>
+          </Stack>
 
-        {jobStatus && (
-          <div
-            className={`mt-4 p-4 rounded-lg ${
-              jobStatus.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-            }`}
-          >
-            {jobStatus}
-          </div>
-        )}
-      </div>
-    </div>
+          {jobStatus && (
+            <Alert severity={jobStatus.startsWith('Error') ? 'error' : 'success'} sx={{ mt: 2 }}>
+              {jobStatus}
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle1" gutterBottom>Reportei Insights Job</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Coleta metricas do Reportei e salva insights para cada cliente.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={triggerInsightsJob}
+              disabled={loadingInsights}
+              startIcon={loadingInsights ? <CircularProgress size={16} color="inherit" /> : <IconChartBar size={16} />}
+            >
+              {loadingInsights ? 'Processando...' : 'Rodar Reportei'}
+            </Button>
+          </Stack>
+
+          {insightsStatus && (
+            <Alert severity={insightsStatus.startsWith('Error') ? 'error' : 'success'} sx={{ mt: 2 }}>
+              {insightsStatus}
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    </Stack>
   );
 
   const renderSecurityDashboard = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Security Analytics</h3>
-      </div>
+    <Stack spacing={4}>
+      <Typography variant="h6">Security Analytics</Typography>
 
       {loadingSecurity ? (
-        <div className="text-center py-8">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-        </div>
+        <Stack alignItems="center" sx={{ py: 4 }}>
+          <CircularProgress size={32} />
+        </Stack>
       ) : securityDashboard ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
-            <div className="text-sm text-slate-600 mb-2">Total Immutable Changes</div>
-            <div className="text-3xl font-bold text-error-600">
-              {securityDashboard.total_immutable_changes}
-            </div>
-            <div className="text-xs text-slate-500 mt-2">Tentativas de alterar campos imutáveis</div>
-          </div>
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Immutable Changes
+                </Typography>
+                <Typography variant="h3" color="error.main">
+                  {securityDashboard.total_immutable_changes}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Tentativas de alterar campos imutaveis
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-card hover:shadow-card-hover transition-all duration-200">
-            <div className="text-sm text-slate-600 mb-2">Total Access Logs</div>
-            <div className="text-3xl font-bold text-info-600">{securityDashboard.total_access_logs}</div>
-            <div className="text-xs text-slate-500 mt-2">Registros de acesso ao banco</div>
-          </div>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Access Logs
+                </Typography>
+                <Typography variant="h3" color="info.main">
+                  {securityDashboard.total_access_logs}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Registros de acesso ao banco
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {securityDashboard.recent_suspicious_activity?.length > 0 && (
-            <div className="col-span-2 bg-white rounded-lg border border-slate-200 p-6">
-              <h4 className="font-semibold text-slate-900 mb-4">Recent Suspicious Activity</h4>
-              <div className="space-y-2">
-                {securityDashboard.recent_suspicious_activity.map((activity: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="text-sm text-red-900">{JSON.stringify(activity)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Grid size={{ xs: 12 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" gutterBottom>Recent Suspicious Activity</Typography>
+                  <Stack spacing={1}>
+                    {securityDashboard.recent_suspicious_activity.map((activity: any, idx: number) => (
+                      <Alert key={idx} severity="error" variant="outlined">
+                        {JSON.stringify(activity)}
+                      </Alert>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
           )}
 
           {securityDashboard.top_users_by_activity?.length > 0 && (
-            <div className="col-span-2 bg-white rounded-lg border border-slate-200 p-6">
-              <h4 className="font-semibold text-slate-900 mb-4">Top Users by Activity</h4>
-              <div className="space-y-2">
-                {securityDashboard.top_users_by_activity.map((user: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <span className="text-sm text-slate-900">{user.user_id || user.email}</span>
-                    <span className="text-sm font-semibold text-slate-700">{user.count} actions</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Grid size={{ xs: 12 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" gutterBottom>Top Users by Activity</Typography>
+                  <Stack spacing={1}>
+                    {securityDashboard.top_users_by_activity.map((user: any, idx: number) => (
+                      <Stack
+                        key={idx}
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}
+                      >
+                        <Typography variant="body2">{user.user_id || user.email}</Typography>
+                        <Typography variant="body2" fontWeight={600} color="text.secondary">
+                          {user.count} actions
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
           )}
-        </div>
+        </Grid>
       ) : (
-        <div className="p-8 text-center text-slate-500">Nenhum dado de segurança disponível</div>
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+          Nenhum dado de seguranca disponivel
+        </Typography>
       )}
-    </div>
+    </Stack>
   );
 
   return (
     <AppShell title="System Admin">
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">System Administration</h1>
-          <p className="text-slate-600">Gerencie configurações avançadas do sistema</p>
-        </div>
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h4" gutterBottom>System Administration</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gerencie configuracoes avancadas do sistema
+          </Typography>
+        </Box>
 
-        {/* Tabs */}
-        <div className="mb-6 border-b border-slate-200">
-          <div className="flex gap-4">
-            <button
-              onClick={() => setActiveTab('flags')}
-              className={`pb-3 px-1 border-b-2 transition-colors ${
-                activeTab === 'flags'
-                  ? 'border-blue-600 text-blue-600 font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Feature Flags
-            </button>
-            <button
-              onClick={() => setActiveTab('security')}
-              className={`pb-3 px-1 border-b-2 transition-colors ${
-                activeTab === 'security'
-                  ? 'border-blue-600 text-blue-600 font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Security Logs
-            </button>
-            <button
-              onClick={() => setActiveTab('jobs')}
-              className={`pb-3 px-1 border-b-2 transition-colors ${
-                activeTab === 'jobs'
-                  ? 'border-blue-600 text-blue-600 font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Jobs
-            </button>
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`pb-3 px-1 border-b-2 transition-colors ${
-                activeTab === 'dashboard'
-                  ? 'border-blue-600 text-blue-600 font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Dashboard
-            </button>
-          </div>
-        </div>
+        <Tabs
+          value={activeTab}
+          onChange={(_, value) => setActiveTab(value)}
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Feature Flags" />
+          <Tab label="Security Logs" />
+          <Tab label="Jobs" />
+          <Tab label="Dashboard" />
+        </Tabs>
 
-        {/* Content */}
-        <div>
-          {activeTab === 'flags' && renderFeatureFlags()}
-          {activeTab === 'security' && renderSecurityLogs()}
-          {activeTab === 'jobs' && renderJobs()}
-          {activeTab === 'dashboard' && renderSecurityDashboard()}
-        </div>
-      </div>
+        <Box>
+          {activeTab === 0 && renderFeatureFlags()}
+          {activeTab === 1 && renderSecurityLogs()}
+          {activeTab === 2 && renderJobs()}
+          {activeTab === 3 && renderSecurityDashboard()}
+        </Box>
+      </Box>
     </AppShell>
   );
 }

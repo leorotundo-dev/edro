@@ -1,0 +1,759 @@
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { authGuard } from '../auth/rbac';
+import { tenantGuard } from '../auth/tenantGuard';
+import { query } from '../db';
+import { generateWithProvider, CopyProvider, getAvailableProvidersInfo } from '../services/ai/copyOrchestrator';
+import { generateCopy } from '../services/ai/copyService';
+import { getClientById } from '../repos/clientsRepo';
+import {
+  createBriefing,
+  createBriefingStages,
+  createCopyVersion,
+  ensureBriefingStages,
+  getBriefingById,
+  listBriefings,
+  updateBriefingStageStatus,
+} from '../repositories/edroBriefingRepository';
+import { buildContextPack } from '../library/contextPack';
+
+type ConversationMessage = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  provider?: string;
+};
+
+type Conversation = {
+  id: string;
+  tenant_id: string;
+  client_id: string;
+  user_id?: string;
+  title?: string;
+  provider: string;
+  messages: ConversationMessage[];
+  context_summary?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+const chatSchema = z.object({
+  message: z.string().min(1),
+  provider: z.enum(['openai', 'anthropic', 'google']).optional().default('openai'),
+  conversationId: z.string().uuid().optional(),
+  mode: z.enum(['chat', 'command']).optional().default('chat'),
+});
+
+const createConversationSchema = z.object({
+  title: z.string().optional(),
+  provider: z.enum(['openai', 'anthropic', 'google']).optional().default('openai'),
+});
+
+function mapProviderToCopy(provider: string): CopyProvider {
+  switch (provider) {
+    case 'anthropic': return 'claude';
+    case 'google': return 'gemini';
+    case 'openai':
+    default: return 'openai';
+  }
+}
+
+function safeJsonParse(text: string): Record<string, any> | null {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(trimmed.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function buildCommandPrompt(clientContext: string): string {
+  return `Você é um assistente operacional do planejamento EDRO.
+Sua tarefa é identificar comandos do usuário e retornar APENAS JSON válido.
+
+Schema:
+{
+  "action": "create_briefing" | "generate_copy" | "none",
+  "reason": "string",
+  "briefing": {
+    "title": "string",
+    "objective": "string",
+    "platform": "string",
+    "format": "string",
+    "deadline": "YYYY-MM-DD",
+    "notes": "string",
+    "channels": ["string"]
+  },
+  "copy": {
+    "briefing_id": "uuid",
+    "briefing_title": "string",
+    "count": 3,
+    "instructions": "string",
+    "language": "pt"
+  }
+}
+
+Regras:
+- Se o pedido for criar briefing, use action=create_briefing.
+- Se for gerar copy, use action=generate_copy.
+- Se não houver comando claro, action=none.
+- Se não souber briefing_id, use briefing_title (ou "latest").
+- Não invente dados. Use null ou omita campos incertos.
+
+CLIENT CONTEXT:
+${clientContext || 'No client context available.'}`;
+}
+
+function normalizeCommandPayload(raw: Record<string, any> | null) {
+  const action =
+    raw?.action === 'create_briefing' || raw?.action === 'generate_copy' ? raw.action : 'none';
+  const briefing = raw?.briefing && typeof raw.briefing === 'object' ? raw.briefing : {};
+  const copy = raw?.copy && typeof raw.copy === 'object' ? raw.copy : {};
+  return {
+    action,
+    reason: typeof raw?.reason === 'string' ? raw.reason : '',
+    briefing: {
+      title: typeof briefing.title === 'string' ? briefing.title : undefined,
+      objective: typeof briefing.objective === 'string' ? briefing.objective : undefined,
+      platform: typeof briefing.platform === 'string' ? briefing.platform : undefined,
+      format: typeof briefing.format === 'string' ? briefing.format : undefined,
+      deadline: typeof briefing.deadline === 'string' ? briefing.deadline : undefined,
+      notes: typeof briefing.notes === 'string' ? briefing.notes : undefined,
+      channels: Array.isArray(briefing.channels) ? briefing.channels.filter(Boolean) : undefined,
+    },
+    copy: {
+      briefing_id: typeof copy.briefing_id === 'string' ? copy.briefing_id : undefined,
+      briefing_title: typeof copy.briefing_title === 'string' ? copy.briefing_title : undefined,
+      count: Number.isFinite(copy.count) ? Math.max(1, Number(copy.count)) : 3,
+      instructions: typeof copy.instructions === 'string' ? copy.instructions : undefined,
+      language: typeof copy.language === 'string' ? copy.language : 'pt',
+    },
+  };
+}
+
+async function resolveBriefingFromCommand(params: {
+  clientId: string;
+  briefingId?: string;
+  briefingTitle?: string;
+}) {
+  if (params.briefingId) {
+    const direct = await getBriefingById(params.briefingId);
+    if (direct) return direct;
+  }
+
+  const briefings = await listBriefings({ clientId: params.clientId, limit: 20 });
+  if (!briefings.length) return null;
+
+  const title = (params.briefingTitle || '').trim().toLowerCase();
+  if (title && title !== 'latest') {
+    const match = briefings.find((b) => (b.title || '').toLowerCase().includes(title));
+    if (match) return match;
+  }
+
+  return briefings[0] || null;
+}
+
+async function buildClientContext(tenantId: string, clientId: string): Promise<string> {
+  const client = await getClientById(tenantId, clientId);
+  if (!client) return '';
+
+  const profile = client.profile || {};
+  const knowledge = profile.knowledge_base || {};
+
+  const parts: string[] = [];
+  parts.push(`Client: ${client.name}`);
+  if (client.segment_primary) parts.push(`Segment: ${client.segment_primary}`);
+  if (knowledge.description) parts.push(`Description: ${knowledge.description}`);
+  if (knowledge.audience) parts.push(`Target Audience: ${knowledge.audience}`);
+  if (knowledge.brand_promise) parts.push(`Brand Promise: ${knowledge.brand_promise}`);
+  if (knowledge.keywords?.length) parts.push(`Keywords: ${knowledge.keywords.join(', ')}`);
+  if (knowledge.pillars?.length) parts.push(`Content Pillars: ${knowledge.pillars.join(', ')}`);
+
+  return parts.join('\n');
+}
+
+function buildSystemPrompt(clientContext: string): string {
+  return `You are an expert marketing and communications strategist for the EDRO platform.
+You help create marketing plans, campaign strategies, and creative content for clients.
+
+CLIENT CONTEXT:
+${clientContext || 'No client context available.'}
+
+GUIDELINES:
+- Always consider the client's brand voice and target audience
+- Provide actionable, specific recommendations
+- Use Brazilian Portuguese when appropriate
+- Focus on measurable outcomes and KPIs
+- Be creative but strategic
+- Consider the client's industry and market context`;
+}
+
+function parseDueAt(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function buildPlanningCopyPrompt(params: {
+  clientName: string;
+  clientSegment?: string | null;
+  briefing: { title: string; payload?: Record<string, any> | null };
+  instructions?: string;
+  count: number;
+  language: string;
+  contextPack?: string;
+}) {
+  const payload = params.briefing.payload || {};
+  const lines = [
+    `Cliente: ${params.clientName}`,
+    params.clientSegment ? `Segmento: ${params.clientSegment}` : null,
+    `Briefing: ${params.briefing.title}`,
+    typeof payload.objective === 'string' ? `Objetivo: ${payload.objective}` : null,
+    typeof payload.platform === 'string' ? `Plataforma: ${payload.platform}` : null,
+    typeof payload.format === 'string' ? `Formato: ${payload.format}` : null,
+    Array.isArray(payload.channels) && payload.channels.length ? `Canais: ${payload.channels.join(', ')}` : null,
+    params.instructions ? `Instrucoes adicionais: ${params.instructions}` : null,
+    `Gere ${params.count} opcoes completas de copy.`,
+    `Cada opcao deve conter: Headline, Corpo e CTA.`,
+    `Idioma: ${params.language}.`,
+  ].filter(Boolean) as string[];
+
+  if (params.contextPack) {
+    lines.push('INSUMOS:');
+    lines.push(params.contextPack);
+  }
+
+  return lines.join('\n');
+}
+
+export default async function planningRoutes(app: FastifyInstance) {
+  // Get available providers
+  app.get('/planning/providers', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const info = getAvailableProvidersInfo();
+    return reply.send({
+      success: true,
+      data: {
+        available: info.available.map(p => {
+          switch (p) {
+            case 'claude': return 'anthropic';
+            case 'gemini': return 'google';
+            default: return p;
+          }
+        }),
+        providers: [
+          { id: 'openai', name: 'OpenAI GPT-4', description: 'Creative and versatile' },
+          { id: 'anthropic', name: 'Claude', description: 'Strategic and analytical' },
+          { id: 'google', name: 'Gemini', description: 'Fast and efficient' },
+        ],
+      },
+    });
+  });
+
+  // Chat with AI
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/chat', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+    const userId = (request as any).userId;
+    const user = (request as any).user;
+
+    const body = chatSchema.parse(request.body);
+    const { message, provider, conversationId, mode } = body;
+
+    // Build client context
+    const clientContext = await buildClientContext(tenantId, clientId);
+    let contextPack = { sources: [], packedText: '' };
+    try {
+      contextPack = await buildContextPack({
+        tenant_id: tenantId,
+        client_id: clientId,
+        query: message,
+      });
+    } catch (error) {
+      request.log?.warn({ err: error }, 'planning_context_pack_failed');
+    }
+
+    const combinedContext = [
+      clientContext,
+      contextPack.packedText ? `KNOWLEDGE BASE:\n${contextPack.packedText}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const systemPrompt =
+      mode === 'command' ? buildCommandPrompt(combinedContext) : buildSystemPrompt(combinedContext);
+
+    let conversation: Conversation | null = null;
+    let messages: ConversationMessage[] = [];
+
+    // Load or create conversation
+    if (conversationId) {
+      const result = await query(
+        `SELECT * FROM planning_conversations WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+        [conversationId, clientId, tenantId]
+      );
+      if (result.rows.length) {
+        conversation = result.rows[0] as Conversation;
+        messages = (conversation.messages || []) as ConversationMessage[];
+      }
+    }
+
+    // Add user message to history
+    const userMessage: ConversationMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+    messages.push(userMessage);
+
+    // Build prompt with conversation history
+    const historyContext = messages.slice(-10).map(m =>
+      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+    ).join('\n\n');
+
+    const fullPrompt = `${historyContext}\n\nUser: ${message}`;
+
+    // Generate AI response
+    const copyProvider = mapProviderToCopy(provider);
+    const result = await generateWithProvider(copyProvider, {
+      prompt: fullPrompt,
+      systemPrompt,
+      temperature: mode === 'command' ? 0.2 : 0.7,
+      maxTokens: 2000,
+    });
+
+    let assistantContent = result.output;
+    let actionResult: Record<string, any> | null = null;
+
+    if (mode === 'command') {
+      const parsed = normalizeCommandPayload(safeJsonParse(result.output));
+
+      if (parsed.action === 'create_briefing') {
+        const title =
+          parsed.briefing.title ||
+          `Briefing ${new Date().toLocaleDateString('pt-BR')}`;
+        const briefingPayload: Record<string, any> = {
+          objective: parsed.briefing.objective ?? null,
+          platform: parsed.briefing.platform ?? null,
+          format: parsed.briefing.format ?? null,
+          notes: parsed.briefing.notes ?? null,
+          channels: parsed.briefing.channels ?? null,
+          source: 'planning_chat',
+        };
+        const dueAt = parseDueAt(parsed.briefing.deadline);
+
+        const briefing = await createBriefing({
+          clientId,
+          title,
+          payload: briefingPayload,
+          createdBy: user?.email ?? null,
+          dueAt: dueAt ?? undefined,
+          source: 'planning_chat',
+        });
+
+        await createBriefingStages(briefing.id, user?.email ?? null);
+
+        assistantContent = `Briefing criado: ${briefing.title}`;
+        actionResult = {
+          action: 'create_briefing',
+          reason: parsed.reason,
+          briefing: {
+            id: briefing.id,
+            title: briefing.title,
+            status: briefing.status,
+          },
+        };
+      } else if (parsed.action === 'generate_copy') {
+        const briefing = await resolveBriefingFromCommand({
+          clientId,
+          briefingId: parsed.copy.briefing_id,
+          briefingTitle: parsed.copy.briefing_title,
+        });
+
+        if (!briefing) {
+          assistantContent = 'Nao encontrei um briefing para gerar o copy.';
+          actionResult = {
+            action: 'generate_copy',
+            reason: parsed.reason,
+            error: 'briefing_not_found',
+          };
+        } else {
+          const client = await getClientById(tenantId, clientId);
+          const prompt = buildPlanningCopyPrompt({
+            clientName: client?.name || 'Cliente',
+            clientSegment: client?.segment_primary ?? null,
+            briefing,
+            instructions: parsed.copy.instructions || message,
+            count: parsed.copy.count,
+            language: parsed.copy.language,
+            contextPack: contextPack.packedText,
+          });
+
+          try {
+            const copyResult = await generateCopy({
+              prompt,
+              taskType: 'social_post',
+              forceProvider: copyProvider,
+            });
+
+            const copyVersion = await createCopyVersion({
+              briefingId: briefing.id,
+              language: parsed.copy.language || 'pt',
+              model: copyResult.model,
+              prompt,
+              output: copyResult.output,
+              payload: copyResult.payload,
+              createdBy: user?.email ?? null,
+            });
+
+            await ensureBriefingStages(briefing.id, user?.email ?? null);
+            await updateBriefingStageStatus({
+              briefingId: briefing.id,
+              stage: 'copy_ia',
+              status: 'done',
+              updatedBy: user?.email ?? null,
+              metadata: { copyVersionId: copyVersion.id, source: 'planning_chat' },
+            });
+
+            assistantContent = `Copys geradas para "${briefing.title}".`;
+            actionResult = {
+              action: 'generate_copy',
+              reason: parsed.reason,
+              briefing: { id: briefing.id, title: briefing.title },
+              copy: {
+                id: copyVersion.id,
+                model: copyResult.model,
+                provider: copyResult.payload?.provider,
+                preview: copyResult.output.slice(0, 400),
+                count: parsed.copy.count,
+              },
+            };
+          } catch (error: any) {
+            assistantContent = 'Falha ao gerar copy agora. Tente novamente.';
+            actionResult = {
+              action: 'generate_copy',
+              reason: parsed.reason,
+              error: error?.message || 'copy_generation_failed',
+            };
+          }
+        }
+      } else {
+        assistantContent = 'Nao identifiquei um comando claro. Posso criar um briefing ou gerar copy.';
+        actionResult = {
+          action: 'none',
+          reason: parsed.reason,
+        };
+      }
+    }
+
+    const assistantMessage: ConversationMessage = {
+      role: 'assistant',
+      content: assistantContent,
+      timestamp: new Date().toISOString(),
+      provider: result.provider,
+    };
+    messages.push(assistantMessage);
+
+    // Save conversation
+    if (conversation) {
+      await query(
+        `UPDATE planning_conversations
+         SET messages = $1, updated_at = now()
+         WHERE id = $2`,
+        [JSON.stringify(messages), conversation.id]
+      );
+    } else {
+      const title = message.slice(0, 100);
+      const insertResult = await query(
+        `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [tenantId, clientId, userId, title, provider, JSON.stringify(messages)]
+      );
+      conversationId || (conversation = { id: insertResult.rows[0].id } as Conversation);
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        response: assistantContent,
+        provider: result.provider,
+        model: result.model,
+        action: actionResult,
+        sources: contextPack.sources,
+        conversationId: conversation?.id || (await query(
+          `SELECT id FROM planning_conversations WHERE tenant_id = $1 AND client_id = $2 ORDER BY created_at DESC LIMIT 1`,
+          [tenantId, clientId]
+        )).rows[0]?.id,
+      },
+    });
+  });
+
+  // List conversations
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    const result = await query(
+      `SELECT id, title, provider, status, created_at, updated_at,
+              (SELECT COUNT(*) FROM jsonb_array_elements(messages)) as message_count
+       FROM planning_conversations
+       WHERE client_id = $1 AND tenant_id = $2
+       ORDER BY updated_at DESC
+       LIMIT 50`,
+      [clientId, tenantId]
+    );
+
+    return reply.send({
+      success: true,
+      data: { conversations: result.rows },
+    });
+  });
+
+  // Get conversation detail
+  app.get<{ Params: { clientId: string; conversationId: string } }>(
+    '/clients/:clientId/planning/conversations/:conversationId',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request, reply) => {
+      const { clientId, conversationId } = request.params;
+      const tenantId = (request as any).tenantId || 'default';
+
+      const result = await query(
+        `SELECT * FROM planning_conversations
+         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+        [conversationId, clientId, tenantId]
+      );
+
+      if (!result.rows.length) {
+        return reply.status(404).send({ success: false, error: 'Conversation not found' });
+      }
+
+      return reply.send({
+        success: true,
+        data: { conversation: result.rows[0] },
+      });
+    }
+  );
+
+  // Create new conversation
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+    const userId = (request as any).userId;
+
+    const body = createConversationSchema.parse(request.body);
+
+    const result = await query(
+      `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+       VALUES ($1, $2, $3, $4, $5, '[]'::jsonb)
+       RETURNING *`,
+      [tenantId, clientId, userId, body.title || 'New Planning Session', body.provider]
+    );
+
+    return reply.send({
+      success: true,
+      data: { conversation: result.rows[0] },
+    });
+  });
+
+  // Delete conversation
+  app.delete<{ Params: { clientId: string; conversationId: string } }>(
+    '/clients/:clientId/planning/conversations/:conversationId',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request, reply) => {
+      const { clientId, conversationId } = request.params;
+      const tenantId = (request as any).tenantId || 'default';
+
+      await query(
+        `DELETE FROM planning_conversations
+         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+        [conversationId, clientId, tenantId]
+      );
+
+      return reply.send({ success: true });
+    }
+  );
+
+  // AI Opportunities endpoints
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    const result = await query(
+      `SELECT * FROM ai_opportunities
+       WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+       ORDER BY
+         CASE priority
+           WHEN 'urgent' THEN 1
+           WHEN 'high' THEN 2
+           WHEN 'medium' THEN 3
+           ELSE 4
+         END,
+         created_at DESC
+       LIMIT 20`,
+      [clientId, tenantId]
+    );
+
+    return reply.send({
+      success: true,
+      data: { opportunities: result.rows },
+    });
+  });
+
+  // Generate opportunities from clipping and trends
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities/generate', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    // Gather context: clipping, trends, calendar
+    const [clippingResult, trendsResult, calendarResult] = await Promise.all([
+      query(
+        `SELECT title, snippet, relevance_score, published_at
+         FROM clipping_matches
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY relevance_score DESC, published_at DESC
+         LIMIT 10`,
+        [clientId, tenantId]
+      ),
+      query(
+        `SELECT keyword, platform, mention_count, average_sentiment
+         FROM social_listening_trends
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY mention_count DESC
+         LIMIT 10`,
+        [clientId, tenantId]
+      ),
+      query(
+        `SELECT name, date_ref, description
+         FROM edro_calendar_events
+         WHERE date_ref BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'
+         ORDER BY date_ref
+         LIMIT 10`,
+        []
+      ),
+    ]);
+
+    const clientContext = await buildClientContext(tenantId, clientId);
+
+    const contextParts = [
+      'CLIPPING RECENTE:',
+      clippingResult.rows.map(r => `- ${r.title}: ${r.snippet}`).join('\n'),
+      '\nTENDÊNCIAS SOCIAIS:',
+      trendsResult.rows.map(r => `- ${r.keyword} (${r.platform}): ${r.mention_count} menções`).join('\n'),
+      '\nCALENDÁRIO PRÓXIMO:',
+      calendarResult.rows.map(r => `- ${r.date_ref}: ${r.name}`).join('\n'),
+    ].join('\n');
+
+    const prompt = `Based on the following context, identify 3-5 marketing opportunities for the client.
+
+CLIENT CONTEXT:
+${clientContext}
+
+${contextParts}
+
+For each opportunity, provide:
+1. Title (concise, action-oriented)
+2. Description (2-3 sentences)
+3. Source (clipping, trend, or calendar)
+4. Suggested Action (specific next step)
+5. Priority (urgent, high, medium, low)
+6. Confidence (0-100)
+
+Return as JSON array with keys: title, description, source, suggestedAction, priority, confidence`;
+
+    const result = await generateWithProvider('claude', {
+      prompt,
+      systemPrompt: 'You are a strategic marketing analyst. Return only valid JSON.',
+      temperature: 0.7,
+      maxTokens: 2000,
+    });
+
+    // Parse AI response
+    let opportunities: any[] = [];
+    try {
+      const jsonMatch = result.output.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        opportunities = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      console.error('Failed to parse opportunities:', e);
+    }
+
+    // Save opportunities
+    for (const opp of opportunities) {
+      await query(
+        `INSERT INTO ai_opportunities
+         (tenant_id, client_id, title, description, source, suggested_action, priority, confidence)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          tenantId,
+          clientId,
+          opp.title,
+          opp.description,
+          opp.source,
+          opp.suggestedAction,
+          opp.priority || 'medium',
+          opp.confidence || 70,
+        ]
+      );
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        generated: opportunities.length,
+        opportunities,
+      },
+    });
+  });
+
+  // Update opportunity status
+  app.patch<{ Params: { clientId: string; opportunityId: string } }>(
+    '/clients/:clientId/insights/opportunities/:opportunityId',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request, reply) => {
+      const { clientId, opportunityId } = request.params;
+      const tenantId = (request as any).tenantId || 'default';
+      const userId = (request as any).userId;
+      const { status } = request.body as { status: string };
+
+      const updates: string[] = ['status = $4', 'updated_at = now()'];
+      const params: any[] = [opportunityId, clientId, tenantId, status];
+
+      if (status === 'actioned') {
+        updates.push('actioned_at = now()');
+        updates.push(`actioned_by = $${params.length + 1}`);
+        params.push(userId);
+      }
+
+      await query(
+        `UPDATE ai_opportunities SET ${updates.join(', ')}
+         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+        params
+      );
+
+      return reply.send({ success: true });
+    }
+  );
+}

@@ -100,14 +100,14 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-card rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Bulk Post Actions</h2>
-            <p className="text-sm text-slate-600 mt-1">Apply actions to multiple posts at once</p>
+            <h2 className="text-xl font-bold text-ink">Bulk Post Actions</h2>
+            <p className="text-sm text-muted mt-1">Apply actions to multiple posts at once</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-slate-400 hover:text-muted">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -116,7 +116,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
           {/* Rules Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-900">Filter Rules</h3>
+              <h3 className="font-semibold text-ink">Filter Rules</h3>
               <button
                 onClick={addRule}
                 className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
@@ -128,7 +128,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
 
             <div className="space-y-3">
               {rules.map((rule, index) => (
-                <div key={index} className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg">
+                <div key={index} className="flex items-start gap-3 p-4 bg-paper rounded-lg">
                   <div className="flex-1 grid grid-cols-3 gap-3">
                     <select
                       value={rule.field}
@@ -137,7 +137,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                           field: e.target.value as BulkActionRule['field'],
                         })
                       }
-                      className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="status">Status</option>
                       <option value="platform">Platform</option>
@@ -152,7 +152,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                           operator: e.target.value as BulkActionRule['operator'],
                         })
                       }
-                      className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="equals">Equals</option>
                       <option value="contains">Contains</option>
@@ -170,7 +170,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                               value: { ...rule.value, start: e.target.value },
                             })
                           }
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <input
                           type="date"
@@ -180,7 +180,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                               value: { ...rule.value, end: e.target.value },
                             })
                           }
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     ) : (
@@ -189,7 +189,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                         value={rule.value || ''}
                         onChange={(e) => updateRule(index, { value: e.target.value })}
                         placeholder="Value..."
-                        className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     )}
                   </div>
@@ -207,12 +207,12 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
 
           {/* Action Section */}
           <div>
-            <h3 className="font-semibold text-slate-900 mb-4">Action to Perform</h3>
+            <h3 className="font-semibold text-ink mb-4">Action to Perform</h3>
             <div className="grid grid-cols-2 gap-3">
               <select
                 value={action.action}
                 onChange={(e) => setAction({ action: e.target.value as BulkAction['action'] })}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="approve">Approve Posts</option>
                 <option value="reject">Reject Posts</option>
@@ -228,7 +228,7 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
                   value={action.target_status || ''}
                   onChange={(e) => setAction({ ...action, target_status: e.target.value })}
                   placeholder="Target status..."
-                  className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               )}
             </div>
@@ -265,20 +265,20 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
               </div>
 
               {preview.posts.length > 0 && (
-                <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
-                  <div className="text-xs font-medium text-slate-600 mb-2">Sample Posts:</div>
+                <div className="bg-card rounded-lg p-4 max-h-48 overflow-y-auto">
+                  <div className="text-xs font-medium text-muted mb-2">Sample Posts:</div>
                   <div className="space-y-1">
                     {preview.posts.slice(0, 10).map((post: any, idx: number) => (
-                      <div key={idx} className="text-xs text-slate-700 flex items-center gap-2">
+                      <div key={idx} className="text-xs text-muted flex items-center gap-2">
                         <span className="material-symbols-outlined text-xs">description</span>
                         <span className="flex-1 truncate">{post.title || post.content?.slice(0, 50)}</span>
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                        <span className="px-2 py-0.5 bg-card-strong text-muted rounded">
                           {post.status}
                         </span>
                       </div>
                     ))}
                     {preview.posts.length > 10 && (
-                      <div className="text-xs text-slate-500 italic">
+                      <div className="text-xs text-muted italic">
                         ...and {preview.posts.length - 10} more
                       </div>
                     )}
@@ -323,8 +323,8 @@ export default function BulkPostActions({ calendarId, isOpen, onClose, onSuccess
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50">
-          <div className="flex items-start gap-2 text-xs text-slate-600">
+        <div className="p-4 border-t border-border bg-paper">
+          <div className="flex items-start gap-2 text-xs text-muted">
             <span className="material-symbols-outlined text-sm">warning</span>
             <div>
               <strong>Warning:</strong> Bulk actions are irreversible. Always preview before executing.

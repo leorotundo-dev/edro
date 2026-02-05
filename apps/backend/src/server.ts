@@ -167,12 +167,6 @@ export async function buildServer() {
   );
 
   app.get(
-    '/api/clients',
-    { preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')] },
-    async (request: any) => listClients((request.user as any).tenant_id)
-  );
-
-  app.get(
     '/api/clients/:id/calendars',
     { preHandler: [authGuard, tenantGuard(), requirePerm('calendars:read'), requireClientPerm('read')] },
     async (request: any) => {

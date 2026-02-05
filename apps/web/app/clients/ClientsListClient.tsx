@@ -3,6 +3,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import InputAdornment from '@mui/material/InputAdornment';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import {
+  IconBriefcase,
+  IconCalendar,
+  IconMapPin,
+  IconPlus,
+  IconSearch,
+  IconSparkles,
+} from '@tabler/icons-react';
 
 type Client = {
   id: string;
@@ -53,169 +73,165 @@ export default function ClientsListClient() {
 
   const getStatusBadge = (status?: string) => {
     if (status === 'active') {
-      return (
-        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          Active Planning
-        </span>
-      );
+      return <Chip size="small" color="success" label="Ativo" />;
     }
     if (status === 'paused') {
-      return (
-        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-[10px] font-bold uppercase tracking-wider rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-          Paused
-        </span>
-      );
+      return <Chip size="small" color="warning" label="Pausado" />;
     }
-    return (
-      <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider rounded-full">
-        Draft
-      </span>
-    );
+    return <Chip size="small" variant="outlined" label="Rascunho" />;
   };
 
   return (
-    <div className="p-8 max-w-none">
-      {/* Header */}
-      <div className="flex items-end justify-between mb-10">
-        <div>
-          <h1 className="font-display text-5xl text-slate-900 dark:text-white mb-2">Clients Management</h1>
-          <p className="text-slate-500 dark:text-slate-400">
-            Manage your studio's active portfolio and creative operations.
-          </p>
-        </div>
-        <button
-          className="bg-[#FF6600] hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-orange-500/20"
-          onClick={() => router.push('/clients/new')}
-        >
-          <span className="material-symbols-outlined">add</span>
-          Add Client
-        </button>
-      </div>
+    <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" spacing={2}>
+        <Box>
+          <Typography variant="h4">Clientes</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gestão do portfólio ativo e operação editorial.
+          </Typography>
+        </Box>
+        <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/new')}>
+          Novo cliente
+        </Button>
+      </Stack>
 
-      {/* Search */}
-      <div className="mb-8">
-        <div className="relative max-w-xl">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">
-            search
-          </span>
-          <input
-            className="w-full pl-10 pr-4 py-2 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-full text-sm focus:ring-1 focus:ring-[#FF6600] focus:bg-white transition-all"
-            placeholder="Search clients by name, industry or status..."
-            type="text"
+      <Card variant="outlined">
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Chip size="small" label="Busca rápida" />
+            <Chip size="small" variant="outlined" label={`${filteredClients.length} clientes`} />
+          </Stack>
+          <TextField
+            fullWidth
+            placeholder="Nome, segmento ou cidade"
+            label="Buscar cliente"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <IconSearch size={16} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ maxWidth: 520 }}
           />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Clients Grid */}
       {loading ? (
-        <div className="text-sm text-slate-500">Loading clients...</div>
+        <Stack alignItems="center" spacing={1} sx={{ py: 4 }}>
+          <CircularProgress size={28} />
+          <Typography variant="body2" color="text.secondary">
+            Carregando clientes...
+          </Typography>
+        </Stack>
       ) : filteredClients.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="material-symbols-outlined text-slate-400 text-3xl">group</span>
-          </div>
-          <h3 className="text-lg font-semibold mb-2">No clients found</h3>
-          <p className="text-slate-500 text-sm mb-6">Get started by adding your first client.</p>
-          <button
-            className="bg-[#FF6600] hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl inline-flex items-center gap-2 transition-all"
-            onClick={() => router.push('/clients/new')}
-          >
-            <span className="material-symbols-outlined">add</span>
-            Add Client
-          </button>
-        </div>
+        <Card variant="outlined">
+          <CardContent sx={{ textAlign: 'center', py: 6 }}>
+            <Typography variant="h6" gutterBottom>
+              Nenhum cliente encontrado
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Comece criando o primeiro cliente da sua operação.
+            </Typography>
+            <Button variant="contained" startIcon={<IconBriefcase size={16} />} onClick={() => router.push('/clients/new')}>
+              Criar cliente
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Grid container spacing={2}>
           {filteredClients.map((client) => (
-            <div
-              key={client.id}
-              className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 hover:shadow-xl hover:border-[#FF6600]/20 transition-all relative cursor-pointer"
-              onClick={() => router.push(`/clients/${client.id}`)}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center border border-slate-100 dark:border-slate-700 overflow-hidden">
-                  {client.logo_url ? (
-                    <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="material-symbols-outlined text-slate-400 text-3xl">corporate_fare</span>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  {getStatusBadge(client.status)}
+            <Grid key={client.id} size={{ xs: 12, md: 6, lg: 4 }}>
+              <Card
+                variant="outlined"
+                sx={{
+                  cursor: 'pointer',
+                  height: '100%',
+                  transition: 'all 0.2s ease',
+                  '&:hover': { borderColor: 'primary.light', boxShadow: 4 },
+                }}
+                onClick={() => router.push(`/clients/${client.id}`)}
+              >
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Avatar
+                        variant="rounded"
+                        src={client.logo_url}
+                        sx={{ bgcolor: 'grey.100', width: 48, height: 48, color: 'primary.main' }}
+                      >
+                        <IconBriefcase size={22} />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6">{client.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {client.segment_primary || 'Sem segmento'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    {getStatusBadge(client.status)}
+                  </Stack>
+
+                  <Stack direction="row" spacing={1} alignItems="center" color="text.secondary">
+                    <IconMapPin size={14} />
+                    <Typography variant="caption">
+                      {[client.city, client.uf, client.country].filter(Boolean).join(', ') || 'Brasil'}
+                    </Typography>
+                  </Stack>
+
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 6 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Posts pendentes
+                      </Typography>
+                      <Typography variant="h6">{client.pending_posts || 0}</Typography>
+                    </Grid>
+                    <Grid size={{ xs: 6 }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Taxa de aprovação
+                      </Typography>
+                      <Typography variant="h6">
+                        {client.approval_rate ? `${client.approval_rate}%` : '--'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      startIcon={<IconCalendar size={16} />}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        router.push(`/clients/${client.id}/calendar`);
+                      }}
+                    >
+                      Calendário
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<IconSparkles size={16} />}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        router.push(`/studio?clientId=${client.id}`);
+                      }}
+                    >
+                      Criar
+                    </Button>
+                  </Stack>
+
                   {client.urgent_tasks ? (
-                    <div className="relative">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        {client.urgent_tasks} Urgent Tasks
-                      </span>
-                      <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
-                    </div>
+                    <Chip size="small" color="warning" label={`${client.urgent_tasks} tarefas urgentes`} />
                   ) : null}
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="mb-8">
-                <h3 className="font-display text-2xl text-slate-900 dark:text-white group-hover:text-[#FF6600] transition-colors">
-                  {client.name}
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  {client.segment_primary || 'No segment'}
-                </p>
-                {client.city && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                    {[client.city, client.uf, client.country].filter(Boolean).join(', ')}
-                  </p>
-                )}
-              </div>
-
-              {/* Stats */}
-              <div className="flex items-center justify-between py-4 border-y border-slate-50 dark:border-slate-800 mb-6">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pending Posts</p>
-                  <p className="text-xl font-display text-slate-900 dark:text-white">
-                    {client.pending_posts || 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 text-right">Approval Rate</p>
-                  <p className="text-xl font-display text-slate-900 dark:text-white text-right">
-                    {client.approval_rate ? `${client.approval_rate}%` : '-'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#FF6600] hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(`/clients/${client.id}/calendar`);
-                  }}
-                >
-                  <span className="material-symbols-outlined text-sm">calendar_month</span>
-                  Calendar
-                </button>
-                <button
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(`/studio?clientId=${client.id}`);
-                  }}
-                >
-                  <span className="material-symbols-outlined text-sm">add_box</span>
-                  Create
-                </button>
-              </div>
-            </div>
+                </CardContent>
+              </Card>
+            </Grid>
           ))}
-        </div>
+        </Grid>
       )}
-    </div>
+    </Box>
   );
 }

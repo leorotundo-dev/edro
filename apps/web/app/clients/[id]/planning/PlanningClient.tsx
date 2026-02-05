@@ -1,7 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconFileUpload, IconLink, IconRobot, IconSend } from '@tabler/icons-react';
 
 type ContentPillar = {
   id: string;
@@ -39,6 +55,37 @@ type PlanningData = {
   notes_updated_by?: string;
 };
 
+type LibraryItem = {
+  id: string;
+  type: string;
+  title: string;
+  status?: string;
+  created_at?: string;
+  file_size_bytes?: number;
+  source_url?: string;
+};
+
+type ProviderOption = {
+  id: string;
+  name: string;
+  description?: string;
+};
+
+type ChatAction = {
+  action: string;
+  reason?: string;
+  briefing?: { id: string; title: string; status?: string };
+  copy?: { id: string; model?: string; provider?: string; preview?: string; count?: number };
+  error?: string;
+};
+
+type ChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  action?: ChatAction | null;
+};
+
 type PlanningClientProps = {
   clientId: string;
 };
@@ -51,10 +98,23 @@ const DEFAULT_PILLARS: ContentPillar[] = [
 ];
 
 const DEFAULT_ROADMAP: RoadmapItem[] = [
-  { id: '1', title: 'Brand Awareness', label: 'Always-On Narrative', color: 'bg-[#FF6600]', startQ: 0, spanQ: 3 },
-  { id: '2', title: 'New Collection Launch', label: 'Summer Artisan Series', color: 'bg-indigo-500', startQ: 1, spanQ: 1 },
-  { id: '3', title: 'Holiday Push', label: 'Gifting Season', color: 'bg-rose-500', startQ: 3, spanQ: 1 },
+  { id: '1', title: 'Brand Awareness', label: 'Always-On Narrative', color: '#ff6600', startQ: 0, spanQ: 3 },
+  { id: '2', title: 'New Collection Launch', label: 'Summer Artisan Series', color: '#f97316', startQ: 1, spanQ: 1 },
+  { id: '3', title: 'Holiday Push', label: 'Gifting Season', color: '#fb7185', startQ: 3, spanQ: 1 },
 ];
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
 
 export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [data, setData] = useState<PlanningData>({});
@@ -62,6 +122,18 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [saving, setSaving] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState('');
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState('');
+  const [referenceUrl, setReferenceUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [provider, setProvider] = useState('openai');
+  const [chatMode, setChatMode] = useState<'chat' | 'command'>('command');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   const loadPlanning = useCallback(async () => {
     try {
@@ -80,9 +152,39 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   }, [clientId]);
 
+  const loadLibrary = useCallback(async () => {
+    setLibraryLoading(true);
+    setLibraryError('');
+    try {
+      const response = await apiGet<LibraryItem[]>(`/clients/${clientId}/library`);
+      setLibraryItems(Array.isArray(response) ? response.slice(0, 8) : []);
+    } catch (err: any) {
+      setLibraryError(err?.message || 'Falha ao carregar materiais.');
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, [clientId]);
+
+  const loadProviders = useCallback(async () => {
+    try {
+      const response = await apiGet<{ data?: { providers?: ProviderOption[] } }>(`/planning/providers`);
+      const list = response?.data?.providers || [];
+      if (list.length) {
+        setProviders(list);
+        if (!list.find((p) => p.id === provider)) {
+          setProvider(list[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load providers', err);
+    }
+  }, [provider]);
+
   useEffect(() => {
     loadPlanning();
-  }, [loadPlanning]);
+    loadLibrary();
+    loadProviders();
+  }, [loadPlanning, loadLibrary, loadProviders]);
 
   const saveNotes = async () => {
     setSaving(true);
@@ -97,229 +199,316 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
+  const uploadFile = async (file: File) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
+    if (!token) return;
+    setUploading(true);
+    setLibraryError('');
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+      const response = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!response.ok) throw new Error('Falha ao enviar o arquivo.');
+      await loadLibrary();
+    } catch (err: any) {
+      setLibraryError(err?.message || 'Falha ao enviar o arquivo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const addReference = async () => {
+    if (!referenceUrl.trim()) return;
+    setUploading(true);
+    setLibraryError('');
+    try {
+      await apiPost(`/clients/${clientId}/library/link`, { url: referenceUrl });
+      setReferenceUrl('');
+      await loadLibrary();
+    } catch (err: any) {
+      setLibraryError(err?.message || 'Falha ao salvar o link.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const sendChat = async () => {
+    if (!chatInput.trim()) return;
+    setChatLoading(true);
+    const payload = {
+      clientId,
+      provider,
+      mode: chatMode,
+      conversationId,
+      message: chatInput,
+    };
+
+    setChatMessages((prev) => [
+      ...prev,
+      { role: 'user', content: chatInput, timestamp: new Date().toISOString() },
+    ]);
+    setChatInput('');
+
+    try {
+      const response = await apiPost<{ data?: { reply?: ChatMessage; conversationId?: string } }>(
+        '/planning/chat',
+        payload
+      );
+      if (response?.data?.conversationId) {
+        setConversationId(response.data.conversationId);
+      }
+      if (response?.data?.reply) {
+        setChatMessages((prev) => [...prev, response.data.reply as ChatMessage]);
+      }
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'Erro ao conversar com a IA.', timestamp: new Date().toISOString() },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-400">Carregando...</div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 240 }}>
+        <CircularProgress size={28} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando planning...
+        </Typography>
+      </Stack>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header Actions */}
-      <div className="flex items-center justify-end gap-3">
-        <button
-          type="button"
-          className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-sm"
-        >
-          <span className="material-symbols-outlined text-sm text-slate-500">file_download</span>
-          Export PDF
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-2 px-4 py-2 bg-[#FF6600] text-white rounded-lg hover:bg-orange-600 transition-all font-semibold text-sm shadow-lg shadow-orange-500/20"
-        >
-          <span className="material-symbols-outlined text-sm">save</span>
-          Save Planning
-        </button>
-      </div>
+    <Box>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, lg: 7 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Insumos e referências
+                  </Typography>
+                  <Chip size="small" label={`${libraryItems.length} itens`} />
+                </Stack>
 
-      {/* Strategic Foundation */}
-      <section>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-8 h-[1px] bg-[#FF6600]" />
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Strategic Foundation</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Brand Positioning */}
-          <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-            <h3 className="font-display text-3xl mb-4">Brand Positioning</h3>
-            <p className="text-slate-600 leading-relaxed text-lg italic">
-              {data.brand_positioning ||
-                '"Our client offers a premium experience that connects modern lifestyle with authentic sustainable practices, focused on quality and heritage."'}
-            </p>
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Primary Voice</p>
-              <p className="font-medium text-slate-800">
-                {data.primary_voice || 'Sophisticated, Earnest, Timeless'}
-              </p>
-            </div>
-          </div>
+                {libraryError ? <Typography color="error">{libraryError}</Typography> : null}
 
-          {/* Strategic Objectives */}
-          <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-            <h3 className="font-display text-3xl mb-4">Strategic Objectives</h3>
-            <ul className="space-y-4">
-              {(data.objectives || [
-                { id: '1', text: 'Increase brand awareness in target markets by 25% through localized storytelling.', completed: true },
-                { id: '2', text: 'Establish signature social media rituals for consumers.', completed: true },
-                { id: '3', text: 'Launch collaborative capsule collections with sustainable partners.', completed: false },
-              ]).map((obj) => (
-                <li key={obj.id} className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-[#FF6600] mt-1">check_circle</span>
-                  <span className="text-slate-600">{obj.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
+                <Stack spacing={2}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<IconFileUpload size={16} />}
+                    component="label"
+                    disabled={uploading}
+                  >
+                    Upload de arquivo
+                    <input
+                      type="file"
+                      hidden
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) uploadFile(file);
+                      }}
+                    />
+                  </Button>
 
-      {/* Creative Direction */}
-      <section>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-8 h-[1px] bg-[#FF6600]" />
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Direction</h2>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm relative overflow-hidden">
-          <div className="max-w-4xl">
-            <h3 className="font-display text-4xl mb-6">
-              {data.creative_direction_title || 'Minimalist Elegance & Tactile Heritage'}
-            </h3>
-            <p className="text-slate-600 text-lg leading-relaxed mb-6">
-              {data.creative_direction_description ||
-                'The visual strategy centers on authentic aesthetics. We will transition from high-gloss studio environments to natural, high-contrast natural light photography. The color palette remains anchored with seasonal accents introduced through prop styling.'}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {(data.creative_tags || ['Natural Grain', 'Architectural Framing', 'Human Centric']).map((tag) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full uppercase"
+                  <TextField
+                    label="Link de referência"
+                    value={referenceUrl}
+                    onChange={(event) => setReferenceUrl(event.target.value)}
+                    placeholder="https://..."
+                    InputProps={{
+                      endAdornment: (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={addReference}
+                          disabled={uploading || !referenceUrl}
+                          startIcon={<IconLink size={14} />}
+                        >
+                          Adicionar
+                        </Button>
+                      ),
+                    }}
+                  />
+
+                  <Divider />
+
+                  <Stack spacing={1}>
+                    {libraryLoading ? (
+                      <LinearProgress />
+                    ) : libraryItems.length > 0 ? (
+                      libraryItems.map((item) => (
+                        <Stack
+                          key={item.id}
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          spacing={2}
+                          sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+                        >
+                          <Box>
+                            <Typography variant="subtitle2">{item.title}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatDate(item.created_at)} · {formatFileSize(item.file_size_bytes)}
+                            </Typography>
+                          </Box>
+                          <Chip size="small" label={item.type} />
+                        </Stack>
+                      ))
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                        Nenhum material enviado ainda.
+                      </Typography>
+                    )}
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  Notas e direcionamentos
+                </Typography>
+                <TextField
+                  multiline
+                  rows={5}
+                  value={notesText}
+                  onChange={(event) => setNotesText(event.target.value)}
+                  placeholder="Registre observações estratégicas, briefings internos e insights..."
+                  sx={{ mt: 2 }}
+                />
+                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                  <Button variant="contained" onClick={saveNotes} disabled={saving}>
+                    {saving ? 'Salvando...' : 'Salvar notas'}
+                  </Button>
+                  {data.notes_updated_at ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                      Atualizado em {formatDate(data.notes_updated_at)}
+                    </Typography>
+                  ) : null}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Chat IA
+                  </Typography>
+                  <Chip size="small" label={chatMode === 'command' ? 'Comandos' : 'Chat'} />
+                </Stack>
+
+                <Tabs
+                  value={chatMode}
+                  onChange={(_, value) => setChatMode(value)}
+                  variant="fullWidth"
+                  sx={{ mb: 2 }}
                 >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+                  <Tab value="command" label="Comandos" />
+                  <Tab value="chat" label="Chat" />
+                </Tabs>
 
-      {/* Content Pillars */}
-      <section>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-8 h-[1px] bg-[#FF6600]" />
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Content Pillars</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {(data.pillars || DEFAULT_PILLARS).map((pillar) => (
-            <div
-              key={pillar.id}
-              className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:border-[#FF6600]/50 transition-colors cursor-pointer group"
-            >
-              <div className="w-10 h-10 bg-orange-50 text-[#FF6600] rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">{pillar.icon}</span>
-              </div>
-              <h4 className="font-bold text-sm mb-2">{pillar.title}</h4>
-              <p className="text-xs text-slate-500 leading-relaxed">{pillar.description}</p>
-            </div>
-          ))}
-          <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer group">
-            <span className="material-symbols-outlined text-slate-400 group-hover:text-[#FF6600] mb-2">add_circle</span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Add Pillar</span>
-          </div>
-        </div>
-      </section>
+                <TextField
+                  select
+                  label="Modelo"
+                  value={provider}
+                  onChange={(event) => setProvider(event.target.value)}
+                  sx={{ mb: 2 }}
+                >
+                  {providers.length ? (
+                    providers.map((option) => (
+                      <MenuItem key={option.id} value={option.id}>
+                        {option.name}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem value="openai">OpenAI</MenuItem>
+                  )}
+                </TextField>
 
-      {/* Annual Roadmap */}
-      <section>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-8 h-[1px] bg-[#FF6600]" />
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Annual Roadmap</h2>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-          {/* Quarter Headers */}
-          <div className="grid grid-cols-4 mb-8 border-b border-slate-100 pb-4">
-            {['Q1', 'Q2', 'Q3', 'Q4'].map((q, idx) => (
-              <div
-                key={q}
-                className={`text-center font-display text-2xl text-slate-400 ${idx > 0 ? 'border-l border-slate-100 : ''}`}
-              >
-                {q}
-              </div>
-            ))}
-          </div>
-          {/* Roadmap Items */}
-          <div className="space-y-6 relative">
-            {/* Grid Lines */}
-            <div className="absolute inset-0 flex justify-between pointer-events-none opacity-20">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-[1px] h-full bg-slate-300" />
-              ))}
-            </div>
-            {/* Items */}
-            {(data.roadmap || DEFAULT_ROADMAP).map((item) => (
-              <div
-                key={item.id}
-                className="relative z-10"
-                style={{ marginLeft: `${item.startQ * 25}%` }}
-              >
-                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{item.title}</p>
-                <div
-                  className={`${item.color} text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm`}
-                  style={{ width: `${item.spanQ * 25}%`, minWidth: '120px' }}
-                >
-                  {item.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+                <Stack spacing={1} sx={{ maxHeight: 320, overflowY: 'auto', mb: 2 }}>
+                  {chatMessages.length ? (
+                    chatMessages.map((msg, idx) => (
+                      <Box
+                        key={`${msg.timestamp}-${idx}`}
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor: msg.role === 'user' ? 'primary.light' : 'grey.100',
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          {msg.role === 'user' ? 'Você' : 'IA'} · {formatDate(msg.timestamp)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 0.5 }}>
+                          {msg.content}
+                        </Typography>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                      Sem mensagens ainda. Comece a conversar.
+                    </Typography>
+                  )}
+                </Stack>
 
-      {/* Creative Notes */}
-      <section>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-8 h-[1px] bg-[#FF6600]" />
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Creative Notes</h2>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-          <textarea
-            className="w-full h-48 bg-transparent border-none focus:ring-0 p-6 text-slate-600 resize-none placeholder:text-slate-400"
-            placeholder="Type collaborative notes here... These are persistent across the creative team."
-            value={notesText}
-            onChange={(e) => setNotesText(e.target.value)}
-            disabled={!editingNotes}
-          />
-          <div className="px-6 py-3 bg-slate-50 rounded-b-lg flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">
-              {data.notes_updated_at
-                ? `Last updated ${new Date(data.notes_updated_at).toLocaleDateString()}`
-                : 'No notes yet'}
-            </span>
-            {editingNotes ? (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNotesText(data.notes || '');
-                    setEditingNotes(false);
-                  }}
-                  className="text-slate-500 text-[10px] font-bold uppercase hover:underline"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveNotes}
-                  disabled={saving}
-                  className="text-[#FF6600] text-[10px] font-bold uppercase hover:underline"
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditingNotes(true)}
-                className="text-[#FF6600] text-[10px] font-bold uppercase hover:underline"
-              >
-                Edit Notes
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-    </div>
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    placeholder="Escreva um comando ou pergunte algo..."
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    fullWidth
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={sendChat}
+                    disabled={chatLoading}
+                    startIcon={<IconSend size={16} />}
+                  >
+                    {chatLoading ? 'Enviando' : 'Enviar'}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconRobot size={18} />
+                  <Typography variant="overline" color="text.secondary">
+                    Pilares e posicionamento
+                  </Typography>
+                </Stack>
+                <Stack spacing={1} sx={{ mt: 2 }}>
+                  {(data.pillars || DEFAULT_PILLARS).map((pillar) => (
+                    <Box key={pillar.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                      <Typography variant="subtitle2">{pillar.title}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {pillar.description}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

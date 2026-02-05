@@ -3,8 +3,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import DashboardCard from '@/components/shared/DashboardCard';
+import StatusChip from '@/components/shared/StatusChip';
 import BulkPostActions from '@/components/BulkPostActions';
 import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import Stack from '@mui/material/Stack';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconX, IconArrowLeft, IconUsers, IconDownload, IconFileText, IconSend, IconBuildingStore } from '@tabler/icons-react';
 
 type PostAsset = {
   id: string;
@@ -13,39 +38,12 @@ type PostAsset = {
   payload: any;
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 border-rose-200',
-  review: 'bg-amber-50 text-amber-700 border-amber-200',
-  draft: 'bg-slate-100 text-slate-600 border-slate-200',
+const STATUS_COLORS: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
+  approved: 'success',
+  rejected: 'error',
+  review: 'warning',
+  draft: 'default',
 };
-
-function Modal({
-  open,
-  title,
-  children,
-  onClose,
-}: {
-  open: boolean;
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn ghost" type="button" onClick={onClose}>
-            Fechar
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 export default function CalendarReviewPage() {
   const router = useRouter();
@@ -188,9 +186,12 @@ export default function CalendarReviewPage() {
 
   if (loading) {
     return (
-      <div className="loading-screen">
-        <div className="pulse">Carregando aprovacao...</div>
-      </div>
+      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
+        <CircularProgress size={28} />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Carregando aprovacao...
+        </Typography>
+      </Stack>
     );
   }
 
@@ -199,276 +200,244 @@ export default function CalendarReviewPage() {
       title="Calendar Review"
       meta={`Calendar ${calendarId}`}
       topbarExtra={
-        <div className="flex items-center gap-2">
-          <button
-            className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-            type="button"
-            onClick={() => router.push('/calendar')}
-          >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button variant="outlined" size="small" onClick={() => router.push('/calendar')}>
             Back to calendar
-          </button>
-          <button
-            className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-            type="button"
-            onClick={() => router.push('/clients')}
-          >
+          </Button>
+          <Button variant="outlined" size="small" onClick={() => router.push('/clients')}>
             Clients
-          </button>
-        </div>
+          </Button>
+        </Stack>
       }
     >
-      <div className="page-content">
-        {error ? <div className="notice error">{error}</div> : null}
+      <Stack spacing={3}>
+        {error ? <Alert severity="error">{error}</Alert> : null}
 
-        <div className="flex flex-col gap-6">
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">Calendar Review</div>
-              <h2 className="font-display text-3xl text-slate-900">Calendar {calendarId}</h2>
-              <p className="text-sm text-slate-500">{rows.length} posts prontos para aprovacao</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-                type="button"
-                onClick={() => downloadFile('csv')}
-              >
+        {/* Header card */}
+        <DashboardCard>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems={{ lg: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography variant="overline" color="text.secondary">Calendar Review</Typography>
+              <Typography variant="h4">Calendar {calendarId}</Typography>
+              <Typography variant="body2" color="text.secondary">{rows.length} posts prontos para aprovacao</Typography>
+            </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="outlined" size="small" startIcon={<IconDownload size={16} />} onClick={() => downloadFile('csv')}>
                 Export CSV
-              </button>
-              <button
-                className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-                type="button"
-                onClick={() => downloadFile('iclips')}
-              >
+              </Button>
+              <Button variant="outlined" size="small" startIcon={<IconDownload size={16} />} onClick={() => downloadFile('iclips')}>
                 Export iClips
-              </button>
-              <button
-                className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-                type="button"
-                onClick={loadBriefs}
-              >
+              </Button>
+              <Button variant="outlined" size="small" startIcon={<IconFileText size={16} />} onClick={loadBriefs}>
                 Briefs AdCreative
-              </button>
-            </div>
-          </div>
-        </section>
+              </Button>
+            </Stack>
+          </Stack>
+        </DashboardCard>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        {/* Bulk actions */}
+        <DashboardCard>
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+            <Typography variant="overline" color="text.secondary">
               Selected {indices.length} posts
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="px-3 py-2 text-xs font-semibold border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                type="button"
-                onClick={() => setShowBulkActions(true)}
-              >
-                🔧 Advanced Bulk Actions
-              </button>
-              <button
-                className={`px-3 py-2 text-xs font-semibold border border-slate-200 rounded-lg transition-colors ${
-                  hasSelection ? 'hover:text-primary' : 'opacity-50 cursor-not-allowed'
-                }`}
-                type="button"
-                onClick={() => bulkAction('move_to_review')}
-                disabled={!hasSelection}
-              >
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button variant="outlined" size="small" color="info" onClick={() => setShowBulkActions(true)}>
+                Advanced Bulk Actions
+              </Button>
+              <Button variant="outlined" size="small" onClick={() => bulkAction('move_to_review')} disabled={!hasSelection}>
                 Mover p/ review
-              </button>
-              <button
-                className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
-                  hasSelection ? 'bg-primary text-white hover:bg-orange-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-                type="button"
-                onClick={() => bulkAction('approve')}
-                disabled={!hasSelection}
-              >
+              </Button>
+              <Button variant="contained" size="small" onClick={() => bulkAction('approve')} disabled={!hasSelection}>
                 Aprovar em lote
-              </button>
-              <button
-                className={`px-3 py-2 text-xs font-semibold border rounded-lg transition-colors ${
-                  hasSelection ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-slate-200 text-slate-300 cursor-not-allowed'
-                }`}
-                type="button"
-                onClick={() => bulkAction('reject')}
-                disabled={!hasSelection}
-              >
+              </Button>
+              <Button variant="outlined" size="small" color="error" onClick={() => bulkAction('reject')} disabled={!hasSelection}>
                 Rejeitar em lote
-              </button>
-            </div>
-          </div>
-        </section>
+              </Button>
+            </Stack>
+          </Stack>
+        </DashboardCard>
 
-        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sel</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">#</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Data</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Formato</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Headline</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Acoes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const statusClass = STATUS_STYLES[row.status] || 'bg-slate-100 text-slate-600 border-slate-200';
-
-                return (
-                  <tr key={row.id} className="border-b border-slate-100">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-primary"
+        {/* Posts table */}
+        <Card variant="outlined">
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox">Sel</TableCell>
+                  <TableCell>#</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Data</TableCell>
+                  <TableCell>Formato</TableCell>
+                  <TableCell>Headline</TableCell>
+                  <TableCell>Acoes</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        size="small"
                         checked={!!selected[row.post_index]}
                         onChange={(event) =>
                           setSelected((state) => ({ ...state, [row.post_index]: event.target.checked }))
                         }
                       />
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-700">{row.post_index}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 text-[10px] font-semibold uppercase tracking-widest rounded-full border ${statusClass}`}
-                      >
-                        {row.status || 'pending'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{row.payload?.date}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{row.payload?.format}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {row.payload?.copy?.headline || 'Sem headline'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className="px-3 py-1 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-                          type="button"
-                          onClick={() => loadSources(row)}
-                        >
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600} color="text.secondary">{row.post_index}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip status={row.status || 'pending'} />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{row.payload?.date}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{row.payload?.format}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {row.payload?.copy?.headline || 'Sem headline'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        <Button variant="outlined" size="small" onClick={() => loadSources(row)}>
                           Fontes
-                        </button>
-                        <button
-                          className="px-3 py-1 text-xs font-semibold border border-slate-200 rounded-lg hover:text-primary transition-colors"
-                          type="button"
-                          onClick={() => setStatus(row.post_index, 'review')}
-                        >
+                        </Button>
+                        <Button variant="outlined" size="small" onClick={() => setStatus(row.post_index, 'review')}>
                           Review
-                        </button>
-                        <button
-                          className="px-3 py-1 text-xs font-semibold bg-primary text-white rounded-lg hover:bg-orange-600 transition-colors"
-                          type="button"
-                          onClick={() => setStatus(row.post_index, 'approved')}
-                        >
+                        </Button>
+                        <Button variant="contained" size="small" onClick={() => setStatus(row.post_index, 'approved')}>
                           Aprovar
-                        </button>
-                        <button
-                          className="px-3 py-1 text-xs font-semibold border border-rose-200 text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                          type="button"
-                          onClick={() => setStatus(row.post_index, 'rejected')}
-                        >
+                        </Button>
+                        <Button variant="outlined" size="small" color="error" onClick={() => setStatus(row.post_index, 'rejected')}>
                           Rejeitar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           {rows.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-slate-400">Nenhum post encontrado.</div>
+            <Box sx={{ px: 2, py: 3 }}>
+              <Typography variant="body2" color="text.secondary">Nenhum post encontrado.</Typography>
+            </Box>
           ) : null}
-        </section>
+        </Card>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-          <div>
-            <h3 className="font-display text-2xl text-slate-900">Ponte iClips</h3>
-            <p className="text-sm text-slate-500">Envio direto via webhook/endpoint</p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-              URL do endpoint
-              <input
-                className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700"
-                value={iclipsUrl}
-                onChange={(event) => setIclipsUrl(event.target.value)}
-              />
-            </label>
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-              API Key (opcional)
-              <input
-                className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700"
-                value={iclipsKey}
-                onChange={(event) => setIclipsKey(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <button
-              className="bg-primary hover:bg-orange-600 text-white text-xs font-bold px-4 py-3 rounded-lg transition-colors"
-              type="button"
-              onClick={handleIclipsPush}
-            >
-              Enviar para iClips
-            </button>
-          </div>
-          {iclipsResult ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {iclipsResult}
-            </div>
-          ) : null}
-        </section>
-        </div>
-      </div>
+        {/* iClips bridge */}
+        <DashboardCard title="Ponte iClips" subtitle="Envio direto via webhook/endpoint">
+          <Stack spacing={2}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="URL do endpoint"
+                  value={iclipsUrl}
+                  onChange={(event) => setIclipsUrl(event.target.value)}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="API Key (opcional)"
+                  value={iclipsKey}
+                  onChange={(event) => setIclipsKey(event.target.value)}
+                />
+              </Grid>
+            </Grid>
+            <Stack direction="row" justifyContent="flex-end">
+              <Button variant="contained" startIcon={<IconSend size={16} />} onClick={handleIclipsPush}>
+                Enviar para iClips
+              </Button>
+            </Stack>
+            {iclipsResult ? (
+              <Alert severity="success">{iclipsResult}</Alert>
+            ) : null}
+          </Stack>
+        </DashboardCard>
+      </Stack>
 
-      <Modal open={briefsOpen} title="Briefs para AdCreative" onClose={() => setBriefsOpen(false)}>
-        {briefs.length === 0 ? (
-          <p>Sem briefs encontrados.</p>
-        ) : (
-          <div className="detail-grid">
-            {briefs.map((item: any) => (
-              <div key={item.post_id} className="copy-block">
-                <strong>
-                  {item.date} · {item.platform} · {item.format}
-                </strong>
-                <pre>{JSON.stringify(item.brief, null, 2)}</pre>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
+      {/* Briefs Dialog */}
+      <Dialog open={briefsOpen} onClose={() => setBriefsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Briefs para AdCreative</Typography>
+            <IconButton size="small" onClick={() => setBriefsOpen(false)}>
+              <IconX size={18} />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {briefs.length === 0 ? (
+            <Typography variant="body2">Sem briefs encontrados.</Typography>
+          ) : (
+            <Stack spacing={2}>
+              {briefs.map((item: any) => (
+                <Card key={item.post_id} variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>
+                      {item.date} - {item.platform} - {item.format}
+                    </Typography>
+                    <Box component="pre" sx={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify(item.brief, null, 2)}
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+      </Dialog>
 
-      <Modal
+      {/* Sources Dialog */}
+      <Dialog
         open={sourcesOpen}
-        title={sourcesTarget ? `Fontes do post #${sourcesTarget.post_index}` : 'Fontes do post'}
         onClose={() => setSourcesOpen(false)}
+        maxWidth="md"
+        fullWidth
       >
-        {sourcesLoading ? (
-          <p>Carregando fontes...</p>
-        ) : sources.length === 0 ? (
-          <p>Nenhuma fonte registrada.</p>
-        ) : (
-          <div className="detail-grid">
-            {sources.map((source: any) => (
-              <div key={source.id} className="copy-block">
-                <strong>{source.title}</strong>
-                <div style={{ opacity: 0.7, fontSize: 12 }}>
-                  {source.type} | {source.category} | peso {source.weight}
-                </div>
-                <div style={{ opacity: 0.7, fontSize: 12 }}>
-                  score {Number(source.score || 0).toFixed(2)}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              {sourcesTarget ? `Fontes do post #${sourcesTarget.post_index}` : 'Fontes do post'}
+            </Typography>
+            <IconButton size="small" onClick={() => setSourcesOpen(false)}>
+              <IconX size={18} />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {sourcesLoading ? (
+            <Typography variant="body2">Carregando fontes...</Typography>
+          ) : sources.length === 0 ? (
+            <Typography variant="body2">Nenhuma fonte registrada.</Typography>
+          ) : (
+            <Stack spacing={2}>
+              {sources.map((source: any) => (
+                <Card key={source.id} variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2">{source.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {source.type} | {source.category} | peso {source.weight}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      score {Number(source.score || 0).toFixed(2)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <BulkPostActions
         calendarId={calendarId}

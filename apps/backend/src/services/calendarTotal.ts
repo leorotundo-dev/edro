@@ -1126,10 +1126,16 @@ const GENERIC_STRATEGIC_TAGS = new Set([
   'cultura',
   'religiao',
   'religião',
+  'catolico',
+  'católico',
   'data',
   'evento',
   'comemoracao',
   'comemoração',
+  'comemorativo',
+  'comemorativa',
+  'comemorativas',
+  'datas_comemorativas',
   'celebracao',
   'celebração',
   'festa',
@@ -1144,6 +1150,77 @@ const GENERIC_STRATEGIC_TAGS = new Set([
   'cívico',
   'nacional',
   'regional',
+  'internacional',
+  'mundial',
+  'global',
+  'institucional',
+  'editorial',
+  'pauta_livre',
+  'orgulho_local',
+  'orgulho local',
+  'pertencimento',
+  'planejamento',
+  'promo',
+  'promocao',
+  'promoção',
+  'comunicacao',
+  'comunicação',
+  'turismo',
+  'lazer',
+  'arte',
+  'comportamental',
+  'pauta',
+  'celebrativo',
+  'datas',
+]);
+
+const STRATEGIC_STOPWORDS = new Set([
+  'dia',
+  'dias',
+  'do',
+  'da',
+  'dos',
+  'das',
+  'de',
+  'del',
+  'della',
+  'e',
+  'em',
+  'no',
+  'na',
+  'nos',
+  'nas',
+  'para',
+  'por',
+  'com',
+  'sem',
+  'a',
+  'o',
+  'as',
+  'os',
+  'um',
+  'uma',
+  'uns',
+  'umas',
+  'ao',
+  'aos',
+  'sao',
+  'são',
+  'santo',
+  'santa',
+  'sa',
+  's/a',
+  'ltda',
+  'me',
+  'eireli',
+  'holding',
+  'grupo',
+  'companhia',
+  'empresa',
+  'servico',
+  'servicos',
+  'serviço',
+  'serviços',
 ]);
 
 function normalizeTagKey(value: string) {
@@ -1154,6 +1231,17 @@ function normalizeTagKey(value: string) {
     .trim();
 }
 
+function tokenizeStrategicText(value?: string | null) {
+  if (!value) return [];
+  const normalized = normalizeTagKey(value);
+  return normalized
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => token.length >= 3)
+    .filter((token) => !STRATEGIC_STOPWORDS.has(token));
+}
+
 function normalizeStrategicTags(list?: string[]) {
   return (list || [])
     .map((tag) => normalizeTagKey(tag))
@@ -1162,14 +1250,26 @@ function normalizeStrategicTags(list?: string[]) {
 }
 
 function getStrategicTagMatches(ev: CalendarEvent, client: ClientProfile) {
-  const eventTags = new Set(normalizeStrategicTags(ev.tags));
+  const eventKey = normalizeTagKey(ev.evento_key || ev.slug || '');
+  const eventTokens = [
+    ...ev.tags,
+    ...(ev.name ? tokenizeStrategicText(ev.name) : []),
+    ...(eventKey ? [eventKey] : []),
+  ];
+  const eventTags = new Set(normalizeStrategicTags(eventTokens));
   if (!eventTags.size) return { count: 0, matches: [] as string[] };
 
   const keywords = normalizeStrategicTags(client.keywords);
   const pillars = normalizeStrategicTags(client.pillars);
-  const candidates = new Set([...keywords, ...pillars]);
+  const nameTokens = normalizeStrategicTags(tokenizeStrategicText(client.name));
+  const candidates = new Set([...keywords, ...pillars, ...nameTokens]);
   const matches = Array.from(candidates).filter((tag) => eventTags.has(tag));
-  return { count: matches.length, matches };
+  let count = matches.length;
+  if (eventKey && candidates.has(eventKey)) {
+    count += 1;
+    if (!matches.includes(eventKey)) matches.push(eventKey);
+  }
+  return { count, matches };
 }
 
 function hasStrategicMatch(
@@ -1287,7 +1387,8 @@ function trendBoostForEvent(
   return Math.round(boosted * (client.trend_profile.trend_weight / 100));
 }
 
-function seasonalityBoost(_ev: CalendarEvent, client: ClientProfile): number {
+function seasonalityBoost(_ev: CalendarEvent, client: ClientProfile, hasStrategic: boolean): number {
+  if (!hasStrategic) return 0;
   return Math.round(20 * (client.calendar_profile.calendar_weight / 100));
 }
 
@@ -1369,6 +1470,9 @@ export function scoreEvent(
   const segBase = segmentBoost(ev, client);
   const tagMatch = getStrategicTagMatches(ev, client);
   const strategicMatch = hasStrategicMatch(ev, client, segBase, tagMatch.count);
+  if (!strategicMatch && isLowFitCategory(new Set(ev.categories || []), false)) {
+    return { event: ev, score: 0, tier: 'C', why: 'fit:low_no_match' };
+  }
   const fit = fitFactor(ev, strategicMatch);
   const base = Math.round(ev.base_relevance * fit) * rules.weights.base;
   const seg = segBase * rules.weights.segment;
@@ -1376,7 +1480,7 @@ export function scoreEvent(
   const plat = platformAffinity(ev, platform) * rules.weights.platform;
   const cat = categoryBoost(ev, client, strategicMatch);
   const trb = trendBoostForEvent(ev, client, trends) * rules.weights.trend;
-  const seas = seasonalityBoost(ev, client) * rules.weights.seasonality;
+  const seas = seasonalityBoost(ev, client, strategicMatch) * rules.weights.seasonality;
   const imp = impactBoost(ev);
   const set = setorialBoost(ev, client);
 
@@ -1433,11 +1537,14 @@ export function scoreEventRelevance(
   const segBase = segmentBoost(ev, client);
   const tagMatch = getStrategicTagMatches(ev, client);
   const strategicMatch = hasStrategicMatch(ev, client, segBase, tagMatch.count);
+  if (!override?.force_include && !strategicMatch && isLowFitCategory(new Set(ev.categories || []), false)) {
+    return { score: 0, tier: 'C', why: 'fit:low_no_match' };
+  }
   const fit = fitFactor(ev, strategicMatch);
   const base = Math.round(baseRelevance * fit) * rules.weights.base;
   const seg = segBase * rules.weights.segment;
   const cat = categoryBoost(ev, client, strategicMatch);
-  const seas = seasonalityBoost(ev, client) * rules.weights.seasonality;
+  const seas = seasonalityBoost(ev, client, strategicMatch) * rules.weights.seasonality;
   const imp = impactBoost(ev);
   const set = setorialBoost(ev, client);
   const risk = riskPenalty(ev, client, rules);

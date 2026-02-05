@@ -5,5 +5,5 @@ type ClientSocialListeningPageProps = {
 };
 
 export default function Page({ params }: ClientSocialListeningPageProps) {
-  return <SocialListeningClient clientId={params.id} />;
+  return <SocialListeningClient clientId={params.id} noShell embedded />;
 }

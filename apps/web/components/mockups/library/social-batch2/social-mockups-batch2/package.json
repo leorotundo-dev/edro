@@ -1,0 +1,46 @@
+{
+  "name": "social-media-mockups-batch2",
+  "version": "2.0.0",
+  "description": "38 componentes React minimalistas adicionais - Expansões e novas plataformas",
+  "main": "index.js",
+  "keywords": [
+    "social-media",
+    "mockup",
+    "react",
+    "typescript",
+    "tailwind",
+    "ui",
+    "components",
+    "instagram",
+    "facebook",
+    "linkedin",
+    "twitter",
+    "youtube",
+    "tiktok",
+    "whatsapp",
+    "pinterest",
+    "twitch",
+    "discord",
+    "slack",
+    "medium",
+    "substack",
+    "behance",
+    "dribbble",
+    "threads"
+  ],
+  "author": "MemoDrops",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "lucide-react": "^0.263.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0",
+    "tailwindcss": "^3.0.0",
+    "postcss": "^8.0.0",
+    "autoprefixer": "^10.0.0"
+  }
+}

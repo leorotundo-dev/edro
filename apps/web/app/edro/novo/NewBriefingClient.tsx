@@ -4,6 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiPost } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CircularProgress from '@mui/material/CircularProgress';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconChevronRight } from '@tabler/icons-react';
 
 type BriefingFormData = {
   client_name: string;
@@ -83,194 +94,165 @@ export default function NewBriefingClient() {
     <AppShell
       title="Novo Briefing"
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <button
-            onClick={handleCancel}
-            className="text-slate-500 hover:text-slate-700 transition-colors"
-          >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button size="small" onClick={handleCancel} sx={{ color: 'text.secondary', textTransform: 'none' }}>
             Edro
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium">Novo Briefing</span>
-        </nav>
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={500}>Novo Briefing</Typography>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-4xl mx-auto">
+      <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+          <Alert severity="error" sx={{ mb: 3 }}>
             {error}
-          </div>
+          </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Informações Básicas</h2>
+        <form onSubmit={handleSubmit}>
+          <Stack spacing={3}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>Informações Básicas</Typography>
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="client_name" className="block text-sm font-medium text-slate-700 mb-1">
-                  Cliente <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="client_name"
-                  name="client_name"
-                  value={formData.client_name}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Nome do cliente"
-                />
-              </div>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Cliente *"
+                    name="client_name"
+                    value={formData.client_name}
+                    onChange={handleChange}
+                    required
+                    placeholder="Nome do cliente"
+                  />
 
-              <div>
-                <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-1">
-                  Título do Briefing <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  required
-                  minLength={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Ex: Campanha Dia das Mães 2026"
-                />
-              </div>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Título do Briefing *"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    required
+                    inputProps={{ minLength: 3 }}
+                    placeholder="Ex: Campanha Dia das Mães 2026"
+                  />
 
-              <div>
-                <label htmlFor="traffic_owner" className="block text-sm font-medium text-slate-700 mb-1">
-                  Responsável de Tráfego
-                </label>
-                <input
-                  type="email"
-                  id="traffic_owner"
-                  name="traffic_owner"
-                  value={formData.traffic_owner}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="email@edro.digital"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Receberá notificações sobre o briefing
-                </p>
-              </div>
+                  <Box>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Responsável de Tráfego"
+                      name="traffic_owner"
+                      type="email"
+                      value={formData.traffic_owner}
+                      onChange={handleChange}
+                      placeholder="email@edro.digital"
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                      Receberá notificações sobre o briefing
+                    </Typography>
+                  </Box>
 
-              <div>
-                <label htmlFor="due_at" className="block text-sm font-medium text-slate-700 mb-1">
-                  Prazo de Entrega
-                </label>
-                <input
-                  type="date"
-                  id="due_at"
-                  name="due_at"
-                  value={formData.due_at}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Prazo de Entrega"
+                    name="due_at"
+                    type="date"
+                    value={formData.due_at}
+                    onChange={handleChange}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Detalhes da Campanha</h2>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>Detalhes da Campanha</Typography>
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="objective" className="block text-sm font-medium text-slate-700 mb-1">
-                  Objetivo <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="objective"
-                  name="objective"
-                  value={formData.objective}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                >
-                  <option value="">Selecione o objetivo</option>
-                  <option value="awareness">Awareness / Reconhecimento de Marca</option>
-                  <option value="engagement">Engajamento</option>
-                  <option value="conversao">Conversão / Vendas</option>
-                  <option value="leads">Geração de Leads</option>
-                  <option value="branding">Branding / Institucional</option>
-                  <option value="lancamento">Lançamento de Produto</option>
-                </select>
-              </div>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Objetivo *"
+                    name="objective"
+                    value={formData.objective}
+                    onChange={handleChange}
+                    required
+                  >
+                    <MenuItem value="">Selecione o objetivo</MenuItem>
+                    <MenuItem value="awareness">Awareness / Reconhecimento de Marca</MenuItem>
+                    <MenuItem value="engagement">Engajamento</MenuItem>
+                    <MenuItem value="conversao">Conversão / Vendas</MenuItem>
+                    <MenuItem value="leads">Geração de Leads</MenuItem>
+                    <MenuItem value="branding">Branding / Institucional</MenuItem>
+                    <MenuItem value="lancamento">Lançamento de Produto</MenuItem>
+                  </TextField>
 
-              <div>
-                <label htmlFor="target_audience" className="block text-sm font-medium text-slate-700 mb-1">
-                  Público-Alvo <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="target_audience"
-                  name="target_audience"
-                  value={formData.target_audience}
-                  onChange={handleChange}
-                  required
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Ex: Mulheres, 25-45 anos, classes A/B, interessadas em decoração..."
-                />
-              </div>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    multiline
+                    rows={3}
+                    label="Público-Alvo *"
+                    name="target_audience"
+                    value={formData.target_audience}
+                    onChange={handleChange}
+                    required
+                    placeholder="Ex: Mulheres, 25-45 anos, classes A/B, interessadas em decoração..."
+                  />
 
-              <div>
-                <label htmlFor="channels" className="block text-sm font-medium text-slate-700 mb-1">
-                  Canais <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="channels"
-                  name="channels"
-                  value={formData.channels}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Ex: Instagram, Facebook, LinkedIn"
-                />
-              </div>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Canais *"
+                    name="channels"
+                    value={formData.channels}
+                    onChange={handleChange}
+                    required
+                    placeholder="Ex: Instagram, Facebook, LinkedIn"
+                  />
 
-              <div>
-                <label htmlFor="additional_notes" className="block text-sm font-medium text-slate-700 mb-1">
-                  Observações Adicionais
-                </label>
-                <textarea
-                  id="additional_notes"
-                  name="additional_notes"
-                  value={formData.additional_notes}
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Informações adicionais, referências, restrições..."
-                />
-              </div>
-            </div>
-          </div>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    multiline
+                    rows={4}
+                    label="Observações Adicionais"
+                    name="additional_notes"
+                    value={formData.additional_notes}
+                    onChange={handleChange}
+                    placeholder="Informações adicionais, referências, restrições..."
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
 
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={loading}
-              className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading && (
-                <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-              )}
-              {loading ? 'Criando...' : 'Criar Briefing'}
-            </button>
-          </div>
+            <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={handleCancel}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+              >
+                {loading ? 'Criando...' : 'Criar Briefing'}
+              </Button>
+            </Stack>
+          </Stack>
         </form>
-      </div>
+      </Box>
     </AppShell>
   );
 }

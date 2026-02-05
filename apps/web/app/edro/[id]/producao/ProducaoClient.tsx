@@ -4,6 +4,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPost } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CircularProgress from '@mui/material/CircularProgress';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import {
+  IconChevronRight,
+  IconMail,
+  IconMessageCircle,
+  IconPalette,
+  IconSend,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -142,26 +160,24 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
-          <div className="mt-4 text-slate-600">Carregando...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">Carregando...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (error || !briefing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <p className="text-slate-600 mb-4">{error || 'Briefing não encontrado.'}</p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar
-          </button>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x26A0;&#xFE0F;</Typography>
+          <Typography variant="body2" color="text.secondary">{error || 'Briefing não encontrado.'}</Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -171,38 +187,34 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
 
   if (!canAssign) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Produção não disponível</h3>
-          <p className="text-slate-600 mb-4">
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x1F512;</Typography>
+          <Typography variant="h6">Produção não disponível</Typography>
+          <Typography variant="body2" color="text.secondary">
             A etapa de produção ainda não foi liberada ou já foi concluída.
-          </p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar para Briefing
-          </button>
-        </div>
-      </div>
+          </Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar para Briefing</Button>
+        </Stack>
+      </Box>
     );
   }
 
   if (!hasPermission) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🚫</div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Acesso Negado</h3>
-          <p className="text-slate-600 mb-2">
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <Typography variant="h2">&#x1F6AB;</Typography>
+          <Typography variant="h6">Acesso Negado</Typography>
+          <Typography variant="body2" color="text.secondary">
             Apenas usuários com perfil <strong>Gestor</strong>, <strong>Admin</strong> ou <strong>Staff</strong> podem atribuir designers.
-          </p>
-          <p className="text-sm text-slate-500 mb-4">
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
             Seu perfil atual: <strong>{user?.role || 'Não identificado'}</strong>
-          </p>
-          <button onClick={handleBack} className="px-6 py-2 bg-slate-900 text-white rounded-lg">
-            Voltar para Briefing
-          </button>
-        </div>
-      </div>
+          </Typography>
+          <Button variant="contained" onClick={handleBack}>Voltar para Briefing</Button>
+        </Stack>
+      </Box>
     );
   }
 
@@ -210,178 +222,173 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
     <AppShell
       title="Atribuir Designer"
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <button onClick={handleBack} className="text-slate-500 hover:text-slate-700 transition-colors">
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button size="small" onClick={handleBack} sx={{ color: 'text.secondary', textTransform: 'none' }}>
             Edro
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <button onClick={handleBack} className="text-slate-500 hover:text-slate-700 transition-colors truncate max-w-xs">
+          </Button>
+          <IconChevronRight size={14} />
+          <Button
+            size="small"
+            onClick={handleBack}
+            sx={{ color: 'text.secondary', textTransform: 'none', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {briefing.title}
-          </button>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium">Atribuir Designer</span>
-        </nav>
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={500}>Atribuir Designer</Typography>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-4xl mx-auto">
+      <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
         {/* Header */}
-        <div className="bg-pink-50 border border-pink-200 rounded-lg p-6 mb-6">
-          <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-4xl text-pink-600">palette</span>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                Atribuir Produção - {briefing.title}
-              </h2>
-              <p className="text-slate-700 mb-1">
-                <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
-              </p>
-              <p className="text-slate-700 text-sm">
-                Atribua um designer artístico (DA) para criar os assets visuais desta campanha.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert
+          severity="info"
+          icon={<IconPalette size={28} />}
+          sx={{ mb: 3 }}
+        >
+          <Typography variant="h6" sx={{ mb: 0.5 }}>
+            Atribuir Produção - {briefing.title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            <strong>Cliente:</strong> {briefing.client_name || 'N/A'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Atribua um designer artístico (DA) para criar os assets visuais desta campanha.
+          </Typography>
+        </Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Informações do Designer */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Designer Artístico</h3>
+        <form onSubmit={handleSubmit}>
+          <Stack spacing={3}>
+            {/* Informações do Designer */}
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                  Designer Artístico
+                </Typography>
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="assigned_to" className="block text-sm font-medium text-slate-700 mb-1">
-                  Email do Designer <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="assigned_to"
-                  name="assigned_to"
-                  value={formData.assigned_to}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="designer@edro.digital"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-slate-700 mb-1">
-                  Mensagem (Opcional)
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  value={formData.message}
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Instruções especiais, referências, ou observações para o designer..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Copy Aprovada */}
-          {copies.length > 0 && (
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h3 className="font-semibold text-slate-900 mb-4">Copy Aprovada</h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="copy_version_id" className="block text-sm font-medium text-slate-700 mb-1">
-                    Selecionar Copy
-                  </label>
-                  <select
-                    id="copy_version_id"
-                    name="copy_version_id"
-                    value={formData.copy_version_id}
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Email do Designer *"
+                    name="assigned_to"
+                    type="email"
+                    value={formData.assigned_to}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  >
-                    {copies.map((copy, index) => (
-                      <option key={copy.id} value={copy.id}>
-                        Versão {index + 1} - {new Date(copy.created_at).toLocaleString('pt-BR')}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    required
+                    placeholder="designer@edro.digital"
+                  />
 
-                {formData.copy_version_id && (
-                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="text-sm text-slate-700 whitespace-pre-wrap">
-                      {copies.find((c) => c.id === formData.copy_version_id)?.output || ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    multiline
+                    rows={4}
+                    label="Mensagem (Opcional)"
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    placeholder="Instruções especiais, referências, ou observações para o designer..."
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
 
-          {/* Canais de Notificação */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Canais de Notificação</h3>
+            {/* Copy Aprovada */}
+            {copies.length > 0 && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                    Copy Aprovada
+                  </Typography>
 
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="notify_email"
-                  checked={formData.notify_email}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-slate-600">email</span>
-                  <span className="text-slate-900">Enviar notificação por Email</span>
-                </div>
-              </label>
+                  <Stack spacing={2}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="Selecionar Copy"
+                      name="copy_version_id"
+                      value={formData.copy_version_id}
+                      onChange={handleChange}
+                    >
+                      {copies.map((copy, index) => (
+                        <MenuItem key={copy.id} value={copy.id}>
+                          Versão {index + 1} - {new Date(copy.created_at).toLocaleString('pt-BR')}
+                        </MenuItem>
+                      ))}
+                    </TextField>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="notify_whatsapp"
-                  checked={formData.notify_whatsapp}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-slate-600">chat</span>
-                  <span className="text-slate-900">Enviar notificação por WhatsApp</span>
-                </div>
-              </label>
-            </div>
-          </div>
+                    {formData.copy_version_id && (
+                      <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {copies.find((c) => c.id === formData.copy_version_id)?.output || ''}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Ações */}
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={handleBack}
-              disabled={submitting}
-              className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                  Atribuindo...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined">send</span>
-                  Atribuir Designer
-                </>
-              )}
-            </button>
-          </div>
+            {/* Canais de Notificação */}
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                  Canais de Notificação
+                </Typography>
+
+                <Stack spacing={1}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Switch
+                      name="notify_email"
+                      checked={formData.notify_email}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, notify_email: e.target.checked }))}
+                    />
+                    <IconMail size={18} />
+                    <Typography variant="body2">Enviar notificação por Email</Typography>
+                  </Stack>
+
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Switch
+                      name="notify_whatsapp"
+                      checked={formData.notify_whatsapp}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, notify_whatsapp: e.target.checked }))}
+                    />
+                    <IconMessageCircle size={18} />
+                    <Typography variant="body2">Enviar notificação por WhatsApp</Typography>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* Ações */}
+            <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={handleBack}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={submitting}
+                startIcon={
+                  submitting
+                    ? <CircularProgress size={16} color="inherit" />
+                    : <IconSend size={16} />
+                }
+              >
+                {submitting ? 'Atribuindo...' : 'Atribuir Designer'}
+              </Button>
+            </Stack>
+          </Stack>
         </form>
-      </div>
+      </Box>
     </AppShell>
   );
 }

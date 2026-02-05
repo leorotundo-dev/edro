@@ -1,0 +1,35 @@
+{
+  "name": "eventos-ativacoes-mockups-completo",
+  "version": "1.0.0",
+  "description": "80 componentes React minimalistas para eventos e ativações - Completo",
+  "main": "index.js",
+  "keywords": [
+    "mockup",
+    "react",
+    "typescript",
+    "tailwind",
+    "eventos",
+    "feiras",
+    "estandes",
+    "brindes",
+    "merchandising",
+    "sinalizacao",
+    "pdv",
+    "trade-marketing"
+  ],
+  "author": "MemoDrops",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "lucide-react": "^0.263.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0",
+    "tailwindcss": "^3.0.0",
+    "postcss": "^8.0.0",
+    "autoprefixer": "^10.0.0"
+  }
+}

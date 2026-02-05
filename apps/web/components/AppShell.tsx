@@ -1,19 +1,13 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import StudioContextBar from './StudioContextBar';
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-};
+import { useState, type ReactNode } from 'react';
+import Box from '@mui/material/Box';
+import Sidebar from './layout/sidebar/Sidebar';
+import Header from './layout/header/Header';
 
 type ActionButton = {
   label: string;
-  icon?: string;
+  icon?: ReactNode | string;
   onClick?: () => void;
 };
 
@@ -27,172 +21,58 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Home', href: '/', icon: 'home' },
-  { label: 'Edro Briefings', href: '/edro', icon: 'automation' },
-  { label: 'Clients', href: '/clients', icon: 'group' },
-  { label: 'Calendar', href: '/calendar', icon: 'calendar_month' },
-  { label: 'Kanban', href: '/board', icon: 'view_kanban' },
-  { label: 'Creative Studio', href: '/studio', icon: 'palette' },
-  { label: 'Radar', href: '/clipping', icon: 'content_cut' },
-  { label: 'Clipping Analytics', href: '/clipping/dashboard', icon: 'monitoring' },
-  { label: 'Social Listening', href: '/social-listening', icon: 'graphic_eq' },
-  { label: 'Production Catalog', href: '/production/catalog', icon: 'inventory_2' },
-];
-
-const ADMIN_ITEMS: NavItem[] = [
-  { label: 'System Admin', href: '/admin/system', icon: 'admin_panel_settings' },
-  { label: 'Import Events', href: '/admin/events/import', icon: 'upload' },
-];
-
-type UserInfo = {
-  name?: string;
-  email?: string;
-  role?: string;
-};
-
-function getActive(pathname: string, href: string) {
-  if (href === '/') return pathname === href;
-  return pathname.startsWith(href);
-}
-
-export default function AppShell({ title, meta, action, topbarExtra, topbarLeft, topbarRight, children }: AppShellProps) {
-  const pathname = usePathname();
-  const [user, setUser] = useState<UserInfo>({});
-  const isStudio = pathname.startsWith('/studio');
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.classList.remove('dark');
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('edro_user');
-    if (!stored) return;
-    try {
-      setUser(JSON.parse(stored));
-    } catch {
-      setUser({});
-    }
-  }, []);
-
-  const displayName = useMemo(() => {
-    if (user?.name) return user.name;
-    if (user?.email) return user.email.split('@')[0];
-    return 'Edro User';
-  }, [user]);
+export default function AppShell({
+  title,
+  meta,
+  action,
+  topbarExtra,
+  topbarLeft,
+  topbarRight,
+  children,
+}: AppShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-background-light text-slate-900 antialiased overflow-hidden">
-      <aside className="w-36 shrink-0 border-r border-slate-200 bg-surface-light h-screen sticky top-0 flex flex-col overflow-y-auto shadow-sm">
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-center gap-3">
-            <img className="h-16 w-16 rounded-2xl object-contain" src="/assets/logo-studio.png" alt="Edro logo" />
-          </div>
-        </div>
-        <nav className="px-4 py-2 space-y-1 text-[13px]">
-          {NAV_ITEMS.map((item) => {
-            const active = getActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
-                  active
-                    ? 'bg-primary-50 text-primary-600 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-auto p-4 space-y-1">
-          <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Admin
-          </div>
-          {ADMIN_ITEMS.map((item) => {
-            const active = getActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 text-[13px] ${
-                  active
-                    ? 'bg-error-50 text-error-600 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-          <div className="h-px bg-slate-200 my-3" />
-          <Link
-            href="/settings"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
-              getActive(pathname, '/settings')
-                ? 'text-primary bg-primary-50 font-semibold shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-xl">settings</span>
-            <span>Settings</span>
-          </Link>
-        </div>
-      </aside>
-
-      <main className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 border-b border-slate-200 bg-surface-light/95 backdrop-blur-lg flex items-center justify-between px-10 sticky top-0 z-10 shrink-0 shadow-sm">
-          <div className="flex items-center gap-4">
-            {topbarLeft ? (
-              topbarLeft
-            ) : (
-              <>
-                <h1 className="font-display text-2xl text-slate-900">{title}</h1>
-                {meta ? (
-                  <>
-                    <span className="h-4 w-px bg-slate-200" />
-                    <span className="text-xs font-medium text-slate-500 uppercase tracking-widest">{meta}</span>
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-6">
-            {action ? (
-              <button
-                className="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-600 transition-colors"
-                type="button"
-                onClick={action.onClick}
-              >
-                {action.icon ? <span className="material-symbols-outlined text-sm">{action.icon}</span> : null}
-                {action.label}
-              </button>
-            ) : null}
-            {topbarExtra}
-            {topbarRight}
-            <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" type="button">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-semibold leading-none">{displayName}</p>
-                <p className="text-xs text-slate-500">{user?.role || 'Team'}</p>
-              </div>
-              <div className="w-10 h-10 rounded-full border border-slate-200 bg-slate-200" />
-            </div>
-          </div>
-        </header>
-        {isStudio ? <StudioContextBar /> : null}
-        {children}
-      </main>
-    </div>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Sidebar
+        open={sidebarOpen}
+        mobileOpen={mobileSidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Header
+          title={title}
+          meta={meta}
+          action={action}
+          topbarExtra={topbarExtra}
+          topbarLeft={topbarLeft}
+          topbarRight={topbarRight}
+          onMenuClick={() => setMobileSidebarOpen(true)}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+        <Box
+          sx={{
+            p: { xs: 2, sm: 3 },
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3,
+          }}
+        >
+          {children}
+        </Box>
+      </Box>
+    </Box>
   );
 }

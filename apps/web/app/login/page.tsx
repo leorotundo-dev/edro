@@ -3,17 +3,16 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Box from '@mui/material/Box';
+import Grid from '@mui/material/Grid';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
+import Alert from '@mui/material/Alert';
 import { apiGet, apiPost, getApiBase, getBackendBase } from '@/lib/api';
-
-const PAGE_THEME = {
-  '--edro-primary': '#FF5C00',
-  '--edro-bg-light': '#F8F9FA',
-  '--edro-bg-dark': '#0A0A0A',
-  '--edro-card-light': '#FFFFFF',
-  '--edro-card-dark': '#141414',
-  '--edro-border-light': '#E5E7EB',
-  '--edro-border-dark': '#262626',
-} as React.CSSProperties;
 
 function resolveNextPath() {
   if (typeof window === 'undefined') return '/';
@@ -36,16 +35,6 @@ export default function LoginPage() {
   const backendBase = getBackendBase();
   const ssoBase = backendBase || getApiBase();
   const ssoUrl = backendBase ? `${ssoBase}/api/auth/sso/start` : `${ssoBase}/auth/sso/start`;
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const html = document.documentElement;
-    const wasDark = html.classList.contains('dark');
-    html.classList.add('dark');
-    return () => {
-      if (!wasDark) html.classList.remove('dark');
-    };
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -139,152 +128,95 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen selection:bg-primary selection:text-white"
-      style={{ ...PAGE_THEME, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+        backgroundImage: 'url(/modernize/images/backgrounds/login-bg.svg)',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'right top',
+        backgroundSize: { xs: 'cover', md: 'contain' },
+        px: { xs: 2, md: 6 },
+        py: { xs: 6, md: 10 },
+      }}
     >
-      <nav className="fixed top-0 w-full z-50 px-8 py-6 flex justify-between items-center bg-transparent backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-sm flex items-center justify-center">
-            <span className="text-white font-black text-xl italic">e</span>
-          </div>
-          <span className="font-bold text-xl tracking-tighter dark:text-white">edro</span>
-        </div>
-        <div className="hidden md:flex gap-8 text-sm font-medium uppercase tracking-widest opacity-80">
-          <span className="hover:text-primary transition-colors">Our Way</span>
-          <span className="hover:text-primary transition-colors">Our Work</span>
-        </div>
-        <button
-          className="bg-primary text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all active:scale-95"
-          type="button"
-        >
-          Get in Touch
-        </button>
-      </nav>
-
-      <main className="relative min-h-screen flex flex-col justify-center items-center overflow-hidden pt-20">
-        <div className="absolute inset-0 flex items-center justify-center z-0 overflow-hidden">
-          <span className="text-[35vw] leading-[0.8] tracking-[-0.05em] opacity-[0.05] pointer-events-none select-none font-black italic dark:text-primary text-slate-300">
-            edro
-          </span>
-        </div>
-        <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h1 className="text-6xl md:text-8xl font-light leading-[0.9] dark:text-white tracking-[-0.02em]">
-                inspire,
-                <br />
-                create <span className="text-primary italic font-medium">&amp;</span>
-                <br />
-                elevate
-              </h1>
-            </div>
-            <p className="text-lg md:text-xl font-light opacity-60 max-w-md border-l-2 border-primary pl-6 py-2">
-              Internal studio operations platform designed for high-performance creative teams.
-            </p>
-            <div className="flex gap-4 pt-8 opacity-40 grayscale group-hover:grayscale-0 transition-all duration-500">
-              <div className="text-xs font-bold uppercase tracking-widest">SaaS Edition 2.0</div>
-              <div className="text-xs font-bold uppercase tracking-widest">Global Ops</div>
-            </div>
-          </div>
-
-          <div className="flex justify-center lg:justify-end">
-            <div className="w-full max-w-md p-8 md:p-12 bg-white/5 dark:bg-[#141414]/80 backdrop-blur-xl border border-slate-200/20 dark:border-white/10 shadow-2xl">
-              <div className="mb-10 text-center lg:text-left">
-                <h2 className="text-2xl font-bold mb-2">Access Portal</h2>
-                <p className="text-sm opacity-50">
+      <Grid container spacing={6} alignItems="center" sx={{ maxWidth: 1100 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box component="img" src="/modernize/images/logos/logoIcon.svg" alt="Edro" sx={{ width: 36, height: 36 }} />
+              <Typography variant="h5" fontWeight={700}>
+                edro studio
+              </Typography>
+            </Stack>
+            <Typography variant="h3" fontWeight={700}>
+              Acesse sua operação criativa
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Centralize briefings, calendário e inteligência editorial em um só lugar.
+            </Typography>
+            <Button
+              variant="outlined"
+              href={ssoUrl}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Entrar com SSO
+            </Button>
+          </Stack>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ maxWidth: 420, mx: { xs: 'auto', md: 0 } }}>
+            <CardContent sx={{ p: 4 }}>
+              <Stack spacing={2}>
+                <Typography variant="h5" fontWeight={700}>
+                  {step === 'verify' ? 'Validar codigo' : 'Entrar'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                   {step === 'verify'
-                    ? 'Insira o codigo para entrar.'
-                    : 'Digite seu email corporativo para receber o codigo.'}
-                </p>
-              </div>
-              <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase tracking-widest font-bold opacity-40">Corporate Email</label>
-                  <input
-                    className="w-full bg-transparent border-0 border-b border-slate-300 dark:border-white/20 focus:ring-0 focus:border-primary py-3 px-0 transition-colors placeholder:text-slate-400 dark:placeholder:text-white/20"
-                    placeholder="name@edro.digital"
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] uppercase tracking-widest font-bold opacity-40">Access Code</label>
-                    <button
-                      className="text-[10px] uppercase tracking-widest font-bold text-primary hover:underline"
-                      type="button"
-                      onClick={handleRequest}
-                      disabled={loading}
-                    >
-                      Reenviar
-                    </button>
-                  </div>
-                  <input
-                    className="w-full bg-transparent border-0 border-b border-slate-300 dark:border-white/20 focus:ring-0 focus:border-primary py-3 px-0 transition-colors placeholder:text-slate-400 dark:placeholder:text-white/20"
-                    placeholder="000000"
-                    type="text"
-                    value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                    required={step === 'verify'}
-                  />
-                </div>
-                <div className="pt-4">
-                  <button
-                    className="w-full bg-primary text-white py-4 font-bold uppercase tracking-[0.2em] text-sm hover:shadow-[0_0_20px_rgba(255,92,0,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? 'Validando...'
-                      : step === 'verify'
-                        ? 'Enter Workspace'
-                        : 'Enviar Codigo'}
-                  </button>
-                </div>
-              </form>
-
-              {message ? <div className="mt-4 text-xs text-green-400">{message}</div> : null}
-              {error ? <div className="mt-4 text-xs text-rose-400">{error}</div> : null}
-
-              <div className="mt-8 pt-8 border-t border-slate-200/10 flex flex-col items-center gap-4">
-                <span className="text-[10px] uppercase tracking-widest opacity-30">Or sign in with SSO</span>
-                <div className="flex gap-4">
-                  <a
-                    className="w-12 h-12 flex items-center justify-center border border-slate-200/20 hover:border-primary transition-colors"
-                    href={ssoUrl}
-                  >
-                    <span className="material-symbols-outlined">lock_open</span>
-                  </a>
-                  <button
-                    className="w-12 h-12 flex items-center justify-center border border-slate-200/20 hover:border-primary transition-colors"
-                    type="button"
-                    onClick={() => setStep(step === 'verify' ? 'request' : 'verify')}
-                  >
-                    <span className="material-symbols-outlined">passkey</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <footer className="w-full py-12 bg-transparent overflow-hidden">
-        <div className="container mx-auto px-8 mb-8 flex justify-between items-end border-b border-slate-200/10 pb-4">
-          <span className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-30">Trusted by Global Teams</span>
-          <div className="flex gap-4">
-            <span className="opacity-40 hover:opacity-100 transition-opacity">
-              <span className="material-symbols-outlined text-sm">hub</span>
-            </span>
-            <span className="opacity-40 hover:opacity-100 transition-opacity">
-              <span className="material-symbols-outlined text-sm">alternate_email</span>
-            </span>
-          </div>
-        </div>
-      </footer>
-    </div>
+                    ? 'Insira o codigo enviado para seu email corporativo.'
+                    : 'Digite seu email corporativo para receber o codigo de acesso.'}
+                </Typography>
+                {error && <Alert severity="error">{error}</Alert>}
+                {message && <Alert severity="success">{message}</Alert>}
+                <form onSubmit={handleSubmit}>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Email"
+                      placeholder="name@edro.digital"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      required
+                      fullWidth
+                    />
+                    {step === 'verify' && (
+                      <TextField
+                        label="Codigo"
+                        placeholder="Digite o codigo"
+                        value={code}
+                        onChange={(event) => setCode(event.target.value)}
+                        required
+                        fullWidth
+                      />
+                    )}
+                    <Button type="submit" variant="contained" disabled={loading} fullWidth>
+                      {step === 'verify' ? 'Entrar' : 'Enviar codigo'}
+                    </Button>
+                    {step === 'verify' && (
+                      <Button type="button" variant="text" onClick={handleRequest} disabled={loading}>
+                        Reenviar codigo
+                      </Button>
+                    )}
+                  </Stack>
+                </form>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

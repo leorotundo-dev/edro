@@ -1,10 +1,5 @@
-import UxFrame from '@/components/UxFrame';
+import InsightsClient from './InsightsClient';
 
 export default function Page() {
-  return (
-    <UxFrame
-      title="Strategic Insights"
-      src="/ux/edro_command_center_home_10/code.html"
-    />
-  );
+  return <InsightsClient />;
 }

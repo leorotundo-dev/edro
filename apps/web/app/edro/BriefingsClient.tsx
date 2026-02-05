@@ -4,6 +4,31 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet } from '@/lib/api';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
+import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
+import CircularProgress from '@mui/material/CircularProgress';
+import StatusChip from '@/components/shared/StatusChip';
+import {
+  IconDownload,
+  IconPlus,
+  IconCalendar,
+  IconUser,
+  IconBuilding,
+  IconSourceCode,
+  IconAlertTriangle,
+  IconClipboardList,
+  IconFileText,
+  IconUsers,
+} from '@tabler/icons-react';
 
 type Briefing = {
   id: string;
@@ -26,18 +51,6 @@ const STATUS_LABELS: Record<string, string> = {
   revisao: 'Revisão',
   iclips_out: 'iClips Saída',
   done: 'Concluído',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  briefing: 'bg-blue-100 text-blue-700',
-  iclips_in: 'bg-purple-100 text-purple-700',
-  alinhamento: 'bg-yellow-100 text-yellow-700',
-  copy_ia: 'bg-cyan-100 text-cyan-700',
-  aprovacao: 'bg-orange-100 text-orange-700',
-  producao: 'bg-pink-100 text-pink-700',
-  revisao: 'bg-indigo-100 text-indigo-700',
-  iclips_out: 'bg-purple-100 text-purple-700',
-  done: 'bg-green-100 text-green-700',
 };
 
 function formatDate(value?: string | null) {
@@ -105,9 +118,7 @@ export default function BriefingsClient() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const response = await apiGet<{ success: boolean; data: Metrics }>(
-        '/edro/metrics'
-      );
+      const response = await apiGet<{ success: boolean; data: Metrics }>('/edro/metrics');
       setMetrics(response?.data || null);
     } catch (err: any) {
       console.error('Falha ao carregar métricas:', err);
@@ -132,10 +143,8 @@ export default function BriefingsClient() {
       const url = `/edro/reports/export?format=${format}`;
 
       if (format === 'csv') {
-        // Download CSV
         window.open(`${process.env.NEXT_PUBLIC_API_URL || '/api'}${url}`, '_blank');
       } else {
-        // JSON format
         const response = await apiGet<{ success: boolean; data: any[] }>(url);
         const blob = new Blob([JSON.stringify(response?.data || [], null, 2)], {
           type: 'application/json',
@@ -153,12 +162,14 @@ export default function BriefingsClient() {
 
   if (loading && briefings.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-          <div className="mt-4 text-slate-600">Carregando briefings...</div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Carregando briefings...
+          </Typography>
+        </Stack>
+      </Box>
     );
   }
 
@@ -166,243 +177,273 @@ export default function BriefingsClient() {
     <AppShell
       title="Briefings Edro"
       topbarLeft={
-        <nav className="flex items-center space-x-2 text-sm text-slate-400">
-          <span className="text-slate-500">Edro</span>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-slate-900 font-medium">Briefings</span>
-        </nav>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="caption" color="text.secondary">
+            Edro
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            / Briefings
+          </Typography>
+        </Stack>
       }
       topbarRight={
-        <div className="flex gap-2">
-          <button
-            type="button"
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<IconDownload size={16} />}
             onClick={() => handleExport('csv')}
-            className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-sm">download</span>
             Exportar CSV
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<IconPlus size={16} />}
             onClick={handleNewBriefing}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
             Novo Briefing
-          </button>
-        </div>
+          </Button>
+        </Stack>
       }
     >
-      <div className="p-6 max-w-7xl mx-auto">
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
+      <Stack spacing={3}>
+        {error && <Alert severity="error">{error}</Alert>}
 
-        {/* Metrics Dashboard */}
         {metrics && (
-          <div className="mb-6 grid grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <span className="material-symbols-outlined text-blue-600">description</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-slate-900">{metrics.total}</div>
-                  <div className="text-sm text-slate-500">Total Briefings</div>
-                </div>
-              </div>
-              <div className="text-xs text-slate-400 mt-2">
-                +{metrics.recentBriefings} últimos 7 dias
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-cyan-100 rounded-lg">
-                  <span className="material-symbols-outlined text-cyan-600">psychology</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-slate-900">{metrics.totalCopies}</div>
-                  <div className="text-sm text-slate-500">Copies Geradas</div>
-                </div>
-              </div>
-              <div className="text-xs text-slate-400 mt-2">
-                IA automatizada
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <span className="material-symbols-outlined text-orange-600">check_circle</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {metrics.byStatus.aprovacao || 0}
-                  </div>
-                  <div className="text-sm text-slate-500">Em Aprovação</div>
-                </div>
-              </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Aguardando gestor
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <span className="material-symbols-outlined text-green-600">done_all</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {metrics.byStatus.done || 0}
-                  </div>
-                  <div className="text-sm text-slate-500">Concluídos</div>
-                </div>
-              </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Entregues
-              </div>
-            </div>
-          </div>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                      <IconFileText size={18} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h4">{metrics.total}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Briefings
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    +{metrics.recentBriefings} últimos 7 dias
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                      <IconClipboardList size={18} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h4">{metrics.totalCopies}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Copies Geradas
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    IA automatizada
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                      <IconCalendar size={18} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h4">{metrics.byStatus.aprovacao || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Em Aprovação
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Aguardando gestor
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                      <IconUsers size={18} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h4">{metrics.byStatus.done || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Concluídos
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Entregues
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         )}
 
-        {/* Bottlenecks */}
         {metrics && metrics.bottlenecks.length > 0 && (
-          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-yellow-600">warning</span>
-              <h3 className="font-semibold text-slate-900">Etapas com Gargalos</h3>
-            </div>
-            <div className="flex gap-4">
-              {metrics.bottlenecks.map((bottleneck) => (
-                <div key={bottleneck.stage} className="flex items-center gap-2 text-sm">
-                  <span className="font-medium text-slate-900 capitalize">
-                    {STATUS_LABELS[bottleneck.stage] || bottleneck.stage}:
-                  </span>
-                  <span className="text-slate-600">{bottleneck.count} briefings</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Alert
+            severity="warning"
+            icon={<IconAlertTriangle size={18} />}
+          >
+            <Stack spacing={1}>
+              <Typography variant="subtitle2">Etapas com Gargalos</Typography>
+              <Stack direction="row" spacing={2} flexWrap="wrap">
+                {metrics.bottlenecks.map((bottleneck) => (
+                  <Chip
+                    key={bottleneck.stage}
+                    label={`${STATUS_LABELS[bottleneck.stage] || bottleneck.stage}: ${bottleneck.count}`}
+                    size="small"
+                  />
+                ))}
+              </Stack>
+            </Stack>
+          </Alert>
         )}
 
-        <div className="mb-6 flex gap-2">
-          <button
-            type="button"
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Button
+            variant={filterStatus === '' ? 'contained' : 'outlined'}
+            size="small"
             onClick={() => setFilterStatus('')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              filterStatus === ''
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
           >
             Todos
-          </button>
+          </Button>
           {Object.keys(STATUS_LABELS).map((status) => (
-            <button
+            <Button
               key={status}
-              type="button"
+              variant={filterStatus === status ? 'contained' : 'outlined'}
+              size="small"
               onClick={() => setFilterStatus(status)}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === status
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
             >
               {STATUS_LABELS[status]}
-            </button>
+            </Button>
           ))}
-        </div>
+        </Stack>
 
         {briefings.length === 0 && !loading ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">
-              Nenhum briefing encontrado
-            </h3>
-            <p className="text-slate-600 mb-6">
-              Comece criando seu primeiro briefing para automatizar o fluxo da agência.
-            </p>
-            <button
-              onClick={handleNewBriefing}
-              className="px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              Criar Primeiro Briefing
-            </button>
-          </div>
+          <Card variant="outlined">
+            <CardContent sx={{ textAlign: 'center', py: 6 }}>
+              <Typography variant="h6" gutterBottom>
+                Nenhum briefing encontrado
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Comece criando seu primeiro briefing para automatizar o fluxo da agência.
+              </Typography>
+              <Button variant="contained" onClick={handleNewBriefing}>
+                Criar Primeiro Briefing
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-4">
+          <Stack spacing={2}>
             {briefings.map((briefing) => {
-              const statusColor = STATUS_COLORS[briefing.status] || 'bg-gray-100 text-gray-700';
-              const statusLabel = STATUS_LABELS[briefing.status] || briefing.status;
               const relativeDate = formatRelativeDate(briefing.due_at);
               const isOverdue = relativeDate?.includes('Atrasado');
 
               return (
-                <div
+                <Card
                   key={briefing.id}
+                  variant="outlined"
+                  sx={{
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { boxShadow: 3 },
+                  }}
                   onClick={() => handleBriefingClick(briefing.id)}
-                  className="p-6 bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          {briefing.title}
-                        </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-slate-600">
-                        {briefing.client_name && (
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">business</span>
-                            {briefing.client_name}
-                          </div>
-                        )}
-                        {briefing.traffic_owner && (
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">person</span>
-                            {briefing.traffic_owner}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">calendar_today</span>
-                          {formatDate(briefing.created_at)}
-                        </div>
-                        {briefing.source && (
-                          <div className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">source</span>
-                            {briefing.source}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {briefing.due_at && (
-                      <div className={`text-right ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
-                        <div className="text-sm font-medium">
-                          {relativeDate || formatDate(briefing.due_at)}
-                        </div>
-                        {relativeDate && (
-                          <div className="text-xs text-slate-500">
-                            {formatDate(briefing.due_at)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={2}
+                        justifyContent="space-between"
+                        alignItems={{ xs: 'flex-start', md: 'center' }}
+                      >
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
+                            <IconFileText size={18} />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6">{briefing.title}</Typography>
+                            <Stack direction="row" spacing={2} flexWrap="wrap" mt={0.5}>
+                              {briefing.client_name && (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <IconBuilding size={14} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    {briefing.client_name}
+                                  </Typography>
+                                </Stack>
+                              )}
+                              {briefing.traffic_owner && (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <IconUser size={14} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    {briefing.traffic_owner}
+                                  </Typography>
+                                </Stack>
+                              )}
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <IconCalendar size={14} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {formatDate(briefing.created_at)}
+                                </Typography>
+                              </Stack>
+                              {briefing.source && (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <IconSourceCode size={14} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    {briefing.source}
+                                  </Typography>
+                                </Stack>
+                              )}
+                            </Stack>
+                          </Box>
+                        </Stack>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <StatusChip
+                            status={briefing.status}
+                            label={STATUS_LABELS[briefing.status] || briefing.status}
+                          />
+                          {briefing.due_at && (
+                            <Stack spacing={0} alignItems="flex-end">
+                              <Typography
+                                variant="body2"
+                                color={isOverdue ? 'error.main' : 'text.secondary'}
+                              >
+                                {relativeDate || formatDate(briefing.due_at)}
+                              </Typography>
+                              {relativeDate && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(briefing.due_at)}
+                                </Typography>
+                              )}
+                            </Stack>
+                          )}
+                        </Stack>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
               );
             })}
-          </div>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </AppShell>
   );
 }

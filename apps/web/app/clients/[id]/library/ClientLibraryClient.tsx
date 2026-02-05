@@ -2,6 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { IconExternalLink, IconFileDownload, IconFileUpload, IconLink, IconSearch, IconTrash } from '@tabler/icons-react';
+import InputAdornment from '@mui/material/InputAdornment';
 
 type LibraryItem = {
   id: string;
@@ -17,30 +32,6 @@ type ClientLibraryClientProps = {
   clientId: string;
 };
 
-function getFileIcon(type: string, title: string): { icon: string; bgColor: string; textColor: string } {
-  const ext = title?.split('.').pop()?.toLowerCase() || '';
-
-  if (type === 'link') {
-    return { icon: 'link', bgColor: 'bg-purple-50 textColor: 'text-purple-600' };
-  }
-  if (type === 'note') {
-    return { icon: 'description', bgColor: 'bg-slate-50 textColor: 'text-slate-600' };
-  }
-  if (ext === 'pdf') {
-    return { icon: 'picture_as_pdf', bgColor: 'bg-red-50 textColor: 'text-red-600' };
-  }
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
-    return { icon: 'image', bgColor: 'bg-blue-50 textColor: 'text-blue-600' };
-  }
-  if (['mp4', 'mov', 'avi', 'webm'].includes(ext)) {
-    return { icon: 'movie', bgColor: 'bg-orange-50 textColor: 'text-orange-600' };
-  }
-  if (['doc', 'docx'].includes(ext)) {
-    return { icon: 'article', bgColor: 'bg-blue-50 textColor: 'text-blue-600' };
-  }
-  return { icon: 'draft', bgColor: 'bg-slate-50 textColor: 'text-slate-600' };
-}
-
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '-';
   if (bytes < 1024) return `${bytes} B`;
@@ -51,7 +42,7 @@ function formatFileSize(bytes?: number): string {
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function ClientLibraryClient({ clientId }: ClientLibraryClientProps) {
@@ -65,7 +56,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
   const [uploading, setUploading] = useState(false);
 
   const CATEGORIES = [
-    { value: '', label: 'Filter by Tag' },
+    { value: '', label: 'Todos' },
     { value: 'brand_identity', label: 'Brand Identity' },
     { value: 'social_templates', label: 'Social Templates' },
     { value: 'photography', label: 'Photography' },
@@ -83,7 +74,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
       const response = await apiGet(`/clients/${clientId}/library?${qs.toString()}`);
       setItems(response || []);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load library.');
+      setError(err?.message || 'Falha ao carregar biblioteca.');
     } finally {
       setLoading(false);
     }
@@ -109,10 +100,10 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
         body: form,
       });
 
-      if (!response.ok) throw new Error('Failed to upload file.');
+      if (!response.ok) throw new Error('Falha ao enviar o arquivo.');
       await loadItems();
     } catch (err: any) {
-      setError(err?.message || 'Failed to upload file.');
+      setError(err?.message || 'Falha ao enviar o arquivo.');
     } finally {
       setUploading(false);
     }
@@ -135,7 +126,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
       else setSocialLink('');
       await loadItems();
     } catch (err: any) {
-      setError(err?.message || 'Failed to add link.');
+      setError(err?.message || 'Falha ao adicionar link.');
     }
   };
 
@@ -147,7 +138,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
       const response = await fetch(buildApiUrl(`/library/${itemId}/file`), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error('Failed to download file.');
+      if (!response.ok) throw new Error('Falha ao baixar o arquivo.');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -156,12 +147,12 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      setError(err?.message || 'Failed to download file.');
+      setError(err?.message || 'Falha ao baixar o arquivo.');
     }
   };
 
   const deleteItem = async (itemId: string) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    if (!window.confirm('Deseja remover este item?')) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
     if (!token) return;
 
@@ -170,210 +161,210 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error('Failed to delete item.');
+      if (!response.ok) throw new Error('Falha ao remover item.');
       await loadItems();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete item.');
+      setError(err?.message || 'Falha ao remover item.');
     }
   };
 
   return (
-    <div className="space-y-8">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          {error}
-        </div>
-      )}
+    <Box>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={2}>
+            {error ? (
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography color="error">{error}</Typography>
+                </CardContent>
+              </Card>
+            ) : null}
 
-      {/* Upload Zone */}
-      <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center transition-all hover:border-[#FF6600]/40 group">
-        <div className="max-w-md mx-auto">
-          <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-            <span className="material-symbols-outlined text-[#FF6600] text-3xl">upload_file</span>
-          </div>
-          <h2 className="text-xl font-bold mb-2">Upload Reference Materials</h2>
-          <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-            Drag and drop files here, or click to browse. Organize your brand's core assets for quick access.
-          </p>
-          <label className="bg-[#FF6600] hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-orange-500/20 mb-4 inline-flex items-center gap-2 cursor-pointer">
-            <span className="material-symbols-outlined text-xl">add</span>
-            {uploading ? 'Uploading...' : 'Upload Reference'}
-            <input
-              className="hidden"
-              type="file"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) uploadFile(file);
-              }}
-            />
-          </label>
-
-          {/* Add Links Section */}
-          <div className="mt-6 border-t border-slate-100 pt-6 text-left">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Add Links</div>
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Reference URL</label>
-                <div className="flex items-center gap-2">
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  Upload de referências
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Envie brandbooks, logos e ativos usados pela IA.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<IconFileUpload size={16} />}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Enviando...' : 'Selecionar arquivo'}
                   <input
-                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
-                    placeholder="Paste a website or drive link"
-                    type="url"
+                    type="file"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) uploadFile(file);
+                    }}
+                  />
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  Links externos
+                </Typography>
+                <Stack spacing={2} sx={{ mt: 2 }}>
+                  <TextField
+                    label="URL de referência"
                     value={referenceUrl}
-                    onChange={(e) => setReferenceUrl(e.target.value)}
+                    onChange={(event) => setReferenceUrl(event.target.value)}
+                    placeholder="Cole o link principal"
                   />
-                  <button
-                    className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
-                    type="button"
-                    onClick={() => addUrl(referenceUrl, 'reference')}
-                  >
-                    Add URL
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Social Link</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-[#FF6600] focus:border-[#FF6600]"
-                    placeholder="Paste Instagram, TikTok, YouTube, LinkedIn..."
-                    type="url"
+                  <Button variant="outlined" startIcon={<IconLink size={16} />} onClick={() => addUrl(referenceUrl, 'reference')}>
+                    Adicionar link
+                  </Button>
+                  <Divider />
+                  <TextField
+                    label="Link social"
                     value={socialLink}
-                    onChange={(e) => setSocialLink(e.target.value)}
+                    onChange={(event) => setSocialLink(event.target.value)}
+                    placeholder="Instagram, TikTok, LinkedIn..."
                   />
-                  <button
-                    className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold hover:border-[#FF6600] hover:text-[#FF6600] transition-colors"
-                    type="button"
-                    onClick={() => addUrl(socialLink, 'social')}
+                  <Button variant="outlined" startIcon={<IconExternalLink size={16} />} onClick={() => addUrl(socialLink, 'social')}>
+                    Adicionar social
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Stack spacing={2}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+                  <Box>
+                    <Typography variant="h6">Biblioteca do cliente</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Organize referências, templates e assets estratégicos.
+                    </Typography>
+                  </Box>
+                  <Chip size="small" label={`${items.length} itens`} />
+                </Stack>
+
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 2 }}>
+                  <TextField
+                    placeholder="Buscar assets..."
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <IconSearch size={16} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    fullWidth
+                  />
+                  <TextField
+                    select
+                    label="Categoria"
+                    value={categoryFilter}
+                    onChange={(event) => setCategoryFilter(event.target.value)}
+                    sx={{ minWidth: 200 }}
                   >
-                    Add Link
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-slate-500">
-              Links become part of the client reference library and help the AI with context.
-            </div>
-          </div>
+                    {CATEGORIES.map((cat) => (
+                      <MenuItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button variant="outlined" onClick={loadItems}>
+                    Atualizar
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
 
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-6">
-            Supported: PDF, Brand Assets (PNG/SVG), Guidelines, URLs and Social Links
-          </p>
-        </div>
-      </div>
-
-      {/* Reference Library */}
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="font-display text-3xl">Reference Library</h3>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-              <input
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:ring-[#FF6600] focus:border-[#FF6600]"
-                placeholder="Search assets..."
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <div className="relative">
-              <select
-                className="pl-4 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-sm appearance-none focus:ring-[#FF6600] focus:border-[#FF6600]"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Name</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date Added</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Size</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
-                    Loading...
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
-                    No documents added yet.
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => {
-                  const { icon, bgColor, textColor } = getFileIcon(item.type, item.title);
-                  return (
-                    <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded ${bgColor} flex items-center justify-center ${textColor}`}>
-                            <span className="material-symbols-outlined text-xl">{icon}</span>
-                          </div>
-                          <span className="font-medium text-sm">{item.title}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase">
-                          {(item.category || 'general').replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{formatDate(item.created_at)}</td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{formatFileSize(item.file_size)}</td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center justify-end gap-2 transition-opacity">
+            {loading ? (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack alignItems="center" spacing={1} sx={{ py: 4 }}>
+                    <CircularProgress size={28} />
+                    <Typography variant="body2" color="text.secondary">
+                      Carregando biblioteca...
+                    </Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : items.length === 0 ? (
+              <Card variant="outlined">
+                <CardContent sx={{ textAlign: 'center', py: 6 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Nenhum material cadastrado
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Envie arquivos ou adicione links para começar.
+                  </Typography>
+                </CardContent>
+              </Card>
+            ) : (
+              <Stack spacing={1}>
+                {items.map((item) => (
+                  <Card key={item.id} variant="outlined">
+                    <CardContent>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+                        <Box>
+                          <Typography variant="subtitle2">{item.title}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.type} · {formatDate(item.created_at)} · {formatFileSize(item.file_size)}
+                          </Typography>
+                          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                            <Chip size="small" label={(item.category || 'general').replace(/_/g, ' ')} />
+                          </Stack>
+                        </Box>
+                        <Stack direction="row" spacing={1} alignItems="center">
                           {item.type === 'link' && item.source_url ? (
-                            <a
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<IconExternalLink size={14} />}
                               href={item.source_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-[#FF6600] transition-colors"
                             >
-                              <span className="material-symbols-outlined text-lg">open_in_new</span>
-                            </a>
+                              Abrir
+                            </Button>
                           ) : (
-                            <button
-                              className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-[#FF6600] transition-colors"
-                              type="button"
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<IconFileDownload size={14} />}
                               onClick={() => downloadFile(item.id, item.title)}
                             >
-                              <span className="material-symbols-outlined text-lg">download</span>
-                            </button>
+                              Download
+                            </Button>
                           )}
-                          <button
-                            className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-red-500 transition-colors"
-                            type="button"
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            startIcon={<IconTrash size={14} />}
                             onClick={() => deleteItem(item.id)}
                           >
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+                            Remover
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

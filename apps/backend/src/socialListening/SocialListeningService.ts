@@ -42,6 +42,44 @@ export class SocialListeningService {
     this.analyzer = new SentimentAnalyzer();
   }
 
+  private normalizeKeywords(values: any[]) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const value of values) {
+      if (!value) continue;
+      const text = String(value).trim();
+      if (text.length < 2) continue;
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(text);
+    }
+    return out;
+  }
+
+  private async seedKeywordsFromClientProfile(clientId: string) {
+    const { rows } = await query<any>(
+      `SELECT profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+      [clientId, this.tenantId]
+    );
+    const profile = rows[0]?.profile || {};
+    const keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
+    const pillars = Array.isArray(profile.pillars) ? profile.pillars : [];
+    const merged = this.normalizeKeywords([...keywords, ...pillars]);
+    if (!merged.length) return 0;
+
+    const limit = Number(process.env.SOCIAL_LISTENING_SEED_LIMIT || 25);
+    const trimmed = merged.slice(0, Math.max(1, limit));
+    let created = 0;
+
+    for (const keyword of trimmed) {
+      await this.addKeyword({ keyword, category: 'auto', clientId });
+      created += 1;
+    }
+
+    return created;
+  }
+
   private resolvePlatforms(input?: Platform[]) {
     if (!input || !input.length) return PLATFORMS;
     return input.filter((platform) => PLATFORMS.includes(platform));
@@ -60,6 +98,13 @@ export class SocialListeningService {
     let idx = 2;
 
     if (clientId) {
+      const { rows: existing } = await query<any>(
+        `SELECT COUNT(*)::int AS count FROM social_listening_keywords WHERE tenant_id=$1 AND client_id=$2`,
+        [this.tenantId, clientId]
+      );
+      if (!Number(existing?.[0]?.count || 0)) {
+        await this.seedKeywordsFromClientProfile(clientId);
+      }
       where.push(`(client_id IS NULL OR client_id=$${idx++})`);
       params.push(clientId);
     }
@@ -479,6 +524,13 @@ export class SocialListeningService {
     let idx = 2;
 
     if (filters.clientId) {
+      const { rows: existing } = await query<any>(
+        `SELECT COUNT(*)::int AS count FROM social_listening_keywords WHERE tenant_id=$1 AND client_id=$2`,
+        [this.tenantId, filters.clientId]
+      );
+      if (!Number(existing?.[0]?.count || 0)) {
+        await this.seedKeywordsFromClientProfile(filters.clientId);
+      }
       where.push(`(client_id IS NULL OR client_id=$${idx++})`);
       params.push(filters.clientId);
     }
