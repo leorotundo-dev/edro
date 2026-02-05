@@ -22,7 +22,8 @@ type AnthropicResponse = {
 const API_VERSION = '2023-06-01';
 
 export async function generateCompletion(params: CompletionParams): Promise<string> {
-  if (!env.ANTHROPIC_API_KEY) {
+  const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY_NOT_SET');
   }
 
@@ -30,7 +31,7 @@ export async function generateCompletion(params: CompletionParams): Promise<stri
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
+      'x-api-key': apiKey,
       'anthropic-version': API_VERSION,
     },
     body: JSON.stringify({

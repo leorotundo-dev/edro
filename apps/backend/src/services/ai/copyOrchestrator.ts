@@ -58,7 +58,7 @@ function getAvailableProviders(): CopyProvider[] {
   const available: CopyProvider[] = [];
   if (env.GEMINI_API_KEY) available.push('gemini');
   if (env.OPENAI_API_KEY) available.push('openai');
-  if (env.ANTHROPIC_API_KEY) available.push('claude');
+  if (env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY) available.push('claude');
   return available;
 }
 
@@ -155,7 +155,7 @@ export function getAvailableProvidersInfo(): {
     configured: {
       openai: !!env.OPENAI_API_KEY,
       gemini: !!env.GEMINI_API_KEY,
-      claude: !!env.ANTHROPIC_API_KEY,
+      claude: !!(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY),
     },
   };
 }

@@ -18,7 +18,7 @@ const envSchema = z.object({
   GEMINI_RESPONSE_MIME: z.string().optional(),
   CLAUDE_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-20250514'),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5-20250929'),
   ANTHROPIC_BASE_URL: z.string().url().default('https://api.anthropic.com'),
   CLAUDE_MODEL: z.string().optional(),
   CLAUDE_BASE_URL: z.string().optional(),
