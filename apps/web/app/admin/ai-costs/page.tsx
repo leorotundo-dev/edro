@@ -472,7 +472,7 @@ function buildFeatureChart(byFeature: FeatureRow[]) {
       colors: ['#5D87FF'],
       xaxis: {
         categories: byFeature.map((r) => r.feature),
-        labels: { formatter: (v: number) => `R$${Number(v).toFixed(2)}` },
+        labels: { formatter: (v: string) => `R$${Number(v).toFixed(2)}` },
       },
       dataLabels: { enabled: false },
       tooltip: {
