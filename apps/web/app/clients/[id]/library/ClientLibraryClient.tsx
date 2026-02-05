@@ -16,7 +16,22 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import { IconExternalLink, IconFileDownload, IconFileUpload, IconLink, IconSearch, IconTrash } from '@tabler/icons-react';
+import {
+  IconExternalLink,
+  IconFile,
+  IconFileDownload,
+  IconFileTypePdf,
+  IconFileUpload,
+  IconLink,
+  IconMusic,
+  IconPhoto,
+  IconSearch,
+  IconTable,
+  IconTrash,
+  IconVideo,
+  IconPresentation,
+  IconFileText,
+} from '@tabler/icons-react';
 import InputAdornment from '@mui/material/InputAdornment';
 
 type LibraryItem = {
@@ -38,6 +53,34 @@ function formatFileSize(bytes?: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const FILE_TYPE_MAP: Record<string, { label: string; icon: typeof IconFile; color: string }> = {
+  pdf: { label: 'PDF', icon: IconFileTypePdf, color: '#e53935' },
+  doc: { label: 'Word', icon: IconFileText, color: '#2b579a' },
+  docx: { label: 'Word', icon: IconFileText, color: '#2b579a' },
+  xls: { label: 'Excel', icon: IconTable, color: '#217346' },
+  xlsx: { label: 'Excel', icon: IconTable, color: '#217346' },
+  csv: { label: 'CSV', icon: IconTable, color: '#217346' },
+  ppt: { label: 'PowerPoint', icon: IconPresentation, color: '#d24726' },
+  pptx: { label: 'PowerPoint', icon: IconPresentation, color: '#d24726' },
+  png: { label: 'Imagem', icon: IconPhoto, color: '#7b1fa2' },
+  jpg: { label: 'Imagem', icon: IconPhoto, color: '#7b1fa2' },
+  jpeg: { label: 'Imagem', icon: IconPhoto, color: '#7b1fa2' },
+  gif: { label: 'GIF', icon: IconPhoto, color: '#7b1fa2' },
+  svg: { label: 'SVG', icon: IconPhoto, color: '#7b1fa2' },
+  webp: { label: 'Imagem', icon: IconPhoto, color: '#7b1fa2' },
+  mp4: { label: 'Vídeo', icon: IconVideo, color: '#c62828' },
+  mov: { label: 'Vídeo', icon: IconVideo, color: '#c62828' },
+  avi: { label: 'Vídeo', icon: IconVideo, color: '#c62828' },
+  mp3: { label: 'Áudio', icon: IconMusic, color: '#f57c00' },
+  wav: { label: 'Áudio', icon: IconMusic, color: '#f57c00' },
+};
+
+function getFileType(title: string, itemType: string) {
+  if (itemType === 'link') return { label: 'Link', icon: IconLink, color: '#1565c0' };
+  const ext = title.split('.').pop()?.toLowerCase() || '';
+  return FILE_TYPE_MAP[ext] || { label: ext.toUpperCase() || 'Arquivo', icon: IconFile, color: '#757575' };
 }
 
 function formatDate(dateStr?: string): string {
@@ -330,12 +373,36 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
                     <CardContent>
                       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
                         <Box>
-                          <Typography variant="subtitle2">{item.title}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {item.type} · {formatDate(item.created_at)} · {formatFileSize(item.file_size)}
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            {(() => {
+                              const ft = getFileType(item.title, item.type);
+                              const Icon = ft.icon;
+                              return <Icon size={20} color={ft.color} />;
+                            })()}
+                            <Typography variant="subtitle2">{item.title}</Typography>
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary" sx={{ ml: '28px' }}>
+                            {formatDate(item.created_at)} · {formatFileSize(item.file_size)}
                           </Typography>
-                          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                            <Chip size="small" label={(item.category || 'general').replace(/_/g, ' ')} />
+                          <Stack direction="row" spacing={1} sx={{ mt: 0.5, ml: '28px' }}>
+                            {(() => {
+                              const ft = getFileType(item.title, item.type);
+                              return (
+                                <Chip
+                                  size="small"
+                                  label={ft.label}
+                                  sx={{
+                                    bgcolor: `${ft.color}14`,
+                                    color: ft.color,
+                                    fontWeight: 600,
+                                    fontSize: '0.7rem',
+                                  }}
+                                />
+                              );
+                            })()}
+                            {item.category && item.category !== 'reference' && (
+                              <Chip size="small" label={item.category.replace(/_/g, ' ')} variant="outlined" />
+                            )}
                           </Stack>
                         </Box>
                         <Stack direction="row" spacing={1} alignItems="center">
