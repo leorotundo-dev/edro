@@ -4,6 +4,7 @@ import path from 'path';
 import { z } from 'zod';
 import {
   generateCopy,
+  generateCollaborativeCopy,
   generateCopyWithValidation,
   generatePremiumCopy,
   getOrchestratorInfo,
@@ -739,7 +740,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       model: z.string().optional(),
       task_type: z.string().optional(),
       tier: z.string().optional(),
-      pipeline: z.enum(['simple', 'standard', 'premium']).optional(),
+      pipeline: z.enum(['simple', 'standard', 'premium', 'collaborative']).optional(),
       force_provider: z.enum(['openai', 'gemini', 'claude']).optional(),
       metadata: z.record(z.any()).optional(),
       created_by: z.string().optional(),
@@ -839,16 +840,28 @@ export default async function edroRoutes(app: FastifyInstance) {
         };
         const pipeline = body.pipeline ?? 'standard';
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
-        const result =
-          pipeline === 'simple'
-            ? await generateCopy({
-                ...baseParams,
-                taskType,
-                forceProvider: body.force_provider,
-              })
-            : pipeline === 'premium'
-              ? await generatePremiumCopy(baseParams)
-              : await generateCopyWithValidation(baseParams);
+        const knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
+        let result;
+        if (pipeline === 'collaborative') {
+          result = await generateCollaborativeCopy({
+            prompt: prompt!,
+            count,
+            knowledgeBlock: knowledgeBlock || undefined,
+            reporteiHint: reporteiContext?.promptBlock || undefined,
+            clientName: briefing.client_name || metadata.client_name || undefined,
+            instructions: body.instructions || undefined,
+          });
+        } else if (pipeline === 'simple') {
+          result = await generateCopy({
+            ...baseParams,
+            taskType,
+            forceProvider: body.force_provider,
+          });
+        } else if (pipeline === 'premium') {
+          result = await generatePremiumCopy(baseParams);
+        } else {
+          result = await generateCopyWithValidation(baseParams);
+        }
         output = result.output;
         model = result.model;
         payload = result.payload;

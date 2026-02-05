@@ -17,6 +17,11 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import MenuItem from '@mui/material/MenuItem';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import Stepper from '@mui/material/Stepper';
+import TextField from '@mui/material/TextField';
 
 type CopyVersion = {
   id: string;
@@ -230,7 +235,8 @@ export default function EditorClient() {
   const [output, setOutput] = useState('');
   const [options, setOptions] = useState<ParsedOption[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
-  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium'>('standard');
+  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium' | 'collaborative'>('standard');
+  const [collabStep, setCollabStep] = useState(0);
   const [taskType, setTaskType] = useState('social_post');
   const [forceProvider, setForceProvider] = useState('');
   const [tone, setTone] = useState('');
@@ -542,6 +548,18 @@ export default function EditorClient() {
     };
   }, [loadCopyForActiveClient]);
 
+  // Collaborative stepper progress simulation
+  useEffect(() => {
+    if (!generating || pipeline !== 'collaborative') {
+      setCollabStep(0);
+      return;
+    }
+    setCollabStep(0);
+    const t1 = setTimeout(() => setCollabStep(1), 4000);
+    const t2 = setTimeout(() => setCollabStep(2), 10000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [generating, pipeline]);
+
   const handleGenerate = async () => {
     if (!briefing?.id) return;
     setGenerating(true);
@@ -807,6 +825,18 @@ export default function EditorClient() {
                               ))}
                             </Stack>
                           ) : null}
+                          <TextField
+                            select
+                            size="small"
+                            value={pipeline}
+                            onChange={(e) => setPipeline(e.target.value as any)}
+                            sx={{ minWidth: 160 }}
+                          >
+                            <MenuItem value="simple">Simples (1 IA)</MenuItem>
+                            <MenuItem value="standard">Standard (2 IAs)</MenuItem>
+                            <MenuItem value="premium">Premium (Claude)</MenuItem>
+                            <MenuItem value="collaborative">Colaborativo (3 IAs)</MenuItem>
+                          </TextField>
                           <Button size="small" variant="contained" onClick={handleGenerate} disabled={generating}>
                             {generating ? 'Gerando...' : 'Gerar com IA'}
                           </Button>
@@ -815,6 +845,49 @@ export default function EditorClient() {
                       {reporteiLabel ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{reporteiLabel}</Typography> : null}
                       {reporteiKpisLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiKpisLine}</Typography> : null}
                       {reporteiInsightsLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiInsightsLine}</Typography> : null}
+
+                      {generating && pipeline === 'collaborative' && (
+                        <Card variant="outlined" sx={{ mt: 2, bgcolor: 'grey.50' }}>
+                          <CardContent sx={{ py: 2 }}>
+                            <Stepper activeStep={collabStep} alternativeLabel>
+                              <Step completed={collabStep > 0}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 0 ? 700 : 400}>
+                                    Gemini
+                                  </Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">
+                                    Analisando
+                                  </Typography>
+                                </StepLabel>
+                              </Step>
+                              <Step completed={collabStep > 1}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 1 ? 700 : 400}>
+                                    OpenAI
+                                  </Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">
+                                    Criando
+                                  </Typography>
+                                </StepLabel>
+                              </Step>
+                              <Step completed={!generating && collabStep >= 2}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 2 ? 700 : 400}>
+                                    Claude
+                                  </Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">
+                                    Revisando
+                                  </Typography>
+                                </StepLabel>
+                              </Step>
+                            </Stepper>
+                            {collabStep === 0 && <LinearProgress sx={{ mt: 2, borderRadius: 2 }} />}
+                            {collabStep === 1 && <LinearProgress color="warning" sx={{ mt: 2, borderRadius: 2 }} />}
+                            {collabStep === 2 && <LinearProgress color="secondary" sx={{ mt: 2, borderRadius: 2 }} />}
+                          </CardContent>
+                        </Card>
+                      )}
+
                       <Stack spacing={1} sx={{ mt: 2 }}>
                         {options.length ? (
                           options.map((option, index) => (

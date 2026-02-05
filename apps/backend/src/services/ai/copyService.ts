@@ -252,6 +252,110 @@ export async function generatePremiumCopy(params: GenerateParams): Promise<CopyP
 }
 
 /**
+ * Pipeline colaborativo: Gemini analisa → OpenAI cria → Claude refina.
+ * As 3 IAs trabalham em sequência, cada uma no que faz de melhor.
+ */
+export async function generateCollaborativeCopy(params: {
+  prompt: string;
+  count: number;
+  knowledgeBlock?: string;
+  reporteiHint?: string;
+  clientName?: string;
+  instructions?: string;
+}): Promise<CopyPipelineResult> {
+  const analysisPrompt = [
+    'Voce e um estrategista de comunicacao de uma agencia de publicidade.',
+    'Analise o briefing e o perfil do cliente abaixo.',
+    'Extraia e retorne APENAS um JSON valido com a estrutura:',
+    '{',
+    '  "target_audience": "descricao do publico ideal para esta peca",',
+    '  "ideal_tone": "tom recomendado baseado na marca e formato",',
+    '  "key_hooks": ["3 a 5 ganchos criativos relevantes"],',
+    '  "cultural_references": ["referencias culturais ou de momento oportunas"],',
+    '  "mandatory_elements": ["elementos que devem aparecer obrigatoriamente"],',
+    '  "restrictions": ["o que evitar, termos proibidos"],',
+    '  "platform_best_practices": "melhores praticas para o formato/plataforma",',
+    '  "creative_direction": "direcao criativa sugerida em 2-3 frases"',
+    '}',
+    '',
+    params.clientName ? `Cliente: ${params.clientName}` : '',
+    params.knowledgeBlock ? `\nBASE DO CLIENTE:\n${params.knowledgeBlock}` : '',
+    params.reporteiHint || '',
+    '',
+    'BRIEFING:',
+    params.prompt,
+  ].filter(Boolean).join('\n');
+
+  const buildCreativePrompt = (analysisOutput: string) => [
+    'Voce e um redator criativo de agencia de publicidade premiada.',
+    `Crie ${params.count} variacoes de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
+    'Cada variacao deve ter: titulo curto e impactante, corpo persuasivo, CTA claro e hashtags relevantes.',
+    'Formato: lista numerada. Separe claramente titulo, corpo, CTA e hashtags.',
+    '',
+    'DIRETRIZES DO ESTRATEGISTA:',
+    analysisOutput,
+    '',
+    'BRIEFING ORIGINAL:',
+    params.prompt,
+    params.instructions ? `\nINSTRUCOES EXTRAS: ${params.instructions}` : '',
+  ].filter(Boolean).join('\n');
+
+  const buildReviewPrompt = (analysisOutput: string, creativeOutput: string) => [
+    'Voce e o editor-chefe de uma agencia de comunicacao de alto nivel.',
+    'Revise cada copy abaixo com rigor editorial, considerando:',
+    '- Tom da marca e adequacao ao publico-alvo',
+    '- Compliance (termos proibidos, mencoes obrigatorias)',
+    '- Forca e clareza do CTA',
+    '- Adequacao ao formato/plataforma',
+    '- Originalidade e impacto criativo',
+    '',
+    'Para cada copy:',
+    '1. De uma nota de 1 a 10',
+    '2. Se a nota for menor que 7, REESCREVA com melhorias',
+    '3. Se a nota for 7+, mantenha como esta',
+    '',
+    'Ordene do melhor para o pior.',
+    'Retorne no formato lista numerada: titulo, corpo, CTA, hashtags.',
+    'No final, adicione uma secao "NOTAS EDITORIAIS:" com observacoes gerais.',
+    '',
+    'DIRETRIZES DO ESTRATEGISTA:',
+    analysisOutput,
+    '',
+    'COPIES PARA REVISAO:',
+    creativeOutput,
+  ].join('\n');
+
+  try {
+    const result = await CopyOrchestrator.runCollaborativePipeline({
+      analysisPrompt,
+      creativePrompt: buildCreativePrompt,
+      reviewPrompt: buildReviewPrompt,
+    });
+
+    return {
+      output: result.output,
+      model: result.model,
+      payload: {
+        pipeline: 'collaborative',
+        stages: result.stages,
+        analysis_json: result.analysis_json,
+        creative_raw: result.creative_raw,
+        total_duration_ms: result.total_duration_ms,
+      },
+    };
+  } catch (error: any) {
+    // Fallback to standard pipeline if collaborative fails
+    return generateCopyWithValidation({
+      prompt: [
+        params.prompt,
+        params.knowledgeBlock ? `\nBASE DO CLIENTE:\n${params.knowledgeBlock}` : '',
+        params.instructions ? `\nInstrucoes: ${params.instructions}` : '',
+      ].filter(Boolean).join('\n'),
+    });
+  }
+}
+
+/**
  * Retorna informações sobre os providers disponíveis e roteamento.
  */
 export function getOrchestratorInfo() {
