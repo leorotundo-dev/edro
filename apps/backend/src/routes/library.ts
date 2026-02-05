@@ -13,7 +13,12 @@ import { createLibraryItem, listLibraryItems, updateLibraryItem, getLibraryItem 
 import { enqueueJob } from '../jobs/jobQueue';
 
 export default async function libraryRoutes(app: FastifyInstance) {
-  await app.register(multipart);
+  await app.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50 MB
+      files: 1,
+    },
+  });
 
   app.get(
     '/clients/:clientId/library',

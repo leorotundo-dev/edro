@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'node:buffer';
 
-// Allow larger request bodies for file uploads (50MB)
-export const config = {
-  api: {
-    bodyParser: false,
-    responseLimit: false,
-  },
-};
+// Increase timeout for large uploads
+export const maxDuration = 60;
 
 const DEFAULT_BACKEND_URL = 'http://localhost:3333';
 const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 30000);
@@ -70,13 +65,16 @@ function buildTargetUrl(path: string, query = '') {
   return `${base}${finalPath}${query}`;
 }
 
-function buildHeaders(request: NextRequest) {
+function buildHeaders(request: NextRequest, bodyLength?: number) {
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower === 'host' || lower === 'content-length') return;
     headers[key] = value;
   });
+  if (bodyLength != null && bodyLength > 0) {
+    headers['content-length'] = String(bodyLength);
+  }
   return headers;
 }
 
@@ -163,7 +161,7 @@ export async function POST(
   try {
     const body = await readRequestBody(request);
     const response = await proxyFetch(
-      { method: 'POST', headers: buildHeaders(request), body },
+      { method: 'POST', headers: buildHeaders(request, body?.byteLength), body },
       path
     );
     return await buildProxyResponse(response);
@@ -183,7 +181,7 @@ export async function PUT(
   try {
     const body = await readRequestBody(request);
     const response = await proxyFetch(
-      { method: 'PUT', headers: buildHeaders(request), body },
+      { method: 'PUT', headers: buildHeaders(request, body?.byteLength), body },
       path
     );
     return await buildProxyResponse(response);
@@ -203,7 +201,7 @@ export async function PATCH(
   try {
     const body = await readRequestBody(request);
     const response = await proxyFetch(
-      { method: 'PATCH', headers: buildHeaders(request), body },
+      { method: 'PATCH', headers: buildHeaders(request, body?.byteLength), body },
       path
     );
     return await buildProxyResponse(response);
