@@ -18,12 +18,24 @@ export default async function libraryRoutes(app: FastifyInstance) {
   app.get(
     '/clients/:clientId/library',
     { preHandler: [authGuard, tenantGuard(), requirePerm('library:read'), requireClientPerm('read')] },
-    async (request: any) => {
-      return listLibraryItems(
-        (request.user as any).tenant_id,
-        request.params.clientId,
-        request.query || {}
-      );
+    async (request: any, reply: any) => {
+      try {
+        return await listLibraryItems(
+          (request.user as any).tenant_id,
+          request.params.clientId,
+          request.query || {}
+        );
+      } catch (err: any) {
+        request.log?.error({ err }, 'library_list_failed');
+        const msg = err?.message || 'unknown';
+        if (msg.includes('does not exist') || msg.includes('relation')) {
+          return reply.code(503).send({
+            error: 'Tabela library_items não encontrada. Execute as migrações do banco.',
+            detail: msg,
+          });
+        }
+        return reply.code(500).send({ error: msg });
+      }
     }
   );
 
@@ -77,7 +89,13 @@ export default async function libraryRoutes(app: FastifyInstance) {
     '/clients/:clientId/library/upload',
     { preHandler: [authGuard, tenantGuard(), requirePerm('library:write'), requireClientPerm('write')] },
     async (request: any, reply: any) => {
-      const data = await request.file();
+      let data: any;
+      try {
+        data = await request.file();
+      } catch (err: any) {
+        request.log?.error({ err }, 'multipart_parse_failed');
+        return reply.code(400).send({ error: 'Falha ao processar upload.', detail: err?.message });
+      }
       if (!data) return reply.code(400).send({ error: 'missing_file' });
 
       const buffer = await data.toBuffer();
