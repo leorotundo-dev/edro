@@ -840,4 +840,215 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       return reply.send({ success: true });
     }
   );
+
+  // ── Full AI Analysis ──────────────────────────────────────────────
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/analyze', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    // Gather ALL data sources in parallel
+    const [
+      clientContext,
+      contextPack,
+      clippingResult,
+      trendsResult,
+      calendarResult,
+      opportunitiesResult,
+      briefingsResult,
+    ] = await Promise.all([
+      buildClientContext(tenantId, clientId),
+      buildContextPack({ tenant_id: tenantId, client_id: clientId, query: 'analise estrategica completa do cliente' }).catch(() => ({ sources: [], packedText: '' })),
+      query(
+        `SELECT cm.score, cm.matched_keywords, ci.title, ci.excerpt, ci.published_at
+         FROM clipping_matches cm
+         JOIN clipping_items ci ON ci.id = cm.clipping_item_id
+         WHERE cm.client_id = $1 AND cm.tenant_id = $2
+         ORDER BY cm.score DESC, cm.created_at DESC
+         LIMIT 15`,
+        [clientId, tenantId]
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT keyword, platform, mention_count, average_sentiment, positive_count, negative_count, total_engagement
+         FROM social_listening_trends
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY mention_count DESC
+         LIMIT 15`,
+        [clientId, tenantId]
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT name, date, categories, tags, base_relevance
+         FROM events
+         WHERE date IS NOT NULL
+         ORDER BY date
+         LIMIT 20`,
+        []
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT title, description, source, suggested_action, priority, confidence, status
+         FROM ai_opportunities
+         WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+         ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, confidence DESC
+         LIMIT 10`,
+        [clientId, tenantId]
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT title, payload, created_at
+         FROM edro_briefings
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [clientId, tenantId]
+      ).catch(() => ({ rows: [] })),
+    ]);
+
+    const sourcesUsed = {
+      clipping: clippingResult.rows.length,
+      trends: trendsResult.rows.length,
+      calendar: calendarResult.rows.length,
+      library: contextPack.sources.length,
+      opportunities: opportunitiesResult.rows.length,
+      briefings: briefingsResult.rows.length,
+    };
+
+    // Format data for prompts
+    const clippingText = clippingResult.rows.length
+      ? clippingResult.rows.map((r: any) => `- [${r.score}] ${r.title}: ${r.excerpt || ''} (keywords: ${(r.matched_keywords || []).join(', ')})`).join('\n')
+      : 'Nenhum clipping disponivel.';
+
+    const trendsText = trendsResult.rows.length
+      ? trendsResult.rows.map((r: any) => `- ${r.keyword} (${r.platform}): ${r.mention_count} mencoes, sentimento ${r.average_sentiment}/100, engajamento ${r.total_engagement}`).join('\n')
+      : 'Nenhuma tendencia disponivel.';
+
+    const calendarText = calendarResult.rows.length
+      ? calendarResult.rows.map((r: any) => `- ${r.date}: ${r.name} [${(r.categories || []).join(', ')}] relevancia base: ${r.base_relevance}`).join('\n')
+      : 'Nenhum evento proximo.';
+
+    const opportunitiesText = opportunitiesResult.rows.length
+      ? opportunitiesResult.rows.map((r: any) => `- [${r.priority}] ${r.title}: ${r.description || ''} → ${r.suggested_action || ''} (confianca: ${r.confidence}%)`).join('\n')
+      : 'Nenhuma oportunidade identificada.';
+
+    const briefingsText = briefingsResult.rows.length
+      ? briefingsResult.rows.map((r: any) => {
+          const p = r.payload || {};
+          return `- ${r.title} (${new Date(r.created_at).toLocaleDateString('pt-BR')}) plataforma: ${p.platform || '?'}, formato: ${p.format || '?'}`;
+        }).join('\n')
+      : 'Nenhum briefing recente.';
+
+    const libraryText = contextPack.packedText || 'Nenhum material na biblioteca.';
+
+    try {
+      const result = await runCollaborativePipeline({
+        analysisPrompt: [
+          'Voce e um analista de dados senior de uma agencia de comunicacao.',
+          'Analise TODOS os dados abaixo sobre o cliente e extraia insights estruturados.',
+          '',
+          'PERFIL DO CLIENTE:',
+          clientContext || 'Perfil nao disponivel.',
+          '',
+          'BIBLIOTECA DE CONHECIMENTO:',
+          libraryText,
+          '',
+          'CLIPPING RECENTE (noticias e mencoes):',
+          clippingText,
+          '',
+          'TENDENCIAS SOCIAIS:',
+          trendsText,
+          '',
+          'CALENDARIO PROXIMO:',
+          calendarText,
+          '',
+          'OPORTUNIDADES JA IDENTIFICADAS:',
+          opportunitiesText,
+          '',
+          'BRIEFINGS RECENTES:',
+          briefingsText,
+          '',
+          'Retorne um relatorio estruturado com:',
+          '1. PONTOS FORTES da presenca digital do cliente',
+          '2. PONTOS FRACOS e gaps identificados',
+          '3. OPORTUNIDADES imediatas (proximos 14-30 dias)',
+          '4. AMEACAS ou riscos identificados',
+          '5. ANALISE DE SENTIMENTO e engajamento (se dados disponiveis)',
+          '6. GAPS DE CONTEUDO (temas nao cobertos, plataformas subutilizadas)',
+          '7. METRICAS-CHAVE resumidas',
+        ].join('\n'),
+        creativePrompt: (analysisOutput: string) => [
+          'Voce e um estrategista senior de comunicacao de uma agencia premium.',
+          'Use os INSIGHTS DO ANALISTA abaixo para criar recomendacoes estrategicas concretas.',
+          '',
+          'INSIGHTS DO ANALISTA:',
+          analysisOutput,
+          '',
+          'PERFIL DO CLIENTE:',
+          clientContext || 'Perfil nao disponivel.',
+          '',
+          'Elabore:',
+          '1. PLANO DE ACAO para os proximos 30 dias (acoes concretas, priorizadas, com responsavel sugerido)',
+          '2. OPORTUNIDADES DE CALENDARIO (como aproveitar as datas proximas para este cliente)',
+          '3. RECOMENDACOES DE CONTEUDO (temas, formatos, plataformas especificas)',
+          '4. QUICK WINS (acoes de baixo esforco e alto impacto, executaveis esta semana)',
+          '5. ALERTAS (pontos de atencao urgentes que precisam de acao imediata)',
+          '6. SUGESTOES DE BRIEFINGS (ideias concretas para proximos conteudos)',
+        ].join('\n'),
+        reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
+          'Voce e o diretor de planejamento de uma agencia de comunicacao premium.',
+          'Revise e compile o relatorio final para apresentacao ao cliente.',
+          '',
+          'INSIGHTS DO ANALISTA:',
+          analysisOutput,
+          '',
+          'ESTRATEGIA PROPOSTA:',
+          strategicOutput,
+          '',
+          'Produza um relatorio final em portugues brasileiro com as secoes abaixo.',
+          'Use markdown com titulos, listas, negrito e tabelas quando apropriado.',
+          'Seja direto, acionavel e estrategico.',
+          '',
+          'Secoes obrigatorias:',
+          '## Visao Geral',
+          '(resumo executivo em 3-5 frases)',
+          '',
+          '## Analise de Presenca Digital',
+          '(pontos fortes, fracos, sentimento)',
+          '',
+          '## Oportunidades e Calendario',
+          '(datas proximas + como aproveitar)',
+          '',
+          '## Plano de Acao',
+          '(tabela: acao | prioridade | prazo | plataforma)',
+          '',
+          '## Recomendacoes de Conteudo',
+          '(temas, formatos, ideias de briefing)',
+          '',
+          '## Quick Wins',
+          '(acoes rapidas de alto impacto)',
+          '',
+          '## Alertas e Pontos de Atencao',
+          '(riscos, ameacas, acoes urgentes)',
+          '',
+          '## Proximos Passos',
+          '(o que fazer esta semana)',
+        ].join('\n'),
+        maxTokens: { analysis: 2000, creative: 2500, review: 3000 },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          analysis: result.output,
+          stages: result.stages,
+          sources_used: sourcesUsed,
+          total_duration_ms: result.total_duration_ms,
+        },
+      });
+    } catch (error: any) {
+      request.log?.error({ err: error }, 'client_analysis_failed');
+      return reply.status(500).send({
+        success: false,
+        error: error?.message || 'Falha ao gerar analise.',
+      });
+    }
+  });
 }
