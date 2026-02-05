@@ -24,7 +24,12 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
       const res = await apiGet<{ payload?: Record<string, any> } | null>(
         `/clients/${clientId}/connectors/reportei`
       );
-      const url = res?.payload?.embed_url || null;
+      let url = res?.payload?.embed_url || null;
+      // Extract URL from iframe tag if user pasted the full embed code
+      if (url && url.includes('<iframe')) {
+        const match = url.match(/src="([^"]+)"/);
+        if (match?.[1]) url = match[1];
+      }
       setEmbedUrl(url);
     } catch {
       setEmbedUrl(null);
