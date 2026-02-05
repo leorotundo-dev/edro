@@ -857,6 +857,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       calendarResult,
       opportunitiesResult,
       briefingsResult,
+      performanceResult,
     ] = await Promise.all([
       buildClientContext(tenantId, clientId),
       buildContextPack({ tenant_id: tenantId, client_id: clientId, query: 'analise estrategica completa do cliente' }).catch(() => ({ sources: [], packedText: '' })),
@@ -901,6 +902,14 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
          LIMIT 10`,
         [clientId, tenantId]
       ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT platform, time_window, payload, created_at
+         FROM learned_insights
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [clientId, tenantId]
+      ).catch(() => ({ rows: [] })),
     ]);
 
     const sourcesUsed = {
@@ -910,6 +919,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       library: contextPack.sources.length,
       opportunities: opportunitiesResult.rows.length,
       briefings: briefingsResult.rows.length,
+      performance: performanceResult.rows.length,
     };
 
     // Format data for prompts
@@ -938,6 +948,23 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
     const libraryText = contextPack.packedText || 'Nenhum material na biblioteca.';
 
+    const performanceText = performanceResult.rows.length
+      ? performanceResult.rows.map((r: any) => {
+          const p = r.payload || {};
+          const kpis = p.kpis || p.summary || {};
+          const parts = [`- ${r.platform} (${r.time_window || 'geral'}):`];
+          if (kpis.impressions) parts.push(`impressoes: ${kpis.impressions}`);
+          if (kpis.reach) parts.push(`alcance: ${kpis.reach}`);
+          if (kpis.engagement) parts.push(`engajamento: ${kpis.engagement}`);
+          if (kpis.clicks) parts.push(`cliques: ${kpis.clicks}`);
+          if (kpis.followers) parts.push(`seguidores: ${kpis.followers}`);
+          if (kpis.engagement_rate) parts.push(`taxa engaj.: ${kpis.engagement_rate}%`);
+          if (p.by_format) parts.push(`formatos: ${JSON.stringify(p.by_format)}`);
+          if (p.editorial_insights) parts.push(`insights: ${typeof p.editorial_insights === 'string' ? p.editorial_insights : JSON.stringify(p.editorial_insights)}`);
+          return parts.join(' ');
+        }).join('\n')
+      : 'Nenhum dado de performance disponivel (Reportei nao sincronizado).';
+
     try {
       const result = await runCollaborativePipeline({
         analysisPrompt: [
@@ -965,14 +992,18 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           'BRIEFINGS RECENTES:',
           briefingsText,
           '',
+          'PERFORMANCE / METRICAS (Reportei):',
+          performanceText,
+          '',
           'Retorne um relatorio estruturado com:',
           '1. PONTOS FORTES da presenca digital do cliente',
           '2. PONTOS FRACOS e gaps identificados',
           '3. OPORTUNIDADES imediatas (proximos 14-30 dias)',
           '4. AMEACAS ou riscos identificados',
           '5. ANALISE DE SENTIMENTO e engajamento (se dados disponiveis)',
-          '6. GAPS DE CONTEUDO (temas nao cobertos, plataformas subutilizadas)',
-          '7. METRICAS-CHAVE resumidas',
+          '6. PERFORMANCE POR PLATAFORMA (metricas do Reportei: impressoes, alcance, engajamento, cliques)',
+          '7. GAPS DE CONTEUDO (temas nao cobertos, plataformas subutilizadas)',
+          '8. METRICAS-CHAVE resumidas',
         ].join('\n'),
         creativePrompt: (analysisOutput: string) => [
           'Voce e um estrategista senior de comunicacao de uma agencia premium.',
@@ -1011,7 +1042,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           '(resumo executivo em 3-5 frases)',
           '',
           '## Analise de Presenca Digital',
-          '(pontos fortes, fracos, sentimento)',
+          '(pontos fortes, fracos, sentimento, metricas de performance)',
           '',
           '## Oportunidades e Calendario',
           '(datas proximas + como aproveitar)',

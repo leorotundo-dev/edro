@@ -59,7 +59,7 @@ const envSchema = z.object({
   SOCIAL_DATA_API_URL: z.string().optional(),
   SOCIAL_DATA_API_KEY: z.string().optional(),
   META_GRAPH_VERSION: z.string().optional(),
-  REPORTEI_BASE_URL: z.string().url().optional(),
+  REPORTEI_BASE_URL: z.string().url().optional().or(z.literal('')),
   REPORTEI_TOKEN: z.string().optional(),
   CLIENT_INTEL_ENABLED: z.coerce.boolean().optional(),
   CLIENT_INTEL_INTERVAL_MS: z.coerce.number().optional(),
