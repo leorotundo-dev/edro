@@ -926,36 +926,33 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (shouldNotifyTraffic) {
       const trafficRecipient = body.traffic_recipient || briefing.traffic_owner;
       if (!trafficRecipient) {
-        return reply.status(400).send({
-          success: false,
-          error: 'traffic_recipient or briefing.traffic_owner is required to notify traffic',
+        request.log?.info('skip traffic notification — no recipient configured');
+      } else {
+        const trafficChannels = body.traffic_channels ?? DEFAULT_TRAFFIC_CHANNELS;
+        trafficTask = await createTask({
+          briefingId: briefing.id,
+          type: 'traffic_copy',
+          assignedTo: trafficRecipient,
+          channels: trafficChannels,
+          payload: {
+            briefingId: briefing.id,
+            copyVersionId: copy.id,
+            status: 'copy_ready',
+          },
+        });
+
+        trafficNotifications = await createTaskNotifications({
+          briefingId: briefing.id,
+          taskId: trafficTask.id,
+          channels: trafficChannels,
+          recipient: trafficRecipient,
+          payload: {
+            briefing,
+            copy,
+            event: 'copy_ready',
+          },
         });
       }
-
-      const trafficChannels = body.traffic_channels ?? DEFAULT_TRAFFIC_CHANNELS;
-      trafficTask = await createTask({
-        briefingId: briefing.id,
-        type: 'traffic_copy',
-        assignedTo: trafficRecipient,
-        channels: trafficChannels,
-        payload: {
-          briefingId: briefing.id,
-          copyVersionId: copy.id,
-          status: 'copy_ready',
-        },
-      });
-
-      trafficNotifications = await createTaskNotifications({
-        briefingId: briefing.id,
-        taskId: trafficTask.id,
-        channels: trafficChannels,
-        recipient: trafficRecipient,
-        payload: {
-          briefing,
-          copy,
-          event: 'copy_ready',
-        },
-      });
     }
 
     return reply.status(201).send({

@@ -191,18 +191,20 @@ async function handleResponse<T>(response: Response): Promise<T> {
     return {} as T;
   }
 
+  let parsed: any;
   try {
-    const parsed = JSON.parse(text) as T & { error?: string; message?: string };
-    if (!response.ok) {
-      throw new Error(parsed.error || parsed.message || `HTTP ${response.status}`);
-    }
-    return parsed as T;
-  } catch (error) {
+    parsed = JSON.parse(text);
+  } catch {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     return { raw: text } as T;
   }
+
+  if (!response.ok) {
+    throw new Error(parsed?.error || parsed?.message || `HTTP ${response.status}`);
+  }
+  return parsed as T;
 }
 
 async function requestWithRefresh<T>(path: string, options: RequestInit): Promise<T> {
