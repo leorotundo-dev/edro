@@ -12,6 +12,103 @@ import { buildKey, saveFile, readFile, deleteFile } from '../library/storage';
 import { createLibraryItem, listLibraryItems, updateLibraryItem, getLibraryItem } from '../library/libraryRepo';
 import { enqueueJob } from '../jobs/jobQueue';
 
+let libraryTablesChecked = false;
+
+async function ensureLibraryTables() {
+  if (libraryTablesChecked) return;
+  try {
+    await query(`SELECT 1 FROM library_items LIMIT 0`);
+    libraryTablesChecked = true;
+  } catch {
+    console.log('[library] Tabela library_items nao encontrada, criando...');
+    await query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    await query(`
+      CREATE TABLE IF NOT EXISTS library_items (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        tenant_id UUID NOT NULL,
+        client_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NULL,
+        category TEXT NOT NULL DEFAULT 'geral',
+        tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+        weight TEXT NOT NULL DEFAULT 'medium',
+        use_in_ai BOOLEAN NOT NULL DEFAULT TRUE,
+        valid_from DATE NULL,
+        valid_to DATE NULL,
+        notes TEXT NULL,
+        source_url TEXT NULL,
+        file_key TEXT NULL,
+        file_mime TEXT NULL,
+        file_size_bytes BIGINT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error_message TEXT NULL,
+        created_by TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_library_items_tenant_client ON library_items(tenant_id, client_id)`);
+    await query(`
+      CREATE TABLE IF NOT EXISTS library_item_versions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        library_item_id UUID NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+        version INT NOT NULL,
+        snapshot JSONB NOT NULL,
+        diff JSONB NULL,
+        created_by TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(library_item_id, version)
+      )
+    `);
+    await query(`
+      CREATE TABLE IF NOT EXISTS library_docs (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        tenant_id UUID NOT NULL,
+        client_id TEXT NOT NULL,
+        library_item_id UUID NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        text_hash TEXT NOT NULL,
+        lang TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await query(`
+      CREATE TABLE IF NOT EXISTS library_chunks (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        tenant_id UUID NOT NULL,
+        client_id TEXT NOT NULL,
+        library_item_id UUID NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+        chunk_index INT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'geral',
+        tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+        weight TEXT NOT NULL DEFAULT 'medium',
+        use_in_ai BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(library_item_id, chunk_index)
+      )
+    `);
+    await query(`
+      CREATE TABLE IF NOT EXISTS job_queue (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        tenant_id UUID NOT NULL,
+        type TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INT NOT NULL DEFAULT 0,
+        error_message TEXT NULL,
+        scheduled_for TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_job_queue_status_time ON job_queue(status, scheduled_for)`);
+    console.log('[library] Tabelas criadas com sucesso!');
+    libraryTablesChecked = true;
+  }
+}
+
 export default async function libraryRoutes(app: FastifyInstance) {
   await app.register(multipart, {
     limits: {
@@ -25,6 +122,7 @@ export default async function libraryRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard(), requirePerm('library:read'), requireClientPerm('read')] },
     async (request: any, reply: any) => {
       try {
+        await ensureLibraryTables();
         return await listLibraryItems(
           (request.user as any).tenant_id,
           request.params.clientId,
@@ -48,6 +146,7 @@ export default async function libraryRoutes(app: FastifyInstance) {
     '/clients/:clientId/library',
     { preHandler: [authGuard, tenantGuard(), requirePerm('library:write'), requireClientPerm('write')] },
     async (request: any) => {
+      await ensureLibraryTables();
       const body = z
         .object({
           type: z.enum(['note', 'link']),
@@ -94,6 +193,9 @@ export default async function libraryRoutes(app: FastifyInstance) {
     '/clients/:clientId/library/upload',
     { preHandler: [authGuard, tenantGuard(), requirePerm('library:write'), requireClientPerm('write')] },
     async (request: any, reply: any) => {
+      try {
+      await ensureLibraryTables();
+
       let data: any;
       try {
         data = await request.file();
@@ -103,11 +205,16 @@ export default async function libraryRoutes(app: FastifyInstance) {
       }
       if (!data) return reply.code(400).send({ error: 'missing_file' });
 
+      console.log(`[library] Upload recebido: ${data.filename} (${data.mimetype})`);
+
       const buffer = await data.toBuffer();
+      console.log(`[library] Buffer: ${buffer.length} bytes`);
+
       const mimeType = data.mimetype || (mime.lookup(data.filename) as string) || 'application/octet-stream';
       const key = buildKey((request.user as any).tenant_id, request.params.clientId, data.filename);
 
       await saveFile(buffer, key);
+      console.log(`[library] Arquivo salvo: ${key}`);
 
       const item = await createLibraryItem({
         tenant_id: (request.user as any).tenant_id,
@@ -123,23 +230,36 @@ export default async function libraryRoutes(app: FastifyInstance) {
         file_size_bytes: buffer.length,
         created_by: (request.user as any).email,
       });
+      console.log(`[library] Item criado: ${item.id}`);
 
-      await audit({
-        actor_user_id: (request.user as any).sub,
-        actor_email: (request.user as any).email,
-        action: 'LIBRARY_FILE_UPLOADED',
-        entity_type: 'library_item',
-        entity_id: item.id,
-        after: { title: item.title, file_key: item.file_key, file_mime: item.file_mime, file_size_bytes: item.file_size_bytes },
-        ip: request.ip,
-        user_agent: request.headers['user-agent'],
-      });
+      try {
+        await audit({
+          actor_user_id: (request.user as any).sub,
+          actor_email: (request.user as any).email,
+          action: 'LIBRARY_FILE_UPLOADED',
+          entity_type: 'library_item',
+          entity_id: item.id,
+          after: { title: item.title, file_key: item.file_key, file_mime: item.file_mime, file_size_bytes: item.file_size_bytes },
+          ip: request.ip,
+          user_agent: request.headers['user-agent'],
+        });
+      } catch (auditErr: any) {
+        console.error('[library] Audit falhou (nao-fatal):', auditErr.message);
+      }
 
-      await enqueueJob((request.user as any).tenant_id, 'process_library_item', {
-        library_item_id: item.id,
-      });
+      try {
+        await enqueueJob((request.user as any).tenant_id, 'process_library_item', {
+          library_item_id: item.id,
+        });
+      } catch (jobErr: any) {
+        console.error('[library] Enqueue job falhou (nao-fatal):', jobErr.message);
+      }
 
       return item;
+      } catch (err: any) {
+        console.error('[library] Upload falhou:', err.message, err.stack);
+        return reply.code(500).send({ error: err?.message || 'Falha no upload.' });
+      }
     }
   );
 

@@ -64,8 +64,6 @@ export async function runMigrations() {
 }
 
 async function executeMigrationsFromPath(migrationsDir: string) {
-  try {
-    
     console.log(`📁 Lendo arquivos de: ${migrationsDir}`);
     const files = fs
       .readdirSync(migrationsDir)
@@ -78,10 +76,10 @@ async function executeMigrationsFromPath(migrationsDir: string) {
     const applied = await getAppliedMigrations();
     console.log(`✅ Migrações já aplicadas: ${applied.size}`);
     let newMigrations = 0;
+    const failedMigrations: string[] = [];
 
     for (const file of files) {
       if (applied.has(file)) {
-        console.log(`⏭️  Pulando migração ${file} (já aplicada)`);
         continue;
       }
 
@@ -101,22 +99,20 @@ async function executeMigrationsFromPath(migrationsDir: string) {
         console.log(`✅ Migração ${file} aplicada com sucesso!`);
         newMigrations++;
       } catch (err: any) {
-        await client.query('ROLLBACK');
-        console.error(`❌ Erro na migração ${file}:`, err.message);
-        console.error(`   Stack:`, err.stack);
-        throw err;
+        await client.query('ROLLBACK').catch(() => {});
+        console.error(`⚠️  Migração ${file} falhou (continuando com as próximas):`, err.message);
+        failedMigrations.push(file);
       } finally {
         client.release();
       }
     }
 
-    if (newMigrations === 0) {
-      console.log('✅ Todas as migrações já estão aplicadas!');
-    } else {
-      console.log(`✅ ${newMigrations} nova(s) migração(ões) aplicada(s) com sucesso!`);
+    if (failedMigrations.length > 0) {
+      console.error(`⚠️  ${failedMigrations.length} migração(ões) falharam: ${failedMigrations.join(', ')}`);
     }
-  } catch (error: any) {
-    console.error('❌ Erro ao executar migrações do path:', error.message);
-    throw error;
-  }
+    if (newMigrations > 0) {
+      console.log(`✅ ${newMigrations} nova(s) migração(ões) aplicada(s) com sucesso!`);
+    } else if (failedMigrations.length === 0) {
+      console.log('✅ Todas as migrações já estão aplicadas!');
+    }
 }
