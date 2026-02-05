@@ -451,14 +451,46 @@ export default async function calendarRoutes(app: FastifyInstance) {
     '/clients/:clientId/calendar/today',
     { preHandler: [requirePerm('calendars:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
+      const clientId = request.params.clientId as string;
+      const tenantId = (request.user as any).tenant_id;
       const today = new Date();
       const dateISO = today.toISOString().slice(0, 10);
-      request.params.date = dateISO;
-      return app.inject({
-        method: 'GET',
-        url: `/clients/${request.params.clientId}/calendar/day/${dateISO}`,
-        headers: request.headers,
-      }).then((res) => reply.status(res.statusCode).send(res.json()));
+
+      const { rows: clients } = await query<any>(
+        `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [clientId, tenantId]
+      );
+      if (!clients[0]) return reply.status(404).send({ error: 'client_not_found' });
+
+      const client = buildClientProfile(clients[0]);
+      const sourceEvents = await buildSourceEvents({ tenantId, client, year: today.getFullYear() });
+      const hits = expandEventsForMonth(sourceEvents, toMonthKey(today));
+      const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
+      const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
+
+      const items: any[] = [];
+      for (const hit of hits) {
+        if (!hit.hitDates.includes(dateISO)) continue;
+        const override = overrideMap.get(hit.event.id);
+        if (override?.force_exclude) continue;
+        if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
+        const relevance = scoreEventRelevance(hit.event, client, override);
+        if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
+        items.push({
+          id: hit.event.id,
+          name: hit.event.name,
+          slug: hit.event.slug,
+          categories: hit.event.categories,
+          tags: hit.event.tags,
+          source: hit.event.source,
+          score: relevance.score,
+          tier: relevance.tier,
+          why: relevance.why,
+        });
+      }
+
+      items.sort((a, b) => b.score - a.score);
+      return reply.send({ date: dateISO, client_id: client.id, items });
     }
   );
 
