@@ -15,6 +15,9 @@ import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
@@ -149,6 +152,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [collabStep, setCollabStep] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadPlanning = useCallback(async () => {
@@ -205,6 +209,17 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatLoading]);
+
+  useEffect(() => {
+    if (!chatLoading || provider !== 'collaborative') {
+      setCollabStep(0);
+      return;
+    }
+    setCollabStep(0);
+    const t1 = setTimeout(() => setCollabStep(1), 4000);
+    const t2 = setTimeout(() => setCollabStep(2), 10000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [chatLoading, provider]);
 
   const saveNotes = async () => {
     setSaving(true);
@@ -665,28 +680,42 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                             bgcolor: '#ffffff',
                             border: '1px solid',
                             borderColor: 'divider',
-                            display: 'flex',
-                            gap: 0.5,
-                            alignItems: 'center',
                           }}
                         >
-                          {[0, 1, 2].map((i) => (
-                            <Box
-                              key={i}
-                              sx={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                bgcolor: 'grey.400',
-                                animation: 'chatBounce 1.4s infinite ease-in-out both',
-                                animationDelay: `${i * 0.16}s`,
-                                '@keyframes chatBounce': {
-                                  '0%, 80%, 100%': { transform: 'scale(0.6)', opacity: 0.4 },
-                                  '40%': { transform: 'scale(1)', opacity: 1 },
-                                },
-                              }}
-                            />
-                          ))}
+                          {provider === 'collaborative' ? (
+                            <Box sx={{ minWidth: 240 }}>
+                              <Stepper activeStep={collabStep} sx={{ mb: 1, '& .MuiStepLabel-label': { fontSize: '0.7rem' } }}>
+                                <Step><StepLabel>Gemini — Analisando</StepLabel></Step>
+                                <Step><StepLabel>OpenAI — Planejando</StepLabel></Step>
+                                <Step><StepLabel>Claude — Refinando</StepLabel></Step>
+                              </Stepper>
+                              <LinearProgress
+                                variant="indeterminate"
+                                color={collabStep === 0 ? 'primary' : collabStep === 1 ? 'warning' : 'secondary'}
+                                sx={{ height: 3, borderRadius: 1 }}
+                              />
+                            </Box>
+                          ) : (
+                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                              {[0, 1, 2].map((i) => (
+                                <Box
+                                  key={i}
+                                  sx={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    bgcolor: 'grey.400',
+                                    animation: 'chatBounce 1.4s infinite ease-in-out both',
+                                    animationDelay: `${i * 0.16}s`,
+                                    '@keyframes chatBounce': {
+                                      '0%, 80%, 100%': { transform: 'scale(0.6)', opacity: 0.4 },
+                                      '40%': { transform: 'scale(1)', opacity: 1 },
+                                    },
+                                  }}
+                                />
+                              ))}
+                            </Box>
+                          )}
                         </Box>
                       </Stack>
                     )}

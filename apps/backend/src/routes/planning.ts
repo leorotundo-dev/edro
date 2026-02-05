@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
-import { generateWithProvider, CopyProvider, getAvailableProvidersInfo } from '../services/ai/copyOrchestrator';
-import { generateCopy } from '../services/ai/copyService';
+import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline } from '../services/ai/copyOrchestrator';
+import { generateCopy, generateCollaborativeCopy } from '../services/ai/copyService';
 import { getClientById } from '../repos/clientsRepo';
 import {
   createBriefing,
@@ -40,14 +40,14 @@ type Conversation = {
 
 const chatSchema = z.object({
   message: z.string().min(1),
-  provider: z.enum(['openai', 'anthropic', 'google']).optional().default('openai'),
+  provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
   conversationId: z.string().uuid().optional(),
   mode: z.enum(['chat', 'command']).optional().default('chat'),
 });
 
 const createConversationSchema = z.object({
   title: z.string().optional(),
-  provider: z.enum(['openai', 'anthropic', 'google']).optional().default('openai'),
+  provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
 });
 
 function mapProviderToCopy(provider: string): CopyProvider {
@@ -257,6 +257,7 @@ export default async function planningRoutes(app: FastifyInstance) {
           { id: 'openai', name: 'OpenAI GPT-4', description: 'Creative and versatile' },
           { id: 'anthropic', name: 'Claude', description: 'Strategic and analytical' },
           { id: 'google', name: 'Gemini', description: 'Fast and efficient' },
+          { id: 'collaborative', name: 'Colaborativo (3 IAs)', description: 'Gemini + OpenAI + Claude' },
         ],
       },
     });
@@ -327,19 +328,85 @@ export default async function planningRoutes(app: FastifyInstance) {
     const fullPrompt = `${historyContext}\n\nUser: ${message}`;
 
     // Generate AI response
-    const copyProvider = mapProviderToCopy(provider);
-    const result = await generateWithProvider(copyProvider, {
-      prompt: fullPrompt,
-      systemPrompt,
-      temperature: mode === 'command' ? 0.2 : 0.7,
-      maxTokens: 2000,
-    });
+    const copyProvider = provider === 'collaborative'
+      ? ('gemini' as CopyProvider)
+      : mapProviderToCopy(provider);
+    let resultOutput = '';
+    let resultProvider = '';
+    let resultModel = '';
+    let resultStages: any[] | undefined;
 
-    let assistantContent = result.output;
+    if (provider === 'collaborative' && mode === 'chat') {
+      // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
+      const collabResult = await runCollaborativePipeline({
+        analysisPrompt: [
+          'Voce e um analista estrategico de comunicacao de agencia.',
+          'Analise o contexto do cliente e a conversa abaixo.',
+          'Extraia os pontos mais relevantes e prepare um briefing de insights para o estrategista.',
+          'Retorne texto estruturado com: insights-chave, contexto relevante do cliente, e abordagem recomendada.',
+          '',
+          'CONTEXTO DO CLIENTE:',
+          combinedContext,
+          '',
+          'CONVERSA:',
+          historyContext,
+          '',
+          'MENSAGEM ATUAL:',
+          message,
+        ].join('\n'),
+        creativePrompt: (analysisOutput: string) => [
+          'Voce e um estrategista de planejamento de comunicacao.',
+          'Use os INSIGHTS DO ANALISTA abaixo para elaborar uma resposta completa, estrategica e criativa.',
+          'Responda em portugues brasileiro, de forma clara, pratica e acionavel.',
+          'Inclua sugestoes concretas e proximos passos quando relevante.',
+          '',
+          'INSIGHTS DO ANALISTA:',
+          analysisOutput,
+          '',
+          'CONTEXTO DO CLIENTE:',
+          combinedContext,
+          '',
+          'MENSAGEM DO USUARIO:',
+          message,
+        ].join('\n'),
+        reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
+          'Voce e o diretor de planejamento de uma agencia de comunicacao premium.',
+          'Revise e refine a resposta do estrategista abaixo.',
+          'Garanta que esta:',
+          '- Alinhada com o posicionamento e tom da marca do cliente',
+          '- Pratica, acionavel e com proximos passos claros',
+          '- Estrategicamente fundamentada nos insights do analista',
+          '- Bem estruturada e em portugues brasileiro natural',
+          'Se necessario, melhore a resposta. Retorne APENAS a resposta final refinada.',
+          '',
+          'INSIGHTS DO ANALISTA:',
+          analysisOutput,
+          '',
+          'RESPOSTA DO ESTRATEGISTA:',
+          strategicOutput,
+        ].join('\n'),
+      });
+      resultOutput = collabResult.output;
+      resultProvider = 'collaborative';
+      resultModel = collabResult.model;
+      resultStages = collabResult.stages;
+    } else {
+      const singleResult = await generateWithProvider(copyProvider, {
+        prompt: fullPrompt,
+        systemPrompt,
+        temperature: mode === 'command' ? 0.2 : 0.7,
+        maxTokens: 2000,
+      });
+      resultOutput = singleResult.output;
+      resultProvider = singleResult.provider;
+      resultModel = singleResult.model;
+    }
+
+    let assistantContent = resultOutput;
     let actionResult: Record<string, any> | null = null;
 
     if (mode === 'command') {
-      const parsed = normalizeCommandPayload(safeJsonParse(result.output));
+      const parsed = normalizeCommandPayload(safeJsonParse(resultOutput));
 
       if (parsed.action === 'create_briefing') {
         const title =
@@ -403,11 +470,19 @@ export default async function planningRoutes(app: FastifyInstance) {
           });
 
           try {
-            const copyResult = await generateCopy({
-              prompt,
-              taskType: 'social_post',
-              forceProvider: copyProvider,
-            });
+            const copyResult = provider === 'collaborative'
+              ? await generateCollaborativeCopy({
+                  prompt,
+                  count: parsed.copy.count,
+                  knowledgeBlock: contextPack.packedText || undefined,
+                  clientName: client?.name || undefined,
+                  instructions: parsed.copy.instructions || message,
+                })
+              : await generateCopy({
+                  prompt,
+                  taskType: 'social_post',
+                  forceProvider: copyProvider,
+                });
 
             const copyVersion = await createCopyVersion({
               briefingId: briefing.id,
@@ -463,7 +538,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       role: 'assistant',
       content: assistantContent,
       timestamp: new Date().toISOString(),
-      provider: result.provider,
+      provider: resultProvider,
     };
     messages.push(assistantMessage);
 
@@ -490,8 +565,9 @@ export default async function planningRoutes(app: FastifyInstance) {
       success: true,
       data: {
         response: assistantContent,
-        provider: result.provider,
-        model: result.model,
+        provider: resultProvider,
+        model: resultModel,
+        stages: resultStages,
         action: actionResult,
         sources: contextPack.sources,
         conversationId: conversation?.id || (await query(
