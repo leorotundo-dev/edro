@@ -396,8 +396,8 @@ export default function AiCostsPage() {
 // ── Chart builders ─────────────────────────────────────────────
 
 function buildDailyChart(byDay: DayRow[]) {
-  const providers = [...new Set(byDay.map((r) => r.provider))];
-  const days = [...new Set(byDay.map((r) => r.day))].sort();
+  const providers = Array.from(new Set(byDay.map((r) => r.provider)));
+  const days = Array.from(new Set(byDay.map((r) => r.day))).sort();
 
   const series = providers.map((p) => ({
     name: PROVIDER_LABELS[p] || p,
