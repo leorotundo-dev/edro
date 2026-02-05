@@ -13,11 +13,24 @@ import { createLibraryItem, listLibraryItems, updateLibraryItem, getLibraryItem 
 import { enqueueJob } from '../jobs/jobQueue';
 
 let libraryTablesChecked = false;
+let libraryFkDropped = false;
+
+async function dropBadForeignKeys() {
+  if (libraryFkDropped) return;
+  try {
+    await query(`ALTER TABLE library_items DROP CONSTRAINT IF EXISTS library_items_client_id_fkey`);
+    await query(`ALTER TABLE library_items DROP CONSTRAINT IF EXISTS library_items_tenant_id_fkey`);
+    libraryFkDropped = true;
+  } catch (err: any) {
+    console.error('[library] Falha ao dropar FK constraints:', err.message);
+  }
+}
 
 async function ensureLibraryTables() {
   if (libraryTablesChecked) return;
   try {
     await query(`SELECT 1 FROM library_items LIMIT 0`);
+    await dropBadForeignKeys();
     libraryTablesChecked = true;
   } catch {
     console.log('[library] Tabela library_items nao encontrada, criando...');
