@@ -566,71 +566,6 @@ export default function ClippingDiagnosticsPage() {
               </Grid>
             </Grid>
 
-            {/* Failed jobs */}
-            {failedJobsCount > 0 && (
-              <DashboardCard
-                title="Fontes com erro"
-                action={<Chip size="small" label={`${failedJobsCount} erros`} color="error" variant="outlined" />}
-                noPadding
-                sx={{ mb: 3 }}
-              >
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Fonte</TableCell>
-                        <TableCell>Erro</TableCell>
-                        <TableCell>Quando</TableCell>
-                        <TableCell align="right">Acoes</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {data.recent_failed_jobs.map((job) => (
-                        <TableRow key={job.id}>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={600}>
-                              {job.source_name || job.type}
-                            </Typography>
-                            {job.source_url && (
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {job.source_url}
-                              </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="error.main" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {job.error}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="caption" color="text.secondary">
-                              {timeAgo(job.updated_at)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            {job.source_id && (
-                              <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                                <Tooltip title="Pausar fonte">
-                                  <IconButton size="small" onClick={() => handlePauseSource(job.source_id!)}>
-                                    <IconPlayerPause size={16} />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Deletar fonte">
-                                  <IconButton size="small" color="error" onClick={() => handleDeleteSource(job.source_id!, job.source_name || 'fonte')}>
-                                    <IconTrash size={16} />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </DashboardCard>
-            )}
-
             {/* Sources */}
             <DashboardCard
               title="Saude das Fontes"
@@ -649,6 +584,7 @@ export default function ClippingDiagnosticsPage() {
                     <TableRow>
                       <TableCell>Nome / URL</TableCell>
                       <TableCell>Status</TableCell>
+                      <TableCell>Erro</TableCell>
                       <TableCell>Ultimo fetch</TableCell>
                       <TableCell>Intervalo</TableCell>
                       <TableCell align="right">Acoes</TableCell>
@@ -702,17 +638,22 @@ export default function ClippingDiagnosticsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Stack spacing={0.5}>
-                              {src.health === 'ERROR' ? (
-                                <Tooltip title={src.last_error || 'Erro desconhecido'}>
-                                  <Chip size="small" label="ERRO" color="error" variant="filled" />
-                                </Tooltip>
-                              ) : !src.is_active ? (
-                                <Chip size="small" label="Pausada" color="default" variant="outlined" />
-                              ) : (
-                                <Chip size="small" label="OK" color="success" variant="outlined" />
-                              )}
-                            </Stack>
+                            {src.health === 'ERROR' ? (
+                              <Chip size="small" label="ERRO" color="error" variant="filled" />
+                            ) : !src.is_active ? (
+                              <Chip size="small" label="Pausada" color="default" variant="outlined" />
+                            ) : (
+                              <Chip size="small" label="OK" color="success" variant="outlined" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {src.last_error ? (
+                              <Typography variant="caption" color="error.main" sx={{ maxWidth: 250, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {src.last_error}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.disabled">—</Typography>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Typography variant="caption" color={src.last_fetched_at ? 'text.secondary' : 'error.main'}>
@@ -756,7 +697,7 @@ export default function ClippingDiagnosticsPage() {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} align="center">
+                        <TableCell colSpan={6} align="center">
                           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
                             Nenhuma fonte cadastrada
                           </Typography>
