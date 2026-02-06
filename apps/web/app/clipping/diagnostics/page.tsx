@@ -753,7 +753,7 @@ export default function ClippingDiagnosticsPage() {
                           </TableCell>
                         </TableRow>
                         );
-                      }))
+                      })
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} align="center">
