@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -15,8 +15,10 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
+import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconRefresh,
@@ -30,6 +32,13 @@ import {
   IconChartBar,
   IconRss,
   IconThumbDown,
+  IconPencil,
+  IconDeviceFloppy,
+  IconTrash,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconX,
+  IconAlertTriangle,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -70,6 +79,10 @@ type SourceRow = {
   client_id?: string | null;
   is_active: boolean;
   updated_at?: string | null;
+  last_fetched_at?: string | null;
+  fetch_interval_minutes?: number;
+  status?: string | null;
+  last_error?: string | null;
 };
 
 type ClippingClientProps = {
@@ -130,6 +143,19 @@ function formatSource(value?: string | null, url?: string | null) {
   }
 }
 
+function timeAgo(value?: string | null) {
+  if (!value) return 'Nunca';
+  const diff = Date.now() - new Date(value).getTime();
+  if (diff < 0) return 'Agora';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Agora';
+  if (mins < 60) return `${mins}min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 function statusChip(status?: string | null) {
   if (!status || status === 'NEW') return { label: 'Novo', color: 'warning' } as const;
   if (status === 'TRIAGED') return { label: 'Triado', color: 'success' } as const;
@@ -166,6 +192,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [ingestUrl, setIngestUrl] = useState('');
   const [savingSource, setSavingSource] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [editingUrl, setEditingUrl] = useState('');
+  const [savingSourceUrl, setSavingSourceUrl] = useState(false);
+  const [fetchingAll, setFetchingAll] = useState(false);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -348,6 +378,85 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
       setIngesting(false);
     }
   };
+
+  const handlePauseSource = async (id: string) => {
+    setError('');
+    try {
+      await apiPost(`/clipping/sources/${id}/pause`, {});
+      setSuccess('Fonte pausada.');
+      await loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao pausar fonte.');
+    }
+  };
+
+  const handleResumeSource = async (id: string) => {
+    setError('');
+    try {
+      await apiPost(`/clipping/sources/${id}/resume`, {});
+      setSuccess('Fonte reativada.');
+      await loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao reativar fonte.');
+    }
+  };
+
+  const handleDeleteSource = async (id: string, name: string) => {
+    if (!window.confirm(`Excluir fonte "${name}"?`)) return;
+    setError('');
+    try {
+      await apiDelete(`/clipping/sources/${id}`);
+      setSuccess('Fonte excluida.');
+      await loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao excluir fonte.');
+    }
+  };
+
+  const handleEditSource = (id: string, url: string) => {
+    setEditingSourceId(id);
+    setEditingUrl(url);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSourceId(null);
+    setEditingUrl('');
+  };
+
+  const handleSaveSourceUrl = async (id: string) => {
+    if (!editingUrl.trim()) return;
+    setSavingSourceUrl(true);
+    setError('');
+    try {
+      await apiPatch(`/clipping/sources/${id}`, { url: editingUrl.trim() });
+      setSuccess('URL atualizada.');
+      setEditingSourceId(null);
+      setEditingUrl('');
+      await loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar URL.');
+    } finally {
+      setSavingSourceUrl(false);
+    }
+  };
+
+  const handleFetchAll = async () => {
+    setFetchingAll(true);
+    setError('');
+    try {
+      const res = await apiPost<{ enqueued?: number }>('/clipping/admin/fetch-all', {});
+      setSuccess(`Busca enfileirada para ${res?.enqueued ?? 0} fontes.`);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao enfileirar busca.');
+    } finally {
+      setFetchingAll(false);
+    }
+  };
+
+  const errorSourceCount = useMemo(
+    () => sources.filter((s) => s.status === 'ERROR' || s.last_error).length,
+    [sources]
+  );
 
   const totalLabel = useMemo(() => `${items.length} itens`, [items.length]);
 
@@ -554,25 +663,117 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={2}>
-            <DashboardCard title="Fontes" action={<Chip size="small" label={`${sources.length} cadastradas`} color="info" variant="outlined" />}>
+            <DashboardCard
+              title="Fontes"
+              action={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {errorSourceCount > 0 && (
+                    <Chip size="small" icon={<IconAlertTriangle size={14} />} label={`${errorSourceCount} com erro`} color="error" variant="outlined" />
+                  )}
+                  <Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />
+                  <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={handleFetchAll} disabled={fetchingAll}>
+                    {fetchingAll ? 'Buscando...' : 'Buscar todas'}
+                  </Button>
+                </Stack>
+              }
+            >
               <Stack spacing={1}>
                 {sources.length ? (
-                  sources.map((source) => (
-                    <Box key={source.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, transition: 'all 0.2s', '&:hover': { bgcolor: 'action.hover' } }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <IconRss size={16} />
-                          <Typography variant="subtitle2">{source.name}</Typography>
+                  sources.map((source) => {
+                    const isEditing = editingSourceId === source.id;
+                    const hasError = source.status === 'ERROR' || !!source.last_error;
+                    const isPaused = !source.is_active;
+                    const statusColor = isPaused ? 'default' : hasError ? 'error' : 'success';
+                    const statusLabel = isPaused ? 'Pausada' : hasError ? 'Erro' : 'OK';
+
+                    return (
+                      <Box
+                        key={source.id}
+                        sx={{
+                          p: 1.5,
+                          border: '1px solid',
+                          borderColor: hasError ? 'error.light' : 'divider',
+                          borderRadius: 2,
+                          transition: 'all 0.2s',
+                          '&:hover': { bgcolor: 'action.hover' },
+                          opacity: isPaused ? 0.6 : 1,
+                        }}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                            <IconRss size={16} />
+                            <Typography variant="subtitle2" noWrap>{source.name}</Typography>
+                            <Chip size="small" label={source.type} variant="outlined" />
+                            <Chip size="small" label={statusLabel} color={statusColor} />
+                          </Stack>
+                          <Stack direction="row" spacing={0} alignItems="center">
+                            {source.is_active ? (
+                              <Tooltip title="Pausar">
+                                <IconButton size="small" onClick={() => handlePauseSource(source.id)}>
+                                  <IconPlayerPause size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="Reativar">
+                                <IconButton size="small" color="success" onClick={() => handleResumeSource(source.id)}>
+                                  <IconPlayerPlay size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="Excluir">
+                              <IconButton size="small" color="error" onClick={() => handleDeleteSource(source.id, source.name)}>
+                                <IconTrash size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </Stack>
-                        <Chip size="small" label={source.type} variant="outlined" />
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{source.url}</Typography>
-                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                        <Chip size="small" label={source.scope} variant="outlined" />
-                        <Chip size="small" label={source.is_active ? 'Ativa' : 'Pausada'} color={source.is_active ? 'success' : 'default'} />
-                      </Stack>
-                    </Box>
-                  ))
+
+                        {isEditing ? (
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                            <TextField
+                              value={editingUrl}
+                              onChange={(e) => setEditingUrl(e.target.value)}
+                              size="small"
+                              fullWidth
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveSourceUrl(source.id);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                              autoFocus
+                            />
+                            <IconButton size="small" color="primary" onClick={() => handleSaveSourceUrl(source.id)} disabled={savingSourceUrl}>
+                              <IconDeviceFloppy size={16} />
+                            </IconButton>
+                            <IconButton size="small" onClick={handleCancelEdit}>
+                              <IconX size={16} />
+                            </IconButton>
+                          </Stack>
+                        ) : (
+                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>{source.url}</Typography>
+                            <Tooltip title="Editar URL">
+                              <IconButton size="small" onClick={() => handleEditSource(source.id, source.url)}>
+                                <IconPencil size={14} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        )}
+
+                        {hasError && source.last_error && (
+                          <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
+                            {source.last_error}
+                          </Typography>
+                        )}
+
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
+                          <Chip size="small" label={source.scope} variant="outlined" />
+                          <Typography variant="caption" color="text.secondary">
+                            Fetch: {timeAgo(source.last_fetched_at)}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    );
+                  })
                 ) : (
                   <Typography variant="body2" color="text.secondary">Nenhuma fonte cadastrada.</Typography>
                 )}
