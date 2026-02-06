@@ -254,14 +254,35 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
 }
 
 /**
- * Auto-archive stale items with low score and no client assignment.
+ * Delete all clipping items older than 7 days, regardless of status or score.
+ * Also cleans up related matches, feedback, and completed/failed jobs.
  */
-async function autoArchiveStaleItems() {
+async function purgeExpiredItems() {
+  // Delete matches for expired items
   await query(
-    `UPDATE clipping_items SET status='ARCHIVED', updated_at=NOW()
-     WHERE status='NEW' AND score < 30
-       AND (array_length(assigned_client_ids, 1) IS NULL)
-       AND created_at < NOW() - INTERVAL '14 days'`
+    `DELETE FROM clipping_matches WHERE clipping_item_id IN (
+       SELECT id FROM clipping_items WHERE created_at < NOW() - INTERVAL '7 days'
+     )`
+  );
+
+  // Delete feedback for expired items
+  await query(
+    `DELETE FROM clipping_feedback WHERE item_id IN (
+       SELECT id FROM clipping_items WHERE created_at < NOW() - INTERVAL '7 days'
+     )`
+  );
+
+  // Delete the expired items themselves
+  await query(
+    `DELETE FROM clipping_items WHERE created_at < NOW() - INTERVAL '7 days'`
+  );
+
+  // Clean up old completed/failed clipping jobs (older than 3 days)
+  await query(
+    `DELETE FROM job_queue
+     WHERE type LIKE 'clipping_%'
+       AND status IN ('done','failed')
+       AND updated_at < NOW() - INTERVAL '3 days'`
   );
 }
 
@@ -458,8 +479,8 @@ async function handleAutoScore(job: any) {
 }
 
 export async function runClippingWorkerOnce() {
-  // Auto-archive stale low-score items
-  await autoArchiveStaleItems();
+  // Purge items older than 7 days and clean up old jobs
+  await purgeExpiredItems();
 
   await enqueueDueSources();
 
