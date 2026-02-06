@@ -233,7 +233,8 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
   const loadStats = useCallback(async () => {
     try {
-      const response = await apiGet<any>('/clipping/dashboard');
+      const qs = selectedClient?.id ? `?clientId=${encodeURIComponent(selectedClient.id)}` : '';
+      const response = await apiGet<any>(`/clipping/dashboard${qs}`);
       const payload = response?.stats ?? response?.data ?? response ?? {};
       setStats({
         total_items: payload.total_items ?? 0,
@@ -245,7 +246,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar dashboard.');
     }
-  }, []);
+  }, [selectedClient]);
 
   const loadSources = useCallback(async () => {
     try {
@@ -519,28 +520,29 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
       <DashboardCard title="Filtros" subtitle={`${selectedClient?.name || 'Global'} -- ${selectedClient?.segment_primary || 'Radar global'}`} action={<Chip size="small" label={totalLabel} color="primary" variant="outlined" />}>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 3 }}>
-            <TextField
-              select
-              label="Cliente"
-              value={selectedClient?.id || ''}
-              onChange={(event) => {
-                const match = clients.find((client) => client.id === event.target.value) || null;
-                setSelectedClient(match);
-                if (match) router.replace(`/clipping?clientId=${match.id}`);
-              }}
-              disabled={isLocked}
-              fullWidth
-              size="small"
-            >
-              {clients.map((client) => (
-                <MenuItem key={client.id} value={client.id}>
-                  {client.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 12, md: 2 }}>
+          {!isLocked && (
+            <Grid size={{ xs: 12, md: 3 }}>
+              <TextField
+                select
+                label="Cliente"
+                value={selectedClient?.id || ''}
+                onChange={(event) => {
+                  const match = clients.find((client) => client.id === event.target.value) || null;
+                  setSelectedClient(match);
+                  if (match) router.replace(`/clipping?clientId=${match.id}`);
+                }}
+                fullWidth
+                size="small"
+              >
+                {clients.map((client) => (
+                  <MenuItem key={client.id} value={client.id}>
+                    {client.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          )}
+          <Grid size={{ xs: 12, md: isLocked ? 3 : 2 }}>
             <TextField select label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} fullWidth size="small">
               {STATUS_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>

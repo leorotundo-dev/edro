@@ -1191,8 +1191,15 @@ export default async function clippingRoutes(app: FastifyInstance) {
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
       const range = String(request.query?.range || 'week');
+      const clientId = request.query?.clientId as string | undefined;
       const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
       const windowInterval = `${windowDays} days`;
+
+      // When clientId is provided, filter items that match this client
+      const clientFilter = clientId
+        ? `AND (ci.assigned_client_ids @> ARRAY[$2]::text[] OR ci.suggested_client_ids @> ARRAY[$2]::text[] OR cs.client_id = $2)`
+        : '';
+      const baseParams = clientId ? [tenantId, clientId] : [tenantId];
 
       const [{ rows: sourceRows }, { rows: itemRows }] = await Promise.all([
         query<any>(
@@ -1201,27 +1208,28 @@ export default async function clippingRoutes(app: FastifyInstance) {
             COUNT(*) AS total_sources,
             COUNT(*) FILTER (WHERE is_active) AS active_sources
           FROM clipping_sources
-          WHERE tenant_id=$1
+          WHERE tenant_id=$1 ${clientId ? `AND (scope='GLOBAL' OR client_id=$2)` : ''}
           `,
-          [tenantId]
+          baseParams
         ),
         query<any>(
           `
           SELECT
             COUNT(*) AS total_items,
-            COUNT(*) FILTER (WHERE status='NEW') AS new_items,
-            COUNT(*) FILTER (WHERE status='TRIAGED') AS triaged_items,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') AS items_today,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS items_this_week,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS items_this_month,
-            AVG(score)::numeric(10,2) AS avg_score,
-            COUNT(*) FILTER (WHERE score >= 70) AS high,
-            COUNT(*) FILTER (WHERE score >= 40 AND score < 70) AS medium,
-            COUNT(*) FILTER (WHERE score < 40) AS low
-          FROM clipping_items
-          WHERE tenant_id=$1
+            COUNT(*) FILTER (WHERE ci.status='NEW') AS new_items,
+            COUNT(*) FILTER (WHERE ci.status='TRIAGED') AS triaged_items,
+            COUNT(*) FILTER (WHERE ci.created_at >= NOW() - INTERVAL '1 day') AS items_today,
+            COUNT(*) FILTER (WHERE ci.created_at >= NOW() - INTERVAL '7 days') AS items_this_week,
+            COUNT(*) FILTER (WHERE ci.created_at >= NOW() - INTERVAL '30 days') AS items_this_month,
+            AVG(ci.score)::numeric(10,2) AS avg_score,
+            COUNT(*) FILTER (WHERE ci.score >= 70) AS high,
+            COUNT(*) FILTER (WHERE ci.score >= 40 AND ci.score < 70) AS medium,
+            COUNT(*) FILTER (WHERE ci.score < 40) AS low
+          FROM clipping_items ci
+          JOIN clipping_sources cs ON cs.id = ci.source_id
+          WHERE ci.tenant_id=$1 ${clientFilter}
           `,
-          [tenantId]
+          baseParams
         ),
       ]);
 
@@ -1238,13 +1246,14 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ON ci.source_id = cs.id
          AND ci.tenant_id = cs.tenant_id
          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+         ${clientFilter}
         WHERE cs.tenant_id=$1
         GROUP BY cs.id
         HAVING COUNT(ci.id) > 0
         ORDER BY item_count DESC, cs.name ASC
         LIMIT 10
         `,
-        [tenantId]
+        baseParams
       );
 
       const { rows: topItemsRows } = await query<any>(
@@ -1260,10 +1269,11 @@ export default async function clippingRoutes(app: FastifyInstance) {
         JOIN clipping_sources cs ON cs.id = ci.source_id
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+          ${clientFilter}
         ORDER BY ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
-        [tenantId]
+        baseParams
       );
 
       const { rows: recentItemsRows } = await query<any>(
@@ -1279,35 +1289,40 @@ export default async function clippingRoutes(app: FastifyInstance) {
         JOIN clipping_sources cs ON cs.id = ci.source_id
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+          ${clientFilter}
         ORDER BY ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
-        [tenantId]
+        baseParams
       );
 
       const { rows: trendRows } = await query<any>(
         `
-        SELECT LOWER(unnest(segments)) AS keyword, COUNT(*)::int AS count
-        FROM clipping_items
-        WHERE tenant_id=$1
-          AND created_at >= NOW() - INTERVAL '${windowInterval}'
+        SELECT LOWER(unnest(ci.segments)) AS keyword, COUNT(*)::int AS count
+        FROM clipping_items ci
+        JOIN clipping_sources cs ON cs.id = ci.source_id
+        WHERE ci.tenant_id=$1
+          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+          ${clientFilter}
         GROUP BY keyword
         ORDER BY count DESC
         LIMIT 15
         `,
-        [tenantId]
+        baseParams
       );
 
       const { rows: prevTrendRows } = await query<any>(
         `
-        SELECT LOWER(unnest(segments)) AS keyword, COUNT(*)::int AS count
-        FROM clipping_items
-        WHERE tenant_id=$1
-          AND created_at < NOW() - INTERVAL '${windowInterval}'
-          AND created_at >= NOW() - INTERVAL '${windowInterval}' * 2
+        SELECT LOWER(unnest(ci.segments)) AS keyword, COUNT(*)::int AS count
+        FROM clipping_items ci
+        JOIN clipping_sources cs ON cs.id = ci.source_id
+        WHERE ci.tenant_id=$1
+          AND ci.created_at < NOW() - INTERVAL '${windowInterval}'
+          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}' * 2
+          ${clientFilter}
         GROUP BY keyword
         `,
-        [tenantId]
+        baseParams
       );
 
       const prevMap = new Map<string, number>();
