@@ -188,7 +188,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [sourceName, setSourceName] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceType, setSourceType] = useState('RSS');
-  const [sourceScope, setSourceScope] = useState('GLOBAL');
+  const [sourceScope, setSourceScope] = useState('CLIENT');
   const [sourceIncludeKw, setSourceIncludeKw] = useState('');
   const [sourceExcludeKw, setSourceExcludeKw] = useState('');
   const [ingestUrl, setIngestUrl] = useState('');
