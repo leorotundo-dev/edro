@@ -174,6 +174,7 @@ const baseClientSchema = z.object({
   pillars: z.array(z.string()).optional(),
   negative_keywords: z.array(z.string()).optional(),
   knowledge_base: z.record(z.any()).optional(),
+  status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
 });
 
 export default async function clientsRoutes(app: FastifyInstance) {

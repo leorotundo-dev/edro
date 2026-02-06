@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,17 +11,27 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
+  IconArchive,
   IconBriefcase,
   IconCalendar,
+  IconDotsVertical,
+  IconEdit,
   IconMapPin,
+  IconPlayerPlay,
   IconPlus,
   IconSearch,
   IconSparkles,
+  IconTrash,
 } from '@tabler/icons-react';
 
 type Client = {
@@ -44,6 +54,8 @@ export default function ClientsListClient() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuClient, setMenuClient] = useState<Client | null>(null);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -79,6 +91,41 @@ export default function ClientsListClient() {
       return <Chip size="small" color="warning" label="Pausado" />;
     }
     return <Chip size="small" variant="outlined" label="Rascunho" />;
+  };
+
+  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, client: Client) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setMenuClient(client);
+  };
+
+  const handleCloseMenu = () => {
+    setMenuAnchor(null);
+    setMenuClient(null);
+  };
+
+  const handleArchiveClient = async () => {
+    if (!menuClient) return;
+    const isArchived = menuClient.status === 'archived';
+    const newStatus = isArchived ? 'active' : 'archived';
+    handleCloseMenu();
+    try {
+      await apiPatch(`/clients/${menuClient.id}`, { status: newStatus });
+      await loadClients();
+    } catch { /* ignore */ }
+  };
+
+  const handleDeleteClient = async () => {
+    if (!menuClient) return;
+    if (!window.confirm(`Excluir o cliente "${menuClient.name}"? Esta acao nao pode ser desfeita.`)) {
+      handleCloseMenu();
+      return;
+    }
+    handleCloseMenu();
+    try {
+      await apiDelete(`/clients/${menuClient.id}`);
+      await loadClients();
+    } catch { /* ignore */ }
   };
 
   return (
@@ -141,6 +188,31 @@ export default function ClientsListClient() {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={handleCloseMenu}
+          onClick={(e) => e.stopPropagation()}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={() => { handleCloseMenu(); if (menuClient) router.push(`/clients/${menuClient.id}`); }}>
+            <ListItemIcon><IconEdit size={18} /></ListItemIcon>
+            <ListItemText>Editar</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleArchiveClient}>
+            <ListItemIcon>
+              {menuClient?.status === 'archived' ? <IconPlayerPlay size={18} /> : <IconArchive size={18} />}
+            </ListItemIcon>
+            <ListItemText>{menuClient?.status === 'archived' ? 'Reativar' : 'Arquivar'}</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleDeleteClient} sx={{ color: 'error.main' }}>
+            <ListItemIcon><IconTrash size={18} color="inherit" /></ListItemIcon>
+            <ListItemText>Excluir</ListItemText>
+          </MenuItem>
+        </Menu>
+
         <Grid container spacing={2}>
           {filteredClients.map((client) => (
             <Grid key={client.id} size={{ xs: 12, md: 6, lg: 4 }}>
@@ -171,7 +243,12 @@ export default function ClientsListClient() {
                         </Typography>
                       </Box>
                     </Stack>
-                    {getStatusBadge(client.status)}
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      {getStatusBadge(client.status)}
+                      <IconButton size="small" onClick={(e) => handleOpenMenu(e, client)}>
+                        <IconDotsVertical size={18} />
+                      </IconButton>
+                    </Stack>
                   </Stack>
 
                   <Stack direction="row" spacing={1} alignItems="center" color="text.secondary">
@@ -231,6 +308,7 @@ export default function ClientsListClient() {
             </Grid>
           ))}
         </Grid>
+        </>
       )}
     </Box>
   );

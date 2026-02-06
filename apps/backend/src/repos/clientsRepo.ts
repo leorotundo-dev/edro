@@ -38,6 +38,7 @@ type ClientPayload = {
   city?: string | null;
   segment_primary: string;
   reportei_account_id?: string | null;
+  status?: string;
 } & ClientProfilePatch;
 
 const calendarDefaults: CalendarProfile = {
@@ -160,6 +161,7 @@ export async function updateClient(params: {
         segment_secondary=$8,
         reportei_account_id=$9,
         profile=$10::jsonb,
+        status=$11,
         updated_at=NOW()
     WHERE id=$1 AND tenant_id=$2
     RETURNING *
@@ -175,6 +177,7 @@ export async function updateClient(params: {
       segmentSecondary,
       params.patch.reportei_account_id ?? current.reportei_account_id,
       JSON.stringify(profile),
+      params.patch.status ?? current.status ?? 'draft',
     ]
   );
 
