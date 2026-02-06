@@ -45,7 +45,8 @@ type DiagnosticsData = {
     last_fetched_at: string | null;
     fetch_interval_minutes: number;
   }>;
-  items: { total: number; last_24h: number; last_7d: number };
+  pending_jobs: Array<{ type: string; status: string; count: number }>;
+  items: { total: number; last_24h: number; last_7d: number; last_item_at: string | null };
   errors?: string[];
 };
 
@@ -352,6 +353,25 @@ export default function ClippingDiagnosticsPage() {
                         {data.items.last_7d}
                       </Typography>
                     </Stack>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">Ultimo item criado</Typography>
+                      <Typography variant="body2" fontWeight={600} color="text.secondary">
+                        {timeAgo(data.items.last_item_at)}
+                      </Typography>
+                    </Stack>
+                    {(data.pending_jobs?.length > 0) && (
+                      <>
+                        <Typography variant="caption" color="warning.main" fontWeight={600} sx={{ mt: 1 }}>
+                          Jobs pendentes:
+                        </Typography>
+                        {data.pending_jobs.map((pj, i) => (
+                          <Stack key={i} direction="row" justifyContent="space-between">
+                            <Typography variant="caption" fontFamily="monospace">{pj.type} ({pj.status})</Typography>
+                            <Typography variant="caption" fontWeight={700}>{pj.count}</Typography>
+                          </Stack>
+                        ))}
+                      </>
+                    )}
                   </Stack>
                 </DashboardCard>
               </Grid>

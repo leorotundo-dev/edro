@@ -1554,7 +1554,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
       let failedJobs: any[] = [];
       try {
         const res = await query<any>(
-          `SELECT id, type, error, updated_at
+          `SELECT id, type, error_message AS error, updated_at
            FROM job_queue
            WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='failed'
            ORDER BY updated_at DESC
@@ -1594,14 +1594,15 @@ export default async function clippingRoutes(app: FastifyInstance) {
         errors.push(`migrations: ${e?.message}`);
       }
 
-      // 7. Recent items count
-      let items: any = { total: 0, last_24h: 0, last_7d: 0 };
+      // 7. Recent items count + last item date
+      let items: any = { total: 0, last_24h: 0, last_7d: 0, last_item_at: null };
       try {
         const res = await query<any>(
           `SELECT
              COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS last_24h,
-             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS last_7d
+             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS last_7d,
+             MAX(created_at)::text AS last_item_at
            FROM clipping_items WHERE tenant_id=$1`,
           [tenantId]
         );
@@ -1610,11 +1611,28 @@ export default async function clippingRoutes(app: FastifyInstance) {
         errors.push(`items: ${e?.message}`);
       }
 
+      // 8. Queued/processing jobs (to see if pipeline is stuck)
+      let pendingJobs: any[] = [];
+      try {
+        const res = await query<any>(
+          `SELECT type, status, COUNT(*)::int AS count
+           FROM job_queue
+           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status IN ('queued','processing')
+           GROUP BY type, status
+           ORDER BY type`,
+          [tenantId]
+        );
+        pendingJobs = res.rows;
+      } catch (e: any) {
+        errors.push(`pending_jobs: ${e?.message}`);
+      }
+
       return {
         migrations_applied: migrations,
         column_checks: columnChecks,
         feedback_table_exists: feedbackTableExists,
         job_queue_stats: jobStats,
+        pending_jobs: pendingJobs,
         recent_failed_jobs: failedJobs,
         sources: sourceStatus,
         items,
