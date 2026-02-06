@@ -55,6 +55,8 @@ type ClippingItem = {
   url?: string | null;
   image_url?: string | null;
   score?: number | null;
+  client_score?: number | null;
+  client_matched_keywords?: string[] | null;
   status?: string | null;
   type?: string | null;
   source_name?: string | null;
@@ -620,7 +622,12 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                           </Stack>
                           <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
                             <Chip size="small" label={item.type || 'NEWS'} variant="outlined" />
-                            <Chip size="small" label={`Score ${formatNumber(item.score)}`} color="primary" variant="outlined" />
+                            <Chip
+                              size="small"
+                              label={item.client_score != null ? `Relevância ${formatNumber(item.client_score)}` : `Score ${formatNumber(item.score)}`}
+                              color={item.client_score != null && item.client_score >= 0.7 ? 'success' : 'primary'}
+                              variant="outlined"
+                            />
                             <Chip size="small" color={badge.color} label={badge.label} />
                             {item.url ? (
                               <Button

@@ -350,7 +350,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
   app.get(
     '/clipping/items',
     { preHandler: [requirePerm('clipping:read')] },
-    async (request: any) => {
+    async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const paramsSchema = z.object({
         status: z.string().optional(),
@@ -419,12 +419,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
         values.push(queryParams.sourceId);
       }
 
-      if (queryParams.clientId) {
-        where.push(
-          `(ci.assigned_client_ids @> $${idx}::text[] OR ci.suggested_client_ids @> $${idx}::text[] OR cs.client_id = $${idx + 1})`
-        );
-        values.push([queryParams.clientId], queryParams.clientId);
-        idx += 2;
+      // When filtering by clientId, use clipping_matches for accurate per-client relevance
+      const useClientMatch = !!queryParams.clientId;
+      if (useClientMatch) {
+        where.push(`cm.client_id = $${idx++}`);
+        values.push(queryParams.clientId);
+        // Only show items with meaningful per-client relevance
+        where.push(`cm.score >= 0.50`);
       }
 
       if (queryParams.q) {
@@ -442,13 +443,24 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const offset = Math.max(Number(queryParams.offset) || 0, 0);
       values.push(limit, offset);
 
+      const selectExtra = useClientMatch
+        ? `, cm.score AS client_score, cm.matched_keywords AS client_matched_keywords`
+        : '';
+      const joinMatch = useClientMatch
+        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id`
+        : '';
+      const orderBy = useClientMatch
+        ? `cm.score DESC, ci.published_at DESC NULLS LAST`
+        : `ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC`;
+
       const { rows } = await query<any>(
         `
-        SELECT ci.*, cs.name as source_name, cs.url as source_url, cs.type as source_type
+        SELECT ci.*, cs.name as source_name, cs.url as source_url, cs.type as source_type${selectExtra}
         FROM clipping_items ci
         JOIN clipping_sources cs ON cs.id = ci.source_id
+        ${joinMatch}
         WHERE ${where.join(' AND ')}
-        ORDER BY ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
+        ORDER BY ${orderBy}
         LIMIT $${idx++} OFFSET $${idx}
         `,
         values
@@ -1195,9 +1207,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
       const windowInterval = `${windowDays} days`;
 
-      // When clientId is provided, filter items that match this client
-      const clientFilter = clientId
-        ? `AND (ci.assigned_client_ids @> ARRAY[$2]::text[] OR ci.suggested_client_ids @> ARRAY[$2]::text[] OR cs.client_id = $2)`
+      // When clientId is provided, join clipping_matches for accurate per-client data
+      const clientMatchJoin = clientId
+        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= 0.50`
         : '';
       const baseParams = clientId ? [tenantId, clientId] : [tenantId];
 
@@ -1227,7 +1239,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
             COUNT(*) FILTER (WHERE ci.score < 40) AS low
           FROM clipping_items ci
           JOIN clipping_sources cs ON cs.id = ci.source_id
-          WHERE ci.tenant_id=$1 ${clientFilter}
+          ${clientMatchJoin}
+          WHERE ci.tenant_id=$1
           `,
           baseParams
         ),
@@ -1246,7 +1259,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ON ci.source_id = cs.id
          AND ci.tenant_id = cs.tenant_id
          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-         ${clientFilter}
+        ${clientId ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= 0.50` : ''}
         WHERE cs.tenant_id=$1
         GROUP BY cs.id
         HAVING COUNT(ci.id) > 0
@@ -1267,10 +1280,10 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ci.url
         FROM clipping_items ci
         JOIN clipping_sources cs ON cs.id = ci.source_id
+        ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-          ${clientFilter}
-        ORDER BY ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
+        ORDER BY ${clientId ? 'cm.score' : 'ci.score'} DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
         baseParams
@@ -1287,9 +1300,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ci.url
         FROM clipping_items ci
         JOIN clipping_sources cs ON cs.id = ci.source_id
+        ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-          ${clientFilter}
         ORDER BY ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
@@ -1301,9 +1314,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
         SELECT LOWER(unnest(ci.segments)) AS keyword, COUNT(*)::int AS count
         FROM clipping_items ci
         JOIN clipping_sources cs ON cs.id = ci.source_id
+        ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-          ${clientFilter}
         GROUP BY keyword
         ORDER BY count DESC
         LIMIT 15
@@ -1316,10 +1329,10 @@ export default async function clippingRoutes(app: FastifyInstance) {
         SELECT LOWER(unnest(ci.segments)) AS keyword, COUNT(*)::int AS count
         FROM clipping_items ci
         JOIN clipping_sources cs ON cs.id = ci.source_id
+        ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at < NOW() - INTERVAL '${windowInterval}'
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}' * 2
-          ${clientFilter}
         GROUP BY keyword
         `,
         baseParams

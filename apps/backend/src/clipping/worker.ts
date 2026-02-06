@@ -216,8 +216,8 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
       { keywords, pillars, negativeKeywords }
     );
 
-    // Only create match for score >= 0.45
-    if (scoreResult.score >= 0.45) {
+    // Only create match for score >= 0.55 (raised from 0.45 to reduce noise)
+    if (scoreResult.score >= 0.55) {
       const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
 
       // Add client to suggested_client_ids
