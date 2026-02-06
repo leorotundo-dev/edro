@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, getApiBase } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -28,6 +28,8 @@ import {
   IconDatabase,
   IconRss,
   IconBug,
+  IconPlugConnected,
+  IconPlugConnectedX,
 } from '@tabler/icons-react';
 
 type DiagnosticsData = {
@@ -46,6 +48,8 @@ type DiagnosticsData = {
   items: { total: number; last_24h: number; last_7d: number };
   errors?: string[];
 };
+
+type ConnectivityStatus = 'checking' | 'ok' | 'down' | 'auth_error' | 'unknown';
 
 function StatusIcon({ ok }: { ok: boolean }) {
   return ok ? (
@@ -74,6 +78,38 @@ export default function ClippingDiagnosticsPage() {
   const [backfillDays, setBackfillDays] = useState('7');
   const [backfillResult, setBackfillResult] = useState('');
   const [backfilling, setBackfilling] = useState(false);
+  const [connectivity, setConnectivity] = useState<ConnectivityStatus>('checking');
+  const [connectivityDetail, setConnectivityDetail] = useState('');
+
+  // Check backend connectivity on mount — try multiple endpoints
+  useEffect(() => {
+    async function checkBackend() {
+      setConnectivity('checking');
+      setConnectivityDetail('');
+      const base = getApiBase();
+      // Try the health endpoint through the proxy. The proxy prepends /api,
+      // so we try both /health (which becomes /api/health) and also a known
+      // clipping endpoint. Any HTTP response (even 401/404) means the backend is up.
+      const endpoints = [`${base}/health`, `${base}/clipping/sources`];
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, { method: 'GET' });
+          // Any HTTP response means the backend process is running
+          setConnectivity('ok');
+          setConnectivityDetail(`Backend respondeu (status ${res.status}) — esta online`);
+          return;
+        } catch {
+          // Continue to next endpoint
+        }
+      }
+      // All endpoints failed — backend is unreachable
+      setConnectivity('down');
+      setConnectivityDetail(
+        'O servidor backend NAO esta respondendo. Verifique o Railway: o servico pode estar parado ou em erro.'
+      );
+    }
+    checkBackend();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,7 +118,12 @@ export default function ClippingDiagnosticsPage() {
       const res = await apiGet<DiagnosticsData>('/clipping/admin/diagnostics');
       setData(res);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar diagnostico.');
+      const msg = err?.message || 'Falha ao carregar diagnostico.';
+      if (msg.includes('Proxy request failed')) {
+        setError('Backend indisponivel. O servidor nao esta respondendo. Verifique o Railway.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -133,6 +174,35 @@ export default function ClippingDiagnosticsPage() {
           </Button>
         </Stack>
 
+        {/* Connectivity check */}
+        <Alert
+          severity={
+            connectivity === 'ok' ? 'success' :
+            connectivity === 'down' ? 'error' :
+            connectivity === 'checking' ? 'info' :
+            'warning'
+          }
+          icon={
+            connectivity === 'checking' ? <CircularProgress size={18} /> :
+            connectivity === 'ok' ? <IconPlugConnected size={20} /> :
+            connectivity === 'down' ? <IconPlugConnectedX size={20} /> :
+            <IconAlertTriangle size={20} />
+          }
+          sx={{ mb: 2 }}
+        >
+          <Typography variant="body2" fontWeight={600}>
+            {connectivity === 'checking' && 'Verificando conexao com o backend...'}
+            {connectivity === 'ok' && 'Backend online'}
+            {connectivity === 'down' && 'Backend OFFLINE'}
+            {connectivity === 'unknown' && 'Status do backend incerto'}
+          </Typography>
+          {connectivityDetail && (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {connectivityDetail}
+            </Typography>
+          )}
+        </Alert>
+
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -142,11 +212,24 @@ export default function ClippingDiagnosticsPage() {
         {!data && !loading && (
           <DashboardCard>
             <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
-              <IconBug size={48} color="#5D87FF" />
-              <Typography variant="h6">Clique em "Executar Diagnostico" para verificar o status do Radar</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Vai checar migrations, colunas, fila de jobs, fontes e items recentes.
-              </Typography>
+              {connectivity === 'down' ? (
+                <>
+                  <IconPlugConnectedX size={48} color="#FA896B" />
+                  <Typography variant="h6">Backend indisponivel</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 500 }}>
+                    O servidor backend nao esta respondendo. Acesse o painel do Railway e verifique se o servico
+                    &quot;backend&quot; esta rodando. Pode ser que o deploy tenha falhado ou o servico esteja reiniciando.
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <IconBug size={48} color="#5D87FF" />
+                  <Typography variant="h6">Clique em &quot;Executar Diagnostico&quot; para verificar o status do Radar</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Vai checar migrations, colunas, fila de jobs, fontes e items recentes.
+                  </Typography>
+                </>
+              )}
             </Stack>
           </DashboardCard>
         )}
