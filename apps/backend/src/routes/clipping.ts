@@ -1619,6 +1619,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
           `SELECT type, status, COUNT(*)::int AS count
            FROM job_queue
            WHERE tenant_id=$1 AND type LIKE 'clipping_%'
+             AND status IN ('queued','processing')
            GROUP BY type, status
            ORDER BY type, status`,
           [tenantId]
