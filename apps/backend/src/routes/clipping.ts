@@ -1555,8 +1555,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
     }
   );
 
-  // ── Purge queued clipping jobs ────────────────────────────────────
-  // Delete all queued (not processing/done) clipping jobs to recover from queue explosion
+  // ── Purge clipping jobs ─────────────────────────────────────────────
+  // Delete all non-processing clipping jobs (queued + done + failed)
 
   app.post(
     '/clipping/admin/purge-queue',
@@ -1567,7 +1567,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const { rows } = await query<{ deleted: number }>(
         `WITH deleted AS (
            DELETE FROM job_queue
-           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='queued'
+           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status IN ('queued','done','failed')
            RETURNING id
          ) SELECT COUNT(*)::int AS deleted FROM deleted`,
         [tenantId]
