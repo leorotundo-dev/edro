@@ -425,15 +425,19 @@ export default async function clippingRoutes(app: FastifyInstance) {
         values.push(queryParams.sourceId);
       }
 
-      // When filtering by clientId, use clipping_matches for accurate per-client relevance
-      const useClientMatch = !!queryParams.clientId;
-      if (useClientMatch) {
-        const clientIdParam = idx++;
-        where.push(`cm.client_id = $${clientIdParam}`);
+      // When filtering by clientId, include:
+      // - items from CLIENT sources assigned to that client (even if no keyword profile is configured)
+      // - items from GLOBAL sources that have a strong match for that client
+      const useClientScope = !!queryParams.clientId;
+      let clientIdParam = 0;
+      let minClientScoreParam = 0;
+      if (useClientScope) {
+        clientIdParam = idx++;
         values.push(queryParams.clientId);
-        // Only show items with meaningful per-client relevance
+
+        // Only show items with meaningful per-client relevance for GLOBAL sources
         const minClientScore = getClientMinRelevanceScore();
-        where.push(`cm.score >= $${idx++}`);
+        minClientScoreParam = idx++;
         values.push(minClientScore);
 
         // Hide items already marked irrelevant for this client (or globally)
@@ -444,6 +448,16 @@ export default async function clippingRoutes(app: FastifyInstance) {
                AND cf.clipping_item_id = ci.id
                AND (cf.client_id IS NULL OR cf.client_id = $${clientIdParam})
                AND cf.feedback IN ('irrelevant','wrong_client')
+           )`
+        );
+
+        // Prevent leakage across client-scoped sources:
+        // only allow matches from GLOBAL sources, and always include this client's own sources.
+        where.push(
+          `(
+             (cs.scope='CLIENT' AND cs.client_id = $${clientIdParam})
+             OR
+             (cs.scope='GLOBAL' AND cm.score >= $${minClientScoreParam})
            )`
         );
       }
@@ -463,14 +477,16 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const offset = Math.max(Number(queryParams.offset) || 0, 0);
       values.push(limit, offset);
 
-      const selectExtra = useClientMatch
+      const selectExtra = useClientScope
         ? `, cm.score::float8 AS client_score, cm.matched_keywords AS client_matched_keywords`
         : '';
-      const joinMatch = useClientMatch
-        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id`
+      const joinMatch = useClientScope
+        ? `LEFT JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $${clientIdParam}`
         : '';
-      const orderBy = useClientMatch
-        ? `cm.score DESC, ci.published_at DESC NULLS LAST`
+      const orderBy = useClientScope
+        ? `CASE WHEN cs.scope='CLIENT' AND cs.client_id = $${clientIdParam} THEN 1 ELSE 0 END DESC,
+           COALESCE(cm.score, 0) DESC,
+           ci.published_at DESC NULLS LAST`
         : `ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC`;
 
       const { rows } = await query<any>(
@@ -1229,11 +1245,33 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const windowInterval = `${windowDays} days`;
       const minClientScore = getClientMinRelevanceScore();
 
-      // When clientId is provided, join clipping_matches for accurate per-client data
-      const clientMatchJoin = clientId
-        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= ${minClientScore}`
-        : '';
       const baseParams = clientId ? [tenantId, clientId] : [tenantId];
+      const baseParamsWithScore = clientId ? [tenantId, clientId, minClientScore] : [tenantId];
+
+      // Per-client view: include client-scoped sources, and only show GLOBAL items that strongly match the client.
+      const clientMatchJoin = clientId
+        ? `LEFT JOIN clipping_matches cm
+             ON cm.clipping_item_id = ci.id
+            AND cm.tenant_id = ci.tenant_id
+            AND cm.client_id = $2`
+        : '';
+      const clientItemFilter = clientId
+        ? `
+          AND (
+            (cs.scope='CLIENT' AND cs.client_id=$2)
+            OR
+            (cs.scope='GLOBAL' AND cm.score >= $3)
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM clipping_feedback cf
+            WHERE cf.tenant_id = ci.tenant_id
+              AND cf.clipping_item_id = ci.id
+              AND (cf.client_id IS NULL OR cf.client_id = $2)
+              AND cf.feedback IN ('irrelevant','wrong_client')
+          )
+        `
+        : '';
+      const itemParams = clientId ? baseParamsWithScore : baseParams;
 
       const [{ rows: sourceRows }, { rows: itemRows }] = await Promise.all([
         query<any>(
@@ -1263,8 +1301,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
           JOIN clipping_sources cs ON cs.id = ci.source_id
           ${clientMatchJoin}
           WHERE ci.tenant_id=$1
+          ${clientItemFilter}
           `,
-          baseParams
+          itemParams
         ),
       ]);
 
@@ -1281,14 +1320,32 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ON ci.source_id = cs.id
          AND ci.tenant_id = cs.tenant_id
          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-        ${clientId ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= ${minClientScore}` : ''}
+         ${clientId ? `AND NOT EXISTS (
+             SELECT 1 FROM clipping_feedback cf
+             WHERE cf.tenant_id = ci.tenant_id
+               AND cf.clipping_item_id = ci.id
+               AND (cf.client_id IS NULL OR cf.client_id = $2)
+               AND cf.feedback IN ('irrelevant','wrong_client')
+           )
+           AND (
+             (cs.scope='CLIENT' AND cs.client_id = $2)
+             OR
+             (cs.scope='GLOBAL' AND EXISTS (
+               SELECT 1 FROM clipping_matches cm
+               WHERE cm.tenant_id = ci.tenant_id
+                 AND cm.clipping_item_id = ci.id
+                 AND cm.client_id = $2
+                 AND cm.score >= $3
+             ))
+           )` : ''}
         WHERE cs.tenant_id=$1
+          ${clientId ? `AND (cs.scope='GLOBAL' OR cs.client_id=$2)` : ''}
         GROUP BY cs.id
         HAVING COUNT(ci.id) > 0
         ORDER BY item_count DESC, cs.name ASC
         LIMIT 10
         `,
-        baseParams
+        clientId ? baseParamsWithScore : baseParams
       );
 
       const { rows: topItemsRows } = await query<any>(
@@ -1305,10 +1362,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
         ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-        ORDER BY ${clientId ? 'cm.score' : 'ci.score'} DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC
+          ${clientItemFilter}
+        ORDER BY ${clientId
+          ? `CASE WHEN cs.scope='CLIENT' AND cs.client_id=$2 THEN 1 ELSE 0 END DESC, COALESCE(cm.score,0) DESC`
+          : 'ci.score DESC'} , ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
-        baseParams
+        itemParams
       );
 
       const { rows: recentItemsRows } = await query<any>(
@@ -1325,10 +1385,11 @@ export default async function clippingRoutes(app: FastifyInstance) {
         ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+          ${clientItemFilter}
         ORDER BY ci.published_at DESC NULLS LAST, ci.created_at DESC
         LIMIT 10
         `,
-        baseParams
+        itemParams
       );
 
       const { rows: trendRows } = await query<any>(
@@ -1339,11 +1400,12 @@ export default async function clippingRoutes(app: FastifyInstance) {
         ${clientMatchJoin}
         WHERE ci.tenant_id=$1
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+          ${clientItemFilter}
         GROUP BY keyword
         ORDER BY count DESC
         LIMIT 15
         `,
-        baseParams
+        itemParams
       );
 
       const { rows: prevTrendRows } = await query<any>(
@@ -1355,9 +1417,10 @@ export default async function clippingRoutes(app: FastifyInstance) {
         WHERE ci.tenant_id=$1
           AND ci.created_at < NOW() - INTERVAL '${windowInterval}'
           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}' * 2
+          ${clientItemFilter}
         GROUP BY keyword
         `,
-        baseParams
+        itemParams
       );
 
       const prevMap = new Map<string, number>();
