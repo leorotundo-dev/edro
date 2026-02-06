@@ -246,13 +246,19 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   }, [selectedClient]);
 
   const loadItems = useCallback(async () => {
+    // Items must be scoped to a client — don't load without one
+    if (!selectedClient?.id) {
+      setItems([]);
+      return;
+    }
+
     const qs = new URLSearchParams();
     if (statusFilter) qs.set('status', statusFilter);
     if (typeFilter) qs.set('type', typeFilter);
     if (recencyFilter) qs.set('recency', recencyFilter);
     if (minScore) qs.set('minScore', minScore);
     if (query) qs.set('q', query);
-    if (selectedClient?.id) qs.set('clientId', selectedClient.id);
+    qs.set('clientId', selectedClient.id);
 
     setLoading(true);
     setError('');

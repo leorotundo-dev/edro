@@ -366,6 +366,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
       });
       const queryParams = paramsSchema.parse(request.query);
 
+      // clientId is required to prevent cross-client data leakage.
+      // Admin users can omit it for diagnostics, but regular listing must be scoped.
+      const userRole = (request.user as any).role;
+      if (!queryParams.clientId && userRole !== 'admin' && userRole !== 'owner') {
+        return reply.status(400).send({ error: 'clientId is required' });
+      }
+
       if (queryParams.clientId) {
         const allowed = await hasClientPerm({
           tenantId,
@@ -375,7 +382,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
           perm: 'read',
         });
         if (!allowed) {
-          return { error: 'client_forbidden' };
+          return reply.status(403).send({ error: 'client_forbidden' });
         }
       }
 
