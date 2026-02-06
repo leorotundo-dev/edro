@@ -67,10 +67,19 @@ const SEGMENT_KEYWORDS: Record<string, string[]> = {
 const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'true') === 'true';
 const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetries: 2 }) : null;
 
+let lastStuckReapAt = 0;
+
 function getClientMinRelevanceScore() {
   const raw = Number(process.env.CLIPPING_CLIENT_MIN_SCORE ?? '0.6');
   if (!Number.isFinite(raw)) return 0.6;
   return Math.max(0, Math.min(1, raw));
+}
+
+function getFetchStuckMinutes() {
+  const raw = Number(process.env.CLIPPING_FETCH_STUCK_MINUTES ?? '30');
+  if (!Number.isFinite(raw)) return 30;
+  // Clamp 1–1440 (1 day)
+  return Math.max(1, Math.min(1440, Math.trunc(raw)));
 }
 
 function normalize(value?: string | null) {
@@ -319,6 +328,55 @@ async function enqueueDueSources() {
   }
 }
 
+async function isJobStillProcessing(job: { id: string; tenant_id: string }) {
+  const { rows } = await query<{ status: string }>(
+    `SELECT status FROM job_queue WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+    [job.id, job.tenant_id]
+  );
+  return rows[0]?.status === 'processing';
+}
+
+async function autoReapStuckFetchJobs() {
+  // Avoid running this query on every runner tick (default tick is 5s).
+  if (Date.now() - lastStuckReapAt < 60_000) return;
+  lastStuckReapAt = Date.now();
+
+  const minutes = getFetchStuckMinutes();
+
+  try {
+    await query(
+      `WITH cancelled AS (
+         UPDATE job_queue jq
+         SET status='failed',
+             error_message=$1,
+             updated_at=NOW()
+         WHERE jq.type='clipping_fetch_source'
+           AND jq.status='processing'
+           AND jq.updated_at < NOW() - ($2::text || ' minutes')::interval
+         RETURNING jq.tenant_id, NULLIF(jq.payload->>'source_id','') AS source_id
+       ),
+       updated_sources AS (
+         UPDATE clipping_sources cs
+         SET status='ERROR',
+             last_error=$3,
+             last_fetched_at=NOW(),
+             updated_at=NOW()
+         FROM cancelled c
+         WHERE c.source_id IS NOT NULL
+           AND cs.id::text = c.source_id
+           AND cs.tenant_id = c.tenant_id
+         RETURNING cs.id
+       )
+       SELECT
+         (SELECT COUNT(*)::int FROM cancelled) AS cancelled_jobs,
+         (SELECT COUNT(*)::int FROM updated_sources) AS touched_sources`,
+      ['fetch_stuck_timeout', minutes, 'fetch_stuck_timeout']
+    );
+  } catch {
+    // ignore auto-reaper errors
+  }
+}
+
 async function handleFetchSource(job: any) {
   const sourceId = job.payload?.source_id;
   if (!sourceId) return;
@@ -332,10 +390,12 @@ async function handleFetchSource(job: any) {
 
   try {
     if (source.type !== 'RSS') {
-      await query(
-        `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
-        [source.id]
-      );
+      if (await isJobStillProcessing(job)) {
+        await query(
+          `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
+          [source.id]
+        );
+      }
       return;
     }
 
@@ -395,17 +455,21 @@ async function handleFetchSource(job: any) {
       }
     }
 
-    await query(
-      `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
-      [source.id]
-    );
+    if (await isJobStillProcessing(job)) {
+      await query(
+        `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
+        [source.id]
+      );
+    }
 
     return inserted;
   } catch (error: any) {
-    await query(
-      `UPDATE clipping_sources SET last_fetched_at=NOW(), status='ERROR', last_error=$2, updated_at=NOW() WHERE id=$1`,
-      [source.id, error?.message || 'fetch_failed']
-    );
+    if (await isJobStillProcessing(job)) {
+      await query(
+        `UPDATE clipping_sources SET last_fetched_at=NOW(), status='ERROR', last_error=$2, updated_at=NOW() WHERE id=$1`,
+        [source.id, error?.message || 'fetch_failed']
+      );
+    }
     throw error;
   }
 }
@@ -487,6 +551,8 @@ async function handleAutoScore(job: any) {
 }
 
 export async function runClippingWorkerOnce() {
+  await autoReapStuckFetchJobs();
+
   // Purge items older than 7 days and clean up old jobs
   await purgeExpiredItems();
 
@@ -494,7 +560,8 @@ export async function runClippingWorkerOnce() {
 
   const pendingFetchJobs = await fetchJobs('clipping_fetch_source', 3);
   for (const job of pendingFetchJobs) {
-    await markJob(job.id, 'processing');
+    const started = await markJob(job.id, 'processing');
+    if (!started) continue;
     try {
       await handleFetchSource(job);
       await markJob(job.id, 'done');
@@ -505,7 +572,8 @@ export async function runClippingWorkerOnce() {
 
   const pendingEnrichJobs = await fetchJobs('clipping_enrich_item', 5);
   for (const job of pendingEnrichJobs) {
-    await markJob(job.id, 'processing');
+    const started = await markJob(job.id, 'processing');
+    if (!started) continue;
     try {
       await handleEnrichItem(job);
       await markJob(job.id, 'done');
@@ -516,7 +584,8 @@ export async function runClippingWorkerOnce() {
 
   const pendingAutoScoreJobs = await fetchJobs('clipping_auto_score', 10);
   for (const job of pendingAutoScoreJobs) {
-    await markJob(job.id, 'processing');
+    const started = await markJob(job.id, 'processing');
+    if (!started) continue;
     try {
       await handleAutoScore(job);
       await markJob(job.id, 'done');

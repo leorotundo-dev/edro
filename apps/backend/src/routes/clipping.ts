@@ -1627,6 +1627,65 @@ export default async function clippingRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Cancel Fetch Jobs (processing) ───────────────────────────────────
+  // Mark clipping_fetch_source jobs in processing as failed (tenant-scoped).
+
+  app.post(
+    '/clipping/admin/cancel-fetch-processing',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any) => {
+      const tenantId = (request.user as any).tenant_id;
+
+      const bodySchema = z.object({
+        olderThanMinutes: z.coerce.number().int().min(0).max(1440).optional(),
+      });
+      const body = bodySchema.parse(request.body ?? {});
+      const olderThanMinutes = body.olderThanMinutes ?? 0;
+
+      const timeFilter =
+        olderThanMinutes > 0 ? `AND jq.updated_at < NOW() - ($4::text || ' minutes')::interval` : '';
+
+      const params: any[] = [tenantId, 'cancelled_by_admin', 'cancelled_by_admin'];
+      if (olderThanMinutes > 0) params.push(olderThanMinutes);
+
+      const { rows } = await query<{ cancelled_jobs: number; touched_sources: number }>(
+        `WITH cancelled AS (
+           UPDATE job_queue jq
+           SET status='failed',
+               error_message=$2,
+               updated_at=NOW()
+           WHERE jq.tenant_id=$1
+             AND jq.type='clipping_fetch_source'
+             AND jq.status='processing'
+             ${timeFilter}
+           RETURNING jq.tenant_id, NULLIF(jq.payload->>'source_id','') AS source_id
+         ),
+         updated_sources AS (
+           UPDATE clipping_sources cs
+           SET status='ERROR',
+               last_error=$3,
+               last_fetched_at=NOW(),
+               updated_at=NOW()
+           FROM cancelled c
+           WHERE c.source_id IS NOT NULL
+             AND cs.tenant_id = c.tenant_id
+             AND cs.id::text = c.source_id
+           RETURNING cs.id
+         )
+         SELECT
+           (SELECT COUNT(*)::int FROM cancelled) AS cancelled_jobs,
+           (SELECT COUNT(*)::int FROM updated_sources) AS touched_sources`,
+        params
+      );
+
+      return {
+        ok: true,
+        cancelled_jobs: rows[0]?.cancelled_jobs ?? 0,
+        touched_sources: rows[0]?.touched_sources ?? 0,
+      };
+    }
+  );
+
   // ── Diagnostics ───────────────────────────────────────────────────
   // Quick health check for the clipping pipeline
 

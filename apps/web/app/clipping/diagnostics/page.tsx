@@ -171,6 +171,9 @@ export default function ClippingDiagnosticsPage() {
   const [purging, setPurging] = useState(false);
   const [purgeResult, setPurgeResult] = useState('');
 
+  const [cancellingFetchProcessing, setCancellingFetchProcessing] = useState(false);
+  const [cancelFetchProcessingResult, setCancelFetchProcessingResult] = useState('');
+
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchAllResult, setFetchAllResult] = useState('');
 
@@ -199,6 +202,28 @@ export default function ClippingDiagnosticsPage() {
       setPurgeResult(`Erro: ${err?.message || 'falha'}`);
     } finally {
       setPurging(false);
+    }
+  };
+
+  const handleCancelFetchProcessing = async () => {
+    if (!window.confirm('Isso vai CANCELAR os jobs de fetch que estao em processamento (viram FAILED). Continuar?')) return;
+    setCancellingFetchProcessing(true);
+    setCancelFetchProcessingResult('');
+    try {
+      const res = await apiPost<{ ok: boolean; cancelled_jobs: number; touched_sources: number }>(
+        '/clipping/admin/cancel-fetch-processing',
+        { olderThanMinutes: 0 }
+      );
+      const cancelled = res?.cancelled_jobs ?? 0;
+      const touched = res?.touched_sources ?? 0;
+      setCancelFetchProcessingResult(
+        `${cancelled.toLocaleString('pt-BR')} jobs cancelados. ${touched.toLocaleString('pt-BR')} fontes marcadas como erro.`
+      );
+      await load();
+    } catch (err: any) {
+      setCancelFetchProcessingResult(`Erro: ${err?.message || 'falha'}`);
+    } finally {
+      setCancellingFetchProcessing(false);
     }
   };
 
@@ -256,6 +281,10 @@ export default function ClippingDiagnosticsPage() {
         .reduce((sum, s) => sum + s.count, 0)
     : 0;
   const queueClogged = totalQueuedJobs > 1000;
+
+  const processingFetchCount = data
+    ? (data.job_queue_stats.find((s) => s.type === 'clipping_fetch_source' && s.status === 'processing')?.count ?? 0)
+    : 0;
 
   const overallHealth = data
     ? allColumnsOk && migrationsOk && data.feedback_table_exists && failedJobsCount === 0 && !queueClogged
@@ -513,7 +542,29 @@ export default function ClippingDiagnosticsPage() {
 
               {/* Job queue */}
               <Grid size={{ xs: 12, md: 8 }}>
-                <DashboardCard title="Fila de Jobs" noPadding>
+                <DashboardCard
+                  title="Fila de Jobs"
+                  action={
+                    processingFetchCount > 0 ? (
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        startIcon={cancellingFetchProcessing ? <CircularProgress size={14} color="inherit" /> : <IconX size={16} />}
+                        onClick={handleCancelFetchProcessing}
+                        disabled={cancellingFetchProcessing}
+                      >
+                        Cancelar fetch ({processingFetchCount})
+                      </Button>
+                    ) : null
+                  }
+                  noPadding
+                >
+                  {cancelFetchProcessingResult && (
+                    <Alert severity={cancelFetchProcessingResult.startsWith('Erro') ? 'error' : 'success'} sx={{ m: 2 }}>
+                      {cancelFetchProcessingResult}
+                    </Alert>
+                  )}
                   <TableContainer>
                     <Table size="small">
                       <TableHead>

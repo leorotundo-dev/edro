@@ -21,7 +21,8 @@ export async function runLibraryWorkerOnce() {
 
   for (const job of jobs) {
     try {
-      await markJob(job.id, 'processing');
+      const started = await markJob(job.id, 'processing');
+      if (!started) continue;
 
       const { library_item_id } = job.payload || {};
       const item = await getLibraryItem(job.tenant_id, library_item_id);
