@@ -26,6 +26,7 @@ type ClientProfilePatch = {
   platform_preferences?: Record<string, any>;
   keywords?: string[];
   pillars?: string[];
+  negative_keywords?: string[];
   knowledge_base?: Record<string, any>;
 };
 
@@ -64,6 +65,7 @@ function normalizeProfile(current: any, patch: ClientProfilePatch) {
   if (patch.platform_preferences !== undefined) next.platform_preferences = patch.platform_preferences;
   if (patch.keywords !== undefined) next.keywords = patch.keywords;
   if (patch.pillars !== undefined) next.pillars = patch.pillars;
+  if (patch.negative_keywords !== undefined) next.negative_keywords = patch.negative_keywords;
   if (patch.knowledge_base !== undefined) next.knowledge_base = patch.knowledge_base;
 
   next.calendar_profile = {

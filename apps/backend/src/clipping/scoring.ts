@@ -9,11 +9,13 @@ type ScoreInput = {
 export type ScoreResult = {
   score: number;
   matchedKeywords: string[];
+  negativeHits: string[];
   relevanceFactors: {
     keywordMatch: number;
     pillarAlignment: number;
     recency: number;
     contentQuality: number;
+    negativePenalty: number;
   };
   suggestedActions: string[];
 };
@@ -33,11 +35,36 @@ function extractText(input: ScoreInput) {
   return `${input.title || ''} ${input.summary || ''} ${input.content || ''}`.toLowerCase();
 }
 
+// ── Word-boundary matching ────────────────────────────────────
+
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Matches a keyword respecting word boundaries.
+ * - Multi-word phrases (e.g. "inteligencia artificial"): uses includes()
+ *   because \b doesn't work well with accented Portuguese characters.
+ * - Single words: uses regex with punctuation/whitespace boundaries.
+ */
+export function matchesWordBoundary(text: string, keyword: string): boolean {
+  const kw = keyword.trim().toLowerCase();
+  if (!kw) return false;
+  if (kw.includes(' ')) {
+    return text.includes(kw);
+  }
+  const boundary = String.raw`(?:^|[\s.,;:!?()\[\]{}/\"'\-–—])`;
+  const pattern = new RegExp(`${boundary}${escapeRegex(kw)}${boundary.replace('^', '$')}`, 'i');
+  return pattern.test(` ${text} `);
+}
+
+// ── Scoring components ────────────────────────────────────────
+
 function calculateKeywordMatch(text: string, keywords: string[]): number {
   if (!keywords.length) return 0;
   let matchCount = 0;
   keywords.forEach((keyword) => {
-    if (text.includes(keyword)) matchCount += 1;
+    if (matchesWordBoundary(text, keyword)) matchCount += 1;
   });
   return Math.min(1, matchCount / keywords.length);
 }
@@ -46,8 +73,8 @@ function calculatePillarAlignment(text: string, tags: string[], pillars: string[
   if (!pillars.length) return 0;
   let score = 0;
   pillars.forEach((pillar) => {
-    if (text.includes(pillar)) score += 0.5;
-    if (tags.some((tag) => tag.includes(pillar))) score += 0.5;
+    if (matchesWordBoundary(text, pillar)) score += 0.5;
+    if (tags.some((tag) => matchesWordBoundary(tag, pillar))) score += 0.5;
   });
   return Math.min(1, score / pillars.length);
 }
@@ -82,9 +109,17 @@ function calculateContentQuality(input: ScoreInput) {
 function findMatchedKeywords(text: string, keywords: string[]) {
   const matches: string[] = [];
   keywords.forEach((keyword) => {
-    if (text.includes(keyword)) matches.push(keyword);
+    if (matchesWordBoundary(text, keyword)) matches.push(keyword);
   });
   return matches;
+}
+
+function findNegativeHits(text: string, negativeKeywords: string[]) {
+  const hits: string[] = [];
+  negativeKeywords.forEach((nk) => {
+    if (matchesWordBoundary(text, nk)) hits.push(nk);
+  });
+  return hits;
 }
 
 function generateSuggestedActions(score: number, matchedKeywords: string[]) {
@@ -102,12 +137,15 @@ function generateSuggestedActions(score: number, matchedKeywords: string[]) {
   return actions;
 }
 
+// ── Main scoring function ─────────────────────────────────────
+
 export function scoreClippingItem(
   input: ScoreInput,
-  params: { keywords?: string[]; pillars?: string[] }
+  params: { keywords?: string[]; pillars?: string[]; negativeKeywords?: string[] }
 ): ScoreResult {
   const keywords = normalizeList(params.keywords || []);
   const pillars = normalizeList(params.pillars || []);
+  const negativeKeywords = normalizeList(params.negativeKeywords || []);
   const tags = normalizeList(input.tags || []);
   const text = extractText(input);
 
@@ -116,11 +154,16 @@ export function scoreClippingItem(
   const recency = calculateRecency(input.publishedAt || null);
   const contentQuality = calculateContentQuality(input);
 
-  const totalScore =
+  const rawScore =
     keywordMatch * WEIGHTS.keywordMatch +
     pillarAlignment * WEIGHTS.pillarAlignment +
     recency * WEIGHTS.recency +
     contentQuality * WEIGHTS.contentQuality;
+
+  // Negative keyword penalty: -0.15 per hit, max -0.50
+  const negativeHits = findNegativeHits(text, negativeKeywords);
+  const negativePenalty = Math.min(0.5, negativeHits.length * 0.15);
+  const totalScore = Math.max(0, rawScore - negativePenalty);
 
   const matchedKeywords = findMatchedKeywords(text, [...keywords, ...pillars]);
   const suggestedActions = generateSuggestedActions(totalScore, matchedKeywords);
@@ -128,11 +171,13 @@ export function scoreClippingItem(
   return {
     score: Math.round(totalScore * 100) / 100,
     matchedKeywords,
+    negativeHits,
     relevanceFactors: {
       keywordMatch: Math.round(keywordMatch * 100) / 100,
       pillarAlignment: Math.round(pillarAlignment * 100) / 100,
       recency: Math.round(recency * 100) / 100,
       contentQuality: Math.round(contentQuality * 100) / 100,
+      negativePenalty: Math.round(negativePenalty * 100) / 100,
     },
     suggestedActions,
   };

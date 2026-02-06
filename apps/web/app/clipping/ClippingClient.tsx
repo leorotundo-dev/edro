@@ -29,6 +29,7 @@ import {
   IconCalendarWeek,
   IconChartBar,
   IconRss,
+  IconThumbDown,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -160,6 +161,8 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceType, setSourceType] = useState('RSS');
   const [sourceScope, setSourceScope] = useState('GLOBAL');
+  const [sourceIncludeKw, setSourceIncludeKw] = useState('');
+  const [sourceExcludeKw, setSourceExcludeKw] = useState('');
   const [ingestUrl, setIngestUrl] = useState('');
   const [savingSource, setSavingSource] = useState(false);
   const [ingesting, setIngesting] = useState(false);
@@ -287,21 +290,39 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setError('');
     setSuccess('');
     try {
+      const includeKw = sourceIncludeKw.split(',').map((s) => s.trim()).filter(Boolean);
+      const excludeKw = sourceExcludeKw.split(',').map((s) => s.trim()).filter(Boolean);
       await apiPost('/clipping/sources', {
         scope: sourceScope,
         client_id: sourceScope === 'CLIENT' ? selectedClient?.id : undefined,
         name: sourceName.trim(),
         url: sourceUrl.trim(),
         type: sourceType,
+        include_keywords: includeKw.length ? includeKw : undefined,
+        exclude_keywords: excludeKw.length ? excludeKw : undefined,
       });
       setSourceName('');
       setSourceUrl('');
+      setSourceIncludeKw('');
+      setSourceExcludeKw('');
       setSuccess('Fonte adicionada.');
       await loadSources();
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar fonte.');
     } finally {
       setSavingSource(false);
+    }
+  };
+
+  const handleRejectItem = async (itemId: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      await apiPost(`/clipping/items/${itemId}/feedback`, { feedback: 'irrelevant' });
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      setSuccess('Item marcado como irrelevante.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao rejeitar item.');
     }
   };
 
@@ -497,6 +518,19 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                                 Abrir
                               </Button>
                             ) : null}
+                            <Button
+                              size="small"
+                              variant="text"
+                              color="error"
+                              startIcon={<IconThumbDown size={14} />}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRejectItem(item.id);
+                              }}
+                              sx={{ minWidth: 'auto', px: 1 }}
+                            >
+                              Rejeitar
+                            </Button>
                           </Stack>
                         </Stack>
                       </CardContent>
@@ -557,6 +591,20 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     </MenuItem>
                   ))}
                 </TextField>
+                <TextField
+                  label="Incluir keywords (virgula)"
+                  value={sourceIncludeKw}
+                  onChange={(event) => setSourceIncludeKw(event.target.value)}
+                  size="small"
+                  helperText="So ingerir itens com estas palavras"
+                />
+                <TextField
+                  label="Excluir keywords (virgula)"
+                  value={sourceExcludeKw}
+                  onChange={(event) => setSourceExcludeKw(event.target.value)}
+                  size="small"
+                  helperText="Ignorar itens com estas palavras"
+                />
                 <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={handleSaveSource} disabled={savingSource}>
                   {savingSource ? 'Salvando...' : 'Adicionar fonte'}
                 </Button>

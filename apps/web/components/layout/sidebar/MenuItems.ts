@@ -13,6 +13,7 @@ import {
   IconUpload,
   IconSettings,
   IconCoin,
+  IconTargetArrow,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -99,6 +100,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Clipping Analytics',
         icon: IconChartLine,
         href: '/clipping/dashboard',
+      },
+      {
+        id: 'quality',
+        title: 'Radar Quality',
+        icon: IconTargetArrow,
+        href: '/clipping/quality',
       },
       {
         id: 'social',

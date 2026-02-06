@@ -132,6 +132,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
         uf: z.string().optional(),
         city: z.string().optional(),
         fetch_interval_minutes: z.number().int().min(5).max(1440).optional(),
+        include_keywords: z.array(z.string()).optional(),
+        exclude_keywords: z.array(z.string()).optional(),
+        min_content_length: z.number().int().min(0).optional(),
       });
       const body = bodySchema.parse(request.body);
       const tenantId = (request.user as any).tenant_id;
@@ -154,8 +157,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
         const { rows } = await query(
           `
           INSERT INTO clipping_sources
-            (tenant_id, scope, client_id, name, url, type, tags, country, uf, city, fetch_interval_minutes)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            (tenant_id, scope, client_id, name, url, type, tags, country, uf, city, fetch_interval_minutes, include_keywords, exclude_keywords, min_content_length)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
           RETURNING *
           `,
           [
@@ -170,6 +173,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
             body.uf ?? null,
             body.city ?? null,
             body.fetch_interval_minutes ?? 60,
+            body.include_keywords ?? [],
+            body.exclude_keywords ?? [],
+            body.min_content_length ?? 0,
           ]
         );
         return rows[0];
@@ -193,6 +199,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
         city: z.string().optional(),
         is_active: z.boolean().optional(),
         fetch_interval_minutes: z.number().int().min(5).max(1440).optional(),
+        include_keywords: z.array(z.string()).optional(),
+        exclude_keywords: z.array(z.string()).optional(),
+        min_content_length: z.number().int().min(0).optional(),
       });
       const body = bodySchema.parse(request.body);
       const tenantId = (request.user as any).tenant_id;
@@ -225,13 +234,18 @@ export default async function clippingRoutes(app: FastifyInstance) {
         city: body.city ?? source.city,
         is_active: body.is_active ?? source.is_active,
         fetch_interval_minutes: body.fetch_interval_minutes ?? source.fetch_interval_minutes ?? 60,
+        include_keywords: body.include_keywords ?? source.include_keywords ?? [],
+        exclude_keywords: body.exclude_keywords ?? source.exclude_keywords ?? [],
+        min_content_length: body.min_content_length ?? source.min_content_length ?? 0,
       };
 
       const { rows: updatedRows } = await query(
         `
         UPDATE clipping_sources
         SET name=$3, url=$4, type=$5, tags=$6, country=$7, uf=$8, city=$9,
-            is_active=$10, fetch_interval_minutes=$11, updated_at=NOW()
+            is_active=$10, fetch_interval_minutes=$11,
+            include_keywords=$12, exclude_keywords=$13, min_content_length=$14,
+            updated_at=NOW()
         WHERE id=$1 AND tenant_id=$2
         RETURNING *
         `,
@@ -247,6 +261,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
           next.city ?? null,
           next.is_active,
           next.fetch_interval_minutes,
+          next.include_keywords,
+          next.exclude_keywords,
+          next.min_content_length,
         ]
       );
       return updatedRows[0];
@@ -540,6 +557,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
 
       let keywords = body.clientKeywords || [];
       let pillars = body.clientPillars || [];
+      let negativeKeywords: string[] = [];
 
       if (!keywords.length && !pillars.length) {
         const { rows } = await query<any>(
@@ -549,6 +567,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
         const profile = rows[0]?.profile || {};
         keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
         pillars = Array.isArray(profile.pillars) ? profile.pillars : [];
+        negativeKeywords = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
       }
 
       const { rows: items } = await query<any>(
@@ -574,14 +593,14 @@ export default async function clippingRoutes(app: FastifyInstance) {
             publishedAt: item.published_at,
             tags: item.tags,
           },
-          { keywords, pillars }
+          { keywords, pillars, negativeKeywords }
         );
 
         const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
         const suggested = Array.from(
           new Set([
             ...(item.suggested_client_ids || []),
-            scoreResult.score >= 0.3 ? body.clientId : null,
+            scoreResult.score >= 0.45 ? body.clientId : null,
           ].filter(Boolean))
         );
 
@@ -600,10 +619,10 @@ export default async function clippingRoutes(app: FastifyInstance) {
         await query(
           `
           INSERT INTO clipping_matches
-            (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions)
-          VALUES ($1,$2,$3,$4,$5,$6)
+            (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions, negative_hits, relevance_factors)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
           ON CONFLICT (tenant_id, clipping_item_id, client_id)
-          DO UPDATE SET score=$4, matched_keywords=$5, suggested_actions=$6, updated_at=NOW()
+          DO UPDATE SET score=$4, matched_keywords=$5, suggested_actions=$6, negative_hits=$7, relevance_factors=$8, updated_at=NOW()
           `,
           [
             tenantId,
@@ -612,6 +631,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
             scoreResult.score,
             scoreResult.matchedKeywords,
             scoreResult.suggestedActions,
+            scoreResult.negativeHits,
+            JSON.stringify(scoreResult.relevanceFactors),
           ]
         );
 
@@ -620,6 +641,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
           clientId: body.clientId,
           score: scoreResult.score,
           matchedKeywords: scoreResult.matchedKeywords,
+          negativeHits: scoreResult.negativeHits,
           suggestedActions: scoreResult.suggestedActions,
         });
       }
@@ -1306,6 +1328,148 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const tenantId = (request.user as any).tenant_id;
       await enqueueJob(tenantId, 'clipping_fetch_source', { source_id: request.body?.source_id });
       return { ok: true };
+    }
+  );
+
+  // ── Feedback ────────────────────────────────────────────────────
+
+  app.post(
+    '/clipping/items/:id/feedback',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        feedback: z.enum(['relevant', 'irrelevant', 'wrong_client']),
+        clientId: z.string().optional(),
+        reason: z.string().optional(),
+      });
+      const body = bodySchema.parse(request.body);
+      const tenantId = (request.user as any).tenant_id;
+      const userId = (request.user as any).sub ?? null;
+      const itemId = String(request.params.id);
+
+      // Verify item exists
+      const { rows: itemRows } = await query<any>(
+        `SELECT id FROM clipping_items WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [itemId, tenantId]
+      );
+      if (!itemRows[0]) return reply.status(404).send({ error: 'not_found' });
+
+      await query(
+        `INSERT INTO clipping_feedback
+           (tenant_id, clipping_item_id, client_id, user_id, feedback, reason)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (tenant_id, clipping_item_id, client_id, user_id)
+         DO UPDATE SET feedback=$5, reason=$6, created_at=NOW()`,
+        [tenantId, itemId, body.clientId ?? null, userId, body.feedback, body.reason ?? null]
+      );
+
+      // Auto-archive if marked irrelevant globally (no client)
+      if (body.feedback === 'irrelevant' && !body.clientId) {
+        await query(
+          `UPDATE clipping_items SET status='ARCHIVED', updated_at=NOW() WHERE id=$1 AND tenant_id=$2 AND status='NEW'`,
+          [itemId, tenantId]
+        );
+      }
+
+      return reply.send({ ok: true });
+    }
+  );
+
+  // ── Quality Dashboard ───────────────────────────────────────────
+
+  app.get(
+    '/clipping/quality',
+    { preHandler: [requirePerm('clipping:read')] },
+    async (request: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const range = String(request.query?.range || 'week');
+      const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
+      const windowInterval = `${windowDays} days`;
+
+      // Feedback summary
+      const { rows: feedbackRows } = await query<any>(
+        `SELECT
+           feedback,
+           COUNT(*)::int AS count
+         FROM clipping_feedback
+         WHERE tenant_id=$1 AND created_at >= NOW() - INTERVAL '${windowInterval}'
+         GROUP BY feedback`,
+        [tenantId]
+      );
+
+      const feedbackSummary: Record<string, number> = {};
+      for (const row of feedbackRows) {
+        feedbackSummary[row.feedback] = row.count;
+      }
+
+      const relevant = feedbackSummary['relevant'] || 0;
+      const irrelevant = feedbackSummary['irrelevant'] || 0;
+      const wrongClient = feedbackSummary['wrong_client'] || 0;
+      const totalFeedback = relevant + irrelevant + wrongClient;
+      const precisionPercent = totalFeedback > 0 ? Math.round((relevant / (relevant + irrelevant)) * 100) : null;
+
+      // Match quality by client
+      const { rows: clientQuality } = await query<any>(
+        `SELECT
+           cm.client_id,
+           c.name AS client_name,
+           COUNT(cm.id)::int AS total_matches,
+           AVG(cm.score)::numeric(10,3) AS avg_score,
+           COUNT(cf.id) FILTER (WHERE cf.feedback='relevant')::int AS relevant,
+           COUNT(cf.id) FILTER (WHERE cf.feedback='irrelevant')::int AS irrelevant
+         FROM clipping_matches cm
+         JOIN clients c ON c.id = cm.client_id
+         LEFT JOIN clipping_feedback cf
+           ON cf.clipping_item_id = cm.clipping_item_id AND cf.client_id = cm.client_id AND cf.tenant_id = cm.tenant_id
+         WHERE cm.tenant_id=$1 AND cm.created_at >= NOW() - INTERVAL '${windowInterval}'
+         GROUP BY cm.client_id, c.name
+         ORDER BY total_matches DESC`,
+        [tenantId]
+      );
+
+      // Source quality
+      const { rows: sourceQuality } = await query<any>(
+        `SELECT
+           cs.id AS source_id,
+           cs.name AS source_name,
+           COUNT(ci.id)::int AS total_items,
+           COUNT(ci.id) FILTER (WHERE ci.status='ARCHIVED')::int AS archived,
+           COUNT(ci.id) FILTER (WHERE ci.used_count > 0)::int AS used,
+           AVG(ci.score)::numeric(10,1) AS avg_score,
+           CASE WHEN COUNT(ci.id) > 0
+             THEN ROUND(COUNT(ci.id) FILTER (WHERE ci.status='ARCHIVED' AND ci.used_count=0)::numeric / COUNT(ci.id) * 100)
+             ELSE 0
+           END AS garbage_pct
+         FROM clipping_sources cs
+         LEFT JOIN clipping_items ci ON ci.source_id = cs.id AND ci.tenant_id = cs.tenant_id
+           AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
+         WHERE cs.tenant_id=$1
+         GROUP BY cs.id, cs.name
+         ORDER BY total_items DESC`,
+        [tenantId]
+      );
+
+      // Suggested negative keywords: tags from items marked irrelevant
+      const { rows: suggestedNegKw } = await query<any>(
+        `SELECT LOWER(unnest(ci.segments)) AS keyword, COUNT(*)::int AS count
+         FROM clipping_feedback cf
+         JOIN clipping_items ci ON ci.id = cf.clipping_item_id AND ci.tenant_id = cf.tenant_id
+         WHERE cf.tenant_id=$1 AND cf.feedback='irrelevant'
+           AND cf.created_at >= NOW() - INTERVAL '${windowInterval}'
+         GROUP BY keyword
+         ORDER BY count DESC
+         LIMIT 20`,
+        [tenantId]
+      );
+
+      return {
+        feedback_summary: feedbackSummary,
+        precision_percent: precisionPercent,
+        total_feedback: totalFeedback,
+        match_quality_by_client: clientQuality,
+        source_quality: sourceQuality,
+        suggested_negative_keywords: suggestedNegKw,
+      };
     }
   );
 }

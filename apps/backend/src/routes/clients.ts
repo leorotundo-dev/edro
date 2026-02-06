@@ -172,6 +172,7 @@ const baseClientSchema = z.object({
   reportei_account_id: z.string().optional().nullable(),
   keywords: z.array(z.string()).optional(),
   pillars: z.array(z.string()).optional(),
+  negative_keywords: z.array(z.string()).optional(),
   knowledge_base: z.record(z.any()).optional(),
 });
 

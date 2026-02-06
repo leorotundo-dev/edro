@@ -30,6 +30,9 @@ import {
   IconHistory,
   IconNews,
   IconStarFilled,
+  IconThumbUp,
+  IconThumbDown,
+  IconAlertTriangle,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -179,6 +182,30 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
       setSuccess('Post criado no calendario.');
     } catch (err: any) {
       setError(err?.message || 'Falha ao criar post.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFeedback = async (feedback: 'relevant' | 'irrelevant' | 'wrong_client') => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await apiPost(`/clipping/items/${itemId}/feedback`, {
+        feedback,
+        clientId: clientId || undefined,
+      });
+      setSuccess(
+        feedback === 'relevant'
+          ? 'Marcado como relevante.'
+          : feedback === 'irrelevant'
+            ? 'Marcado como irrelevante.'
+            : 'Marcado como cliente errado.'
+      );
+      await loadDetail();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao enviar feedback.');
     } finally {
       setSaving(false);
     }
@@ -353,6 +380,43 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
                   fullWidth
                 >
                   Arquivar
+                </Button>
+                <Divider />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Feedback de qualidade
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    variant="outlined"
+                    color="success"
+                    startIcon={<IconThumbUp size={16} />}
+                    onClick={() => handleFeedback('relevant')}
+                    disabled={saving}
+                    sx={{ flex: 1 }}
+                  >
+                    Relevante
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<IconThumbDown size={16} />}
+                    onClick={() => handleFeedback('irrelevant')}
+                    disabled={saving}
+                    sx={{ flex: 1 }}
+                  >
+                    Irrelevante
+                  </Button>
+                </Stack>
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<IconAlertTriangle size={16} />}
+                  onClick={() => handleFeedback('wrong_client')}
+                  disabled={saving || !clientId}
+                  fullWidth
+                  size="small"
+                >
+                  Cliente errado
                 </Button>
               </Stack>
             </DashboardCard>

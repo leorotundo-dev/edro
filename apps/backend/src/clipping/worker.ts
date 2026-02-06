@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query } from '../db';
 import { enqueueJob, fetchJobs, markJob } from '../jobs/jobQueue';
 import { UrlScraper } from './urlScraper';
+import { scoreClippingItem, matchesWordBoundary } from './scoring';
 
 const parser = new Parser();
 
@@ -19,6 +20,9 @@ type ClippingSource = {
   uf?: string | null;
   city?: string | null;
   fetch_interval_minutes?: number | null;
+  include_keywords?: string[] | null;
+  exclude_keywords?: string[] | null;
+  min_content_length?: number | null;
 };
 
 type ClippingItem = {
@@ -30,6 +34,8 @@ type ClippingItem = {
   published_at?: string | null;
   snippet?: string | null;
   image_url?: string | null;
+  summary?: string | null;
+  content?: string | null;
   type: string;
   segments?: string[] | null;
   country?: string | null;
@@ -40,19 +46,25 @@ type ClippingItem = {
 };
 
 const SEGMENT_KEYWORDS: Record<string, string[]> = {
-  varejo: ['varejo', 'supermercado', 'atacado', 'cash&carry', 'promo', 'desconto'],
-  moda: ['moda', 'fashion', 'roupa', 'calçado', 'vestuário'],
-  saude: ['saude', 'farmacia', 'hospital', 'clinica', 'bem-estar'],
-  fintech: ['fintech', 'banco', 'credito', 'pagamento', 'cartao'],
-  mobilidade: ['mobilidade', 'transporte', 'rodovia', 'metro', 'onibus', 'trânsito'],
-  logistica: ['logistica', 'transporte', 'frete', 'cadeia', 'supply'],
-  educacao: ['educacao', 'escola', 'universidade', 'curso'],
-  tecnologia: ['tecnologia', 'software', 'saas', 'app', 'inovacao'],
-  imobiliario: ['imobiliario', 'imovel', 'condominio', 'construcao'],
-  agronegocio: ['agro', 'agronegocio', 'fazenda', 'colheita'],
+  varejo: ['varejo', 'supermercado', 'atacado', 'cash&carry', 'atacarejo', 'promocao', 'desconto', 'loja', 'shopping', 'consumidor', 'pdv', 'ponto de venda', 'e-commerce', 'ecommerce', 'marketplace'],
+  moda: ['moda', 'fashion', 'roupa', 'calçado', 'vestuário', 'grife', 'coleção', 'estilista', 'tendência', 'lookbook', 'fast fashion'],
+  saude: ['saude', 'saúde', 'farmacia', 'farmácia', 'hospital', 'clinica', 'clínica', 'bem-estar', 'medicina', 'terapia', 'medico', 'médico', 'plano de saude'],
+  fintech: ['fintech', 'banco', 'credito', 'crédito', 'pagamento', 'cartao', 'cartão', 'pix', 'open banking', 'investimento', 'seguro', 'cripto', 'blockchain'],
+  mobilidade: ['mobilidade', 'transporte', 'rodovia', 'metro', 'metrô', 'ônibus', 'onibus', 'trânsito', 'transito', 'frota', 'veículo', 'veiculo', 'eletrico', 'elétrico', 'patinete', 'bike'],
+  logistica: ['logistica', 'logística', 'frete', 'cadeia de suprimentos', 'supply chain', 'armazem', 'armazém', 'entrega', 'delivery', 'last mile', 'distribuicao', 'distribuição'],
+  educacao: ['educacao', 'educação', 'escola', 'universidade', 'curso', 'ensino', 'aprendizado', 'edtech', 'vestibular', 'enem', 'professor', 'aluno', 'ead'],
+  tecnologia: ['tecnologia', 'software', 'saas', 'app', 'inovacao', 'inovação', 'startup', 'inteligencia artificial', 'inteligência artificial', 'machine learning', 'cloud', 'dados', 'cibersegurança', 'ciberseguranca'],
+  imobiliario: ['imobiliario', 'imobiliário', 'imovel', 'imóvel', 'condominio', 'condomínio', 'construcao', 'construção', 'incorporadora', 'loteamento', 'aluguel', 'hipoteca'],
+  agronegocio: ['agro', 'agronegocio', 'agronegócio', 'fazenda', 'colheita', 'safra', 'soja', 'milho', 'pecuária', 'pecuaria', 'fertilizante', 'irrigacao', 'irrigação'],
+  energia: ['energia', 'eletricidade', 'petróleo', 'petroleo', 'gás', 'gas natural', 'eólica', 'eolica', 'solar', 'fotovoltaica', 'renovavel', 'renovável', 'biomassa', 'etanol'],
+  sustentabilidade: ['sustentabilidade', 'esg', 'carbono', 'reciclagem', 'residuos', 'resíduos', 'meio ambiente', 'ambiental', 'economia circular', 'verde', 'impacto social'],
+  portos: ['porto', 'portuario', 'portuário', 'terminal', 'navegacao', 'navegação', 'navio', 'container', 'contêiner', 'cabotagem', 'marítimo', 'maritimo', 'atracacao'],
+  infraestrutura: ['infraestrutura', 'concessão', 'concessao', 'rodovia', 'ferrovia', 'saneamento', 'telecomunicações', 'telecomunicacoes', 'leilão', 'leilao', 'ppp', 'parceria publico-privada'],
+  marketing_digital: ['marketing digital', 'midia social', 'mídia social', 'influenciador', 'creator', 'engajamento', 'trafego pago', 'tráfego pago', 'seo', 'performance', 'branding', 'conteudo', 'conteúdo'],
+  industria: ['industria', 'indústria', 'fábrica', 'fabrica', 'manufatura', 'automação', 'automacao', 'siderurgia', 'metalurgia', 'quimica', 'química', 'embalagem'],
 };
 
-const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'false') === 'true';
+const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'true') === 'true';
 const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetries: 2 }) : null;
 
 function normalize(value?: string | null) {
@@ -63,11 +75,16 @@ function hashUrl(url: string) {
   return crypto.createHash('sha256').update(url).digest('hex');
 }
 
+function titleHash(title: string) {
+  const normalized = title.toLowerCase().replace(/[^a-záàâãéèêíïóôõöúçñ0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
+  return crypto.createHash('md5').update(normalized).digest('hex');
+}
+
 function inferSegments(text: string, base: string[] = []) {
   const found = new Set<string>(base.map((t) => t.toLowerCase()));
   const hay = normalize(text);
   Object.entries(SEGMENT_KEYWORDS).forEach(([segment, keywords]) => {
-    if (keywords.some((k) => hay.includes(k))) {
+    if (keywords.some((k) => matchesWordBoundary(hay, k))) {
       found.add(segment);
     }
   });
@@ -87,7 +104,7 @@ function recencyScore(publishedAt?: string | null) {
 }
 
 function computeScore(params: { publishedAt?: string | null; segments: string[]; type: string }) {
-  const base = 30;
+  const base = 10;
   const recency = recencyScore(params.publishedAt);
   const segmentScore = Math.min(30, params.segments.length * 8);
   const typeScore = params.type === 'TREND' ? 10 : 0;
@@ -126,29 +143,126 @@ function extractImageFromRssItem(item: any) {
   return fromContent || null;
 }
 
-async function suggestClients(tenantId: string, segments: string[]) {
-  if (!segments.length) return [];
-  const { rows } = await query<any>(
-    `SELECT id, segment_primary, profile FROM clients WHERE tenant_id=$1`,
+/**
+ * Check if an item passes source-level include/exclude filters.
+ */
+function shouldIngestItem(
+  title: string,
+  snippet: string,
+  source: ClippingSource
+): boolean {
+  const text = `${title} ${snippet}`.toLowerCase();
+
+  // Include filter: if set, at least one keyword must match
+  const includes = (source.include_keywords || []).filter(Boolean);
+  if (includes.length > 0) {
+    const hasMatch = includes.some((kw) => matchesWordBoundary(text, kw));
+    if (!hasMatch) return false;
+  }
+
+  // Exclude filter: if any keyword matches, skip
+  const excludes = (source.exclude_keywords || []).filter(Boolean);
+  if (excludes.length > 0) {
+    const hasExclude = excludes.some((kw) => matchesWordBoundary(text, kw));
+    if (hasExclude) return false;
+  }
+
+  // Min content length
+  if (source.min_content_length && text.length < source.min_content_length) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Check if an item with the same title hash exists in the last 7 days.
+ */
+async function isDuplicateTitle(tenantId: string, hash: string): Promise<boolean> {
+  const { rows } = await query<{ cnt: string }>(
+    `SELECT COUNT(*)::text AS cnt FROM clipping_items
+     WHERE tenant_id=$1 AND title_hash=$2 AND created_at > NOW() - INTERVAL '7 days'`,
+    [tenantId, hash]
+  );
+  return Number(rows[0]?.cnt || 0) > 0;
+}
+
+/**
+ * Auto-score a clipping item against all clients that have keywords configured.
+ */
+async function autoScoreClients(tenantId: string, item: ClippingItem) {
+  const { rows: clients } = await query<any>(
+    `SELECT id, profile FROM clients WHERE tenant_id=$1`,
     [tenantId]
   );
 
-  const scored = rows
-    .map((client) => {
-      const segPrimary = normalize(client.segment_primary);
-      let score = segments.includes(segPrimary) ? 2 : 0;
+  for (const client of clients) {
+    const profile = client.profile || {};
+    const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
+    const pillars: string[] = Array.isArray(profile.pillars) ? profile.pillars : [];
+    const negativeKeywords: string[] = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
 
-      if (client.profile?.segment_secondary && Array.isArray(client.profile.segment_secondary)) {
-        const secondary = client.profile.segment_secondary.map((s: string) => normalize(s));
-        if (segments.some((s) => secondary.includes(s))) score += 1;
+    // Skip clients without any keywords or pillars configured
+    if (!keywords.length && !pillars.length) continue;
+
+    const scoreResult = scoreClippingItem(
+      {
+        title: item.title,
+        summary: item.snippet || item.summary || undefined,
+        content: item.content || undefined,
+        publishedAt: item.published_at,
+        tags: item.segments,
+      },
+      { keywords, pillars, negativeKeywords }
+    );
+
+    // Only create match for score >= 0.45
+    if (scoreResult.score >= 0.45) {
+      const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
+
+      // Add client to suggested_client_ids
+      const currentSuggested: string[] = Array.isArray(item.suggested_client_ids) ? item.suggested_client_ids : [];
+      if (!currentSuggested.includes(client.id)) {
+        const updated = [...currentSuggested, client.id];
+        await query(
+          `UPDATE clipping_items SET suggested_client_ids=$3, relevance_score=GREATEST(COALESCE(relevance_score,0),$4), updated_at=NOW() WHERE id=$1 AND tenant_id=$2`,
+          [item.id, tenantId, updated, scoreResult.score]
+        );
+        item.suggested_client_ids = updated;
       }
 
-      return { id: client.id, score };
-    })
-    .filter((c) => c.score > 0)
-    .sort((a, b) => b.score - a.score);
+      // Upsert match
+      await query(
+        `INSERT INTO clipping_matches
+           (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions, negative_hits, relevance_factors)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (tenant_id, clipping_item_id, client_id)
+         DO UPDATE SET score=$4, matched_keywords=$5, suggested_actions=$6, negative_hits=$7, relevance_factors=$8, updated_at=NOW()`,
+        [
+          tenantId,
+          item.id,
+          client.id,
+          scoreResult.score,
+          scoreResult.matchedKeywords,
+          scoreResult.suggestedActions,
+          scoreResult.negativeHits,
+          JSON.stringify(scoreResult.relevanceFactors),
+        ]
+      );
+    }
+  }
+}
 
-  return scored.slice(0, 5).map((c) => c.id);
+/**
+ * Auto-archive stale items with low score and no client assignment.
+ */
+async function autoArchiveStaleItems() {
+  await query(
+    `UPDATE clipping_items SET status='ARCHIVED', updated_at=NOW()
+     WHERE status='NEW' AND score < 30
+       AND (array_length(assigned_client_ids, 1) IS NULL)
+       AND created_at < NOW() - INTERVAL '14 days'`
+  );
 }
 
 async function enqueueDueSources() {
@@ -199,15 +313,24 @@ async function handleFetchSource(job: any) {
       const title = (item.title || 'Untitled').trim();
       const snippet =
         (item.contentSnippet || item.content || item.summary || '').toString().slice(0, 600);
+
+      // Source-level include/exclude filter
+      if (!shouldIngestItem(title, snippet, source)) continue;
+
+      // Title dedup check
+      const tHash = titleHash(title);
+      const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+      if (isDupe) continue;
+
       const publishedAt = item.isoDate || item.pubDate || null;
       const imageUrl = extractImageFromRssItem(item);
 
       const { rows: insertedRows } = await query<{ id: string }>(
         `
         INSERT INTO clipping_items
-          (tenant_id, source_id, title, url, url_hash, published_at, snippet, image_url, type, segments, country, uf, city)
+          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, country, uf, city)
         VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         ON CONFLICT (tenant_id, url_hash) DO NOTHING
         RETURNING id
         `,
@@ -217,6 +340,7 @@ async function handleFetchSource(job: any) {
           title,
           url,
           hashUrl(url),
+          tHash,
           publishedAt ? new Date(publishedAt) : null,
           snippet,
           imageUrl,
@@ -263,8 +387,31 @@ async function handleEnrichItem(job: any) {
   if (!item) return;
 
   const baseSegments = Array.isArray(item.segments) ? item.segments : [];
-  const text = `${item.title} ${item.snippet || ''}`;
+  let text = `${item.title} ${item.snippet || ''}`;
   const segments = inferSegments(text, baseSegments);
+
+  let imageUrl = item.image_url ?? null;
+  let summary = null as string | null;
+  let content = null as string | null;
+
+  // Always scrape when scraper is available and item has a URL
+  if (scraper && item.url) {
+    try {
+      const scraped = await scraper.scrape(item.url);
+      imageUrl = scraped.imageUrl || imageUrl;
+      summary = scraped.excerpt || null;
+      content = scraped.contentText || null;
+      // Re-infer segments with richer content
+      if (content) {
+        text = `${item.title} ${summary || ''} ${content}`;
+        const enrichedSegments = inferSegments(text, segments);
+        segments.length = 0;
+        enrichedSegments.forEach((s) => segments.push(s));
+      }
+    } catch {
+      // ignore scrape failures
+    }
+  }
 
   const score = computeScore({
     publishedAt: item.published_at,
@@ -272,40 +419,42 @@ async function handleEnrichItem(job: any) {
     type: item.type,
   });
 
-  const suggested = await suggestClients(item.tenant_id, segments);
-
-  let imageUrl = item.image_url ?? null;
-  let summary = null as string | null;
-  let content = null as string | null;
-
-  if (!imageUrl && scraper && item.url) {
-    try {
-      const scraped = await scraper.scrape(item.url);
-      imageUrl = scraped.imageUrl || imageUrl;
-      summary = scraped.excerpt || null;
-      content = scraped.contentText || null;
-    } catch {
-      // ignore scrape failures
-    }
-  }
-
   await query(
     `
     UPDATE clipping_items
     SET segments=$3,
         score=$4,
-        suggested_client_ids=$5,
-        image_url=COALESCE($6, image_url),
-        summary=COALESCE($7, summary),
-        content=COALESCE($8, content),
+        image_url=COALESCE($5, image_url),
+        summary=COALESCE($6, summary),
+        content=COALESCE($7, content),
         updated_at=NOW()
     WHERE id=$1 AND tenant_id=$2
     `,
-    [item.id, item.tenant_id, segments, score, suggested, imageUrl, summary, content]
+    [item.id, item.tenant_id, segments, score, imageUrl, summary, content]
   );
+
+  // Enqueue auto-score job
+  await enqueueJob(item.tenant_id, 'clipping_auto_score', { item_id: item.id });
+}
+
+async function handleAutoScore(job: any) {
+  const itemId = job.payload?.item_id;
+  if (!itemId) return;
+
+  const { rows } = await query<ClippingItem>(
+    `SELECT * FROM clipping_items WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+    [itemId, job.tenant_id]
+  );
+  const item = rows[0];
+  if (!item) return;
+
+  await autoScoreClients(job.tenant_id, item);
 }
 
 export async function runClippingWorkerOnce() {
+  // Auto-archive stale low-score items
+  await autoArchiveStaleItems();
+
   await enqueueDueSources();
 
   const pendingFetchJobs = await fetchJobs('clipping_fetch_source', 3);
@@ -327,6 +476,17 @@ export async function runClippingWorkerOnce() {
       await markJob(job.id, 'done');
     } catch (error: any) {
       await markJob(job.id, 'failed', error?.message || 'enrich_failed');
+    }
+  }
+
+  const pendingAutoScoreJobs = await fetchJobs('clipping_auto_score', 10);
+  for (const job of pendingAutoScoreJobs) {
+    await markJob(job.id, 'processing');
+    try {
+      await handleAutoScore(job);
+      await markJob(job.id, 'done');
+    } catch (error: any) {
+      await markJob(job.id, 'failed', error?.message || 'auto_score_failed');
     }
   }
 }
