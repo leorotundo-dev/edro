@@ -76,6 +76,7 @@ const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'true') ===
 const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetries: 2 }) : null;
 
 let lastStuckReapAt = 0;
+let lastPurgeAt = 0;
 
 function getClientMinRelevanceScore() {
   const raw = Number(process.env.CLIPPING_CLIENT_MIN_SCORE ?? '0.6');
@@ -331,6 +332,17 @@ async function purgeExpiredItems() {
        AND status IN ('done','failed')
        AND updated_at < NOW() - INTERVAL '3 days'`
   );
+}
+
+async function maybePurgeExpiredItems() {
+  // Purge queries can be heavy on large tables; avoid running on every 5s tick.
+  if (Date.now() - lastPurgeAt < 10 * 60_000) return;
+  lastPurgeAt = Date.now();
+  try {
+    await purgeExpiredItems();
+  } catch (error: any) {
+    console.error('[clipping] purge failed:', error?.message || error);
+  }
 }
 
 async function enqueueDueSources() {
@@ -595,10 +607,13 @@ async function handleAutoScore(job: any) {
 export async function runClippingWorkerOnce() {
   await autoReapStuckFetchJobs();
 
-  // Purge items older than 7 days and clean up old jobs
-  await purgeExpiredItems();
+  await maybePurgeExpiredItems();
 
-  await enqueueDueSources();
+  try {
+    await enqueueDueSources();
+  } catch (error: any) {
+    console.error('[clipping] enqueueDueSources failed:', error?.message || error);
+  }
 
   const pendingFetchJobs = await fetchJobs('clipping_fetch_source', 3);
   for (const job of pendingFetchJobs) {
