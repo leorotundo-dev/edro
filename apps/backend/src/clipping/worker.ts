@@ -411,7 +411,8 @@ async function handleFetchSource(job: any) {
   if (!source) return;
 
   try {
-    if (source.type !== 'RSS') {
+    // RSS-parser can handle RSS/Atom feeds (including YouTube feeds). URL sources are not supported by this worker.
+    if (source.type === 'URL') {
       await query(
         `UPDATE clipping_sources cs
          SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW()

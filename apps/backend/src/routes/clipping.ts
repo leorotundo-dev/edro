@@ -296,7 +296,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const source = rows[0];
       if (!source) return reply.status(404).send({ error: 'not_found' });
 
-      if (source.type !== 'RSS') {
+      // URL sources need a different scraping approach. RSS-parser can handle RSS/Atom (including YouTube feeds).
+      if (source.type === 'URL') {
         return reply.send({ ok: true, message: 'Fonte nao RSS. Teste manual.' });
       }
 
