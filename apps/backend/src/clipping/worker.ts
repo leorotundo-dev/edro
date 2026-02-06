@@ -5,7 +5,15 @@ import { enqueueJob, fetchJobs, markJob } from '../jobs/jobQueue';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
 
-const parser = new Parser();
+const parser = new Parser({
+  timeout: 20_000,
+  headers: {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+  },
+});
 
 type ClippingSource = {
   id: string;
@@ -84,6 +92,28 @@ function getFetchStuckMinutes() {
 
 function normalize(value?: string | null) {
   return (value || '').toLowerCase();
+}
+
+function normalizeUrlForHash(rawUrl: string) {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    parsed.hash = '';
+
+    // Remove common tracking params without breaking legit query-based URLs (?p=123 etc).
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      const lower = key.toLowerCase();
+      if (lower.startsWith('utm_')) parsed.searchParams.delete(key);
+      if (lower === 'fbclid') parsed.searchParams.delete(key);
+      if (lower === 'gclid') parsed.searchParams.delete(key);
+      if (lower === 'mc_cid') parsed.searchParams.delete(key);
+      if (lower === 'mc_eid') parsed.searchParams.delete(key);
+      if (lower === 'igshid') parsed.searchParams.delete(key);
+    }
+
+    return parsed.toString();
+  } catch {
+    return rawUrl.trim();
+  }
 }
 
 function hashUrl(url: string) {
@@ -310,7 +340,7 @@ async function enqueueDueSources() {
     WHERE cs.is_active=true
       AND (
         cs.last_fetched_at IS NULL OR
-        cs.last_fetched_at + (cs.fetch_interval_minutes || ' minutes')::interval <= NOW()
+        cs.last_fetched_at + (COALESCE(cs.fetch_interval_minutes, 60)::text || ' minutes')::interval <= NOW()
       )
       AND NOT EXISTS (
         SELECT 1 FROM job_queue jq
@@ -416,13 +446,16 @@ async function handleFetchSource(job: any) {
 
       const publishedAt = item.isoDate || item.pubDate || null;
       const imageUrl = extractImageFromRssItem(item);
+      const type = source.type === 'YOUTUBE' ? 'TREND' : 'NEWS';
+      const segments = inferSegments(`${title} ${snippet}`, source.tags ?? []);
+      const score = computeScore({ publishedAt, segments, type });
 
       const { rows: insertedRows } = await query<{ id: string }>(
         `
         INSERT INTO clipping_items
-          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, country, uf, city)
+          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
         VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
         ON CONFLICT (tenant_id, url_hash) DO NOTHING
         RETURNING id
         `,
@@ -431,13 +464,14 @@ async function handleFetchSource(job: any) {
           source.id,
           title,
           url,
-          hashUrl(url),
+          hashUrl(normalizeUrlForHash(url)),
           tHash,
           publishedAt ? new Date(publishedAt) : null,
           snippet,
           imageUrl,
-          source.type === 'YOUTUBE' ? 'TREND' : 'NEWS',
-          source.tags ?? [],
+          type,
+          segments,
+          score,
           source.country ?? null,
           source.uf ?? null,
           source.city ?? null,
