@@ -1472,4 +1472,30 @@ export default async function clippingRoutes(app: FastifyInstance) {
       };
     }
   );
+
+  // ── Admin Backfill ────────────────────────────────────────────────
+  // Re-enqueue recent items for enrichment + auto-score through the new pipeline
+
+  app.post(
+    '/clipping/admin/backfill',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const daysBack = Number(request.body?.days ?? 7);
+      const cap = Math.min(Math.max(daysBack, 1), 30); // 1–30 days
+
+      const { rows } = await query<any>(
+        `INSERT INTO job_queue (tenant_id, type, payload)
+         SELECT tenant_id, 'clipping_enrich_item', jsonb_build_object('item_id', id)
+         FROM clipping_items
+         WHERE tenant_id=$1
+           AND created_at > NOW() - INTERVAL '${cap} days'
+           AND status = 'NEW'
+         RETURNING id`,
+        [tenantId]
+      );
+
+      return { ok: true, enqueued: rows.length };
+    }
+  );
 }
