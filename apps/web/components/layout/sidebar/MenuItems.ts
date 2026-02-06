@@ -14,6 +14,7 @@ import {
   IconSettings,
   IconCoin,
   IconTargetArrow,
+  IconBug,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -129,6 +130,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'AI Costs',
         icon: IconCoin,
         href: '/admin/ai-costs',
+      },
+      {
+        id: 'admin-radar',
+        title: 'Radar Diagnostics',
+        icon: IconBug,
+        href: '/clipping/diagnostics',
       },
       {
         id: 'admin-import',
