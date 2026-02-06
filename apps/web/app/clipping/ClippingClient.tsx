@@ -357,7 +357,11 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setError('');
     setSuccess('');
     try {
-      await apiPost(`/clipping/items/${itemId}/feedback`, { feedback: 'irrelevant' });
+      if (!selectedClient?.id) return;
+      await apiPost(`/clipping/items/${itemId}/feedback`, {
+        feedback: 'irrelevant',
+        clientId: selectedClient.id,
+      });
       setItems((prev) => prev.filter((i) => i.id !== itemId));
       setSuccess('Item marcado como irrelevante.');
     } catch (err: any) {

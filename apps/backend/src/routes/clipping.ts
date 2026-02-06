@@ -30,6 +30,12 @@ function parseRecency(value?: string) {
   return null;
 }
 
+function getClientMinRelevanceScore() {
+  const raw = Number(process.env.CLIPPING_CLIENT_MIN_SCORE ?? '0.6');
+  if (!Number.isFinite(raw)) return 0.6;
+  return Math.max(0, Math.min(1, raw));
+}
+
 function toMonthKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -422,10 +428,24 @@ export default async function clippingRoutes(app: FastifyInstance) {
       // When filtering by clientId, use clipping_matches for accurate per-client relevance
       const useClientMatch = !!queryParams.clientId;
       if (useClientMatch) {
-        where.push(`cm.client_id = $${idx++}`);
+        const clientIdParam = idx++;
+        where.push(`cm.client_id = $${clientIdParam}`);
         values.push(queryParams.clientId);
         // Only show items with meaningful per-client relevance
-        where.push(`cm.score >= 0.50`);
+        const minClientScore = getClientMinRelevanceScore();
+        where.push(`cm.score >= $${idx++}`);
+        values.push(minClientScore);
+
+        // Hide items already marked irrelevant for this client (or globally)
+        where.push(
+          `NOT EXISTS (
+             SELECT 1 FROM clipping_feedback cf
+             WHERE cf.tenant_id = ci.tenant_id
+               AND cf.clipping_item_id = ci.id
+               AND (cf.client_id IS NULL OR cf.client_id = $${clientIdParam})
+               AND cf.feedback IN ('irrelevant','wrong_client')
+           )`
+        );
       }
 
       if (queryParams.q) {
@@ -444,7 +464,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
       values.push(limit, offset);
 
       const selectExtra = useClientMatch
-        ? `, cm.score AS client_score, cm.matched_keywords AS client_matched_keywords`
+        ? `, cm.score::float8 AS client_score, cm.matched_keywords AS client_matched_keywords`
         : '';
       const joinMatch = useClientMatch
         ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id`
@@ -620,6 +640,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
         [tenantId, body.limit]
       );
 
+      const minClientScore = getClientMinRelevanceScore();
       const results = [];
 
       for (const item of items) {
@@ -638,7 +659,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
         const suggested = Array.from(
           new Set([
             ...(item.suggested_client_ids || []),
-            scoreResult.score >= 0.45 ? body.clientId : null,
+            scoreResult.score >= minClientScore ? body.clientId : null,
           ].filter(Boolean))
         );
 
@@ -1206,10 +1227,11 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const clientId = request.query?.clientId as string | undefined;
       const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
       const windowInterval = `${windowDays} days`;
+      const minClientScore = getClientMinRelevanceScore();
 
       // When clientId is provided, join clipping_matches for accurate per-client data
       const clientMatchJoin = clientId
-        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= 0.50`
+        ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= ${minClientScore}`
         : '';
       const baseParams = clientId ? [tenantId, clientId] : [tenantId];
 
@@ -1259,7 +1281,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
           ON ci.source_id = cs.id
          AND ci.tenant_id = cs.tenant_id
          AND ci.created_at >= NOW() - INTERVAL '${windowInterval}'
-        ${clientId ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= 0.50` : ''}
+        ${clientId ? `JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id AND cm.client_id = $2 AND cm.score >= ${minClientScore}` : ''}
         WHERE cs.tenant_id=$1
         GROUP BY cs.id
         HAVING COUNT(ci.id) > 0

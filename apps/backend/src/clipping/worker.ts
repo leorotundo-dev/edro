@@ -67,6 +67,12 @@ const SEGMENT_KEYWORDS: Record<string, string[]> = {
 const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'true') === 'true';
 const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetries: 2 }) : null;
 
+function getClientMinRelevanceScore() {
+  const raw = Number(process.env.CLIPPING_CLIENT_MIN_SCORE ?? '0.6');
+  if (!Number.isFinite(raw)) return 0.6;
+  return Math.max(0, Math.min(1, raw));
+}
+
 function normalize(value?: string | null) {
   return (value || '').toLowerCase();
 }
@@ -196,6 +202,8 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
     [tenantId]
   );
 
+  const minClientScore = getClientMinRelevanceScore();
+
   for (const client of clients) {
     const profile = client.profile || {};
     const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
@@ -216,8 +224,8 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
       { keywords, pillars, negativeKeywords }
     );
 
-    // Only create match for score >= 0.55 (raised from 0.45 to reduce noise)
-    if (scoreResult.score >= 0.55) {
+    // Only create match for scores that are meaningful to the client.
+    if (scoreResult.score >= minClientScore) {
       const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
 
       // Add client to suggested_client_ids
