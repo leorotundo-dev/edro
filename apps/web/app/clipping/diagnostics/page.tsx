@@ -172,7 +172,6 @@ export default function ClippingDiagnosticsPage() {
   const [purgeResult, setPurgeResult] = useState('');
 
   const [cancellingFetchProcessing, setCancellingFetchProcessing] = useState(false);
-  const [cancelFetchProcessingResult, setCancelFetchProcessingResult] = useState('');
 
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchAllResult, setFetchAllResult] = useState('');
@@ -208,7 +207,6 @@ export default function ClippingDiagnosticsPage() {
   const handleCancelFetchProcessing = async () => {
     if (!window.confirm('Isso vai CANCELAR os jobs de fetch que estao em processamento (viram FAILED). Continuar?')) return;
     setCancellingFetchProcessing(true);
-    setCancelFetchProcessingResult('');
     try {
       const res = await apiPost<{ ok: boolean; cancelled_jobs: number; touched_sources: number }>(
         '/clipping/admin/cancel-fetch-processing',
@@ -216,12 +214,12 @@ export default function ClippingDiagnosticsPage() {
       );
       const cancelled = res?.cancelled_jobs ?? 0;
       const touched = res?.touched_sources ?? 0;
-      setCancelFetchProcessingResult(
+      window.alert(
         `${cancelled.toLocaleString('pt-BR')} jobs cancelados. ${touched.toLocaleString('pt-BR')} fontes marcadas como erro.`
       );
       await load();
     } catch (err: any) {
-      setCancelFetchProcessingResult(`Erro: ${err?.message || 'falha'}`);
+      window.alert(`Erro: ${err?.message || 'falha'}`);
     } finally {
       setCancellingFetchProcessing(false);
     }
@@ -560,11 +558,6 @@ export default function ClippingDiagnosticsPage() {
                   }
                   noPadding
                 >
-                  {cancelFetchProcessingResult && (
-                    <Alert severity={cancelFetchProcessingResult.startsWith('Erro') ? 'error' : 'success'} sx={{ m: 2 }}>
-                      {cancelFetchProcessingResult}
-                    </Alert>
-                  )}
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
