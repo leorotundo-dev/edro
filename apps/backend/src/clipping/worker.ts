@@ -314,7 +314,7 @@ async function purgeExpiredItems() {
 
   // Delete feedback for expired items
   await query(
-    `DELETE FROM clipping_feedback WHERE item_id IN (
+    `DELETE FROM clipping_feedback WHERE clipping_item_id IN (
        SELECT id FROM clipping_items WHERE created_at < NOW() - INTERVAL '7 days'
      )`
   );
