@@ -328,6 +328,25 @@ export default async function clippingRoutes(app: FastifyInstance) {
     }
   );
 
+  app.delete(
+    '/clipping/sources/:id',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const sourceId = request.params.id;
+      // Remove items from this source, then delete the source
+      await query(
+        `DELETE FROM clipping_items WHERE source_id=$1 AND tenant_id=$2`,
+        [sourceId, tenantId]
+      );
+      await query(
+        `DELETE FROM clipping_sources WHERE id=$1 AND tenant_id=$2`,
+        [sourceId, tenantId]
+      );
+      return reply.send({ ok: true });
+    }
+  );
+
   app.get(
     '/clipping/items',
     { preHandler: [requirePerm('clipping:read')] },
@@ -1572,15 +1591,18 @@ export default async function clippingRoutes(app: FastifyInstance) {
         errors.push(`job_queue_stats: ${e?.message}`);
       }
 
-      // 4. Recent failed jobs
+      // 4. Recent failed jobs — include source name/url for fetch errors
       let failedJobs: any[] = [];
       try {
         const res = await query<any>(
-          `SELECT id, type, error_message AS error, updated_at
-           FROM job_queue
-           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='failed'
-           ORDER BY updated_at DESC
-           LIMIT 10`,
+          `SELECT jq.id, jq.type, jq.error_message AS error, jq.updated_at,
+                  jq.payload->>'source_id' AS source_id,
+                  cs.name AS source_name, cs.url AS source_url
+           FROM job_queue jq
+           LEFT JOIN clipping_sources cs ON cs.id = (jq.payload->>'source_id')::uuid
+           WHERE jq.tenant_id=$1 AND jq.type LIKE 'clipping_%' AND jq.status='failed'
+           ORDER BY jq.updated_at DESC
+           LIMIT 20`,
           [tenantId]
         );
         failedJobs = res.rows;
@@ -1588,14 +1610,15 @@ export default async function clippingRoutes(app: FastifyInstance) {
         errors.push(`failed_jobs: ${e?.message}`);
       }
 
-      // 5. Source status
+      // 5. Source status — include health info
       let sourceStatus: any[] = [];
       try {
         const res = await query<any>(
-          `SELECT id, name, is_active, last_fetched_at, fetch_interval_minutes
+          `SELECT id, name, url, type, is_active, last_fetched_at, fetch_interval_minutes,
+                  status AS health, last_error
            FROM clipping_sources
            WHERE tenant_id=$1
-           ORDER BY last_fetched_at DESC NULLS LAST`,
+           ORDER BY status ASC, last_fetched_at DESC NULLS LAST`,
           [tenantId]
         );
         sourceStatus = res.rows;

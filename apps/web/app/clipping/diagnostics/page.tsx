@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost, getApiBase } from '@/lib/api';
+import { apiGet, apiPost, apiDelete, getApiBase } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -17,7 +17,9 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconRefresh,
@@ -25,11 +27,14 @@ import {
   IconX,
   IconAlertTriangle,
   IconPlayerPlay,
+  IconPlayerPause,
   IconDatabase,
   IconRss,
   IconBug,
   IconPlugConnected,
   IconPlugConnectedX,
+  IconTrash,
+  IconExternalLink,
 } from '@tabler/icons-react';
 
 type DiagnosticsData = {
@@ -37,13 +42,25 @@ type DiagnosticsData = {
   column_checks: Record<string, boolean>;
   feedback_table_exists: boolean;
   job_queue_stats: Array<{ type: string; status: string; count: number }>;
-  recent_failed_jobs: Array<{ id: string; type: string; error: string; updated_at: string }>;
+  recent_failed_jobs: Array<{
+    id: string;
+    type: string;
+    error: string;
+    updated_at: string;
+    source_id?: string;
+    source_name?: string;
+    source_url?: string;
+  }>;
   sources: Array<{
     id: string;
     name: string;
+    url: string;
+    type: string;
     is_active: boolean;
     last_fetched_at: string | null;
     fetch_interval_minutes: number;
+    health: string | null;
+    last_error: string | null;
   }>;
   pending_jobs: Array<{ type: string; status: string; count: number }>;
   items: { total: number; last_24h: number; last_7d: number; last_item_at: string | null };
@@ -159,6 +176,28 @@ export default function ClippingDiagnosticsPage() {
     } finally {
       setFetchingAll(false);
     }
+  };
+
+  const handlePauseSource = async (sourceId: string) => {
+    try {
+      await apiPost(`/clipping/sources/${sourceId}/pause`, {});
+      await load();
+    } catch { /* ignore */ }
+  };
+
+  const handleResumeSource = async (sourceId: string) => {
+    try {
+      await apiPost(`/clipping/sources/${sourceId}/resume`, {});
+      await load();
+    } catch { /* ignore */ }
+  };
+
+  const handleDeleteSource = async (sourceId: string, sourceName: string) => {
+    if (!window.confirm(`Tem certeza que quer deletar a fonte "${sourceName}"? Todos os items dessa fonte tambem serao removidos.`)) return;
+    try {
+      await apiDelete(`/clipping/sources/${sourceId}`);
+      await load();
+    } catch { /* ignore */ }
   };
 
   const allColumnsOk = data ? Object.values(data.column_checks).every(Boolean) : false;
@@ -450,7 +489,7 @@ export default function ClippingDiagnosticsPage() {
             {/* Failed jobs */}
             {failedJobsCount > 0 && (
               <DashboardCard
-                title="Jobs com erro"
+                title="Fontes com erro"
                 action={<Chip size="small" label={`${failedJobsCount} erros`} color="error" variant="outlined" />}
                 noPadding
                 sx={{ mb: 3 }}
@@ -459,19 +498,27 @@ export default function ClippingDiagnosticsPage() {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Tipo</TableCell>
+                        <TableCell>Fonte</TableCell>
                         <TableCell>Erro</TableCell>
                         <TableCell>Quando</TableCell>
+                        <TableCell align="right">Acoes</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {data.recent_failed_jobs.map((job) => (
                         <TableRow key={job.id}>
                           <TableCell>
-                            <Typography variant="body2" fontFamily="monospace">{job.type}</Typography>
+                            <Typography variant="body2" fontWeight={600}>
+                              {job.source_name || job.type}
+                            </Typography>
+                            {job.source_url && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {job.source_url}
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="error.main" sx={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <Typography variant="body2" color="error.main" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {job.error}
                             </Typography>
                           </TableCell>
@@ -479,6 +526,22 @@ export default function ClippingDiagnosticsPage() {
                             <Typography variant="caption" color="text.secondary">
                               {timeAgo(job.updated_at)}
                             </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            {job.source_id && (
+                              <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                <Tooltip title="Pausar fonte">
+                                  <IconButton size="small" onClick={() => handlePauseSource(job.source_id!)}>
+                                    <IconPlayerPause size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Deletar fonte">
+                                  <IconButton size="small" color="error" onClick={() => handleDeleteSource(job.source_id!, job.source_name || 'fonte')}>
+                                    <IconTrash size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -490,8 +553,13 @@ export default function ClippingDiagnosticsPage() {
 
             {/* Sources */}
             <DashboardCard
-              title="Fontes RSS"
-              action={<Chip size="small" icon={<IconRss size={14} />} label={`${data.sources.length} fontes`} variant="outlined" />}
+              title="Saude das Fontes"
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Chip size="small" label={`${data.sources.filter(s => s.health === 'ERROR').length} com erro`} color="error" variant="outlined" />
+                  <Chip size="small" icon={<IconRss size={14} />} label={`${data.sources.length} fontes`} variant="outlined" />
+                </Stack>
+              }
               noPadding
               sx={{ mb: 3 }}
             >
@@ -499,21 +567,35 @@ export default function ClippingDiagnosticsPage() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Nome</TableCell>
-                      <TableCell>Ativa</TableCell>
+                      <TableCell>Nome / URL</TableCell>
+                      <TableCell>Status</TableCell>
                       <TableCell>Ultimo fetch</TableCell>
                       <TableCell>Intervalo</TableCell>
+                      <TableCell align="right">Acoes</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {data.sources.length ? (
                       data.sources.map((src) => (
-                        <TableRow key={src.id}>
+                        <TableRow key={src.id} sx={src.health === 'ERROR' ? { bgcolor: 'error.lighter' } : undefined}>
                           <TableCell>
                             <Typography variant="body2" fontWeight={600}>{src.name}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {src.url}
+                            </Typography>
                           </TableCell>
                           <TableCell>
-                            <StatusIcon ok={src.is_active} />
+                            <Stack spacing={0.5}>
+                              {src.health === 'ERROR' ? (
+                                <Tooltip title={src.last_error || 'Erro desconhecido'}>
+                                  <Chip size="small" label="ERRO" color="error" variant="filled" />
+                                </Tooltip>
+                              ) : !src.is_active ? (
+                                <Chip size="small" label="Pausada" color="default" variant="outlined" />
+                              ) : (
+                                <Chip size="small" label="OK" color="success" variant="outlined" />
+                              )}
+                            </Stack>
                           </TableCell>
                           <TableCell>
                             <Typography variant="caption" color={src.last_fetched_at ? 'text.secondary' : 'error.main'}>
@@ -523,11 +605,40 @@ export default function ClippingDiagnosticsPage() {
                           <TableCell>
                             <Typography variant="caption">{src.fetch_interval_minutes}min</Typography>
                           </TableCell>
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                              {src.url && (
+                                <Tooltip title="Abrir URL">
+                                  <IconButton size="small" component="a" href={src.url} target="_blank" rel="noreferrer">
+                                    <IconExternalLink size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {src.is_active ? (
+                                <Tooltip title="Pausar">
+                                  <IconButton size="small" onClick={() => handlePauseSource(src.id)}>
+                                    <IconPlayerPause size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="Reativar">
+                                  <IconButton size="small" color="success" onClick={() => handleResumeSource(src.id)}>
+                                    <IconPlayerPlay size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="Deletar fonte">
+                                <IconButton size="small" color="error" onClick={() => handleDeleteSource(src.id, src.name)}>
+                                  <IconTrash size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} align="center">
+                        <TableCell colSpan={5} align="center">
                           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
                             Nenhuma fonte cadastrada
                           </Typography>
