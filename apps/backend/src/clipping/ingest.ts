@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { query } from '../db';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem } from './scoring';
+import { computeScore, inferSegments } from './itemScoring';
 
 export type IngestUrlInput = {
   url: string;
@@ -71,6 +72,16 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
     const summary = scraped.excerpt || null;
     const snippet = summary ? summary.slice(0, 600) : null;
 
+    const type = 'NEWS';
+    const segments = inferSegments(
+      `${scraped.title || ''} ${summary || ''} ${scraped.contentText || ''}`
+    );
+    const score = computeScore({
+      publishedAt: scraped.publishedAt || null,
+      segments,
+      type,
+    });
+
     const suggestedClientIds = clientId ? [clientId] : [];
 
     const { rows } = await query<{ id: string }>(
@@ -91,12 +102,12 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
         urlHash,
         scraped.publishedAt || null,
         snippet,
-        'NEWS',
-        [],
+        type,
+        segments,
         null,
         null,
         null,
-        0,
+        score,
         suggestedClientIds,
         [],
         'NEW',

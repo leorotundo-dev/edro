@@ -31,12 +31,13 @@ export async function markJob(id: string, status: 'processing' | 'done' | 'faile
     return rows.length > 0;
   }
 
+  const normalizedError = error ? String(error).slice(0, 500) : null;
   const { rows } = await query<{ id: string }>(
     `UPDATE job_queue
      SET status=$2, error_message=$3, updated_at=NOW()
      WHERE id=$1 AND status='processing'
      RETURNING id`,
-    [id, status, error ?? null]
+    [id, status, normalizedError]
   );
 
   return rows.length > 0;

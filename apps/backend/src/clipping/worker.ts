@@ -1,9 +1,12 @@
 import Parser from 'rss-parser';
 import crypto from 'crypto';
+import axios, { type AxiosRequestConfig } from 'axios';
+import * as cheerio from 'cheerio';
 import { query } from '../db';
 import { enqueueJob, fetchJobs, markJob } from '../jobs/jobQueue';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
+import { computeScore, inferSegments } from './itemScoring';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -53,25 +56,6 @@ type ClippingItem = {
   suggested_client_ids?: string[] | null;
 };
 
-const SEGMENT_KEYWORDS: Record<string, string[]> = {
-  varejo: ['varejo', 'supermercado', 'atacado', 'cash&carry', 'atacarejo', 'promocao', 'desconto', 'loja', 'shopping', 'consumidor', 'pdv', 'ponto de venda', 'e-commerce', 'ecommerce', 'marketplace'],
-  moda: ['moda', 'fashion', 'roupa', 'calçado', 'vestuário', 'grife', 'coleção', 'estilista', 'tendência', 'lookbook', 'fast fashion'],
-  saude: ['saude', 'saúde', 'farmacia', 'farmácia', 'hospital', 'clinica', 'clínica', 'bem-estar', 'medicina', 'terapia', 'medico', 'médico', 'plano de saude'],
-  fintech: ['fintech', 'banco', 'credito', 'crédito', 'pagamento', 'cartao', 'cartão', 'pix', 'open banking', 'investimento', 'seguro', 'cripto', 'blockchain'],
-  mobilidade: ['mobilidade', 'transporte', 'rodovia', 'metro', 'metrô', 'ônibus', 'onibus', 'trânsito', 'transito', 'frota', 'veículo', 'veiculo', 'eletrico', 'elétrico', 'patinete', 'bike'],
-  logistica: ['logistica', 'logística', 'frete', 'cadeia de suprimentos', 'supply chain', 'armazem', 'armazém', 'entrega', 'delivery', 'last mile', 'distribuicao', 'distribuição'],
-  educacao: ['educacao', 'educação', 'escola', 'universidade', 'curso', 'ensino', 'aprendizado', 'edtech', 'vestibular', 'enem', 'professor', 'aluno', 'ead'],
-  tecnologia: ['tecnologia', 'software', 'saas', 'app', 'inovacao', 'inovação', 'startup', 'inteligencia artificial', 'inteligência artificial', 'machine learning', 'cloud', 'dados', 'cibersegurança', 'ciberseguranca'],
-  imobiliario: ['imobiliario', 'imobiliário', 'imovel', 'imóvel', 'condominio', 'condomínio', 'construcao', 'construção', 'incorporadora', 'loteamento', 'aluguel', 'hipoteca'],
-  agronegocio: ['agro', 'agronegocio', 'agronegócio', 'fazenda', 'colheita', 'safra', 'soja', 'milho', 'pecuária', 'pecuaria', 'fertilizante', 'irrigacao', 'irrigação'],
-  energia: ['energia', 'eletricidade', 'petróleo', 'petroleo', 'gás', 'gas natural', 'eólica', 'eolica', 'solar', 'fotovoltaica', 'renovavel', 'renovável', 'biomassa', 'etanol'],
-  sustentabilidade: ['sustentabilidade', 'esg', 'carbono', 'reciclagem', 'residuos', 'resíduos', 'meio ambiente', 'ambiental', 'economia circular', 'verde', 'impacto social'],
-  portos: ['porto', 'portuario', 'portuário', 'terminal', 'navegacao', 'navegação', 'navio', 'container', 'contêiner', 'cabotagem', 'marítimo', 'maritimo', 'atracacao'],
-  infraestrutura: ['infraestrutura', 'concessão', 'concessao', 'rodovia', 'ferrovia', 'saneamento', 'telecomunicações', 'telecomunicacoes', 'leilão', 'leilao', 'ppp', 'parceria publico-privada'],
-  marketing_digital: ['marketing digital', 'midia social', 'mídia social', 'influenciador', 'creator', 'engajamento', 'trafego pago', 'tráfego pago', 'seo', 'performance', 'branding', 'conteudo', 'conteúdo'],
-  industria: ['industria', 'indústria', 'fábrica', 'fabrica', 'manufatura', 'automação', 'automacao', 'siderurgia', 'metalurgia', 'quimica', 'química', 'embalagem'],
-};
-
 const ENRICH_SCRAPE_ENABLED = (process.env.CLIPPING_SCRAPE_ENRICH || 'true') === 'true';
 const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetries: 2 }) : null;
 
@@ -89,10 +73,6 @@ function getFetchStuckMinutes() {
   if (!Number.isFinite(raw)) return 30;
   // Clamp 1–1440 (1 day)
   return Math.max(1, Math.min(1440, Math.trunc(raw)));
-}
-
-function normalize(value?: string | null) {
-  return (value || '').toLowerCase();
 }
 
 function normalizeUrlForHash(rawUrl: string) {
@@ -124,38 +104,6 @@ function hashUrl(url: string) {
 function titleHash(title: string) {
   const normalized = title.toLowerCase().replace(/[^a-záàâãéèêíïóôõöúçñ0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
   return crypto.createHash('md5').update(normalized).digest('hex');
-}
-
-function inferSegments(text: string, base: string[] = []) {
-  const found = new Set<string>(base.map((t) => t.toLowerCase()));
-  const hay = normalize(text);
-  Object.entries(SEGMENT_KEYWORDS).forEach(([segment, keywords]) => {
-    if (keywords.some((k) => matchesWordBoundary(hay, k))) {
-      found.add(segment);
-    }
-  });
-  return Array.from(found);
-}
-
-function recencyScore(publishedAt?: string | null) {
-  if (!publishedAt) return 0;
-  const date = new Date(publishedAt);
-  if (Number.isNaN(date.getTime())) return 0;
-  const hours = (Date.now() - date.getTime()) / 36e5;
-  if (hours <= 24) return 40;
-  if (hours <= 72) return 30;
-  if (hours <= 168) return 20;
-  if (hours <= 720) return 10;
-  return 0;
-}
-
-function computeScore(params: { publishedAt?: string | null; segments: string[]; type: string }) {
-  const base = 10;
-  const recency = recencyScore(params.publishedAt);
-  const segmentScore = Math.min(30, params.segments.length * 8);
-  const typeScore = params.type === 'TREND' ? 10 : 0;
-  const score = base + recency + segmentScore + typeScore;
-  return Math.max(0, Math.min(100, score));
 }
 
 function isHttpUrl(value?: string | null) {
@@ -411,6 +359,367 @@ async function autoReapStuckFetchJobs() {
   }
 }
 
+type UrlCandidate = { url: string; title: string; score: number };
+
+const resolvedFeedUrlBySourceId = new Map<string, string>();
+
+function safeErrorMessage(error: any, fallback: string) {
+  const msg = String(error?.message || fallback || '').trim();
+  if (!msg) return fallback;
+  // Avoid storing huge HTML/CSS blobs in DB when parsers include bodies in error messages.
+  const maxLen = 500;
+  return msg.length > maxLen ? msg.slice(0, maxLen) : msg;
+}
+
+function isManualLikeUrl(url: string) {
+  const u = (url || '').trim().toLowerCase();
+  return u === 'manual' || u.startsWith('manual:');
+}
+
+function isProbablyAssetPath(pathname: string) {
+  return /\.(jpg|jpeg|png|gif|webp|svg|pdf|mp4|mp3|css|js|ico|zip|rar|7z|gz|woff2?|ttf|eot)$/i.test(pathname);
+}
+
+function cleanAnchorText(raw: string) {
+  return (raw || '').replace(/\s+/g, ' ').trim();
+}
+
+function scoreUrlCandidate(u: URL, title: string) {
+  const path = (u.pathname || '').toLowerCase();
+  const segs = path.split('/').filter(Boolean);
+  const last = segs[segs.length - 1] || '';
+
+  // Fast hard rejects
+  if (isProbablyAssetPath(path)) return -1;
+  if (path === '/' || path === '') return -1;
+  if (path.startsWith('/wp-json')) return -1;
+  if (path.includes('/tag/') || path.includes('/tags/')) return -1;
+  if (path.includes('/category/') || path.includes('/categoria/')) return -1;
+  if (path.includes('/author/') || path.includes('/autores/')) return -1;
+  if (path.includes('/search') || path.includes('/busca')) return -1;
+  if (path.includes('/login') || path.includes('/signin') || path.includes('/signup')) return -1;
+  if (path.includes('/privacy') || path.includes('/termos') || path.includes('/terms')) return -1;
+
+  const t = title.toLowerCase();
+  if (
+    t === 'home' ||
+    t === 'início' ||
+    t === 'inicio' ||
+    t.includes('assine') ||
+    t.includes('cadastre') ||
+    t.includes('login') ||
+    t.includes('entrar')
+  ) {
+    return -1;
+  }
+
+  let score = 0;
+  if (segs.length >= 3) score += 3;
+  if (segs.length === 2) score += 2;
+  if (segs.length === 1 && last.length >= 20 && (last.includes('-') || /\d/.test(last))) score += 2;
+
+  if (last.length >= 20) score += 2;
+  if (/\d/.test(last)) score += 2;
+  if (last.includes('-')) score += 1;
+  if (/20\d{2}/.test(path)) score += 1;
+  if (title.length >= 30) score += 1;
+  if (title.length >= 60) score += 1;
+
+  return score;
+}
+
+function getUrlSourceMaxItems() {
+  const raw = Number(process.env.CLIPPING_URL_SOURCE_MAX_ITEMS ?? '5');
+  if (!Number.isFinite(raw)) return 5;
+  return Math.max(1, Math.min(20, Math.trunc(raw)));
+}
+
+const URL_SOURCE_HTTP_CONFIG: AxiosRequestConfig = {
+  timeout: 20_000,
+  headers: {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+  },
+  maxRedirects: 5,
+  validateStatus: (status) => status >= 200 && status < 400,
+};
+
+async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string }> {
+  const res = await axios.get(url, URL_SOURCE_HTTP_CONFIG);
+  const finalUrl = (res.request as any)?.res?.responseUrl || url;
+  const html = typeof res.data === 'string' ? res.data : String(res.data || '');
+  return { html, finalUrl };
+}
+
+async function tryParseFeed(url: string) {
+  try {
+    return await parser.parseURL(url);
+  } catch {
+    return null;
+  }
+}
+
+function extractFeedCandidatesFromHtml(html: string, baseUrl: string) {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  try {
+    const $ = cheerio.load(html);
+    const links = $('link[rel="alternate"][href][type]');
+    links.each((_, el) => {
+      const type = String($(el).attr('type') || '').toLowerCase();
+      if (!type.includes('rss') && !type.includes('atom') && !type.includes('xml')) return;
+      const href = String($(el).attr('href') || '').trim();
+      if (!href) return;
+      try {
+        const abs = new URL(href, baseUrl);
+        if (!['http:', 'https:'].includes(abs.protocol)) return;
+        abs.hash = '';
+        const v = abs.toString();
+        if (seen.has(v)) return;
+        seen.add(v);
+        candidates.push(v);
+      } catch {
+        // ignore bad hrefs
+      }
+    });
+  } catch {
+    // ignore parse failures
+  }
+
+  // Common feed paths (WordPress etc.)
+  try {
+    const root = new URL(baseUrl);
+    root.hash = '';
+    root.search = '';
+    root.pathname = '/';
+    for (const path of ['/feed/', '/feed', '/rss', '/rss.xml', '/atom.xml', '/feed.xml', '/?feed=rss2']) {
+      const u = new URL(path, root.toString()).toString();
+      if (!seen.has(u)) {
+        seen.add(u);
+        candidates.push(u);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return candidates.slice(0, 8);
+}
+
+function extractUrlCandidatesFromHtml(html: string, baseUrl: string, sourceUrl: string): UrlCandidate[] {
+  const base = new URL(baseUrl);
+  const sourceNorm = normalizeUrlForHash(sourceUrl);
+
+  const $ = cheerio.load(html);
+
+  // Prefer "content-ish" areas to avoid nav/footer spam.
+  const preferredSelector =
+    'article a[href], main a[href], .post a[href], .entry a[href], .content a[href], .article a[href]';
+  let anchors = $(preferredSelector);
+  if (anchors.length < 5) anchors = $('a[href]');
+
+  const seen = new Set<string>();
+  const out: UrlCandidate[] = [];
+
+  anchors.each((_, el) => {
+    const href = String($(el).attr('href') || '').trim();
+    if (!href) return;
+    if (href.startsWith('#')) return;
+    if (href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+
+    const title = cleanAnchorText($(el).text());
+    if (!title || title.length < 8) return;
+
+    let abs: URL;
+    try {
+      abs = new URL(href, base.toString());
+    } catch {
+      return;
+    }
+
+    if (!['http:', 'https:'].includes(abs.protocol)) return;
+    if (abs.hostname !== base.hostname) return;
+
+    abs.hash = '';
+    // Keep legit query URLs, but strip common tracking params for dedupe.
+    const absNorm = normalizeUrlForHash(abs.toString());
+    if (!absNorm || absNorm === sourceNorm) return;
+
+    const score = scoreUrlCandidate(abs, title);
+    if (score < 4) return;
+
+    if (seen.has(absNorm)) return;
+    seen.add(absNorm);
+
+    out.push({ url: absNorm, title, score });
+  });
+
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, 25);
+}
+
+async function ingestFeedItems(feed: any, source: ClippingSource) {
+  let inserted = 0;
+
+  for (const item of feed.items || []) {
+    const url = (item.link || item.guid || '').trim();
+    if (!url) continue;
+    const title = (item.title || 'Untitled').trim();
+    const snippet = (item.contentSnippet || item.content || item.summary || '').toString().slice(0, 600);
+
+    // Source-level include/exclude filter
+    if (!shouldIngestItem(title, snippet, source)) continue;
+
+    // Title dedup check
+    const tHash = titleHash(title);
+    const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+    if (isDupe) continue;
+
+    const publishedAt = item.isoDate || item.pubDate || null;
+    const imageUrl = extractImageFromRssItem(item);
+    const type = source.type === 'YOUTUBE' ? 'TREND' : 'NEWS';
+    const segments = inferSegments(`${title} ${snippet}`, source.tags ?? []);
+    const score = computeScore({ publishedAt, segments, type });
+
+    const { rows: insertedRows } = await query<{ id: string }>(
+      `
+      INSERT INTO clipping_items
+        (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
+      VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ON CONFLICT (tenant_id, url_hash) DO NOTHING
+      RETURNING id
+      `,
+      [
+        source.tenant_id,
+        source.id,
+        title,
+        url,
+        hashUrl(normalizeUrlForHash(url)),
+        tHash,
+        publishedAt ? new Date(publishedAt) : null,
+        snippet,
+        imageUrl,
+        type,
+        segments,
+        score,
+        source.country ?? null,
+        source.uf ?? null,
+        source.city ?? null,
+      ]
+    );
+
+    if (insertedRows[0]) {
+      inserted += 1;
+      await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+    }
+  }
+
+  return inserted;
+}
+
+async function ingestUrlSource(source: ClippingSource) {
+  // Manual sources are a special "bucket" for one-off ingests; they are not crawlers.
+  if (isManualLikeUrl(source.url)) {
+    return { inserted: 0, status: 'OK' as const, lastError: null as string | null };
+  }
+
+  // 1) If we already discovered a feed URL for this source, try it first.
+  const cachedFeedUrl = resolvedFeedUrlBySourceId.get(source.id);
+  if (cachedFeedUrl) {
+    const feed = await tryParseFeed(cachedFeedUrl);
+    if (feed) {
+      const inserted = await ingestFeedItems(feed, source);
+      return { inserted, status: 'OK' as const, lastError: null as string | null };
+    }
+    resolvedFeedUrlBySourceId.delete(source.id);
+  }
+
+  // 2) Try to parse the URL directly as an RSS/Atom feed (helps when user marked a feed as URL).
+  const directFeed = await tryParseFeed(source.url);
+  if (directFeed) {
+    const inserted = await ingestFeedItems(directFeed, source);
+    return { inserted, status: 'OK' as const, lastError: null as string | null };
+  }
+
+  // 3) Try to discover RSS/Atom links from HTML + common feed paths.
+  const { html, finalUrl } = await fetchHtml(source.url);
+  const feedCandidates = extractFeedCandidatesFromHtml(html, finalUrl);
+
+  for (const candidate of feedCandidates) {
+    const feed = await tryParseFeed(candidate);
+    if (feed) {
+      resolvedFeedUrlBySourceId.set(source.id, candidate);
+      const inserted = await ingestFeedItems(feed, source);
+      return { inserted, status: 'OK' as const, lastError: null as string | null };
+    }
+  }
+
+  // 4) Fallback: treat as a HTML list page and ingest a small number of likely article links.
+  const candidates = extractUrlCandidatesFromHtml(html, finalUrl, source.url);
+  const maxInsert = getUrlSourceMaxItems();
+  let inserted = 0;
+
+  for (const candidate of candidates) {
+    if (inserted >= maxInsert) break;
+
+    const snippet = '';
+
+    if (!shouldIngestItem(candidate.title, snippet, source)) continue;
+
+    const tHash = titleHash(candidate.title);
+    const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+    if (isDupe) continue;
+
+    const type = 'NEWS';
+    const segments = inferSegments(candidate.title, source.tags ?? []);
+    const score = computeScore({ publishedAt: null, segments, type });
+
+    const { rows: insertedRows } = await query<{ id: string }>(
+      `
+      INSERT INTO clipping_items
+        (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
+      VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ON CONFLICT (tenant_id, url_hash) DO NOTHING
+      RETURNING id
+      `,
+      [
+        source.tenant_id,
+        source.id,
+        candidate.title,
+        candidate.url,
+        hashUrl(normalizeUrlForHash(candidate.url)),
+        tHash,
+        null,
+        snippet,
+        null,
+        type,
+        segments,
+        score,
+        source.country ?? null,
+        source.uf ?? null,
+        source.city ?? null,
+      ]
+    );
+
+    if (insertedRows[0]) {
+      inserted += 1;
+      await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+    }
+  }
+
+  if (!candidates.length) {
+    return { inserted, status: 'ERROR' as const, lastError: 'url_no_links_found' };
+  }
+
+  // If we found candidates but inserted none, it's usually because everything was already ingested.
+  return { inserted, status: 'OK' as const, lastError: null as string | null };
+}
+
 async function handleFetchSource(job: any) {
   const sourceId = job.payload?.source_id;
   if (!sourceId) return;
@@ -423,81 +732,27 @@ async function handleFetchSource(job: any) {
   if (!source) return;
 
   try {
-    // RSS-parser can handle RSS/Atom feeds (including YouTube feeds). URL sources are not supported by this worker.
     if (source.type === 'URL') {
+      const res = await ingestUrlSource(source);
       await query(
         `UPDATE clipping_sources cs
-         SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW()
+         SET last_fetched_at=NOW(),
+             status=$4,
+             last_error=$5,
+             updated_at=NOW()
          FROM job_queue jq
          WHERE cs.id=$1
            AND cs.tenant_id=$2
            AND jq.id=$3
            AND jq.tenant_id=$2
            AND jq.status='processing'`,
-        [source.id, job.tenant_id, job.id]
+        [source.id, job.tenant_id, job.id, res.status, res.lastError]
       );
-      return;
+      return res.inserted;
     }
 
     const feed = await parser.parseURL(source.url);
-    let inserted = 0;
-
-    for (const item of feed.items || []) {
-      const url = (item.link || item.guid || '').trim();
-      if (!url) continue;
-      const title = (item.title || 'Untitled').trim();
-      const snippet =
-        (item.contentSnippet || item.content || item.summary || '').toString().slice(0, 600);
-
-      // Source-level include/exclude filter
-      if (!shouldIngestItem(title, snippet, source)) continue;
-
-      // Title dedup check
-      const tHash = titleHash(title);
-      const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
-      if (isDupe) continue;
-
-      const publishedAt = item.isoDate || item.pubDate || null;
-      const imageUrl = extractImageFromRssItem(item);
-      const type = source.type === 'YOUTUBE' ? 'TREND' : 'NEWS';
-      const segments = inferSegments(`${title} ${snippet}`, source.tags ?? []);
-      const score = computeScore({ publishedAt, segments, type });
-
-      const { rows: insertedRows } = await query<{ id: string }>(
-        `
-        INSERT INTO clipping_items
-          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
-        VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-        ON CONFLICT (tenant_id, url_hash) DO NOTHING
-        RETURNING id
-        `,
-        [
-          source.tenant_id,
-          source.id,
-          title,
-          url,
-          hashUrl(normalizeUrlForHash(url)),
-          tHash,
-          publishedAt ? new Date(publishedAt) : null,
-          snippet,
-          imageUrl,
-          type,
-          segments,
-          score,
-          source.country ?? null,
-          source.uf ?? null,
-          source.city ?? null,
-        ]
-      );
-
-      if (insertedRows[0]) {
-        inserted += 1;
-        await enqueueJob(source.tenant_id, 'clipping_enrich_item', {
-          item_id: insertedRows[0].id,
-        });
-      }
-    }
+    const inserted = await ingestFeedItems(feed, source);
 
     await query(
       `UPDATE clipping_sources cs
@@ -513,6 +768,7 @@ async function handleFetchSource(job: any) {
 
     return inserted;
   } catch (error: any) {
+    const msg = safeErrorMessage(error, 'fetch_failed');
     await query(
       `UPDATE clipping_sources cs
        SET last_fetched_at=NOW(), status='ERROR', last_error=$4, updated_at=NOW()
@@ -522,7 +778,7 @@ async function handleFetchSource(job: any) {
          AND jq.id=$3
          AND jq.tenant_id=$2
          AND jq.status='processing'`,
-      [source.id, job.tenant_id, job.id, error?.message || 'fetch_failed']
+      [source.id, job.tenant_id, job.id, msg]
     );
     throw error;
   }
