@@ -145,6 +145,22 @@ export default function ClippingDiagnosticsPage() {
     }
   };
 
+  const [fetchingAll, setFetchingAll] = useState(false);
+  const [fetchAllResult, setFetchAllResult] = useState('');
+
+  const handleFetchAll = async () => {
+    setFetchingAll(true);
+    setFetchAllResult('');
+    try {
+      const res = await apiPost<{ ok: boolean; sources_enqueued: number }>('/clipping/admin/fetch-all', {});
+      setFetchAllResult(`${res?.sources_enqueued ?? 0} fontes enfileiradas para busca imediata.`);
+    } catch (err: any) {
+      setFetchAllResult(`Erro: ${err?.message || 'falha'}`);
+    } finally {
+      setFetchingAll(false);
+    }
+  };
+
   const allColumnsOk = data ? Object.values(data.column_checks).every(Boolean) : false;
   const migrationsOk = data ? data.migrations_applied.length >= 3 : false;
   const failedJobsCount = data?.recent_failed_jobs?.length || 0;
@@ -523,36 +539,62 @@ export default function ClippingDiagnosticsPage() {
               </TableContainer>
             </DashboardCard>
 
-            {/* Backfill action */}
-            <DashboardCard title="Reprocessar items">
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Enfileira items recentes para passar pelo novo pipeline de scoring. Util apos o deploy do overhaul.
-              </Typography>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <TextField
-                  label="Dias"
-                  type="number"
-                  value={backfillDays}
-                  onChange={(e) => setBackfillDays(e.target.value)}
-                  size="small"
-                  sx={{ width: 100 }}
-                  inputProps={{ min: 1, max: 30 }}
-                />
-                <Button
-                  variant="contained"
-                  startIcon={backfilling ? <CircularProgress size={16} color="inherit" /> : <IconPlayerPlay size={18} />}
-                  onClick={handleBackfill}
-                  disabled={backfilling}
-                >
-                  {backfilling ? 'Enfileirando...' : 'Reprocessar'}
-                </Button>
-              </Stack>
-              {backfillResult && (
-                <Alert severity={backfillResult.startsWith('Erro') ? 'error' : 'success'} sx={{ mt: 2 }}>
-                  {backfillResult}
-                </Alert>
-              )}
-            </DashboardCard>
+            {/* Admin actions */}
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <DashboardCard title="Buscar todas as fontes">
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Forca a busca imediata de TODAS as fontes ativas, ignorando o intervalo configurado.
+                    Use para trazer noticias novas agora.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={fetchingAll ? <CircularProgress size={16} color="inherit" /> : <IconRss size={18} />}
+                    onClick={handleFetchAll}
+                    disabled={fetchingAll}
+                  >
+                    {fetchingAll ? 'Enfileirando...' : 'Buscar agora'}
+                  </Button>
+                  {fetchAllResult && (
+                    <Alert severity={fetchAllResult.startsWith('Erro') ? 'error' : 'success'} sx={{ mt: 2 }}>
+                      {fetchAllResult}
+                    </Alert>
+                  )}
+                </DashboardCard>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <DashboardCard title="Reprocessar items">
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Re-enfileira items recentes para enriquecimento + auto-score contra todos os clientes.
+                  </Typography>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <TextField
+                      label="Dias"
+                      type="number"
+                      value={backfillDays}
+                      onChange={(e) => setBackfillDays(e.target.value)}
+                      size="small"
+                      sx={{ width: 100 }}
+                      inputProps={{ min: 1, max: 30 }}
+                    />
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      startIcon={backfilling ? <CircularProgress size={16} color="inherit" /> : <IconPlayerPlay size={18} />}
+                      onClick={handleBackfill}
+                      disabled={backfilling}
+                    >
+                      {backfilling ? 'Enfileirando...' : 'Reprocessar'}
+                    </Button>
+                  </Stack>
+                  {backfillResult && (
+                    <Alert severity={backfillResult.startsWith('Erro') ? 'error' : 'success'} sx={{ mt: 2 }}>
+                      {backfillResult}
+                    </Alert>
+                  )}
+                </DashboardCard>
+              </Grid>
+            </Grid>
           </>
         )}
       </Box>

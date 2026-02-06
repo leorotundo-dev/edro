@@ -1499,6 +1499,28 @@ export default async function clippingRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Force Fetch All Sources ─────────────────────────────────────
+  // Enqueue fetch jobs for ALL active sources immediately (ignoring intervals)
+
+  app.post(
+    '/clipping/admin/fetch-all',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any) => {
+      const tenantId = (request.user as any).tenant_id;
+
+      const { rows: sources } = await query<{ id: string }>(
+        `SELECT id FROM clipping_sources WHERE tenant_id=$1 AND is_active=true`,
+        [tenantId]
+      );
+
+      for (const source of sources) {
+        await enqueueJob(tenantId, 'clipping_fetch_source', { source_id: source.id });
+      }
+
+      return { ok: true, sources_enqueued: sources.length };
+    }
+  );
+
   // ── Diagnostics ───────────────────────────────────────────────────
   // Quick health check for the clipping pipeline
 
