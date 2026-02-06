@@ -27,6 +27,14 @@ const WEIGHTS = {
   contentQuality: 0.1,
 };
 
+// Large client profiles can have dozens of keywords/pillars. Normalizing by the
+// full list length makes scores artificially tiny (and the pipeline "looks
+// dead" because nothing clears the relevance threshold). We instead saturate
+// after a small number of hits so that 2-3 strong matches can be considered
+// relevant regardless of list size.
+const KEYWORD_HITS_SATURATION = 3;
+const PILLAR_HITS_SATURATION = 2;
+
 function normalizeList(values: string[]) {
   return values.map((value) => value.toLowerCase().trim()).filter(Boolean);
 }
@@ -66,17 +74,20 @@ function calculateKeywordMatch(text: string, keywords: string[]): number {
   keywords.forEach((keyword) => {
     if (matchesWordBoundary(text, keyword)) matchCount += 1;
   });
-  return Math.min(1, matchCount / keywords.length);
+  const denom = Math.max(1, Math.min(KEYWORD_HITS_SATURATION, keywords.length));
+  return Math.min(1, matchCount / denom);
 }
 
 function calculatePillarAlignment(text: string, tags: string[], pillars: string[]): number {
   if (!pillars.length) return 0;
-  let score = 0;
+  let hits = 0;
   pillars.forEach((pillar) => {
-    if (matchesWordBoundary(text, pillar)) score += 0.5;
-    if (tags.some((tag) => matchesWordBoundary(tag, pillar))) score += 0.5;
+    const inText = matchesWordBoundary(text, pillar);
+    const inTags = tags.some((tag) => matchesWordBoundary(tag, pillar));
+    if (inText || inTags) hits += 1;
   });
-  return Math.min(1, score / pillars.length);
+  const denom = Math.max(1, Math.min(PILLAR_HITS_SATURATION, pillars.length));
+  return Math.min(1, hits / denom);
 }
 
 function calculateRecency(publishedAt?: Date | string | null) {
