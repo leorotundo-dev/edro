@@ -268,13 +268,19 @@ async function autoArchiveStaleItems() {
 async function enqueueDueSources() {
   const { rows } = await query<ClippingSource>(
     `
-    SELECT * FROM clipping_sources
-    WHERE is_active=true
+    SELECT cs.* FROM clipping_sources cs
+    WHERE cs.is_active=true
       AND (
-        last_fetched_at IS NULL OR
-        last_fetched_at + (fetch_interval_minutes || ' minutes')::interval <= NOW()
+        cs.last_fetched_at IS NULL OR
+        cs.last_fetched_at + (cs.fetch_interval_minutes || ' minutes')::interval <= NOW()
       )
-    ORDER BY last_fetched_at NULLS FIRST
+      AND NOT EXISTS (
+        SELECT 1 FROM job_queue jq
+        WHERE jq.type='clipping_fetch_source'
+          AND jq.status IN ('queued','processing')
+          AND jq.payload->>'source_id' = cs.id::text
+      )
+    ORDER BY cs.last_fetched_at NULLS FIRST
     LIMIT 20
     `
   );
@@ -368,7 +374,7 @@ async function handleFetchSource(job: any) {
     return inserted;
   } catch (error: any) {
     await query(
-      `UPDATE clipping_sources SET status='ERROR', last_error=$2, updated_at=NOW() WHERE id=$1`,
+      `UPDATE clipping_sources SET last_fetched_at=NOW(), status='ERROR', last_error=$2, updated_at=NOW() WHERE id=$1`,
       [source.id, error?.message || 'fetch_failed']
     );
     throw error;

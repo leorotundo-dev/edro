@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost, apiDelete, getApiBase } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, getApiBase } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -35,6 +35,8 @@ import {
   IconPlugConnectedX,
   IconTrash,
   IconExternalLink,
+  IconPencil,
+  IconDeviceFloppy,
 } from '@tabler/icons-react';
 
 type DiagnosticsData = {
@@ -162,6 +164,13 @@ export default function ClippingDiagnosticsPage() {
     }
   };
 
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [editingUrl, setEditingUrl] = useState('');
+  const [savingSource, setSavingSource] = useState(false);
+
+  const [purging, setPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState('');
+
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchAllResult, setFetchAllResult] = useState('');
 
@@ -175,6 +184,21 @@ export default function ClippingDiagnosticsPage() {
       setFetchAllResult(`Erro: ${err?.message || 'falha'}`);
     } finally {
       setFetchingAll(false);
+    }
+  };
+
+  const handlePurgeQueue = async () => {
+    if (!window.confirm('Isso vai deletar TODOS os jobs de clipping pendentes na fila. Continuar?')) return;
+    setPurging(true);
+    setPurgeResult('');
+    try {
+      const res = await apiPost<{ ok: boolean; deleted: number }>('/clipping/admin/purge-queue', {});
+      setPurgeResult(`${(res?.deleted ?? 0).toLocaleString('pt-BR')} jobs removidos da fila.`);
+      await load();
+    } catch (err: any) {
+      setPurgeResult(`Erro: ${err?.message || 'falha'}`);
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -200,12 +224,41 @@ export default function ClippingDiagnosticsPage() {
     } catch { /* ignore */ }
   };
 
+  const handleEditSource = (sourceId: string, currentUrl: string) => {
+    setEditingSourceId(sourceId);
+    setEditingUrl(currentUrl);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSourceId(null);
+    setEditingUrl('');
+  };
+
+  const handleSaveSourceUrl = async (sourceId: string) => {
+    if (!editingUrl.trim()) return;
+    setSavingSource(true);
+    try {
+      await apiPatch(`/clipping/sources/${sourceId}`, { url: editingUrl.trim() });
+      setEditingSourceId(null);
+      setEditingUrl('');
+      await load();
+    } catch { /* ignore */ }
+    finally { setSavingSource(false); }
+  };
+
   const allColumnsOk = data ? Object.values(data.column_checks).every(Boolean) : false;
   const migrationsOk = data ? data.migrations_applied.length >= 3 : false;
   const failedJobsCount = data?.recent_failed_jobs?.length || 0;
 
+  const totalQueuedJobs = data
+    ? data.job_queue_stats
+        .filter((s) => s.status === 'queued')
+        .reduce((sum, s) => sum + s.count, 0)
+    : 0;
+  const queueClogged = totalQueuedJobs > 1000;
+
   const overallHealth = data
-    ? allColumnsOk && migrationsOk && data.feedback_table_exists && failedJobsCount === 0
+    ? allColumnsOk && migrationsOk && data.feedback_table_exists && failedJobsCount === 0 && !queueClogged
     : null;
 
   return (
@@ -315,6 +368,33 @@ export default function ClippingDiagnosticsPage() {
                 {data.errors.map((e, i) => (
                   <Typography key={i} variant="body2" fontFamily="monospace">{e}</Typography>
                 ))}
+              </Alert>
+            )}
+
+            {queueClogged && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+                  Fila TRAVADA — {totalQueuedJobs.toLocaleString('pt-BR')} jobs acumulados
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1.5 }}>
+                  Houve um bug que criava jobs duplicados a cada 5 segundos. O bug ja foi corrigido, mas os jobs
+                  acumulados precisam ser removidos para a fila voltar a funcionar normalmente. Clique abaixo para limpar.
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="small"
+                  startIcon={purging ? <CircularProgress size={14} color="inherit" /> : <IconTrash size={16} />}
+                  onClick={handlePurgeQueue}
+                  disabled={purging}
+                >
+                  {purging ? 'Limpando...' : 'Limpar fila agora'}
+                </Button>
+                {purgeResult && (
+                  <Typography variant="body2" fontWeight={600} sx={{ mt: 1 }}>
+                    {purgeResult}
+                  </Typography>
+                )}
               </Alert>
             )}
 
@@ -576,13 +656,50 @@ export default function ClippingDiagnosticsPage() {
                   </TableHead>
                   <TableBody>
                     {data.sources.length ? (
-                      data.sources.map((src) => (
+                      data.sources.map((src) => {
+                        const isEditing = editingSourceId === src.id;
+                        return (
                         <TableRow key={src.id} sx={src.health === 'ERROR' ? { bgcolor: 'error.lighter' } : undefined}>
                           <TableCell>
                             <Typography variant="body2" fontWeight={600}>{src.name}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {src.url}
-                            </Typography>
+                            {isEditing ? (
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                <TextField
+                                  size="small"
+                                  value={editingUrl}
+                                  onChange={(e) => setEditingUrl(e.target.value)}
+                                  placeholder="https://..."
+                                  fullWidth
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveSourceUrl(src.id);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                  sx={{ '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }}
+                                />
+                                <Tooltip title="Salvar">
+                                  <IconButton size="small" color="primary" onClick={() => handleSaveSourceUrl(src.id)} disabled={savingSource}>
+                                    {savingSource ? <CircularProgress size={16} /> : <IconDeviceFloppy size={16} />}
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Cancelar">
+                                  <IconButton size="small" onClick={handleCancelEdit}>
+                                    <IconX size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            ) : (
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {src.url}
+                                </Typography>
+                                <Tooltip title="Editar URL">
+                                  <IconButton size="small" onClick={() => handleEditSource(src.id, src.url)} sx={{ p: 0.25 }}>
+                                    <IconPencil size={13} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Stack spacing={0.5}>
@@ -635,7 +752,8 @@ export default function ClippingDiagnosticsPage() {
                             </Stack>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      }))
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} align="center">

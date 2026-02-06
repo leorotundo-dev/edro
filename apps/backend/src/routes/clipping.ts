@@ -1520,6 +1520,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
 
   // ── Force Fetch All Sources ─────────────────────────────────────
   // Enqueue fetch jobs for ALL active sources immediately (ignoring intervals)
+  // Skips sources that already have a queued/processing job
 
   app.post(
     '/clipping/admin/fetch-all',
@@ -1528,7 +1529,14 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const tenantId = (request.user as any).tenant_id;
 
       const { rows: sources } = await query<{ id: string }>(
-        `SELECT id FROM clipping_sources WHERE tenant_id=$1 AND is_active=true`,
+        `SELECT cs.id FROM clipping_sources cs
+         WHERE cs.tenant_id=$1 AND cs.is_active=true
+           AND NOT EXISTS (
+             SELECT 1 FROM job_queue jq
+             WHERE jq.type='clipping_fetch_source'
+               AND jq.status IN ('queued','processing')
+               AND jq.payload->>'source_id' = cs.id::text
+           )`,
         [tenantId]
       );
 
@@ -1537,6 +1545,28 @@ export default async function clippingRoutes(app: FastifyInstance) {
       }
 
       return { ok: true, sources_enqueued: sources.length };
+    }
+  );
+
+  // ── Purge queued clipping jobs ────────────────────────────────────
+  // Delete all queued (not processing/done) clipping jobs to recover from queue explosion
+
+  app.post(
+    '/clipping/admin/purge-queue',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any) => {
+      const tenantId = (request.user as any).tenant_id;
+
+      const { rows } = await query<{ deleted: number }>(
+        `WITH deleted AS (
+           DELETE FROM job_queue
+           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='queued'
+           RETURNING id
+         ) SELECT COUNT(*)::int AS deleted FROM deleted`,
+        [tenantId]
+      );
+
+      return { ok: true, deleted: rows[0]?.deleted ?? 0 };
     }
   );
 
