@@ -265,7 +265,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         ),
       ]);
 
-      const merged = [...(clientSources || []), ...(globalSources || [])];
+      // Hide the tenant-global manual source (url='manual') inside client views to avoid confusion.
+      const filteredGlobal = (globalSources || []).filter((source) => source.url !== 'manual');
+
+      const merged = [...(clientSources || []), ...filteredGlobal];
       const seen = new Set<string>();
       const deduped = merged.filter((source) => {
         if (seen.has(source.id)) return false;
@@ -375,10 +378,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setError('');
     setSuccess('');
     try {
-      await apiPost('/clipping/items/ingest-url', { url: ingestUrl.trim() });
+      await apiPost('/clipping/items/ingest-url', { url: ingestUrl.trim(), clientId: selectedClient?.id });
       setSuccess('URL ingerida com sucesso.');
       setIngestUrl('');
-      await loadItems();
+      await Promise.all([loadItems(), loadSources(), loadStats()]);
     } catch (err: any) {
       setError(err?.message || 'Falha ao ingerir URL.');
     } finally {
@@ -451,8 +454,15 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setFetchingAll(true);
     setError('');
     try {
-      const res = await apiPost<{ enqueued?: number }>('/clipping/admin/fetch-all', {});
-      setSuccess(`Busca enfileirada para ${res?.enqueued ?? 0} fontes.`);
+      const res = await apiPost<{ enqueued?: number; sources_enqueued?: number }>('/clipping/admin/fetch-all', {});
+      const enqueued = res?.enqueued ?? res?.sources_enqueued ?? 0;
+      setSuccess(`Busca enfileirada para ${enqueued} fontes.`);
+
+      // Refresh "Fetch: ..." timestamps. Jobs run async, so re-check twice.
+      await loadSources();
+      window.setTimeout(() => {
+        void loadSources();
+      }, 6000);
     } catch (err: any) {
       setError(err?.message || 'Falha ao enfileirar busca.');
     } finally {

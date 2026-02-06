@@ -567,6 +567,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const bodySchema = z.object({
         url: z.string().url(),
+        clientId: z.string().optional(),
         sourceId: z.string().optional(),
         tags: z.array(z.string()).optional(),
         categories: z.array(z.string()).optional(),
@@ -574,8 +575,22 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const body = bodySchema.parse(request.body);
       const tenantId = (request.user as any).tenant_id;
 
+      if (body.clientId) {
+        const allowed = await hasClientPerm({
+          tenantId,
+          userId: (request.user as any).sub,
+          role: (request.user as any).role,
+          clientId: body.clientId,
+          perm: 'write',
+        });
+        if (!allowed) {
+          return reply.status(403).send({ error: 'client_forbidden' });
+        }
+      }
+
       const result = await ingestUrl(tenantId, {
         url: body.url,
+        clientId: body.clientId,
         sourceId: body.sourceId,
         tags: body.tags,
         categories: body.categories,
@@ -595,6 +610,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const bodySchema = z.object({
         urls: z.array(z.string().url()),
+        clientId: z.string().optional(),
         sourceId: z.string().optional(),
         tags: z.array(z.string()).optional(),
         categories: z.array(z.string()).optional(),
@@ -602,10 +618,24 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const body = bodySchema.parse(request.body);
       const tenantId = (request.user as any).tenant_id;
 
+      if (body.clientId) {
+        const allowed = await hasClientPerm({
+          tenantId,
+          userId: (request.user as any).sub,
+          role: (request.user as any).role,
+          clientId: body.clientId,
+          perm: 'write',
+        });
+        if (!allowed) {
+          return reply.status(403).send({ error: 'client_forbidden' });
+        }
+      }
+
       const results = [];
       for (const url of body.urls) {
         const result = await ingestUrl(tenantId, {
           url,
+          clientId: body.clientId,
           sourceId: body.sourceId,
           tags: body.tags,
           categories: body.categories,
@@ -1701,7 +1731,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
         await enqueueJob(tenantId, 'clipping_fetch_source', { source_id: source.id });
       }
 
-      return { ok: true, sources_enqueued: sources.length };
+      return { ok: true, enqueued: sources.length, sources_enqueued: sources.length };
     }
   );
 
