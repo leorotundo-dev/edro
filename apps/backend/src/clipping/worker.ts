@@ -328,14 +328,6 @@ async function enqueueDueSources() {
   }
 }
 
-async function isJobStillProcessing(job: { id: string; tenant_id: string }) {
-  const { rows } = await query<{ status: string }>(
-    `SELECT status FROM job_queue WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
-    [job.id, job.tenant_id]
-  );
-  return rows[0]?.status === 'processing';
-}
-
 async function autoReapStuckFetchJobs() {
   // Avoid running this query on every runner tick (default tick is 5s).
   if (Date.now() - lastStuckReapAt < 60_000) return;
@@ -390,12 +382,17 @@ async function handleFetchSource(job: any) {
 
   try {
     if (source.type !== 'RSS') {
-      if (await isJobStillProcessing(job)) {
-        await query(
-          `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
-          [source.id]
-        );
-      }
+      await query(
+        `UPDATE clipping_sources cs
+         SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW()
+         FROM job_queue jq
+         WHERE cs.id=$1
+           AND cs.tenant_id=$2
+           AND jq.id=$3
+           AND jq.tenant_id=$2
+           AND jq.status='processing'`,
+        [source.id, job.tenant_id, job.id]
+      );
       return;
     }
 
@@ -455,21 +452,31 @@ async function handleFetchSource(job: any) {
       }
     }
 
-    if (await isJobStillProcessing(job)) {
-      await query(
-        `UPDATE clipping_sources SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW() WHERE id=$1`,
-        [source.id]
-      );
-    }
+    await query(
+      `UPDATE clipping_sources cs
+       SET last_fetched_at=NOW(), status='OK', last_error=NULL, updated_at=NOW()
+       FROM job_queue jq
+       WHERE cs.id=$1
+         AND cs.tenant_id=$2
+         AND jq.id=$3
+         AND jq.tenant_id=$2
+         AND jq.status='processing'`,
+      [source.id, job.tenant_id, job.id]
+    );
 
     return inserted;
   } catch (error: any) {
-    if (await isJobStillProcessing(job)) {
-      await query(
-        `UPDATE clipping_sources SET last_fetched_at=NOW(), status='ERROR', last_error=$2, updated_at=NOW() WHERE id=$1`,
-        [source.id, error?.message || 'fetch_failed']
-      );
-    }
+    await query(
+      `UPDATE clipping_sources cs
+       SET last_fetched_at=NOW(), status='ERROR', last_error=$4, updated_at=NOW()
+       FROM job_queue jq
+       WHERE cs.id=$1
+         AND cs.tenant_id=$2
+         AND jq.id=$3
+         AND jq.tenant_id=$2
+         AND jq.status='processing'`,
+      [source.id, job.tenant_id, job.id, error?.message || 'fetch_failed']
+    );
     throw error;
   }
 }
