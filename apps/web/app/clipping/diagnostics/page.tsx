@@ -40,12 +40,11 @@ type DiagnosticsData = {
     id: string;
     name: string;
     is_active: boolean;
-    status: string;
     last_fetched_at: string | null;
-    last_error: string | null;
     fetch_interval_minutes: number;
   }>;
   items: { total: number; last_24h: number; last_7d: number };
+  errors?: string[];
 };
 
 function StatusIcon({ ok }: { ok: boolean }) {
@@ -164,12 +163,21 @@ export default function ClippingDiagnosticsPage() {
             <Alert
               severity={overallHealth ? 'success' : 'warning'}
               icon={overallHealth ? <IconCheck size={20} /> : <IconAlertTriangle size={20} />}
-              sx={{ mb: 3 }}
+              sx={{ mb: 2 }}
             >
               {overallHealth
                 ? 'Pipeline saudavel. Migrations OK, colunas OK, sem jobs falhando.'
                 : 'Problemas detectados. Veja os detalhes abaixo.'}
             </Alert>
+
+            {data.errors && data.errors.length > 0 && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Erros ao consultar banco:</Typography>
+                {data.errors.map((e, i) => (
+                  <Typography key={i} variant="body2" fontFamily="monospace">{e}</Typography>
+                ))}
+              </Alert>
+            )}
 
             <Grid container spacing={2} sx={{ mb: 3 }}>
               {/* Migrations */}
@@ -374,10 +382,8 @@ export default function ClippingDiagnosticsPage() {
                     <TableRow>
                       <TableCell>Nome</TableCell>
                       <TableCell>Ativa</TableCell>
-                      <TableCell>Status</TableCell>
                       <TableCell>Ultimo fetch</TableCell>
                       <TableCell>Intervalo</TableCell>
-                      <TableCell>Erro</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -391,14 +397,6 @@ export default function ClippingDiagnosticsPage() {
                             <StatusIcon ok={src.is_active} />
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              size="small"
-                              label={src.status || 'N/A'}
-                              color={src.status === 'OK' ? 'success' : src.status === 'ERROR' ? 'error' : 'default'}
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
                             <Typography variant="caption" color={src.last_fetched_at ? 'text.secondary' : 'error.main'}>
                               {timeAgo(src.last_fetched_at)}
                             </Typography>
@@ -406,20 +404,11 @@ export default function ClippingDiagnosticsPage() {
                           <TableCell>
                             <Typography variant="caption">{src.fetch_interval_minutes}min</Typography>
                           </TableCell>
-                          <TableCell>
-                            {src.last_error ? (
-                              <Typography variant="caption" color="error.main" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                                {src.last_error}
-                              </Typography>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">--</Typography>
-                            )}
-                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} align="center">
+                        <TableCell colSpan={4} align="center">
                           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
                             Nenhuma fonte cadastrada
                           </Typography>

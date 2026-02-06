@@ -1507,6 +1507,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clipping:read')] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
+      const errors: string[] = [];
 
       // 1. Check if new columns exist (migrations ran?)
       const columnChecks: Record<string, boolean> = {};
@@ -1534,50 +1535,80 @@ export default async function clippingRoutes(app: FastifyInstance) {
       }
 
       // 3. Job queue stats
-      const { rows: jobStats } = await query<any>(
-        `SELECT type, status, COUNT(*)::int AS count
-         FROM job_queue
-         WHERE tenant_id=$1 AND type LIKE 'clipping_%'
-         GROUP BY type, status
-         ORDER BY type, status`,
-        [tenantId]
-      );
+      let jobStats: any[] = [];
+      try {
+        const res = await query<any>(
+          `SELECT type, status, COUNT(*)::int AS count
+           FROM job_queue
+           WHERE tenant_id=$1 AND type LIKE 'clipping_%'
+           GROUP BY type, status
+           ORDER BY type, status`,
+          [tenantId]
+        );
+        jobStats = res.rows;
+      } catch (e: any) {
+        errors.push(`job_queue_stats: ${e?.message}`);
+      }
 
-      // 4. Recent failed jobs (last 24h)
-      const { rows: failedJobs } = await query<any>(
-        `SELECT id, type, error, updated_at
-         FROM job_queue
-         WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='failed'
-         ORDER BY updated_at DESC
-         LIMIT 10`,
-        [tenantId]
-      );
+      // 4. Recent failed jobs
+      let failedJobs: any[] = [];
+      try {
+        const res = await query<any>(
+          `SELECT id, type, error, updated_at
+           FROM job_queue
+           WHERE tenant_id=$1 AND type LIKE 'clipping_%' AND status='failed'
+           ORDER BY updated_at DESC
+           LIMIT 10`,
+          [tenantId]
+        );
+        failedJobs = res.rows;
+      } catch (e: any) {
+        errors.push(`failed_jobs: ${e?.message}`);
+      }
 
       // 5. Source status
-      const { rows: sourceStatus } = await query<any>(
-        `SELECT id, name, is_active, status, last_fetched_at, last_error, fetch_interval_minutes
-         FROM clipping_sources
-         WHERE tenant_id=$1
-         ORDER BY last_fetched_at DESC NULLS LAST`,
-        [tenantId]
-      );
+      let sourceStatus: any[] = [];
+      try {
+        const res = await query<any>(
+          `SELECT id, name, is_active, last_fetched_at, fetch_interval_minutes
+           FROM clipping_sources
+           WHERE tenant_id=$1
+           ORDER BY last_fetched_at DESC NULLS LAST`,
+          [tenantId]
+        );
+        sourceStatus = res.rows;
+      } catch (e: any) {
+        errors.push(`sources: ${e?.message}`);
+      }
 
       // 6. Applied migrations
-      const { rows: migrations } = await query<any>(
-        `SELECT name, run_at FROM schema_migrations
-         WHERE name LIKE '%clipping_overhaul%'
-         ORDER BY name`
-      );
+      let migrations: any[] = [];
+      try {
+        const res = await query<any>(
+          `SELECT name, run_at FROM schema_migrations
+           WHERE name LIKE '%clipping_overhaul%'
+           ORDER BY name`
+        );
+        migrations = res.rows;
+      } catch (e: any) {
+        errors.push(`migrations: ${e?.message}`);
+      }
 
       // 7. Recent items count
-      const { rows: recentItems } = await query<any>(
-        `SELECT
-           COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS last_24h,
-           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS last_7d
-         FROM clipping_items WHERE tenant_id=$1`,
-        [tenantId]
-      );
+      let items: any = { total: 0, last_24h: 0, last_7d: 0 };
+      try {
+        const res = await query<any>(
+          `SELECT
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS last_24h,
+             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS last_7d
+           FROM clipping_items WHERE tenant_id=$1`,
+          [tenantId]
+        );
+        items = res.rows[0] || items;
+      } catch (e: any) {
+        errors.push(`items: ${e?.message}`);
+      }
 
       return {
         migrations_applied: migrations,
@@ -1586,7 +1617,8 @@ export default async function clippingRoutes(app: FastifyInstance) {
         job_queue_stats: jobStats,
         recent_failed_jobs: failedJobs,
         sources: sourceStatus,
-        items: recentItems[0] || {},
+        items,
+        errors,
       };
     }
   );
