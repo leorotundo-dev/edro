@@ -540,6 +540,12 @@ export default async function clippingRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clipping:read')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id;
+      const paramsSchema = z.object({ id: z.string().uuid() });
+      const parsedParams = paramsSchema.safeParse(request.params);
+      if (!parsedParams.success) {
+        return reply.status(400).send({ error: 'invalid_id' });
+      }
+      const itemId = parsedParams.data.id;
       const { rows } = await query<any>(
         `
         SELECT ci.*, cs.name as source_name, cs.url as source_url, cs.type as source_type
@@ -547,7 +553,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
         JOIN clipping_sources cs ON cs.id = ci.source_id
         WHERE ci.id=$1 AND ci.tenant_id=$2
         `,
-        [request.params.id, tenantId]
+        [itemId, tenantId]
       );
       const item = rows[0];
       if (!item) return reply.status(404).send({ error: 'not_found' });

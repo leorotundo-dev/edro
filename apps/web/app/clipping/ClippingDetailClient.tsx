@@ -79,6 +79,10 @@ function formatDate(value?: string | null) {
   return date.toLocaleString('pt-BR');
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
 export default function ClippingDetailClient({ itemId }: ClippingDetailClientProps) {
   const router = useRouter();
   const [item, setItem] = useState<ClippingItemDetail | null>(null);
@@ -92,6 +96,13 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
   const [saving, setSaving] = useState(false);
 
   const loadDetail = useCallback(async () => {
+    if (!isUuid(itemId)) {
+      setItem(null);
+      setLoading(false);
+      setError('ID do item invalido.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {

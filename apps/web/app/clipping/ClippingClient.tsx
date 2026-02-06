@@ -616,7 +616,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                         transition: 'all 0.2s',
                         '&:hover': { borderColor: 'primary.main', boxShadow: '0 2px 12px rgba(93,135,255,0.15)' },
                       }}
-                      onClick={() => router.push(`/clipping/${item.id}`)}
+                      onClick={() => {
+                        if (!item?.id) return;
+                        router.push(`/clipping/${item.id}`);
+                      }}
                     >
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
