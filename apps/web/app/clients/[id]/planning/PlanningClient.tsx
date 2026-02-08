@@ -79,15 +79,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [notesText, setNotesText] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Load Intelligence Context (with 25s client-side timeout)
+  // Load Intelligence Context (with 30s client-side timeout)
   const loadContext = useCallback(async () => {
     setContextLoading(true);
     setContextError('');
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-      const response = await apiPost<{
+      const contextPromise = apiPost<{
         success?: boolean;
         data?: {
           context?: any;
@@ -97,7 +94,11 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         };
       }>(`/clients/${clientId}/planning/context`, {});
 
-      clearTimeout(timeoutId);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 30000)
+      );
+
+      const response = await Promise.race([contextPromise, timeoutPromise]);
 
       if (response?.data?.stats) {
         setIntelligenceStats(response.data.stats);
@@ -106,7 +107,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         setContextError(response.data.warning || 'Contexto carregado parcialmente.');
       }
     } catch (err: any) {
-      const msg = err?.name === 'AbortError'
+      const msg = err?.message === 'timeout'
         ? 'Contexto demorou demais. Clique Refresh para tentar novamente.'
         : (err?.message || 'Falha ao carregar contexto.');
       setContextError(msg);
@@ -304,7 +305,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
-  // Send Chat Message
+  // Send Chat Message (with 55s timeout)
   const sendChatMessage = async (message: string) => {
     setChatLoading(true);
     setChatMessages((prev) => [
@@ -313,7 +314,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     ]);
 
     try {
-      const response = await apiPost<{
+      const chatPromise = apiPost<{
         success?: boolean;
         data?: {
           response?: string;
@@ -328,6 +329,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         mode: chatMode,
         conversationId,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 55000)
+      );
+
+      const response = await Promise.race([chatPromise, timeoutPromise]);
 
       if (response?.data?.conversationId) {
         setConversationId(response.data.conversationId);
@@ -350,9 +357,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         await loadOutputs();
       }
     } catch (err: any) {
+      const errorMsg = err?.message === 'timeout'
+        ? 'A IA demorou demais para responder. Tente novamente.'
+        : (err?.message || 'Erro ao conversar com a IA.');
       setChatMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: err?.message || 'Erro ao conversar com a IA.', timestamp: new Date().toISOString() },
+        { role: 'assistant', content: errorMsg, timestamp: new Date().toISOString() },
       ]);
     } finally {
       setChatLoading(false);

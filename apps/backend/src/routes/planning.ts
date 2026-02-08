@@ -278,15 +278,23 @@ export default async function planningRoutes(app: FastifyInstance) {
     const body = chatSchema.parse(request.body);
     const { message, provider, conversationId, mode } = body;
 
-    // Build client context
-    const clientContext = await buildClientContext(tenantId, clientId);
-    let contextPack = { sources: [], packedText: '' };
+    // Build client context (with timeouts to prevent hanging)
+    const clientContext = await Promise.race([
+      buildClientContext(tenantId, clientId),
+      new Promise<string>((resolve) => setTimeout(() => resolve(''), 5000)),
+    ]);
+    let contextPack: { sources: any[]; packedText: string } = { sources: [], packedText: '' };
     try {
-      contextPack = await buildContextPack({
-        tenant_id: tenantId,
-        client_id: clientId,
-        query: message,
-      });
+      contextPack = await Promise.race([
+        buildContextPack({
+          tenant_id: tenantId,
+          client_id: clientId,
+          query: message,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Context pack timed out')), 10000)
+        ),
+      ]);
     } catch (error) {
       request.log?.warn({ err: error }, 'planning_context_pack_failed');
     }
@@ -343,10 +351,15 @@ export default async function planningRoutes(app: FastifyInstance) {
       ? { tenant_id: tenantId, feature: 'planning_chat' }
       : undefined;
 
+    // 45s timeout on AI generation to prevent indefinite hanging
+    const aiTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('AI generation timed out after 45s')), 45000)
+    );
+
     try {
       if (provider === 'collaborative' && mode === 'chat') {
         // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
-        const collabResult = await runCollaborativePipeline({
+        const collabResult = await Promise.race([runCollaborativePipeline({
           usageContext: usageCtx,
           analysisPrompt: [
             'Voce e um analista estrategico de comunicacao de agencia.',
@@ -394,18 +407,18 @@ export default async function planningRoutes(app: FastifyInstance) {
             'RESPOSTA DO ESTRATEGISTA:',
             strategicOutput,
           ].join('\n'),
-        });
+        }), aiTimeout]);
         resultOutput = collabResult.output;
         resultProvider = 'collaborative';
         resultModel = collabResult.model;
         resultStages = collabResult.stages;
       } else {
-        const singleResult = await generateWithProvider(copyProvider, {
+        const singleResult = await Promise.race([generateWithProvider(copyProvider, {
           prompt: fullPrompt,
           systemPrompt,
           temperature: mode === 'command' ? 0.2 : 0.7,
           maxTokens: 2000,
-        }, usageCtx);
+        }, usageCtx), aiTimeout]);
         resultOutput = singleResult.output;
         resultProvider = singleResult.provider;
         resultModel = singleResult.model;
@@ -871,7 +884,10 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       performanceResult,
     ] = await Promise.all([
       buildClientContext(tenantId, clientId),
-      buildContextPack({ tenant_id: tenantId, client_id: clientId, query: 'analise estrategica completa do cliente' }).catch(() => ({ sources: [], packedText: '' })),
+      Promise.race([
+        buildContextPack({ tenant_id: tenantId, client_id: clientId, query: 'analise estrategica completa do cliente' }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Context pack timed out')), 10000)),
+      ]).catch(() => ({ sources: [], packedText: '' })),
       query(
         `SELECT cm.score, cm.matched_keywords, ci.title, ci.excerpt, ci.published_at
          FROM clipping_matches cm
