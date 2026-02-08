@@ -116,14 +116,19 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   }, [clientId]);
 
-  // Load Health
+  // Load Health (with 15s timeout)
   const loadHealth = useCallback(async () => {
     setHealthLoading(true);
     try {
-      const response = await apiPost<{
+      const healthPromise = apiPost<{
         success?: boolean;
         data?: HealthData;
       }>(`/clients/${clientId}/planning/health`, {});
+
+      const response = await Promise.race([
+        healthPromise,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
+      ]);
 
       if (response?.data) {
         setHealthData(response.data);

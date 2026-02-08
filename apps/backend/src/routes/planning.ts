@@ -1121,7 +1121,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     const tenantId = (request as any).tenantId || 'default';
 
     try {
-      const healthChecks = await Promise.allSettled([
+      // 10s safety timeout on all health checks
+      const healthChecksPromise = Promise.allSettled([
         // Library health
         query(`
           SELECT COUNT(*) as total,
@@ -1194,6 +1195,13 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           WHERE client_id = $1
             AND created_at > NOW() - INTERVAL '90 days'
         `, [clientId]),
+      ]);
+
+      const healthChecks = await Promise.race([
+        healthChecksPromise,
+        new Promise<PromiseSettledResult<any>[]>((resolve) =>
+          setTimeout(() => resolve(Array(7).fill({ status: 'rejected', reason: new Error('Health check timed out') })), 10000)
+        ),
       ]);
 
       const [libraryRes, clippingRes, socialRes, calendarRes, opportunitiesRes, copiesRes, briefingsRes] = healthChecks;
