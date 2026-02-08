@@ -8,7 +8,7 @@ import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
 import { ingestUrl, refreshItem } from '../clipping/ingest';
 import { scoreClippingItem } from '../clipping/scoring';
-import { computeGeoFactor } from '../clipping/geo';
+import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -169,6 +169,28 @@ export default async function clippingRoutes(app: FastifyInstance) {
       }
 
       try {
+        const cleanText = (value?: string | null) => {
+          const text = String(value ?? '').trim();
+          return text ? text : null;
+        };
+
+        let sourceCountry = cleanText(body.country ?? null);
+        let sourceUf = cleanText(body.uf ?? null);
+        let sourceCity = cleanText(body.city ?? null);
+
+        // If the source is CLIENT-scoped, default locality to the client when missing.
+        // This avoids unknown-location items polluting local clients.
+        if (body.scope === 'CLIENT' && body.client_id) {
+          const { rows: clientRows } = await query<any>(
+            `SELECT country, uf, city FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+            [tenantId, body.client_id]
+          );
+          const client = clientRows[0] || {};
+          if (!sourceCountry) sourceCountry = cleanText(client.country ?? null);
+          if (!sourceUf) sourceUf = cleanText(client.uf ?? null);
+          if (!sourceCity) sourceCity = cleanText(client.city ?? null);
+        }
+
         const { rows } = await query(
           `
           INSERT INTO clipping_sources
@@ -184,9 +206,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
             body.url,
             body.type,
             body.tags ?? [],
-            body.country ?? null,
-            body.uf ?? null,
-            body.city ?? null,
+            sourceCountry,
+            sourceUf,
+            sourceCity,
             body.fetch_interval_minutes ?? 60,
             body.include_keywords ?? [],
             body.exclude_keywords ?? [],
@@ -404,20 +426,30 @@ export default async function clippingRoutes(app: FastifyInstance) {
 
       let clientHasRadarProfile = false;
       let clientUf: string | null = null;
+      let clientCity: string | null = null;
+      let clientGeoMode: GeoMode = 'fuzzy';
       if (queryParams.clientId) {
         try {
           const { rows: clientRows } = await query<any>(
-            `SELECT profile, uf FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+            `SELECT profile, uf, city FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
             [tenantId, queryParams.clientId]
           );
           const profile = clientRows[0]?.profile || {};
           const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
           const pillars: string[] = Array.isArray(profile.pillars) ? profile.pillars : [];
-          clientHasRadarProfile = keywords.length > 0 || pillars.length > 0;
+          const clippingProfile = profile.clipping || {};
+          const requiredKeywords: string[] = Array.isArray(clippingProfile.required_keywords)
+            ? clippingProfile.required_keywords
+            : [];
+          clientHasRadarProfile = keywords.length > 0 || pillars.length > 0 || requiredKeywords.length > 0;
           clientUf = clientRows[0]?.uf ? String(clientRows[0].uf).trim() : null;
+          clientCity = clientRows[0]?.city ? String(clientRows[0].city).trim() : null;
+          clientGeoMode = normalizeGeoMode(clippingProfile.geo_mode);
         } catch {
           clientHasRadarProfile = false;
           clientUf = null;
+          clientCity = null;
+          clientGeoMode = 'fuzzy';
         }
       }
 
@@ -494,11 +526,25 @@ export default async function clippingRoutes(app: FastifyInstance) {
           where.push(`cs.scope='CLIENT' AND cs.client_id = $${clientIdParam}`);
         }
 
-        // Geo restriction (minimal): if the client has UF set, avoid cross-state noise.
-        // Allow NULL (unknown/national) items to still surface when relevant.
-        if (clientUf) {
-          where.push(`(ci.uf IS NULL OR UPPER(ci.uf) = UPPER($${idx++}))`);
-          values.push(clientUf);
+        // Geo restriction:
+        // - fuzzy (default): allow unknown-location items to still surface when relevant.
+        // - strict_uf: require item UF match when client has UF.
+        // - strict_city: require item city match when client has city (and UF when client has UF).
+        if (clientGeoMode === 'strict_city' && clientCity) {
+          if (clientUf) {
+            where.push(`(ci.uf IS NOT NULL AND UPPER(ci.uf) = UPPER($${idx++}))`);
+            values.push(clientUf);
+          }
+          where.push(`(ci.city IS NOT NULL AND LOWER(ci.city) = LOWER($${idx++}))`);
+          values.push(clientCity);
+        } else if (clientUf) {
+          if (clientGeoMode === 'strict_uf') {
+            where.push(`(ci.uf IS NOT NULL AND UPPER(ci.uf) = UPPER($${idx++}))`);
+            values.push(clientUf);
+          } else {
+            where.push(`(ci.uf IS NULL OR UPPER(ci.uf) = UPPER($${idx++}))`);
+            values.push(clientUf);
+          }
         }
       }
 
@@ -711,7 +757,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
       let keywords = body.clientKeywords || [];
       let pillars = body.clientPillars || [];
       let negativeKeywords: string[] = [];
+      let requiredKeywords: string[] = [];
       let clientLocality: { country?: string | null; uf?: string | null; city?: string | null } = {};
+      let geoMode: GeoMode = 'fuzzy';
 
       {
         const { rows } = await query<any>(
@@ -720,6 +768,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
         );
         const row = rows[0] || {};
         clientLocality = { country: row.country ?? null, uf: row.uf ?? null, city: row.city ?? null };
+        const clippingProfile = row.profile?.clipping || {};
+        requiredKeywords = Array.isArray(clippingProfile.required_keywords) ? clippingProfile.required_keywords : [];
+        geoMode = normalizeGeoMode(clippingProfile.geo_mode);
         if (!keywords.length && !pillars.length) {
           const profile = row.profile || {};
           keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
@@ -752,12 +803,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
             publishedAt: item.published_at,
             tags: item.tags,
           },
-          { keywords, pillars, negativeKeywords }
+          { keywords, pillars, negativeKeywords, requiredKeywords }
         );
 
-        const geo = computeGeoFactor({
+        const geo = computeGeoFactorWithMode({
           client: clientLocality,
           item: { country: item.country, uf: item.uf, city: item.city },
+          mode: geoMode,
         });
         const finalScore = Math.round(Math.max(0, scoreResult.score * geo.factor) * 100) / 100;
         const relevanceFactors = {
@@ -767,12 +819,11 @@ export default async function clippingRoutes(app: FastifyInstance) {
         };
 
         const scorePercent = Math.max(0, Math.min(100, Math.round(finalScore * 100)));
-        const suggested = Array.from(
-          new Set([
-            ...(item.suggested_client_ids || []),
-            finalScore >= minClientScore ? body.clientId : null,
-          ].filter(Boolean))
-        );
+        const currentSuggested = Array.isArray(item.suggested_client_ids) ? item.suggested_client_ids : [];
+        const suggested =
+          finalScore >= minClientScore
+            ? Array.from(new Set([...currentSuggested, body.clientId]))
+            : currentSuggested.filter((id: string) => id !== body.clientId);
 
         await query(
           `
@@ -786,37 +837,101 @@ export default async function clippingRoutes(app: FastifyInstance) {
           [item.id, tenantId, scorePercent, finalScore, suggested]
         );
 
-        await query(
-          `
-          INSERT INTO clipping_matches
-            (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions, negative_hits, relevance_factors)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-          ON CONFLICT (tenant_id, clipping_item_id, client_id)
-          DO UPDATE SET score=$4, matched_keywords=$5, suggested_actions=$6, negative_hits=$7, relevance_factors=$8, updated_at=NOW()
-          `,
-          [
-            tenantId,
-            item.id,
-            body.clientId,
-            finalScore,
-            scoreResult.matchedKeywords,
-            scoreResult.suggestedActions,
-            scoreResult.negativeHits,
-            JSON.stringify(relevanceFactors),
-          ]
-        );
+        if (finalScore >= minClientScore) {
+          await query(
+            `
+            INSERT INTO clipping_matches
+              (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions, negative_hits, relevance_factors)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ON CONFLICT (tenant_id, clipping_item_id, client_id)
+            DO UPDATE SET score=$4, matched_keywords=$5, suggested_actions=$6, negative_hits=$7, relevance_factors=$8, updated_at=NOW()
+            `,
+            [
+              tenantId,
+              item.id,
+              body.clientId,
+              finalScore,
+              scoreResult.matchedKeywords,
+              scoreResult.suggestedActions,
+              scoreResult.negativeHits,
+              JSON.stringify(relevanceFactors),
+            ]
+          );
+        } else {
+          await query(
+            `DELETE FROM clipping_matches WHERE tenant_id=$1 AND clipping_item_id=$2 AND client_id=$3`,
+            [tenantId, item.id, body.clientId]
+          );
+        }
 
         results.push({
           itemId: item.id,
           clientId: body.clientId,
           score: finalScore,
           matchedKeywords: scoreResult.matchedKeywords,
+          requiredMatches: scoreResult.requiredMatches,
           negativeHits: scoreResult.negativeHits,
           suggestedActions: scoreResult.suggestedActions,
         });
       }
 
       return reply.send({ results });
+    }
+  );
+
+  // ── Client Clipping Profile ─────────────────────────────────────
+  // Stored in clients.profile.clipping (JSONB), so no migration needed.
+  // This is used by the scoring + geo gating pipeline.
+
+  app.patch(
+    '/clients/:clientId/clipping-profile',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply: any) => {
+      const paramsSchema = z.object({ clientId: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const bodySchema = z.object({
+        geo_mode: z.enum(['fuzzy', 'strict_uf', 'strict_city']).optional(),
+        required_keywords: z.array(z.string()).optional(),
+      });
+      const body = bodySchema.parse(request.body ?? {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const allowed = await hasClientPerm({
+        tenantId,
+        userId: (request.user as any).sub,
+        role: (request.user as any).role,
+        clientId: params.clientId,
+        perm: 'write',
+      });
+      if (!allowed) {
+        return reply.status(403).send({ error: 'client_forbidden' });
+      }
+
+      const { rows } = await query<any>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, params.clientId]
+      );
+      const row = rows[0];
+      if (!row) return reply.status(404).send({ error: 'client_not_found' });
+
+      const profile = row.profile || {};
+      const clipping = profile.clipping || {};
+
+      if (body.geo_mode !== undefined) clipping.geo_mode = body.geo_mode;
+      if (body.required_keywords !== undefined) {
+        clipping.required_keywords = body.required_keywords
+          .map((kw) => String(kw || '').trim())
+          .filter(Boolean);
+      }
+
+      profile.clipping = clipping;
+
+      await query(
+        `UPDATE clients SET profile=$3::jsonb, updated_at=NOW() WHERE tenant_id=$1 AND id=$2`,
+        [tenantId, params.clientId, JSON.stringify(profile)]
+      );
+
+      return reply.send({ ok: true, clipping });
     }
   );
 
@@ -845,15 +960,46 @@ export default async function clippingRoutes(app: FastifyInstance) {
       }
 
       let clientUf: string | null = null;
+      let clientCity: string | null = null;
+      let geoMode: GeoMode = 'fuzzy';
       try {
         const { rows: clientRows } = await query<any>(
-          `SELECT uf FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+          `SELECT uf, city, profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
           [tenantId, clientId]
         );
+        const profile = clientRows[0]?.profile || {};
+        const clippingProfile = profile.clipping || {};
+        geoMode = normalizeGeoMode(clippingProfile.geo_mode);
         clientUf = clientRows[0]?.uf ? String(clientRows[0].uf).trim() : null;
+        clientCity = clientRows[0]?.city ? String(clientRows[0].city).trim() : null;
       } catch {
         clientUf = null;
+        clientCity = null;
+        geoMode = 'fuzzy';
       }
+
+      const geoParams: any[] = [tenantId, clientId, minClientScore];
+      let geoIdx = 4;
+      let geoWhere = '';
+
+      if (geoMode === 'strict_city' && clientCity) {
+        if (clientUf) {
+          geoWhere += ` AND (ci.uf IS NOT NULL AND UPPER(ci.uf) = UPPER($${geoIdx++}))`;
+          geoParams.push(clientUf);
+        }
+        geoWhere += ` AND (ci.city IS NOT NULL AND LOWER(ci.city) = LOWER($${geoIdx++}))`;
+        geoParams.push(clientCity);
+      } else if (clientUf) {
+        if (geoMode === 'strict_uf') {
+          geoWhere += ` AND (ci.uf IS NOT NULL AND UPPER(ci.uf) = UPPER($${geoIdx++}))`;
+          geoParams.push(clientUf);
+        } else {
+          geoWhere += ` AND (ci.uf IS NULL OR UPPER(ci.uf) = UPPER($${geoIdx++}))`;
+          geoParams.push(clientUf);
+        }
+      }
+
+      geoParams.push(limit);
 
       const { rows } = await query<any>(
         `
@@ -873,11 +1019,11 @@ export default async function clippingRoutes(app: FastifyInstance) {
         FROM clipping_matches cm
         JOIN clipping_items ci ON ci.id = cm.clipping_item_id
         WHERE cm.tenant_id=$1 AND cm.client_id=$2 AND cm.score >= $3
-          AND ($4::text IS NULL OR ci.uf IS NULL OR UPPER(ci.uf) = UPPER($4))
+          ${geoWhere}
         ORDER BY cm.score DESC, cm.created_at DESC
-        LIMIT $5
+        LIMIT $${geoIdx}
         `,
-        [tenantId, clientId, minClientScore, clientUf, limit]
+        geoParams
       );
 
       return reply.send({ matches: rows });
@@ -1647,11 +1793,31 @@ export default async function clippingRoutes(app: FastifyInstance) {
   app.get(
     '/clipping/quality',
     { preHandler: [requirePerm('clipping:read')] },
-    async (request: any) => {
+    async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
-      const range = String(request.query?.range || 'week');
+      const querySchema = z.object({
+        range: z.string().optional(),
+        clientId: z.string().optional(),
+      });
+      const queryParams = querySchema.parse(request.query ?? {});
+
+      const range = String(queryParams.range || 'week');
       const windowDays = range === 'today' ? 1 : range === 'month' ? 30 : 7;
       const windowInterval = `${windowDays} days`;
+      const clientId = queryParams.clientId ? String(queryParams.clientId) : null;
+
+      if (clientId) {
+        const allowed = await hasClientPerm({
+          tenantId,
+          userId: (request.user as any).sub,
+          role: (request.user as any).role,
+          clientId,
+          perm: 'read',
+        });
+        if (!allowed) {
+          return reply.status(403).send({ error: 'client_forbidden' });
+        }
+      }
 
       // Feedback summary
       const { rows: feedbackRows } = await query<any>(
@@ -1722,21 +1888,72 @@ export default async function clippingRoutes(app: FastifyInstance) {
          FROM clipping_feedback cf
          JOIN clipping_items ci ON ci.id = cf.clipping_item_id AND ci.tenant_id = cf.tenant_id
          WHERE cf.tenant_id=$1 AND cf.feedback='irrelevant'
+           ${clientId ? 'AND cf.client_id=$2' : ''}
            AND cf.created_at >= NOW() - INTERVAL '${windowInterval}'
          GROUP BY keyword
          ORDER BY count DESC
          LIMIT 20`,
-        [tenantId]
+        clientId ? [tenantId, clientId] : [tenantId]
       );
 
-      return {
+      return reply.send({
         feedback_summary: feedbackSummary,
         precision_percent: precisionPercent,
         total_feedback: totalFeedback,
         match_quality_by_client: clientQuality,
         source_quality: sourceQuality,
         suggested_negative_keywords: suggestedNegKw,
-      };
+      });
+    }
+  );
+
+  // Apply suggested negative keywords to a client profile (no secrets, no auto-rescore here).
+  app.post(
+    '/clipping/quality/apply-negative-keywords',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply: any) => {
+      const bodySchema = z.object({
+        clientId: z.string().min(1),
+        keywords: z.array(z.string()).min(1),
+      });
+      const body = bodySchema.parse(request.body ?? {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const allowed = await hasClientPerm({
+        tenantId,
+        userId: (request.user as any).sub,
+        role: (request.user as any).role,
+        clientId: body.clientId,
+        perm: 'write',
+      });
+      if (!allowed) {
+        return reply.status(403).send({ error: 'client_forbidden' });
+      }
+
+      const { rows: clientRows } = await query<any>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, body.clientId]
+      );
+      const current = clientRows[0];
+      if (!current) return reply.status(404).send({ error: 'client_not_found' });
+
+      const profile = current.profile || {};
+      const existing: string[] = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
+      const mergedMap = new Map<string, string>();
+      [...existing, ...body.keywords].forEach((raw) => {
+        const kw = String(raw || '').trim();
+        if (!kw) return;
+        mergedMap.set(kw.toLowerCase(), kw);
+      });
+      const merged = Array.from(mergedMap.values());
+      profile.negative_keywords = merged;
+
+      await query(
+        `UPDATE clients SET profile=$3::jsonb, updated_at=NOW() WHERE tenant_id=$1 AND id=$2`,
+        [tenantId, body.clientId, JSON.stringify(profile)]
+      );
+
+      return reply.send({ ok: true, negative_keywords: merged });
     }
   );
 

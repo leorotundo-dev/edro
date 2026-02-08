@@ -65,6 +65,9 @@ type ClippingItemDetail = {
 
 type ClippingDetailClientProps = {
   itemId: string;
+  noShell?: boolean;
+  embedded?: boolean;
+  backHref?: string;
 };
 
 function formatNumber(value?: number | null) {
@@ -83,8 +86,9 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
 
-export default function ClippingDetailClient({ itemId }: ClippingDetailClientProps) {
+export default function ClippingDetailClient({ itemId, noShell, backHref }: ClippingDetailClientProps) {
   const router = useRouter();
+  const backTo = backHref || '/clipping';
   const [item, setItem] = useState<ClippingItemDetail | null>(null);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientId, setClientId] = useState('');
@@ -97,9 +101,9 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
 
   useEffect(() => {
     if (!isUuid(itemId)) {
-      router.replace('/clipping');
+      router.replace(backTo);
     }
-  }, [itemId, router]);
+  }, [backTo, itemId, router]);
 
   const loadDetail = useCallback(async () => {
     if (!isUuid(itemId)) {
@@ -240,20 +244,8 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
     );
   }
 
-  return (
-    <AppShell
-      title="Radar"
-      topbarLeft={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Button variant="text" size="small" onClick={() => router.push('/clipping')} sx={{ color: 'text.secondary', textTransform: 'none' }}>
-            Radar
-          </Button>
-          <IconChevronRight size={14} />
-          <Typography variant="body2" fontWeight={600}>Detalhe do item</Typography>
-        </Stack>
-      }
-    >
-      <Stack spacing={3}>
+  const content = (
+    <Stack spacing={3}>
         {error ? (
           <Card sx={{ bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>
             <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -492,7 +484,27 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
             </DashboardCard>
           </Grid>
         </Grid>
-      </Stack>
+    </Stack>
+  );
+
+  if (noShell) {
+    return content;
+  }
+
+  return (
+    <AppShell
+      title="Radar"
+      topbarLeft={
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button variant="text" size="small" onClick={() => router.push(backTo)} sx={{ color: 'text.secondary', textTransform: 'none' }}>
+            Radar
+          </Button>
+          <IconChevronRight size={14} />
+          <Typography variant="body2" fontWeight={600}>Detalhe do item</Typography>
+        </Stack>
+      }
+    >
+      {content}
     </AppShell>
   );
 }

@@ -4,6 +4,13 @@ export type Locality = {
   city?: string | null;
 };
 
+export type GeoMode = 'fuzzy' | 'strict_uf' | 'strict_city';
+
+export function normalizeGeoMode(value: unknown): GeoMode {
+  if (value === 'strict_uf' || value === 'strict_city') return value;
+  return 'fuzzy';
+}
+
 function normalizeAlpha(value?: string | null): string {
   return String(value || '').trim().toUpperCase();
 }
@@ -67,3 +74,48 @@ export function computeGeoFactor(params: { client: Locality; item: Locality }): 
   return { factor: 1, reason: 'geo_match' };
 }
 
+/**
+ * Same as computeGeoFactor, but optionally enforces strict geo rules that fully
+ * exclude mismatches/unknown locations when the client is configured as local.
+ */
+export function computeGeoFactorWithMode(params: {
+  client: Locality;
+  item: Locality;
+  mode?: GeoMode | null;
+}): { factor: number; reason: string } {
+  const mode = normalizeGeoMode(params.mode);
+  const base = computeGeoFactor({ client: params.client, item: params.item });
+
+  if (mode === 'fuzzy') return base;
+
+  const clientUf = normalizeAlpha(params.client.uf);
+  const clientCity = normalizeCity(params.client.city);
+  const itemUf = normalizeAlpha(params.item.uf);
+  const itemCity = normalizeCity(params.item.city);
+
+  if (mode === 'strict_uf') {
+    if (!clientUf) return base;
+    if (!itemUf) return { factor: 0, reason: 'strict_uf_item_unknown' };
+    if (itemUf !== clientUf) return { factor: 0, reason: 'strict_uf_mismatch' };
+    return base;
+  }
+
+  // strict_city
+  if (!clientCity) {
+    // If the client didn't set a city, fall back to strict UF behavior.
+    if (!clientUf) return base;
+    if (!itemUf) return { factor: 0, reason: 'strict_city_item_uf_unknown' };
+    if (itemUf !== clientUf) return { factor: 0, reason: 'strict_city_uf_mismatch' };
+    return base;
+  }
+
+  if (!itemCity) return { factor: 0, reason: 'strict_city_item_unknown' };
+  if (itemCity !== clientCity) return { factor: 0, reason: 'strict_city_mismatch' };
+
+  if (clientUf) {
+    if (!itemUf) return { factor: 0, reason: 'strict_city_item_uf_unknown' };
+    if (itemUf !== clientUf) return { factor: 0, reason: 'strict_city_uf_mismatch' };
+  }
+
+  return base;
+}

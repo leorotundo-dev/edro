@@ -1,6 +1,7 @@
 import { query } from '../db';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import crypto from 'crypto';
+import { listClientDocuments } from '../repos/clientIntelligenceRepo';
 
 type OpportunitySource = {
   type: 'clipping' | 'social' | 'calendar';
@@ -150,6 +151,20 @@ export async function detectOpportunitiesForClient(params: {
     return 0;
   }
 
+  // Fetch recent client content to avoid suggesting already-covered topics
+  let recentContentBlock = '';
+  try {
+    const recentDocs = await listClientDocuments({ tenantId: params.tenant_id, clientId: params.client_id, limit: 20 });
+    const socialPosts = recentDocs.filter((d) => d.source_type === 'social').slice(0, 12);
+    if (socialPosts.length > 0) {
+      const postLines = socialPosts.map((d) => {
+        const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
+        return `- [${d.platform || ''}] ${date}: ${(d.content_excerpt || d.content_text || '').slice(0, 100)}`;
+      });
+      recentContentBlock = `\n\nCONTEUDO JA PUBLICADO PELO CLIENTE (evite sugerir temas ja cobertos):\n${postLines.join('\n')}`;
+    }
+  } catch { /* ignore — continue without content awareness */ }
+
   // Use AI (Claude) to generate opportunity descriptions
   const opportunitiesPrompt = `
 Você é um analista de oportunidades de marketing.
@@ -160,6 +175,8 @@ Para cada fonte, crie uma "oportunidade" concisa com:
 - suggested_action: ação concreta sugerida
 - priority: urgent | high | medium | low
 - confidence: 0-100
+
+IMPORTANTE: NÃO sugira oportunidades sobre temas que o cliente já publicou recentemente.
 
 Retorne APENAS JSON array:
 [
@@ -175,7 +192,7 @@ Retorne APENAS JSON array:
 ]
 
 FONTES:
-${sources.map((s, i) => `${i + 1}. [${s.type}] ${s.title} (score: ${s.score})\n   ${s.description}`).join('\n\n')}
+${sources.map((s, i) => `${i + 1}. [${s.type}] ${s.title} (score: ${s.score})\n   ${s.description}`).join('\n\n')}${recentContentBlock}
 `;
 
   const aiResult = await generateWithProvider('claude', {

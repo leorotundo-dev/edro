@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { query } from '../db';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem } from './scoring';
+import { computeGeoFactorWithMode } from './geo';
 import { computeScore, inferSegments } from './itemScoring';
 
 export type IngestUrlInput = {
@@ -66,6 +67,18 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
     }
 
     const clientId = input.clientId ? String(input.clientId) : null;
+    let clientRow: any | null = null;
+    if (clientId) {
+      try {
+        const { rows } = await query<any>(
+          `SELECT profile, country, uf, city FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+          [tenantId, clientId]
+        );
+        clientRow = rows[0] ?? null;
+      } catch {
+        clientRow = null;
+      }
+    }
     const sourceId = input.sourceId || (await ensureManualSource(tenantId, clientId));
     const scraped = await scraper.scrape(url);
 
@@ -83,6 +96,9 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
     });
 
     const suggestedClientIds = clientId ? [clientId] : [];
+    const clientLocality = clientId
+      ? { country: clientRow?.country ?? null, uf: clientRow?.uf ?? null, city: clientRow?.city ?? null }
+      : { country: null, uf: null, city: null };
 
     const { rows } = await query<{ id: string }>(
       `
@@ -104,9 +120,9 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
         snippet,
         type,
         segments,
-        null,
-        null,
-        null,
+        clientLocality.country,
+        clientLocality.uf,
+        clientLocality.city,
         score,
         suggestedClientIds,
         [],
@@ -136,18 +152,19 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
     );
 
     // If ingested inside a client context, create a relevance match so the item shows up immediately.
-    if (clientId) {
+    if (clientId && clientRow) {
       try {
         const minClientScore = getClientMinRelevanceScore();
 
-        const { rows: clientRows } = await query<any>(
-          `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
-          [tenantId, clientId]
-        );
-        const profile = clientRows[0]?.profile || {};
+        const profile = clientRow?.profile || {};
+        const clippingProfile = profile.clipping || {};
         const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
         const pillars: string[] = Array.isArray(profile.pillars) ? profile.pillars : [];
         const negativeKeywords: string[] = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
+        const requiredKeywords: string[] = Array.isArray(clippingProfile.required_keywords)
+          ? clippingProfile.required_keywords
+          : [];
+        const geoMode = clippingProfile.geo_mode ?? null;
 
         const scoreResult = scoreClippingItem(
           {
@@ -157,10 +174,17 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
             publishedAt: scraped.publishedAt || null,
             tags: input.tags || scraped.tags || [],
           },
-          { keywords, pillars, negativeKeywords }
+          { keywords, pillars, negativeKeywords, requiredKeywords }
         );
 
-        const finalScore = Math.max(minClientScore, scoreResult.score);
+        const geo = computeGeoFactorWithMode({ client: clientLocality, item: clientLocality, mode: geoMode });
+        const rawScore = Math.round(Math.max(0, scoreResult.score * geo.factor) * 100) / 100;
+        const finalScore = Math.max(minClientScore, rawScore);
+        const relevanceFactors = {
+          ...scoreResult.relevanceFactors,
+          geo_factor: Math.round(geo.factor * 100) / 100,
+          geo_reason: geo.reason,
+        };
 
         await query(
           `UPDATE clipping_items
@@ -185,7 +209,7 @@ export async function ingestUrl(tenantId: string, input: IngestUrlInput): Promis
             scoreResult.matchedKeywords,
             scoreResult.suggestedActions,
             scoreResult.negativeHits,
-            JSON.stringify(scoreResult.relevanceFactors),
+            JSON.stringify(relevanceFactors),
           ]
         );
       } catch {

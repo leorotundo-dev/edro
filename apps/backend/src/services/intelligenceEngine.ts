@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { buildContextPack } from '../library/contextPack';
+import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 
 export type IntelligenceContext = {
   client: {
@@ -49,6 +50,12 @@ export type IntelligenceContext = {
     usedAngles: string[];
     topPerformers: any[];
   };
+  clientContent: {
+    recentPosts: { platform: string; title: string; excerpt: string; published_at: string; url: string }[];
+    websitePages: { title: string; excerpt: string; url: string }[];
+    totalDocuments: number;
+    latestInsight: Record<string, any> | null;
+  };
 };
 
 /**
@@ -74,6 +81,8 @@ export async function buildIntelligenceContext(params: {
     opportunitiesData,
     briefingsData,
     copiesData,
+    clientDocumentsData,
+    clientInsightData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -180,6 +189,19 @@ export async function buildIntelligenceContext(params: {
       ORDER BY ecv.created_at DESC
       LIMIT 50
     `, [params.client_id]),
+
+    // Client documents (posts + website pages, últimos 90 dias)
+    listClientDocuments({
+      tenantId: params.tenant_id,
+      clientId: params.client_id,
+      limit: 30,
+    }),
+
+    // Latest client insight (AI-generated summary)
+    getLatestClientInsight({
+      tenantId: params.tenant_id,
+      clientId: params.client_id,
+    }),
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -198,6 +220,8 @@ export async function buildIntelligenceContext(params: {
   const opportunities = opportunitiesData.status === 'fulfilled' ? opportunitiesData.value.rows : [];
   const briefings = briefingsData.status === 'fulfilled' ? briefingsData.value.rows : [];
   const copies = copiesData.status === 'fulfilled' ? copiesData.value.rows : [];
+  const clientDocuments = clientDocumentsData.status === 'fulfilled' ? clientDocumentsData.value : [];
+  const latestInsight = clientInsightData.status === 'fulfilled' ? clientInsightData.value : null;
 
   // Build structured context
   const context: IntelligenceContext = {
@@ -252,6 +276,28 @@ export async function buildIntelligenceContext(params: {
       recentHashes: copies.map((c: any) => hashCopy(c.output)),
       usedAngles: extractAnglesFromCopies(copies),
       topPerformers: [],
+    },
+    clientContent: {
+      recentPosts: clientDocuments
+        .filter((d: any) => d.source_type === 'social')
+        .slice(0, 15)
+        .map((d: any) => ({
+          platform: d.platform || '',
+          title: d.title || '',
+          excerpt: (d.content_excerpt || d.content_text || '').slice(0, 200),
+          published_at: d.published_at || d.created_at || '',
+          url: d.url || '',
+        })),
+      websitePages: clientDocuments
+        .filter((d: any) => d.source_type === 'website' || d.source_type === 'sitemap' || d.source_type === 'rss')
+        .slice(0, 10)
+        .map((d: any) => ({
+          title: d.title || '',
+          excerpt: (d.content_excerpt || d.content_text || '').slice(0, 200),
+          url: d.url || '',
+        })),
+      totalDocuments: clientDocuments.length,
+      latestInsight: latestInsight?.summary || null,
     },
   };
 
@@ -324,6 +370,29 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
       sections.push(`   ${opp.description}`);
       if (opp.suggested_action) sections.push(`   Ação: ${opp.suggested_action}`);
     });
+  }
+
+  // Client content (posts + website)
+  if (context.clientContent.recentPosts.length > 0) {
+    sections.push(`\n# CONTEUDO RECENTE DO CLIENTE (posts em redes sociais)`);
+    context.clientContent.recentPosts.forEach((post, idx) => {
+      const date = post.published_at ? new Date(post.published_at).toLocaleDateString('pt-BR') : '';
+      sections.push(`${idx + 1}. [${post.platform}] ${date}: ${post.excerpt}`);
+    });
+  }
+  if (context.clientContent.websitePages.length > 0) {
+    sections.push(`\n# PAGINAS DO SITE DO CLIENTE`);
+    context.clientContent.websitePages.forEach((page, idx) => {
+      sections.push(`${idx + 1}. ${page.title} — ${page.excerpt}`);
+    });
+  }
+  if (context.clientContent.latestInsight) {
+    const insight = context.clientContent.latestInsight;
+    sections.push(`\n# RESUMO DE INTELIGENCIA DO CLIENTE`);
+    if (insight.summary_text) sections.push(insight.summary_text);
+    if (insight.positioning) sections.push(`Posicionamento: ${insight.positioning}`);
+    if (insight.tone) sections.push(`Tom de voz: ${insight.tone}`);
+    if (insight.industry) sections.push(`Industria: ${insight.industry}`);
   }
 
   // Performance insights
@@ -436,6 +505,13 @@ function truncateContext(context: IntelligenceContext, maxTokens: number): Intel
   truncated.social = {
     ...context.social,
     trends: context.social.trends.slice(0, 5),
+  };
+
+  // Truncate client content to top items
+  truncated.clientContent = {
+    ...context.clientContent,
+    recentPosts: context.clientContent.recentPosts.slice(0, 5),
+    websitePages: context.clientContent.websitePages.slice(0, 3),
   };
 
   // Keep opportunities and briefings intact (high priority)

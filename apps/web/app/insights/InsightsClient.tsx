@@ -638,7 +638,12 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                   {matches.length ? (
                     matches.map((match) => {
                       const matchItemId = match.clipping_item_id || match.item_id || match.itemId || null;
-                      const detailHref = matchItemId && isUuid(matchItemId) ? `/clipping/${matchItemId}` : null;
+                      const detailHref =
+                        matchItemId && isUuid(matchItemId)
+                          ? (isLocked
+                            ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(matchItemId)}`
+                            : `/clipping/${matchItemId}`)
+                          : null;
                       return (
                       <Box key={matchItemId || match.id || match.url || match.title} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">

@@ -7,7 +7,7 @@ import { enqueueJob, fetchJobs, markJob } from '../jobs/jobQueue';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
 import { computeScore, inferSegments } from './itemScoring';
-import { computeGeoFactor } from './geo';
+import { computeGeoFactorWithMode } from './geo';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -196,12 +196,17 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
 
   for (const client of clients) {
     const profile = client.profile || {};
+    const clippingProfile = profile.clipping || {};
     const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
     const pillars: string[] = Array.isArray(profile.pillars) ? profile.pillars : [];
     const negativeKeywords: string[] = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
+    const requiredKeywords: string[] = Array.isArray(clippingProfile.required_keywords)
+      ? clippingProfile.required_keywords
+      : [];
+    const geoMode = clippingProfile.geo_mode ?? null;
 
     // Skip clients without any keywords or pillars configured
-    if (!keywords.length && !pillars.length) continue;
+    if (!keywords.length && !pillars.length && !requiredKeywords.length) continue;
 
     const scoreResult = scoreClippingItem(
       {
@@ -211,12 +216,13 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
         publishedAt: item.published_at,
         tags: item.segments,
       },
-      { keywords, pillars, negativeKeywords }
+      { keywords, pillars, negativeKeywords, requiredKeywords }
     );
 
-    const geo = computeGeoFactor({
+    const geo = computeGeoFactorWithMode({
       client: { country: client.country, uf: client.uf, city: client.city },
       item: { country: item.country, uf: item.uf, city: item.city },
+      mode: geoMode,
     });
     const finalScore = Math.round(Math.max(0, scoreResult.score * geo.factor) * 100) / 100;
     const relevanceFactors = {
@@ -255,6 +261,21 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
           scoreResult.negativeHits,
           JSON.stringify(relevanceFactors),
         ]
+      );
+    } else {
+      const currentSuggested: string[] = Array.isArray(item.suggested_client_ids) ? item.suggested_client_ids : [];
+      if (currentSuggested.includes(client.id)) {
+        const updated = currentSuggested.filter((id) => id !== client.id);
+        await query(
+          `UPDATE clipping_items SET suggested_client_ids=$3, updated_at=NOW() WHERE id=$1 AND tenant_id=$2`,
+          [item.id, tenantId, updated]
+        );
+        item.suggested_client_ids = updated;
+      }
+
+      await query(
+        `DELETE FROM clipping_matches WHERE tenant_id=$1 AND clipping_item_id=$2 AND client_id=$3`,
+        [tenantId, item.id, client.id]
       );
     }
   }

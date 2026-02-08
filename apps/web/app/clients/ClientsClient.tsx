@@ -121,6 +121,9 @@ type ClientForm = {
   };
   keywords_text: string;
   pillars_text: string;
+  required_keywords_text: string;
+  negative_keywords_text: string;
+  clipping_geo_mode: 'fuzzy' | 'strict_uf' | 'strict_city';
   knowledge: {
     website: string;
     description: string;
@@ -172,6 +175,9 @@ const emptyForm = (): ClientForm => ({
   },
   keywords_text: '',
   pillars_text: '',
+  required_keywords_text: '',
+  negative_keywords_text: '',
+  clipping_geo_mode: 'fuzzy',
   knowledge: {
     website: '',
     description: '',
@@ -247,6 +253,7 @@ const pickTop = <T extends { score?: number }>(items?: T[]) => {
 
 const buildFormFromClient = (client: ClientRow): ClientForm => {
   const profile = client.profile || {};
+  const clippingProfile = profile.clipping || {};
   const calendarProfile = profile.calendar_profile || {};
   const trendProfile = profile.trend_profile || {};
   const knowledge = profile.knowledge_base || {};
@@ -279,6 +286,12 @@ const buildFormFromClient = (client: ClientRow): ClientForm => {
     },
     keywords_text: (profile.keywords || []).join(', '),
     pillars_text: (profile.pillars || []).join(', '),
+    required_keywords_text: (clippingProfile.required_keywords || []).join(', '),
+    negative_keywords_text: (profile.negative_keywords || []).join(', '),
+    clipping_geo_mode:
+      clippingProfile.geo_mode === 'strict_uf' || clippingProfile.geo_mode === 'strict_city'
+        ? clippingProfile.geo_mode
+        : 'fuzzy',
     knowledge: {
       website: knowledge.website || '',
       description: knowledge.description || '',
@@ -738,8 +751,16 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
       platform_preferences,
       keywords: trimList(form.keywords_text),
       pillars: trimList(form.pillars_text),
+      negative_keywords: trimList(form.negative_keywords_text),
       knowledge_base: Object.keys(knowledge_base).length ? knowledge_base : undefined,
     };
+  };
+
+  const saveClippingProfile = async (clientId: string) => {
+    await apiPatch(`/clients/${encodeURIComponent(clientId)}/clipping-profile`, {
+      geo_mode: form.clipping_geo_mode,
+      required_keywords: trimList(form.required_keywords_text),
+    });
   };
 
   const handleSave = async () => {
@@ -762,6 +783,10 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
         setIsNew(false);
         setSelectedId(created.id);
         await loadClients();
+        void Promise.allSettled([
+          saveClippingProfile(created.id),
+          apiPost('/clipping/score', { clientId: created.id, limit: 200 }),
+        ]);
         if (autoIntelRefresh) {
           await syncIntelSources(created.id);
           await refreshIntelligence(created.id);
@@ -771,6 +796,10 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
         setSuccess('Cliente atualizado.');
         setForm(buildFormFromClient(updated));
         await loadClients();
+        void Promise.allSettled([
+          saveClippingProfile(selectedId),
+          apiPost('/clipping/score', { clientId: selectedId, limit: 200 }),
+        ]);
         if (autoIntelRefresh) {
           await syncIntelSources(selectedId);
           await refreshIntelligence(selectedId);
@@ -1505,6 +1534,19 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField fullWidth size="small" label="Pillars (Radar)" value={form.pillars_text} onChange={(e) => updateForm({ pillars_text: e.target.value })} placeholder="pilares estratégicos" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Keywords core (obrigatórias)" value={form.required_keywords_text} onChange={(e) => updateForm({ required_keywords_text: e.target.value })} placeholder="termos obrigatórios, separados por vírgula" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Negative keywords (evitar)" value={form.negative_keywords_text} onChange={(e) => updateForm({ negative_keywords_text: e.target.value })} placeholder="termos a evitar, separados por vírgula" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" select label="Clipping: Geo mode" value={form.clipping_geo_mode} onChange={(e) => updateForm({ clipping_geo_mode: e.target.value as any })}>
+                      <MenuItem value="fuzzy">Fuzzy (permite UF vazia)</MenuItem>
+                      <MenuItem value="strict_uf">Strict UF (exige UF)</MenuItem>
+                      <MenuItem value="strict_city">Strict Cidade (exige cidade)</MenuItem>
+                    </TextField>
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField fullWidth size="small" label="Hashtags oficiais" value={form.knowledge.hashtags_text} onChange={(e) => updateKnowledge({ hashtags_text: e.target.value })} />

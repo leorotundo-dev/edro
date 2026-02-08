@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -17,6 +18,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
@@ -26,6 +28,7 @@ import {
   IconThumbUp,
   IconThumbDown,
   IconAlertTriangle,
+  IconPlus,
 } from '@tabler/icons-react';
 
 type QualityData = {
@@ -55,26 +58,66 @@ type QualityData = {
   }>;
 };
 
+type ClientOption = {
+  id: string;
+  name: string;
+};
+
 export default function ClippingQualityPage() {
   const [range, setRange] = useState('week');
   const [data, setData] = useState<QualityData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [clientId, setClientId] = useState('');
+  const [applyingKeyword, setApplyingKeyword] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<QualityData>(`/clipping/quality?range=${range}`);
+      const qs = new URLSearchParams();
+      qs.set('range', range);
+      if (clientId) qs.set('clientId', clientId);
+      const res = await apiGet<QualityData>(`/clipping/quality?${qs.toString()}`);
       setData(res);
     } catch {
       // keep previous
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [range, clientId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    apiGet<ClientOption[]>('/clients')
+      .then((res) => setClients(res || []))
+      .catch(() => setClients([]));
+  }, []);
+
+  useEffect(() => {
+    if (!clientId && clients.length) setClientId(clients[0].id);
+  }, [clientId, clients]);
+
+  const applyNegativeKeyword = useCallback(
+    async (keyword: string) => {
+      if (!clientId) return;
+      setApplyingKeyword(keyword);
+      try {
+        await apiPost('/clipping/quality/apply-negative-keywords', {
+          clientId,
+          keywords: [keyword],
+        });
+        // Refresh matches immediately so the change is visible without waiting for new ingest.
+        await apiPost('/clipping/score', { clientId, limit: 200 }).catch(() => null);
+        await load();
+      } finally {
+        setApplyingKeyword(null);
+      }
+    },
+    [clientId, load]
+  );
 
   const feedbackSummary = data?.feedback_summary || {};
   const relevant = feedbackSummary['relevant'] || 0;
@@ -112,6 +155,22 @@ export default function ClippingQualityPage() {
               <ToggleButton value="week">7d</ToggleButton>
               <ToggleButton value="month">30d</ToggleButton>
             </ToggleButtonGroup>
+            {clients.length ? (
+              <TextField
+                size="small"
+                select
+                label="Cliente"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                sx={{ minWidth: 220 }}
+              >
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : null}
             <IconButton onClick={load} disabled={loading}>
               <IconRefresh size={20} />
             </IconButton>
@@ -305,7 +364,18 @@ export default function ClippingQualityPage() {
                       (data?.suggested_negative_keywords || []).map((kw) => (
                         <Stack key={kw.keyword} direction="row" justifyContent="space-between" alignItems="center">
                           <Typography variant="body2">{kw.keyword}</Typography>
-                          <Chip size="small" label={`${kw.count}x`} color="error" variant="outlined" />
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip size="small" label={`${kw.count}x`} color="error" variant="outlined" />
+                            {clientId ? (
+                              <IconButton
+                                size="small"
+                                onClick={() => applyNegativeKeyword(kw.keyword)}
+                                disabled={Boolean(applyingKeyword) || applyingKeyword === kw.keyword}
+                              >
+                                <IconPlus size={16} />
+                              </IconButton>
+                            ) : null}
+                          </Stack>
                         </Stack>
                       ))
                     ) : (

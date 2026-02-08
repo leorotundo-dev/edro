@@ -260,6 +260,34 @@ export const TOOLS: ToolDefinition[] = [
     required: [],
     category: 'read',
   },
+
+  // ── Client Content & Intelligence ──
+  {
+    name: 'search_client_content',
+    description: 'Busca conteudo publicado pelo cliente (posts em redes sociais e paginas do site). Sem query retorna os mais recentes.',
+    parameters: {
+      query: { type: 'string', description: 'Palavra-chave para buscar no titulo e conteudo dos posts/paginas' },
+      limit: { type: 'number', description: 'Maximo de resultados (default 10, max 20)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'list_client_sources',
+    description: 'Lista fontes de conteudo do cliente (sites, perfis sociais) com status de coleta.',
+    parameters: {
+      source_type: { type: 'string', description: 'Filtrar por tipo', enum: ['website', 'social'] },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_client_insights',
+    description: 'Retorna o resumo de inteligencia do cliente gerado por IA (posicionamento, tom, industria, keywords, pilares, etc).',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
 ];
 
 // ── Provider Format Converters ──────────────────────────────────

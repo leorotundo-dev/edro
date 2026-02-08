@@ -15,6 +15,7 @@ import {
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
+import { listClientDocuments, listClientSources, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
 import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
@@ -202,6 +203,46 @@ async function buildClientContext(tenantId: string, clientId: string): Promise<s
   if (knowledge.keywords?.length) parts.push(`Keywords: ${knowledge.keywords.join(', ')}`);
   if (knowledge.pillars?.length) parts.push(`Content Pillars: ${knowledge.pillars.join(', ')}`);
 
+  // Enrich with client intelligence data (best-effort)
+  try {
+    const [docs, insight] = await Promise.all([
+      listClientDocuments({ tenantId, clientId, limit: 15 }),
+      getLatestClientInsight({ tenantId, clientId }),
+    ]);
+
+    if (insight?.summary) {
+      const s = insight.summary;
+      if (s.summary_text) parts.push(`\nINTELIGENCIA DO CLIENTE:\n${s.summary_text}`);
+      if (s.positioning) parts.push(`Posicionamento: ${s.positioning}`);
+      if (s.tone) parts.push(`Tom de voz: ${s.tone}`);
+      if (s.industry) parts.push(`Industria: ${s.industry}`);
+    }
+
+    if (docs.length > 0) {
+      const socialPosts = docs.filter((d) => d.source_type === 'social').slice(0, 8);
+      const webPages = docs.filter((d) => d.source_type !== 'social').slice(0, 5);
+
+      if (socialPosts.length > 0) {
+        parts.push(`\nCONTEUDO RECENTE DO CLIENTE (${socialPosts.length} posts):`);
+        socialPosts.forEach((d) => {
+          const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
+          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 150);
+          parts.push(`- [${d.platform || ''}] ${date}: ${excerpt}`);
+        });
+      }
+
+      if (webPages.length > 0) {
+        parts.push(`\nPAGINAS DO SITE DO CLIENTE (${webPages.length}):`);
+        webPages.forEach((d) => {
+          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 120);
+          parts.push(`- ${d.title || d.url || ''}: ${excerpt}`);
+        });
+      }
+    }
+  } catch {
+    // Intelligence data unavailable — continue with basic context
+  }
+
   return parts.join('\n');
 }
 
@@ -235,6 +276,9 @@ CAPACIDADES:
 - Ver e agir sobre oportunidades detectadas pela IA
 - Verificar a saude das fontes de inteligencia
 - Criar briefings e gerar copies
+- Buscar conteudo publicado pelo cliente (posts em redes sociais e paginas do site)
+- Listar fontes de conteudo do cliente e status de coleta
+- Ver resumo de inteligencia do cliente (posicionamento, tom, industria, etc)
 
 REGRAS:
 - Use as ferramentas SEMPRE que a pergunta envolver dados do sistema
@@ -265,6 +309,7 @@ function buildPlanningCopyPrompt(params: {
   count: number;
   language: string;
   contextPack?: string;
+  recentPosts?: string[];
 }) {
   const payload = params.briefing.payload || {};
   const lines = [
@@ -284,6 +329,11 @@ function buildPlanningCopyPrompt(params: {
   if (params.contextPack) {
     lines.push('INSUMOS:');
     lines.push(params.contextPack);
+  }
+
+  if (params.recentPosts?.length) {
+    lines.push('\nPOSTS RECENTES DO CLIENTE (evite repetir temas ja abordados):');
+    params.recentPosts.forEach((post) => lines.push(`- ${post}`));
   }
 
   return lines.join('\n');
@@ -550,6 +600,20 @@ export default async function planningRoutes(app: FastifyInstance) {
             actionResult = { action: 'generate_copy', error: 'briefing_not_found' };
           } else {
             const client = await getClientById(tenantId, clientId);
+            // Fetch recent posts for anti-repetition in copy prompt
+            let recentPostLines: string[] | undefined;
+            try {
+              const recentDocs = await listClientDocuments({ tenantId, clientId, limit: 10 });
+              if (recentDocs.length > 0) {
+                recentPostLines = recentDocs
+                  .filter((d) => d.source_type === 'social')
+                  .slice(0, 8)
+                  .map((d) => {
+                    const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
+                    return `[${d.platform || ''}] ${date}: ${(d.content_excerpt || d.content_text || '').slice(0, 120)}`;
+                  });
+              }
+            } catch { /* ignore */ }
             const copyResult = await generateCopy({
               prompt: buildPlanningCopyPrompt({
                 clientName: client?.name || 'Cliente',
@@ -558,6 +622,7 @@ export default async function planningRoutes(app: FastifyInstance) {
                 instructions: parsed.copy.instructions || message,
                 count: parsed.copy.count,
                 language: parsed.copy.language,
+                recentPosts: recentPostLines,
               }),
               taskType: 'social_post',
               forceProvider: copyProvider,
@@ -1294,6 +1359,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       opportunities: { active: 0, urgent: 0, highConfidence: 0 },
       briefings: { recent: 0, pending: 0 },
       copies: { recentHashes: 0, usedAngles: 0 },
+      clientContent: { totalDocuments: 0 },
     };
 
     try {
@@ -1314,7 +1380,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
             (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed' AND confidence >= 80) as opps_high,
             (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $3::uuid AND created_at > NOW() - INTERVAL '90 days') as briefings_total,
             (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $3::uuid AND created_at > NOW() - INTERVAL '90 days' AND status NOT IN ('done', 'cancelled')) as briefings_pending,
-            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $3::uuid AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total
+            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $3::uuid AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total,
+            (SELECT COUNT(*) FROM client_documents WHERE client_id = $1 AND tenant_id = $2::uuid) as content_total
         `, [clientId, tenantId, edroId]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Context query timed out')), 8000)),
       ]);
@@ -1334,6 +1401,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         },
         briefings: { recent: n(row.briefings_total), pending: n(row.briefings_pending) },
         copies: { recentHashes: n(row.copies_total), usedAngles: 0 },
+        clientContent: { totalDocuments: n(row.content_total) },
       };
 
       return reply.send({
@@ -1636,4 +1704,72 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       opportunities: result.rows,
     });
   });
+
+  // ── Client Intelligence Endpoints ──────────────────────────────
+
+  // GET /clients/:clientId/intelligence/documents — paginated client content
+  app.get<{ Params: { clientId: string }; Querystring: { limit?: string; offset?: string; platform?: string } }>(
+    '/clients/:clientId/intelligence/documents',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const { clientId } = request.params;
+      const tenantId = (request.user as any)?.tenant_id || 'default';
+      const limit = Math.min(Number(request.query.limit) || 20, 50);
+      const offset = Number(request.query.offset) || 0;
+      const platform = request.query.platform;
+
+      const params: any[] = [tenantId, clientId, limit, offset];
+      let platformFilter = '';
+      if (platform) {
+        params.push(platform);
+        platformFilter = `AND platform = $${params.length}`;
+      }
+
+      const { rows } = await query(
+        `SELECT id, source_type, platform, url, title, content_excerpt, published_at, metadata, created_at
+         FROM client_documents
+         WHERE tenant_id = $1::uuid AND client_id = $2 ${platformFilter}
+         ORDER BY published_at DESC NULLS LAST, created_at DESC
+         LIMIT $3 OFFSET $4`,
+        params,
+      );
+
+      const { rows: countRows } = await query(
+        `SELECT COUNT(*) as total FROM client_documents WHERE tenant_id = $1::uuid AND client_id = $2`,
+        [tenantId, clientId],
+      );
+
+      return reply.send({
+        success: true,
+        data: rows,
+        total: Number(countRows[0]?.total || 0),
+      });
+    },
+  );
+
+  // GET /clients/:clientId/intelligence/sources — content sources with status
+  app.get<{ Params: { clientId: string } }>(
+    '/clients/:clientId/intelligence/sources',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const { clientId } = request.params;
+      const tenantId = (request.user as any)?.tenant_id || 'default';
+
+      const sources = await listClientSources({ tenantId, clientId });
+      return reply.send({ success: true, data: sources });
+    },
+  );
+
+  // GET /clients/:clientId/intelligence/insights — latest AI insight
+  app.get<{ Params: { clientId: string } }>(
+    '/clients/:clientId/intelligence/insights',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const { clientId } = request.params;
+      const tenantId = (request.user as any)?.tenant_id || 'default';
+
+      const insight = await getLatestClientInsight({ tenantId, clientId });
+      return reply.send({ success: true, data: insight });
+    },
+  );
 }

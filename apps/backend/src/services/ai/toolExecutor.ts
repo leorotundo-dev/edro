@@ -13,6 +13,7 @@ import {
 } from '../../repositories/edroBriefingRepository';
 import { getClientById } from '../../repos/clientsRepo';
 import { generateCopy } from './copyService';
+import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -81,6 +82,9 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   action_opportunity: toolActionOpportunity,
   get_client_profile: toolGetClientProfile,
   get_intelligence_health: toolGetIntelligenceHealth,
+  search_client_content: toolSearchClientContent,
+  list_client_sources: toolListClientSources,
+  get_client_insights: toolGetClientInsights,
 };
 
 export async function executeTool(
@@ -740,6 +744,88 @@ async function toolGetIntelligenceHealth(args: any, ctx: ToolContext): Promise<T
       },
       opportunities: { active: oppCount },
       briefings: { active: briefingCount },
+    },
+  };
+}
+
+// ── Client Content & Intelligence ──────────────────────────────
+
+async function toolSearchClientContent(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 10, 20);
+  const keyword = (args.query || '').toLowerCase().trim();
+
+  if (!keyword) {
+    // No keyword — return most recent documents
+    const docs = await listClientDocuments({ tenantId: ctx.tenantId, clientId: ctx.clientId, limit });
+    return {
+      success: true,
+      data: safeData(docs.map((d: any) => ({
+        id: d.id,
+        platform: d.platform,
+        source_type: d.source_type,
+        title: d.title,
+        excerpt: (d.content_excerpt || d.content_text || '').slice(0, 200),
+        url: d.url,
+        published_at: d.published_at,
+      }))),
+      metadata: { row_count: docs.length },
+    };
+  }
+
+  const { rows } = await query(
+    `SELECT id, platform, source_type, title, content_excerpt, content_text, url, published_at
+     FROM client_documents
+     WHERE tenant_id = $1::uuid AND client_id = $2
+       AND (LOWER(title) LIKE $3 OR LOWER(content_text) LIKE $3)
+     ORDER BY published_at DESC NULLS LAST
+     LIMIT $4`,
+    [ctx.tenantId, ctx.clientId, `%${keyword}%`, limit],
+  );
+
+  return {
+    success: true,
+    data: safeData(rows.map((d: any) => ({
+      id: d.id,
+      platform: d.platform,
+      source_type: d.source_type,
+      title: d.title,
+      excerpt: (d.content_excerpt || d.content_text || '').slice(0, 200),
+      url: d.url,
+      published_at: d.published_at,
+    }))),
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function toolListClientSources(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const sources = await listClientSources({ tenantId: ctx.tenantId, clientId: ctx.clientId, sourceType: args.source_type });
+  return {
+    success: true,
+    data: safeData(sources.map((s: any) => ({
+      id: s.id,
+      source_type: s.source_type,
+      platform: s.platform,
+      url: s.url,
+      handle: s.handle,
+      status: s.status,
+      last_fetched_at: s.last_fetched_at,
+    }))),
+    metadata: { row_count: sources.length },
+  };
+}
+
+async function toolGetClientInsights(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const insight = await getLatestClientInsight({ tenantId: ctx.tenantId, clientId: ctx.clientId });
+  if (!insight) {
+    return { success: true, data: { message: 'Nenhum insight disponivel. O worker de intelligence pode ainda nao ter rodado para este cliente.' } };
+  }
+  return {
+    success: true,
+    data: {
+      id: insight.id,
+      period: insight.period,
+      created_at: insight.created_at,
+      summary: insight.summary,
     },
   };
 }

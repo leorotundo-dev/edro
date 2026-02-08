@@ -9,6 +9,7 @@ type ScoreInput = {
 export type ScoreResult = {
   score: number;
   matchedKeywords: string[];
+  requiredMatches: string[];
   negativeHits: string[];
   relevanceFactors: {
     keywordMatch: number;
@@ -16,6 +17,8 @@ export type ScoreResult = {
     recency: number;
     contentQuality: number;
     negativePenalty: number;
+    requiredGate?: number;
+    requiredHits?: number;
   };
   suggestedActions: string[];
 };
@@ -152,13 +155,17 @@ function generateSuggestedActions(score: number, matchedKeywords: string[]) {
 
 export function scoreClippingItem(
   input: ScoreInput,
-  params: { keywords?: string[]; pillars?: string[]; negativeKeywords?: string[] }
+  params: { keywords?: string[]; pillars?: string[]; negativeKeywords?: string[]; requiredKeywords?: string[] }
 ): ScoreResult {
   const keywords = normalizeList(params.keywords || []);
   const pillars = normalizeList(params.pillars || []);
   const negativeKeywords = normalizeList(params.negativeKeywords || []);
+  const requiredKeywords = normalizeList(params.requiredKeywords || []);
   const tags = normalizeList(input.tags || []);
   const text = extractText(input);
+
+  const requiredMatches = requiredKeywords.length ? findMatchedKeywords(text, requiredKeywords) : [];
+  const requiredGate = requiredKeywords.length ? (requiredMatches.length ? 1 : 0) : 1;
 
   const keywordMatch = calculateKeywordMatch(text, keywords);
   const pillarAlignment = calculatePillarAlignment(text, tags, pillars);
@@ -174,7 +181,7 @@ export function scoreClippingItem(
   // Negative keyword penalty: -0.15 per hit, max -0.50
   const negativeHits = findNegativeHits(text, negativeKeywords);
   const negativePenalty = Math.min(0.5, negativeHits.length * 0.15);
-  const totalScore = Math.max(0, rawScore - negativePenalty);
+  const totalScore = requiredGate ? Math.max(0, rawScore - negativePenalty) : 0;
 
   const matchedKeywords = findMatchedKeywords(text, [...keywords, ...pillars]);
   const suggestedActions = generateSuggestedActions(totalScore, matchedKeywords);
@@ -182,6 +189,7 @@ export function scoreClippingItem(
   return {
     score: Math.round(totalScore * 100) / 100,
     matchedKeywords,
+    requiredMatches,
     negativeHits,
     relevanceFactors: {
       keywordMatch: Math.round(keywordMatch * 100) / 100,
@@ -189,6 +197,8 @@ export function scoreClippingItem(
       recency: Math.round(recency * 100) / 100,
       contentQuality: Math.round(contentQuality * 100) / 100,
       negativePenalty: Math.round(negativePenalty * 100) / 100,
+      requiredGate,
+      requiredHits: requiredMatches.length,
     },
     suggestedActions,
   };
