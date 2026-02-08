@@ -8,6 +8,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -402,11 +403,13 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
+  const sectionCardSx = { borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
+
   return (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Stats Bar */}
-      <Card variant="outlined" sx={{ mb: 1.5 }}>
-        <CardContent sx={{ py: 1, px: 2 }}>
+      <Card sx={sectionCardSx}>
+        <CardContent sx={{ py: 1.5, px: 2.5 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
             {intelligenceStats && (() => {
               const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
@@ -468,45 +471,46 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         onAddReference={addReference}
       />
 
-      {/* Row 2: AI Assistant & Opportunities */}
-      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-        <Box sx={{ height: 400 }}>
-          <AIAssistant
-            messages={chatMessages}
-            providers={providers}
-            selectedProvider={provider}
-            mode={chatMode}
-            loading={chatLoading}
-            onSendMessage={sendChatMessage}
-            onChangeProvider={setProvider}
-            onChangeMode={setChatMode}
-            onNewConversation={() => {
-              setChatMessages([]);
-              setConversationId(null);
-            }}
-            contextLoaded={!!intelligenceStats}
+      {/* Row 2: AI Chat + Oportunidades side by side */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, lg: 7 }}>
+          <Box sx={{ height: 420 }}>
+            <AIAssistant
+              messages={chatMessages}
+              providers={providers}
+              selectedProvider={provider}
+              mode={chatMode}
+              loading={chatLoading}
+              onSendMessage={sendChatMessage}
+              onChangeProvider={setProvider}
+              onChangeMode={setChatMode}
+              onNewConversation={() => {
+                setChatMessages([]);
+                setConversationId(null);
+              }}
+              contextLoaded={!!intelligenceStats}
+            />
+          </Box>
+        </Grid>
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <OpportunitiesList
+            opportunities={opportunities}
+            loading={opportunitiesLoading}
+            error={opportunitiesError}
+            onCreateBriefing={createBriefingFromOpportunity}
+            onDismiss={dismissOpportunity}
+            onDetectNew={detectNewOpportunities}
+            detecting={detecting}
           />
-        </Box>
-
-        <OpportunitiesList
-          opportunities={opportunities}
-          loading={opportunitiesLoading}
-          error={opportunitiesError}
-          onCreateBriefing={createBriefingFromOpportunity}
-          onDismiss={dismissOpportunity}
-          onDetectNew={detectNewOpportunities}
-          detecting={detecting}
-        />
-      </Stack>
+        </Grid>
+      </Grid>
 
       {/* Row 3: Outputs */}
-      <Box sx={{ mt: 1.5 }}>
-        <OutputsList
-          briefings={briefings}
-          copies={copies}
-          loading={outputsLoading}
-        />
-      </Box>
+      <OutputsList
+        briefings={briefings}
+        copies={copies}
+        loading={outputsLoading}
+      />
     </Box>
   );
 }
