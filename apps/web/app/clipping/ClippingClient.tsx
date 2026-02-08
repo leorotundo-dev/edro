@@ -684,11 +684,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                                 <Tooltip title="Abrir original">
                                   <IconButton
                                     size="small"
-                                    href={item.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={(event) => event.stopPropagation()}
-                                    component="a"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      window.open(item.url!, '_blank', 'noopener');
+                                    }}
                                   >
                                     <IconExternalLink size={16} />
                                   </IconButton>
