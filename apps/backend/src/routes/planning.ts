@@ -16,7 +16,6 @@ import {
   updateBriefingStageStatus,
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
-import { buildIntelligenceContext, formatIntelligencePrompt } from '../services/intelligenceEngine';
 import { detectRepetition } from '../services/antiRepetitionEngine';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 
@@ -1377,76 +1376,92 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     }
   });
 
-  // POST /clients/:id/planning/context - Load full intelligence context
+  // POST /clients/:id/planning/context - Load intelligence stats via direct DB queries
+  // Avoids buildIntelligenceContext (which depends on OpenAI embeddings) for fast loading
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request as any).tenantId || 'default';
-    const { query: userQuery, maxTokens } = request.body as { query?: string; maxTokens?: number };
 
     try {
-      const startTime = Date.now();
+      // Fast parallel DB queries — no AI/embeddings, all simple COUNTs with 10s safety timeout
+      const statsPromise = Promise.allSettled([
+        // Library items count
+        query(
+          `SELECT COUNT(*) as total FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready'`,
+          [clientId, tenantId]
+        ),
+        // Clipping matches (últimos 30 dias)
+        query(
+          `SELECT COUNT(*) as total FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days' AND score > 70`,
+          [clientId, tenantId]
+        ),
+        // Social listening mentions (últimos 7 dias)
+        query(
+          `SELECT COALESCE(SUM(mention_count), 0) as total_mentions, COALESCE(AVG(average_sentiment), 50) as avg_sentiment FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days'`,
+          [clientId, tenantId]
+        ),
+        // Calendar events (próximos 14 dias)
+        query(
+          `SELECT COUNT(*) as next14, COUNT(*) FILTER (WHERE base_relevance > 80) as high_rel FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'`,
+          []
+        ),
+        // AI Opportunities
+        query(
+          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE priority = 'urgent') as urgent, COUNT(*) FILTER (WHERE confidence >= 80) as high_conf FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`,
+          [clientId, tenantId]
+        ),
+        // Briefings (últimos 90 dias)
+        query(
+          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status NOT IN ('done', 'cancelled')) as pending FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days'`,
+          [clientId]
+        ),
+        // Copy versions (últimos 90 dias)
+        query(
+          `SELECT COUNT(*) as total FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days'`,
+          [clientId]
+        ),
+      ]);
 
-      // Add a 45s timeout to prevent proxy timeout
-      const contextPromise = buildIntelligenceContext({
-        tenant_id: tenantId,
-        client_id: clientId,
-        query: userQuery,
-        maxTokens,
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Intelligence context build timed out')), 20000)
-      );
+      const results = await Promise.race([
+        statsPromise,
+        new Promise<PromiseSettledResult<any>[]>((resolve) =>
+          setTimeout(() => resolve([]), 10000)
+        ),
+      ]);
 
-      const context = await Promise.race([contextPromise, timeoutPromise]);
+      const getVal = (idx: number, field: string, fallback: number = 0) => {
+        const r = results[idx];
+        if (r?.status === 'fulfilled' && r.value?.rows?.[0]) {
+          return Number(r.value.rows[0][field]) || fallback;
+        }
+        return fallback;
+      };
 
-      const duration = Date.now() - startTime;
-
-      request.log?.info({
-        action: 'intelligence_context_built',
-        client_id: clientId,
-        stats: {
-          library: context.library.totalItems,
-          clipping: context.clipping.totalMatches,
-          social: context.social.totalMentions,
-          opportunities: context.opportunities.active.length,
+      const stats = {
+        library: { totalItems: getVal(0, 'total') },
+        clipping: { totalMatches: getVal(1, 'total'), topKeywords: [] as string[] },
+        social: { totalMentions: getVal(2, 'total_mentions'), sentimentAvg: getVal(2, 'avg_sentiment', 50) },
+        calendar: { next14Days: getVal(3, 'next14'), highRelevance: getVal(3, 'high_rel') },
+        opportunities: {
+          active: getVal(4, 'total'),
+          urgent: getVal(4, 'urgent'),
+          highConfidence: getVal(4, 'high_conf'),
         },
-        duration_ms: duration,
-      });
+        briefings: { recent: getVal(5, 'total'), pending: getVal(5, 'pending') },
+        copies: { recentHashes: getVal(6, 'total'), usedAngles: 0 },
+      };
 
       return reply.send({
         success: true,
-        data: {
-          context,
-          prompt: formatIntelligencePrompt(context),
-          stats: (() => {
-            const activeOpps = Array.isArray(context.opportunities?.active) ? context.opportunities.active : [];
-            return {
-              library: { totalItems: context.library?.totalItems || 0, packedText: context.library?.packedText },
-              clipping: { totalMatches: context.clipping?.totalMatches || 0, topKeywords: context.clipping?.topKeywords || [] },
-              social: { totalMentions: context.social?.totalMentions || 0, sentimentAvg: context.social?.sentimentAvg || 0 },
-              calendar: { next14Days: context.calendar?.upcoming?.length || 0, highRelevance: context.calendar?.highRelevance?.length || 0 },
-              opportunities: {
-                active: activeOpps.length,
-                urgent: activeOpps.filter((o: any) => o.priority === 'urgent').length,
-                highConfidence: activeOpps.filter((o: any) => (o.confidence || 0) >= 80).length,
-              },
-              briefings: { recent: 0, pending: 0 },
-              copies: { recentHashes: 0, usedAngles: 0 },
-            };
-          })(),
-        },
+        data: { stats },
       });
     } catch (error: any) {
-      request.log?.error({ err: error }, 'planning_context_failed');
-
-      // Return instant fallback — no DB queries to avoid connection pool exhaustion
+      request.log?.error({ err: error }, 'planning_context_stats_failed');
       return reply.send({
         success: true,
         data: {
-          context: null,
-          prompt: '',
           stats: {
             library: { totalItems: 0 },
             clipping: { totalMatches: 0, topKeywords: [] },
