@@ -82,13 +82,18 @@ export async function buildIntelligenceContext(params: {
       WHERE id = $1 AND tenant_id = $2
     `, [params.client_id, params.tenant_id]),
 
-    // Library (semantic search)
-    buildContextPack({
-      tenant_id: params.tenant_id,
-      client_id: params.client_id,
-      query: params.query || 'contexto geral do cliente',
-      k: 10,
-    }),
+    // Library (semantic search) — with 10s timeout to avoid hanging on embedding API
+    Promise.race([
+      buildContextPack({
+        tenant_id: params.tenant_id,
+        client_id: params.client_id,
+        query: params.query || 'contexto geral do cliente',
+        k: 10,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Context pack timed out')), 10000)
+      ),
+    ]),
 
     // Clipping matches (últimos 30 dias, score > 70)
     query(`

@@ -79,11 +79,14 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [notesText, setNotesText] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Load Intelligence Context
+  // Load Intelligence Context (with 25s client-side timeout)
   const loadContext = useCallback(async () => {
     setContextLoading(true);
     setContextError('');
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
       const response = await apiPost<{
         success?: boolean;
         data?: {
@@ -94,6 +97,8 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         };
       }>(`/clients/${clientId}/planning/context`, {});
 
+      clearTimeout(timeoutId);
+
       if (response?.data?.stats) {
         setIntelligenceStats(response.data.stats);
       }
@@ -101,7 +106,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         setContextError(response.data.warning || 'Contexto carregado parcialmente.');
       }
     } catch (err: any) {
-      setContextError(err?.message || 'Falha ao carregar contexto.');
+      const msg = err?.name === 'AbortError'
+        ? 'Contexto demorou demais. Clique Refresh para tentar novamente.'
+        : (err?.message || 'Falha ao carregar contexto.');
+      setContextError(msg);
     } finally {
       setContextLoading(false);
     }
