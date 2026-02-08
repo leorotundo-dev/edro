@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
+import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -10,14 +10,12 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { IconAlertTriangle, IconBrain, IconCalendar, IconClipboard, IconDatabase, IconRefresh, IconTrendingUp } from '@tabler/icons-react';
 
 // Components
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
-import AntiRepetitionValidator, { ValidationResult } from './components/AntiRepetitionValidator';
 import type { IntelligenceStats } from './components/ContextPanel';
 import type { HealthData, SourceHealth } from './components/HealthMonitor';
 import InsumosList, { ClippingItem, LibraryItem } from './components/InsumosList';
@@ -65,15 +63,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [provider, setProvider] = useState('openai');
   const [chatMode, setChatMode] = useState<'chat' | 'command'>('command');
-
-  // Copy Validation
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [validating, setValidating] = useState(false);
-  const [copyToValidate, setCopyToValidate] = useState('');
-
-  // Notes
-  const [notesText, setNotesText] = useState('');
-  const [saving, setSaving] = useState(false);
 
   // Load Intelligence Context (with 30s client-side timeout)
   const loadContext = useCallback(async () => {
@@ -380,37 +369,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
-  // Validate Copy
-  const validateCopy = async () => {
-    if (!copyToValidate.trim()) return;
-    setValidating(true);
-    try {
-      const response = await apiPost<{ success?: boolean; data?: ValidationResult }>(
-        `/clients/${clientId}/planning/validate-copy`,
-        { copyText: copyToValidate }
-      );
-      if (response?.data) {
-        setValidationResult(response.data);
-      }
-    } catch (err: any) {
-      console.error('Validation failed:', err);
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  // Save Notes
-  const saveNotes = async () => {
-    setSaving(true);
-    try {
-      await apiPatch(`/clients/${clientId}/planning`, { notes: notesText });
-    } catch (err) {
-      console.error('Failed to save notes:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <Box>
       {/* Stats Bar */}
@@ -526,51 +484,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                 loading={outputsLoading}
               />
             </Box>
-
-            {/* Copy Validation */}
-            <Card variant="outlined">
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                  Validação de Copy
-                </Typography>
-                <TextField
-                  multiline
-                  rows={3}
-                  fullWidth
-                  placeholder="Cole a copy aqui para validar..."
-                  value={copyToValidate}
-                  onChange={(e) => setCopyToValidate(e.target.value)}
-                  sx={{ mb: 1.5 }}
-                />
-                <AntiRepetitionValidator
-                  validationResult={validationResult}
-                  loading={validating}
-                  copyText={copyToValidate}
-                  onValidate={validateCopy}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Notes */}
-            <Card variant="outlined">
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="overline" color="text.secondary">
-                  Notas e direcionamentos
-                </Typography>
-                <TextField
-                  multiline
-                  rows={3}
-                  fullWidth
-                  value={notesText}
-                  onChange={(e) => setNotesText(e.target.value)}
-                  placeholder="Registre observações estratégicas, briefings internos e insights..."
-                  sx={{ mt: 1, mb: 1 }}
-                />
-                <Button variant="contained" size="small" onClick={saveNotes} disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar notas'}
-                </Button>
-              </CardContent>
-            </Card>
           </Stack>
         </Grid>
       </Grid>
