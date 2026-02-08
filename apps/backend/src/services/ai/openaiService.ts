@@ -12,7 +12,7 @@ type CompletionParams = {
 const client = new OpenAI({
   apiKey: env.OPENAI_API_KEY || '',
   baseURL: env.OPENAI_BASE_URL,
-  timeout: 30000, // 30s HTTP timeout — prevents hanging indefinitely
+  timeout: 90000, // 90s HTTP timeout — analysis pipelines send large prompts
 });
 
 export async function generateCompletion(params: CompletionParams): Promise<AiCompletionResult> {

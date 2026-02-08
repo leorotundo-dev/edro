@@ -35,9 +35,9 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
 
   const model = env.ANTHROPIC_MODEL;
 
-  // 30s HTTP timeout — prevents hanging indefinitely
+  // 90s HTTP timeout — analysis pipelines send large prompts
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   let response: Response;
   try {
@@ -64,7 +64,7 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
     });
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      throw new Error('Claude API timed out after 30s');
+      throw new Error('Claude API timed out after 90s');
     }
     throw err;
   } finally {
