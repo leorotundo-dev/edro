@@ -576,7 +576,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const calendarHighRelevanceCount = calendarItems.filter((i) => Number(i.score || 0) >= 80).length;
   const nextCalendarItem = calendarItems[0] || null;
   const radarItemId = radarMatch?.clipping_item_id;
-  const radarDetailHref = radarItemId && isUuid(radarItemId) ? `/clipping/${radarItemId}` : null;
+  const radarDetailHref =
+    radarItemId && isUuid(radarItemId)
+      ? `/clients/${encodeURIComponent(clientId)}/clipping?item=${encodeURIComponent(radarItemId)}`
+      : null;
 
   const topTrends = useMemo(() => {
     return [...(socialTrends || [])]
@@ -725,7 +728,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     );
   }
 
-  const sectionCardSx = { borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
+  const sectionCardSx = { borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
   const sectionContentSx = { p: { xs: 2, sm: 3 } };
 
   const hasProfileData = Boolean(
@@ -915,7 +918,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                             variant="subtitle2"
                             fontWeight={600}
                             component="a"
-                            href={`/clipping/${item.id}`}
+                            href={`/clients/${encodeURIComponent(clientId)}/clipping?item=${encodeURIComponent(item.id)}`}
                             sx={{ color: 'text.primary', textDecoration: 'none', minWidth: 0, flex: 1, '&:hover': { color: SECTION_COLORS.clipping.fg } }}
                             noWrap
                           >
@@ -1518,7 +1521,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             {/* Left — Acoes rapidas */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{
-                borderRadius: 3, p: 2.5,
+                borderRadius: '12px', p: 2.5,
                 background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 100%)',
                 boxShadow: '0 8px 24px rgba(255,102,0,0.25)',
               }}>
