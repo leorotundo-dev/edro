@@ -1098,6 +1098,269 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     }
   });
 
+  // POST /clients/:id/planning/health - Check health of all intelligence sources
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/health', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    try {
+      const healthChecks = await Promise.allSettled([
+        // Library health
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE status = 'ready') as ready,
+                 COUNT(*) FILTER (WHERE status = 'processing') as processing,
+                 COUNT(*) FILTER (WHERE status = 'error') as error
+          FROM library_items
+          WHERE client_id = $1 AND tenant_id = $2
+        `, [clientId, tenantId]),
+
+        // Clipping health
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE ci.status = 'NEW') as new,
+                 MAX(ci.published_at) as last_published,
+                 AVG(cm.score) as avg_score
+          FROM clipping_matches cm
+          JOIN clipping_items ci ON ci.id = cm.clipping_item_id
+          WHERE cm.client_id = $1 AND cm.tenant_id = $2
+            AND cm.created_at > NOW() - INTERVAL '30 days'
+        `, [clientId, tenantId]),
+
+        // Social Listening health
+        query(`
+          SELECT COUNT(*) as total,
+                 MAX(created_at) as last_update,
+                 AVG(mention_count) as avg_mentions
+          FROM social_listening_trends
+          WHERE client_id = $1 AND tenant_id = $2
+            AND created_at > NOW() - INTERVAL '7 days'
+        `, [clientId, tenantId]),
+
+        // Calendar health
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days') as upcoming,
+                 AVG(base_relevance) as avg_relevance
+          FROM events
+          WHERE date > CURRENT_DATE
+        `),
+
+        // Opportunities health
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                 COUNT(*) FILTER (WHERE priority = 'urgent') as urgent,
+                 MAX(created_at) as last_created
+          FROM ai_opportunities
+          WHERE client_id = $1 AND tenant_id = $2
+            AND status != 'dismissed'
+        `, [clientId, tenantId]),
+
+        // Copy versions health (for anti-repetition)
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE embedding IS NOT NULL) as with_embeddings,
+                 MAX(ecv.created_at) as last_generated
+          FROM edro_copy_versions ecv
+          JOIN edro_briefings eb ON eb.id = ecv.briefing_id
+          WHERE eb.client_id = $1
+            AND ecv.created_at > NOW() - INTERVAL '90 days'
+        `, [clientId]),
+
+        // Briefings health
+        query(`
+          SELECT COUNT(*) as total,
+                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                 MAX(created_at) as last_created
+          FROM edro_briefings
+          WHERE client_id = $1
+            AND created_at > NOW() - INTERVAL '90 days'
+        `, [clientId]),
+      ]);
+
+      const [libraryRes, clippingRes, socialRes, calendarRes, opportunitiesRes, copiesRes, briefingsRes] = healthChecks;
+
+      // Build health status for each source
+      const health = {
+        overall: 'healthy' as 'healthy' | 'warning' | 'error',
+        sources: {
+          library: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: libraryRes.status === 'fulfilled' ? libraryRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          clipping: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: clippingRes.status === 'fulfilled' ? clippingRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          social: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: socialRes.status === 'fulfilled' ? socialRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          calendar: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: calendarRes.status === 'fulfilled' ? calendarRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          opportunities: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: opportunitiesRes.status === 'fulfilled' ? opportunitiesRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          antiRepetition: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: copiesRes.status === 'fulfilled' ? copiesRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+          briefings: {
+            status: 'healthy' as 'healthy' | 'warning' | 'error',
+            data: briefingsRes.status === 'fulfilled' ? briefingsRes.value.rows[0] : null,
+            message: '',
+            lastCheck: new Date().toISOString(),
+          },
+        },
+      };
+
+      // Determine health status for Library
+      if (libraryRes.status === 'rejected') {
+        health.sources.library.status = 'error';
+        health.sources.library.message = 'Falha ao carregar dados da library';
+      } else if (libraryRes.value.rows[0].error > 0) {
+        health.sources.library.status = 'warning';
+        health.sources.library.message = `${libraryRes.value.rows[0].error} item(s) com erro`;
+      } else if (libraryRes.value.rows[0].total === 0) {
+        health.sources.library.status = 'warning';
+        health.sources.library.message = 'Nenhum item na library';
+      } else {
+        health.sources.library.message = `${libraryRes.value.rows[0].ready} item(s) pronto(s)`;
+      }
+
+      // Determine health status for Clipping
+      if (clippingRes.status === 'rejected') {
+        health.sources.clipping.status = 'error';
+        health.sources.clipping.message = 'Falha ao carregar clipping';
+      } else if (clippingRes.value.rows[0].total === 0) {
+        health.sources.clipping.status = 'warning';
+        health.sources.clipping.message = 'Nenhum clipping nos últimos 30 dias';
+      } else {
+        const lastPublished = clippingRes.value.rows[0].last_published;
+        const daysSinceLastPublish = lastPublished
+          ? Math.floor((Date.now() - new Date(lastPublished).getTime()) / (1000 * 60 * 60 * 24))
+          : 999;
+
+        if (daysSinceLastPublish > 7) {
+          health.sources.clipping.status = 'warning';
+          health.sources.clipping.message = `Último clipping há ${daysSinceLastPublish} dias`;
+        } else {
+          health.sources.clipping.message = `${clippingRes.value.rows[0].total} matches ativos`;
+        }
+      }
+
+      // Determine health status for Social
+      if (socialRes.status === 'rejected') {
+        health.sources.social.status = 'error';
+        health.sources.social.message = 'Falha ao carregar social listening';
+      } else if (socialRes.value.rows[0].total === 0) {
+        health.sources.social.status = 'warning';
+        health.sources.social.message = 'Nenhum dado social nos últimos 7 dias';
+      } else {
+        const lastUpdate = socialRes.value.rows[0].last_update;
+        const daysSinceLastUpdate = lastUpdate
+          ? Math.floor((Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24))
+          : 999;
+
+        if (daysSinceLastUpdate > 2) {
+          health.sources.social.status = 'warning';
+          health.sources.social.message = `Última atualização há ${daysSinceLastUpdate} dias`;
+        } else {
+          health.sources.social.message = `${socialRes.value.rows[0].total} trends detectadas`;
+        }
+      }
+
+      // Determine health status for Calendar
+      if (calendarRes.status === 'rejected') {
+        health.sources.calendar.status = 'error';
+        health.sources.calendar.message = 'Falha ao carregar calendar';
+      } else if (calendarRes.value.rows[0].total === 0) {
+        health.sources.calendar.status = 'warning';
+        health.sources.calendar.message = 'Nenhum evento futuro cadastrado';
+      } else {
+        health.sources.calendar.message = `${calendarRes.value.rows[0].upcoming} eventos próximos`;
+      }
+
+      // Determine health status for Opportunities
+      if (opportunitiesRes.status === 'rejected') {
+        health.sources.opportunities.status = 'error';
+        health.sources.opportunities.message = 'Falha ao carregar opportunities';
+      } else {
+        const urgent = opportunitiesRes.value.rows[0].urgent || 0;
+        if (urgent > 0) {
+          health.sources.opportunities.status = 'warning';
+          health.sources.opportunities.message = `${urgent} oportunidade(s) urgente(s)`;
+        } else {
+          health.sources.opportunities.message = `${opportunitiesRes.value.rows[0].total} oportunidades ativas`;
+        }
+      }
+
+      // Determine health status for Anti-Repetition
+      if (copiesRes.status === 'rejected') {
+        health.sources.antiRepetition.status = 'error';
+        health.sources.antiRepetition.message = 'Falha ao carregar histórico de copies';
+      } else {
+        const total = copiesRes.value.rows[0].total || 0;
+        const withEmbeddings = copiesRes.value.rows[0].with_embeddings || 0;
+        const coverage = total > 0 ? (withEmbeddings / total) * 100 : 0;
+
+        if (coverage < 50) {
+          health.sources.antiRepetition.status = 'warning';
+          health.sources.antiRepetition.message = `Apenas ${Math.round(coverage)}% das copies têm embeddings`;
+        } else {
+          health.sources.antiRepetition.message = `${withEmbeddings}/${total} copies com embeddings`;
+        }
+      }
+
+      // Determine health status for Briefings
+      if (briefingsRes.status === 'rejected') {
+        health.sources.briefings.status = 'error';
+        health.sources.briefings.message = 'Falha ao carregar briefings';
+      } else {
+        health.sources.briefings.message = `${briefingsRes.value.rows[0].total} briefings (últimos 90 dias)`;
+      }
+
+      // Determine overall health
+      const errorCount = Object.values(health.sources).filter(s => s.status === 'error').length;
+      const warningCount = Object.values(health.sources).filter(s => s.status === 'warning').length;
+
+      if (errorCount > 0) {
+        health.overall = 'error';
+      } else if (warningCount > 2) {
+        health.overall = 'warning';
+      }
+
+      return reply.send({
+        success: true,
+        data: health,
+      });
+    } catch (error: any) {
+      request.log?.error({ error, clientId }, 'Failed to check intelligence health');
+      return reply.status(500).send({
+        success: false,
+        error: error.message,
+      });
+    }
+  });
+
   // POST /clients/:id/planning/context - Load full intelligence context
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
     preHandler: [authGuard, tenantGuard],

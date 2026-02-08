@@ -61,6 +61,7 @@ const scraper = ENRICH_SCRAPE_ENABLED ? new UrlScraper({ timeout: 20000, maxRetr
 
 let lastStuckReapAt = 0;
 let lastPurgeAt = 0;
+let lastZeroScoreRepairAt = 0;
 
 function getClientMinRelevanceScore() {
   const raw = Number(process.env.CLIPPING_CLIENT_MIN_SCORE ?? '0.6');
@@ -290,6 +291,62 @@ async function maybePurgeExpiredItems() {
     await purgeExpiredItems();
   } catch (error: any) {
     console.error('[clipping] purge failed:', error?.message || error);
+  }
+}
+
+async function maybeRepairZeroScoreItems() {
+  // Older builds produced a batch of items with score=0. Those items pollute ordering/stats
+  // and confuse users. Gradually re-enrich them to recompute score + matches.
+  if (Date.now() - lastZeroScoreRepairAt < 60_000) return;
+  lastZeroScoreRepairAt = Date.now();
+
+  try {
+    const { rows: pendingRows } = await query<{ cnt: number }>(
+      `
+      SELECT COUNT(*)::int AS cnt
+      FROM job_queue
+      WHERE type='clipping_enrich_item' AND status IN ('queued','processing')
+      `
+    );
+    const pending = Number(pendingRows[0]?.cnt ?? 0);
+    const pendingLimit = 200;
+    if (pending >= pendingLimit) return;
+
+    const batchSize = 200;
+    const { rows } = await query<{ enqueued: number }>(
+      `
+      WITH picked AS (
+        SELECT ci.id, ci.tenant_id
+        FROM clipping_items ci
+        WHERE ci.score=0
+          AND ci.status='NEW'
+          AND ci.created_at > NOW() - INTERVAL '7 days'
+          AND NOT EXISTS (
+            SELECT 1 FROM job_queue jq
+            WHERE jq.tenant_id = ci.tenant_id
+              AND jq.type='clipping_enrich_item'
+              AND jq.status IN ('queued','processing')
+              AND jq.payload->>'item_id' = ci.id::text
+          )
+        ORDER BY ci.created_at DESC
+        LIMIT $1
+      ),
+      inserted AS (
+        INSERT INTO job_queue (tenant_id, type, payload)
+        SELECT tenant_id, 'clipping_enrich_item', jsonb_build_object('item_id', id)
+        FROM picked
+        RETURNING id
+      )
+      SELECT COUNT(*)::int AS enqueued FROM inserted
+      `,
+      [batchSize]
+    );
+    const enqueued = Number(rows[0]?.enqueued ?? 0);
+    if (enqueued > 0) {
+      console.log(`[clipping] auto-repair enqueued ${enqueued} score=0 items`);
+    }
+  } catch (error: any) {
+    console.error('[clipping] auto-repair failed:', error?.message || error);
   }
 }
 
@@ -864,6 +921,8 @@ export async function runClippingWorkerOnce() {
   await autoReapStuckFetchJobs();
 
   await maybePurgeExpiredItems();
+
+  await maybeRepairZeroScoreItems();
 
   try {
     await enqueueDueSources();

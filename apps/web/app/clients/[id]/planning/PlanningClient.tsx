@@ -20,6 +20,7 @@ import { IconBrain, IconSearch } from '@tabler/icons-react';
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
 import AntiRepetitionValidator, { ValidationResult } from './components/AntiRepetitionValidator';
 import ContextPanel, { IntelligenceStats } from './components/ContextPanel';
+import HealthMonitor, { HealthData } from './components/HealthMonitor';
 import InsumosList, { ClippingItem, LibraryItem } from './components/InsumosList';
 import OpportunitiesList, { Opportunity } from './components/OpportunitiesList';
 import OutputsList, { Briefing, Copy } from './components/OutputsList';
@@ -36,6 +37,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [intelligenceStats, setIntelligenceStats] = useState<IntelligenceStats | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState('');
+
+  // Health Monitor
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
 
   // Library
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
@@ -94,6 +99,25 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       setContextError(err?.message || 'Falha ao carregar contexto.');
     } finally {
       setContextLoading(false);
+    }
+  }, [clientId]);
+
+  // Load Health
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const response = await apiPost<{
+        success?: boolean;
+        data?: HealthData;
+      }>(`/clients/${clientId}/planning/health`, {});
+
+      if (response?.data) {
+        setHealthData(response.data);
+      }
+    } catch (err: any) {
+      console.error('Failed to load health:', err);
+    } finally {
+      setHealthLoading(false);
     }
   }, [clientId]);
 
@@ -166,11 +190,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   // Initial Load
   useEffect(() => {
     loadContext();
+    loadHealth();
     loadLibrary();
     loadOpportunities();
     loadOutputs();
     loadProviders();
-  }, [loadContext, loadLibrary, loadOpportunities, loadOutputs, loadProviders]);
+  }, [loadContext, loadHealth, loadLibrary, loadOpportunities, loadOutputs, loadProviders]);
 
   // Upload File
   const uploadFile = async (file: File) => {
@@ -404,6 +429,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               stats={intelligenceStats}
               error={contextError}
               onRefresh={loadContext}
+            />
+            <HealthMonitor
+              clientId={clientId}
+              healthData={healthData}
+              loading={healthLoading}
+              onRefresh={loadHealth}
             />
             <InsumosList
               clientId={clientId}
