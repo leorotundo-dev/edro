@@ -8,7 +8,6 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -457,70 +456,57 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         </CardContent>
       </Card>
 
-      {/* 3-Column Layout */}
-      <Grid container spacing={1.5}>
-        {/* Left Column: Insumos */}
-        <Grid size={{ xs: 12, lg: 3 }}>
-          <Stack spacing={1.5}>
-            <InsumosList
-              clientId={clientId}
-              libraryItems={libraryItems}
-              clippingItems={clippingItems}
-              libraryLoading={libraryLoading}
-              libraryError={libraryError}
-              uploading={uploading}
-              onUploadFile={uploadFile}
-              onAddReference={addReference}
-            />
-          </Stack>
-        </Grid>
+      {/* Row 1: Insumos */}
+      <InsumosList
+        clientId={clientId}
+        libraryItems={libraryItems}
+        clippingItems={clippingItems}
+        libraryLoading={libraryLoading}
+        libraryError={libraryError}
+        uploading={uploading}
+        onUploadFile={uploadFile}
+        onAddReference={addReference}
+      />
 
-        {/* Middle Column: AI Assistant & Opportunities */}
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Stack spacing={1.5}>
-            <Box sx={{ height: 650 }}>
-              <AIAssistant
-                messages={chatMessages}
-                providers={providers}
-                selectedProvider={provider}
-                mode={chatMode}
-                loading={chatLoading}
-                onSendMessage={sendChatMessage}
-                onChangeProvider={setProvider}
-                onChangeMode={setChatMode}
-                onNewConversation={() => {
-                  setChatMessages([]);
-                  setConversationId(null);
-                }}
-                contextLoaded={!!intelligenceStats}
-              />
-            </Box>
+      {/* Row 2: AI Assistant & Opportunities */}
+      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+        <Box sx={{ height: 650 }}>
+          <AIAssistant
+            messages={chatMessages}
+            providers={providers}
+            selectedProvider={provider}
+            mode={chatMode}
+            loading={chatLoading}
+            onSendMessage={sendChatMessage}
+            onChangeProvider={setProvider}
+            onChangeMode={setChatMode}
+            onNewConversation={() => {
+              setChatMessages([]);
+              setConversationId(null);
+            }}
+            contextLoaded={!!intelligenceStats}
+          />
+        </Box>
 
-            <OpportunitiesList
-              opportunities={opportunities}
-              loading={opportunitiesLoading}
-              error={opportunitiesError}
-              onCreateBriefing={createBriefingFromOpportunity}
-              onDismiss={dismissOpportunity}
-              onDetectNew={detectNewOpportunities}
-              detecting={detecting}
-            />
-          </Stack>
-        </Grid>
+        <OpportunitiesList
+          opportunities={opportunities}
+          loading={opportunitiesLoading}
+          error={opportunitiesError}
+          onCreateBriefing={createBriefingFromOpportunity}
+          onDismiss={dismissOpportunity}
+          onDetectNew={detectNewOpportunities}
+          detecting={detecting}
+        />
+      </Stack>
 
-        {/* Right Column: Outputs & Validation */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={1.5}>
-            <Box sx={{ height: 450 }}>
-              <OutputsList
-                briefings={briefings}
-                copies={copies}
-                loading={outputsLoading}
-              />
-            </Box>
-          </Stack>
-        </Grid>
-      </Grid>
+      {/* Row 3: Outputs */}
+      <Box sx={{ mt: 1.5 }}>
+        <OutputsList
+          briefings={briefings}
+          copies={copies}
+          loading={outputsLoading}
+        />
+      </Box>
     </Box>
   );
 }
