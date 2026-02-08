@@ -16,6 +16,9 @@ import {
   updateBriefingStageStatus,
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
+import { buildIntelligenceContext, formatIntelligencePrompt } from '../services/intelligenceEngine';
+import { detectRepetition } from '../services/antiRepetitionEngine';
+import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 
 type ConversationMessage = {
   role: 'user' | 'assistant' | 'system';
@@ -1094,4 +1097,215 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       });
     }
   });
+
+  // POST /clients/:id/planning/context - Load full intelligence context
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+    const { query: userQuery, maxTokens } = request.body as { query?: string; maxTokens?: number };
+
+    try {
+      const startTime = Date.now();
+      const context = await buildIntelligenceContext({
+        tenant_id: tenantId,
+        client_id: clientId,
+        query: userQuery,
+        maxTokens,
+      });
+
+      const duration = Date.now() - startTime;
+
+      request.log?.info({
+        action: 'intelligence_context_built',
+        client_id: clientId,
+        stats: {
+          library: context.library.totalItems,
+          clipping: context.clipping.totalMatches,
+          social: context.social.totalMentions,
+          opportunities: context.opportunities.active.length,
+        },
+        duration_ms: duration,
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          context,
+          prompt: formatIntelligencePrompt(context),
+          stats: {
+            library: context.library.totalItems,
+            clipping: context.clipping.totalMatches,
+            social: context.social.totalMentions,
+            calendar: context.calendar.upcoming.length,
+            opportunities: context.opportunities.active.length,
+          },
+        },
+      });
+    } catch (error: any) {
+      request.log?.error({ err: error }, 'planning_context_failed');
+      return reply.status(500).send({
+        success: false,
+        error: error?.message || 'Falha ao carregar contexto.',
+      });
+    }
+  });
+
+  // POST /clients/:id/planning/validate-copy - Anti-repetition + brand safety
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/validate-copy', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+    const { copyText } = request.body as { copyText: string };
+
+    if (!copyText || !copyText.trim()) {
+      return reply.status(400).send({
+        success: false,
+        error: 'copyText is required',
+      });
+    }
+
+    try {
+      const repetitionCheck = await detectRepetition({
+        client_id: clientId,
+        copyText,
+      });
+
+      // Brand safety checks (simple for now)
+      const client = await getClientById(tenantId, clientId);
+      const negativeKeywords = client?.profile?.negative_keywords || [];
+      const violations = negativeKeywords.filter((kw: string) =>
+        copyText.toLowerCase().includes(kw.toLowerCase())
+      );
+
+      return reply.send({
+        success: true,
+        data: {
+          repetition: repetitionCheck,
+          brandSafety: {
+            violations,
+            isClean: violations.length === 0,
+          },
+          overall: {
+            approved: repetitionCheck.recommendation === 'approve' && violations.length === 0,
+            recommendation: violations.length > 0
+              ? 'reject'
+              : repetitionCheck.recommendation,
+            reason: violations.length > 0
+              ? `Contém palavras proibidas: ${violations.join(', ')}`
+              : repetitionCheck.reason,
+          },
+        },
+      });
+    } catch (error: any) {
+      request.log?.error({ err: error }, 'validate_copy_failed');
+      return reply.status(500).send({
+        success: false,
+        error: error?.message || 'Falha ao validar copy.',
+      });
+    }
+  });
+
+  // POST /clients/:id/planning/opportunities/detect - Trigger opportunity detection
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities/detect', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    try {
+      const count = await detectOpportunitiesForClient({
+        tenant_id: tenantId,
+        client_id: clientId,
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          detected: count,
+          message: `${count} novas oportunidades detectadas`,
+        },
+      });
+    } catch (error: any) {
+      request.log?.error({ err: error }, 'opportunity_detection_failed');
+      return reply.status(500).send({
+        success: false,
+        error: error?.message || 'Falha ao detectar oportunidades.',
+      });
+    }
+  });
+
+  // POST /clients/:id/planning/opportunities/:oppId/action - Convert opportunity to briefing
+  app.post<{ Params: { clientId: string; oppId: string } }>(
+    '/clients/:clientId/planning/opportunities/:oppId/action',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request, reply) => {
+      const { clientId, oppId } = request.params;
+      const tenantId = (request as any).tenantId || 'default';
+      const user = (request as any).user;
+      const { action } = request.body as { action: 'create_briefing' | 'dismiss' };
+
+      // Get opportunity
+      const { rows: oppRows } = await query(
+        `SELECT * FROM ai_opportunities WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+        [oppId, clientId, tenantId]
+      );
+
+      if (!oppRows.length) {
+        return reply.status(404).send({ success: false, error: 'Opportunity not found' });
+      }
+
+      const opp = oppRows[0];
+
+      if (action === 'dismiss') {
+        await query(
+          `UPDATE ai_opportunities SET status = 'dismissed', updated_at = now() WHERE id = $1`,
+          [oppId]
+        );
+        return reply.send({ success: true, data: { action: 'dismissed' } });
+      }
+
+      if (action === 'create_briefing') {
+        // Create briefing from opportunity
+        const briefing = await createBriefing({
+          clientId,
+          title: opp.title,
+          payload: {
+            objective: opp.description,
+            source: 'ai_opportunity',
+            opportunity_id: oppId,
+            suggested_action: opp.suggested_action,
+          },
+          createdBy: user?.email || null,
+          source: 'planning_opportunity',
+        });
+
+        // Link opportunity to briefing via source_opportunity_id
+        // (This will be done when migration runs and column exists)
+
+        // Mark opportunity as actioned
+        await query(
+          `UPDATE ai_opportunities
+           SET status = 'actioned', actioned_at = now(), actioned_by = $2, updated_at = now()
+           WHERE id = $1`,
+          [oppId, user?.email || null]
+        );
+
+        return reply.send({
+          success: true,
+          data: {
+            action: 'create_briefing',
+            briefing: {
+              id: briefing.id,
+              title: briefing.title,
+            },
+          },
+        });
+      }
+
+      return reply.status(400).send({ success: false, error: 'Invalid action' });
+    }
+  );
 }
