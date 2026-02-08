@@ -299,9 +299,9 @@ export default async function planningRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
-    const userId = (request as any).userId;
-    const user = (request as any).user;
+    const tenantId = (request.user as any)?.tenant_id || 'default';
+    const userId = (request.user as any)?.sub;
+    const user = request.user as any;
 
     const body = chatSchema.parse(request.body);
     const { message, provider, conversationId, mode } = body;
@@ -599,23 +599,28 @@ export default async function planningRoutes(app: FastifyInstance) {
     };
     messages.push(assistantMessage);
 
-    // Save conversation
-    if (conversation) {
-      await query(
-        `UPDATE planning_conversations
-         SET messages = $1, updated_at = now()
-         WHERE id = $2`,
-        [JSON.stringify(messages), conversation.id]
-      );
-    } else {
-      const title = message.slice(0, 100);
-      const insertResult = await query(
-        `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [tenantId, clientId, userId, title, provider, JSON.stringify(messages)]
-      );
-      conversationId || (conversation = { id: insertResult.rows[0].id } as Conversation);
+    // Save conversation (best-effort — don't break the response if save fails)
+    let savedConversationId: string | null = conversation?.id || null;
+    try {
+      if (conversation) {
+        await query(
+          `UPDATE planning_conversations
+           SET messages = $1, updated_at = now()
+           WHERE id = $2`,
+          [JSON.stringify(messages), conversation.id]
+        );
+      } else {
+        const title = message.slice(0, 100);
+        const insertResult = await query(
+          `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id`,
+          [tenantId, clientId, userId, title, provider, JSON.stringify(messages)]
+        );
+        savedConversationId = insertResult.rows[0]?.id || null;
+      }
+    } catch (saveErr: any) {
+      request.log?.warn({ err: saveErr }, 'planning_chat_conversation_save_failed');
     }
 
     return reply.send({
@@ -627,10 +632,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         stages: resultStages,
         action: actionResult,
         sources: contextPack.sources,
-        conversationId: conversation?.id || (await query(
-          `SELECT id FROM planning_conversations WHERE tenant_id = $1 AND client_id = $2 ORDER BY created_at DESC LIMIT 1`,
-          [tenantId, clientId]
-        )).rows[0]?.id,
+        conversationId: savedConversationId,
       },
     });
   });
@@ -640,7 +642,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     const result = await query(
       `SELECT id, title, provider, status, created_at, updated_at,
@@ -664,7 +666,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard] },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
-      const tenantId = (request as any).tenantId || 'default';
+      const tenantId = (request.user as any)?.tenant_id || 'default';
 
       const result = await query(
         `SELECT * FROM planning_conversations
@@ -688,8 +690,8 @@ export default async function planningRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
-    const userId = (request as any).userId;
+    const tenantId = (request.user as any)?.tenant_id || 'default';
+    const userId = (request.user as any)?.sub;
 
     const body = createConversationSchema.parse(request.body);
 
@@ -712,7 +714,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard] },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
-      const tenantId = (request as any).tenantId || 'default';
+      const tenantId = (request.user as any)?.tenant_id || 'default';
 
       await query(
         `DELETE FROM planning_conversations
@@ -729,7 +731,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     const result = await query(
       `SELECT * FROM ai_opportunities
@@ -757,7 +759,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     // Gather context: clipping, trends, calendar
     const [clippingResult, trendsResult, calendarResult] = await Promise.all([
@@ -872,8 +874,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     { preHandler: [authGuard, tenantGuard] },
     async (request, reply) => {
       const { clientId, opportunityId } = request.params;
-      const tenantId = (request as any).tenantId || 'default';
-      const userId = (request as any).userId;
+      const tenantId = (request.user as any)?.tenant_id || 'default';
+      const userId = (request.user as any)?.sub;
       const { status } = request.body as { status: string };
 
       const updates: string[] = ['status = $4', 'updated_at = now()'];
@@ -900,7 +902,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     // Gather ALL data sources in parallel
     const [
@@ -1150,7 +1152,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
     const now = new Date().toISOString();
 
     const defaultHealth = {
@@ -1240,7 +1242,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     // Default zero stats — returned immediately if DB query fails
     const zeroStats = {
@@ -1313,7 +1315,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
     const { copyText } = request.body as { copyText: string };
 
     if (!copyText || !copyText.trim()) {
@@ -1369,7 +1371,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     try {
       const count = await detectOpportunitiesForClient({
@@ -1399,8 +1401,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     { preHandler: [authGuard, tenantGuard] },
     async (request, reply) => {
       const { clientId, oppId } = request.params;
-      const tenantId = (request as any).tenantId || 'default';
-      const user = (request as any).user;
+      const tenantId = (request.user as any)?.tenant_id || 'default';
+      const user = request.user as any;
       const { action } = request.body as { action: 'create_briefing' | 'dismiss' };
 
       // Get opportunity
@@ -1506,7 +1508,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
     const results: Record<string, any> = {};
 
     // 1) Ensure calendar events exist
@@ -1540,7 +1542,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
-    const tenantId = (request as any).tenantId || 'default';
+    const tenantId = (request.user as any)?.tenant_id || 'default';
 
     const result = await query(
       `SELECT * FROM ai_opportunities
