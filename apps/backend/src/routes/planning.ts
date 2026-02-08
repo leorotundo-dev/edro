@@ -1380,7 +1380,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         maxTokens,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Intelligence context build timed out')), 45000)
+        setTimeout(() => reject(new Error('Intelligence context build timed out')), 20000)
       );
 
       const context = await Promise.race([contextPromise, timeoutPromise]);
