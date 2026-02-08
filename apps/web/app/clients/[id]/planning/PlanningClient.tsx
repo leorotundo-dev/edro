@@ -470,7 +470,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
       {/* Row 2: AI Assistant & Opportunities */}
       <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-        <Box sx={{ height: 650 }}>
+        <Box sx={{ height: 400 }}>
           <AIAssistant
             messages={chatMessages}
             providers={providers}
