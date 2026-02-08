@@ -378,10 +378,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   };
 
   return (
-    <Box>
+    <Box sx={{ p: '20px' }}>
       {/* Stats Bar */}
-      <Card variant="outlined" sx={{ mb: 2 }}>
-        <CardContent sx={{ py: 1.5 }}>
+      <Card variant="outlined" sx={{ mb: 1.5 }}>
+        <CardContent sx={{ py: 1, px: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Stack direction="row" alignItems="center" spacing={2}>
               <IconBrain size={24} />
@@ -402,7 +402,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
             </Stack>
 
             {intelligenceStats && (
-              <Stack direction="row" spacing={2}>
+              <Stack direction="row" spacing={1.5}>
                 <Chip size="small" label={`Library: ${intelligenceStats.library.totalItems}`} />
                 <Chip size="small" label={`Clipping: ${intelligenceStats.clipping.totalMatches}`} />
                 <Chip size="small" label={`Oportunidades: ${intelligenceStats.opportunities.active}`} />
@@ -420,10 +420,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       </Card>
 
       {/* 3-Column Layout */}
-      <Grid container spacing={2}>
+      <Grid container spacing={1.5}>
         {/* Left Column: Context & Insumos */}
         <Grid size={{ xs: 12, lg: 3 }}>
-          <Stack spacing={2}>
+          <Stack spacing={1.5}>
             <ContextPanel
               loading={contextLoading}
               stats={intelligenceStats}
@@ -451,8 +451,8 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
         {/* Middle Column: AI Assistant & Opportunities */}
         <Grid size={{ xs: 12, lg: 5 }}>
-          <Stack spacing={2}>
-            <Box sx={{ height: 600 }}>
+          <Stack spacing={1.5}>
+            <Box sx={{ height: 650 }}>
               <AIAssistant
                 messages={chatMessages}
                 providers={providers}
@@ -484,8 +484,8 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
         {/* Right Column: Outputs & Validation */}
         <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2}>
-            <Box sx={{ height: 400 }}>
+          <Stack spacing={1.5}>
+            <Box sx={{ height: 450 }}>
               <OutputsList
                 briefings={briefings}
                 copies={copies}
@@ -495,18 +495,18 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
             {/* Copy Validation */}
             <Card variant="outlined">
-              <CardContent>
+              <CardContent sx={{ p: 2 }}>
                 <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                   Validação de Copy
                 </Typography>
                 <TextField
                   multiline
-                  rows={4}
+                  rows={3}
                   fullWidth
                   placeholder="Cole a copy aqui para validar..."
                   value={copyToValidate}
                   onChange={(e) => setCopyToValidate(e.target.value)}
-                  sx={{ mb: 2 }}
+                  sx={{ mb: 1.5 }}
                 />
                 <AntiRepetitionValidator
                   validationResult={validationResult}
@@ -519,13 +519,13 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
             {/* Notes */}
             <Card variant="outlined">
-              <CardContent>
+              <CardContent sx={{ p: 2 }}>
                 <Typography variant="overline" color="text.secondary">
                   Notas e direcionamentos
                 </Typography>
                 <TextField
                   multiline
-                  rows={4}
+                  rows={3}
                   fullWidth
                   value={notesText}
                   onChange={(e) => setNotesText(e.target.value)}
