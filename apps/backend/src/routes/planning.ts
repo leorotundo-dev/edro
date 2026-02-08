@@ -872,7 +872,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
     // Format data for prompts
     const clippingText = clippingResult.rows.length
-      ? clippingResult.rows.map((r: any) => `- [${r.score}] ${r.title}: ${r.excerpt || ''} (keywords: ${(r.matched_keywords || []).join(', ')})`).join('\n')
+      ? clippingResult.rows.map((r: any) => `- [${r.score}] ${r.title}: ${r.snippet || ''} (keywords: ${(r.matched_keywords || []).join(', ')})`).join('\n')
       : 'Nenhum clipping disponivel.';
 
     const trendsText = trendsResult.rows.length

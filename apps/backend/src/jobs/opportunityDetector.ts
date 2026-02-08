@@ -24,7 +24,7 @@ export async function detectOpportunitiesForClient(params: {
 
   // 1. Scan clipping (high relevance, recent)
   const clippingResult = await query(`
-    SELECT cm.id, ci.title, ci.excerpt, cm.score, ci.published_at
+    SELECT cm.id, ci.title, ci.snippet, cm.score, ci.published_at
     FROM clipping_matches cm
     JOIN clipping_items ci ON ci.id = cm.clipping_item_id
     WHERE cm.client_id = $1
@@ -41,7 +41,7 @@ export async function detectOpportunitiesForClient(params: {
       type: 'clipping',
       id: row.id,
       title: row.title,
-      description: row.excerpt || '',
+      description: row.snippet || '',
       score: row.score,
       date: row.published_at,
     });
