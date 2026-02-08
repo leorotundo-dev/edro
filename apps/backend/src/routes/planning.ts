@@ -810,7 +810,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Context pack timed out')), 10000)),
       ]).catch(() => ({ sources: [], packedText: '' })),
       query(
-        `SELECT cm.score, cm.matched_keywords, ci.title, ci.excerpt, ci.published_at
+        `SELECT cm.score, cm.matched_keywords, ci.title, ci.snippet, ci.published_at
          FROM clipping_matches cm
          JOIN clipping_items ci ON ci.id = cm.clipping_item_id
          WHERE cm.client_id = $1 AND cm.tenant_id = $2::uuid
