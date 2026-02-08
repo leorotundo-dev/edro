@@ -725,121 +725,92 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     );
   }
 
+  const sectionCardSx = { borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
+  const sectionContentSx = { p: { xs: 2, sm: 3 } };
+
+  const hasProfileData = Boolean(
+    kb.description ||
+    client?.segment_primary ||
+    client?.tone_profile ||
+    location ||
+    kb.website ||
+    hasSocials ||
+    kb.audience ||
+    kb.brand_promise ||
+    kb.differentiators ||
+    (client?.content_pillars && client.content_pillars.length > 0) ||
+    (client?.keywords && client.keywords.length > 0) ||
+    (kb.hashtags && kb.hashtags.length > 0) ||
+    (kb.must_mentions && kb.must_mentions.length > 0) ||
+    (kb.approved_terms && kb.approved_terms.length > 0) ||
+    (kb.forbidden_claims && kb.forbidden_claims.length > 0) ||
+    kb.notes
+  );
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* ── Hero Header ──────────────────────────────────────── */}
-      <Card sx={{
-        background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)',
-        borderRadius: 4,
-        boxShadow: '0 8px 32px rgba(255, 102, 0, 0.3)',
-        border: 'none',
-      }}>
-        <CardContent sx={{ py: 3, px: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={3}>
-            <Avatar sx={{
-              width: 72, height: 72,
-              bgcolor: 'rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(10px)',
-              fontSize: 32, fontWeight: 700, color: 'white',
-            }}>
-              {client.name.charAt(0).toUpperCase()}
-            </Avatar>
-            <Box flex={1}>
-              <Typography variant="h4" fontWeight={700} sx={{ color: 'white', lineHeight: 1.2 }}>
-                {client.name}
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                {client.segment_primary && (
-                  <Chip size="small" label={client.segment_primary}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600, backdropFilter: 'blur(4px)' }} />
-                )}
-                <Chip size="small" label="Ativo"
-                  sx={{ bgcolor: 'rgba(255,255,255,0.3)', color: 'white', fontWeight: 600 }} />
-                {location && (
-                  <Chip size="small" icon={<IconWorld size={14} color="white" />} label={location}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
-                )}
-              </Stack>
-            </Box>
-            <Button
-              variant="outlined" size="small"
-              startIcon={<IconRefresh size={16} />}
-              onClick={() => void loadOverview({ keepClient: true })}
-              disabled={refreshing}
-              sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
-            >
-              {refreshing ? 'Atualizando...' : 'Atualizar'}
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
 
-      {/* ── Stat Cards ───────────────────────────────────────── */}
-      <Grid container spacing={2}>
-        {[
-          { label: 'Clipping (7d)', value: formatNumber(clippingStats?.items_last_7_days), sub: `Novos: ${formatNumber(clippingStats?.new_items)}`, sub2: `Score: ${formatNumber(clippingStats?.avg_score)}`, icon: IconNews, color: SECTION_COLORS.clipping },
-          { label: 'Social (7d)', value: formatNumber(socialStats?.summary?.total), sub: `Sentimento: ${formatPercent(socialStats?.summary?.avg_score ?? null)}`, icon: IconAntenna, color: SECTION_COLORS.social },
-          { label: 'Radar', value: formatNumber(radarMatch?.score), sub: radarMatch?.title || 'Sem radar', icon: IconTarget, color: SECTION_COLORS.radar, href: radarDetailHref || undefined },
-          { label: 'Calendario', value: formatNumber(calendarItems.length), sub: `Alta relev.: ${formatNumber(calendarHighRelevanceCount)}`, icon: IconCalendar, color: SECTION_COLORS.calendar },
-          { label: 'Oportunidades', value: formatNumber(opportunities.length), sub: `Urgentes: ${formatNumber(opportunitiesUrgentCount)}`, icon: IconBulb, color: SECTION_COLORS.opportunities, alert: opportunitiesUrgentCount > 0 },
-          { label: 'Performance', value: reporteiConfigured ? 'OK' : '--', sub: reporteiConfigured ? `Atualizado: ${formatDate(reportei?.updated_at || null)}` : 'Reportei nao configurado', icon: IconChartBar, color: SECTION_COLORS.performance },
-          { label: 'Biblioteca', value: formatNumber(planningStats?.library?.totalItems), sub: 'Itens prontos para IA', icon: IconBook2, color: SECTION_COLORS.library },
-          { label: 'Creative', value: formatNumber(planningStats?.briefings?.pending), sub: `Copies (90d): ${formatNumber(planningStats?.copies?.recentHashes)}`, icon: IconSparkles, color: SECTION_COLORS.creative },
-        ].map((stat) => (
-          <Grid key={stat.label} size={{ xs: 6, md: 3 }}>
-            <Card
-              {...(stat.href ? ({ component: Link, href: stat.href, role: 'link' } as any) : {})}
-              sx={{
-              borderRadius: 3,
-              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-              border: 'none',
-              transition: 'all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)',
-              '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.1)', transform: 'translateY(-2px)' },
-              position: 'relative',
-              overflow: 'hidden',
-              cursor: stat.href ? 'pointer' : 'default',
-              textDecoration: stat.href ? 'none' : undefined,
-            }}>
-              {stat.alert && (
-                <Box sx={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: '#dc2626', animation: 'pulse 1.4s infinite' }} />
-              )}
-              <CardContent sx={{ py: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  <Avatar sx={{
-                    bgcolor: stat.color.bg,
-                    width: 48, height: 48,
-                    boxShadow: `0 4px 12px ${stat.color.fg}20`,
-                  }}>
-                    <stat.icon size={24} color={stat.color.fg} />
-                  </Avatar>
-                  <Box flex={1} sx={{ minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-                      {stat.label}
-                    </Typography>
-                    <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.1, color: stat.color.fg }}>
-                      {stat.value}
-                    </Typography>
-                  </Box>
-                </Stack>
-                <Typography variant="caption" color="text.secondary" noWrap sx={{ mt: 1, display: 'block' }}>
-                  {stat.sub}{stat.sub2 ? ` · ${stat.sub2}` : ''}
-                </Typography>
-              </CardContent>
-            </Card>
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 1 — KPIs & Visao Geral
+          ══════════════════════════════════════════════════════════════ */}
+      <Card sx={sectionCardSx}>
+        <CardContent sx={sectionContentSx}>
+          {/* KPI Grid — 4 columns */}
+          <Grid container spacing={2}>
+            {[
+              { label: 'Clipping (7d)', value: formatNumber(clippingStats?.items_last_7_days), sub: `Novos: ${formatNumber(clippingStats?.new_items)}`, sub2: `Score: ${formatNumber(clippingStats?.avg_score)}`, icon: IconNews, color: SECTION_COLORS.clipping },
+              { label: 'Social (7d)', value: formatNumber(socialStats?.summary?.total), sub: `Sentimento: ${formatPercent(socialStats?.summary?.avg_score ?? null)}`, icon: IconAntenna, color: SECTION_COLORS.social },
+              { label: 'Radar', value: formatNumber(radarMatch?.score), sub: radarMatch?.title || 'Sem radar', icon: IconTarget, color: SECTION_COLORS.radar, href: radarDetailHref || undefined },
+              { label: 'Calendario', value: formatNumber(calendarItems.length), sub: `Alta relev.: ${formatNumber(calendarHighRelevanceCount)}`, icon: IconCalendar, color: SECTION_COLORS.calendar },
+              { label: 'Oportunidades', value: formatNumber(opportunities.length), sub: `Urgentes: ${formatNumber(opportunitiesUrgentCount)}`, icon: IconBulb, color: SECTION_COLORS.opportunities, alert: opportunitiesUrgentCount > 0 },
+              { label: 'Performance', value: reporteiConfigured ? 'OK' : '--', sub: reporteiConfigured ? `Atualizado: ${formatDate(reportei?.updated_at || null)}` : 'Reportei nao configurado', icon: IconChartBar, color: SECTION_COLORS.performance },
+              { label: 'Biblioteca', value: formatNumber(planningStats?.library?.totalItems), sub: 'Itens prontos para IA', icon: IconBook2, color: SECTION_COLORS.library },
+              { label: 'Creative', value: formatNumber(planningStats?.briefings?.pending), sub: `Copies (90d): ${formatNumber(planningStats?.copies?.recentHashes)}`, icon: IconSparkles, color: SECTION_COLORS.creative },
+            ].map((stat) => (
+              <Grid key={stat.label} size={{ xs: 6, md: 3 }}>
+                <Box
+                  {...(stat.href ? ({ component: Link, href: stat.href } as any) : {})}
+                  sx={{
+                    p: 2, borderRadius: 2, position: 'relative', overflow: 'hidden',
+                    cursor: stat.href ? 'pointer' : 'default',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s',
+                    '&:hover': stat.href ? { bgcolor: 'action.hover' } : {},
+                  }}
+                >
+                  {stat.alert && (
+                    <Box sx={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: '#dc2626', animation: 'pulse 1.4s infinite' }} />
+                  )}
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Avatar sx={{ bgcolor: stat.color.bg, width: 48, height: 48, boxShadow: `0 4px 12px ${stat.color.fg}20` }}>
+                      <stat.icon size={24} color={stat.color.fg} />
+                    </Avatar>
+                    <Box flex={1} sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                        {stat.label}
+                      </Typography>
+                      <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.1, color: stat.color.fg }}>
+                        {stat.value}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" noWrap sx={{ mt: 1, display: 'block' }}>
+                    {stat.sub}{stat.sub2 ? ` · ${stat.sub2}` : ''}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
 
-      {/* ── Charts Row ───────────────────────────────────────── */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                <Avatar sx={{ bgcolor: SECTION_COLORS.social.bg, width: 32, height: 32 }}>
-                  <IconMoodHappy size={18} color={SECTION_COLORS.social.fg} />
-                </Avatar>
-                <Typography variant="subtitle1" fontWeight={600}>Sentimento Social</Typography>
+          <Divider sx={{ my: 3 }} />
+
+          {/* Charts — 3 columns */}
+          <Grid container spacing={3}>
+            {/* Sentiment donut */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <IconMoodHappy size={18} color={SECTION_COLORS.social.fg} />
+                <Typography variant="subtitle2" fontWeight={600}>Sentimento Social</Typography>
               </Stack>
               <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                 <Chart options={sentimentChartOptions} series={sentimentSeries} type="donut" width={180} height={180} />
@@ -857,36 +828,26 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   </Stack>
                 ))}
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                <Avatar sx={{ bgcolor: SECTION_COLORS.clipping.bg, width: 32, height: 32 }}>
-                  <IconTrendingUp size={18} color={SECTION_COLORS.clipping.fg} />
-                </Avatar>
-                <Typography variant="subtitle1" fontWeight={600}>Clipping Trend</Typography>
+            {/* Clipping trend */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <IconTrendingUp size={18} color={SECTION_COLORS.clipping.fg} />
+                <Typography variant="subtitle2" fontWeight={600}>Clipping Trend</Typography>
               </Stack>
               <Chart options={clippingSparkOptions} series={clippingSparkSeries} type="area" height={120} />
               <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
                 <Typography variant="caption" color="text.secondary">Total: {formatNumber(clippingStats?.items_last_7_days)}</Typography>
                 <Typography variant="caption" color="text.secondary">Novos: {formatNumber(clippingStats?.new_items)}</Typography>
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 32, height: 32 }}>
-                  <IconHeartbeat size={18} color={SECTION_COLORS.insights.fg} />
-                </Avatar>
-                <Typography variant="subtitle1" fontWeight={600}>Saude do Sistema</Typography>
+            {/* System health bars */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <IconHeartbeat size={18} color={SECTION_COLORS.insights.fg} />
+                <Typography variant="subtitle2" fontWeight={600}>Saude do Sistema</Typography>
               </Stack>
               <Stack spacing={1.5}>
                 {[
@@ -913,754 +874,654 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   </Box>
                 ))}
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      <Grid container spacing={2} alignItems="flex-start">
-        {/* Left column */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Stack spacing={2}>
-            <Grid container spacing={2}>
-              {/* Calendario */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, borderLeft: `4px solid ${SECTION_COLORS.calendar.border}`, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.calendar.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.calendar.bg, width: 32, height: 32 }}>
-                        <IconCalendar size={18} color={SECTION_COLORS.calendar.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Calendario (14d)</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/calendar`} sx={{ color: SECTION_COLORS.calendar.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-                    <Stack spacing={1.5}>
-                      {calendarItems.slice(0, 5).map((item, idx) => {
-                        const d = formatDayMonth(item.date);
-                        const score = Number(item.score || 0);
-                        return (
-                          <Stack key={`${item.id}-${item.date}`} direction="row" spacing={2} alignItems="center"
-                            sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent', transition: 'background 0.2s' }}>
-                            <Box textAlign="center" sx={{
-                              minWidth: 48, py: 0.5, px: 1, borderRadius: 2,
-                              bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
-                              color: idx === 0 ? 'white' : 'text.primary',
-                            }}>
-                              <Typography variant="caption" display="block" sx={{ fontSize: '0.6rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
-                                {d.month}
-                              </Typography>
-                              <Typography variant="h6" fontWeight={700}>{d.day}</Typography>
-                            </Box>
-                            <Box flex={1} sx={{ minWidth: 0 }}>
-                              <Typography variant="subtitle2" noWrap fontWeight={600}>{item.name}</Typography>
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                <LinearProgress variant="determinate" value={Math.min(100, score)}
-                                  sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { bgcolor: score >= 80 ? '#059669' : score >= 50 ? '#f59e0b' : '#94a3b8' } }} />
-                                <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
-                                  {formatNumber(score)}{item.tier ? ` · ${item.tier}` : ''}
-                                </Typography>
-                              </Stack>
-                            </Box>
-                          </Stack>
-                        );
-                      })}
-                      {!calendarItems.length && (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem datas proximas.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 2 — Monitoramento
+          ══════════════════════════════════════════════════════════════ */}
+      <Card sx={sectionCardSx}>
+        <CardContent sx={sectionContentSx}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+            <Avatar sx={{ bgcolor: SECTION_COLORS.clipping.bg, width: 36, height: 36 }}>
+              <IconNews size={20} color={SECTION_COLORS.clipping.fg} />
+            </Avatar>
+            <Typography variant="h6" fontWeight={700}>Monitoramento</Typography>
+            <Box flex={1} />
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping`} sx={{ color: SECTION_COLORS.clipping.fg }}>
+              Clipping
+            </Button>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping?tab=social`} sx={{ color: SECTION_COLORS.social.fg }}>
+              Social
+            </Button>
+          </Stack>
 
-              {/* Clipping */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.clipping.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.clipping.bg, width: 32, height: 32 }}>
-                        <IconNews size={18} color={SECTION_COLORS.clipping.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Clipping</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping`} sx={{ color: SECTION_COLORS.clipping.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-                    <Stack spacing={1.5}>
-                      {clippingItems.length ? (
-                        clippingItems.slice(0, 5).map((item) => {
-                          const score = Number(item.client_score ?? item.score ?? 0);
-                          return (
-                            <Box key={item.id} sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' }, transition: 'background 0.2s' }}>
-                              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-                                <Typography
-                                  variant="subtitle2"
-                                  fontWeight={600}
-                                  component={Link}
-                                  href={`/clipping/${item.id}`}
-                                  sx={{
-                                    color: 'text.primary',
-                                    textDecoration: 'none',
-                                    minWidth: 0,
-                                    flex: 1,
-                                    '&:hover': { color: SECTION_COLORS.clipping.fg },
-                                  }}
-                                  noWrap
-                                >
-                                  {item.title}
-                                </Typography>
-                                {item.url && (
-                                  <Tooltip title="Abrir fonte">
-                                    <IconButton
-                                      component="a"
-                                      href={item.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      size="small"
-                                      sx={{ color: 'text.secondary' }}
-                                    >
-                                      <IconExternalLink size={16} />
-                                    </IconButton>
-                                  </Tooltip>
-                                )}
-                              </Stack>
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                                <Chip size="small" label={item.source_name || '--'} variant="outlined" sx={{ fontSize: '0.6rem', height: 20 }} />
-                                <Typography variant="caption" color="text.secondary" fontSize="0.65rem">{formatDate(item.published_at)}</Typography>
-                                <Chip size="small" label={`${score}`}
-                                  sx={{ fontSize: '0.6rem', height: 20, bgcolor: score >= 80 ? '#ecfdf5' : score >= 50 ? '#fffbeb' : '#f8fafc', color: score >= 80 ? '#059669' : score >= 50 ? '#d97706' : '#94a3b8', fontWeight: 700 }} />
-                              </Stack>
-                            </Box>
-                          );
-                        })
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem itens recentes.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Social Listening */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.social.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.social.bg, width: 32, height: 32 }}>
-                        <IconAntenna size={18} color={SECTION_COLORS.social.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Social Listening</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping?tab=social`} sx={{ color: SECTION_COLORS.social.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-
-                    {topTrends.length > 0 && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>Top tendencias</Typography>
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                          {topTrends.map((t) => (
-                            <Chip key={`${t.keyword}-${t.platform}`} size="small"
-                              label={`${t.keyword} · ${formatNumber(t.mention_count)}`}
-                              sx={{ bgcolor: SECTION_COLORS.social.bg, color: SECTION_COLORS.social.fg, fontWeight: 600, fontSize: '0.65rem' }} />
-                          ))}
+          <Grid container spacing={3}>
+            {/* Left — Clipping recente */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Clipping recente
+              </Typography>
+              <Stack spacing={1.5}>
+                {clippingItems.length ? (
+                  clippingItems.slice(0, 5).map((item) => {
+                    const score = Number(item.client_score ?? item.score ?? 0);
+                    return (
+                      <Box key={item.id} sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' }, transition: 'background 0.2s' }}>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Typography
+                            variant="subtitle2"
+                            fontWeight={600}
+                            component="a"
+                            href={`/clipping/${item.id}`}
+                            sx={{ color: 'text.primary', textDecoration: 'none', minWidth: 0, flex: 1, '&:hover': { color: SECTION_COLORS.clipping.fg } }}
+                            noWrap
+                          >
+                            {item.title}
+                          </Typography>
+                          {item.url && (
+                            <Tooltip title="Abrir fonte">
+                              <IconButton component="a" href={item.url} target="_blank" rel="noopener noreferrer" size="small" sx={{ color: 'text.secondary' }}>
+                                <IconExternalLink size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                          <Chip size="small" label={item.source_name || '--'} variant="outlined" sx={{ fontSize: '0.6rem', height: 20 }} />
+                          <Typography variant="caption" color="text.secondary" fontSize="0.65rem">{formatDate(item.published_at)}</Typography>
+                          <Chip size="small" label={`${score}`}
+                            sx={{ fontSize: '0.6rem', height: 20, bgcolor: score >= 80 ? '#ecfdf5' : score >= 50 ? '#fffbeb' : '#f8fafc', color: score >= 80 ? '#059669' : score >= 50 ? '#d97706' : '#94a3b8', fontWeight: 700 }} />
                         </Stack>
                       </Box>
-                    )}
-
-                    <Stack spacing={1}>
-                      {socialMentions.length ? (
-                        socialMentions.slice(0, 4).map((m) => (
-                          <Box key={m.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Chip size="small" label={m.platform} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
-                              {m.author && <Typography variant="caption" fontWeight={600}>{m.author}</Typography>}
-                              {m.sentiment && (
-                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: m.sentiment === 'positive' ? '#059669' : m.sentiment === 'negative' ? '#dc2626' : '#94a3b8' }} />
-                              )}
-                            </Stack>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                              {String(m.content || '').slice(0, 100)}
-                            </Typography>
-                          </Box>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem mencoes recentes.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Insights + Oportunidades */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.insights.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 32, height: 32 }}>
-                        <IconBolt size={18} color={SECTION_COLORS.insights.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Insights</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/insights`} sx={{ color: SECTION_COLORS.insights.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-
-                    <Stack spacing={0.75}>
-                      {strategicSummaryLines.length ? (
-                        strategicSummaryLines.map((line, idx) => (
-                          <Stack key={`${idx}-${line}`} direction="row" spacing={1} alignItems="flex-start">
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: SECTION_COLORS.insights.fg, mt: 0.75, flexShrink: 0 }} />
-                            <Typography variant="body2" color="text.secondary">{line}</Typography>
-                          </Stack>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">Sem dados suficientes para resumo.</Typography>
-                      )}
-                    </Stack>
-
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Top oportunidades
-                    </Typography>
-                    <Stack spacing={1} sx={{ mt: 1.5 }}>
-                      {topOpportunities.length ? (
-                        topOpportunities.map((opp) => (
-                          <Box key={opp.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Chip size="small" label={opp.priority || 'medium'}
-                                sx={{
-                                  height: 20, fontSize: '0.6rem', fontWeight: 700, color: 'white',
-                                  bgcolor: PRIORITY_COLORS[opp.priority || 'medium'] || PRIORITY_COLORS.medium,
-                                }} />
-                              <Typography variant="subtitle2" noWrap fontWeight={600}>{opp.title}</Typography>
-                            </Stack>
-                            {typeof opp.confidence === 'number' && (
-                              <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.75 }}>
-                                <LinearProgress variant="determinate" value={opp.confidence}
-                                  sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: '#e2e8f0',
-                                    '& .MuiLinearProgress-bar': { bgcolor: opp.confidence >= 80 ? '#059669' : '#f59e0b' } }} />
-                                <Typography variant="caption" fontWeight={600} fontSize="0.65rem">{opp.confidence}%</Typography>
-                              </Stack>
-                            )}
-                          </Box>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">Sem oportunidades no momento.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Planning */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.planning.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.planning.bg, width: 32, height: 32 }}>
-                        <IconSettings2 size={18} color={SECTION_COLORS.planning.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Planning</Typography>
-                      <Chip size="small" label={planningHealth?.overall === 'healthy' ? 'OK' : planningHealth?.overall === 'warning' ? 'Atencao' : 'Sem dados'}
-                        sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700,
-                          bgcolor: planningHealth?.overall === 'healthy' ? '#ecfdf5' : planningHealth?.overall === 'warning' ? '#fffbeb' : '#f8fafc',
-                          color: planningHealth?.overall === 'healthy' ? '#059669' : planningHealth?.overall === 'warning' ? '#d97706' : '#94a3b8' }} />
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.planning.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-
-                    <Stack spacing={1}>
-                      {planningAlerts.length ? (
-                        planningAlerts.map((row) => (
-                          <Stack key={`${row.key}-${row.status}`} direction="row" spacing={1} alignItems="center"
-                            sx={{ p: 1, borderRadius: 2, bgcolor: row.status === 'error' ? '#fef2f2' : '#fffbeb' }}>
-                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: row.status === 'error' ? '#dc2626' : '#f59e0b' }} />
-                            <Typography variant="caption" fontWeight={600}>{row.label}</Typography>
-                            <Typography variant="caption" color="text.secondary">{row.message}</Typography>
-                          </Stack>
-                        ))
-                      ) : (
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5, borderRadius: 2, bgcolor: '#ecfdf5' }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#059669' }} />
-                          <Typography variant="caption" color="#059669" fontWeight={600}>Tudo funcionando normalmente</Typography>
-                        </Stack>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Library */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.library.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.library.bg, width: 32, height: 32 }}>
-                        <IconBook2 size={18} color={SECTION_COLORS.library.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Biblioteca</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/library`} sx={{ color: SECTION_COLORS.library.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-                    <Stack spacing={1}>
-                      {recentLibrary.length ? (
-                        recentLibrary.map((item) => (
-                          <Stack key={item.id} direction="row" spacing={1.5} alignItems="center" sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' } }}>
-                            <Avatar sx={{ bgcolor: SECTION_COLORS.library.bg, width: 28, height: 28 }}>
-                              <IconFileText size={14} color={SECTION_COLORS.library.fg} />
-                            </Avatar>
-                            <Box flex={1} sx={{ minWidth: 0 }}>
-                              <Typography variant="subtitle2" noWrap fontWeight={600}>{item.title}</Typography>
-                              <Typography variant="caption" color="text.secondary" noWrap>
-                                {item.category || item.type || '--'} · {formatDate(item.updated_at || item.created_at)}
-                                {item.status && <Chip size="small" label={item.status} sx={{ ml: 0.5, height: 16, fontSize: '0.55rem' }} />}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem itens na biblioteca.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Creative */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.creative.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.creative.bg, width: 32, height: 32 }}>
-                        <IconSparkles size={18} color={SECTION_COLORS.creative.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Creative</Typography>
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/creative`} sx={{ color: SECTION_COLORS.creative.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-
-                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Briefings recentes
-                    </Typography>
-                    <Stack spacing={1} sx={{ mt: 1 }}>
-                      {recentBriefings.length ? (
-                        recentBriefings.map((b) => (
-                          <Stack key={b.id} direction="row" spacing={1.5} alignItems="center" sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
-                            <Avatar sx={{ bgcolor: SECTION_COLORS.creative.bg, width: 28, height: 28 }}>
-                              <IconFileText size={14} color={SECTION_COLORS.creative.fg} />
-                            </Avatar>
-                            <Box flex={1} sx={{ minWidth: 0 }}>
-                              <Typography variant="subtitle2" noWrap fontWeight={600}>{b.title}</Typography>
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                {b.status && <Chip size="small" label={b.status} sx={{ height: 18, fontSize: '0.55rem' }} />}
-                                <Typography variant="caption" color="text.secondary">{formatDate(b.updated_at || b.created_at)}</Typography>
-                              </Stack>
-                            </Box>
-                          </Stack>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">Sem briefings recentes.</Typography>
-                      )}
-                    </Stack>
-
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Copies recentes
-                    </Typography>
-                    <Stack spacing={1} sx={{ mt: 1 }}>
-                      {recentCopies.length ? (
-                        recentCopies.map((c) => (
-                          <Box key={c.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
-                            <Typography variant="caption" fontWeight={600}>{formatDateTime(c.created_at || null)}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {String(c.output || '').slice(0, 100)}
-                            </Typography>
-                          </Box>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">Sem copies recentes.</Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              {/* Performance */}
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none', borderLeftStyle: 'solid', borderLeftWidth: 4, borderLeftColor: SECTION_COLORS.performance.border }}>
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Avatar sx={{ bgcolor: SECTION_COLORS.performance.bg, width: 32, height: 32 }}>
-                        <IconChartBar size={18} color={SECTION_COLORS.performance.fg} />
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight={600}>Performance</Typography>
-                      <Chip size="small" label={reporteiConfigured ? 'Reportei OK' : 'Nao configurado'}
-                        sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700,
-                          bgcolor: reporteiConfigured ? '#ecfdf5' : '#fef2f2',
-                          color: reporteiConfigured ? '#059669' : '#dc2626' }} />
-                      <Box flex={1} />
-                      <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/performance`} sx={{ color: SECTION_COLORS.performance.fg }}>
-                        Ver mais
-                      </Button>
-                    </Stack>
-                    {reporteiEditorialInsights.length ? (
-                      <Stack spacing={0.75}>
-                        {reporteiEditorialInsights.map((insight, idx) => (
-                          <Stack key={`${idx}-${insight}`} direction="row" spacing={1} alignItems="flex-start">
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: SECTION_COLORS.performance.fg, mt: 0.75, flexShrink: 0 }} />
-                            <Typography variant="body2" color="text.secondary">{insight}</Typography>
-                          </Stack>
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem destaques editoriais.</Typography>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem itens recentes.</Typography>
+                )}
+              </Stack>
             </Grid>
 
-            {/* Summary card */}
-            <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-              <CardContent>
-                {kb.description && (
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 2, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                    {kb.description}
+            {/* Right — Social Listening */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Social Listening
+              </Typography>
+
+              {topTrends.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>Top tendencias</Typography>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {topTrends.map((t) => (
+                      <Chip key={`${t.keyword}-${t.platform}`} size="small"
+                        label={`${t.keyword} · ${formatNumber(t.mention_count)}`}
+                        sx={{ bgcolor: SECTION_COLORS.social.bg, color: SECTION_COLORS.social.fg, fontWeight: 600, fontSize: '0.65rem' }} />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              <Stack spacing={1}>
+                {socialMentions.length ? (
+                  socialMentions.slice(0, 4).map((m) => (
+                    <Box key={m.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip size="small" label={m.platform} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
+                        {m.author && <Typography variant="caption" fontWeight={600}>{m.author}</Typography>}
+                        {m.sentiment && (
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: m.sentiment === 'positive' ? '#059669' : m.sentiment === 'negative' ? '#dc2626' : '#94a3b8' }} />
+                        )}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        {String(m.content || '').slice(0, 100)}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem mencoes recentes.</Typography>
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 3 — Estrategia
+          ══════════════════════════════════════════════════════════════ */}
+      <Card sx={sectionCardSx}>
+        <CardContent sx={sectionContentSx}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+            <Avatar sx={{ bgcolor: SECTION_COLORS.calendar.bg, width: 36, height: 36 }}>
+              <IconCalendar size={20} color={SECTION_COLORS.calendar.fg} />
+            </Avatar>
+            <Typography variant="h6" fontWeight={700}>Estrategia</Typography>
+            <Box flex={1} />
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/calendar`} sx={{ color: SECTION_COLORS.calendar.fg }}>
+              Calendario
+            </Button>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/insights`} sx={{ color: SECTION_COLORS.insights.fg }}>
+              Insights
+            </Button>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/performance`} sx={{ color: SECTION_COLORS.performance.fg }}>
+              Performance
+            </Button>
+          </Stack>
+
+          <Grid container spacing={3}>
+            {/* Left — Calendario (14d) */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Calendario (14d)
+              </Typography>
+              <Stack spacing={1.5}>
+                {calendarItems.slice(0, 5).map((item, idx) => {
+                  const d = formatDayMonth(item.date);
+                  const score = Number(item.score || 0);
+                  return (
+                    <Stack key={`${item.id}-${item.date}`} direction="row" spacing={2} alignItems="center"
+                      sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent', transition: 'background 0.2s' }}>
+                      <Box textAlign="center" sx={{
+                        minWidth: 48, py: 0.5, px: 1, borderRadius: 2,
+                        bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
+                        color: idx === 0 ? 'white' : 'text.primary',
+                      }}>
+                        <Typography variant="caption" display="block" sx={{ fontSize: '0.6rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
+                          {d.month}
+                        </Typography>
+                        <Typography variant="h6" fontWeight={700}>{d.day}</Typography>
+                      </Box>
+                      <Box flex={1} sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" noWrap fontWeight={600}>{item.name}</Typography>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <LinearProgress variant="determinate" value={Math.min(100, score)}
+                            sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { bgcolor: score >= 80 ? '#059669' : score >= 50 ? '#f59e0b' : '#94a3b8' } }} />
+                          <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+                            {formatNumber(score)}{item.tier ? ` · ${item.tier}` : ''}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    </Stack>
+                  );
+                })}
+                {!calendarItems.length && (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem datas proximas.</Typography>
+                )}
+              </Stack>
+            </Grid>
+
+            {/* Center — Insights + Oportunidades */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Insights
+              </Typography>
+              <Stack spacing={0.75}>
+                {strategicSummaryLines.length ? (
+                  strategicSummaryLines.map((line, idx) => (
+                    <Stack key={`${idx}-${line}`} direction="row" spacing={1} alignItems="flex-start">
+                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: SECTION_COLORS.insights.fg, mt: 0.75, flexShrink: 0 }} />
+                      <Typography variant="body2" color="text.secondary">{line}</Typography>
+                    </Stack>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem dados suficientes para resumo.</Typography>
+                )}
+              </Stack>
+
+              <Typography variant="overline" color="text.secondary" sx={{ mt: 2.5, mb: 1.5, display: 'block' }}>
+                Top oportunidades
+              </Typography>
+              <Stack spacing={1}>
+                {topOpportunities.length ? (
+                  topOpportunities.map((opp) => (
+                    <Box key={opp.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip size="small" label={opp.priority || 'medium'}
+                          sx={{
+                            height: 20, fontSize: '0.6rem', fontWeight: 700, color: 'white',
+                            bgcolor: PRIORITY_COLORS[opp.priority || 'medium'] || PRIORITY_COLORS.medium,
+                          }} />
+                        <Typography variant="subtitle2" noWrap fontWeight={600}>{opp.title}</Typography>
+                      </Stack>
+                      {typeof opp.confidence === 'number' && (
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.75 }}>
+                          <LinearProgress variant="determinate" value={opp.confidence}
+                            sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: '#e2e8f0',
+                              '& .MuiLinearProgress-bar': { bgcolor: opp.confidence >= 80 ? '#059669' : '#f59e0b' } }} />
+                          <Typography variant="caption" fontWeight={600} fontSize="0.65rem">{opp.confidence}%</Typography>
+                        </Stack>
+                      )}
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem oportunidades no momento.</Typography>
+                )}
+              </Stack>
+            </Grid>
+
+            {/* Right — Performance */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Performance
+              </Typography>
+              <Chip size="small" label={reporteiConfigured ? 'Reportei OK' : 'Nao configurado'}
+                sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700, mb: 2,
+                  bgcolor: reporteiConfigured ? '#ecfdf5' : '#fef2f2',
+                  color: reporteiConfigured ? '#059669' : '#dc2626' }} />
+              {reporteiEditorialInsights.length ? (
+                <Stack spacing={0.75}>
+                  {reporteiEditorialInsights.map((insight, idx) => (
+                    <Stack key={`${idx}-${insight}`} direction="row" spacing={1} alignItems="flex-start">
+                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: SECTION_COLORS.performance.fg, mt: 0.75, flexShrink: 0 }} />
+                      <Typography variant="body2" color="text.secondary">{insight}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem destaques editoriais.</Typography>
+              )}
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 4 — Producao
+          ══════════════════════════════════════════════════════════════ */}
+      <Card sx={sectionCardSx}>
+        <CardContent sx={sectionContentSx}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+            <Avatar sx={{ bgcolor: SECTION_COLORS.creative.bg, width: 36, height: 36 }}>
+              <IconSparkles size={20} color={SECTION_COLORS.creative.fg} />
+            </Avatar>
+            <Typography variant="h6" fontWeight={700}>Producao</Typography>
+            <Chip size="small" label={planningHealth?.overall === 'healthy' ? 'OK' : planningHealth?.overall === 'warning' ? 'Atencao' : 'Sem dados'}
+              sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700,
+                bgcolor: planningHealth?.overall === 'healthy' ? '#ecfdf5' : planningHealth?.overall === 'warning' ? '#fffbeb' : '#f8fafc',
+                color: planningHealth?.overall === 'healthy' ? '#059669' : planningHealth?.overall === 'warning' ? '#d97706' : '#94a3b8' }} />
+            <Box flex={1} />
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/creative`} sx={{ color: SECTION_COLORS.creative.fg }}>
+              Creative
+            </Button>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.planning.fg }}>
+              Planning
+            </Button>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/library`} sx={{ color: SECTION_COLORS.library.fg }}>
+              Biblioteca
+            </Button>
+          </Stack>
+
+          {/* Planning alerts */}
+          {planningAlerts.length > 0 && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+              {planningAlerts.map((row) => (
+                <Chip key={`${row.key}-${row.status}`} size="small"
+                  label={`${row.label}: ${row.message}`}
+                  sx={{
+                    height: 24, fontSize: '0.65rem', fontWeight: 600,
+                    bgcolor: row.status === 'error' ? '#fef2f2' : '#fffbeb',
+                    color: row.status === 'error' ? '#dc2626' : '#d97706',
+                  }} />
+              ))}
+            </Stack>
+          )}
+
+          <Grid container spacing={3}>
+            {/* Left — Briefings recentes */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Briefings recentes
+              </Typography>
+              <Stack spacing={1}>
+                {recentBriefings.length ? (
+                  recentBriefings.map((b) => (
+                    <Stack key={b.id} direction="row" spacing={1.5} alignItems="center" sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
+                      <Avatar sx={{ bgcolor: SECTION_COLORS.creative.bg, width: 28, height: 28 }}>
+                        <IconFileText size={14} color={SECTION_COLORS.creative.fg} />
+                      </Avatar>
+                      <Box flex={1} sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" noWrap fontWeight={600}>{b.title}</Typography>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          {b.status && <Chip size="small" label={b.status} sx={{ height: 18, fontSize: '0.55rem' }} />}
+                          <Typography variant="caption" color="text.secondary">{formatDate(b.updated_at || b.created_at)}</Typography>
+                        </Stack>
+                      </Box>
+                    </Stack>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem briefings recentes.</Typography>
+                )}
+              </Stack>
+            </Grid>
+
+            {/* Center — Copies recentes */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Copies recentes
+              </Typography>
+              <Stack spacing={1}>
+                {recentCopies.length ? (
+                  recentCopies.map((c) => (
+                    <Box key={c.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
+                      <Typography variant="caption" fontWeight={600}>{formatDateTime(c.created_at || null)}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {String(c.output || '').slice(0, 100)}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Sem copies recentes.</Typography>
+                )}
+              </Stack>
+            </Grid>
+
+            {/* Right — Biblioteca */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Biblioteca
+              </Typography>
+              <Stack spacing={1}>
+                {recentLibrary.length ? (
+                  recentLibrary.map((item) => (
+                    <Stack key={item.id} direction="row" spacing={1.5} alignItems="center" sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' } }}>
+                      <Avatar sx={{ bgcolor: SECTION_COLORS.library.bg, width: 28, height: 28 }}>
+                        <IconFileText size={14} color={SECTION_COLORS.library.fg} />
+                      </Avatar>
+                      <Box flex={1} sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" noWrap fontWeight={600}>{item.title}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {item.category || item.type || '--'} · {formatDate(item.updated_at || item.created_at)}
+                          {item.status && <Chip size="small" label={item.status} sx={{ ml: 0.5, height: 16, fontSize: '0.55rem' }} />}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem itens na biblioteca.</Typography>
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 5 — Perfil do Cliente
+          ══════════════════════════════════════════════════════════════ */}
+      {hasProfileData && (
+        <Card sx={sectionCardSx}>
+          <CardContent sx={sectionContentSx}>
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+              <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 36, height: 36 }}>
+                <IconUsers size={20} color={SECTION_COLORS.insights.fg} />
+              </Avatar>
+              <Typography variant="h6" fontWeight={700}>Perfil do Cliente</Typography>
+            </Stack>
+
+            {/* Summary */}
+            {kb.description && (
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 2, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                {kb.description}
+              </Typography>
+            )}
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconBriefcase size={16} color={SECTION_COLORS.insights.fg} />
+                  <Typography variant="caption" color="text.secondary" fontWeight={600}>Segmento</Typography>
+                </Stack>
+                <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{client?.segment_primary || 'Nao definido'}</Typography>
+              </Grid>
+              {client?.tone_profile && (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconMoodHappy size={16} color={SECTION_COLORS.social.fg} />
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Tom de voz</Typography>
+                  </Stack>
+                  <Typography variant="subtitle2" sx={{ mt: 0.5, textTransform: 'capitalize' }}>{client.tone_profile}</Typography>
+                </Grid>
+              )}
+              {location && (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconWorld size={16} color={SECTION_COLORS.calendar.fg} />
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Localizacao</Typography>
+                  </Stack>
+                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{location}</Typography>
+                </Grid>
+              )}
+            </Grid>
+
+            {/* Presenca digital */}
+            {(kb.website || hasSocials) && (
+              <>
+                <Divider sx={{ my: 2.5 }} />
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                  Presenca digital
+                </Typography>
+                {kb.website && (
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <IconWorld size={18} color="#666" />
+                    <Typography
+                      variant="body2"
+                      component="a"
+                      href={ensureUrl(kb.website)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    >
+                      {kb.website}
+                    </Typography>
+                    <IconExternalLink size={14} color="#999" />
+                  </Stack>
+                )}
+                {hasSocials && (
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {Object.entries(SOCIAL_ICONS).map(([key, cfg]) => {
+                      const value = socials[key as keyof typeof socials];
+                      if (!value) return null;
+                      const Icon = cfg.icon;
+                      return (
+                        <Tooltip key={key} title={`${cfg.label}: ${value}`}>
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={ensureUrl(value)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ bgcolor: `${cfg.color}14`, '&:hover': { bgcolor: `${cfg.color}28` } }}
+                          >
+                            <Icon size={20} color={cfg.color} />
+                          </IconButton>
+                        </Tooltip>
+                      );
+                    })}
+                  </Stack>
+                )}
+                {socials.other && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Outras: {socials.other}
                   </Typography>
                 )}
+              </>
+            )}
 
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <IconBriefcase size={16} color={SECTION_COLORS.insights.fg} />
-                      <Typography variant="caption" color="text.secondary" fontWeight={600}>Segmento</Typography>
-                    </Stack>
-                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{client?.segment_primary || 'Nao definido'}</Typography>
-                  </Grid>
-                  {client?.tone_profile && (
-                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <IconMoodHappy size={16} color={SECTION_COLORS.social.fg} />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Tom de voz</Typography>
+            {/* Marca & Posicionamento */}
+            {(kb.audience || kb.brand_promise || kb.differentiators) && (
+              <>
+                <Divider sx={{ my: 2.5 }} />
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                  Marca & Posicionamento
+                </Typography>
+                <Grid container spacing={3}>
+                  {kb.audience && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                        <IconUsers size={16} color="#666" />
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Publico-alvo</Typography>
                       </Stack>
-                      <Typography variant="subtitle2" sx={{ mt: 0.5, textTransform: 'capitalize' }}>{client.tone_profile}</Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.audience}</Typography>
                     </Grid>
                   )}
-                  {location && (
-                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <IconWorld size={16} color={SECTION_COLORS.calendar.fg} />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Localizacao</Typography>
+                  {kb.brand_promise && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                        <IconTarget size={16} color="#666" />
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Promessa da marca</Typography>
                       </Stack>
-                      <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{location}</Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.brand_promise}</Typography>
+                    </Grid>
+                  )}
+                  {kb.differentiators && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                        <IconSparkles size={16} color="#666" />
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Diferenciais</Typography>
+                      </Stack>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.differentiators}</Typography>
                     </Grid>
                   )}
                 </Grid>
-              </CardContent>
-            </Card>
-
-            {/* Website & Social Profiles */}
-            {(kb.website || hasSocials) && (
-              <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-                <CardContent>
-                  <Typography variant="overline" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                    Presença digital
-                  </Typography>
-
-                  {kb.website && (
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                      <IconWorld size={18} color="#666" />
-                      <Typography
-                        variant="body2"
-                        component="a"
-                        href={ensureUrl(kb.website)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
-                      >
-                        {kb.website}
-                      </Typography>
-                      <IconExternalLink size={14} color="#999" />
-                    </Stack>
-                  )}
-
-                  {hasSocials && (
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {Object.entries(SOCIAL_ICONS).map(([key, cfg]) => {
-                        const value = socials[key as keyof typeof socials];
-                        if (!value) return null;
-                        const Icon = cfg.icon;
-                        return (
-                          <Tooltip key={key} title={`${cfg.label}: ${value}`}>
-                            <IconButton
-                              size="small"
-                              component="a"
-                              href={ensureUrl(value)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              sx={{
-                                bgcolor: `${cfg.color}14`,
-                                '&:hover': { bgcolor: `${cfg.color}28` },
-                              }}
-                            >
-                              <Icon size={20} color={cfg.color} />
-                            </IconButton>
-                          </Tooltip>
-                        );
-                      })}
-                    </Stack>
-                  )}
-
-                  {socials.other && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      Outras: {socials.other}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
+              </>
             )}
 
-            {/* Audience & Brand */}
-            {(kb.audience || kb.brand_promise || kb.differentiators) && (
-              <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-                <CardContent>
-                  <Typography variant="overline" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                    Marca & Posicionamento
-                  </Typography>
-
-                  <Stack spacing={2.5}>
-                    {kb.audience && (
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                          <IconUsers size={16} color="#666" />
-                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                            Público-alvo
-                          </Typography>
-                        </Stack>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {kb.audience}
-                        </Typography>
-                      </Box>
-                    )}
-                    {kb.brand_promise && (
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                          <IconTarget size={16} color="#666" />
-                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                            Promessa da marca
-                          </Typography>
-                        </Stack>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {kb.brand_promise}
-                        </Typography>
-                      </Box>
-                    )}
-                    {kb.differentiators && (
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                          <IconSparkles size={16} color="#666" />
-                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                            Diferenciais
-                          </Typography>
-                        </Stack>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {kb.differentiators}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Content pillars & keywords */}
+            {/* Conteudo */}
             {((client?.content_pillars && client.content_pillars.length > 0) ||
               (client?.keywords && client.keywords.length > 0) ||
               (kb.hashtags && kb.hashtags.length > 0)) && (
-              <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-                <CardContent>
-                  <Typography variant="overline" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                    Conteúdo
-                  </Typography>
-
-                  <Stack spacing={2}>
-                    {client?.content_pillars && client.content_pillars.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                          Pilares de conteúdo
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {client.content_pillars.map((p, i) => (
-                            <Chip key={i} size="small" label={p} sx={{ bgcolor: 'primary.lighter', color: 'primary.main', fontWeight: 500 }} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                    {client?.keywords && client.keywords.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                          Palavras-chave
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {client.keywords.map((k, i) => (
-                            <Chip key={i} size="small" variant="outlined" label={k} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                    {kb.hashtags && kb.hashtags.length > 0 && (
-                      <Box>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                          <IconHash size={14} color="#666" />
-                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                            Hashtags
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {kb.hashtags.map((h, i) => (
-                            <Chip key={i} size="small" label={h.startsWith('#') ? h : `#${h}`} sx={{ bgcolor: 'grey.100' }} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
+              <>
+                <Divider sx={{ my: 2.5 }} />
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                  Conteudo
+                </Typography>
+                <Stack spacing={2}>
+                  {client?.content_pillars && client.content_pillars.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                        Pilares de conteudo
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {client.content_pillars.map((p, i) => (
+                          <Chip key={i} size="small" label={p} sx={{ bgcolor: 'primary.lighter', color: 'primary.main', fontWeight: 500 }} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {client?.keywords && client.keywords.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                        Palavras-chave
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {client.keywords.map((k, i) => (
+                          <Chip key={i} size="small" variant="outlined" label={k} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {kb.hashtags && kb.hashtags.length > 0 && (
+                    <Box>
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+                        <IconHash size={14} color="#666" />
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Hashtags</Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {kb.hashtags.map((h, i) => (
+                          <Chip key={i} size="small" label={h.startsWith('#') ? h : `#${h}`} sx={{ bgcolor: 'grey.100' }} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Stack>
+              </>
             )}
 
-            {/* Guidelines */}
+            {/* Diretrizes */}
             {((kb.must_mentions && kb.must_mentions.length > 0) ||
               (kb.approved_terms && kb.approved_terms.length > 0) ||
               (kb.forbidden_claims && kb.forbidden_claims.length > 0) ||
               kb.notes) && (
-              <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-                <CardContent>
-                  <Typography variant="overline" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                    Diretrizes
-                  </Typography>
-
-                  <Stack spacing={2}>
-                    {kb.must_mentions && kb.must_mentions.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                          Menções obrigatórias
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {kb.must_mentions.map((m, i) => (
-                            <Chip key={i} size="small" label={m} color="success" variant="outlined" />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                    {kb.approved_terms && kb.approved_terms.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                          Termos aprovados
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {kb.approved_terms.map((t, i) => (
-                            <Chip key={i} size="small" label={t} color="info" variant="outlined" />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                    {kb.forbidden_claims && kb.forbidden_claims.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                          Termos proibidos
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {kb.forbidden_claims.map((f, i) => (
-                            <Chip key={i} size="small" label={f} color="error" variant="outlined" />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                    {kb.notes && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                          Observações
-                        </Typography>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {kb.notes}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            )}
-          </Stack>
-        </Grid>
-
-        {/* Right column — Actions & Events */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2}>
-            {/* Setup & Integracoes */}
-            <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-              <CardContent>
-                <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                  <Avatar sx={{ bgcolor: '#f8fafc', width: 32, height: 32 }}>
-                    <IconSettings2 size={18} color="#475569" />
-                  </Avatar>
-                  <Typography variant="subtitle1" fontWeight={600}>Setup & Integracoes</Typography>
-                </Stack>
-
-                <Stack spacing={1}>
-                  {[
-                    { label: 'Reportei', ok: reporteiConfigured },
-                    { label: 'Meta', ok: metaConfigured },
-                    { label: `Fontes social (${sourcesPlatforms.length})`, ok: sourcesConfigured },
-                    { label: `Clipping (${clippingActiveSourcesCount})`, ok: clippingActiveSourcesCount > 0, warn: clippingErrorSourcesCount > 0 },
-                    { label: `Keywords (${socialActiveKeywordsCount})`, ok: socialActiveKeywordsCount > 0 },
-                  ].map((item) => (
-                    <Stack key={item.label} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.75 }}>
-                      <Box sx={{
-                        width: 10, height: 10, borderRadius: '50%',
-                        bgcolor: item.ok ? '#059669' : (item as any).warn ? '#f59e0b' : '#e2e8f0',
-                        boxShadow: item.ok ? '0 0 6px rgba(5,150,105,0.4)' : 'none',
-                      }} />
-                      <Typography variant="body2" flex={1}>{item.label}</Typography>
-                      <Typography variant="caption" color={item.ok ? 'success.main' : 'text.secondary'} fontWeight={600}>
-                        {item.ok ? 'OK' : 'Configurar'}
+              <>
+                <Divider sx={{ my: 2.5 }} />
+                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                  Diretrizes
+                </Typography>
+                <Stack spacing={2}>
+                  {kb.must_mentions && kb.must_mentions.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                        Mencoes obrigatorias
                       </Typography>
-                    </Stack>
-                  ))}
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {kb.must_mentions.map((m, i) => (
+                          <Chip key={i} size="small" label={m} color="success" variant="outlined" />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {kb.approved_terms && kb.approved_terms.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                        Termos aprovados
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {kb.approved_terms.map((t, i) => (
+                          <Chip key={i} size="small" label={t} color="info" variant="outlined" />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {kb.forbidden_claims && kb.forbidden_claims.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                        Termos proibidos
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {kb.forbidden_claims.map((f, i) => (
+                          <Chip key={i} size="small" label={f} color="error" variant="outlined" />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {kb.notes && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                        Observacoes
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {kb.notes}
+                      </Typography>
+                    </Box>
+                  )}
                 </Stack>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-                <Divider sx={{ my: 2 }} />
-                <Stack spacing={1}>
-                  <Button fullWidth variant="outlined" size="small" startIcon={<IconExternalLink size={14} />}
-                    component={Link} href={`/clients/${clientId}/connectors`} sx={{ borderRadius: 2 }}>
-                    Conectores
-                  </Button>
-                  <Button fullWidth variant="outlined" size="small" startIcon={<IconAntenna size={14} />}
-                    component={Link} href={`/clients/${clientId}/clipping?tab=social`} sx={{ borderRadius: 2 }}>
-                    Social Listening
-                  </Button>
-                </Stack>
-              </CardContent>
-            </Card>
+      {/* ══════════════════════════════════════════════════════════════
+          SECTION 6 — Acoes & Setup
+          ══════════════════════════════════════════════════════════════ */}
+      <Card sx={sectionCardSx}>
+        <CardContent sx={sectionContentSx}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
+            <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 36, height: 36 }}>
+              <IconRocket size={20} color={SECTION_COLORS.insights.fg} />
+            </Avatar>
+            <Typography variant="h6" fontWeight={700}>Acoes & Setup</Typography>
+          </Stack>
 
-            {/* Acoes rapidas */}
-            <Card sx={{
-              borderRadius: 3, border: 'none',
-              background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 100%)',
-              boxShadow: '0 8px 24px rgba(255,102,0,0.25)',
-            }}>
-              <CardContent>
+          <Grid container spacing={3}>
+            {/* Left — Acoes rapidas */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{
+                borderRadius: 3, p: 2.5,
+                background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 100%)',
+                boxShadow: '0 8px 24px rgba(255,102,0,0.25)',
+              }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ color: 'white', mb: 2 }}>
                   Acoes rapidas
                 </Typography>
@@ -1707,59 +1568,86 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                     </Button>
                   </Grid>
                 </Grid>
-              </CardContent>
-            </Card>
+              </Box>
+            </Grid>
 
-            {/* Proximas datas */}
-            <Card sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' }}>
-              <CardContent>
-                <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                  <Avatar sx={{ bgcolor: SECTION_COLORS.calendar.bg, width: 32, height: 32 }}>
-                    <IconCalendar size={18} color={SECTION_COLORS.calendar.fg} />
-                  </Avatar>
-                  <Typography variant="subtitle1" fontWeight={600}>Proximas datas</Typography>
-                </Stack>
-                <Stack spacing={1.5}>
-                  {calendarItems.length > 0 ? (
-                    calendarItems.slice(0, 5).map((item, idx) => {
-                      const { month, day } = formatDayMonth(item.date);
-                      const score = Number(item.score || 0);
-                      return (
-                        <Stack key={`${item.id}-${item.date}`} direction="row" spacing={2} alignItems="center"
-                          sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent' }}>
-                          <Box textAlign="center" sx={{
-                            minWidth: 44, py: 0.5, px: 0.75, borderRadius: 2,
-                            bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
-                            color: idx === 0 ? 'white' : 'text.primary',
-                          }}>
-                            <Typography variant="caption" display="block" sx={{ fontSize: '0.55rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
-                              {month}
-                            </Typography>
-                            <Typography variant="h6" fontWeight={700}>{day}</Typography>
-                          </Box>
-                          <Box flex={1} sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle2" noWrap fontWeight={600}>{item.name}</Typography>
-                            <Chip size="small" label={`${score}${item.tier ? ` · ${item.tier}` : ''}`}
-                              sx={{
-                                height: 18, fontSize: '0.6rem', fontWeight: 700, mt: 0.25,
-                                bgcolor: score >= 80 ? '#ecfdf5' : '#f8fafc',
-                                color: score >= 80 ? '#059669' : '#94a3b8',
-                              }} />
-                          </Box>
-                        </Stack>
-                      );
-                    })
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
-                      Sem eventos previstos
+            {/* Center — Setup & Integracoes */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Setup & Integracoes
+              </Typography>
+              <Stack spacing={1}>
+                {[
+                  { label: 'Reportei', ok: reporteiConfigured },
+                  { label: 'Meta', ok: metaConfigured },
+                  { label: `Fontes social (${sourcesPlatforms.length})`, ok: sourcesConfigured },
+                  { label: `Clipping (${clippingActiveSourcesCount})`, ok: clippingActiveSourcesCount > 0, warn: clippingErrorSourcesCount > 0 },
+                  { label: `Keywords (${socialActiveKeywordsCount})`, ok: socialActiveKeywordsCount > 0 },
+                ].map((item) => (
+                  <Stack key={item.label} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.75 }}>
+                    <Box sx={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      bgcolor: item.ok ? '#059669' : (item as any).warn ? '#f59e0b' : '#e2e8f0',
+                      boxShadow: item.ok ? '0 0 6px rgba(5,150,105,0.4)' : 'none',
+                    }} />
+                    <Typography variant="body2" flex={1}>{item.label}</Typography>
+                    <Typography variant="caption" color={item.ok ? 'success.main' : 'text.secondary'} fontWeight={600}>
+                      {item.ok ? 'OK' : 'Configurar'}
                     </Typography>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          </Stack>
-        </Grid>
-      </Grid>
+                  </Stack>
+                ))}
+              </Stack>
+              <Button fullWidth variant="outlined" size="small" startIcon={<IconExternalLink size={14} />}
+                component={Link} href={`/clients/${clientId}/connectors`} sx={{ borderRadius: 2, mt: 2 }}>
+                Conectores
+              </Button>
+            </Grid>
+
+            {/* Right — Proximas datas */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                Proximas datas
+              </Typography>
+              <Stack spacing={1.5}>
+                {calendarItems.length > 0 ? (
+                  calendarItems.slice(0, 5).map((item, idx) => {
+                    const { month, day } = formatDayMonth(item.date);
+                    const score = Number(item.score || 0);
+                    return (
+                      <Stack key={`${item.id}-${item.date}`} direction="row" spacing={2} alignItems="center"
+                        sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent' }}>
+                        <Box textAlign="center" sx={{
+                          minWidth: 44, py: 0.5, px: 0.75, borderRadius: 2,
+                          bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
+                          color: idx === 0 ? 'white' : 'text.primary',
+                        }}>
+                          <Typography variant="caption" display="block" sx={{ fontSize: '0.55rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
+                            {month}
+                          </Typography>
+                          <Typography variant="h6" fontWeight={700}>{day}</Typography>
+                        </Box>
+                        <Box flex={1} sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle2" noWrap fontWeight={600}>{item.name}</Typography>
+                          <Chip size="small" label={`${score}${item.tier ? ` · ${item.tier}` : ''}`}
+                            sx={{
+                              height: 18, fontSize: '0.6rem', fontWeight: 700, mt: 0.25,
+                              bgcolor: score >= 80 ? '#ecfdf5' : '#f8fafc',
+                              color: score >= 80 ? '#059669' : '#94a3b8',
+                            }} />
+                        </Box>
+                      </Stack>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+                    Sem eventos previstos
+                  </Typography>
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
     </Box>
   );
 }

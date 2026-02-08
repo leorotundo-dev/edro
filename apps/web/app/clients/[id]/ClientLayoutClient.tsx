@@ -23,12 +23,15 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconChevronLeft, IconRefresh, IconSparkles, IconUser, IconX } from '@tabler/icons-react';
+import { IconChevronLeft, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
 
 type ClientBasic = {
   id: string;
   name: string;
   segment_primary?: string | null;
+  country?: string | null;
+  uf?: string | null;
+  city?: string | null;
   profile?: {
     knowledge_base?: {
       description?: string;
@@ -174,6 +177,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const tabValue = activeTab || 'overview';
 
   const clientName = client?.name || 'Cliente';
+  const location = [client?.city, client?.uf, client?.country].filter(Boolean).join(', ');
 
   const sourcesLabel = analysisResult?.sources_used
     ? Object.entries(analysisResult.sources_used)
@@ -185,7 +189,14 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   return (
     <AppShell title={clientName}>
       <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-        <Card variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
+        <Card sx={{
+          background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)',
+          borderRadius: 4,
+          boxShadow: '0 8px 32px rgba(255, 102, 0, 0.3)',
+          border: 'none',
+          p: { xs: 2, sm: 3 },
+          pb: 0,
+        }}>
           <Stack
             direction={{ xs: 'column', md: 'row' }}
             spacing={2}
@@ -196,22 +207,33 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               <IconButton
                 onClick={() => router.push('/clients')}
                 aria-label="Voltar para Clientes"
-                sx={{ border: '1px solid', borderColor: 'divider' }}
+                sx={{ border: '1px solid rgba(255,255,255,0.3)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
               >
                 <IconChevronLeft size={18} />
               </IconButton>
               <Box>
                 {loading ? (
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <CircularProgress size={16} />
-                    <Typography variant="h4" color="text.secondary">Carregando...</Typography>
+                    <CircularProgress size={16} sx={{ color: 'white' }} />
+                    <Typography variant="h4" sx={{ color: 'rgba(255,255,255,0.7)' }}>Carregando...</Typography>
                   </Stack>
                 ) : (
                   <>
-                    <Typography variant="h4">{clientName}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {client?.segment_primary || client?.profile?.knowledge_base?.description || 'Sem segmento definido'}
+                    <Typography variant="h4" fontWeight={700} sx={{ color: 'white', lineHeight: 1.2 }}>
+                      {clientName}
                     </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                      {client?.segment_primary && (
+                        <Chip size="small" label={client.segment_primary}
+                          sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600, backdropFilter: 'blur(4px)' }} />
+                      )}
+                      <Chip size="small" label="Ativo"
+                        sx={{ bgcolor: 'rgba(255,255,255,0.3)', color: 'white', fontWeight: 600 }} />
+                      {location && (
+                        <Chip size="small" icon={<IconWorld size={14} color="white" />} label={location}
+                          sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                      )}
+                    </Stack>
                   </>
                 )}
               </Box>
@@ -222,7 +244,13 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 startIcon={<IconSparkles size={16} />}
                 onClick={runAnalysis}
                 disabled={analyzing || loading}
-                sx={{ textTransform: 'none' }}
+                sx={{
+                  textTransform: 'none',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  backdropFilter: 'blur(4px)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                }}
               >
                 Analisar com IA
               </Button>
@@ -231,6 +259,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 startIcon={<IconUser size={16} />}
                 component={Link}
                 href={`/clients/${clientId}`}
+                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
               >
                 Editar cliente
               </Button>
@@ -243,7 +272,11 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               const target = value === 'overview' ? '' : value;
               router.push(`${basePath}${target}`);
             }}
-            sx={{ mt: 2 }}
+            sx={{
+              mt: 2,
+              '& .MuiTab-root': { color: 'rgba(255,255,255,0.7)', fontWeight: 600, '&.Mui-selected': { color: 'white' } },
+              '& .MuiTabs-indicator': { bgcolor: 'white' },
+            }}
             variant="scrollable"
             allowScrollButtonsMobile
           >

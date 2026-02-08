@@ -27,6 +27,8 @@ type ClientRow = {
 };
 
 type ClippingMatch = {
+  id?: string;
+  clipping_item_id?: string;
   itemId?: string;
   item_id?: string;
   score?: number;
@@ -103,6 +105,10 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '--';
   return date.toLocaleDateString('pt-BR');
+}
+
+function isUuid(value?: string | null) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
 
 function isSocialPlatform(value: any): value is SocialPlatform {
@@ -630,8 +636,11 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                 <Typography variant="overline" color="text.secondary">Radar relevante</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {matches.length ? (
-                    matches.map((match) => (
-                      <Box key={match.item_id || match.itemId} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    matches.map((match) => {
+                      const matchItemId = match.clipping_item_id || match.item_id || match.itemId || null;
+                      const detailHref = matchItemId && isUuid(matchItemId) ? `/clipping/${matchItemId}` : null;
+                      return (
+                      <Box key={matchItemId || match.id || match.url || match.title} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                           <Typography variant="subtitle2">{match.title}</Typography>
                           <Chip size="small" label={`Score ${formatNumber(match.score)}`} />
@@ -639,13 +648,21 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                         <Typography variant="caption" color="text.secondary">
                           {match.snippet || 'Sem resumo.'}
                         </Typography>
-                        {match.url ? (
-                          <Button size="small" variant="text" href={match.url} target="_blank" rel="noreferrer">
-                            Abrir fonte
-                          </Button>
-                        ) : null}
+                        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                          {detailHref ? (
+                            <Button size="small" variant="text" href={detailHref}>
+                              Ver detalhe
+                            </Button>
+                          ) : null}
+                          {match.url ? (
+                            <Button size="small" variant="text" href={match.url} target="_blank" rel="noreferrer">
+                              Abrir fonte
+                            </Button>
+                          ) : null}
+                        </Stack>
                       </Box>
-                    ))
+                      );
+                    })
                   ) : (
                     <Typography variant="body2" color="text.secondary">Sem matches relevantes.</Typography>
                   )}
