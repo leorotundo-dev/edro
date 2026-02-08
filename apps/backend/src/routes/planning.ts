@@ -4,16 +4,14 @@ import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline, UsageContext } from '../services/ai/copyOrchestrator';
-import { generateCopy, generateCollaborativeCopy } from '../services/ai/copyService';
+import { generateCopy } from '../services/ai/copyService';
 import { getClientById } from '../repos/clientsRepo';
 import {
   createBriefing,
   createBriefingStages,
   createCopyVersion,
-  ensureBriefingStages,
   getBriefingById,
   listBriefings,
-  updateBriefingStageStatus,
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
@@ -294,334 +292,175 @@ export default async function planningRoutes(app: FastifyInstance) {
     });
   });
 
-  // Chat with AI
+  // Chat with AI — kept simple and fast: message → AI → response
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/chat', {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
+    const startMs = Date.now();
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
     const userId = (request.user as any)?.sub;
     const user = request.user as any;
 
-    const body = chatSchema.parse(request.body);
+    let body: z.infer<typeof chatSchema>;
+    try {
+      body = chatSchema.parse(request.body);
+    } catch (parseErr: any) {
+      return reply.status(400).send({ success: false, error: 'Mensagem invalida.' });
+    }
     const { message, provider, conversationId, mode } = body;
 
-    // Build client context (with timeouts to prevent hanging)
-    const clientContext = await Promise.race([
-      buildClientContext(tenantId, clientId),
-      new Promise<string>((resolve) => setTimeout(() => resolve(''), 5000)),
-    ]);
-    let contextPack: { sources: any[]; packedText: string } = { sources: [], packedText: '' };
+    // ── 1. Quick client context (best-effort, 2s max) ──────────────
+    let clientContext = '';
     try {
-      contextPack = await Promise.race([
-        buildContextPack({
-          tenant_id: tenantId,
-          client_id: clientId,
-          query: message,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Context pack timed out')), 10000)
-        ),
+      clientContext = await Promise.race([
+        buildClientContext(tenantId, clientId),
+        new Promise<string>((resolve) => setTimeout(() => resolve(''), 2000)),
       ]);
-    } catch (error) {
-      request.log?.warn({ err: error }, 'planning_context_pack_failed');
-    }
+    } catch { /* ignore */ }
 
-    const combinedContext = [
-      clientContext,
-      contextPack.packedText ? `KNOWLEDGE BASE:\n${contextPack.packedText}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n');
     const systemPrompt =
-      mode === 'command' ? buildCommandPrompt(combinedContext) : buildSystemPrompt(combinedContext);
+      mode === 'command' ? buildCommandPrompt(clientContext) : buildSystemPrompt(clientContext);
 
-    let conversation: Conversation | null = null;
-    let messages: ConversationMessage[] = [];
-
-    // Load or create conversation
-    if (conversationId) {
-      const result = await query(
-        `SELECT * FROM planning_conversations WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
-        [conversationId, clientId, tenantId]
-      );
-      if (result.rows.length) {
-        conversation = result.rows[0] as Conversation;
-        messages = (conversation.messages || []) as ConversationMessage[];
-      }
-    }
-
-    // Add user message to history
-    const userMessage: ConversationMessage = {
-      role: 'user',
-      content: message,
-      timestamp: new Date().toISOString(),
-    };
-    messages.push(userMessage);
-
-    // Build prompt with conversation history
-    const historyContext = messages.slice(-10).map(m =>
-      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
-    ).join('\n\n');
-
-    const fullPrompt = `${historyContext}\n\nUser: ${message}`;
-
-    // Generate AI response
+    // ── 2. Call AI directly — no heavy context packing ─────────────
     const copyProvider = provider === 'collaborative'
-      ? ('gemini' as CopyProvider)
+      ? ('openai' as CopyProvider) // collaborative uses single provider as fast fallback
       : mapProviderToCopy(provider);
-    let resultOutput = '';
-    let resultProvider = '';
-    let resultModel = '';
-    let resultStages: any[] | undefined;
 
     const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
       ? { tenant_id: tenantId, feature: 'planning_chat' }
       : undefined;
 
-    // 45s timeout on AI generation to prevent indefinite hanging
-    const aiTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('AI generation timed out after 45s')), 45000)
-    );
+    let resultOutput = '';
+    let resultProvider = '';
+    let resultModel = '';
 
     try {
-      if (provider === 'collaborative' && mode === 'chat') {
-        // Pipeline colaborativo: Gemini analisa → OpenAI elabora → Claude refina
-        const collabResult = await Promise.race([runCollaborativePipeline({
-          usageContext: usageCtx,
-          analysisPrompt: [
-            'Voce e um analista estrategico de comunicacao de agencia.',
-            'Analise o contexto do cliente e a conversa abaixo.',
-            'Extraia os pontos mais relevantes e prepare um briefing de insights para o estrategista.',
-            'Retorne texto estruturado com: insights-chave, contexto relevante do cliente, e abordagem recomendada.',
-            '',
-            'CONTEXTO DO CLIENTE:',
-            combinedContext,
-            '',
-            'CONVERSA:',
-            historyContext,
-            '',
-            'MENSAGEM ATUAL:',
-            message,
-          ].join('\n'),
-          creativePrompt: (analysisOutput: string) => [
-            'Voce e um estrategista de planejamento de comunicacao.',
-            'Use os INSIGHTS DO ANALISTA abaixo para elaborar uma resposta completa, estrategica e criativa.',
-            'Responda em portugues brasileiro, de forma clara, pratica e acionavel.',
-            'Inclua sugestoes concretas e proximos passos quando relevante.',
-            '',
-            'INSIGHTS DO ANALISTA:',
-            analysisOutput,
-            '',
-            'CONTEXTO DO CLIENTE:',
-            combinedContext,
-            '',
-            'MENSAGEM DO USUARIO:',
-            message,
-          ].join('\n'),
-          reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
-            'Voce e o diretor de planejamento de uma agencia de comunicacao premium.',
-            'Revise e refine a resposta do estrategista abaixo.',
-            'Garanta que esta:',
-            '- Alinhada com o posicionamento e tom da marca do cliente',
-            '- Pratica, acionavel e com proximos passos claros',
-            '- Estrategicamente fundamentada nos insights do analista',
-            '- Bem estruturada e em portugues brasileiro natural',
-            'Se necessario, melhore a resposta. Retorne APENAS a resposta final refinada.',
-            '',
-            'INSIGHTS DO ANALISTA:',
-            analysisOutput,
-            '',
-            'RESPOSTA DO ESTRATEGISTA:',
-            strategicOutput,
-          ].join('\n'),
-        }), aiTimeout]);
-        resultOutput = collabResult.output;
-        resultProvider = 'collaborative';
-        resultModel = collabResult.model;
-        resultStages = collabResult.stages;
-      } else {
-        const singleResult = await Promise.race([generateWithProvider(copyProvider, {
-          prompt: fullPrompt,
-          systemPrompt,
-          temperature: mode === 'command' ? 0.2 : 0.7,
-          maxTokens: 2000,
-        }, usageCtx), aiTimeout]);
-        resultOutput = singleResult.output;
-        resultProvider = singleResult.provider;
-        resultModel = singleResult.model;
-      }
+      const aiResult = await generateWithProvider(copyProvider, {
+        prompt: message,
+        systemPrompt,
+        temperature: mode === 'command' ? 0.2 : 0.7,
+        maxTokens: 2000,
+      }, usageCtx);
+      resultOutput = aiResult.output;
+      resultProvider = aiResult.provider;
+      resultModel = aiResult.model;
     } catch (aiError: any) {
-      request.log?.error({ err: aiError }, 'planning_chat_ai_failed');
+      const errMsg = aiError?.message || 'AI_ERROR';
+      request.log?.error({ err: aiError, provider, elapsed: Date.now() - startMs }, 'planning_chat_ai_error');
       return reply.status(500).send({
         success: false,
-        error: aiError?.message || 'Falha ao gerar resposta da IA.',
+        error: `Falha na IA (${errMsg}). Verifique se a API key do provider esta configurada.`,
       });
     }
 
+    // ── 3. Handle command mode (create briefing / generate copy) ───
     let assistantContent = resultOutput;
     let actionResult: Record<string, any> | null = null;
 
     if (mode === 'command') {
-      const parsed = normalizeCommandPayload(safeJsonParse(resultOutput));
+      try {
+        const parsed = normalizeCommandPayload(safeJsonParse(resultOutput));
 
-      if (parsed.action === 'create_briefing') {
-        const title =
-          parsed.briefing.title ||
-          `Briefing ${new Date().toLocaleDateString('pt-BR')}`;
-        const briefingPayload: Record<string, any> = {
-          objective: parsed.briefing.objective ?? null,
-          platform: parsed.briefing.platform ?? null,
-          format: parsed.briefing.format ?? null,
-          notes: parsed.briefing.notes ?? null,
-          channels: parsed.briefing.channels ?? null,
-          source: 'planning_chat',
-        };
-        const dueAt = parseDueAt(parsed.briefing.deadline);
-
-        const briefing = await createBriefing({
-          clientId,
-          title,
-          payload: briefingPayload,
-          createdBy: user?.email ?? null,
-          dueAt: dueAt ?? undefined,
-          source: 'planning_chat',
-        });
-
-        await createBriefingStages(briefing.id, user?.email ?? null);
-
-        assistantContent = `Briefing criado: ${briefing.title}`;
-        actionResult = {
-          action: 'create_briefing',
-          reason: parsed.reason,
-          briefing: {
-            id: briefing.id,
-            title: briefing.title,
-            status: briefing.status,
-          },
-        };
-      } else if (parsed.action === 'generate_copy') {
-        const briefing = await resolveBriefingFromCommand({
-          clientId,
-          briefingId: parsed.copy.briefing_id,
-          briefingTitle: parsed.copy.briefing_title,
-        });
-
-        if (!briefing) {
-          assistantContent = 'Nao encontrei um briefing para gerar o copy.';
-          actionResult = {
-            action: 'generate_copy',
-            reason: parsed.reason,
-            error: 'briefing_not_found',
-          };
-        } else {
-          const client = await getClientById(tenantId, clientId);
-          const prompt = buildPlanningCopyPrompt({
-            clientName: client?.name || 'Cliente',
-            clientSegment: client?.segment_primary ?? null,
-            briefing,
-            instructions: parsed.copy.instructions || message,
-            count: parsed.copy.count,
-            language: parsed.copy.language,
-            contextPack: contextPack.packedText,
+        if (parsed.action === 'create_briefing') {
+          const title = parsed.briefing.title || `Briefing ${new Date().toLocaleDateString('pt-BR')}`;
+          const briefing = await createBriefing({
+            clientId,
+            title,
+            payload: {
+              objective: parsed.briefing.objective ?? null,
+              platform: parsed.briefing.platform ?? null,
+              format: parsed.briefing.format ?? null,
+              notes: parsed.briefing.notes ?? null,
+              channels: parsed.briefing.channels ?? null,
+              source: 'planning_chat',
+            },
+            createdBy: user?.email ?? null,
+            dueAt: parseDueAt(parsed.briefing.deadline) ?? undefined,
+            source: 'planning_chat',
           });
-
-          try {
-            const copyResult = provider === 'collaborative'
-              ? await generateCollaborativeCopy({
-                  prompt,
-                  count: parsed.copy.count,
-                  knowledgeBlock: contextPack.packedText || undefined,
-                  clientName: client?.name || undefined,
-                  instructions: parsed.copy.instructions || message,
-                })
-              : await generateCopy({
-                  prompt,
-                  taskType: 'social_post',
-                  forceProvider: copyProvider,
-                });
-
+          await createBriefingStages(briefing.id, user?.email ?? null).catch(() => {});
+          assistantContent = `Briefing criado: ${briefing.title}`;
+          actionResult = { action: 'create_briefing', briefing: { id: briefing.id, title: briefing.title } };
+        } else if (parsed.action === 'generate_copy') {
+          const briefing = await resolveBriefingFromCommand({
+            clientId,
+            briefingId: parsed.copy.briefing_id,
+            briefingTitle: parsed.copy.briefing_title,
+          });
+          if (!briefing) {
+            assistantContent = 'Nao encontrei um briefing para gerar o copy. Crie um briefing primeiro.';
+            actionResult = { action: 'generate_copy', error: 'briefing_not_found' };
+          } else {
+            const client = await getClientById(tenantId, clientId);
+            const copyResult = await generateCopy({
+              prompt: buildPlanningCopyPrompt({
+                clientName: client?.name || 'Cliente',
+                clientSegment: client?.segment_primary ?? null,
+                briefing,
+                instructions: parsed.copy.instructions || message,
+                count: parsed.copy.count,
+                language: parsed.copy.language,
+              }),
+              taskType: 'social_post',
+              forceProvider: copyProvider,
+            });
             const copyVersion = await createCopyVersion({
               briefingId: briefing.id,
               language: parsed.copy.language || 'pt',
               model: copyResult.model,
-              prompt,
+              prompt: message,
               output: copyResult.output,
               payload: copyResult.payload,
               createdBy: user?.email ?? null,
             });
-
-            await ensureBriefingStages(briefing.id, user?.email ?? null);
-            await updateBriefingStageStatus({
-              briefingId: briefing.id,
-              stage: 'copy_ia',
-              status: 'done',
-              updatedBy: user?.email ?? null,
-              metadata: { copyVersionId: copyVersion.id, source: 'planning_chat' },
-            });
-
             assistantContent = `Copys geradas para "${briefing.title}".`;
             actionResult = {
               action: 'generate_copy',
-              reason: parsed.reason,
               briefing: { id: briefing.id, title: briefing.title },
-              copy: {
-                id: copyVersion.id,
-                model: copyResult.model,
-                provider: copyResult.payload?.provider,
-                preview: copyResult.output.slice(0, 400),
-                count: parsed.copy.count,
-              },
-            };
-          } catch (error: any) {
-            assistantContent = 'Falha ao gerar copy agora. Tente novamente.';
-            actionResult = {
-              action: 'generate_copy',
-              reason: parsed.reason,
-              error: error?.message || 'copy_generation_failed',
+              copy: { id: copyVersion.id, model: copyResult.model, preview: copyResult.output.slice(0, 400) },
             };
           }
+        } else {
+          assistantContent = 'Nao identifiquei um comando claro. Posso criar um briefing ou gerar copy.';
+          actionResult = { action: 'none', reason: parsed.reason };
         }
-      } else {
-        assistantContent = 'Nao identifiquei um comando claro. Posso criar um briefing ou gerar copy.';
-        actionResult = {
-          action: 'none',
-          reason: parsed.reason,
-        };
+      } catch (cmdErr: any) {
+        request.log?.warn({ err: cmdErr }, 'planning_chat_command_failed');
+        // Fall back to showing the raw AI output
+        assistantContent = resultOutput;
       }
     }
 
-    const assistantMessage: ConversationMessage = {
-      role: 'assistant',
-      content: assistantContent,
-      timestamp: new Date().toISOString(),
-      provider: resultProvider,
-    };
-    messages.push(assistantMessage);
-
-    // Save conversation (best-effort — don't break the response if save fails)
-    let savedConversationId: string | null = conversation?.id || null;
-    try {
-      if (conversation) {
-        await query(
-          `UPDATE planning_conversations
-           SET messages = $1, updated_at = now()
-           WHERE id = $2`,
-          [JSON.stringify(messages), conversation.id]
-        );
-      } else {
-        const title = message.slice(0, 100);
-        const insertResult = await query(
-          `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           RETURNING id`,
-          [tenantId, clientId, userId, title, provider, JSON.stringify(messages)]
-        );
-        savedConversationId = insertResult.rows[0]?.id || null;
+    // ── 4. Save conversation (fire-and-forget — never blocks response) ──
+    let savedConversationId: string | null = null;
+    const messagesPayload = [
+      { role: 'user', content: message, timestamp: new Date().toISOString() },
+      { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
+    ];
+    // Don't await — save in background
+    (async () => {
+      try {
+        if (conversationId) {
+          await query(
+            `UPDATE planning_conversations
+             SET messages = messages || $1::jsonb, updated_at = now()
+             WHERE id = $2 AND client_id = $3`,
+            [JSON.stringify(messagesPayload), conversationId, clientId]
+          );
+        } else {
+          await query(
+            `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+             VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+            [tenantId, clientId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)]
+          );
+        }
+      } catch (e) {
+        console.warn('[planning] conversation save failed:', (e as Error).message);
       }
-    } catch (saveErr: any) {
-      request.log?.warn({ err: saveErr }, 'planning_chat_conversation_save_failed');
-    }
+    })();
+
+    request.log?.info({ elapsed: Date.now() - startMs, provider: resultProvider }, 'planning_chat_ok');
 
     return reply.send({
       success: true,
@@ -629,10 +468,8 @@ export default async function planningRoutes(app: FastifyInstance) {
         response: assistantContent,
         provider: resultProvider,
         model: resultModel,
-        stages: resultStages,
         action: actionResult,
-        sources: contextPack.sources,
-        conversationId: savedConversationId,
+        conversationId: conversationId || savedConversationId,
       },
     });
   });
