@@ -11,11 +11,9 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconAlertTriangle, IconBrain, IconCalendar, IconClipboard, IconDatabase, IconRefresh, IconSearch, IconTrendingUp } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBrain, IconCalendar, IconClipboard, IconDatabase, IconRefresh, IconTrendingUp } from '@tabler/icons-react';
 
 // Components
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
@@ -31,9 +29,6 @@ type PlanningClientProps = {
 };
 
 export default function PlanningClient({ clientId }: PlanningClientProps) {
-  // Mode
-  const [mode, setMode] = useState<'exploration' | 'execution'>('exploration');
-
   // Intelligence Context
   const [intelligenceStats, setIntelligenceStats] = useState<IntelligenceStats | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
@@ -422,24 +417,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       <Card variant="outlined" sx={{ mb: 1.5 }}>
         <CardContent sx={{ py: 1, px: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
-            <Stack direction="row" alignItems="center" spacing={2}>
-              <IconBrain size={24} />
-              <Typography variant="subtitle2">Jarvis Intelligence System</Typography>
-              <ToggleButtonGroup
-                value={mode}
-                exclusive
-                onChange={(_, v) => v && setMode(v)}
-                size="small"
-              >
-                <ToggleButton value="exploration">
-                  <IconSearch size={14} style={{ marginRight: 4 }} /> Exploração
-                </ToggleButton>
-                <ToggleButton value="execution">
-                  <IconBrain size={14} style={{ marginRight: 4 }} /> Execução
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Stack>
-
             {intelligenceStats && (() => {
               const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
               const items = [
