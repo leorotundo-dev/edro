@@ -1425,35 +1425,23 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     } catch (error: any) {
       request.log?.error({ err: error }, 'planning_context_failed');
 
-      // Return partial stats fallback instead of a hard error
-      const fallbackStats = {
-        library: { totalItems: 0 },
-        clipping: { totalMatches: 0, topKeywords: [] as string[] },
-        social: { totalMentions: 0, sentimentAvg: 0 },
-        calendar: { next14Days: 0, highRelevance: 0 },
-        opportunities: { active: 0, urgent: 0, highConfidence: 0 },
-        briefings: { recent: 0, pending: 0 },
-        copies: { recentHashes: 0, usedAngles: 0 },
-      };
-      try {
-        const [libRes, clipRes, oppRes] = await Promise.allSettled([
-          query(`SELECT COUNT(*) as total FROM library_items WHERE client_id = $1 AND tenant_id = $2`, [clientId, tenantId]),
-          query(`SELECT COUNT(*) as total FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2`, [clientId, tenantId]),
-          query(`SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`, [clientId, tenantId]),
-        ]);
-        if (libRes.status === 'fulfilled') fallbackStats.library.totalItems = Number(libRes.value.rows[0]?.total || 0);
-        if (clipRes.status === 'fulfilled') fallbackStats.clipping.totalMatches = Number(clipRes.value.rows[0]?.total || 0);
-        if (oppRes.status === 'fulfilled') fallbackStats.opportunities.active = Number(oppRes.value.rows[0]?.total || 0);
-      } catch { /* ignore fallback errors */ }
-
+      // Return instant fallback — no DB queries to avoid connection pool exhaustion
       return reply.send({
         success: true,
         data: {
           context: null,
           prompt: '',
-          stats: fallbackStats,
+          stats: {
+            library: { totalItems: 0 },
+            clipping: { totalMatches: 0, topKeywords: [] },
+            social: { totalMentions: 0, sentimentAvg: 0 },
+            calendar: { next14Days: 0, highRelevance: 0 },
+            opportunities: { active: 0, urgent: 0, highConfidence: 0 },
+            briefings: { recent: 0, pending: 0 },
+            copies: { recentHashes: 0, usedAngles: 0 },
+          },
           partial: true,
-          warning: error?.message || 'Contexto carregado parcialmente.',
+          warning: error?.message || 'Contexto indisponível no momento.',
         },
       });
     }
