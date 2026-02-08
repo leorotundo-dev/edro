@@ -65,6 +65,7 @@ const chatSchema = z.object({
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
   conversationId: z.string().uuid().nullish(),
   mode: z.enum(['chat', 'command', 'agent']).optional().default('agent'),
+  attachmentIds: z.array(z.string().uuid()).optional(),
 });
 
 const createConversationSchema = z.object({
@@ -360,7 +361,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     } catch (parseErr: any) {
       return reply.status(400).send({ success: false, error: 'Mensagem invalida.' });
     }
-    const { message, provider, conversationId, mode } = body;
+    const { message, provider, conversationId, mode, attachmentIds } = body;
 
     // ── 1. Quick client context (best-effort, 2s max) ──────────────
     let clientContext = '';
@@ -370,6 +371,27 @@ export default async function planningRoutes(app: FastifyInstance) {
         new Promise<string>((resolve) => setTimeout(() => resolve(''), 2000)),
       ]);
     } catch { /* ignore */ }
+
+    // ── 1b. Load attachment content from library items ──────────────
+    let attachmentContext = '';
+    if (attachmentIds?.length) {
+      try {
+        const { rows: attachments } = await query(
+          `SELECT title, extracted_text, file_type FROM library_items WHERE id = ANY($1::uuid[]) AND client_id = $2 LIMIT 5`,
+          [attachmentIds, clientId],
+        );
+        if (attachments.length > 0) {
+          const parts = attachments.map((a: any) => {
+            const text = a.extracted_text || '';
+            const preview = text.length > 4000 ? text.slice(0, 4000) + '...(truncated)' : text;
+            return `[Arquivo: ${a.title} (${a.file_type || 'unknown'})]\n${preview}`;
+          });
+          attachmentContext = '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + parts.join('\n\n');
+        }
+      } catch (err) {
+        console.error('[planning_chat] Failed to load attachments:', err);
+      }
+    }
 
     const copyProvider = provider === 'collaborative'
       ? ('openai' as CopyProvider)
@@ -415,9 +437,13 @@ export default async function planningRoutes(app: FastifyInstance) {
         userEmail: user?.email,
       };
 
+      const userContent = attachmentContext
+        ? message + attachmentContext
+        : message;
+
       const loopMessages: LoopMessage[] = [
         ...conversationHistory,
-        { role: 'user', content: message },
+        { role: 'user', content: userContent },
       ];
 
       try {
@@ -460,8 +486,9 @@ export default async function planningRoutes(app: FastifyInstance) {
       const systemPrompt = buildCommandPrompt(clientContext);
 
       try {
+        const commandContent = attachmentContext ? message + attachmentContext : message;
         const aiPromise = generateWithProvider(copyProvider, {
-          prompt: message,
+          prompt: commandContent,
           systemPrompt,
           temperature: 0.2,
           maxTokens: 2000,

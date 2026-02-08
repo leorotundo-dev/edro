@@ -17,7 +17,8 @@ import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconMessagePlus, IconRobot, IconSend, IconSparkles } from '@tabler/icons-react';
+import Chip from '@mui/material/Chip';
+import { IconFile, IconMessagePlus, IconPaperclip, IconRobot, IconSend, IconSparkles, IconX } from '@tabler/icons-react';
 
 export type ChatMessage = {
   role: 'user' | 'assistant';
@@ -45,7 +46,7 @@ type AIAssistantProps = {
   selectedProvider: string;
   mode: 'chat' | 'command';
   loading: boolean;
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, files?: File[]) => void;
   onChangeProvider: (providerId: string) => void;
   onChangeMode: (mode: 'chat' | 'command') => void;
   onNewConversation: () => void;
@@ -78,8 +79,10 @@ export default function AIAssistant({
   contextLoaded,
 }: AIAssistantProps) {
   const [input, setInput] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [collabStep, setCollabStep] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,9 +103,21 @@ export default function AIAssistant({
   }, [loading, selectedProvider]);
 
   const handleSend = () => {
-    if (!input.trim() || loading) return;
-    onSendMessage(input.trim());
+    if ((!input.trim() && attachedFiles.length === 0) || loading) return;
+    onSendMessage(input.trim(), attachedFiles.length > 0 ? attachedFiles : undefined);
     setInput('');
+    setAttachedFiles([]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    setAttachedFiles((prev) => [...prev, ...Array.from(files)]);
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -389,39 +404,75 @@ export default function AIAssistant({
       </Box>
 
       {/* Input */}
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="flex-end"
-        sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}
-      >
-        <TextField
-          multiline
-          maxRows={3}
-          placeholder={mode === 'command' ? 'Ex: Criar briefing para Instagram...' : 'Pergunte algo sobre o cliente...'}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={loading}
-          fullWidth
-          sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'grey.50' } }}
-        />
-        <IconButton
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          sx={{
-            bgcolor: 'primary.main',
-            color: '#ffffff',
-            width: 36,
-            height: 36,
-            flexShrink: 0,
-            '&:hover': { bgcolor: 'primary.dark' },
-            '&.Mui-disabled': { bgcolor: 'grey.200', color: 'grey.400' },
-          }}
+      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+        {/* Attached files */}
+        {attachedFiles.length > 0 && (
+          <Stack direction="row" spacing={0.5} sx={{ px: 2, pt: 1.5, pb: 0, flexWrap: 'wrap', gap: 0.5 }}>
+            {attachedFiles.map((file, idx) => (
+              <Chip
+                key={`${file.name}-${idx}`}
+                icon={<IconFile size={14} />}
+                label={file.name.length > 20 ? file.name.slice(0, 17) + '...' : file.name}
+                size="small"
+                onDelete={() => removeFile(idx)}
+                deleteIcon={<IconX size={12} />}
+                sx={{ fontSize: '0.7rem', height: 26 }}
+              />
+            ))}
+          </Stack>
+        )}
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="flex-end"
+          sx={{ px: 2, py: 1.5 }}
         >
-          <IconSend size={16} />
-        </IconButton>
-      </Stack>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx,.md,.json,.png,.jpg,.jpeg,.webp"
+            onChange={handleFileSelect}
+          />
+          <Tooltip title="Anexar documento">
+            <IconButton
+              size="small"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              sx={{ flexShrink: 0 }}
+            >
+              <IconPaperclip size={18} />
+            </IconButton>
+          </Tooltip>
+          <TextField
+            multiline
+            maxRows={3}
+            placeholder={mode === 'command' ? 'Ex: Criar briefing para Instagram...' : 'Pergunte algo sobre o cliente...'}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            fullWidth
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: 'grey.50' } }}
+          />
+          <IconButton
+            onClick={handleSend}
+            disabled={loading || (!input.trim() && attachedFiles.length === 0)}
+            sx={{
+              bgcolor: 'primary.main',
+              color: '#ffffff',
+              width: 36,
+              height: 36,
+              flexShrink: 0,
+              '&:hover': { bgcolor: 'primary.dark' },
+              '&.Mui-disabled': { bgcolor: 'grey.200', color: 'grey.400' },
+            }}
+          >
+            <IconSend size={16} />
+          </IconButton>
+        </Stack>
+      </Box>
     </Card>
   );
 }

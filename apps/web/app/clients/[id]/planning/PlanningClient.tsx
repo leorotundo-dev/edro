@@ -305,13 +305,46 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
+  // Upload file to library and return the item ID
+  const uploadFileForChat = async (file: File): Promise<string | null> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
+    if (!token) return null;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const response = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.data?.id || data?.id || null;
+    } catch {
+      return null;
+    }
+  };
+
   // Send Chat Message (with 55s timeout)
-  const sendChatMessage = async (message: string) => {
+  const sendChatMessage = async (message: string, files?: File[]) => {
     setChatLoading(true);
+
+    const fileNames = files?.map((f) => f.name) || [];
+    const userContent = fileNames.length > 0
+      ? `${message}${message ? '\n' : ''}📎 ${fileNames.join(', ')}`
+      : message;
+
     setChatMessages((prev) => [
       ...prev,
-      { role: 'user', content: message, timestamp: new Date().toISOString() },
+      { role: 'user', content: userContent, timestamp: new Date().toISOString() },
     ]);
+
+    // Upload files to library first
+    let attachmentIds: string[] = [];
+    if (files?.length) {
+      const uploadResults = await Promise.all(files.map(uploadFileForChat));
+      attachmentIds = uploadResults.filter((id): id is string => id !== null);
+    }
 
     try {
       const chatPromise = apiPost<{
@@ -328,6 +361,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         provider,
         mode: chatMode,
         conversationId,
+        ...(attachmentIds.length > 0 && { attachmentIds }),
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
