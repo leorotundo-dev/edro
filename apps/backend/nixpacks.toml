@@ -12,5 +12,10 @@ cmds = [
   'pnpm run build'
 ]
 
+[phases.deploy]
+cmds = [
+  'pnpm run db:migrate'
+]
+
 [start]
 cmd = 'pnpm run start'
