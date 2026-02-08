@@ -459,22 +459,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         </CardContent>
       </Card>
 
-      {/* Row 1: Insumos */}
-      <InsumosList
-        clientId={clientId}
-        libraryItems={libraryItems}
-        clippingItems={clippingItems}
-        libraryLoading={libraryLoading}
-        libraryError={libraryError}
-        uploading={uploading}
-        onUploadFile={uploadFile}
-        onAddReference={addReference}
-      />
-
-      {/* Row 2: AI Chat + Oportunidades side by side */}
+      {/* Main: AI Chat (left) | Insumos + Oportunidades (right) */}
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <Box sx={{ height: 420 }}>
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Box sx={{ height: 520 }}>
             <AIAssistant
               messages={chatMessages}
               providers={providers}
@@ -492,20 +480,36 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
             />
           </Box>
         </Grid>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <OpportunitiesList
-            opportunities={opportunities}
-            loading={opportunitiesLoading}
-            error={opportunitiesError}
-            onCreateBriefing={createBriefingFromOpportunity}
-            onDismiss={dismissOpportunity}
-            onDetectNew={detectNewOpportunities}
-            detecting={detecting}
-          />
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={2} sx={{ height: 520, overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <InsumosList
+                clientId={clientId}
+                libraryItems={libraryItems}
+                clippingItems={clippingItems}
+                libraryLoading={libraryLoading}
+                libraryError={libraryError}
+                uploading={uploading}
+                onUploadFile={uploadFile}
+                onAddReference={addReference}
+              />
+            </Box>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              <OpportunitiesList
+                opportunities={opportunities}
+                loading={opportunitiesLoading}
+                error={opportunitiesError}
+                onCreateBriefing={createBriefingFromOpportunity}
+                onDismiss={dismissOpportunity}
+                onDetectNew={detectNewOpportunities}
+                detecting={detecting}
+              />
+            </Box>
+          </Stack>
         </Grid>
       </Grid>
 
-      {/* Row 3: Outputs */}
+      {/* Outputs */}
       <OutputsList
         briefings={briefings}
         copies={copies}
