@@ -1,0 +1,384 @@
+data,dia,dia_semana,eventos,categorias,tags
+2026-01-01,01,Quinta-feira,Confraternização Universal|Ano Novo|Dia Mundial da Paz,feriado|internacional|institucional,oficial|mundial|paz
+2026-01-02,02,Sexta-feira,Dia do Sanitarista|Dia Mundial dos Introvertidos,profissão|comportamental,saúde|personalidade
+2026-01-03,03,Sábado,Dia do Hemofílico|Dia da Abreugrafia|Dia do Juiz de Menores,saúde|profissão,medicina|justiça
+2026-01-04,04,Domingo,Dia Mundial do Braile|Dia da Abreugrafia,acessibilidade|saúde,inclusão|medicina
+2026-01-05,05,Segunda-feira,Dia Nacional da Tipografia|Criação da 1ª Tipografia no Brasil,profissão|histórico,design|gráfica
+2026-01-06,06,Terça-feira,Dia de Reis|Dia da Liberdade de Culto|Dia da Gratidão,religioso|direitos|comportamental,católico|liberdade|valores
+2026-01-07,07,Quarta-feira,Dia da Liberdade de Cultos,direitos|religioso,liberdade|fé
+2026-01-08,08,Quinta-feira,Dia da Fotografia|Dia do Fotógrafo,profissão|arte,visual|criativo
+2026-01-09,09,Sexta-feira,Dia do Fico|Dia do Astronauta,histórico|profissão,brasil|espaço
+2026-01-10,10,Sábado,Festa de São Gonçalo do Amarante,religioso,católico|santo
+2026-01-11,11,Domingo,Dia do Controle da Poluição por Agrotóxicos|Dia Internacional do Obrigado,ambiental|comportamental,sustentabilidade|gratidão
+2026-01-12,12,Segunda-feira,Dia do Empresário Contábil,profissão,contabilidade|negócios
+2026-01-13,13,Terça-feira,Dia Internacional do Leonismo,institucional|solidariedade,serviço|comunidade
+2026-01-14,14,Quarta-feira,Dia do Sargento|Dia do Treinador de Futebol|Dia Internacional da Pipa|Dia do Enfermo,militar|esporte|lazer|saúde,defesa|futebol|diversão|cuidado
+2026-01-14,14,,Agroshow Copagril,feira|agropecuário,agro|tecnologia|sementes
+2026-01-15,15,Quinta-feira,Dia do Compositor|Dia dos Adultos|Dia Mundial do Compositor,arte|comportamental,música|maturidade
+2026-01-16,16,Sexta-feira,Dia do Cortador de Cana-de-Açúcar,profissão|trabalhista,agricultura|rural
+2026-01-17,17,Sábado,Dia dos Tribunais de Contas do Brasil,institucional|justiça,fiscalização|transparência
+2026-01-18,18,Domingo,Dia da Manicure,profissão|beleza,estética|cuidado
+2026-01-19,19,Segunda-feira,Dia Oficial do Cabeleireiro|Dia do Terapeuta Ocupacional|Dia Internacional do Queijo Quark,profissão|saúde|culinária,beleza|terapia|gastronomia
+2026-01-19,19,,ExpoPlastripel,feira|varejo alimentício,plásticos|embalagens|varejo
+2026-01-20,20,Terça-feira,Dia do Farmacêutico|Dia da Parteira Tradicional|Dia do Pinguim,profissão|saúde|natureza,medicina|maternidade|fauna
+2026-01-21,21,Quarta-feira,Dia do Esquilo|Dia Internacional do Moletom|Dia Mundial da Religião,natureza|moda|religioso,fauna|vestuário|fé
+2026-01-22,22,Quinta-feira,Dia de Santo André,religioso,católico|santo
+2026-01-23,23,Sexta-feira,Dia Internacional da Medicina Integrativa,saúde|internacional,medicina|holístico
+2026-01-23,23,,FIART - Feira Internacional de Artesanato,feira|artesanato,artesanato|cultura|design
+2026-01-24,24,Sábado,Dia Mundial da Educação|Dia da Constituição|Dia da Previdência Social|Dia Nacional dos Aposentados,educação|institucional|previdência,ensino|direito|aposentadoria
+2026-01-25,25,Domingo,Dia do Carteiro|Fundação de São Paulo,profissão|histórico,correios|cidade
+2026-01-26,26,Segunda-feira,Dia da Gula,comportamental|religioso,pecado|reflexão
+2026-01-26,26,,Fertilizer LatinoAmericano,congresso|agropecuário,fertilizantes|agro|internacional
+2026-01-26,26,,GULFOOD,feira|alimentos,alimentos|bebidas|internacional
+2026-01-27,27,Terça-feira,Dia do Orador|Dia Internacional em Memória às Vítimas do Holocausto,profissão|memória,comunicação|história
+2026-01-27,27,,Fenin Fashion Gramado,feira|moda,moda|vestuário|fashion
+2026-01-27,27,,Salão Inspiramais,feira|têxtil,têxtil|moda|design
+2026-01-27,27,,ABIMAD'41,feira|móveis e madeira,móveis|madeira|design
+2026-01-28,28,Quarta-feira,Dia do Portuário|Dia Internacional da Privacidade de Dados|Dia Internacional do Lego,profissão|tecnologia|lazer,porto|segurança|brinquedo
+2026-01-28,28,,CIOSP,congresso|odontologia,odontologia|saúde|medicina
+2026-01-28,28,,HEALTH INNOVATION FORUM (HIF),congresso|saúde,saúde|inovação|tecnologia
+2026-01-29,29,Quinta-feira,Dia Nacional da Visibilidade Trans|Dia Internacional do Hanseniano,direitos|saúde,lgbtqia+|medicina
+2026-01-30,30,Sexta-feira,Dia do Quadrinho Nacional|Dia do Engenheiro Ambiental|Dia da Saudade,arte|profissão|comportamental,hq|sustentabilidade|emoção
+2026-01-31,31,Sábado,Dia Mundial do Mágico,arte|entretenimento,ilusionismo|show
+2026-02-01,01,Domingo,Dia do Publicitário|Dia da Apresentação de Jesus no Templo|Dia de Nossa Senhora dos Navegantes|Dia Mundial das Zonas Úmidas,profissão|religioso|ambiental,marketing|católico|natureza
+2026-02-02,02,Segunda-feira,Dia Mundial dos Introvertidos,comportamental,personalidade
+2026-02-02,02,,ABUP SHOW Home · Gift · Têxtil · Decor,feira|casa e decoração,casa|decoração|têxtil|presentes
+2026-02-02,02,,FENINJER,feira|infantil,infantil|bebê|brinquedos
+2026-02-03,03,Terça-feira,Dia do Juiz de Menores,profissão|justiça,direito|infância
+2026-02-03,03,,Movelpar Home Show,feira|móveis,móveis|casa|decoração
+2026-02-04,04,Quarta-feira,Dia Mundial do Câncer|Dia da Abreugrafia,saúde|medicina,oncologia|prevenção
+2026-02-04,04,,Feira do Cerrado,feira|agropecuário,café|agro|cooperativa
+2026-02-05,05,Quinta-feira,Dia do Datiloscopista|Dia do Dermatologista|Dia da Borboleta-Monarca,profissão|saúde|natureza,perícia|pele|fauna
+2026-02-06,06,Sexta-feira,Dia da Gratidão|Dia de Reis,comportamental|religioso,valores|católico
+2026-02-07,07,Sábado,Dia da Liberdade de Cultos,direitos|religioso,liberdade|fé
+2026-02-08,08,Domingo,Dia do Fotógrafo,profissão|arte,visual|criativo
+2026-02-08,08,,ABCasa Fair,feira|casa e decoração,casa|decoração|utilidades
+2026-02-09,09,Segunda-feira,Dia Mundial da Pizza|Dia do Astronauta|Dia do Fico,culinária|profissão|histórico,gastronomia|espaço|brasil
+2026-02-09,09,,Show Rural Coopavel,feira|agropecuário,agro|tecnologia|maquinário
+2026-02-10,10,Terça-feira,Dia do Atleta Profissional|Dia Internacional das Mulheres e Meninas na Ciência,esporte|educação|gênero,atleta|ciência|mulher
+2026-02-11,11,Quarta-feira,Dia do Controle da Poluição por Agrotóxicos|Dia Internacional do Obrigado,ambiental|comportamental,sustentabilidade|gratidão
+2026-02-12,12,Quinta-feira,Dia do Empresário Contábil,profissão,contabilidade|negócios
+2026-02-13,13,Sexta-feira,Dia Mundial do Rádio|Dia Internacional do Leonismo,comunicação|institucional,mídia|serviço
+2026-02-14,14,Sábado,Dia de São Valentim|Dia dos Namorados (Internacional)|Dia Internacional da Pipa|Dia do Enfermo,romance|lazer|saúde,amor|diversão|cuidado
+2026-02-15,15,Domingo,Dia dos Adultos|Dia Mundial do Compositor,comportamental|arte,maturidade|música
+2026-02-16,16,Segunda-feira,Dia do Repórter|Dia dos Cortadores de Cana-de-açúcar,profissão,jornalismo|agricultura
+2026-02-17,17,Terça-feira,Carnaval (Terça-feira)|Dia dos Tribunais de Contas do Brasil,feriado|cultural|institucional,festa|fiscalização
+2026-02-18,18,Quarta-feira,Cinzas|Dia de Plutão|Dia da Manicure,religioso|astronomia|profissão,católico|espaço|beleza
+2026-02-19,19,Quinta-feira,Dia do Esportista|Dia Oficial do Cabeleireiro|Dia do Terapeuta Ocupacional,esporte|profissão|saúde,atleta|beleza|terapia
+2026-02-19,19,,Festa Nacional da Uva,evento cultural|cultural,cultura|vinho|gastronomia
+2026-02-20,20,Sexta-feira,Dia do Farmacêutico|Dia da Parteira Tradicional|Dia do Pinguim,profissão|saúde|natureza,medicina|maternidade|fauna
+2026-02-21,21,Sábado,Dia do Esquilo|Dia Internacional do Moletom|Dia Mundial da Religião,natureza|moda|religioso,fauna|vestuário|fé
+2026-02-22,22,Domingo,Dia de Santo André,religioso,católico|santo
+2026-02-23,23,Segunda-feira,Dia do Monte Fuji|Dia Internacional da Medicina Integrativa,internacional|saúde,japão|medicina
+2026-02-23,23,,LACTE,congresso|turismo,turismo|viagens|eventos
+2026-02-24,24,Terça-feira,Promulgação da primeira Constituição da República do Brasil|Dia da Educação|Dia da Constituição,histórico|educação|institucional,brasil|ensino|direito
+2026-02-24,24,,Marmomac Brazil,feira|rochas e mármores,rochas|mármores|construção
+2026-02-24,24,,Show Tecnológico Copercampos,feira|agropecuário,agro|tecnologia|sementes
+2026-02-24,24,,Febratêxtil,feira|têxtil,têxtil|moda|confecção
+2026-02-25,25,Quarta-feira,Dia do Carteiro|Fundação de São Paulo,profissão|histórico,correios|cidade
+2026-02-26,26,Quinta-feira,Dia Mundial do Pistache|Dia da Gula,culinária|comportamental,gastronomia|reflexão
+2026-02-27,27,Sexta-feira,Dia do Agente Fiscal da Receita Federal|Dia Internacional do Urso Polar|Dia do Orador,profissão|natureza,fiscalização|fauna|comunicação
+2026-02-28,28,Sábado,Dia do Portuário|Dia Internacional da Privacidade de Dados|Dia Internacional do Lego,profissão|tecnologia|lazer,porto|segurança|brinquedo
+2026-03-01,01,Domingo,Dia Mundial das Ervas Marinhas|Dia Nacional da Visibilidade Trans,ambiental|direitos,natureza|lgbtqia+
+2026-03-01,01,,ABRIN,feira|brinquedos,brinquedos|infantil|jogos
+2026-03-02,02,Segunda-feira,Dia do Quadrinho Nacional|Dia do Engenheiro Ambiental|Dia da Saudade,arte|profissão|comportamental,hq|sustentabilidade|emoção
+2026-03-03,03,Terça-feira,Dia Mundial do Mágico,arte|entretenimento,ilusionismo|show
+2026-03-03,03,,FIMEC,feira|calçados,calçados|couro|moda
+2026-03-04,04,Quarta-feira,Dia do Publicitário,profissão,marketing|comunicação
+2026-03-04,04,,SIMASP,feira|automotivo,automotivo|peças|manutenção
+2026-03-05,05,Quinta-feira,Dia do Datiloscopista|Dia do Dermatologista|Dia da Borboleta-Monarca,profissão|saúde|natureza,perícia|pele|fauna
+2026-03-05,05,,Festival DW! Semana de Design de São Paulo,evento|design,design|arquitetura|criatividade
+2026-03-05,05,,AgroRosário,feira|agropecuário,agro|tecnologia|bahia
+2026-03-06,06,Sexta-feira,Dia da Gratidão|Dia de Reis,comportamental|religioso,valores|católico
+2026-03-07,07,Sábado,Dia do Fuzileiro Naval|Dia do Paleontólogo|Dia da Liberdade de Cultos,militar|profissão|direitos,defesa|ciência|liberdade
+2026-03-08,08,Domingo,Dia Internacional da Mulher|Dia do Fotógrafo,gênero|profissão,mulher|visual
+2026-03-09,09,Segunda-feira,Dia do DJ|Dia Mundial da Pizza,profissão|culinária,música|gastronomia
+2026-03-09,09,,Expodireto Cotrijal,feira|agropecuário,agro|tecnologia|maquinário
+2026-03-09,09,,EXPO REVESTIR,feira|construção,revestimentos|construção|design
+2026-03-09,09,,HAUS DECOR SHOW,feira|decoração,decoração|casa|design
+2026-03-10,10,Terça-feira,Dia do Atleta Profissional|Dia Internacional das Mulheres e Meninas na Ciência,esporte|educação,atleta|ciência
+2026-03-10,10,,Salão das Motopeças,feira|automotivo,motopeças|motocicletas|peças
+2026-03-10,10,,Farm Show,feira|agropecuário,agro|tecnologia|mato grosso
+2026-03-10,10,,ABRADILAN Conexão Farma,congresso|farmacêutico,farmácia|medicamentos|saúde
+2026-03-10,10,,Animal Health Expo Fórum,congresso|veterinária,veterinária|saúde animal|pets
+2026-03-11,11,Quarta-feira,Dia do Controle da Poluição por Agrotóxicos|Dia Internacional do Obrigado,ambiental|comportamental,sustentabilidade|gratidão
+2026-03-11,11,,ABAV TravelSP,feira|turismo,turismo|viagens|agências
+2026-03-12,12,Quinta-feira,Dia do Bibliotecário|Dia do Empresário Contábil,profissão,biblioteca|contabilidade
+2026-03-12,12,,Smart Summit,congresso|tecnologia,tecnologia|smart cities|inovação
+2026-03-12,12,,Pesca Trade Show,feira|pesca,pesca|náutica|esportes
+2026-03-12,12,,South by Southwest (SXSW),congresso|tecnologia e cultura,tecnologia|música|cinema|internacional
+2026-03-13,13,Sexta-feira,Dia Mundial do Rádio|Dia Internacional do Leonismo,comunicação|institucional,mídia|serviço
+2026-03-13,13,,Expo Cakes,feira|confeitaria,confeitaria|gastronomia|doces
+2026-03-14,14,Sábado,Dia dos Carecas|Dia de São Valentim,comportamental|romance,humor|amor
+2026-03-15,15,Domingo,Dia do Consumidor|Dia dos Adultos,direitos|comportamental,consumo|maturidade
+2026-03-16,16,Segunda-feira,Dia do Agente Penitenciário Federal|Dia Nacional do Ouvidor|Dia do Repórter,profissão|institucional,segurança|ouvidoria|jornalismo
+2026-03-16,16,,YES Móvel Show São Paulo,feira|móveis,móveis|decoração|casa
+2026-03-17,17,Terça-feira,Dia de São Patrício|Dia dos Tribunais de Contas do Brasil,cultural|institucional,irlanda|fiscalização
+2026-03-17,17,,ERP Summit,congresso|tecnologia,erp|software|gestão
+2026-03-17,17,,Tecnoagro,feira|agropecuário,agro|tecnologia|mato grosso do sul
+2026-03-17,17,,SRE Trade Show,feira|imobiliário,imóveis|construção|mercado
+2026-03-17,17,,MERCOAGRO,feira|agropecuário,agro|tecnologia|santa catarina
+2026-03-17,17,,108ª BIJOIAS,feira|joias,joias|bijuterias|acessórios
+2026-03-18,18,Quarta-feira,Dia de Plutão|Dia da Manicure,astronomia|profissão,espaço|beleza
+2026-03-18,18,,Artesanal Sul,feira|artesanato,artesanato|cultura|design
+2026-03-19,19,Quinta-feira,Dia do Caráter|Dia do Carpinteiro e do Marceneiro|Dia do Consertador|Dia Nacional do Artesão|Dia do Cabeleireiro,comportamental|profissão,valores|madeira|reparo|artesanato|beleza
+2026-03-19,19,,CONFEITAR EXPO,feira|confeitaria,confeitaria|gastronomia|nordeste
+2026-03-19,19,,FEMAGRI,feira|agropecuário,agro|tecnologia|minas gerais
+2026-03-19,19,,EFN- EXPO FRANQUIAS NORDESTE,feira|franquias,franquias|negócios|empreendedorismo
+2026-03-20,20,Sexta-feira,Início do Outono|Dia do Farmacêutico,sazonal|profissão,estação|medicina
+2026-03-20,20,,Íntimi Expo,feira|moda íntima,moda íntima|lingerie|moda
+2026-03-20,20,,Congress Brazil Mobile & Expo,congresso|telecomunicações,telecom|mobile|tecnologia
+2026-03-21,21,Sábado,Dia Internacional das Florestas|Dia do Esquilo,ambiental|natureza,sustentabilidade|fauna
+2026-03-22,22,Domingo,Dia Mundial da Água|Dia de Santo André,ambiental|religioso,sustentabilidade|católico
+2026-03-23,23,Segunda-feira,Dia do Optometrista|Dia Mundial da Meteorologia|Dia Internacional da Medicina Integrativa,profissão|ciência|saúde,visão|clima|medicina
+2026-03-23,23,,Show Safra,feira|agropecuário,agro|tecnologia|mato grosso
+2026-03-24,24,Terça-feira,Dia da Educação|Dia da Constituição|Dia da Previdência Social,educação|institucional,ensino|direito|aposentadoria
+2026-03-24,24,,SNEC PV & ES LATAM,feira|energia solar,energia solar|sustentabilidade|tecnologia
+2026-03-24,24,,Fruit Attraction São Paulo,feira|frutas,frutas|hortaliças|agro
+2026-03-24,24,,ExpoPrint Latin America,feira|gráfica,gráfica|impressão|comunicação
+2026-03-25,25,Quarta-feira,Dia do Carteiro|Fundação de São Paulo,profissão|histórico,correios|cidade
+2026-03-25,25,,Smart City Expo Curitiba,expo|tecnologia,smart cities|tecnologia|inovação
+2026-03-25,25,,South Summit Brazil,congresso|startups,startups|inovação|empreendedorismo
+2026-03-25,25,,Expotel,feira|hotelaria,hotelaria|turismo|hospitalidade
+2026-03-25,25,,GEduc,congresso|educação,educação|gestão|ensino
+2026-03-25,25,,Feira Condo+,feira|condomínios,condomínios|gestão|imóveis
+2026-03-26,26,Quinta-feira,Dia da Gula,comportamental,reflexão
+2026-03-27,27,Sexta-feira,Dia Mundial do Teatro|Dia do Graffiti|Dia do Orador,arte|profissão,teatro|urbano|comunicação
+2026-03-28,28,Sábado,Dia do Diagramador|Dia do Revisor|Dia do Portuário,profissão,design|editorial|porto
+2026-03-29,29,Domingo,Dia Nacional da Visibilidade Trans|Dia Internacional do Hanseniano,direitos|saúde,lgbtqia+|medicina
+2026-03-30,30,Segunda-feira,Dia do Quadrinho Nacional|Dia do Engenheiro Ambiental|Dia da Saudade,arte|profissão|comportamental,hq|sustentabilidade|emoção
+2026-03-31,31,Terça-feira,Dia Mundial do Mágico,arte|entretenimento,ilusionismo|show
+2026-03-31,31,,NIS – Nutri Ingredients Summit,congresso|nutrição,nutrição|alimentos|saúde
+2026-03-31,31,,AUTOCOM,feira|automotivo,automotivo|peças|manutenção
+2026-04-01,01,Quarta-feira,Dia da Mentira|Dia da Abolição da Escravidão dos Índios,cultural|histórico,humor|indígena
+2026-04-02,02,Quinta-feira,Dia Mundial de Conscientização do Autismo|Dia do Propagandista|Dia Internacional do Livro Infantil|Dia do Jornalista|Dia Mundial da Saúde|Dia do Médico Legista,saúde|profissão|educação,autismo|marketing|literatura|jornalismo|medicina
+2026-04-02,02,,Feira da Loucura por Sapatos,feira|calçados,calçados|moda|varejo
+2026-04-02,02,,Festival de Cervejas Artesanais,evento|cerveja,cerveja|gastronomia|cultura
+2026-04-03,03,Sexta-feira,Paixão de Cristo (Sexta-feira Santa)|Dia do Juiz de Menores,feriado|religioso|profissão,católico|justiça
+2026-04-04,04,Sábado,Dia da Abreugrafia|Dia Mundial do Braille,saúde|acessibilidade,medicina|inclusão
+2026-04-05,05,Domingo,Páscoa|Criação da 1ª Tipografia no Brasil,feriado|religioso|histórico,católico|gráfica
+2026-04-06,06,Segunda-feira,Dia da Gratidão|Dia de Reis,comportamental|religioso,valores|católico
+2026-04-06,06,,Tecnoshow Comigo,feira|agropecuário,agro|tecnologia|goiás
+2026-04-07,07,Terça-feira,Dia da Liberdade de Cultos,direitos|religioso,liberdade|fé
+2026-04-07,07,,Anuga Select Brasil,feira|alimentos,alimentos|bebidas|gastronomia
+2026-04-07,07,,EXPO SUPERMERCADOS,feira|varejo,supermercados|varejo|alimentos
+2026-04-07,07,,FEICON,feira|construção,construção|materiais|engenharia
+2026-04-07,07,,Private Label Brasil,feira|varejo,marca própria|varejo|produtos
+2026-04-08,08,Quarta-feira,Dia Mundial de Combate ao Câncer|Dia Mundial da Astronomia|Dia Nacional do Sistema Braile|Dia do Fotógrafo,saúde|ciência|acessibilidade|profissão,oncologia|espaço|inclusão|visual
+2026-04-08,08,,RIO ARTES,feira|artesanato,artesanato|cultura|design
+2026-04-08,08,,Expo Óptica Brasil,feira|óptica,óptica|saúde|oftalmologia
+2026-04-09,09,Quinta-feira,Dia do Astronauta|Dia do Fico,profissão|histórico,espaço|brasil
+2026-04-09,09,,Expogrande,feira|agropecuário,agro|pecuária|mato grosso do sul
+2026-04-10,10,Sexta-feira,Dia do Engenheiro Metalurgista|Festa de São Gonçalo do Amarante,profissão|religioso,engenharia|católico
+2026-04-11,11,Sábado,Dia do Infectologista|Dia do Controle da Poluição por Agrotóxicos,profissão|ambiental,medicina|sustentabilidade
+2026-04-11,11,,Estética In São Paulo,feira|beleza,beleza|estética|cosméticos
+2026-04-12,12,Domingo,Dia do Engenheiro Naval|Dia do Humorista|Dia do Obstetra|Dia do Empresário Contábil,profissão,engenharia|humor|medicina|contabilidade
+2026-04-13,13,Segunda-feira,Domingo de Ramos|Dia do Office Boy|Dia Internacional do Leonismo,religioso|profissão|institucional,católico|serviços|comunidade
+2026-04-14,14,Terça-feira,Segunda-feira Santa|Dia do Técnico em Serviço de Saúde|Dia do Neurocirurgião|Dia do Sargento,religioso|profissão|militar,católico|saúde|defesa
+2026-04-14,14,,Yes Móvel Show Goiás,feira|móveis,móveis|decoração|casa
+2026-04-14,14,,LAAD Security Milipol Brazil,feira|segurança,segurança|defesa|tecnologia
+2026-04-14,14,,BRAZIL PROMOTION DAY,evento|promoção,promoção|marketing|varejo
+2026-04-14,14,,Intermodal South America,feira|logística,logística|transporte|supply chain
+2026-04-14,14,,Agreste Tex,feira|têxtil,têxtil|moda|nordeste
+2026-04-14,14,,Parecis SuperAgro,feira|agropecuário,agro|tecnologia|mato grosso
+2026-04-14,14,,PROTEMINAS,feira|proteína animal,proteína|pecuária|agro
+2026-04-14,14,,FENAVID,feira|vidro,vidro|construção|indústria
+2026-04-14,14,,Agile Trends GOV,congresso|tecnologia,tecnologia|governo|inovação
+2026-04-14,14,,WTM Latin America,feira|turismo,turismo|viagens|hospitalidade
+2026-04-15,15,Quarta-feira,Terça-feira Santa|Dia Internacional do Ciclista|Dia do Compositor,religioso|esporte|arte,católico|bicicleta|música
+2026-04-16,16,Quinta-feira,Quarta-feira Santa|Dia dos Cortadores de Cana-de-açúcar,religioso|profissão,católico|agricultura
+2026-04-16,16,,Vtex Day,evento|e-commerce,e-commerce|tecnologia|varejo
+2026-04-16,16,,IT Fórum Trancoso,congresso|tecnologia,tecnologia|TI|inovação
+2026-04-17,17,Sexta-feira,Quinta-feira Santa|Dia dos Tribunais de Contas do Brasil,religioso|institucional,católico|fiscalização
+2026-04-18,18,Sábado,Sexta-feira Santa|Dia Nacional do Livro Infantil|Dia Mundial do Radiamador|Dia da Manicure,feriado|religioso|educação|profissão,católico|literatura|comunicação|beleza
+2026-04-19,19,Domingo,Sábado de Aleluia|Dia do Índio|Dia Oficial do Cabeleireiro,religioso|direitos|profissão,católico|indígena|beleza
+2026-04-20,20,Segunda-feira,Páscoa|Dia do Diplomata|Dia do Farmacêutico,feriado|religioso|profissão,católico|relações|medicina
+2026-04-21,21,Terça-feira,Dia de Tiradentes|Inauguração de Brasília|Dia do Funcionário Policial Civil|Dia do Metalúrgico|Dia do Esquilo,feriado|histórico|profissão|natureza,inconfidência|capital|segurança|indústria|fauna
+2026-04-21,21,,Norte Show,feira|agropecuário,agro|tecnologia|norte
+2026-04-22,22,Quarta-feira,Dia do Descobrimento do Brasil|Dia do Agente de Viagem|Dia de Santo André,histórico|profissão|religioso,brasil|turismo|católico
+2026-04-22,22,,Heli XP,expo|aviação,aviação|helicópteros|aeronáutica
+2026-04-23,23,Quinta-feira,Dia de São Jorge|Dia do Escoteiro|Dia do Serralheiro|Dia Internacional da Medicina Integrativa,religioso|institucional|profissão|saúde,católico|escotismo|metalurgia|medicina
+2026-04-23,23,,COPA – CONGRESSO PAULISTA DE ANESTESIOLOGIA,congresso|medicina,medicina|anestesiologia|saúde
+2026-04-23,23,,MTM – Minas Travel Market,feira|turismo,turismo|viagens|minas gerais
+2026-04-23,23,,Mara Cakes Fair São Paulo,feira|confeitaria,confeitaria|gastronomia|doces
+2026-04-24,24,Sexta-feira,Dia de Libras|Dia Mundial do Livro|Dia da Educação,acessibilidade|educação,inclusão|literatura|ensino
+2026-04-24,24,,Arnold Sports Festival South America,evento|esportes,esportes|fitness|bodybuilding
+2026-04-25,25,Sábado,Dia do Despachante Aduaneiro|Dia do Profissional da Contabilidade|Dia do Carteiro,profissão,alfândega|contabilidade|correios
+2026-04-25,25,,Rio Boat Show,feira|náutica,náutica|barcos|esportes
+2026-04-25,25,,Festival do Cordeiro de Hidrolândia,evento|gastronomia,gastronomia|cultura|regional
+2026-04-26,26,Domingo,Dia do Engraxate|Dia do Goleiro|Dia da Gula,profissão|esporte|comportamental,serviços|futebol|reflexão
+2026-04-26,26,,FIT 0/16,feira|infantil,infantil|moda|bebê
+2026-04-26,26,,Pueri Expo,feira|educação infantil,educação|infantil|pedagogia
+2026-04-27,27,Segunda-feira,Dia da Empregada Doméstica|Dia do Orador,profissão,trabalho|comunicação
+2026-04-27,27,,AGRISHOW,feira|agropecuário,agro|tecnologia|maquinário
+2026-04-28,28,Terça-feira,Dia da Educação|Dia da Sogra|Dia do Portuário,educação|comportamental|profissão,ensino|família|porto
+2026-04-29,29,Quarta-feira,Dia Internacional da Dança|Dia Nacional da Visibilidade Trans,arte|direitos,dança|lgbtqia+
+2026-04-29,29,,NEW MEAT BRAZIL,congresso|proteína alternativa,proteína|alimentos|inovação
+2026-04-29,29,,PLANT-BASED TECH,congresso|alimentos,alimentos|plant-based|sustentabilidade
+2026-04-30,30,Quinta-feira,Dia Nacional da Mulher|Dia do Quadrinho Nacional,gênero|arte,mulher|hq
+2026-04-30,30,,ExpoRaiz – Feira Nacional dos Campistas Raiz,feira|camping,camping|lazer|turismo
+2026-04-30,30,,Gamescom LATAM,feira|games,games|tecnologia|entretenimento
+2026-04-30,30,,Jornada Paulista de Radiologia – JPR,congresso|medicina,medicina|radiologia|saúde
+2026-05-01,01,,FENASOJA,feira|agropecuário,agro|soja|tecnologia
+2026-05-01,01,,FEIARTE,feira|artesanato,artesanato|cultura|design
+2026-05-04,04,,ILTM Latin America,feira|turismo de luxo,turismo|luxo|viagens
+2026-05-04,04,,EXPOMAFE,feira|manufatura,manufatura|máquinas|ferramentas|indústria
+2026-05-04,04,,FLEXO & LABELS EXPERIENCE,feira|gráfica,flexografia|rótulos|embalagens|impressão
+2026-05-05,05,,Bett Brasil,feira|educação e tecnologia,educação|tecnologia|ensino
+2026-05-05,05,,FEIMEC,feira|mecânica,mecânica|indústria|manufatura
+2026-05-05,05,,ForBeer,feira|cerveja,cerveja|bebidas|gastronomia
+2026-05-06,06,,ForÁgua,congresso|saneamento,saneamento|água|sustentabilidade
+2026-05-06,06,,Gramado Summit,congresso|empreendedorismo,empreendedorismo|inovação|negócios
+2026-05-06,06,,Abrint Global Congress,congresso|telecomunicações,telecom|internet|tecnologia
+2026-05-06,06,,Autopar,feira|automotivo,automotivo|peças|paraná
+2026-05-12,12,,Wine South America,feira|vinhos,vinhos|gastronomia|cultura
+2026-05-12,12,,SINDEPAT Summit,congresso|tecnologia,tecnologia|TI|gestão
+2026-05-12,12,,FENAGRA,feira|gráfica,gráfica|impressão|comunicação
+2026-05-13,13,,São Paulo Innovation Week,evento|inovação,inovação|tecnologia|startups
+2026-05-18,18,,ForLAC,feira|laticínios,laticínios|leite|queijo|agro
+2026-05-18,18,,FIEMA BRASIL,feira|metal mecânica,metal|mecânica|indústria|ferramentas
+2026-05-19,19,,Hospitalar,feira|saúde,saúde|hospitalar|equipamentos médicos
+2026-05-20,20,,NT2E,feira|tecnologia,tecnologia|inovação|digital
+2026-06-08,08,,Web Summit Rio,congresso|tecnologia,tecnologia|inovação|startups
+2026-06-15,15,,BRASMIN,feira|mineração,mineração|equipamentos|tecnologia
+2026-06-23,23,,IFAT Brasil,feira|meio ambiente,meio ambiente|sustentabilidade|saneamento|água
+2026-07-15,15,,INTERMACH,feira|metal mecânica,metal|mecânica|máquinas|indústria
+2026-07-20,20,,METALURGIA,feira|metalurgia,metalurgia|fundição|indústria
+2026-08-02,02,,Escolar Office Brasil,feira|material escolar,material escolar|papelaria|educação
+2026-08-03,03,,INDUSPAR,feira|indústria,indústria|manufatura|paraná
+2026-08-04,04,,LABACE,feira|aviação,aviação|executiva|aeronáutica
+2026-08-04,04,,Fi South America,feira|ingredientes,ingredientes|alimentos|indústria
+2026-08-04,04,,Brazil Promotion,feira|promoção,promoção|marketing|varejo
+2026-08-04,04,,The Brazil Conference & Expo,congresso|negócios,negócios|empreendedorismo|inovação
+2026-08-04,04,,MEC SHOW,feira|construção,construção|materiais|espírito santo
+2026-08-04,04,,SBF – Saúde Business Fórum,congresso|saúde,saúde|gestão|negócios
+2026-08-04,04,,Embala Nordeste,feira|embalagens,embalagens|indústria|nordeste
+2026-08-04,04,,Multimodal Nordeste,feira|logística,logística|transporte|nordeste
+2026-08-09,09,,Fimma Brasil,feira|madeira e móveis,madeira|móveis|marcenaria|indústria
+2026-08-10,10,,Congresso Brasileiro do Agronegócio,congresso|agropecuário,agro|negócios|economia
+2026-08-11,11,,Congresso ANDAV,congresso|turismo,turismo|viagens|agências
+2026-08-11,11,,ExpoLazer & Outdoor Living,feira|lazer,lazer|outdoor|piscinas
+2026-08-11,11,,COP International,congresso|proteína animal,proteína|pecuária|agro
+2026-08-11,11,,Expo-Hospital Brasil,feira|saúde,saúde|hospitalar|minas gerais
+2026-08-11,11,,Fenasucro & Agrocana,feira|agropecuário,agro|cana|açúcar
+2026-08-11,11,,Logistique,feira|logística,logística|transporte|santa catarina
+2026-08-11,11,,Encatho & Exprotel,feira|hotelaria,hotelaria|turismo|hospitalidade
+2026-08-12,12,,Pet South America,feira|pet,pet|animais|veterinária
+2026-08-12,12,,ABCASA Fair,feira|casa e decoração,casa|decoração|utilidades
+2026-08-12,12,,Travel Next Minas,feira|turismo,turismo|viagens|minas gerais
+2026-08-12,12,,Pet Vet,congresso|veterinária,veterinária|saúde animal|pets
+2026-08-13,13,,Salão de Arte,feira|arte,arte|cultura|galerias
+2026-08-15,15,,Estética In Sul,feira|beleza,beleza|estética|sul
+2026-08-15,15,,RIO PIPELINE,feira|petróleo e gás,petróleo|gás|pipeline|energia
+2026-08-17,17,,SET Expo,feira|broadcast,broadcast|TV|rádio|tecnologia
+2026-08-17,17,,MOVELSUL,feira|móveis,móveis|decoração|sul
+2026-08-17,17,,Congresso Fenabrave,congresso|automotivo,automotivo|concessionárias|veículos
+2026-08-18,18,,Navalshore,feira|naval,naval|offshore|petróleo
+2026-08-18,18,,FEBRATEX,feira|têxtil,têxtil|moda|tecnologia
+2026-08-18,18,,FEBRATEX Summit,congresso|têxtil,têxtil|moda|negócios
+2026-08-18,18,,CONARH | ABRH,congresso|recursos humanos,RH|gestão de pessoas|trabalho
+2026-08-19,19,,Jornada Bett Nordeste,congresso|educação,educação|tecnologia|nordeste
+2026-08-19,19,,IT Forum Praia do Forte,congresso|tecnologia,tecnologia|TI|bahia
+2026-08-20,20,,Festa do Peão de Barretos,evento|rodeio,rodeio|cultura|entretenimento
+2026-08-24,24,,FEBRABAN TECH,feira|tecnologia bancária,bancos|tecnologia|fintech
+2026-08-25,25,,Concrete Show,feira|construção,concreto|construção|engenharia
+2026-08-25,25,,INTERPLAST,feira|plásticos,plásticos|indústria|tecnologia
+2026-08-25,25,,PL Connection,feira|marca própria,marca própria|varejo|produtos
+2026-08-25,25,,Cachoeiro Stone Fair,feira|rochas,rochas|mármores|granito
+2026-08-25,25,,Intersolar South America,feira|energia solar,energia solar|sustentabilidade|tecnologia
+2026-08-25,25,,EXPOFRUIT,feira|frutas,frutas|hortaliças|agro|nordeste
+2026-08-26,26,,Startup Summit,congresso|startups,startups|empreendedorismo|inovação
+2026-08-27,27,,Fitness Brasil Expo,feira|fitness,fitness|esportes|saúde
+2026-08-28,28,,Mara Cakes Fair Nordeste,feira|confeitaria,confeitaria|gastronomia|nordeste
+2026-08-29,29,,Expointer,feira|agropecuário,agro|pecuária|sul
+2026-09-01,01,,ISC Brasil,congresso|segurança,segurança|tecnologia|proteção
+2026-09-04,04,,Bienal do Livro de São Paulo,feira|livros,livros|literatura|cultura
+2026-09-04,04,,ART MUNDI,feira|arte,arte|cultura|santos
+2026-09-05,05,,Mara Cakes Fair Nordeste,feira|confeitaria,confeitaria|gastronomia|nordeste
+2026-09-05,05,,Beauty Fair,feira|beleza,beleza|cosméticos|estética
+2026-09-08,08,,ExpoPostos & Conveniência,feira|postos de combustível,postos|conveniência|varejo
+2026-09-08,08,,Feira Construir Aí,feira|construção,construção|materiais|santa catarina
+2026-09-08,08,,Glass South America,feira|vidro,vidro|construção|indústria
+2026-09-08,08,,E-squadria Show,feira|esquadrias,esquadrias|alumínio|construção
+2026-09-09,09,,Geronto Fair,feira|gerontologia,gerontologia|saúde|idosos
+2026-09-09,09,,Logística do Futuro,congresso|logística,logística|supply chain|inovação
+2026-09-09,09,,FESQUA,feira|esquadrias,esquadrias|construção|alumínio
+2026-09-14,14,,FIEE,feira|elétrica e eletrônica,elétrica|eletrônica|energia|automação
+2026-09-14,14,,VICTAM LatAm,feira|alimentação animal,ração|alimentação animal|agro
+2026-09-14,14,,SIM - Semana Industrial Mineira,feira|indústria,indústria|manufatura|minas gerais
+2026-09-15,15,,Expolux,feira|iluminação,iluminação|design|tecnologia
+2026-09-15,15,,YES Móvel Show Campinas,feira|móveis,móveis|decoração|campinas
+2026-09-15,15,,Welding Show Brasil,feira|soldagem,soldagem|metalurgia|indústria
+2026-09-15,15,,ACAPS Trade Show,feira|autopeças,autopeças|automotivo|espírito santo
+2026-09-15,15,,Equipotel,feira|hotelaria,hotelaria|turismo|hospitalidade
+2026-09-15,15,,Intra-Log Expo South America,feira|logística,logística|armazenagem|supply chain
+2026-09-15,15,,LABEL & PACK EXPO,feira|embalagens,embalagens|rótulos|indústria
+2026-09-15,15,,INTERFORM,feira|ferramentaria,ferramentaria|moldes|indústria
+2026-09-15,15,,CONSTRUMETAL,feira|construção,construção|metal|estruturas
+2026-09-16,16,,CHINA HOME LIFE BRASIL,feira|utilidades,utilidades|casa|importação
+2026-09-16,16,,iFood Move,congresso|delivery,delivery|foodtech|tecnologia
+2026-09-16,16,,HIS – Healthcare Innovation Show,feira|saúde,saúde|inovação|tecnologia
+2026-09-17,17,,Agile Trends,congresso|tecnologia,tecnologia|agile|gestão
+2026-09-17,17,,CIPRO | EXPOLAB,feira|laboratórios,laboratórios|análises|saúde
+2026-09-21,21,,ROG.e,feira|petróleo e gás,petróleo|gás|energia
+2026-09-22,22,,Paving Expo,feira|pavimentação,pavimentação|asfalto|construção
+2026-09-22,22,,TRANSMODAL GOIÁS,feira|logística,logística|transporte|goiás
+2026-09-23,23,,CONAREC,congresso|refrigeração,refrigeração|ar condicionado|HVAC
+2026-09-23,23,,in-cosmetics Latin America,feira|cosméticos,cosméticos|ingredientes|beleza
+2026-09-28,28,,Analitica Latin America,feira|laboratórios,laboratórios|análises|científico
+2026-09-28,28,,ABRAFATI Show,feira|tintas,tintas|vernizes|revestimentos
+2026-09-29,29,,Modern Construction Show,feira|construção,construção|tecnologia|inovação
+2026-09-29,29,,RIOPARTS,feira|autopeças,autopeças|automotivo|rio de janeiro
+2026-09-30,30,,MinasParts,feira|autopeças,autopeças|automotivo|minas gerais
+2026-09-30,30,,ABAV EXPO,feira|turismo,turismo|viagens|agências
+2026-10-01,01,,Agrominas,feira|agropecuário,agro|minas gerais|tecnologia
+2026-10-01,01,,Forcafé,feira|café,café|agro|minas gerais
+2026-10-01,01,,Automotive Business Experience,congresso|automotivo,automotivo|negócios|indústria
+2026-10-05,05,,LAVTECH,feira|lavanderia,lavanderia|limpeza|hotelaria
+2026-10-05,05,,Maquintex + Signs Norte e Nordeste + Pack&Graph,feira|gráfica e embalagens,gráfica|embalagens|sinalização|nordeste
+2026-10-06,06,,ProWine São Paulo,feira|vinhos,vinhos|bebidas|gastronomia
+2026-10-06,06,,FUTURECOM,feira|telecomunicações,telecom|tecnologia|conectividade
+2026-10-06,06,,Data Center World Brasil,feira|data center,data center|cloud|infraestrutura
+2026-10-06,06,,FEBRAVA RIO,feira|refrigeração,refrigeração|ar condicionado|HVAC
+2026-10-06,06,,FISP – FISST,feira|segurança do trabalho,segurança|trabalho|EPI
+2026-10-06,06,,EXPO ABTCP,feira|papel e celulose,papel|celulose|indústria
+2026-10-07,07,,MRO BRASIL,feira|manutenção aeronáutica,aviação|manutenção|MRO
+2026-10-07,07,,Congresso SAE BRASIL,congresso|engenharia automotiva,automotivo|engenharia|tecnologia
+2026-10-09,09,,Brasil Game Show (BGS),feira|games,games|entretenimento|tecnologia
+2026-10-14,14,,CONSTRULEV Expo,feira|construção,construção|leve|steel frame
+2026-10-15,15,,Enflor | Garden Fair,feira|flores e plantas,flores|plantas|jardinagem|paisagismo
+2026-10-18,18,,Diabetes On – São Paulo,congresso|saúde,diabetes|saúde|medicina
+2026-10-18,18,,Professional Fair RJ,feira|beleza,beleza|estética|profissional
+2026-10-19,19,,Feira do Empreendedor do SEBRAE-SP,feira|empreendedorismo,empreendedorismo|negócios|sebrae
+2026-10-19,19,,NT EXPO,feira|tecnologia,tecnologia|TI|inovação
+2026-10-20,20,,ECO EXPO (Ex-Waste Expo Brasil),feira|sustentabilidade,sustentabilidade|reciclagem|meio ambiente
+2026-10-20,20,,FENASAN,feira|saneamento,saneamento|meio ambiente|água
+2026-10-20,20,,HIGIEXPO,feira|limpeza,limpeza|higiene|produtos
+2026-10-20,20,,Seafood Show Latin America,feira|frutos do mar,frutos do mar|pesca|gastronomia
+2026-10-20,20,,ONDM – O Negócio da Moda – Edição Brasil,feira|moda,moda|vestuário|negócios
+2026-10-21,21,,HOSPITALMED,feira|saúde,saúde|hospitalar|nordeste
+2026-10-21,21,,ARENA M&T,feira|mineração,mineração|equipamentos|tecnologia
+2026-10-27,27,,FENALAW,congresso|direito,direito|advocacia|jurídico
+2026-10-27,27,,Brazil Windpower,feira|energia eólica,energia eólica|sustentabilidade|tecnologia
+2026-10-27,27,,AveSui,feira|avicultura,avicultura|suinocultura|agro
+2026-10-27,27,,TUBOTECH,feira|tubos,tubos|tubulações|indústria
+2026-10-27,27,,WIRE Brasil,feira|arames e cabos,arames|cabos|fios|indústria
+2026-10-28,28,,FruitBrasil,feira|frutas,frutas|hortaliças|agro
+2026-10-28,28,,Enerclean,feira|energia limpa,energia|sustentabilidade|tecnologia
+2026-10-30,30,,Salão do Automóvel,feira|automotivo,automóveis|veículos|carros|automotivo
+2026-11-01,01,,Bienal do Livro Rio,feira|livros,livros|literatura|cultura|rio de janeiro
+2026-11-04,04,,Feira SUPER MIX,feira|varejo,varejo|supermercados|nordeste
+2026-11-04,04,,HFN- HOTEL & FOOD NORDESTE,feira|hotelaria,hotelaria|gastronomia|nordeste
+2026-11-09,09,,FENATRAN,feira|transporte,transporte|veículos|logística
+2026-11-10,10,,BFSHOW – 6ª edição,feira|beleza,beleza|estética|cosméticos
+2026-11-11,11,,REPARASUL,feira|automotivo,automotivo|reparação|peças
+2026-11-12,12,,FESTURIS,feira|turismo,turismo|viagens|gramado
+2026-11-12,12,,ExpoFrísia,feira|agropecuário,agro|leite|paraná
+2026-11-15,15,,Feira Petnor,feira|pet,pet|animais|nordeste
+2026-11-15,15,,Barber Week,feira|barbearia,barbearia|beleza|masculino
+2026-11-20,20,,EXPO CANNABIS BRASIL,feira|cannabis,cannabis|medicinal|indústria
+2026-11-23,23,,EXPOLOG,feira|logística,logística|transporte|ceará
+2026-11-25,25,,EXPO MOTORHOME,feira|motorhome,motorhome|turismo|lazer
+2026-11-25,25,,Tomorrow.Blue Economy,congresso|economia azul,economia|sustentabilidade|oceano
+2026-12-03,03,,CCXP,feira|cultura pop,cultura pop|entretenimento|games
+2026-12-04,04,,VegFest,feira|veganismo,veganismo|alimentação|sustentabilidade

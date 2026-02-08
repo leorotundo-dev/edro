@@ -1,0 +1,390 @@
+{
+  "client": "CS Mobi Leste SP",
+  "client_id": "cs-mobi-leste-sp",
+  "description": "Fontes de notícias para monitoramento de transporte público, mobilidade urbana e Zona Leste de São Paulo",
+  "categories": [
+    {
+      "name": "Transporte e Mobilidade Nacional",
+      "sources": [
+        {
+          "name": "Diário do Transporte",
+          "url": "https://diariodotransporte.com.br",
+          "rss": "https://diariodotransporte.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "transporte",
+            "mobilidade",
+            "nacional"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Mobilize Brasil",
+          "url": "https://www.mobilize.org.br/noticias/",
+          "rss": "https://www.mobilize.org.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "mobilidade",
+            "sustentabilidade",
+            "transporte"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "ANTP - Associação Nacional de Transportes Públicos",
+          "url": "https://www.antp.org.br",
+          "rss": "https://www.antp.org.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": [
+            "transporte público",
+            "política",
+            "técnico"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "CNT - Confederação Nacional do Transporte",
+          "url": "https://www.cnt.org.br",
+          "rss": "https://www.cnt.org.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": [
+            "transporte",
+            "infraestrutura",
+            "política"
+          ],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mobilidade São Paulo",
+      "sources": [
+        {
+          "name": "Folha - Mobilidade Urbana",
+          "url": "https://www1.folha.uol.com.br/cotidiano/mobilidade-urbana/",
+          "rss": "https://www1.folha.uol.com.br/cotidiano/mobilidade-urbana/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "mobilidade",
+            "são paulo",
+            "grande mídia"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Estadão - Mobilidade Urbana",
+          "url": "https://mobilidade.estadao.com.br/",
+          "rss": "https://mobilidade.estadao.com.br/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "mobilidade",
+            "são paulo",
+            "grande mídia"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "G1 São Paulo",
+          "url": "https://g1.globo.com/sp/sao-paulo/",
+          "rss": "https://g1.globo.com/dynamo/sao-paulo/rss2.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "notícias",
+            "são paulo",
+            "geral"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "CNN Brasil - Transporte Público",
+          "url": "https://www.cnnbrasil.com.br/tudo-sobre/transporte-publico/",
+          "rss": "https://www.cnnbrasil.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "transporte público",
+            "nacional",
+            "grande mídia"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "Agora São Paulo - Zona Leste",
+          "url": "https://agora.folha.uol.com.br/sao-paulo/zona-leste/",
+          "rss": "https://agora.folha.uol.com.br/sao-paulo/zona-leste/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "são paulo",
+            "popular"
+          ],
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "name": "Governo e Órgãos Oficiais",
+      "sources": [
+        {
+          "name": "Prefeitura de SP - Mobilidade",
+          "url": "https://prefeitura.sp.gov.br/web/mobilidade",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": [
+            "governo",
+            "oficial",
+            "mobilidade"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "SPTrans",
+          "url": "https://www.sptrans.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": [
+            "transporte público",
+            "oficial",
+            "são paulo"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Metrô SP",
+          "url": "https://www.metro.sp.gov.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": [
+            "metrô",
+            "oficial",
+            "são paulo"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "CET - Companhia de Engenharia de Tráfego",
+          "url": "https://www.cetsp.com.br/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": [
+            "trânsito",
+            "oficial",
+            "são paulo"
+          ],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Mídia Local - Zona Leste",
+      "sources": [
+        {
+          "name": "Folha da Vila Prudente",
+          "url": "https://folhavponline.com.br/",
+          "rss": "https://folhavponline.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "vila prudente",
+            "local"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "ZL Notícias",
+          "url": "https://zlnoticias.com.br/",
+          "rss": "https://zlnoticias.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "local",
+            "notícias"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Leste Online",
+          "url": "https://lesteonline.com.br/",
+          "rss": "https://lesteonline.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "local",
+            "notícias"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Jornal Infoleste",
+          "url": "https://infoleste.com.br/",
+          "rss": "https://infoleste.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "local",
+            "notícias"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "SP Jornal - Zona Leste",
+          "url": "https://spjornal.com.br/categoria/regiao/zona-leste/",
+          "rss": "https://spjornal.com.br/categoria/regiao/zona-leste/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "local",
+            "notícias"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "SP Regional - Zona Leste",
+          "url": "https://spregional.com.br/zona-leste/",
+          "type": "scrape",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "local",
+            "notícias"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "Desenvolve Leste",
+          "url": "https://desenvolveleste.com.br/",
+          "rss": "https://desenvolveleste.com.br/feed/",
+          "type": "rss",
+          "frequency": "weekly",
+          "tags": [
+            "zona leste",
+            "desenvolvimento",
+            "economia"
+          ],
+          "priority": "medium"
+        }
+      ]
+    },
+    {
+      "name": "Marketing e Comunicação",
+      "sources": [
+        {
+          "name": "Meio & Mensagem",
+          "url": "https://www.meioemensagem.com.br/",
+          "rss": "https://www.meioemensagem.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "marketing",
+            "comunicação",
+            "publicidade"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "Propmark",
+          "url": "https://propmark.com.br/",
+          "rss": "https://propmark.com.br/feed/",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "marketing",
+            "publicidade",
+            "comunicação"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "Mundo do Marketing",
+          "url": "https://www.mundodomarketing.com.br/",
+          "rss": "https://www.mundodomarketing.com.br/rss.xml",
+          "type": "rss",
+          "frequency": "daily",
+          "tags": [
+            "marketing",
+            "tendências",
+            "digital"
+          ],
+          "priority": "low"
+        }
+      ]
+    },
+    {
+      "name": "Redes Sociais e Mídias Alternativas",
+      "sources": [
+        {
+          "name": "Zona Leste 24h (Instagram)",
+          "url": "https://www.instagram.com/zonaleste24h/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "instagram",
+            "tempo real"
+          ],
+          "priority": "high"
+        },
+        {
+          "name": "Leste Online (Instagram)",
+          "url": "https://www.instagram.com/lesteonline/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "instagram",
+            "notícias"
+          ],
+          "priority": "medium"
+        },
+        {
+          "name": "Zona Leste Online (Instagram)",
+          "url": "https://www.instagram.com/zonalesteonline_/",
+          "type": "social",
+          "frequency": "daily",
+          "tags": [
+            "zona leste",
+            "instagram",
+            "cultura"
+          ],
+          "priority": "medium"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "cs mobi",
+    "terminais de ônibus",
+    "zona leste",
+    "transporte público",
+    "mobilidade urbana",
+    "concessão",
+    "sptrans",
+    "prefeitura são paulo",
+    "terminal vila prudente",
+    "terminal itaquera",
+    "terminal penha",
+    "terminal são mateus",
+    "terminal cidade tiradentes",
+    "terminal sapopemba",
+    "terminal a.e. carvalho",
+    "terminal carrão",
+    "terminal vila carrão",
+    "terminal aricanduva",
+    "terminal sacomã",
+    "terminal parque dom pedro"
+  ],
+  "pillars": []
+}

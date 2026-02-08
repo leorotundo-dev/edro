@@ -1,0 +1,331 @@
+{
+  "client_name": "CS Mobi Cuiabá",
+  "client_area": "Mobilidade urbana e transporte público em Cuiabá/MT",
+  "total_sources": 32,
+  "total_keywords": 25,
+  "categories": [
+    "Nacional - Especializada",
+    "Nacional - Geral",
+    "Local - Cuiabá/MT",
+    "Governamental/Oficial",
+    "Mídia Especializada - OOH/Marketing",
+    "Redes Sociais"
+  ],
+  "keywords": [
+    "CS Mobi Cuiabá",
+    "CS Mobi",
+    "Mobilidade Cuiabá",
+    "Transporte Público Cuiabá",
+    "Ônibus Cuiabá",
+    "Tarifa Cuiabá",
+    "Terminal CPA 3",
+    "Terminal de Ônibus Cuiabá",
+    "Prefeitura Cuiabá Semob",
+    "Secretaria de Mobilidade Urbana Cuiabá",
+    "Prefeito Cuiabá Transporte",
+    "VLT Cuiabá",
+    "Integração Cuiabá",
+    "Frota Ônibus Cuiabá",
+    "Concessão Transporte Cuiabá",
+    "Passagem Cuiabá",
+    "Cuiabá Transporte",
+    "MTU Cuiabá",
+    "AGER MT Transporte",
+    "OOH Cuiabá",
+    "Mídia em Ônibus Cuiabá",
+    "Mídia Out of Home Cuiabá",
+    "Semob Cuiabá",
+    "Cuiabá Mobilidade",
+    "Rodoviária Cuiabá"
+  ],
+  "sources": [
+    {
+      "name": "Via Trolebus",
+      "url": "https://viatrolebus.com.br/",
+      "rss": "https://viatrolebus.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Especializada", "Transporte", "Mobilidade", "Ônibus", "Trem", "Metrô"],
+      "priority": "high"
+    },
+    {
+      "name": "Mobilize Brasil",
+      "url": "https://www.mobilize.org.br/",
+      "rss": "https://www.mobilize.org.br/rss/noticias/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Especializada", "Sustentabilidade", "Mobilidade", "Políticas Públicas"],
+      "priority": "high"
+    },
+    {
+      "name": "Confederação Nacional do Transporte (CNT)",
+      "url": "https://www.cnt.org.br/",
+      "rss": "https://www.cnt.org.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Governamental/Oficial", "Transporte", "Logística", "Setor"],
+      "priority": "high"
+    },
+    {
+      "name": "Technibus",
+      "url": "https://technibus.com.br/",
+      "rss": "https://technibus.com.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Especializada", "Ônibus", "Setor"],
+      "priority": "medium"
+    },
+    {
+      "name": "Revista AutoBus",
+      "url": "https://revistaautobus.com.br/",
+      "rss": "https://revistaautobus.com.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Especializada", "Ônibus", "Setor"],
+      "priority": "medium"
+    },
+    {
+      "name": "Meio e Mensagem - OOH",
+      "url": "https://www.meioemensagem.com.br/out-of-home",
+      "rss": "https://www.meioemensagem.com.br/feed",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Marketing", "Mídia", "OOH"],
+      "priority": "high"
+    },
+    {
+      "name": "Propmark",
+      "url": "https://propmark.com.br/",
+      "rss": "https://propmark.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Marketing", "Mídia", "OOH"],
+      "priority": "medium"
+    },
+    {
+      "name": "RD News - Cuiabá",
+      "url": "https://www.rdnews.com.br/",
+      "rss": "https://www.rdnews.com.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "high"
+    },
+    {
+      "name": "Diário de Cuiabá",
+      "url": "https://www.diariodecuiaba.com.br/",
+      "rss": "https://www.diariodecuiaba.com.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "high"
+    },
+    {
+      "name": "Exclusivo News - Cuiabá",
+      "url": "https://exclusivonews.com.br/category/cidades/cuiaba/",
+      "rss": "https://exclusivonews.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "G1 Mato Grosso - Cuiabá",
+      "url": "https://g1.globo.com/mt/mato-grosso/cidade/cuiaba/",
+      "rss": "https://g1.globo.com/rss/g1/mt/mato-grosso/cidade/cuiaba/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "high"
+    },
+    {
+      "name": "Prefeitura de Cuiabá - Notícias",
+      "url": "https://www.cuiaba.mt.gov.br/noticias",
+      "rss": "https://www.cuiaba.mt.gov.br/noticias?type=rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Governamental/Oficial", "Cuiabá", "Notícias", "Políticas Públicas"],
+      "priority": "high"
+    },
+    {
+      "name": "AGER MT - Notícias",
+      "url": "https://www.ager.mt.gov.br/",
+      "rss": "https://www.ager.mt.gov.br/rss",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Governamental/Oficial", "Mato Grosso", "Regulação", "Transporte"],
+      "priority": "high"
+    },
+    {
+      "name": "MTU - Notícias",
+      "url": "https://amtu.com.br/noticias/",
+      "rss": "https://amtu.com.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Governamental/Oficial", "Cuiabá", "Transporte Público", "Setor"],
+      "priority": "medium"
+    },
+    {
+      "name": "Governo de Mato Grosso - Notícias",
+      "url": "https://www.mt.gov.br/noticias",
+      "rss": "https://www.mt.gov.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Governamental/Oficial", "Mato Grosso", "Geral"],
+      "priority": "medium"
+    },
+    {
+      "name": "Folha de S.Paulo - Mobilidade Urbana",
+      "url": "https://www1.folha.uol.com.br/cotidiano/mobilidade-urbana/",
+      "rss": "https://www1.folha.uol.com.br/cotidiano/mobilidade-urbana/rss091.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Geral", "Mobilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "Estadão - Mobilidade",
+      "url": "https://mobilidade.estadao.com.br/",
+      "rss": "https://estadao.com.br/rss/mobilidade/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Geral", "Mobilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "Meio e Mensagem - Mídia",
+      "url": "https://www.meioemensagem.com.br/midia",
+      "rss": "https://www.meioemensagem.com.br/feed",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Marketing", "Mídia"],
+      "priority": "medium"
+    },
+    {
+      "name": "Central de Outdoor",
+      "url": "https://centraldeoutdoor.org.br/",
+      "rss": "https://centraldeoutdoor.org.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Marketing", "OOH"],
+      "priority": "low"
+    },
+    {
+      "name": "SEMOB Cuiabá (Instagram)",
+      "url": "https://www.instagram.com/semobcuiaba/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Cuiabá", "Governamental/Oficial", "Mobilidade"],
+      "priority": "high"
+    },
+    {
+      "name": "Prefeitura de Cuiabá (Instagram)",
+      "url": "https://www.instagram.com/cuiabaprefeitura/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Cuiabá", "Governamental/Oficial"],
+      "priority": "medium"
+    },
+    {
+      "name": "MTU Cuiabá (Instagram)",
+      "url": "https://www.instagram.com/mtu.cuiaba/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Cuiabá", "Transporte Público"],
+      "priority": "medium"
+    },
+    {
+      "name": "Via Trolebus (X/Twitter)",
+      "url": "https://x.com/viatrolebus",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Nacional", "Especializada", "Mobilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "RD News (X/Twitter)",
+      "url": "https://x.com/rdnews_oficial",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Local", "Cuiabá", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "Diário de Cuiabá (X/Twitter)",
+      "url": "https://x.com/diario_cuiaba",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Local", "Cuiabá", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "Prefeitura de Cuiabá (X/Twitter)",
+      "url": "https://x.com/prefeitura_CBA",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Cuiabá", "Governamental/Oficial"],
+      "priority": "medium"
+    },
+    {
+      "name": "Folha Max",
+      "url": "https://www.folhamax.com/",
+      "rss": "https://www.folhamax.com/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "Jornal A Gazeta MT",
+      "url": "https://www.agazetamt.com.br/",
+      "rss": "https://www.agazetamt.com.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "O Documento",
+      "url": "https://odocumento.com.br/",
+      "rss": "https://odocumento.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Cuiabá", "Geral", "Notícias"],
+      "priority": "medium"
+    },
+    {
+      "name": "Mundo Logística",
+      "url": "https://mundologistica.com.br/noticias/c_transporte",
+      "rss": "https://mundologistica.com.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Especializada", "Logística", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Tecnologistica",
+      "url": "https://www.tecnologistica.com.br/",
+      "rss": "https://www.tecnologistica.com.br/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Especializada", "Logística", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Caos Planejado",
+      "url": "https://caosplanejado.com/",
+      "rss": "https://caosplanejado.com/feed/",
+      "type": "rss",
+      "frequency": "weekly",
+      "tags": ["Nacional", "Especializada", "Mobilidade", "Urbanismo"],
+      "priority": "low"
+    }
+  ]
+}

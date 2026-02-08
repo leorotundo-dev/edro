@@ -1,0 +1,443 @@
+{
+  "client": "CS Rodovias MT - Concessão de rodovia em Mato Grosso",
+  "categories": [
+    "Fontes Nacionais Relevantes",
+    "Mídia Especializada do Setor",
+    "Fontes Governamentais e Oficiais",
+    "Fontes Locais/Regionais (Mato Grosso)",
+    "Portais de Marketing/Comunicação",
+    "Redes Sociais Relevantes"
+  ],
+  "keywords": [
+    "CS Rodovias MT",
+    "CS Infra",
+    "Simpar",
+    "Concessão MT",
+    "Lote 5",
+    "Rodovia da Integração",
+    "MT-020",
+    "MT-326",
+    "Paranatinga",
+    "Canarana",
+    "Água Boa",
+    "Campinápolis",
+    "Pedágio MT",
+    "Infraestrutura Mato Grosso",
+    "Investimento Rodoviário MT",
+    "Obras MT-020",
+    "Duplicação MT",
+    "Araguaia",
+    "SINFRA MT",
+    "AGER MT",
+    "Concessão Rodoviária",
+    "Rodovias MT",
+    "BR-158",
+    "BR-070",
+    "Logística MT"
+  ],
+  "sources": [
+    {
+      "name": "Valor Econômico",
+      "url": "https://valor.globo.com/",
+      "rss": "https://valor.globo.com/rss/valor-geral/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "nacional",
+        "economia",
+        "negócios"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Folha de S.Paulo",
+      "url": "https://www1.folha.uol.com.br/",
+      "rss": "https://feeds.folha.uol.com.br/colunas/rss091.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "nacional",
+        "política",
+        "economia"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "CNN Brasil",
+      "url": "https://www.cnnbrasil.com.br/",
+      "rss": "https://www.cnnbrasil.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "nacional",
+        "política",
+        "economia"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Agência iNFRA",
+      "url": "https://agenciainfra.com/blog/",
+      "rss": "https://agenciainfra.com/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "especializada",
+        "infraestrutura",
+        "concessões"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Tecnologistica",
+      "url": "https://www.tecnologistica.com.br/",
+      "rss": "https://tecnologistica.com/wp-includes/feed-rss2.php",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "especializada",
+        "logística",
+        "transporte"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "CNT - Confederação Nacional do Transporte",
+      "url": "https://cnt.org.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "especializada",
+        "transporte",
+        "rodoviário"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Revista Ferroviária (Infra)",
+      "url": "https://revistaferroviaria.com.br/",
+      "rss": "https://revistaferroviaria.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "especializada",
+        "infraestrutura",
+        "logística"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "DNIT - Departamento Nacional de Infraestrutura de Transportes",
+      "url": "https://www.gov.br/dnit/pt-br",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "federal",
+        "rodovias"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "ANTT - Agência Nacional de Transportes Terrestres",
+      "url": "https://www.gov.br/antt/pt-br",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "federal",
+        "concessões"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "SINFRA-MT - Secretaria de Infraestrutura de MT",
+      "url": "https://www.sinfra.mt.gov.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "estadual",
+        "rodovias",
+        "mt"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "AGER-MT - Agência Estadual de Regulação de MT",
+      "url": "https://www.ager.mt.gov.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "estadual",
+        "regulação",
+        "mt"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Governo de Mato Grosso - Notícias",
+      "url": "https://www.mt.gov.br/noticias",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "estadual",
+        "mt"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Tribunal de Contas do Estado de MT (TCE-MT)",
+      "url": "https://www.tce.mt.gov.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "governamental",
+        "fiscalização",
+        "mt"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "G1 Mato Grosso",
+      "url": "https://g1.globo.com/mt/",
+      "rss": "https://g1.globo.com/rss/g1/mt/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "regional",
+        "mt"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "RD News (MT)",
+      "url": "https://www.rdnews.com.br/",
+      "rss": "https://www.rdnews.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "regional",
+        "mt"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Olhar Direto (MT)",
+      "url": "https://www.olhardireto.com.br/",
+      "rss": "https://www.olhardireto.com.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "regional",
+        "mt"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Agua Boa News",
+      "url": "https://www.aguaboanews.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Água Boa",
+        "Canarana"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "O Pioneiro (Canarana)",
+      "url": "https://jopioneiro.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Canarana",
+        "Água Boa"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Portal Paranatinga",
+      "url": "https://portalparanatinga.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Paranatinga"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Prefeitura Municipal de Campinápolis - Notícias",
+      "url": "https://www.campinapolis.mt.gov.br/Noticias/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Campinápolis",
+        "oficial"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Prefeitura Municipal de Água Boa - Notícias",
+      "url": "https://www.aguaboa.mt.gov.br/noticias",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Água Boa",
+        "oficial"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Prefeitura Municipal de Canarana - Notícias",
+      "url": "https://www.canarana.mt.gov.br/noticias",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Canarana",
+        "oficial"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Prefeitura Municipal de Paranatinga - Notícias",
+      "url": "https://www.paranatinga.mt.gov.br/noticias",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "local",
+        "Paranatinga",
+        "oficial"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Exame",
+      "url": "https://exame.com/",
+      "rss": "https://exame.com/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "nacional",
+        "negócios",
+        "economia"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Meio & Mensagem",
+      "url": "https://www.meioemensagem.com.br/",
+      "rss": "https://www.meioemensagem.com.br/feed",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "marketing",
+        "comunicação",
+        "negócios"
+      ],
+      "priority": "low"
+    },
+    {
+      "name": "Mundo do Marketing",
+      "url": "https://mundodomarketing.com.br/",
+      "rss": "https://mundodomarketing.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "marketing",
+        "comunicação"
+      ],
+      "priority": "low"
+    },
+    {
+      "name": "LinkedIn - CS Infra",
+      "url": "https://www.linkedin.com/company/cs-infra/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "social",
+        "empresa",
+        "oficial"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Instagram - CS Infra",
+      "url": "https://www.instagram.com/csinfra/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "social",
+        "empresa",
+        "oficial"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "X (Twitter) - Agência iNFRA",
+      "url": "https://x.com/agencia_infra",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "social",
+        "especializada",
+        "infraestrutura"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Facebook - Governo de Mato Grosso",
+      "url": "https://www.facebook.com/GovernodeMatoGrosso/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "social",
+        "governamental",
+        "mt"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Instagram - A Notícia em Foco Campinápolis",
+      "url": "https://www.instagram.com/anoticiaemfococampinapolis/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "social",
+        "local",
+        "Campinápolis"
+      ],
+      "priority": "medium"
+    }
+  ]
+}

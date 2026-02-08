@@ -1,0 +1,281 @@
+{
+  "client_name": "CS Grãos do Piauí",
+  "segment": "Concessão de rodovia no Piauí (Logística de Grãos)",
+  "categories": [
+    "Fontes Nacionais",
+    "Fontes Locais/Regionais",
+    "Fontes Governamentais e Oficiais",
+    "Mídia Especializada (Infraestrutura)",
+    "Mídia Especializada (Agronegócio)",
+    "Redes Sociais"
+  ],
+  "keywords": [
+    "CS Grãos do Piauí",
+    "Concessão Rodovia Piauí",
+    "PI-397",
+    "Transcerrados",
+    "Rodovia Transcerrados",
+    "Logística Grãos Piauí",
+    "Uruçuí",
+    "Baixa Grande do Ribeiro",
+    "Porto de Luís Correia",
+    "Ferrovia Transnordestina",
+    "Agronegócio Piauí",
+    "Soja Piauí",
+    "Milho Piauí",
+    "Infraestrutura Piauí",
+    "Pedágio Piauí",
+    "ANTT",
+    "Ministério dos Transportes",
+    "Governo do Piauí",
+    "DER-PI",
+    "TCE-PI"
+  ],
+  "sources": [
+    {
+      "name": "GP1 - O 1º Grande Portal de Notícias do Piauí",
+      "url": "https://www.gp1.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Teresina",
+        "Notícias",
+        "Política"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Portal O Dia",
+      "url": "https://portalodia.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Teresina",
+        "Notícias",
+        "Política"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "CidadeVerde.com",
+      "url": "https://cidadeverde.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Notícias",
+        "TV Cidade Verde"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "180graus",
+      "url": "https://180graus.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Notícias",
+        "Política"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Portal Clube News",
+      "url": "https://portalclubenews.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Notícias",
+        "Política"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Governo do Piauí (Notícias)",
+      "url": "https://www.pi.gov.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Governo",
+        "Piauí",
+        "Obras",
+        "Infraestrutura"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "TCE-PI (Notícias)",
+      "url": "https://www.tcepi.tc.br/ultimas-noticias/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": [
+        "Fiscalização",
+        "TCE",
+        "Piauí",
+        "Concessão"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Agência Nacional de Transportes Terrestres (ANTT)",
+      "url": "https://www.gov.br/antt/pt-br/assuntos/ultimas-noticias",
+      "rss": "https://www.gov.br/antt/RSS",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "Federal",
+        "ANTT",
+        "Rodovias",
+        "Concessão"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Ministério dos Transportes (Notícias)",
+      "url": "https://www.gov.br/transportes/pt-br/assuntos/ultimas-noticias",
+      "rss": "https://www.gov.br/transportes/pt-br/assuntos/ultimas-noticias/@@rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "Federal",
+        "Governo",
+        "Rodovias",
+        "Concessão"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "CNN Brasil - Infraestrutura",
+      "url": "https://www.cnnbrasil.com.br/tudo-sobre/infraestrutura/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Nacional",
+        "Infraestrutura",
+        "Economia",
+        "Concessão"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Canal Rural",
+      "url": "https://www.canalrural.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": [
+        "Agronegócio",
+        "Grãos",
+        "Logística",
+        "Nacional"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Globo Rural",
+      "url": "https://globorural.globo.com/",
+      "rss": "https://globorural.globo.com/rss/globorural/ultimas/feed.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "Agronegócio",
+        "Grãos",
+        "Logística",
+        "Nacional"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Notícias Agrícolas",
+      "url": "https://www.noticiasagricolas.com.br/",
+      "rss": "https://www.noticiasagricolas.com.br/rss/ultimas-noticias.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": [
+        "Agronegócio",
+        "Grãos",
+        "Mercado",
+        "Nacional"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "Revista Campo & Negócios",
+      "url": "https://campoenegocios.com/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": [
+        "Agronegócio",
+        "Grãos",
+        "Tecnologia"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Revista Rural",
+      "url": "https://www.revistarural.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "monthly",
+      "tags": [
+        "Agronegócio",
+        "Grãos",
+        "Sustentabilidade"
+      ],
+      "priority": "low"
+    },
+    {
+      "name": "BNDES Hub de Projetos (Rodovias)",
+      "url": "https://hubdeprojetos.bndes.gov.br/pt/setores/Highways",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "monthly",
+      "tags": [
+        "BNDES",
+        "Projetos",
+        "Concessão",
+        "Investimento"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "X (Twitter) - @portalgp1",
+      "url": "https://x.com/portalgp1",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "Piauí",
+        "Social",
+        "Notícias"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "Instagram - @campoenegocios",
+      "url": "https://www.instagram.com/campoenegocios/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": [
+        "Agronegócio",
+        "Social",
+        "Grãos"
+      ],
+      "priority": "low"
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "client": "CS Porto Aratu - Terminal portuário na Bahia",
+  "categories": [
+    {
+      "name": "Governamentais e Oficiais",
+      "description": "Fontes de órgãos reguladores e autoridades portuárias."
+    },
+    {
+      "name": "Mídia Especializada",
+      "description": "Publicações focadas em logística, portos, infraestrutura e comércio exterior."
+    },
+    {
+      "name": "Fontes Nacionais",
+      "description": "Grandes portais de notícias com cobertura nacional de economia e política."
+    },
+    {
+      "name": "Fontes Locais/Regionais (Bahia)",
+      "description": "Principais jornais e portais de notícias da Bahia."
+    },
+    {
+      "name": "Fontes Locais (Candeias/Aratu)",
+      "description": "Mídia com foco na região de atuação do porto."
+    },
+    {
+      "name": "Redes Sociais",
+      "description": "Perfis oficiais e de grande relevância na área de atuação."
+    }
+  ],
+  "sources": [
+    {
+      "name": "ANTAQ (Agência Nacional de Transportes Aquaviários)",
+      "url": "https://www.gov.br/antaq/pt-br",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["governo", "federal", "regulação", "portos", "aquaviário", "governamentais e oficiais"],
+      "priority": "high"
+    },
+    {
+      "name": "CODEBA (Companhia Docas do Estado da Bahia)",
+      "url": "https://www.codeba.gov.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["governo", "estadual", "porto aratu", "bahia", "infraestrutura", "governamentais e oficiais"],
+      "priority": "high"
+    },
+    {
+      "name": "SEINFRA-BA (Sec. Infraestrutura da Bahia)",
+      "url": "https://www.ba.gov.br/infraestrutura/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["governo", "estadual", "infraestrutura", "bahia", "obras", "governamentais e oficiais"],
+      "priority": "medium"
+    },
+    {
+      "name": "Revista Portuária",
+      "url": "http://www.revistaportuaria.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["especializada", "portos", "logística", "notícias", "mídia especializada"],
+      "priority": "high"
+    },
+    {
+      "name": "Portos e Navios",
+      "url": "https://www.portosenavios.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["especializada", "portos", "naval", "marinha mercante", "mídia especializada"],
+      "priority": "high"
+    },
+    {
+      "name": "Logweb",
+      "url": "https://logweb.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["especializada", "logística", "supply chain", "transporte", "mídia especializada"],
+      "priority": "medium"
+    },
+    {
+      "name": "Guia Marítimo",
+      "url": "https://www.guiamaritimo.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["especializada", "marítimo", "portos", "comércio exterior", "mídia especializada"],
+      "priority": "medium"
+    },
+    {
+      "name": "Tecnologística",
+      "url": "https://www.tecnologistica.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["especializada", "logística", "tecnologia", "supply chain", "mídia especializada"],
+      "priority": "low"
+    },
+    {
+      "name": "g1 - Bahia",
+      "url": "https://g1.globo.com/ba/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["nacional", "bahia", "economia", "notícias", "fontes nacionais"],
+      "priority": "medium"
+    },
+    {
+      "name": "Estadão - Economia",
+      "url": "https://www.estadao.com.br/economia/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["nacional", "economia", "negócios", "infraestrutura", "fontes nacionais"],
+      "priority": "medium"
+    },
+    {
+      "name": "CNN Brasil - Economia",
+      "url": "https://www.cnnbrasil.com.br/economia/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["nacional", "economia", "negócios", "política", "fontes nacionais"],
+      "priority": "medium"
+    },
+    {
+      "name": "Bahia Notícias",
+      "url": "https://www.bahianoticias.com.br/",
+      "rss": "https://www.bahianoticias.com.br/principal-rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["regional", "bahia", "política", "economia", "fontes locais/regionais (bahia)"],
+      "priority": "high"
+    },
+    {
+      "name": "Correio 24 Horas",
+      "url": "https://www.correio24horas.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["regional", "bahia", "salvador", "notícias", "fontes locais/regionais (bahia)"],
+      "priority": "medium"
+    },
+    {
+      "name": "A Tarde",
+      "url": "https://atarde.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["regional", "bahia", "salvador", "notícias", "fontes locais/regionais (bahia)"],
+      "priority": "medium"
+    },
+    {
+      "name": "Bnews",
+      "url": "https://www.bnews.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["regional", "bahia", "notícias", "fontes locais/regionais (bahia)"],
+      "priority": "low"
+    },
+    {
+      "name": "Aratu On",
+      "url": "https://aratuon.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["regional", "bahia", "notícias", "fontes locais/regionais (bahia)"],
+      "priority": "low"
+    },
+    {
+      "name": "Jornal Candeias",
+      "url": "https://jornalcandeias.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["local", "candeias", "aratu", "notícias", "fontes locais (candeias/aratu)"],
+      "priority": "high"
+    },
+    {
+      "name": "Candeias Mix",
+      "url": "https://www.candeiasmix.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["local", "candeias", "aratu", "notícias", "fontes locais (candeias/aratu)"],
+      "priority": "medium"
+    },
+    {
+      "name": "Jornal O Candeeiro",
+      "url": "https://www.jornalocandeeiro.com.br/",
+      "rss": "",
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["local", "candeias", "notícias", "fontes locais (candeias/aratu)"],
+      "priority": "low"
+    },
+    {
+      "name": "Instagram - Porto de Aratu (Localização)",
+      "url": "https://www.instagram.com/explore/locations/220048670/porto-de-aratu/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["social", "instagram", "porto aratu", "redes sociais"],
+      "priority": "medium"
+    },
+    {
+      "name": "Facebook - Porto de Aratu (Página)",
+      "url": "https://www.facebook.com/209866609033331",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["social", "facebook", "porto aratu", "redes sociais"],
+      "priority": "medium"
+    },
+    {
+      "name": "Instagram - Jornal Candeias",
+      "url": "https://www.instagram.com/jornal.candeias/",
+      "rss": "",
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["social", "instagram", "candeias", "redes sociais"],
+      "priority": "low"
+    }
+  ],
+  "keywords": [
+    "Porto de Aratu",
+    "CS Porto Aratu",
+    "Terminal de Aratu",
+    "Porto de Candeias",
+    "CODEBA",
+    "Aratu-Candeias",
+    "Terminal Portuário",
+    "Movimentação de Cargas",
+    "Granéis Sólidos",
+    "Granéis Líquidos",
+    "Logística Bahia",
+    "Infraestrutura Portuária",
+    "Privatização Porto Aratu",
+    "Concessão Porto Aratu",
+    "Obras Porto Aratu",
+    "Candeias",
+    "Baía de Todos os Santos",
+    "Terminal Químico",
+    "Corredor de Exportação",
+    "ANTAQ Aratu"
+  ]
+}

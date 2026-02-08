@@ -1,0 +1,264 @@
+data,nome,tipo_evento,local,cidade,estado,segmento,tags,base_priority,confidence_level,fonte
+2026-01-14,Agroshow Copagril,FEIRA,Estação Experimental Copagril,Marechal Cândido Rondon,PR,AGROPECUÁRIO,"agro|tecnologia|sementes",8,5,Portal Radar
+2026-01-19,ExpoPlastripel,FEIRA,Parque do Peão,Barretos,SP,VAREJO ALIMENTÍCIO,"plásticos|embalagens|varejo",7,5,Portal Radar
+2026-01-23,FIART - Feira Internacional de Artesanato,FEIRA,Centro de Convenções de Natal,Natal,RN,ARTESANATO,"artesanato|cultura|design",6,5,Portal Radar
+2026-01-26,Fertilizer LatinoAmericano,CONGRESSO,Miami,Miami,INTERNACIONAL,AGROPECUÁRIO,"fertilizantes|agro|internacional",7,5,Portal Radar
+2026-01-26,GULFOOD,FEIRA,Dubai World Trade Center,Dubai,INTERNACIONAL,ALIMENTOS,"alimentos|bebidas|internacional",9,5,Portal Radar
+2026-01-27,Fenin Fashion Gramado,FEIRA,Serra Park,Gramado,RS,MODA,"moda|vestuário|fashion",7,5,Portal Radar
+2026-01-27,Salão Inspiramais,FEIRA,FIERGS,Porto Alegre,RS,TÊXTIL,"têxtil|moda|design",7,5,Portal Radar
+2026-01-27,ABIMAD'41,FEIRA,São Paulo Expo,São Paulo,SP,MÓVEIS E MADEIRA,"móveis|madeira|design",8,5,Portal Radar
+2026-01-28,CIOSP,CONGRESSO,Expo Center Norte,São Paulo,SP,ODONTOLOGIA,"odontologia|saúde|medicina",9,5,Portal Radar
+2026-01-28,HEALTH INNOVATION FORUM (HIF),CONGRESSO,Espaço Dois Ipês,Goiânia,GO,SAÚDE,"saúde|inovação|tecnologia",7,5,Portal Radar
+2026-02-02,ABUP SHOW Home · Gift · Têxtil · Decor,FEIRA,Distrito Anhembi,São Paulo,SP,CASA E DECORAÇÃO,"casa|decoração|têxtil|presentes",7,5,Portal Radar
+2026-02-02,FENINJER,FEIRA,Transamerica Expo Center,São Paulo,SP,INFANTIL,"infantil|bebê|brinquedos",7,5,Portal Radar
+2026-02-03,Movelpar Home Show,FEIRA,Expoara Centro de Eventos,Arapongas,PR,MÓVEIS,"móveis|casa|decoração",7,5,Portal Radar
+2026-02-04,Feira do Cerrado,FEIRA,Núcleo da Cooxupé,Monte Carmelo,MG,AGROPECUÁRIO,"café|agro|cooperativa",7,5,Portal Radar
+2026-02-08,ABCasa Fair,FEIRA,Expo Center Norte,São Paulo,SP,CASA E DECORAÇÃO,"casa|decoração|utilidades",8,5,Portal Radar
+2026-02-09,Show Rural Coopavel,FEIRA,Parque Tecnológico da Coopavel,Cascavel,PR,AGROPECUÁRIO,"agro|tecnologia|maquinário",9,5,Portal Radar
+2026-02-19,Festa Nacional da Uva,EVENTO CULTURAL,Parque de Eventos Mário Bernardino Ramos,Caxias do Sul,RS,CULTURAL,"cultura|vinho|gastronomia",8,5,Portal Radar
+2026-02-23,LACTE,CONGRESSO,WTC Events Center,São Paulo,SP,TURISMO,"turismo|viagens|eventos",7,5,Portal Radar
+2026-02-24,Marmomac Brazil,FEIRA,Distrito Anhembi,São Paulo,SP,ROCHAS E MÁRMORES,"rochas|mármores|construção",7,5,Portal Radar
+2026-02-24,Show Tecnológico Copercampos,FEIRA,Campo Demonstrativo Copercampos,Campos Novos,SC,AGROPECUÁRIO,"agro|tecnologia|sementes",7,5,Portal Radar
+2026-02-24,Febratêxtil,FEIRA,Expo Center Norte,São Paulo,SP,TÊXTIL,"têxtil|moda|confecção",7,5,Portal Radar
+2026-03-01,ABRIN,FEIRA,Expo Center Norte,São Paulo,SP,BRINQUEDOS,"brinquedos|infantil|jogos",8,5,Portal Radar
+2026-03-03,FIMEC,FEIRA,Fenac,Novo Hamburgo,RS,CALÇADOS,"calçados|couro|moda",7,5,Portal Radar
+2026-03-04,SIMASP,FEIRA,Centro de Convenções Frei Caneca,São Paulo,SP,AUTOMOTIVO,"automotivo|peças|manutenção",7,5,Portal Radar
+2026-03-05,Festival DW! Semana de Design de São Paulo,EVENTO,São Paulo,São Paulo,SP,DESIGN,"design|arquitetura|criatividade",8,5,Portal Radar
+2026-03-05,AgroRosário,FEIRA,Rosário,Correntina,BA,AGROPECUÁRIO,"agro|tecnologia|bahia",7,5,Portal Radar
+2026-03-09,Expodireto Cotrijal,FEIRA,Não-Me-Toque,Não-Me-Toque,RS,AGROPECUÁRIO,"agro|tecnologia|maquinário",9,5,Portal Radar
+2026-03-09,EXPO REVESTIR,FEIRA,São Paulo Expo,São Paulo,SP,CONSTRUÇÃO,"revestimentos|construção|design",8,5,Portal Radar
+2026-03-09,HAUS DECOR SHOW,FEIRA,São Paulo Expo,São Paulo,SP,DECORAÇÃO,"decoração|casa|design",7,5,Portal Radar
+2026-03-10,Salão das Motopeças,FEIRA,Expo Center Norte,São Paulo,SP,AUTOMOTIVO,"motopeças|motocicletas|peças",7,5,Portal Radar
+2026-03-10,Farm Show,FEIRA,Parque de Exposição,Primavera do Leste,MT,AGROPECUÁRIO,"agro|tecnologia|mato grosso",8,5,Portal Radar
+2026-03-10,ABRADILAN Conexão Farma,CONGRESSO,Expo Center Norte,São Paulo,SP,FARMACÊUTICO,"farmácia|medicamentos|saúde",7,5,Portal Radar
+2026-03-10,Animal Health Expo Fórum,CONGRESSO,Expo Center Norte,São Paulo,SP,VETERINÁRIA,"veterinária|saúde animal|pets",7,5,Portal Radar
+2026-03-11,ABAV TravelSP,FEIRA,Royal Palm Hall,Campinas,SP,TURISMO,"turismo|viagens|agências",7,5,Portal Radar
+2026-03-12,Smart Summit,CONGRESSO,Expo RIO,Rio de Janeiro,RJ,TECNOLOGIA,"tecnologia|smart cities|inovação",8,5,Portal Radar
+2026-03-12,Pesca Trade Show,FEIRA,Distrito Anhembi,São Paulo,SP,PESCA,"pesca|náutica|esportes",6,5,Portal Radar
+2026-03-12,South by Southwest (SXSW),CONGRESSO,Austin,Austin,INTERNACIONAL,TECNOLOGIA E CULTURA,"tecnologia|música|cinema|internacional",9,5,Portal Radar
+2026-03-13,Expo Cakes,FEIRA,Marina da Glória,Rio de Janeiro,RJ,CONFEITARIA,"confeitaria|gastronomia|doces",7,5,Portal Radar
+2026-03-16,YES Móvel Show São Paulo,FEIRA,Distrito Anhembi,São Paulo,SP,MÓVEIS,"móveis|decoração|casa",8,5,Portal Radar
+2026-03-17,ERP Summit,CONGRESSO,Expo Center Norte,São Paulo,SP,TECNOLOGIA,"erp|software|gestão",8,5,Portal Radar
+2026-03-17,Tecnoagro,FEIRA,Chapadão do Sul,Chapadão do Sul,MS,AGROPECUÁRIO,"agro|tecnologia|mato grosso do sul",7,5,Portal Radar
+2026-03-17,SRE Trade Show,FEIRA,Riocentro,Rio de Janeiro,RJ,IMOBILIÁRIO,"imóveis|construção|mercado",7,5,Portal Radar
+2026-03-17,MERCOAGRO,FEIRA,Parque da Efapi,Chapecó,SC,AGROPECUÁRIO,"agro|tecnologia|santa catarina",8,5,Portal Radar
+2026-03-17,108ª BIJOIAS,FEIRA,Centro de Convenções Frei Caneca,São Paulo,SP,JOIAS,"joias|bijuterias|acessórios",6,5,Portal Radar
+2026-03-18,Artesanal Sul,FEIRA,BarraShoppingSul,Porto Alegre,RS,ARTESANATO,"artesanato|cultura|design",6,5,Portal Radar
+2026-03-19,CONFEITAR EXPO,FEIRA,Recife Expo Center,Recife,PE,CONFEITARIA,"confeitaria|gastronomia|nordeste",7,5,Portal Radar
+2026-03-19,FEMAGRI,FEIRA,Guaxupé,Guaxupé,MG,AGROPECUÁRIO,"agro|tecnologia|minas gerais",7,5,Portal Radar
+2026-03-19,EFN- EXPO FRANQUIAS NORDESTE,FEIRA,Recife Expo Center,Recife,PE,FRANQUIAS,"franquias|negócios|empreendedorismo",7,5,Portal Radar
+2026-03-20,Íntimi Expo,FEIRA,Distrito Anhembi,São Paulo,SP,MODA ÍNTIMA,"moda íntima|lingerie|moda",7,5,Portal Radar
+2026-03-20,Congress Brazil Mobile & Expo,CONGRESSO,Distrito Anhembi,São Paulo,SP,TELECOMUNICAÇÕES,"telecom|mobile|tecnologia",8,5,Portal Radar
+2026-03-23,Show Safra,FEIRA,Parque Tecnológico da Fundação Rio Verde,Lucas do Rio Verde,MT,AGROPECUÁRIO,"agro|tecnologia|mato grosso",8,5,Portal Radar
+2026-03-24,SNEC PV & ES LATAM,FEIRA,Distrito Anhembi,São Paulo,SP,ENERGIA SOLAR,"energia solar|sustentabilidade|tecnologia",8,5,Portal Radar
+2026-03-24,Fruit Attraction São Paulo,FEIRA,São Paulo Expo,São Paulo,SP,FRUTAS,"frutas|hortaliças|agro",8,5,Portal Radar
+2026-03-24,ExpoPrint Latin America,FEIRA,Expo Center Norte,São Paulo,SP,GRÁFICA,"gráfica|impressão|comunicação",7,5,Portal Radar
+2026-03-25,Smart City Expo Curitiba,EXPO,A DEFINIR,Curitiba,PR,TECNOLOGIA,"smart cities|tecnologia|inovação",8,5,Portal Radar
+2026-03-25,South Summit Brazil,CONGRESSO,Cais Mauá,Porto Alegre,RS,STARTUPS,"startups|inovação|empreendedorismo",9,5,Portal Radar
+2026-03-25,Expotel,FEIRA,Centro de Eventos São Luis,São Paulo,SP,HOTELARIA,"hotelaria|turismo|hospitalidade",7,5,Portal Radar
+2026-03-25,GEduc,CONGRESSO,Pro Magno Centro de Eventos,São Paulo,SP,EDUCAÇÃO,"educação|gestão|ensino",7,5,Portal Radar
+2026-03-25,Feira Condo+,FEIRA,Centro de Eventos São Luis,São Paulo,SP,CONDOMÍNIOS,"condomínios|gestão|imóveis",6,5,Portal Radar
+2026-03-31,NIS – Nutri Ingredients Summit,CONGRESSO,Transamerica Expo Center,São Paulo,SP,NUTRIÇÃO,"nutrição|alimentos|saúde",7,5,Portal Radar
+2026-03-31,AUTOCOM,FEIRA,Expo Center Norte,São Paulo,SP,AUTOMOTIVO,"automotivo|peças|manutenção",7,5,Portal Radar
+2026-04-02,Feira da Loucura por Sapatos,FEIRA,Fenac,Novo Hamburgo,RS,CALÇADOS,"calçados|moda|varejo",7,5,Portal Radar
+2026-04-02,Festival de Cervejas Artesanais,EVENTO,Fenac,Novo Hamburgo,RS,CERVEJA,"cerveja|gastronomia|cultura",7,5,Portal Radar
+2026-04-06,Tecnoshow Comigo,FEIRA,Centro Tecnológico Comigo,Rio Verde,GO,AGROPECUÁRIO,"agro|tecnologia|goiás",8,5,Portal Radar
+2026-04-07,Anuga Select Brasil,FEIRA,Distrito Anhembi,São Paulo,SP,ALIMENTOS,"alimentos|bebidas|gastronomia",8,5,Portal Radar
+2026-04-07,EXPO SUPERMERCADOS,FEIRA,Distrito Anhembi,São Paulo,SP,VAREJO,"supermercados|varejo|alimentos",8,5,Portal Radar
+2026-04-07,FEICON,FEIRA,São Paulo Expo,São Paulo,SP,CONSTRUÇÃO,"construção|materiais|engenharia",9,5,Portal Radar
+2026-04-07,Private Label Brasil,FEIRA,Distrito Anhembi,São Paulo,SP,VAREJO,"marca própria|varejo|produtos",7,5,Portal Radar
+2026-04-08,RIO ARTES,FEIRA,Expo RIO,Rio de Janeiro,RJ,ARTESANATO,"artesanato|cultura|design",7,5,Portal Radar
+2026-04-08,Expo Óptica Brasil,FEIRA,Expo Center Norte,São Paulo,SP,ÓPTICA,"óptica|saúde|oftalmologia",7,5,Portal Radar
+2026-04-09,Expogrande,FEIRA,Parque de Exposições Laucídio Coelho,Campos Grande,MS,AGROPECUÁRIO,"agro|pecuária|mato grosso do sul",8,5,Portal Radar
+2026-04-11,Estética In São Paulo,FEIRA,Distrito Anhembi,São Paulo,SP,BELEZA,"beleza|estética|cosméticos",8,5,Portal Radar
+2026-04-14,Yes Móvel Show Goiás,FEIRA,Centro de Convenções Goiânia,Goiânia,GO,MÓVEIS,"móveis|decoração|casa",7,5,Portal Radar
+2026-04-14,LAAD Security Milipol Brazil,FEIRA,Transamerica Expo Center,São Paulo,SP,SEGURANÇA,"segurança|defesa|tecnologia",8,5,Portal Radar
+2026-04-14,BRAZIL PROMOTION DAY,EVENTO,Centro de Convenções Rebouças,São Paulo,SP,PROMOÇÃO,"promoção|marketing|varejo",6,5,Portal Radar
+2026-04-14,Intermodal South America,FEIRA,Distrito Anhembi,São Paulo,SP,LOGÍSTICA,"logística|transporte|supply chain",8,5,Portal Radar
+2026-04-14,Agreste Tex,FEIRA,Polo Caruaru,Caruaru,PE,TÊXTIL,"têxtil|moda|nordeste",7,5,Portal Radar
+2026-04-14,Parecis SuperAgro,FEIRA,Campo Novo do Parecis,Campo Novo do Parecis,MT,AGROPECUÁRIO,"agro|tecnologia|mato grosso",7,5,Portal Radar
+2026-04-14,PROTEMINAS,FEIRA,Expominas,Belo Horizonte,MG,PROTEÍNA ANIMAL,"proteína|pecuária|agro",7,5,Portal Radar
+2026-04-14,FENAVID,FEIRA,ExpoMinas,Belo Horizonte,MG,VIDRO,"vidro|construção|indústria",6,5,Portal Radar
+2026-04-14,Agile Trends GOV,CONGRESSO,Ulysses Centro de Convenções,Brasília,DF,TECNOLOGIA,"tecnologia|governo|inovação",7,5,Portal Radar
+2026-04-14,WTM Latin America,FEIRA,Expo Center Norte,São Paulo,SP,TURISMO,"turismo|viagens|hospitalidade",8,5,Portal Radar
+2026-04-16,Vtex Day,EVENTO,São Paulo Expo,São Paulo,SP,E-COMMERCE,"e-commerce|tecnologia|varejo",8,5,Portal Radar
+2026-04-16,IT Fórum Trancoso,CONGRESSO,Trancoso,Trancoso,BA,TECNOLOGIA,"tecnologia|TI|inovação",8,5,Portal Radar
+2026-04-21,Norte Show,FEIRA,Parque da Acrinorte,Sinop,MT,AGROPECUÁRIO,"agro|tecnologia|norte",7,5,Portal Radar
+2026-04-22,Heli XP,EXPO,Helipark,Carapicuíba,SP,AVIAÇÃO,"aviação|helicópteros|aeronáutica",7,5,Portal Radar
+2026-04-23,COPA – CONGRESSO PAULISTA DE ANESTESIOLOGIA,CONGRESSO,Transamerica Expo Center,São Paulo,SP,MEDICINA,"medicina|anestesiologia|saúde",7,5,Portal Radar
+2026-04-23,MTM – Minas Travel Market,FEIRA,Minascentro,Belo Horizonte,MG,TURISMO,"turismo|viagens|minas gerais",7,5,Portal Radar
+2026-04-23,Mara Cakes Fair São Paulo,FEIRA,São Paulo Expo,São Paulo,SP,CONFEITARIA,"confeitaria|gastronomia|doces",7,5,Portal Radar
+2026-04-24,Arnold Sports Festival South America,EVENTO,Expo Center Norte,São Paulo,SP,ESPORTES,"esportes|fitness|bodybuilding",8,5,Portal Radar
+2026-04-25,Rio Boat Show,FEIRA,Marina da Glória,Rio de Janeiro,RJ,NÁUTICA,"náutica|barcos|esportes",8,5,Portal Radar
+2026-04-25,Festival do Cordeiro de Hidrolândia,EVENTO,Parque de Eventos Casimiro Lino de Araújo,Hidrolândia,GO,GASTRONOMIA,"gastronomia|cultura|regional",6,5,Portal Radar
+2026-04-26,FIT 0/16,FEIRA,Expo Center Norte,São Paulo,SP,INFANTIL,"infantil|moda|bebê",7,5,Portal Radar
+2026-04-26,Pueri Expo,FEIRA,Expo Center Norte,São Paulo,SP,EDUCAÇÃO INFANTIL,"educação|infantil|pedagogia",7,5,Portal Radar
+2026-04-27,AGRISHOW,FEIRA,Ribeirão Preto,Ribeirão Preto,SP,AGROPECUÁRIO,"agro|tecnologia|maquinário",10,5,Portal Radar
+2026-04-29,NEW MEAT BRAZIL,CONGRESSO,Centro de Convenções Frei Caneca,São Paulo,SP,PROTEÍNA ALTERNATIVA,"proteína|alimentos|inovação",7,5,Portal Radar
+2026-04-29,PLANT-BASED TECH,CONGRESSO,Centro de Convenções Frei Caneca,São Paulo,SP,ALIMENTOS,"alimentos|plant-based|sustentabilidade",7,5,Portal Radar
+2026-04-30,ExpoRaiz – Feira Nacional dos Campistas Raiz,FEIRA,Fenac,Novo Hamburgo,RS,CAMPING,"camping|lazer|turismo",6,5,Portal Radar
+2026-04-30,Gamescom LATAM,FEIRA,Distrito Anhembi,São Paulo,SP,GAMES,"games|tecnologia|entretenimento",9,5,Portal Radar
+2026-04-30,Jornada Paulista de Radiologia – JPR,CONGRESSO,Transamerica Expo Center,São Paulo,SP,MEDICINA,"medicina|radiologia|saúde",7,5,Portal Radar
+2026-05-01,FENASOJA,FEIRA,Parque de Exposições de Santa Rosa,Santa Rosa,RS,AGROPECUÁRIO,"agro|soja|tecnologia",8,5,Portal Radar
+2026-05-01,FEIARTE,FEIRA,Centro de Eventos Positivo,Curitiba,PR,ARTESANATO,"artesanato|cultura|design",7,5,Portal Radar
+2026-05-04,ILTM Latin America,FEIRA,Pavilhão da Bienal de São Paulo,São Paulo,SP,TURISMO DE LUXO,"turismo|luxo|viagens",8,5,Portal Radar
+2026-05-05,Bett Brasil,FEIRA,Expo Center Norte,São Paulo,SP,EDUCAÇÃO E TECNOLOGIA,"educação|tecnologia|ensino",9,5,Portal Radar
+2026-05-05,FEIMEC,FEIRA,São Paulo Expo,São Paulo,SP,MECÂNICA,"mecânica|indústria|manufatura",8,5,Portal Radar
+2026-05-06,ForÁgua,CONGRESSO,Centro de Convenções Circuito das Águas,Serra Negra,SP,SANEAMENTO,"saneamento|água|sustentabilidade",7,5,Portal Radar
+2026-05-06,Gramado Summit,CONGRESSO,Serra Park,Gramado,RS,EMPREENDEDORISMO,"empreendedorismo|inovação|negócios",8,5,Portal Radar
+2026-05-06,Abrint Global Congress,CONGRESSO,Distrito Anhembi,São Paulo,SP,TELECOMUNICAÇÕES,"telecom|internet|tecnologia",7,5,Portal Radar
+2026-05-06,Autopar,FEIRA,Expotrade,Pinhais,PR,AUTOMOTIVO,"automotivo|peças|paraná",7,5,Portal Radar
+2026-05-12,Wine South America,FEIRA,Fundaparque,Bento Gonçalves,RS,VINHOS,"vinhos|gastronomia|cultura",8,5,Portal Radar
+2026-05-12,SINDEPAT Summit,CONGRESSO,Rio de Janeiro,Rio de Janeiro,RJ,TECNOLOGIA,"tecnologia|TI|gestão",7,5,Portal Radar
+2026-05-12,FENAGRA,FEIRA,Distrito Anhembi,São Paulo,SP,GRÁFICA,"gráfica|impressão|comunicação",7,5,Portal Radar
+2026-05-13,São Paulo Innovation Week,EVENTO,Mercado Livre Arena Pacaembu,São Paulo,SP,INOVAÇÃO,"inovação|tecnologia|startups",9,4,Pesquisa
+2026-05-19,Hospitalar,FEIRA,São Paulo Expo,São Paulo,SP,SAÚDE,"saúde|hospitalar|equipamentos médicos",10,5,Portal Radar
+2026-06-08,Web Summit Rio,CONGRESSO,Rio de Janeiro,Rio de Janeiro,RJ,TECNOLOGIA,"tecnologia|inovação|startups",10,5,Pesquisa
+2026-08-02,Escolar Office Brasil,FEIRA,Expo Center Norte,São Paulo,SP,MATERIAL ESCOLAR,"material escolar|papelaria|educação",7,5,Portal Radar
+2026-08-04,LABACE,FEIRA,Aeroporto de Congonhas,São Paulo,SP,AVIAÇÃO,"aviação|executiva|aeronáutica",8,5,Portal Radar
+2026-08-04,Fi South America,FEIRA,São Paulo Expo,São Paulo,SP,INGREDIENTES,"ingredientes|alimentos|indústria",8,5,Portal Radar
+2026-08-04,Brazil Promotion,FEIRA,Distrito Anhembi,São Paulo,SP,PROMOÇÃO,"promoção|marketing|varejo",7,5,Portal Radar
+2026-08-04,The Brazil Conference & Expo,CONGRESSO,Expo Center Norte,São Paulo,SP,NEGÓCIOS,"negócios|empreendedorismo|inovação",7,5,Portal Radar
+2026-08-04,MEC SHOW,FEIRA,Pavilhão de Carapina,Serra,ES,CONSTRUÇÃO,"construção|materiais|espírito santo",7,5,Portal Radar
+2026-08-04,SBF – Saúde Business Fórum,CONGRESSO,A DEFINIR,A DEFINIR,BR,SAÚDE,"saúde|gestão|negócios",7,5,Portal Radar
+2026-08-04,Embala Nordeste,FEIRA,Centro de Eventos do Ceará,Fortaleza,CE,EMBALAGENS,"embalagens|indústria|nordeste",7,5,Portal Radar
+2026-08-04,Multimodal Nordeste,FEIRA,Recife Expo Center,Recife,PE,LOGÍSTICA,"logística|transporte|nordeste",7,5,Portal Radar
+2026-08-10,Congresso Brasileiro do Agronegócio,CONGRESSO,WTC Events Center,São Paulo,SP,AGROPECUÁRIO,"agro|negócios|economia",8,5,Portal Radar
+2026-08-11,Congresso ANDAV,CONGRESSO,Transamerica Expo Center,São Paulo,SP,TURISMO,"turismo|viagens|agências",7,5,Portal Radar
+2026-08-11,ExpoLazer & Outdoor Living,FEIRA,Distrito Anhembi,São Paulo,SP,LAZER,"lazer|outdoor|piscinas",7,5,Portal Radar
+2026-08-11,COP International,CONGRESSO,São Paulo Expo,São Paulo,SP,PROTEÍNA ANIMAL,"proteína|pecuária|agro",7,5,Portal Radar
+2026-08-11,Expo-Hospital Brasil,FEIRA,Expominas,Belo Horizonte,MG,SAÚDE,"saúde|hospitalar|minas gerais",7,5,Portal Radar
+2026-08-11,Fenasucro & Agrocana,FEIRA,Centro de Eventos Zanini,Sertãozinho,SP,AGROPECUÁRIO,"agro|cana|açúcar",8,5,Portal Radar
+2026-08-11,Logistique,FEIRA,ExpoCentro,Balneário Camboriú,SC,LOGÍSTICA,"logística|transporte|santa catarina",7,5,Portal Radar
+2026-08-11,Encatho & Exprotel,FEIRA,CentroSul,Florianópolis,SC,HOTELARIA,"hotelaria|turismo|hospitalidade",7,5,Portal Radar
+2026-08-12,Pet South America,FEIRA,Distrito Anhembi,São Paulo,SP,PET,"pet|animais|veterinária",8,5,Portal Radar
+2026-08-12,ABCASA Fair,FEIRA,Expo Center Norte,São Paulo,SP,CASA E DECORAÇÃO,"casa|decoração|utilidades",7,5,Portal Radar
+2026-08-12,Travel Next Minas,FEIRA,Expominas,Belo Horizonte,MG,TURISMO,"turismo|viagens|minas gerais",7,5,Portal Radar
+2026-08-12,Pet Vet,CONGRESSO,Distrito Anhembi,São Paulo,SP,VETERINÁRIA,"veterinária|saúde animal|pets",7,5,Portal Radar
+2026-08-13,Salão de Arte,FEIRA,São Paulo,São Paulo,SP,ARTE,"arte|cultura|galerias",7,5,Portal Radar
+2026-08-15,Estética In Sul,FEIRA,Viasoft Experience,Curitiba,PR,BELEZA,"beleza|estética|sul",7,5,Portal Radar
+2026-08-17,SET Expo,FEIRA,Distrito Anhembi,São Paulo,SP,BROADCAST,"broadcast|TV|rádio|tecnologia",8,5,Portal Radar
+2026-08-17,MOVELSUL,FEIRA,Fundaparque,Bento Gonçalves,RS,MÓVEIS,"móveis|decoração|sul",7,5,Portal Radar
+2026-08-17,Congresso Fenabrave,CONGRESSO,São Paulo Expo,São Paulo,SP,AUTOMOTIVO,"automotivo|concessionárias|veículos",8,5,Portal Radar
+2026-08-18,Navalshore,FEIRA,Expo RIO,Rio de Janeiro,RJ,NAVAL,"naval|offshore|petróleo",7,5,Portal Radar
+2026-08-18,FEBRATEX,FEIRA,Parque Vila Germânica,Blumenau,SC,TÊXTIL,"têxtil|moda|tecnologia",8,5,Portal Radar
+2026-08-18,FEBRATEX Summit,CONGRESSO,Blumenau,Blumenau,SC,TÊXTIL,"têxtil|moda|negócios",7,5,Portal Radar
+2026-08-18,CONARH | ABRH,CONGRESSO,São Paulo Expo,São Paulo,SP,RECURSOS HUMANOS,"RH|gestão de pessoas|trabalho",8,5,Portal Radar
+2026-08-19,Jornada Bett Nordeste,CONGRESSO,Recife Expo Center,Recife,PE,EDUCAÇÃO,"educação|tecnologia|nordeste",7,5,Portal Radar
+2026-08-19,IT Forum Praia do Forte,CONGRESSO,Praia do Forte,Praia do Forte,BA,TECNOLOGIA,"tecnologia|TI|bahia",8,5,Portal Radar
+2026-08-20,Festa do Peão de Barretos,EVENTO,Parque do Peão,Barretos,SP,RODEIO,"rodeio|cultura|entretenimento",9,5,Portal Radar
+2026-08-24,FEBRABAN TECH,FEIRA,Distrito Anhembi,São Paulo,SP,TECNOLOGIA BANCÁRIA,"bancos|tecnologia|fintech",9,5,Portal Radar
+2026-08-25,Concrete Show,FEIRA,São Paulo Expo,São Paulo,SP,CONSTRUÇÃO,"concreto|construção|engenharia",7,5,Portal Radar
+2026-08-25,INTERPLAST,FEIRA,Expoville,Joinville,SC,PLÁSTICOS,"plásticos|indústria|tecnologia",7,5,Portal Radar
+2026-08-25,PL Connection,FEIRA,Expo Center Norte,São Paulo,SP,MARCA PRÓPRIA,"marca própria|varejo|produtos",7,5,Portal Radar
+2026-08-25,Cachoeiro Stone Fair,FEIRA,Parque de Exposição Carlos Caiado Barbosa,Cachoeiro de Itapemirim,ES,ROCHAS,"rochas|mármores|granito",8,5,Portal Radar
+2026-08-25,Intersolar South America,FEIRA,Expo Center Norte,São Paulo,SP,ENERGIA SOLAR,"energia solar|sustentabilidade|tecnologia",8,5,Portal Radar
+2026-08-26,Startup Summit,CONGRESSO,Florianópolis,Florianópolis,SC,STARTUPS,"startups|empreendedorismo|inovação",9,4,Pesquisa
+2026-08-27,Fitness Brasil Expo,FEIRA,Transamerica Expo Center,São Paulo,SP,FITNESS,"fitness|esportes|saúde",7,5,Portal Radar
+2026-08-28,Mara Cakes Fair Nordeste,FEIRA,Recife,Recife,PE,CONFEITARIA,"confeitaria|gastronomia|nordeste",7,5,Portal Radar
+2026-08-29,Expointer,FEIRA,Parque Assis Brasil,Esteio,RS,AGROPECUÁRIO,"agro|pecuária|sul",9,5,Portal Radar
+2026-09-01,ISC Brasil,CONGRESSO,Distrito Anhembi,São Paulo,SP,SEGURANÇA,"segurança|tecnologia|proteção",7,5,Portal Radar
+2026-09-04,Bienal do Livro de São Paulo,FEIRA,Distrito Anhembi,São Paulo,SP,LIVROS,"livros|literatura|cultura",9,5,Portal Radar
+2026-09-04,ART MUNDI,FEIRA,Santos Convention Center,Santos,SP,ARTE,"arte|cultura|santos",6,5,Portal Radar
+2026-09-05,Mara Cakes Fair Nordeste,FEIRA,Pernambuco Centro de Convenções,Recife,PE,CONFEITARIA,"confeitaria|gastronomia|nordeste",7,5,Portal Radar
+2026-09-05,Beauty Fair,FEIRA,Expo Center Norte,São Paulo,SP,BELEZA,"beleza|cosméticos|estética",9,5,Portal Radar
+2026-09-08,ExpoPostos & Conveniência,FEIRA,São Paulo Expo,São Paulo,SP,POSTOS DE COMBUSTÍVEL,"postos|conveniência|varejo",7,5,Portal Radar
+2026-09-08,Feira Construir Aí,FEIRA,Expocentro,Balneário Camboriú,SC,CONSTRUÇÃO,"construção|materiais|santa catarina",7,5,Portal Radar
+2026-09-09,Geronto Fair,FEIRA,Serra Park,Gramado,RS,GERONTOLOGIA,"gerontologia|saúde|idosos",6,5,Portal Radar
+2026-09-09,Logística do Futuro,CONGRESSO,Transamerica Expo Center,São Paulo,SP,LOGÍSTICA,"logística|supply chain|inovação",7,5,Portal Radar
+2026-09-09,FESQUA,FEIRA,São Paulo Expo,São Paulo,SP,ESQUADRIAS,"esquadrias|construção|alumínio",7,5,Portal Radar
+2026-09-15,Expolux,FEIRA,Expo Center Norte,São Paulo,SP,ILUMINAÇÃO,"iluminação|design|tecnologia",7,5,Portal Radar
+2026-09-15,YES Móvel Show Campinas,FEIRA,Expo D. Pedro,Campinas,SP,MÓVEIS,"móveis|decoração|campinas",7,5,Portal Radar
+2026-09-15,Welding Show Brasil,FEIRA,FATEC,São Paulo,SP,SOLDAGEM,"soldagem|metalurgia|indústria",6,5,Portal Radar
+2026-09-15,ACAPS Trade Show,FEIRA,Pavilhão de Carapina,Serra,ES,AUTOPEÇAS,"autopeças|automotivo|espírito santo",7,5,Portal Radar
+2026-09-15,Equipotel,FEIRA,Expo Center Norte,São Paulo,SP,HOTELARIA,"hotelaria|turismo|hospitalidade",8,5,Portal Radar
+2026-09-15,Intra-Log Expo South America,FEIRA,Expo Center Norte,São Paulo,SP,LOGÍSTICA,"logística|armazenagem|supply chain",7,5,Portal Radar
+2026-09-15,LABEL & PACK EXPO,FEIRA,Expo Center Norte,São Paulo,SP,EMBALAGENS,"embalagens|rótulos|indústria",7,5,Portal Radar
+2026-09-15,INTERFORM,FEIRA,Expoville,Joinville,SC,FERRAMENTARIA,"ferramentaria|moldes|indústria",7,5,Portal Radar
+2026-09-16,CHINA HOME LIFE BRASIL,FEIRA,São Paulo Expo,São Paulo,SP,UTILIDADES,"utilidades|casa|importação",7,5,Portal Radar
+2026-09-16,iFood Move,CONGRESSO,São Paulo Expo,São Paulo,SP,DELIVERY,"delivery|foodtech|tecnologia",8,5,Portal Radar
+2026-09-16,HIS – Healthcare Innovation Show,FEIRA,São Paulo Expo,São Paulo,SP,SAÚDE,"saúde|inovação|tecnologia",8,5,Portal Radar
+2026-09-17,Agile Trends,CONGRESSO,A DEFINIR,São Paulo,SP,TECNOLOGIA,"tecnologia|agile|gestão",7,5,Portal Radar
+2026-09-17,CIPRO | EXPOLAB,FEIRA,Expo Center Norte,São Paulo,SP,LABORATÓRIOS,"laboratórios|análises|saúde",7,5,Portal Radar
+2026-09-21,ROG.e,FEIRA,Riocentro,Rio de Janeiro,RJ,PETRÓLEO E GÁS,"petróleo|gás|energia",8,5,Portal Radar
+2026-09-22,Paving Expo,FEIRA,Distrito Anhembi,São Paulo,SP,PAVIMENTAÇÃO,"pavimentação|asfalto|construção",7,5,Portal Radar
+2026-09-23,CONAREC,CONGRESSO,Transamerica Expo Center,São Paulo,SP,REFRIGERAÇÃO,"refrigeração|ar condicionado|HVAC",7,5,Portal Radar
+2026-09-23,in-cosmetics Latin America,FEIRA,Expo Center Norte,São Paulo,SP,COSMÉTICOS,"cosméticos|ingredientes|beleza",8,5,Portal Radar
+2026-09-29,Modern Construction Show,FEIRA,Distrito Anhembi,São Paulo,SP,CONSTRUÇÃO,"construção|tecnologia|inovação",7,5,Portal Radar
+2026-09-30,MinasParts,FEIRA,Expominas,Belo Horizonte,MG,AUTOPEÇAS,"autopeças|automotivo|minas gerais",7,5,Portal Radar
+2026-09-30,ABAV EXPO,FEIRA,Expo Center Norte,São Paulo,SP,TURISMO,"turismo|viagens|agências",8,5,Portal Radar
+2026-10-01,Agrominas,FEIRA,Expolambari,Lambari do Sul,MG,AGROPECUÁRIO,"agro|minas gerais|tecnologia",7,5,Portal Radar
+2026-10-01,Forcafé,FEIRA,Expo Lambari,Lambari,MG,CAFÉ,"café|agro|minas gerais",7,5,Portal Radar
+2026-10-01,Automotive Business Experience,CONGRESSO,São Paulo Expo,São Paulo,SP,AUTOMOTIVO,"automotivo|negócios|indústria",7,5,Portal Radar
+2026-10-06,ProWine São Paulo,FEIRA,Expo Center Norte,São Paulo,SP,VINHOS,"vinhos|bebidas|gastronomia",8,5,Portal Radar
+2026-10-06,FUTURECOM,FEIRA,São Paulo Expo,São Paulo,SP,TELECOMUNICAÇÕES,"telecom|tecnologia|conectividade",9,5,Portal Radar
+2026-10-06,Data Center World Brasil,FEIRA,São Paulo Expo,São Paulo,SP,DATA CENTER,"data center|cloud|infraestrutura",8,4,Pesquisa
+2026-10-06,FEBRAVA RIO,FEIRA,Riocentro,Rio de Janeiro,RJ,REFRIGERAÇÃO,"refrigeração|ar condicionado|HVAC",7,5,Portal Radar
+2026-10-06,FISP – FISST,FEIRA,São Paulo Expo,São Paulo,SP,SEGURANÇA DO TRABALHO,"segurança|trabalho|EPI",7,5,Portal Radar
+2026-10-06,EXPO ABTCP,FEIRA,Transamerica Expo Center,São Paulo,SP,PAPEL E CELULOSE,"papel|celulose|indústria",7,5,Portal Radar
+2026-10-07,MRO BRASIL,FEIRA,Centro de Convenções Frei Caneca,São Paulo,SP,MANUTENÇÃO AERONÁUTICA,"aviação|manutenção|MRO",7,5,Portal Radar
+2026-10-07,Congresso SAE BRASIL,CONGRESSO,Pavilhão da Bienal,São Paulo,SP,ENGENHARIA AUTOMOTIVA,"automotivo|engenharia|tecnologia",7,5,Portal Radar
+2026-10-09,Brasil Game Show (BGS),FEIRA,Distrito Anhembi,São Paulo,SP,GAMES,"games|entretenimento|tecnologia",9,5,Portal Radar
+2026-10-14,CONSTRULEV Expo,FEIRA,São Paulo Expo,São Paulo,SP,CONSTRUÇÃO,"construção|leve|steel frame",7,5,Portal Radar
+2026-10-18,Diabetes On – São Paulo,CONGRESSO,Centro de Convenções Rebouças,São Paulo,SP,SAÚDE,"diabetes|saúde|medicina",6,5,Portal Radar
+2026-10-18,Professional Fair RJ,FEIRA,Expo RIO,Rio de Janeiro,RJ,BELEZA,"beleza|estética|profissional",7,5,Portal Radar
+2026-10-19,Feira do Empreendedor do SEBRAE-SP,FEIRA,São Paulo Expo,São Paulo,SP,EMPREENDEDORISMO,"empreendedorismo|negócios|sebrae",8,5,Portal Radar
+2026-10-20,ECO EXPO (Ex-Waste Expo Brasil),FEIRA,Expo Center Norte,São Paulo,SP,SUSTENTABILIDADE,"sustentabilidade|reciclagem|meio ambiente",7,5,Portal Radar
+2026-10-20,FENASAN,FEIRA,Expo Center Norte,São Paulo,SP,SANEAMENTO,"saneamento|meio ambiente|água",7,5,Portal Radar
+2026-10-20,HIGIEXPO,FEIRA,Distrito Anhembi,São Paulo,SP,LIMPEZA,"limpeza|higiene|produtos",7,5,Portal Radar
+2026-10-20,Seafood Show Latin America,FEIRA,Distrito Anhembi,São Paulo,SP,FRUTOS DO MAR,"frutos do mar|pesca|gastronomia",7,5,Portal Radar
+2026-10-20,ONDM – O Negócio da Moda – Edição Brasil,FEIRA,Expocentro,Balneário Camboriú,SC,MODA,"moda|vestuário|negócios",7,5,Portal Radar
+2026-10-21,HOSPITALMED,FEIRA,Pernambuco Centro de Convenções,Olinda,PE,SAÚDE,"saúde|hospitalar|nordeste",7,5,Portal Radar
+2026-10-21,ARENA M&T,FEIRA,Centro Multieventos,Fazenda Rio Grande,PR,MINERAÇÃO,"mineração|equipamentos|tecnologia",7,5,Portal Radar
+2026-10-27,FENALAW,CONGRESSO,Centro de Convenções Frei Caneca,São Paulo,SP,DIREITO,"direito|advocacia|jurídico",7,5,Portal Radar
+2026-10-27,Brazil Windpower,FEIRA,São Paulo Expo,São Paulo,SP,ENERGIA EÓLICA,"energia eólica|sustentabilidade|tecnologia",8,5,Portal Radar
+2026-10-27,AveSui,FEIRA,Cascavel,Cascavel,PR,AVICULTURA,"avicultura|suinocultura|agro",8,5,Portal Radar
+2026-10-28,FruitBrasil,FEIRA,FIDAM,Americana,SP,FRUTAS,"frutas|hortaliças|agro",7,5,Portal Radar
+2026-10-28,Enerclean,FEIRA,FIDAM,Americana,SP,ENERGIA LIMPA,"energia|sustentabilidade|tecnologia",7,5,Portal Radar
+2026-11-04,Feira SUPER MIX,FEIRA,Pernambuco Centro de Convenções,Olinda,PE,VAREJO,"varejo|supermercados|nordeste",7,5,Portal Radar
+2026-11-04,HFN- HOTEL & FOOD NORDESTE,FEIRA,Pernambuco Centro de Convenções,Olinda,PE,HOTELARIA,"hotelaria|gastronomia|nordeste",7,5,Portal Radar
+2026-11-09,FENATRAN,FEIRA,São Paulo Expo,São Paulo,SP,TRANSPORTE,"transporte|veículos|logística",9,5,Portal Radar
+2026-11-10,BFSHOW – 6ª edição,FEIRA,Distrito Anhembi,São Paulo,SP,BELEZA,"beleza|estética|cosméticos",7,5,Portal Radar
+2026-11-11,REPARASUL,FEIRA,Fenac,Novo Hamburgo,RS,AUTOMOTIVO,"automotivo|reparação|peças",7,5,Portal Radar
+2026-11-12,FESTURIS,FEIRA,Serra Park,Gramado,RS,TURISMO,"turismo|viagens|gramado",8,5,Portal Radar
+2026-11-12,ExpoFrísia,FEIRA,Pavilhão de Exposições Frísia,Carambeí,PR,AGROPECUÁRIO,"agro|leite|paraná",7,5,Portal Radar
+2026-11-15,Feira Petnor,FEIRA,Pernambuco Centro de Convenções,Olinda,PE,PET,"pet|animais|nordeste",7,5,Portal Radar
+2026-11-15,Barber Week,FEIRA,Expo Center Norte,São Paulo,SP,BARBEARIA,"barbearia|beleza|masculino",7,5,Portal Radar
+2026-11-20,EXPO CANNABIS BRASIL,FEIRA,São Paulo Expo,São Paulo,SP,CANNABIS,"cannabis|medicinal|indústria",7,5,Portal Radar
+2026-11-23,EXPOLOG,FEIRA,Centro de Convenções do Ceará,Fortaleza,CE,LOGÍSTICA,"logística|transporte|ceará",7,5,Portal Radar
+2026-11-25,EXPO MOTORHOME,FEIRA,Expotrade,Pinhais,PR,MOTORHOME,"motorhome|turismo|lazer",7,5,Portal Radar
+2026-11-25,Tomorrow.Blue Economy,CONGRESSO,Caminho Niemeyer,Niterói,RJ,ECONOMIA AZUL,"economia|sustentabilidade|oceano",7,5,Portal Radar
+2026-12-03,CCXP,FEIRA,São Paulo Expo,São Paulo,SP,CULTURA POP,"cultura pop|entretenimento|games",10,5,Portal Radar
+2026-12-04,VegFest,FEIRA,Expo Center Norte,São Paulo,SP,VEGANISMO,"veganismo|alimentação|sustentabilidade",7,5,Portal Radar
+2026-05-04,EXPOMAFE,FEIRA,São Paulo Expo,São Paulo,SP,MANUFATURA,"manufatura|máquinas|ferramentas|indústria",8,5,Portal Radar
+2026-05-04,FLEXO & LABELS EXPERIENCE,FEIRA,Centro de Convenções Rebouças,São Paulo,SP,GRÁFICA,"flexografia|rótulos|embalagens|impressão",7,5,Portal Radar
+2026-05-05,ForBeer,FEIRA,Centro de Convenções Circuito das Águas,Serra Negra,SP,CERVEJA,"cerveja|bebidas|gastronomia",7,5,Portal Radar
+2026-05-18,ForLAC,FEIRA,Expo Lambari,Lambari,MG,LATICÍNIOS,"laticínios|leite|queijo|agro",7,5,Portal Radar
+2026-05-18,FIEMA BRASIL,FEIRA,Fundaparque,Bento Gonçalves,RS,METAL MECÂNICA,"metal|mecânica|indústria|ferramentas",7,5,Portal Radar
+2026-05-20,NT2E,FEIRA,Expo RIO,Rio de Janeiro,RJ,TECNOLOGIA,"tecnologia|inovação|digital",7,4,Portal Radar
+2026-06-15,BRASMIN,FEIRA,Centro de Convenções PUC,Goiânia,GO,MINERAÇÃO,"mineração|equipamentos|tecnologia",7,5,Portal Radar
+2026-06-23,IFAT Brasil,FEIRA,São Paulo Expo,São Paulo,SP,MEIO AMBIENTE,"meio ambiente|sustentabilidade|saneamento|água",8,5,Portal Radar
+2026-07-15,INTERMACH,FEIRA,Expoville,Joinville,SC,METAL MECÂNICA,"metal|mecânica|máquinas|indústria",7,5,Portal Radar
+2026-08-03,INDUSPAR,FEIRA,Expotrade,Pinhais,PR,INDÚSTRIA,"indústria|manufatura|paraná",7,5,Portal Radar
+2026-08-09,Fimma Brasil,FEIRA,Fundaparque,Bento Gonçalves,RS,MADEIRA E MÓVEIS,"madeira|móveis|marcenaria|indústria",7,5,Portal Radar
+2026-08-25,EXPOFRUIT,FEIRA,Estação das Artes,Mossoró,RN,FRUTAS,"frutas|hortaliças|agro|nordeste",7,5,Portal Radar
+2026-09-08,Glass South America,FEIRA,Distrito Anhembi,São Paulo,SP,VIDRO,"vidro|construção|indústria",7,5,Portal Radar
+2026-09-08,E-squadria Show,FEIRA,Distrito Anhembi,São Paulo,SP,ESQUADRIAS,"esquadrias|alumínio|construção",7,5,Portal Radar
+2026-09-14,FIEE,FEIRA,São Paulo Expo,São Paulo,SP,ELÉTRICA E ELETRÔNICA,"elétrica|eletrônica|energia|automação",8,5,Portal Radar
+2026-09-14,VICTAM LatAm,FEIRA,Expo Center Norte,São Paulo,SP,ALIMENTAÇÃO ANIMAL,"ração|alimentação animal|agro",7,5,Portal Radar
+2026-09-14,SIM - Semana Industrial Mineira,FEIRA,Expominas,Belo Horizonte,MG,INDÚSTRIA,"indústria|manufatura|minas gerais",7,5,Portal Radar
+2026-09-22,TRANSMODAL GOIÁS,FEIRA,Centro de Convenções de Anápolis,Anápolis,GO,LOGÍSTICA,"logística|transporte|goiás",7,5,Portal Radar
+2026-09-28,Analitica Latin America,FEIRA,São Paulo Expo,São Paulo,SP,LABORATÓRIOS,"laboratórios|análises|científico",7,5,Portal Radar
+2026-09-28,ABRAFATI Show,FEIRA,São Paulo Expo,São Paulo,SP,TINTAS,"tintas|vernizes|revestimentos",7,5,Portal Radar
+2026-09-29,RIOPARTS,FEIRA,Expo RIO,Rio de Janeiro,RJ,AUTOPEÇAS,"autopeças|automotivo|rio de janeiro",7,5,Portal Radar
+2026-10-05,LAVTECH,FEIRA,São Paulo Expo,São Paulo,SP,LAVANDERIA,"lavanderia|limpeza|hotelaria",6,5,Portal Radar
+2026-10-05,Maquintex + Signs Norte e Nordeste + Pack&Graph,FEIRA,Centro de Eventos do Ceará,Fortaleza,CE,GRÁFICA E EMBALAGENS,"gráfica|embalagens|sinalização|nordeste",7,5,Portal Radar
+2026-10-19,NT EXPO,FEIRA,Distrito Anhembi,São Paulo,SP,TECNOLOGIA,"tecnologia|TI|inovação",7,5,Portal Radar
+2026-10-27,TUBOTECH,FEIRA,São Paulo Expo,São Paulo,SP,TUBOS,"tubos|tubulações|indústria",7,5,Portal Radar
+2026-10-27,WIRE Brasil,FEIRA,São Paulo Expo,São Paulo,SP,ARAMES E CABOS,"arames|cabos|fios|indústria",7,5,Portal Radar
+2026-10-30,Salão do Automóvel,FEIRA,Distrito Anhembi,São Paulo,SP,AUTOMOTIVO,"automóveis|veículos|carros|automotivo",10,5,Portal Radar
+2026-11-01,Bienal do Livro Rio,FEIRA,Riocentro,Rio de Janeiro,RJ,LIVROS,"livros|literatura|cultura|rio de janeiro",8,3,Portal Radar
+2026-10-15,Enflor | Garden Fair,FEIRA,Parque da Expoflora,Holambra,SP,FLORES E PLANTAS,"flores|plantas|jardinagem|paisagismo",7,3,Portal Radar
+2026-09-15,CONSTRUMETAL,FEIRA,Allianz Parque,São Paulo,SP,CONSTRUÇÃO,"construção|metal|estruturas",7,3,Portal Radar
+2026-08-15,RIO PIPELINE,FEIRA,Expo RIO,Rio de Janeiro,RJ,PETRÓLEO E GÁS,"petróleo|gás|pipeline|energia",7,3,Portal Radar
+2026-07-20,METALURGIA,FEIRA,Expoville,Joinville,SC,METALURGIA,"metalurgia|fundição|indústria",7,3,Portal Radar

@@ -1,0 +1,357 @@
+{
+  "client": "BRT Sorocaba - Sistema de transporte público BRT em Sorocaba/SP",
+  "total_sources": 35,
+  "total_keywords": 25,
+  "categories": [
+    "Fontes Nacionais",
+    "Fontes Locais/Regionais",
+    "Fontes Governamentais/Oficiais",
+    "Mídia Especializada",
+    "Redes Sociais",
+    "Portais de Marketing/Comunicação"
+  ],
+  "keywords": [
+    "BRT Sorocaba",
+    "Transporte Sorocaba",
+    "Mobilidade Sorocaba",
+    "Urbes",
+    "Prefeitura Sorocaba",
+    "Ônibus Sorocaba",
+    "Tarifa ônibus Sorocaba",
+    "Passagem Sorocaba",
+    "Corredor BRT",
+    "Estação BRT",
+    "Cittamobi Sorocaba",
+    "Concessionária BRT",
+    "PPP Sorocaba",
+    "Vila Assis Sorocaba",
+    "Sistema Integrado Sorocaba",
+    "Transporte Coletivo Sorocaba",
+    "Rodoviária Sorocaba",
+    "Terminal Sorocaba",
+    "Semob Sorocaba",
+    "Sorocaba Transporte",
+    "BRT Sorocaba reclamação",
+    "BRT Sorocaba acidente",
+    "BRT Sorocaba greve",
+    "BRT Sorocaba licitação",
+    "BRT Sorocaba contrato"
+  ],
+  "sources": [
+    {
+      "name": "Revista AutoBus",
+      "url": "https://revistaautobus.com.br/",
+      "rss": "https://revistaautobus.com.br/feed/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Transporte", "Ônibus", "Especializada"],
+      "priority": "high"
+    },
+    {
+      "name": "Confederação Nacional do Transporte (CNT)",
+      "url": "https://www.cnt.org.br/",
+      "rss": "https://www.cnt.org.br/rss",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Governamental", "Setor"],
+      "priority": "high"
+    },
+    {
+      "name": "Mobilize Brasil",
+      "url": "https://www.mobilize.org.br/",
+      "rss": "https://www.mobilize.org.br/rss.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Mobilidade", "Sustentabilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "Portal do Trânsito - Mobilidade",
+      "url": "https://www.portaldotransito.com.br/noticias/mobilidade-e-tecnologia/mobilidade-urbana/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Nacional", "Mobilidade", "Trânsito"],
+      "priority": "medium"
+    },
+    {
+      "name": "Estadão - Mobilidade",
+      "url": "https://mobilidade.estadao.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Nacional", "Grande Mídia", "Mobilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "Folha de S.Paulo - Mobilidade Urbana",
+      "url": "https://www1.folha.uol.com.br/cotidiano/mobilidade-urbana/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Nacional", "Grande Mídia", "Mobilidade"],
+      "priority": "medium"
+    },
+    {
+      "name": "UOL Notícias - Transporte",
+      "url": "https://noticias.uol.com.br/ultimas/transporte/",
+      "rss": "https://rss.uol.com.br/feed/noticias.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Grande Mídia", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "G1 - Nacional (Transporte)",
+      "url": "https://g1.globo.com/busca/?q=transporte+público",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Nacional", "Grande Mídia", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Jornal Cruzeiro do Sul",
+      "url": "https://www.jornalcruzeiro.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Grande Mídia"],
+      "priority": "high"
+    },
+    {
+      "name": "G1 Sorocaba e Jundiaí",
+      "url": "https://g1.globo.com/sp/sorocaba-jundiai/",
+      "rss": "https://g1.globo.com/rss/g1/sp/sorocaba-jundiai/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Grande Mídia"],
+      "priority": "high"
+    },
+    {
+      "name": "Correio do Interior",
+      "url": "https://www.correiodointerior.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Regional"],
+      "priority": "medium"
+    },
+    {
+      "name": "Record Paulista (Sorocaba)",
+      "url": "https://www.recordpaulista.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Mídia"],
+      "priority": "medium"
+    },
+    {
+      "name": "TV TEM (Afiliada Globo Sorocaba)",
+      "url": "https://g1.globo.com/sp/tvtem/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Mídia"],
+      "priority": "medium"
+    },
+    {
+      "name": "Band Sorocaba",
+      "url": "https://www.band.uol.com.br/tv/band-mais-sorocaba",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Mídia"],
+      "priority": "low"
+    },
+    {
+      "name": "Rádio Cruzeiro FM 92.3",
+      "url": "https://cruzeirofm.com.br/noticias/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Rádio"],
+      "priority": "low"
+    },
+    {
+      "name": "Portal Agenda Sorocaba",
+      "url": "https://agendasorocaba.com.br/noticias/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local", "Sorocaba", "Notícias"],
+      "priority": "low"
+    },
+    {
+      "name": "Prefeitura de Sorocaba - Agência de Notícias",
+      "url": "https://noticias.sorocaba.sp.gov.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental", "Sorocaba", "Oficial"],
+      "priority": "high"
+    },
+    {
+      "name": "Urbes - Trânsito e Transportes (Notícias)",
+      "url": "https://www.urbes.com.br/noticias",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental", "Sorocaba", "Oficial", "Transporte"],
+      "priority": "high"
+    },
+    {
+      "name": "BRT Sorocaba - Imprensa",
+      "url": "https://brtsorocaba.com.br/imprensa/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["Governamental", "Sorocaba", "Oficial", "Concessionária"],
+      "priority": "medium"
+    },
+    {
+      "name": "Câmara Municipal de Sorocaba - Notícias",
+      "url": "https://www.camarasorocaba.sp.gov.br/noticias/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental", "Sorocaba", "Legislação"],
+      "priority": "medium"
+    },
+    {
+      "name": "Governo do Estado de SP - Transportes",
+      "url": "https://www.saopaulo.sp.gov.br/tag/transporte/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental", "Estadual", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Via Trolebus",
+      "url": "https://viatrolebus.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Especializada", "Mobilidade", "Ônibus"],
+      "priority": "high"
+    },
+    {
+      "name": "OTM Editora (Revista Transporte Moderno)",
+      "url": "https://otmeditora.com/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "monthly",
+      "tags": ["Especializada", "Transporte", "Logística"],
+      "priority": "medium"
+    },
+    {
+      "name": "ANPET (Associação Nacional de Pesquisa e Ensino em Transportes)",
+      "url": "https://transportes.anpet.org.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "monthly",
+      "tags": ["Especializada", "Acadêmica", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Revista Ferroviária",
+      "url": "https://revistaferroviaria.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["Especializada", "Transporte", "Infraestrutura"],
+      "priority": "low"
+    },
+    {
+      "name": "BRT Sorocaba (Facebook)",
+      "url": "https://www.facebook.com/BRTSorocaba/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Social", "Oficial", "Sorocaba"],
+      "priority": "high"
+    },
+    {
+      "name": "Prefeitura de Sorocaba (Instagram)",
+      "url": "https://www.instagram.com/prefeituradesorocaba/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Social", "Governamental", "Sorocaba"],
+      "priority": "high"
+    },
+    {
+      "name": "Urbes - Trânsito e Transportes (Facebook)",
+      "url": "https://www.facebook.com/UrbesSorocaba/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Social", "Governamental", "Sorocaba", "Transporte"],
+      "priority": "medium"
+    },
+    {
+      "name": "BRT Sorocaba (YouTube)",
+      "url": "https://www.youtube.com/@BRTSorocaba",
+      "rss": null,
+      "type": "social",
+      "frequency": "weekly",
+      "tags": ["Social", "Oficial", "Vídeo"],
+      "priority": "low"
+    },
+    {
+      "name": "Via Trolebus (YouTube)",
+      "url": "https://www.youtube.com/@ViaTrolebusoficial",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Social", "Especializada", "Vídeo"],
+      "priority": "medium"
+    },
+    {
+      "name": "Jornal Cruzeiro do Sul (Instagram)",
+      "url": "https://www.instagram.com/jornalcruzeiro/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Social", "Local", "Sorocaba"],
+      "priority": "medium"
+    },
+    {
+      "name": "Meio & Mensagem",
+      "url": "https://www.meioemensagem.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Marketing", "Comunicação", "Mídia"],
+      "priority": "low"
+    },
+    {
+      "name": "MundoLogística",
+      "url": "https://mundologistica.com.br/",
+      "rss": "https://mundologistica.com.br/feed",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Marketing", "Logística", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "AdNews",
+      "url": "https://adnews.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Marketing", "Comunicação", "Mídia"],
+      "priority": "low"
+    },
+    {
+      "name": "Exame - Infraestrutura",
+      "url": "https://exame.com/noticias/infraestrutura/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Negócios", "Infraestrutura", "Economia"],
+      "priority": "low"
+    }
+  ]
+}

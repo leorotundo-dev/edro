@@ -1,0 +1,39 @@
+
+
+"use client";
+import React from "react";
+
+import { Card, CardHeader, CardContent, Divider, Box } from "@mui/material";
+import CodeDialog from "./CodeDialog";
+
+
+
+const ChildCard = ({ title, children, codeModel, footer }) => (
+  <Card
+    sx={{ padding: 0, borderColor: (theme) => theme.palette.divider }}
+    variant="outlined"
+  >
+    {title ? (
+      <>
+        <CardHeader title={title} />
+        <Divider />{" "}
+      </>
+    ) : (
+      ""
+    )}
+
+    <CardContent>{children}</CardContent>
+
+    {footer ? (
+      <>
+        <Divider />
+        <Box p={3}>{footer}</Box>
+      </>
+    ) : (
+      ""
+    )}
+    {codeModel && <Box>{codeModel}</Box>}
+  </Card>
+);
+
+export default ChildCard;

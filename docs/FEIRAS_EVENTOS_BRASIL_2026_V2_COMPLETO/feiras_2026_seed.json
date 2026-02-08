@@ -1,0 +1,6344 @@
+[
+  {
+    "name": "Agroshow Copagril",
+    "slug": "agroshow-copagril-marechal-candido-rondon-2026",
+    "description": "FEIRA em Marechal Cândido Rondon/PR. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-01-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Marechal Cândido Rondon",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "sementes"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoPlastripel",
+    "slug": "expoplastripel-barretos-2026",
+    "description": "FEIRA em Barretos/SP. Segmento: VAREJO ALIMENTÍCIO",
+    "event_type": "RETAIL",
+    "date": "2026-01-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Barretos",
+    "segments": [
+      "varejo"
+    ],
+    "tags": [
+      "plásticos",
+      "embalagens",
+      "varejo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FIART - Feira Internacional de Artesanato",
+    "slug": "fiart-feira-internacional-de-artesanato-natal-2026",
+    "description": "FEIRA em Natal/RN. Segmento: ARTESANATO",
+    "event_type": "CULTURAL",
+    "date": "2026-01-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RN",
+    "city": "Natal",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "artesanato",
+      "cultura",
+      "design"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fertilizer LatinoAmericano",
+    "slug": "fertilizer-latinoamericano-miami-2026",
+    "description": "CONGRESSO em Miami/INTERNACIONAL. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-01-26",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "INTL",
+    "state": null,
+    "city": "Miami",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "fertilizantes",
+      "agro",
+      "internacional"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "GULFOOD",
+    "slug": "gulfood-dubai-2026",
+    "description": "FEIRA em Dubai/INTERNACIONAL. Segmento: ALIMENTOS",
+    "event_type": "RETAIL",
+    "date": "2026-01-26",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "INTL",
+    "state": null,
+    "city": "Dubai",
+    "segments": [
+      "alimentos"
+    ],
+    "tags": [
+      "alimentos",
+      "bebidas",
+      "internacional"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fenin Fashion Gramado",
+    "slug": "fenin-fashion-gramado-gramado-2026",
+    "description": "FEIRA em Gramado/RS. Segmento: MODA",
+    "event_type": "RETAIL",
+    "date": "2026-01-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Gramado",
+    "segments": [
+      "moda"
+    ],
+    "tags": [
+      "moda",
+      "vestuário",
+      "fashion"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Salão Inspiramais",
+    "slug": "salao-inspiramais-porto-alegre-2026",
+    "description": "FEIRA em Porto Alegre/RS. Segmento: TÊXTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-01-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Porto Alegre",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "têxtil",
+      "moda",
+      "design"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABIMAD'41",
+    "slug": "abimad-41-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MÓVEIS E MADEIRA",
+    "event_type": "RETAIL",
+    "date": "2026-01-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "madeira",
+      "design"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CIOSP",
+    "slug": "ciosp-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: ODONTOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-01-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "odontologia",
+      "saúde",
+      "medicina"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HEALTH INNOVATION FORUM (HIF)",
+    "slug": "health-innovation-forum-hif-goiania-2026",
+    "description": "CONGRESSO em Goiânia/GO. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-01-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Goiânia",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "inovação",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABUP SHOW Home · Gift · Têxtil · Decor",
+    "slug": "abup-show-home-gift-textil-decor-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CASA E DECORAÇÃO",
+    "event_type": "RETAIL",
+    "date": "2026-02-02",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "casa",
+      "decoração",
+      "têxtil",
+      "presentes"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENINJER",
+    "slug": "feninjer-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: INFANTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-02-02",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "infantil",
+      "bebê",
+      "brinquedos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Movelpar Home Show",
+    "slug": "movelpar-home-show-arapongas-2026",
+    "description": "FEIRA em Arapongas/PR. Segmento: MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-02-03",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Arapongas",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "casa",
+      "decoração"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira do Cerrado",
+    "slug": "feira-do-cerrado-monte-carmelo-2026",
+    "description": "FEIRA em Monte Carmelo/MG. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-02-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Monte Carmelo",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "café",
+      "agro",
+      "cooperativa"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABCasa Fair",
+    "slug": "abcasa-fair-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CASA E DECORAÇÃO",
+    "event_type": "RETAIL",
+    "date": "2026-02-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "casa",
+      "decoração",
+      "utilidades"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Show Rural Coopavel",
+    "slug": "show-rural-coopavel-cascavel-2026",
+    "description": "FEIRA em Cascavel/PR. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-02-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Cascavel",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "maquinário"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Festa Nacional da Uva",
+    "slug": "festa-nacional-da-uva-caxias-do-sul-2026",
+    "description": "EVENTO CULTURAL em Caxias do Sul/RS. Segmento: CULTURAL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-02-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Caxias do Sul",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "cultura",
+      "vinho",
+      "gastronomia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "LACTE",
+    "slug": "lacte-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-02-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "eventos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Marmomac Brazil",
+    "slug": "marmomac-brazil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ROCHAS E MÁRMORES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-02-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "rochas",
+      "mármores",
+      "construção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Show Tecnológico Copercampos",
+    "slug": "show-tecnologico-copercampos-campos-novos-2026",
+    "description": "FEIRA em Campos Novos/SC. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-02-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Campos Novos",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "sementes"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Febratêxtil",
+    "slug": "febratextil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TÊXTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-02-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "têxtil",
+      "moda",
+      "confecção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABRIN",
+    "slug": "abrin-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BRINQUEDOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "brinquedos",
+      "infantil",
+      "jogos"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FIMEC",
+    "slug": "fimec-novo-hamburgo-2026",
+    "description": "FEIRA em Novo Hamburgo/RS. Segmento: CALÇADOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-03",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Novo Hamburgo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "calçados",
+      "couro",
+      "moda"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SIMASP",
+    "slug": "simasp-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-03-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "peças",
+      "manutenção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Festival DW! Semana de Design de São Paulo",
+    "slug": "festival-dw-semana-de-design-de-sao-paulo-sao-paulo-2026",
+    "description": "EVENTO em São Paulo/SP. Segmento: DESIGN",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "design",
+      "arquitetura",
+      "criatividade"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "AgroRosário",
+    "slug": "agrorosario-correntina-2026",
+    "description": "FEIRA em Correntina/BA. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "BA",
+    "city": "Correntina",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "bahia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expodireto Cotrijal",
+    "slug": "expodireto-cotrijal-nao-me-toque-2026",
+    "description": "FEIRA em Não-Me-Toque/RS. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Não-Me-Toque",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "maquinário"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPO REVESTIR",
+    "slug": "expo-revestir-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "revestimentos",
+      "construção",
+      "design"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HAUS DECOR SHOW",
+    "slug": "haus-decor-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: DECORAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "decoração",
+      "casa",
+      "design"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Salão das Motopeças",
+    "slug": "salao-das-motopecas-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-03-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "motopeças",
+      "motocicletas",
+      "peças"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Farm Show",
+    "slug": "farm-show-primavera-do-leste-2026",
+    "description": "FEIRA em Primavera do Leste/MT. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MT",
+    "city": "Primavera do Leste",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "mato grosso"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABRADILAN Conexão Farma",
+    "slug": "abradilan-conexao-farma-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: FARMACÊUTICO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "farmácia",
+      "medicamentos",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Animal Health Expo Fórum",
+    "slug": "animal-health-expo-forum-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: VETERINÁRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "veterinária",
+      "saúde animal",
+      "pets"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABAV TravelSP",
+    "slug": "abav-travelsp-campinas-2026",
+    "description": "FEIRA em Campinas/SP. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Campinas",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "agências"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Smart Summit",
+    "slug": "smart-summit-rio-de-janeiro-2026",
+    "description": "CONGRESSO em Rio de Janeiro/RJ. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "smart cities",
+      "inovação"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Pesca Trade Show",
+    "slug": "pesca-trade-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: PESCA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "pesca",
+      "náutica",
+      "esportes"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "South by Southwest (SXSW)",
+    "slug": "south-by-southwest-sxsw-austin-2026",
+    "description": "CONGRESSO em Austin/INTERNACIONAL. Segmento: TECNOLOGIA E CULTURA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "INTL",
+    "state": null,
+    "city": "Austin",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "música",
+      "cinema",
+      "internacional"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expo Cakes",
+    "slug": "expo-cakes-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: CONFEITARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-13",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "confeitaria",
+      "gastronomia",
+      "doces"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "YES Móvel Show São Paulo",
+    "slug": "yes-movel-show-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-03-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "decoração",
+      "casa"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ERP Summit",
+    "slug": "erp-summit-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "erp",
+      "software",
+      "gestão"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Tecnoagro",
+    "slug": "tecnoagro-chapadao-do-sul-2026",
+    "description": "FEIRA em Chapadão do Sul/MS. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MS",
+    "city": "Chapadão do Sul",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "mato grosso do sul"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SRE Trade Show",
+    "slug": "sre-trade-show-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: IMOBILIÁRIO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "imóveis",
+      "construção",
+      "mercado"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MERCOAGRO",
+    "slug": "mercoagro-chapeco-2026",
+    "description": "FEIRA em Chapecó/SC. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Chapecó",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "santa catarina"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "108ª BIJOIAS",
+    "slug": "108-bijoias-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: JOIAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "joias",
+      "bijuterias",
+      "acessórios"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Artesanal Sul",
+    "slug": "artesanal-sul-porto-alegre-2026",
+    "description": "FEIRA em Porto Alegre/RS. Segmento: ARTESANATO",
+    "event_type": "CULTURAL",
+    "date": "2026-03-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Porto Alegre",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "artesanato",
+      "cultura",
+      "design"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CONFEITAR EXPO",
+    "slug": "confeitar-expo-recife-2026",
+    "description": "FEIRA em Recife/PE. Segmento: CONFEITARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "confeitaria",
+      "gastronomia",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEMAGRI",
+    "slug": "femagri-guaxupe-2026",
+    "description": "FEIRA em Guaxupé/MG. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Guaxupé",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EFN- EXPO FRANQUIAS NORDESTE",
+    "slug": "efn-expo-franquias-nordeste-recife-2026",
+    "description": "FEIRA em Recife/PE. Segmento: FRANQUIAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "franquias",
+      "negócios",
+      "empreendedorismo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Íntimi Expo",
+    "slug": "intimi-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MODA ÍNTIMA",
+    "event_type": "RETAIL",
+    "date": "2026-03-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "moda"
+    ],
+    "tags": [
+      "moda íntima",
+      "lingerie",
+      "moda"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Congress Brazil Mobile & Expo",
+    "slug": "congress-brazil-mobile-expo-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TELECOMUNICAÇÕES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "telecom",
+      "mobile",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Show Safra",
+    "slug": "show-safra-lucas-do-rio-verde-2026",
+    "description": "FEIRA em Lucas do Rio Verde/MT. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-03-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MT",
+    "city": "Lucas do Rio Verde",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "mato grosso"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SNEC PV & ES LATAM",
+    "slug": "snec-pv-es-latam-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ENERGIA SOLAR",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "energia solar",
+      "sustentabilidade",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fruit Attraction São Paulo",
+    "slug": "fruit-attraction-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: FRUTAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "frutas",
+      "hortaliças",
+      "agro"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoPrint Latin America",
+    "slug": "expoprint-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: GRÁFICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "gráfica",
+      "impressão",
+      "comunicação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Smart City Expo Curitiba",
+    "slug": "smart-city-expo-curitiba-curitiba-2026",
+    "description": "EXPO em Curitiba/PR. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Curitiba",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "smart cities",
+      "tecnologia",
+      "inovação"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "South Summit Brazil",
+    "slug": "south-summit-brazil-porto-alegre-2026",
+    "description": "CONGRESSO em Porto Alegre/RS. Segmento: STARTUPS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Porto Alegre",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "startups",
+      "inovação",
+      "empreendedorismo"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expotel",
+    "slug": "expotel-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: HOTELARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "hotelaria",
+      "turismo",
+      "hospitalidade"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "GEduc",
+    "slug": "geduc-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: EDUCAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "educacao"
+    ],
+    "tags": [
+      "educação",
+      "gestão",
+      "ensino"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira Condo+",
+    "slug": "feira-condo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONDOMÍNIOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "condomínios",
+      "gestão",
+      "imóveis"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "NIS – Nutri Ingredients Summit",
+    "slug": "nis-nutri-ingredients-summit-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: NUTRIÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-03-31",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "nutrição",
+      "alimentos",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "AUTOCOM",
+    "slug": "autocom-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-03-31",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "peças",
+      "manutenção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira da Loucura por Sapatos",
+    "slug": "feira-da-loucura-por-sapatos-novo-hamburgo-2026",
+    "description": "FEIRA em Novo Hamburgo/RS. Segmento: CALÇADOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-02",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Novo Hamburgo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "calçados",
+      "moda",
+      "varejo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Festival de Cervejas Artesanais",
+    "slug": "festival-de-cervejas-artesanais-novo-hamburgo-2026",
+    "description": "EVENTO em Novo Hamburgo/RS. Segmento: CERVEJA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-02",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Novo Hamburgo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "cerveja",
+      "gastronomia",
+      "cultura"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Tecnoshow Comigo",
+    "slug": "tecnoshow-comigo-rio-verde-2026",
+    "description": "FEIRA em Rio Verde/GO. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Rio Verde",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "goiás"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Anuga Select Brasil",
+    "slug": "anuga-select-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ALIMENTOS",
+    "event_type": "RETAIL",
+    "date": "2026-04-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "alimentos"
+    ],
+    "tags": [
+      "alimentos",
+      "bebidas",
+      "gastronomia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPO SUPERMERCADOS",
+    "slug": "expo-supermercados-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: VAREJO",
+    "event_type": "RETAIL",
+    "date": "2026-04-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "varejo"
+    ],
+    "tags": [
+      "supermercados",
+      "varejo",
+      "alimentos"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEICON",
+    "slug": "feicon-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "materiais",
+      "engenharia"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Private Label Brasil",
+    "slug": "private-label-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: VAREJO",
+    "event_type": "RETAIL",
+    "date": "2026-04-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "varejo"
+    ],
+    "tags": [
+      "marca própria",
+      "varejo",
+      "produtos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "RIO ARTES",
+    "slug": "rio-artes-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: ARTESANATO",
+    "event_type": "CULTURAL",
+    "date": "2026-04-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "artesanato",
+      "cultura",
+      "design"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expo Óptica Brasil",
+    "slug": "expo-optica-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ÓPTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "óptica",
+      "saúde",
+      "oftalmologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expogrande",
+    "slug": "expogrande-campos-grande-2026",
+    "description": "FEIRA em Campos Grande/MS. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MS",
+    "city": "Campos Grande",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "pecuária",
+      "mato grosso do sul"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Estética In São Paulo",
+    "slug": "estetica-in-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BELEZA",
+    "event_type": "RETAIL",
+    "date": "2026-04-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "beleza"
+    ],
+    "tags": [
+      "beleza",
+      "estética",
+      "cosméticos"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Yes Móvel Show Goiás",
+    "slug": "yes-movel-show-goias-goiania-2026",
+    "description": "FEIRA em Goiânia/GO. Segmento: MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Goiânia",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "decoração",
+      "casa"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "LAAD Security Milipol Brazil",
+    "slug": "laad-security-milipol-brazil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SEGURANÇA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "segurança",
+      "defesa",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "BRAZIL PROMOTION DAY",
+    "slug": "brazil-promotion-day-sao-paulo-2026",
+    "description": "EVENTO em São Paulo/SP. Segmento: PROMOÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "promoção",
+      "marketing",
+      "varejo"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Intermodal South America",
+    "slug": "intermodal-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "transporte",
+      "supply chain"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Agreste Tex",
+    "slug": "agreste-tex-caruaru-2026",
+    "description": "FEIRA em Caruaru/PE. Segmento: TÊXTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Caruaru",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "têxtil",
+      "moda",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Parecis SuperAgro",
+    "slug": "parecis-superagro-campo-novo-do-parecis-2026",
+    "description": "FEIRA em Campo Novo do Parecis/MT. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MT",
+    "city": "Campo Novo do Parecis",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "mato grosso"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "PROTEMINAS",
+    "slug": "proteminas-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: PROTEÍNA ANIMAL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "proteína",
+      "pecuária",
+      "agro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENAVID",
+    "slug": "fenavid-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: VIDRO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "vidro",
+      "construção",
+      "indústria"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Agile Trends GOV",
+    "slug": "agile-trends-gov-brasilia-2026",
+    "description": "CONGRESSO em Brasília/DF. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "DF",
+    "city": "Brasília",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "governo",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "WTM Latin America",
+    "slug": "wtm-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "hospitalidade"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Vtex Day",
+    "slug": "vtex-day-sao-paulo-2026",
+    "description": "EVENTO em São Paulo/SP. Segmento: E-COMMERCE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "e-commerce",
+      "tecnologia",
+      "varejo"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "IT Fórum Trancoso",
+    "slug": "it-forum-trancoso-trancoso-2026",
+    "description": "CONGRESSO em Trancoso/BA. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "BA",
+    "city": "Trancoso",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "TI",
+      "inovação"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Norte Show",
+    "slug": "norte-show-sinop-2026",
+    "description": "FEIRA em Sinop/MT. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-21",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MT",
+    "city": "Sinop",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "norte"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Heli XP",
+    "slug": "heli-xp-carapicuiba-2026",
+    "description": "EXPO em Carapicuíba/SP. Segmento: AVIAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-22",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Carapicuíba",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "aviação",
+      "helicópteros",
+      "aeronáutica"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "COPA – CONGRESSO PAULISTA DE ANESTESIOLOGIA",
+    "slug": "copa-congresso-paulista-de-anestesiologia-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: MEDICINA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "medicina",
+      "anestesiologia",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MTM – Minas Travel Market",
+    "slug": "mtm-minas-travel-market-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Mara Cakes Fair São Paulo",
+    "slug": "mara-cakes-fair-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONFEITARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "confeitaria",
+      "gastronomia",
+      "doces"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Arnold Sports Festival South America",
+    "slug": "arnold-sports-festival-south-america-sao-paulo-2026",
+    "description": "EVENTO em São Paulo/SP. Segmento: ESPORTES",
+    "event_type": "CULTURAL",
+    "date": "2026-04-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "esportes",
+      "fitness",
+      "bodybuilding"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Rio Boat Show",
+    "slug": "rio-boat-show-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: NÁUTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "náutica",
+      "barcos",
+      "esportes"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Festival do Cordeiro de Hidrolândia",
+    "slug": "festival-do-cordeiro-de-hidrolandia-hidrolandia-2026",
+    "description": "EVENTO em Hidrolândia/GO. Segmento: GASTRONOMIA",
+    "event_type": "CULTURAL",
+    "date": "2026-04-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Hidrolândia",
+    "segments": [
+      "alimentos"
+    ],
+    "tags": [
+      "gastronomia",
+      "cultura",
+      "regional"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FIT 0/16",
+    "slug": "fit-0-16-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: INFANTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-26",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "infantil",
+      "moda",
+      "bebê"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Pueri Expo",
+    "slug": "pueri-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: EDUCAÇÃO INFANTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-26",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "educacao"
+    ],
+    "tags": [
+      "educação",
+      "infantil",
+      "pedagogia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "AGRISHOW",
+    "slug": "agrishow-ribeirao-preto-2026",
+    "description": "FEIRA em Ribeirão Preto/SP. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-04-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Ribeirão Preto",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "tecnologia",
+      "maquinário"
+    ],
+    "base_priority": 10,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "NEW MEAT BRAZIL",
+    "slug": "new-meat-brazil-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: PROTEÍNA ALTERNATIVA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-29",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "proteína",
+      "alimentos",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "PLANT-BASED TECH",
+    "slug": "plant-based-tech-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: ALIMENTOS",
+    "event_type": "RETAIL",
+    "date": "2026-04-29",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "alimentos"
+    ],
+    "tags": [
+      "alimentos",
+      "plant-based",
+      "sustentabilidade"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoRaiz – Feira Nacional dos Campistas Raiz",
+    "slug": "exporaiz-feira-nacional-dos-campistas-raiz-novo-hamburgo-2026",
+    "description": "FEIRA em Novo Hamburgo/RS. Segmento: CAMPING",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Novo Hamburgo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "camping",
+      "lazer",
+      "turismo"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Gamescom LATAM",
+    "slug": "gamescom-latam-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: GAMES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "games",
+      "tecnologia",
+      "entretenimento"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Jornada Paulista de Radiologia – JPR",
+    "slug": "jornada-paulista-de-radiologia-jpr-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: MEDICINA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-04-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "medicina",
+      "radiologia",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENASOJA",
+    "slug": "fenasoja-santa-rosa-2026",
+    "description": "FEIRA em Santa Rosa/RS. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-05-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Santa Rosa",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "soja",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEIARTE",
+    "slug": "feiarte-curitiba-2026",
+    "description": "FEIRA em Curitiba/PR. Segmento: ARTESANATO",
+    "event_type": "CULTURAL",
+    "date": "2026-05-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Curitiba",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "artesanato",
+      "cultura",
+      "design"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ILTM Latin America",
+    "slug": "iltm-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TURISMO DE LUXO",
+    "event_type": "SEASONAL",
+    "date": "2026-05-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "luxo",
+      "viagens"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Bett Brasil",
+    "slug": "bett-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: EDUCAÇÃO E TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "educacao"
+    ],
+    "tags": [
+      "educação",
+      "tecnologia",
+      "ensino"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEIMEC",
+    "slug": "feimec-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MECÂNICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "mecânica",
+      "indústria",
+      "manufatura"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ForÁgua",
+    "slug": "foragua-serra-negra-2026",
+    "description": "CONGRESSO em Serra Negra/SP. Segmento: SANEAMENTO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Serra Negra",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "saneamento",
+      "água",
+      "sustentabilidade"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Gramado Summit",
+    "slug": "gramado-summit-gramado-2026",
+    "description": "CONGRESSO em Gramado/RS. Segmento: EMPREENDEDORISMO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Gramado",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "empreendedorismo",
+      "inovação",
+      "negócios"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Abrint Global Congress",
+    "slug": "abrint-global-congress-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TELECOMUNICAÇÕES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "telecom",
+      "internet",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Autopar",
+    "slug": "autopar-pinhais-2026",
+    "description": "FEIRA em Pinhais/PR. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-05-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Pinhais",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "peças",
+      "paraná"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Wine South America",
+    "slug": "wine-south-america-bento-goncalves-2026",
+    "description": "FEIRA em Bento Gonçalves/RS. Segmento: VINHOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Bento Gonçalves",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "vinhos",
+      "gastronomia",
+      "cultura"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SINDEPAT Summit",
+    "slug": "sindepat-summit-rio-de-janeiro-2026",
+    "description": "CONGRESSO em Rio de Janeiro/RJ. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "TI",
+      "gestão"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENAGRA",
+    "slug": "fenagra-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: GRÁFICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "gráfica",
+      "impressão",
+      "comunicação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "São Paulo Innovation Week",
+    "slug": "sao-paulo-innovation-week-sao-paulo-2026",
+    "description": "EVENTO em São Paulo/SP. Segmento: INOVAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-13",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "inovação",
+      "tecnologia",
+      "startups"
+    ],
+    "base_priority": 9,
+    "confidence_level": 4,
+    "source": "Pesquisa",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Hospitalar",
+    "slug": "hospitalar-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "hospitalar",
+      "equipamentos médicos"
+    ],
+    "base_priority": 10,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Web Summit Rio",
+    "slug": "web-summit-rio-rio-de-janeiro-2026",
+    "description": "CONGRESSO em Rio de Janeiro/RJ. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-06-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "inovação",
+      "startups"
+    ],
+    "base_priority": 10,
+    "confidence_level": 5,
+    "source": "Pesquisa",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Escolar Office Brasil",
+    "slug": "escolar-office-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MATERIAL ESCOLAR",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-02",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "material escolar",
+      "papelaria",
+      "educação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "LABACE",
+    "slug": "labace-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: AVIAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "aviação",
+      "executiva",
+      "aeronáutica"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fi South America",
+    "slug": "fi-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: INGREDIENTES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "ingredientes",
+      "alimentos",
+      "indústria"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Brazil Promotion",
+    "slug": "brazil-promotion-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: PROMOÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "promoção",
+      "marketing",
+      "varejo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "The Brazil Conference & Expo",
+    "slug": "the-brazil-conference-expo-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: NEGÓCIOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "negócios",
+      "empreendedorismo",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MEC SHOW",
+    "slug": "mec-show-serra-2026",
+    "description": "FEIRA em Serra/ES. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "ES",
+    "city": "Serra",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "materiais",
+      "espírito santo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SBF – Saúde Business Fórum",
+    "slug": "sbf-saude-business-forum-a-definir-2026",
+    "description": "CONGRESSO em A DEFINIR/BR. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "BR",
+    "city": null,
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "gestão",
+      "negócios"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Embala Nordeste",
+    "slug": "embala-nordeste-fortaleza-2026",
+    "description": "FEIRA em Fortaleza/CE. Segmento: EMBALAGENS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "CE",
+    "city": "Fortaleza",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "embalagens",
+      "indústria",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Multimodal Nordeste",
+    "slug": "multimodal-nordeste-recife-2026",
+    "description": "FEIRA em Recife/PE. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "transporte",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Congresso Brasileiro do Agronegócio",
+    "slug": "congresso-brasileiro-do-agronegocio-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-08-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "negócios",
+      "economia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Congresso ANDAV",
+    "slug": "congresso-andav-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "agências"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoLazer & Outdoor Living",
+    "slug": "expolazer-outdoor-living-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LAZER",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "lazer",
+      "outdoor",
+      "piscinas"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "COP International",
+    "slug": "cop-international-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: PROTEÍNA ANIMAL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "proteína",
+      "pecuária",
+      "agro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expo-Hospital Brasil",
+    "slug": "expo-hospital-brasil-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "hospitalar",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fenasucro & Agrocana",
+    "slug": "fenasucro-agrocana-sertaozinho-2026",
+    "description": "FEIRA em Sertãozinho/SP. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Sertãozinho",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "cana",
+      "açúcar"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Logistique",
+    "slug": "logistique-balneario-camboriu-2026",
+    "description": "FEIRA em Balneário Camboriú/SC. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Balneário Camboriú",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "transporte",
+      "santa catarina"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Encatho & Exprotel",
+    "slug": "encatho-exprotel-florianopolis-2026",
+    "description": "FEIRA em Florianópolis/SC. Segmento: HOTELARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Florianópolis",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "hotelaria",
+      "turismo",
+      "hospitalidade"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Pet South America",
+    "slug": "pet-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: PET",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "pet",
+      "animais",
+      "veterinária"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABCASA Fair",
+    "slug": "abcasa-fair-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CASA E DECORAÇÃO",
+    "event_type": "RETAIL",
+    "date": "2026-08-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "casa",
+      "decoração",
+      "utilidades"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Travel Next Minas",
+    "slug": "travel-next-minas-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-08-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Pet Vet",
+    "slug": "pet-vet-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: VETERINÁRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "veterinária",
+      "saúde animal",
+      "pets"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Salão de Arte",
+    "slug": "salao-de-arte-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ARTE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-13",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "arte",
+      "cultura",
+      "galerias"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Estética In Sul",
+    "slug": "estetica-in-sul-curitiba-2026",
+    "description": "FEIRA em Curitiba/PR. Segmento: BELEZA",
+    "event_type": "RETAIL",
+    "date": "2026-08-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Curitiba",
+    "segments": [
+      "beleza"
+    ],
+    "tags": [
+      "beleza",
+      "estética",
+      "sul"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SET Expo",
+    "slug": "set-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BROADCAST",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "broadcast",
+      "TV",
+      "rádio",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MOVELSUL",
+    "slug": "movelsul-bento-goncalves-2026",
+    "description": "FEIRA em Bento Gonçalves/RS. Segmento: MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-08-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Bento Gonçalves",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "decoração",
+      "sul"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Congresso Fenabrave",
+    "slug": "congresso-fenabrave-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-08-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "concessionárias",
+      "veículos"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Navalshore",
+    "slug": "navalshore-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: NAVAL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "naval",
+      "offshore",
+      "petróleo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEBRATEX",
+    "slug": "febratex-blumenau-2026",
+    "description": "FEIRA em Blumenau/SC. Segmento: TÊXTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Blumenau",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "têxtil",
+      "moda",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEBRATEX Summit",
+    "slug": "febratex-summit-blumenau-2026",
+    "description": "CONGRESSO em Blumenau/SC. Segmento: TÊXTIL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Blumenau",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "têxtil",
+      "moda",
+      "negócios"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CONARH | ABRH",
+    "slug": "conarh-abrh-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: RECURSOS HUMANOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "RH",
+      "gestão de pessoas",
+      "trabalho"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Jornada Bett Nordeste",
+    "slug": "jornada-bett-nordeste-recife-2026",
+    "description": "CONGRESSO em Recife/PE. Segmento: EDUCAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "educacao"
+    ],
+    "tags": [
+      "educação",
+      "tecnologia",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "IT Forum Praia do Forte",
+    "slug": "it-forum-praia-do-forte-praia-do-forte-2026",
+    "description": "CONGRESSO em Praia do Forte/BA. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "BA",
+    "city": "Praia do Forte",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "TI",
+      "bahia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Festa do Peão de Barretos",
+    "slug": "festa-do-peao-de-barretos-barretos-2026",
+    "description": "EVENTO em Barretos/SP. Segmento: RODEIO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Barretos",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "rodeio",
+      "cultura",
+      "entretenimento"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEBRABAN TECH",
+    "slug": "febraban-tech-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TECNOLOGIA BANCÁRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-24",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "bancos",
+      "tecnologia",
+      "fintech"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Concrete Show",
+    "slug": "concrete-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "concreto",
+      "construção",
+      "engenharia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "INTERPLAST",
+    "slug": "interplast-joinville-2026",
+    "description": "FEIRA em Joinville/SC. Segmento: PLÁSTICOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Joinville",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "plásticos",
+      "indústria",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "PL Connection",
+    "slug": "pl-connection-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MARCA PRÓPRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "marca própria",
+      "varejo",
+      "produtos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Cachoeiro Stone Fair",
+    "slug": "cachoeiro-stone-fair-cachoeiro-de-itapemirim-2026",
+    "description": "FEIRA em Cachoeiro de Itapemirim/ES. Segmento: ROCHAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "ES",
+    "city": "Cachoeiro de Itapemirim",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "rochas",
+      "mármores",
+      "granito"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Intersolar South America",
+    "slug": "intersolar-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ENERGIA SOLAR",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "energia solar",
+      "sustentabilidade",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Startup Summit",
+    "slug": "startup-summit-florianopolis-2026",
+    "description": "CONGRESSO em Florianópolis/SC. Segmento: STARTUPS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-26",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Florianópolis",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "startups",
+      "empreendedorismo",
+      "inovação"
+    ],
+    "base_priority": 9,
+    "confidence_level": 4,
+    "source": "Pesquisa",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fitness Brasil Expo",
+    "slug": "fitness-brasil-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: FITNESS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "fitness",
+      "esportes",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Mara Cakes Fair Nordeste",
+    "slug": "mara-cakes-fair-nordeste-recife-2026",
+    "description": "FEIRA em Recife/PE. Segmento: CONFEITARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "confeitaria",
+      "gastronomia",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expointer",
+    "slug": "expointer-esteio-2026",
+    "description": "FEIRA em Esteio/RS. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-08-29",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Esteio",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "pecuária",
+      "sul"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ISC Brasil",
+    "slug": "isc-brasil-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: SEGURANÇA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "segurança",
+      "tecnologia",
+      "proteção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Bienal do Livro de São Paulo",
+    "slug": "bienal-do-livro-de-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LIVROS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "livros",
+      "literatura",
+      "cultura"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ART MUNDI",
+    "slug": "art-mundi-santos-2026",
+    "description": "FEIRA em Santos/SP. Segmento: ARTE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Santos",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "arte",
+      "cultura",
+      "santos"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Mara Cakes Fair Nordeste",
+    "slug": "mara-cakes-fair-nordeste-recife-2026",
+    "description": "FEIRA em Recife/PE. Segmento: CONFEITARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Recife",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "confeitaria",
+      "gastronomia",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Beauty Fair",
+    "slug": "beauty-fair-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BELEZA",
+    "event_type": "RETAIL",
+    "date": "2026-09-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "beleza"
+    ],
+    "tags": [
+      "beleza",
+      "cosméticos",
+      "estética"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoPostos & Conveniência",
+    "slug": "expopostos-conveniencia-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: POSTOS DE COMBUSTÍVEL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "postos",
+      "conveniência",
+      "varejo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira Construir Aí",
+    "slug": "feira-construir-ai-balneario-camboriu-2026",
+    "description": "FEIRA em Balneário Camboriú/SC. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Balneário Camboriú",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "materiais",
+      "santa catarina"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Geronto Fair",
+    "slug": "geronto-fair-gramado-2026",
+    "description": "FEIRA em Gramado/RS. Segmento: GERONTOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Gramado",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "gerontologia",
+      "saúde",
+      "idosos"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Logística do Futuro",
+    "slug": "logistica-do-futuro-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "supply chain",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FESQUA",
+    "slug": "fesqua-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ESQUADRIAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "esquadrias",
+      "construção",
+      "alumínio"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Expolux",
+    "slug": "expolux-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ILUMINAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "iluminação",
+      "design",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "YES Móvel Show Campinas",
+    "slug": "yes-movel-show-campinas-campinas-2026",
+    "description": "FEIRA em Campinas/SP. Segmento: MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Campinas",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "móveis",
+      "decoração",
+      "campinas"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Welding Show Brasil",
+    "slug": "welding-show-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SOLDAGEM",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "soldagem",
+      "metalurgia",
+      "indústria"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ACAPS Trade Show",
+    "slug": "acaps-trade-show-serra-2026",
+    "description": "FEIRA em Serra/ES. Segmento: AUTOPEÇAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "ES",
+    "city": "Serra",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "autopeças",
+      "automotivo",
+      "espírito santo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Equipotel",
+    "slug": "equipotel-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: HOTELARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "hotelaria",
+      "turismo",
+      "hospitalidade"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Intra-Log Expo South America",
+    "slug": "intra-log-expo-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "armazenagem",
+      "supply chain"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "LABEL & PACK EXPO",
+    "slug": "label-pack-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: EMBALAGENS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "embalagens",
+      "rótulos",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "INTERFORM",
+    "slug": "interform-joinville-2026",
+    "description": "FEIRA em Joinville/SC. Segmento: FERRAMENTARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Joinville",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "ferramentaria",
+      "moldes",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CHINA HOME LIFE BRASIL",
+    "slug": "china-home-life-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: UTILIDADES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "utilidades",
+      "casa",
+      "importação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "iFood Move",
+    "slug": "ifood-move-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: DELIVERY",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "delivery",
+      "foodtech",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HIS – Healthcare Innovation Show",
+    "slug": "his-healthcare-innovation-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-16",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "inovação",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Agile Trends",
+    "slug": "agile-trends-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "agile",
+      "gestão"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CIPRO | EXPOLAB",
+    "slug": "cipro-expolab-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LABORATÓRIOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-17",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "laboratórios",
+      "análises",
+      "saúde"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ROG.e",
+    "slug": "rog-e-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: PETRÓLEO E GÁS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-21",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "petróleo",
+      "gás",
+      "energia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Paving Expo",
+    "slug": "paving-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: PAVIMENTAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-22",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "pavimentação",
+      "asfalto",
+      "construção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CONAREC",
+    "slug": "conarec-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: REFRIGERAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "refrigeração",
+      "ar condicionado",
+      "HVAC"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "in-cosmetics Latin America",
+    "slug": "in-cosmetics-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: COSMÉTICOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "beleza"
+    ],
+    "tags": [
+      "cosméticos",
+      "ingredientes",
+      "beleza"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Modern Construction Show",
+    "slug": "modern-construction-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-29",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "tecnologia",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MinasParts",
+    "slug": "minasparts-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: AUTOPEÇAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "autopeças",
+      "automotivo",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABAV EXPO",
+    "slug": "abav-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-09-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "agências"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Agrominas",
+    "slug": "agrominas-lambari-do-sul-2026",
+    "description": "FEIRA em Lambari do Sul/MG. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-10-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Lambari do Sul",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "minas gerais",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Forcafé",
+    "slug": "forcafe-lambari-2026",
+    "description": "FEIRA em Lambari/MG. Segmento: CAFÉ",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Lambari",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "café",
+      "agro",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Automotive Business Experience",
+    "slug": "automotive-business-experience-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-10-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "negócios",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ProWine São Paulo",
+    "slug": "prowine-sao-paulo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: VINHOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "vinhos",
+      "bebidas",
+      "gastronomia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FUTURECOM",
+    "slug": "futurecom-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TELECOMUNICAÇÕES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "telecom",
+      "tecnologia",
+      "conectividade"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Data Center World Brasil",
+    "slug": "data-center-world-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: DATA CENTER",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "data center",
+      "cloud",
+      "infraestrutura"
+    ],
+    "base_priority": 8,
+    "confidence_level": 4,
+    "source": "Pesquisa",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FEBRAVA RIO",
+    "slug": "febrava-rio-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: REFRIGERAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "refrigeração",
+      "ar condicionado",
+      "HVAC"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FISP – FISST",
+    "slug": "fisp-fisst-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SEGURANÇA DO TRABALHO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "segurança",
+      "trabalho",
+      "EPI"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPO ABTCP",
+    "slug": "expo-abtcp-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: PAPEL E CELULOSE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-06",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "papel",
+      "celulose",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "MRO BRASIL",
+    "slug": "mro-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MANUTENÇÃO AERONÁUTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "aviação",
+      "manutenção",
+      "MRO"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Congresso SAE BRASIL",
+    "slug": "congresso-sae-brasil-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: ENGENHARIA AUTOMOTIVA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-07",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "automotivo",
+      "engenharia",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Brasil Game Show (BGS)",
+    "slug": "brasil-game-show-bgs-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: GAMES",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "games",
+      "entretenimento",
+      "tecnologia"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CONSTRULEV Expo",
+    "slug": "construlev-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "leve",
+      "steel frame"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Diabetes On – São Paulo",
+    "slug": "diabetes-on-sao-paulo-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "diabetes",
+      "saúde",
+      "medicina"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Professional Fair RJ",
+    "slug": "professional-fair-rj-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: BELEZA",
+    "event_type": "RETAIL",
+    "date": "2026-10-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "beleza"
+    ],
+    "tags": [
+      "beleza",
+      "estética",
+      "profissional"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira do Empreendedor do SEBRAE-SP",
+    "slug": "feira-do-empreendedor-do-sebrae-sp-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: EMPREENDEDORISMO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "empreendedorismo",
+      "negócios",
+      "sebrae"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ECO EXPO (Ex-Waste Expo Brasil)",
+    "slug": "eco-expo-ex-waste-expo-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SUSTENTABILIDADE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "sustentabilidade",
+      "reciclagem",
+      "meio ambiente"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENASAN",
+    "slug": "fenasan-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: SANEAMENTO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "saneamento",
+      "meio ambiente",
+      "água"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HIGIEXPO",
+    "slug": "higiexpo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LIMPEZA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "limpeza",
+      "higiene",
+      "produtos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Seafood Show Latin America",
+    "slug": "seafood-show-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: FRUTOS DO MAR",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "frutos do mar",
+      "pesca",
+      "gastronomia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ONDM – O Negócio da Moda – Edição Brasil",
+    "slug": "ondm-o-negocio-da-moda-edicao-brasil-balneario-camboriu-2026",
+    "description": "FEIRA em Balneário Camboriú/SC. Segmento: MODA",
+    "event_type": "RETAIL",
+    "date": "2026-10-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Balneário Camboriú",
+    "segments": [
+      "moda"
+    ],
+    "tags": [
+      "moda",
+      "vestuário",
+      "negócios"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HOSPITALMED",
+    "slug": "hospitalmed-olinda-2026",
+    "description": "FEIRA em Olinda/PE. Segmento: SAÚDE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-21",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Olinda",
+    "segments": [
+      "saude"
+    ],
+    "tags": [
+      "saúde",
+      "hospitalar",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ARENA M&T",
+    "slug": "arena-m-t-fazenda-rio-grande-2026",
+    "description": "FEIRA em Fazenda Rio Grande/PR. Segmento: MINERAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-21",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Fazenda Rio Grande",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "mineração",
+      "equipamentos",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENALAW",
+    "slug": "fenalaw-sao-paulo-2026",
+    "description": "CONGRESSO em São Paulo/SP. Segmento: DIREITO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "direito",
+      "advocacia",
+      "jurídico"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Brazil Windpower",
+    "slug": "brazil-windpower-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ENERGIA EÓLICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "energia eólica",
+      "sustentabilidade",
+      "tecnologia"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "AveSui",
+    "slug": "avesui-cascavel-2026",
+    "description": "FEIRA em Cascavel/PR. Segmento: AVICULTURA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Cascavel",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "avicultura",
+      "suinocultura",
+      "agro"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FruitBrasil",
+    "slug": "fruitbrasil-americana-2026",
+    "description": "FEIRA em Americana/SP. Segmento: FRUTAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Americana",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "frutas",
+      "hortaliças",
+      "agro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Enerclean",
+    "slug": "enerclean-americana-2026",
+    "description": "FEIRA em Americana/SP. Segmento: ENERGIA LIMPA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Americana",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "energia",
+      "sustentabilidade",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira SUPER MIX",
+    "slug": "feira-super-mix-olinda-2026",
+    "description": "FEIRA em Olinda/PE. Segmento: VAREJO",
+    "event_type": "RETAIL",
+    "date": "2026-11-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Olinda",
+    "segments": [
+      "varejo"
+    ],
+    "tags": [
+      "varejo",
+      "supermercados",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "HFN- HOTEL & FOOD NORDESTE",
+    "slug": "hfn-hotel-food-nordeste-olinda-2026",
+    "description": "FEIRA em Olinda/PE. Segmento: HOTELARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Olinda",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "hotelaria",
+      "gastronomia",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FENATRAN",
+    "slug": "fenatran-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TRANSPORTE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "transporte",
+      "veículos",
+      "logística"
+    ],
+    "base_priority": 9,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "BFSHOW – 6ª edição",
+    "slug": "bfshow-6-edicao-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BELEZA",
+    "event_type": "RETAIL",
+    "date": "2026-11-10",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "beleza"
+    ],
+    "tags": [
+      "beleza",
+      "estética",
+      "cosméticos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "REPARASUL",
+    "slug": "reparasul-novo-hamburgo-2026",
+    "description": "FEIRA em Novo Hamburgo/RS. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-11-11",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Novo Hamburgo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automotivo",
+      "reparação",
+      "peças"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FESTURIS",
+    "slug": "festuris-gramado-2026",
+    "description": "FEIRA em Gramado/RS. Segmento: TURISMO",
+    "event_type": "SEASONAL",
+    "date": "2026-11-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Gramado",
+    "segments": [
+      "turismo"
+    ],
+    "tags": [
+      "turismo",
+      "viagens",
+      "gramado"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ExpoFrísia",
+    "slug": "expofrisia-carambei-2026",
+    "description": "FEIRA em Carambeí/PR. Segmento: AGROPECUÁRIO",
+    "event_type": "SEASONAL",
+    "date": "2026-11-12",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Carambeí",
+    "segments": [
+      "agronegocio"
+    ],
+    "tags": [
+      "agro",
+      "leite",
+      "paraná"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Feira Petnor",
+    "slug": "feira-petnor-olinda-2026",
+    "description": "FEIRA em Olinda/PE. Segmento: PET",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PE",
+    "city": "Olinda",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "pet",
+      "animais",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Barber Week",
+    "slug": "barber-week-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: BARBEARIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "barbearia",
+      "beleza",
+      "masculino"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPO CANNABIS BRASIL",
+    "slug": "expo-cannabis-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CANNABIS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "cannabis",
+      "medicinal",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPOLOG",
+    "slug": "expolog-fortaleza-2026",
+    "description": "FEIRA em Fortaleza/CE. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "CE",
+    "city": "Fortaleza",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "transporte",
+      "ceará"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPO MOTORHOME",
+    "slug": "expo-motorhome-pinhais-2026",
+    "description": "FEIRA em Pinhais/PR. Segmento: MOTORHOME",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Pinhais",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "motorhome",
+      "turismo",
+      "lazer"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Tomorrow.Blue Economy",
+    "slug": "tomorrow-blue-economy-niteroi-2026",
+    "description": "CONGRESSO em Niterói/RJ. Segmento: ECONOMIA AZUL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Niterói",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "economia",
+      "sustentabilidade",
+      "oceano"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CCXP",
+    "slug": "ccxp-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CULTURA POP",
+    "event_type": "CULTURAL",
+    "date": "2026-12-03",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "cultura pop",
+      "entretenimento",
+      "games"
+    ],
+    "base_priority": 10,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "VegFest",
+    "slug": "vegfest-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: VEGANISMO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-12-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "veganismo",
+      "alimentação",
+      "sustentabilidade"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPOMAFE",
+    "slug": "expomafe-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MANUFATURA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "manufatura",
+      "máquinas",
+      "ferramentas",
+      "indústria"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FLEXO & LABELS EXPERIENCE",
+    "slug": "flexo-labels-experience-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: GRÁFICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-04",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "flexografia",
+      "rótulos",
+      "embalagens",
+      "impressão"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ForBeer",
+    "slug": "forbeer-serra-negra-2026",
+    "description": "FEIRA em Serra Negra/SP. Segmento: CERVEJA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Serra Negra",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "cerveja",
+      "bebidas",
+      "gastronomia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ForLAC",
+    "slug": "forlac-lambari-2026",
+    "description": "FEIRA em Lambari/MG. Segmento: LATICÍNIOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Lambari",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "laticínios",
+      "leite",
+      "queijo",
+      "agro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FIEMA BRASIL",
+    "slug": "fiema-brasil-bento-goncalves-2026",
+    "description": "FEIRA em Bento Gonçalves/RS. Segmento: METAL MECÂNICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-18",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Bento Gonçalves",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "metal",
+      "mecânica",
+      "indústria",
+      "ferramentas"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "NT2E",
+    "slug": "nt2e-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-05-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "inovação",
+      "digital"
+    ],
+    "base_priority": 7,
+    "confidence_level": 4,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "BRASMIN",
+    "slug": "brasmin-goiania-2026",
+    "description": "FEIRA em Goiânia/GO. Segmento: MINERAÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-06-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Goiânia",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "mineração",
+      "equipamentos",
+      "tecnologia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "IFAT Brasil",
+    "slug": "ifat-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: MEIO AMBIENTE",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-06-23",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "meio ambiente",
+      "sustentabilidade",
+      "saneamento",
+      "água"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "INTERMACH",
+    "slug": "intermach-joinville-2026",
+    "description": "FEIRA em Joinville/SC. Segmento: METAL MECÂNICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-07-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Joinville",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "metal",
+      "mecânica",
+      "máquinas",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "INDUSPAR",
+    "slug": "induspar-pinhais-2026",
+    "description": "FEIRA em Pinhais/PR. Segmento: INDÚSTRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-03",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "PR",
+    "city": "Pinhais",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "indústria",
+      "manufatura",
+      "paraná"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Fimma Brasil",
+    "slug": "fimma-brasil-bento-goncalves-2026",
+    "description": "FEIRA em Bento Gonçalves/RS. Segmento: MADEIRA E MÓVEIS",
+    "event_type": "RETAIL",
+    "date": "2026-08-09",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RS",
+    "city": "Bento Gonçalves",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "madeira",
+      "móveis",
+      "marcenaria",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "EXPOFRUIT",
+    "slug": "expofruit-mossoro-2026",
+    "description": "FEIRA em Mossoró/RN. Segmento: FRUTAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-25",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RN",
+    "city": "Mossoró",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "frutas",
+      "hortaliças",
+      "agro",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Glass South America",
+    "slug": "glass-south-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: VIDRO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "vidro",
+      "construção",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "E-squadria Show",
+    "slug": "e-squadria-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ESQUADRIAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-08",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "esquadrias",
+      "alumínio",
+      "construção"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "FIEE",
+    "slug": "fiee-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ELÉTRICA E ELETRÔNICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "elétrica",
+      "eletrônica",
+      "energia",
+      "automação"
+    ],
+    "base_priority": 8,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "VICTAM LatAm",
+    "slug": "victam-latam-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ALIMENTAÇÃO ANIMAL",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "ração",
+      "alimentação animal",
+      "agro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "SIM - Semana Industrial Mineira",
+    "slug": "sim-semana-industrial-mineira-belo-horizonte-2026",
+    "description": "FEIRA em Belo Horizonte/MG. Segmento: INDÚSTRIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-14",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "MG",
+    "city": "Belo Horizonte",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "indústria",
+      "manufatura",
+      "minas gerais"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "TRANSMODAL GOIÁS",
+    "slug": "transmodal-goias-anapolis-2026",
+    "description": "FEIRA em Anápolis/GO. Segmento: LOGÍSTICA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-22",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "GO",
+    "city": "Anápolis",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "logística",
+      "transporte",
+      "goiás"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Analitica Latin America",
+    "slug": "analitica-latin-america-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LABORATÓRIOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "laboratórios",
+      "análises",
+      "científico"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "ABRAFATI Show",
+    "slug": "abrafati-show-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TINTAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-28",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tintas",
+      "vernizes",
+      "revestimentos"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "RIOPARTS",
+    "slug": "rioparts-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: AUTOPEÇAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-29",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "autopeças",
+      "automotivo",
+      "rio de janeiro"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "LAVTECH",
+    "slug": "lavtech-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: LAVANDERIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "lavanderia",
+      "limpeza",
+      "hotelaria"
+    ],
+    "base_priority": 6,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Maquintex + Signs Norte e Nordeste + Pack&Graph",
+    "slug": "maquintex-signs-norte-e-nordeste-pack-graph-fortaleza-2026",
+    "description": "FEIRA em Fortaleza/CE. Segmento: GRÁFICA E EMBALAGENS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-05",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "CE",
+    "city": "Fortaleza",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "gráfica",
+      "embalagens",
+      "sinalização",
+      "nordeste"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "NT EXPO",
+    "slug": "nt-expo-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TECNOLOGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-19",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia"
+    ],
+    "tags": [
+      "tecnologia",
+      "TI",
+      "inovação"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "TUBOTECH",
+    "slug": "tubotech-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: TUBOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "tubos",
+      "tubulações",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "WIRE Brasil",
+    "slug": "wire-brasil-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: ARAMES E CABOS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-27",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "arames",
+      "cabos",
+      "fios",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Salão do Automóvel",
+    "slug": "salao-do-automovel-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: AUTOMOTIVO",
+    "event_type": "RETAIL",
+    "date": "2026-10-30",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "tecnologia",
+      "automotivo"
+    ],
+    "tags": [
+      "automóveis",
+      "veículos",
+      "carros",
+      "automotivo"
+    ],
+    "base_priority": 10,
+    "confidence_level": 5,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Bienal do Livro Rio",
+    "slug": "bienal-do-livro-rio-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: LIVROS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-11-01",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "livros",
+      "literatura",
+      "cultura",
+      "rio de janeiro"
+    ],
+    "base_priority": 8,
+    "confidence_level": 3,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "Enflor | Garden Fair",
+    "slug": "enflor-garden-fair-holambra-2026",
+    "description": "FEIRA em Holambra/SP. Segmento: FLORES E PLANTAS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-10-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "Holambra",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "flores",
+      "plantas",
+      "jardinagem",
+      "paisagismo"
+    ],
+    "base_priority": 7,
+    "confidence_level": 3,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "CONSTRUMETAL",
+    "slug": "construmetal-sao-paulo-2026",
+    "description": "FEIRA em São Paulo/SP. Segmento: CONSTRUÇÃO",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-09-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SP",
+    "city": "São Paulo",
+    "segments": [
+      "construcao"
+    ],
+    "tags": [
+      "construção",
+      "metal",
+      "estruturas"
+    ],
+    "base_priority": 7,
+    "confidence_level": 3,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "RIO PIPELINE",
+    "slug": "rio-pipeline-rio-de-janeiro-2026",
+    "description": "FEIRA em Rio de Janeiro/RJ. Segmento: PETRÓLEO E GÁS",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-08-15",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "RJ",
+    "city": "Rio de Janeiro",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "petróleo",
+      "gás",
+      "pipeline",
+      "energia"
+    ],
+    "base_priority": 7,
+    "confidence_level": 3,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  },
+  {
+    "name": "METALURGIA",
+    "slug": "metalurgia-joinville-2026",
+    "description": "FEIRA em Joinville/SC. Segmento: METALURGIA",
+    "event_type": "INSTITUTIONAL",
+    "date": "2026-07-20",
+    "is_recurring": false,
+    "recurrence": "NONE",
+    "country": "BR",
+    "state": "SC",
+    "city": "Joinville",
+    "segments": [
+      "geral"
+    ],
+    "tags": [
+      "metalurgia",
+      "fundição",
+      "indústria"
+    ],
+    "base_priority": 7,
+    "confidence_level": 3,
+    "source": "Portal Radar",
+    "status": "ACTIVE"
+  }
+]

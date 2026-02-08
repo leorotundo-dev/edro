@@ -1,0 +1,308 @@
+{
+  "client_name": "Ponte São Borja–Santo Tomé - Concessão de ponte internacional Brasil-Argentina",
+  "total_sources": 31,
+  "total_keywords": 19,
+  "categories": "Nacional, Local/Regional, Governamental/Oficial, Mídia Especializada, Marketing/Comunicação, Redes Sociais",
+  "keywords": [
+    "Ponte São Borja–Santo Tomé",
+    "Ponte Internacional São Borja",
+    "Concessão Ponte São Borja",
+    "CS Infra",
+    "Mercovia",
+    "Centro Unificado de Fronteira",
+    "CUF São Borja",
+    "Santo Tomé Corrientes",
+    "Fronteira Brasil Argentina",
+    "Infraestrutura Logística",
+    "Concessões Rodoviárias",
+    "Ministério dos Transportes",
+    "ANTT",
+    "Agência Nacional de Transportes Terrestres",
+    "Simpar",
+    "São Borja",
+    "Santo Tomé",
+    "Rio Grande do Sul",
+    "Corrientes"
+  ],
+  "sources": [
+    {
+      "name": "Valor Econômico",
+      "url": "https://valor.globo.com/",
+      "rss": "https://valor.globo.com/rss/valor-geral/rss.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Economia", "Infraestrutura"],
+      "priority": "high"
+    },
+    {
+      "name": "Poder360",
+      "url": "https://www.poder360.com.br/",
+      "rss": "https://www.poder360.com.br/feed",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Política", "Infraestrutura"],
+      "priority": "high"
+    },
+    {
+      "name": "G1 - Notícias",
+      "url": "https://g1.globo.com/",
+      "rss": "https://g1.globo.com/rss/g1/noticias/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Geral"],
+      "priority": "medium"
+    },
+    {
+      "name": "Folha de S.Paulo",
+      "url": "https://www.folha.uol.com.br/",
+      "rss": "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Geral"],
+      "priority": "medium"
+    },
+    {
+      "name": "O Estado de S. Paulo",
+      "url": "https://www.estadao.com.br/",
+      "rss": "https://feeds.estadao.com.br/rss/ultimas",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Nacional", "Geral"],
+      "priority": "medium"
+    },
+    {
+      "name": "SB News (São Borja)",
+      "url": "https://sbnewsrs.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "São Borja", "RS"],
+      "priority": "high"
+    },
+    {
+      "name": "G1 RS - São Borja",
+      "url": "https://g1.globo.com/rs/rio-grande-do-sul/cidade/sao-borja/",
+      "rss": "https://g1.globo.com/rss/g1/rs/rio-grande-do-sul/cidade/sao-borja/",
+      "type": "rss",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "São Borja", "RS"],
+      "priority": "high"
+    },
+    {
+      "name": "Digital Santo Tomé",
+      "url": "https://digitalsantotome.com.ar/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "Santo Tomé", "Argentina"],
+      "priority": "high"
+    },
+    {
+      "name": "Santo Tomé Online",
+      "url": "https://santotome-online.com.ar/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "Santo Tomé", "Argentina"],
+      "priority": "medium"
+    },
+    {
+      "name": "Diario Época Corrientes",
+      "url": "https://www.diarioepoca.com/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "Corrientes", "Argentina"],
+      "priority": "medium"
+    },
+    {
+      "name": "Portal das Missões",
+      "url": "https://www.portaldasmissoes.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "Região das Missões", "RS"],
+      "priority": "medium"
+    },
+    {
+      "name": "Grupo Sepé (Região Missioneira)",
+      "url": "https://www.gruposepe.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Local/Regional", "Região das Missões", "RS"],
+      "priority": "medium"
+    },
+    {
+      "name": "Ministério dos Transportes (Notícias)",
+      "url": "https://www.gov.br/transportes/pt-br/assuntos/noticias",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental/Oficial", "MT"],
+      "priority": "high"
+    },
+    {
+      "name": "ANTT (Agência Nacional de Transportes Terrestres)",
+      "url": "https://www.gov.br/antt/pt-br",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental/Oficial", "ANTT"],
+      "priority": "high"
+    },
+    {
+      "name": "Prefeitura de São Borja (Notícias)",
+      "url": "https://www.saoborja.rs.gov.br/index.php/ultimas-noticias",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Governamental/Oficial", "São Borja"],
+      "priority": "medium"
+    },
+    {
+      "name": "Agência iNFRA",
+      "url": "https://agenciainfra.com/blog/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Mídia Especializada", "Infraestrutura", "Concessões"],
+      "priority": "high"
+    },
+    {
+      "name": "Revista Modal",
+      "url": "https://revistamodal.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "weekly",
+      "tags": ["Mídia Especializada", "Logística"],
+      "priority": "medium"
+    },
+    {
+      "name": "Mundo Logística",
+      "url": "https://mundologistica.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Mídia Especializada", "Logística"],
+      "priority": "medium"
+    },
+    {
+      "name": "Revista Ferroviária",
+      "url": "https://revistaferroviaria.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Mídia Especializada", "Transporte"],
+      "priority": "low"
+    },
+    {
+      "name": "Revista O Empreiteiro",
+      "url": "https://revistaoe.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Mídia Especializada", "Construção", "Infraestrutura"],
+      "priority": "medium"
+    },
+    {
+      "name": "Meio e Mensagem",
+      "url": "https://www.meioemensagem.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Marketing/Comunicação", "Nacional"],
+      "priority": "medium"
+    },
+    {
+      "name": "Portal da Comunicação",
+      "url": "https://portaldacomunicacao.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Marketing/Comunicação", "Nacional"],
+      "priority": "low"
+    },
+    {
+      "name": "Portal Nosso Meio",
+      "url": "https://nossomeio.com.br/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "daily",
+      "tags": ["Marketing/Comunicação", "Nacional"],
+      "priority": "low"
+    },
+    {
+      "name": "Gustavo Ferrari (Comunicação em Concessões)",
+      "url": "https://gustavoferrari.jor.br/comunicacao-em-concessoes-publicas/",
+      "rss": null,
+      "type": "scrape",
+      "frequency": "monthly",
+      "tags": ["Marketing/Comunicação", "Blog", "Concessões"],
+      "priority": "low"
+    },
+    {
+      "name": "Twitter - Ministério dos Transportes (@mtransportes)",
+      "url": "https://twitter.com/mtransportes",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Governamental", "Twitter"],
+      "priority": "high"
+    },
+    {
+      "name": "Twitter - ANTT (@ANTT_oficial)",
+      "url": "https://twitter.com/ANTT_oficial",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Governamental", "Twitter"],
+      "priority": "high"
+    },
+    {
+      "name": "LinkedIn - CS Infra",
+      "url": "https://www.linkedin.com/company/cs-infra/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Empresa", "LinkedIn"],
+      "priority": "high"
+    },
+    {
+      "name": "Facebook - Prefeitura de São Borja",
+      "url": "https://www.facebook.com/prefeituradesaoborja/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Local", "Facebook"],
+      "priority": "medium"
+    },
+    {
+      "name": "Facebook - Folha de São Borja",
+      "url": "https://www.facebook.com/folhadesaoborja/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Local", "Facebook"],
+      "priority": "medium"
+    },
+    {
+      "name": "Facebook - Santo Tomé Corrientes",
+      "url": "https://www.facebook.com/santotomecorrientesargentina/",
+      "rss": null,
+      "type": "social",
+      "frequency": "daily",
+      "tags": ["Redes Sociais", "Local", "Argentina", "Facebook"],
+      "priority": "medium"
+    },
+    {
+      "name": "Twitter - Simpar (@SimparOficial)",
+      "url": "https://twitter.com/SimparOficial",
+      "rss": null,
+      "type": "social",
+      "frequency": "weekly",
+      "tags": ["Redes Sociais", "Empresa", "Twitter"],
+      "priority": "low"
+    }
+  ]
+}
