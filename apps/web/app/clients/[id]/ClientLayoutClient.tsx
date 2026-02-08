@@ -191,7 +191,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
       <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <Card sx={{
           background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)',
-          borderRadius: 4,
+          borderRadius: 3,
           boxShadow: '0 8px 32px rgba(255, 102, 0, 0.3)',
           border: 'none',
           p: { xs: 2, sm: 3 },
