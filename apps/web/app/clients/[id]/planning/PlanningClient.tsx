@@ -412,7 +412,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   };
 
   return (
-    <Box sx={{ p: '20px' }}>
+    <Box>
       {/* Stats Bar */}
       <Card variant="outlined" sx={{ mb: 1.5 }}>
         <CardContent sx={{ py: 1, px: 2 }}>
