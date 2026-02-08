@@ -54,13 +54,17 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const bodySchema = z.object({
         keyword: z.string().min(2),
-        category: z.string().optional(),
+        category: z.string().nullable().optional(),
+        // Accept both legacy snake_case and frontend camelCase.
+        clientId: z.string().optional(),
         client_id: z.string().optional(),
       });
       const body = bodySchema.parse(request.body);
 
-      if (body.client_id) {
-        const allowed = await assertClientAccess(request, body.client_id, 'write');
+      const resolvedClientId = body.clientId ?? body.client_id;
+
+      if (resolvedClientId) {
+        const allowed = await assertClientAccess(request, resolvedClientId, 'write');
         if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
       }
 
@@ -68,7 +72,7 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
       const keyword = await service.addKeyword({
         keyword: body.keyword,
         category: body.category,
-        clientId: body.client_id ?? null,
+        clientId: resolvedClientId ?? null,
       });
 
       return reply.send(keyword);

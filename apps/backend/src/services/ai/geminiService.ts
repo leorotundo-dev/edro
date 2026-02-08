@@ -31,31 +31,46 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
     throw new Error('GEMINI_API_KEY_NOT_SET');
   }
 
-  const response = await fetch(
-    `${BASE_URL}/models/${DEFAULT_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: params.prompt }],
-          },
-        ],
-        system_instruction: params.systemPrompt
-          ? { parts: [{ text: params.systemPrompt }] }
-          : undefined,
-        generationConfig: {
-          temperature: params.temperature ?? 0.6,
-          maxOutputTokens: params.maxTokens ?? 1500,
-          ...(RESPONSE_MIME ? { responseMimeType: RESPONSE_MIME } : {}),
+  // 30s HTTP timeout — prevents hanging indefinitely
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${BASE_URL}/models/${DEFAULT_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: params.prompt }],
+            },
+          ],
+          system_instruction: params.systemPrompt
+            ? { parts: [{ text: params.systemPrompt }] }
+            : undefined,
+          generationConfig: {
+            temperature: params.temperature ?? 0.6,
+            maxOutputTokens: params.maxTokens ?? 1500,
+            ...(RESPONSE_MIME ? { responseMimeType: RESPONSE_MIME } : {}),
+          },
+        }),
+        signal: controller.signal,
+      }
+    );
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Gemini API timed out after 30s');
     }
-  );
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const text = await response.text();

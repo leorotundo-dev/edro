@@ -71,21 +71,25 @@ export default async function connectorsRoutes(app: FastifyInstance) {
     async (request: any, reply: any) => {
       try {
         const params = z.object({ clientId: z.string(), provider: z.string() }).parse(request.params);
+        const rawBody = request.body ?? {};
         const body = z
           .object({
             payload: z.any().optional(),
             secrets: z.any().optional(),
           })
-          .parse(request.body);
+          .parse(rawBody);
+        // When `secrets` is omitted we should NOT overwrite stored encrypted secrets.
+        // This allows updating payload fields (e.g. IDs) without requiring the user to re-paste tokens.
+        const secretsProvided = Object.prototype.hasOwnProperty.call(rawBody, 'secrets');
 
         console.log(`[connectors] POST /clients/${params.clientId}/connectors/${params.provider}`, {
           tenant_id: (request.user as any)?.tenant_id,
           hasPayload: !!body.payload,
-          hasSecrets: !!body.secrets,
+          hasSecrets: secretsProvided,
         });
 
         let enc: { enc: string; meta: Record<string, any> } | null = null;
-        if (body.secrets) {
+        if (secretsProvided && body.secrets) {
           try {
             enc = await encryptJSON(body.secrets);
           } catch (err: any) {
@@ -95,24 +99,40 @@ export default async function connectorsRoutes(app: FastifyInstance) {
 
         await ensureConnectorsTable();
 
-        try {
-          await query(
-            `INSERT INTO connectors (tenant_id, client_id, provider, payload, secrets_enc, secrets_meta)
-             VALUES ($1,$2,$3,$4::jsonb,$5,$6::jsonb)
-             ON CONFLICT (tenant_id, client_id, provider)
-             DO UPDATE SET payload=EXCLUDED.payload, secrets_enc=EXCLUDED.secrets_enc, secrets_meta=EXCLUDED.secrets_meta, updated_at=now()`,
-            [
-              (request.user as any).tenant_id,
-              params.clientId,
-              params.provider,
-              JSON.stringify(body.payload ?? {}),
-              enc?.enc ?? null,
-              JSON.stringify(enc?.meta ?? {}),
-            ]
-          );
-        } catch (err: any) {
-          console.error('[connectors] INSERT with secrets columns failed:', err.message);
-          // Retry without secrets columns
+        if (secretsProvided) {
+          try {
+            await query(
+              `INSERT INTO connectors (tenant_id, client_id, provider, payload, secrets_enc, secrets_meta)
+               VALUES ($1,$2,$3,$4::jsonb,$5,$6::jsonb)
+               ON CONFLICT (tenant_id, client_id, provider)
+               DO UPDATE SET payload=EXCLUDED.payload, secrets_enc=EXCLUDED.secrets_enc, secrets_meta=EXCLUDED.secrets_meta, updated_at=now()`,
+              [
+                (request.user as any).tenant_id,
+                params.clientId,
+                params.provider,
+                JSON.stringify(body.payload ?? {}),
+                enc?.enc ?? null,
+                JSON.stringify(enc?.meta ?? {}),
+              ]
+            );
+          } catch (err: any) {
+            console.error('[connectors] INSERT with secrets columns failed:', err.message);
+            // Retry without secrets columns
+            await query(
+              `INSERT INTO connectors (tenant_id, client_id, provider, payload)
+               VALUES ($1,$2,$3,$4::jsonb)
+               ON CONFLICT (tenant_id, client_id, provider)
+               DO UPDATE SET payload=EXCLUDED.payload, updated_at=now()`,
+              [
+                (request.user as any).tenant_id,
+                params.clientId,
+                params.provider,
+                JSON.stringify(body.payload ?? {}),
+              ]
+            );
+          }
+        } else {
+          // Preserve existing secrets when request doesn't include them.
           await query(
             `INSERT INTO connectors (tenant_id, client_id, provider, payload)
              VALUES ($1,$2,$3,$4::jsonb)

@@ -35,26 +35,41 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
 
   const model = env.ANTHROPIC_MODEL;
 
-  const response = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': API_VERSION,
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: params.maxTokens ?? 1500,
-      system: params.systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: params.prompt,
-        },
-      ],
-      temperature: params.temperature ?? 0.6,
-    }),
-  });
+  // 30s HTTP timeout — prevents hanging indefinitely
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': API_VERSION,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: params.maxTokens ?? 1500,
+        system: params.systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: params.prompt,
+          },
+        ],
+        temperature: params.temperature ?? 0.6,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Claude API timed out after 30s');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const text = await response.text();

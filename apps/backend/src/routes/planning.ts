@@ -1384,81 +1384,61 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     }
   });
 
-  // POST /clients/:id/planning/context - Load intelligence stats via direct DB queries
-  // Avoids buildIntelligenceContext (which depends on OpenAI embeddings) for fast loading
+  // POST /clients/:id/planning/context - Load intelligence stats via single DB query
+  // Single SQL with scalar subqueries — uses 1 DB connection instead of 7
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request as any).tenantId || 'default';
 
+    // Default zero stats — returned immediately if DB query fails
+    const zeroStats = {
+      library: { totalItems: 0 },
+      clipping: { totalMatches: 0, topKeywords: [] as string[] },
+      social: { totalMentions: 0, sentimentAvg: 50 },
+      calendar: { next14Days: 0, highRelevance: 0 },
+      opportunities: { active: 0, urgent: 0, highConfidence: 0 },
+      briefings: { recent: 0, pending: 0 },
+      copies: { recentHashes: 0, usedAngles: 0 },
+    };
+
     try {
-      // Fast parallel DB queries — no AI/embeddings, all simple COUNTs with 10s safety timeout
-      const statsPromise = Promise.allSettled([
-        // Library items count
-        query(
-          `SELECT COUNT(*) as total FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready'`,
-          [clientId, tenantId]
-        ),
-        // Clipping matches (últimos 30 dias)
-        query(
-          `SELECT COUNT(*) as total FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days' AND score > 70`,
-          [clientId, tenantId]
-        ),
-        // Social listening mentions (últimos 7 dias)
-        query(
-          `SELECT COALESCE(SUM(mention_count), 0) as total_mentions, COALESCE(AVG(average_sentiment), 50) as avg_sentiment FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days'`,
-          [clientId, tenantId]
-        ),
-        // Calendar events (próximos 14 dias)
-        query(
-          `SELECT COUNT(*) as next14, COUNT(*) FILTER (WHERE base_relevance > 80) as high_rel FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'`,
-          []
-        ),
-        // AI Opportunities
-        query(
-          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE priority = 'urgent') as urgent, COUNT(*) FILTER (WHERE confidence >= 80) as high_conf FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`,
-          [clientId, tenantId]
-        ),
-        // Briefings (últimos 90 dias)
-        query(
-          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status NOT IN ('done', 'cancelled')) as pending FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days'`,
-          [clientId]
-        ),
-        // Copy versions (últimos 90 dias)
-        query(
-          `SELECT COUNT(*) as total FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days'`,
-          [clientId]
-        ),
+      // Single SQL query with scalar subqueries — 1 DB connection, fast
+      const result = await Promise.race([
+        query(`
+          SELECT
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready') as library_total,
+            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days' AND score > 70) as clipping_total,
+            (SELECT COALESCE(SUM(mention_count), 0) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_mentions,
+            (SELECT COALESCE(AVG(average_sentiment), 50) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_sentiment,
+            (SELECT COUNT(*) FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days') as calendar_next14,
+            (SELECT COUNT(*) FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND base_relevance > 80) as calendar_high_rel,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed') as opps_total,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND priority = 'urgent') as opps_urgent,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND confidence >= 80) as opps_high,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days') as briefings_total,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days' AND status NOT IN ('done', 'cancelled')) as briefings_pending,
+            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total
+        `, [clientId, tenantId]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Context query timed out')), 8000)),
       ]);
 
-      const results = await Promise.race([
-        statsPromise,
-        new Promise<PromiseSettledResult<any>[]>((resolve) =>
-          setTimeout(() => resolve([]), 10000)
-        ),
-      ]);
-
-      const getVal = (idx: number, field: string, fallback: number = 0) => {
-        const r = results[idx];
-        if (r?.status === 'fulfilled' && r.value?.rows?.[0]) {
-          return Number(r.value.rows[0][field]) || fallback;
-        }
-        return fallback;
-      };
+      const row = result.rows?.[0] || {};
+      const n = (val: any, fallback = 0) => Number(val) || fallback;
 
       const stats = {
-        library: { totalItems: getVal(0, 'total') },
-        clipping: { totalMatches: getVal(1, 'total'), topKeywords: [] as string[] },
-        social: { totalMentions: getVal(2, 'total_mentions'), sentimentAvg: getVal(2, 'avg_sentiment', 50) },
-        calendar: { next14Days: getVal(3, 'next14'), highRelevance: getVal(3, 'high_rel') },
+        library: { totalItems: n(row.library_total) },
+        clipping: { totalMatches: n(row.clipping_total), topKeywords: [] as string[] },
+        social: { totalMentions: n(row.social_mentions), sentimentAvg: n(row.social_sentiment, 50) },
+        calendar: { next14Days: n(row.calendar_next14), highRelevance: n(row.calendar_high_rel) },
         opportunities: {
-          active: getVal(4, 'total'),
-          urgent: getVal(4, 'urgent'),
-          highConfidence: getVal(4, 'high_conf'),
+          active: n(row.opps_total),
+          urgent: n(row.opps_urgent),
+          highConfidence: n(row.opps_high),
         },
-        briefings: { recent: getVal(5, 'total'), pending: getVal(5, 'pending') },
-        copies: { recentHashes: getVal(6, 'total'), usedAngles: 0 },
+        briefings: { recent: n(row.briefings_total), pending: n(row.briefings_pending) },
+        copies: { recentHashes: n(row.copies_total), usedAngles: 0 },
       };
 
       return reply.send({
@@ -1470,15 +1450,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       return reply.send({
         success: true,
         data: {
-          stats: {
-            library: { totalItems: 0 },
-            clipping: { totalMatches: 0, topKeywords: [] },
-            social: { totalMentions: 0, sentimentAvg: 0 },
-            calendar: { next14Days: 0, highRelevance: 0 },
-            opportunities: { active: 0, urgent: 0, highConfidence: 0 },
-            briefings: { recent: 0, pending: 0 },
-            copies: { recentHashes: 0, usedAngles: 0 },
-          },
+          stats: zeroStats,
           partial: true,
           warning: error?.message || 'Contexto indisponível no momento.',
         },
