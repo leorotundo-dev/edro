@@ -13,14 +13,15 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconBrain, IconSearch } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBrain, IconCalendar, IconClipboard, IconDatabase, IconRefresh, IconSearch, IconTrendingUp } from '@tabler/icons-react';
 
 // Components
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
 import AntiRepetitionValidator, { ValidationResult } from './components/AntiRepetitionValidator';
-import ContextPanel, { IntelligenceStats } from './components/ContextPanel';
-import type { HealthData } from './components/HealthMonitor';
+import type { IntelligenceStats } from './components/ContextPanel';
+import type { HealthData, SourceHealth } from './components/HealthMonitor';
 import InsumosList, { ClippingItem, LibraryItem } from './components/InsumosList';
 import OpportunitiesList, { Opportunity } from './components/OpportunitiesList';
 import OutputsList, { Briefing, Copy } from './components/OutputsList';
@@ -420,7 +421,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       {/* Stats Bar */}
       <Card variant="outlined" sx={{ mb: 1.5 }}>
         <CardContent sx={{ py: 1, px: 2 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
             <Stack direction="row" alignItems="center" spacing={2}>
               <IconBrain size={24} />
               <Typography variant="subtitle2">Jarvis Intelligence System</Typography>
@@ -439,38 +440,59 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               </ToggleButtonGroup>
             </Stack>
 
-            {intelligenceStats && (
-              <Stack direction="row" spacing={1.5}>
-                <Chip size="small" label={`Library: ${intelligenceStats.library.totalItems}`} />
-                <Chip size="small" label={`Clipping: ${intelligenceStats.clipping.totalMatches}`} />
-                <Chip size="small" label={`Oportunidades: ${intelligenceStats.opportunities.active}`} />
-                {intelligenceStats.opportunities.urgent > 0 && (
-                  <Chip size="small" color="error" label={`⚠️ ${intelligenceStats.opportunities.urgent} urgente`} />
-                )}
-              </Stack>
-            )}
+            {intelligenceStats && (() => {
+              const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
+              const items = [
+                { key: 'library', label: 'Library', value: intelligenceStats.library.totalItems, icon: <IconDatabase size={14} /> },
+                { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping.totalMatches, icon: <IconClipboard size={14} /> },
+                { key: 'social', label: 'Social', value: intelligenceStats.social.totalMentions, icon: <IconTrendingUp size={14} /> },
+                { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar.next14Days, icon: <IconCalendar size={14} /> },
+                { key: 'opportunities', label: 'Oportunidades', value: intelligenceStats.opportunities.active, icon: <IconBrain size={14} /> },
+              ];
+              return (
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {items.map((item) => {
+                    const health = sources?.[item.key];
+                    const hasIssue = health && health.status !== 'healthy';
+                    return (
+                      <Tooltip
+                        key={item.key}
+                        title={hasIssue ? health.message : `${item.label}: ${item.value}`}
+                        arrow
+                      >
+                        <Chip
+                          size="small"
+                          icon={hasIssue ? <IconAlertTriangle size={14} /> : item.icon}
+                          label={`${item.label}: ${item.value}`}
+                          color={hasIssue ? (health.status === 'error' ? 'error' : 'warning') : 'default'}
+                          variant={hasIssue ? 'filled' : 'outlined'}
+                          sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                        />
+                      </Tooltip>
+                    );
+                  })}
+                  {intelligenceStats.opportunities.urgent > 0 && (
+                    <Chip size="small" color="error" label={`${intelligenceStats.opportunities.urgent} urgente`} sx={{ fontWeight: 700 }} />
+                  )}
+                </Stack>
+              );
+            })()}
 
-            <Button size="small" variant="outlined" onClick={loadContext} disabled={contextLoading}>
-              {contextLoading ? <CircularProgress size={14} /> : 'Refresh'}
-            </Button>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {(contextLoading || healthLoading) && <CircularProgress size={14} />}
+              <Button size="small" variant="outlined" onClick={() => { loadContext(); loadHealth(); }} disabled={contextLoading}>
+                <IconRefresh size={14} style={{ marginRight: 4 }} /> Refresh
+              </Button>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
 
       {/* 3-Column Layout */}
       <Grid container spacing={1.5}>
-        {/* Left Column: Context & Insumos */}
+        {/* Left Column: Insumos */}
         <Grid size={{ xs: 12, lg: 3 }}>
           <Stack spacing={1.5}>
-            <ContextPanel
-              loading={contextLoading}
-              stats={intelligenceStats}
-              error={contextError}
-              onRefresh={loadContext}
-              healthData={healthData}
-              healthLoading={healthLoading}
-              onRefreshHealth={loadHealth}
-            />
             <InsumosList
               clientId={clientId}
               libraryItems={libraryItems}
