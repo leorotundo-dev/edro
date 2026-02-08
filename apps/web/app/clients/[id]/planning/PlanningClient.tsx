@@ -20,7 +20,7 @@ import { IconBrain, IconSearch } from '@tabler/icons-react';
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
 import AntiRepetitionValidator, { ValidationResult } from './components/AntiRepetitionValidator';
 import ContextPanel, { IntelligenceStats } from './components/ContextPanel';
-import HealthMonitor, { HealthData } from './components/HealthMonitor';
+import type { HealthData } from './components/HealthMonitor';
 import InsumosList, { ClippingItem, LibraryItem } from './components/InsumosList';
 import OpportunitiesList, { Opportunity } from './components/OpportunitiesList';
 import OutputsList, { Briefing, Copy } from './components/OutputsList';
@@ -467,12 +467,9 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               stats={intelligenceStats}
               error={contextError}
               onRefresh={loadContext}
-            />
-            <HealthMonitor
-              clientId={clientId}
               healthData={healthData}
-              loading={healthLoading}
-              onRefresh={loadHealth}
+              healthLoading={healthLoading}
+              onRefreshHealth={loadHealth}
             />
             <InsumosList
               clientId={clientId}
