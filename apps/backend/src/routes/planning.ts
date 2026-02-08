@@ -335,22 +335,29 @@ export default async function planningRoutes(app: FastifyInstance) {
     let resultProvider = '';
     let resultModel = '';
 
+    console.log(`[planning_chat] calling AI provider=${copyProvider} mode=${mode} tenant=${tenantId} client=${clientId}`);
     try {
-      const aiResult = await generateWithProvider(copyProvider, {
+      const aiPromise = generateWithProvider(copyProvider, {
         prompt: message,
         systemPrompt,
         temperature: mode === 'command' ? 0.2 : 0.7,
         maxTokens: 2000,
       }, usageCtx);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('AI_TIMEOUT_25s')), 25000)
+      );
+      const aiResult = await Promise.race([aiPromise, timeoutPromise]);
       resultOutput = aiResult.output;
       resultProvider = aiResult.provider;
       resultModel = aiResult.model;
+      console.log(`[planning_chat] AI ok in ${Date.now() - startMs}ms provider=${aiResult.provider} model=${aiResult.model}`);
     } catch (aiError: any) {
       const errMsg = aiError?.message || 'AI_ERROR';
-      request.log?.error({ err: aiError, provider, elapsed: Date.now() - startMs }, 'planning_chat_ai_error');
+      const elapsed = Date.now() - startMs;
+      console.error(`[planning_chat] AI FAILED in ${elapsed}ms: ${errMsg}`);
       return reply.status(500).send({
         success: false,
-        error: `Falha na IA (${errMsg}). Verifique se a API key do provider esta configurada.`,
+        error: `Falha na IA (${errMsg}). Provider: ${copyProvider}. Tempo: ${elapsed}ms.`,
       });
     }
 
@@ -1355,14 +1362,17 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       results.calendar = { error: e?.message };
     }
 
-    // 2) Run opportunity detection if none exist
+    // 2) Run opportunity detection if none exist (with 10s timeout — uses AI so can be slow)
     try {
       const { rows } = await query(
         `SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`,
         [clientId, tenantId],
       );
       if (Number(rows[0]?.total) === 0) {
-        const count = await detectOpportunitiesForClient({ tenant_id: tenantId, client_id: clientId });
+        const count = await Promise.race([
+          detectOpportunitiesForClient({ tenant_id: tenantId, client_id: clientId }),
+          new Promise<number>((resolve) => setTimeout(() => resolve(0), 10000)),
+        ]);
         results.opportunities = { detected: count };
       } else {
         results.opportunities = { existing: Number(rows[0]?.total) };
