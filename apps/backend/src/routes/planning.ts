@@ -1268,6 +1268,11 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.send({ success: true, data: { detected: 0, message: 'Client not found in edro_clients' } });
+    }
 
     try {
       const count = await detectOpportunitiesForClient({
@@ -1437,7 +1442,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         );
         if (Number(rows[0]?.total) === 0) {
           const count = await Promise.race([
-            detectOpportunitiesForClient({ tenant_id: tenantId, client_id: edroId }),
+            detectOpportunitiesForClient({ tenant_id: tenantId, client_id: clientId }),
             new Promise<number>((resolve) => setTimeout(() => resolve(0), 10000)),
           ]);
           results.opportunities = { detected: count };
@@ -1458,10 +1463,15 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.send({ success: true, opportunities: [] });
+    }
 
     const result = await query(
       `SELECT * FROM ai_opportunities
-       WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+       WHERE client_id = $1::uuid AND tenant_id = $2::text AND status != 'dismissed'
        ORDER BY
          CASE priority
            WHEN 'urgent' THEN 1
@@ -1471,7 +1481,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
          END,
          created_at DESC
        LIMIT 20`,
-      [clientId, tenantId]
+      [edroId, tenantId]
     );
 
     return reply.send({

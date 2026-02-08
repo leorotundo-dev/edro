@@ -12,14 +12,33 @@ type OpportunitySource = {
   metadata?: any;
 };
 
+/** Resolve clients.id (TEXT) → edro_clients.id (UUID) via name match */
+async function resolveEdroId(clientId: string): Promise<string | null> {
+  try {
+    const { rows } = await query(
+      `SELECT ec.id FROM edro_clients ec
+       JOIN clients c ON LOWER(ec.name) = LOWER(c.name)
+       WHERE c.id = $1 LIMIT 1`,
+      [clientId]
+    );
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Scan all data sources and detect opportunities for a specific client
+ * Scan all data sources and detect opportunities for a specific client.
+ * Accepts clients.id (TEXT) — resolves edro_clients UUID internally.
  * Sources: Clipping (score > 80), Social (trending UP), Calendar (next 14 days)
  */
 export async function detectOpportunitiesForClient(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<number> {
+  // Resolve edro_clients UUID for ai_opportunities (UUID client_id)
+  const edroId = await resolveEdroId(params.client_id);
+  if (!edroId) return 0;
   const sources: OpportunitySource[] = [];
 
   // 1. Scan clipping (high relevance, recent)
@@ -194,10 +213,10 @@ ${sources.map((s, i) => `${i + 1}. [${s.type}] ${s.title} (score: ${s.score})\n 
     SELECT
       MD5(LOWER(title || COALESCE(description, ''))) as hash
     FROM ai_opportunities
-    WHERE client_id = $1
-      AND tenant_id = $2
+    WHERE client_id = $1::uuid
+      AND tenant_id = $2::text
       AND created_at > NOW() - INTERVAL '30 days'
-  `, [params.client_id, params.tenant_id]);
+  `, [edroId, params.tenant_id]);
   existing.forEach((row: any) => existingHashes.add(row.hash));
 
   // Insert new opportunities
@@ -226,10 +245,10 @@ ${sources.map((s, i) => `${i + 1}. [${s.type}] ${s.title} (score: ${s.score})\n 
         opportunity_hash,
         score,
         trending_up
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1::text, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [
       params.tenant_id,
-      params.client_id,
+      edroId,
       opp.title,
       opp.description,
       opp.source_type,
