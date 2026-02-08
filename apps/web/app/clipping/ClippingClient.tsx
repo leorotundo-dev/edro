@@ -22,7 +22,6 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconRefresh,
-  IconWorld,
   IconPlus,
   IconExternalLink,
   IconNews,
@@ -634,60 +633,80 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                       }}
                       onClick={() => {
                         if (!item?.id) return;
-                        router.push(`/clipping/${item.id}`);
+                        const detailHref =
+                          embedded && lockedClientId
+                            ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(item.id)}`
+                            : `/clipping/${item.id}`;
+                        router.push(detailHref);
                       }}
                     >
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
-                          <Stack direction="row" spacing={2} alignItems="center" sx={{ minWidth: 0 }}>
-                            <Avatar variant="rounded" src={item.image_url || undefined} sx={{ bgcolor: 'grey.100', width: 56, height: 56 }}>
-                              <IconWorld size={20} />
-                            </Avatar>
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography variant="subtitle2" noWrap>{item.title}</Typography>
-                              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                                {item.snippet || 'Sem resumo.'}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" display="block">
-                                {formatSource(item.source_name, item.source_url)} -- {formatDate(item.published_at)}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                          <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
-                            <Chip size="small" label={item.type || 'NEWS'} variant="outlined" />
-                            <Chip
-                              size="small"
-                              label={item.client_score != null ? `Relevância ${formatNumber(item.client_score)}` : `Score ${formatNumber(item.score)}`}
-                              color={item.client_score != null && item.client_score >= 0.7 ? 'success' : 'primary'}
-                              variant="outlined"
-                            />
-                            <Chip size="small" color={badge.color} label={badge.label} />
-                            {item.url ? (
-                              <Button
-                                size="small"
-                                variant="text"
-                                startIcon={<IconExternalLink size={14} />}
-                                href={item.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                Abrir
-                              </Button>
-                            ) : null}
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="error"
-                              startIcon={<IconThumbDown size={14} />}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleRejectItem(item.id);
+                        <Stack direction="row" spacing={2}>
+                          {/* Text content — takes most space */}
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                              {item.title}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                lineHeight: 1.5,
+                                mb: 0.75,
                               }}
-                              sx={{ minWidth: 'auto', px: 1 }}
                             >
-                              Rejeitar
-                            </Button>
+                              {item.snippet || 'Sem resumo.'}
+                            </Typography>
+                            <Typography variant="caption" color="text.disabled">
+                              {formatSource(item.source_name, item.source_url)} -- {formatDate(item.published_at)}
+                            </Typography>
+                          </Box>
+
+                          {/* Right side — compact info + actions */}
+                          <Stack spacing={1} alignItems="flex-end" flexShrink={0} sx={{ minWidth: 120 }}>
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end" useFlexGap>
+                              <Chip size="small" label={item.type || 'NEWS'} variant="outlined" sx={{ fontSize: '0.65rem', height: 22 }} />
+                              <Chip
+                                size="small"
+                                label={item.client_score != null ? `${formatNumber(item.client_score)}` : `${formatNumber(item.score)}`}
+                                color={item.client_score != null && item.client_score >= 0.7 ? 'success' : 'primary'}
+                                variant="outlined"
+                                sx={{ fontSize: '0.65rem', height: 22 }}
+                              />
+                              <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.65rem', height: 22 }} />
+                            </Stack>
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              {item.url ? (
+                                <Tooltip title="Abrir original">
+                                  <IconButton
+                                    size="small"
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(event) => event.stopPropagation()}
+                                    component="a"
+                                  >
+                                    <IconExternalLink size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : null}
+                              <Tooltip title="Rejeitar">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleRejectItem(item.id);
+                                  }}
+                                >
+                                  <IconThumbDown size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           </Stack>
                         </Stack>
                       </CardContent>
