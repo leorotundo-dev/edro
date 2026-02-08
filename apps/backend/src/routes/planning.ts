@@ -17,6 +17,25 @@ import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 
+/**
+ * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
+ * Two client tables coexist: `clients` (TEXT id, multitenant) and `edro_clients` (UUID, legacy briefing system).
+ * Tables like library_items/clipping use clients.id (TEXT), while edro_briefings/ai_opportunities use edro_clients.id (UUID).
+ */
+async function resolveEdroClientId(clientId: string): Promise<string | null> {
+  try {
+    const { rows } = await query(
+      `SELECT ec.id FROM edro_clients ec
+       JOIN clients c ON LOWER(ec.name) = LOWER(c.name)
+       WHERE c.id = $1 LIMIT 1`,
+      [clientId]
+    );
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 type ConversationMessage = {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -301,6 +320,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id || 'default';
     const userId = (request.user as any)?.sub;
     const user = request.user as any;
+    const edroId = await resolveEdroClientId(clientId);
 
     let body: z.infer<typeof chatSchema>;
     try {
@@ -452,14 +472,14 @@ export default async function planningRoutes(app: FastifyInstance) {
           await query(
             `UPDATE planning_conversations
              SET messages = messages || $1::jsonb, updated_at = now()
-             WHERE id = $2 AND client_id = $3`,
-            [JSON.stringify(messagesPayload), conversationId, clientId]
+             WHERE id = $2 AND client_id = $3::uuid`,
+            [JSON.stringify(messagesPayload), conversationId, edroId]
           );
-        } else {
+        } else if (edroId) {
           await query(
             `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-             VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-            [tenantId, clientId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)]
+             VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)`,
+            [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)]
           );
         }
       } catch (e) {
@@ -487,15 +507,20 @@ export default async function planningRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.send({ success: true, data: { conversations: [] } });
+    }
 
     const result = await query(
       `SELECT id, title, provider, status, created_at, updated_at,
               (SELECT COUNT(*) FROM jsonb_array_elements(messages)) as message_count
        FROM planning_conversations
-       WHERE client_id = $1 AND tenant_id = $2
+       WHERE client_id = $1::uuid AND tenant_id = $2
        ORDER BY updated_at DESC
        LIMIT 50`,
-      [clientId, tenantId]
+      [edroId, tenantId]
     );
 
     return reply.send({
@@ -507,15 +532,16 @@ export default async function planningRoutes(app: FastifyInstance) {
   // Get conversation detail
   app.get<{ Params: { clientId: string; conversationId: string } }>(
     '/clients/:clientId/planning/conversations/:conversationId',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
+      const edroId = await resolveEdroClientId(clientId);
 
       const result = await query(
         `SELECT * FROM planning_conversations
-         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
-        [conversationId, clientId, tenantId]
+         WHERE id = $1 AND client_id = $2::uuid AND tenant_id = $3`,
+        [conversationId, edroId, tenantId]
       );
 
       if (!result.rows.length) {
@@ -536,14 +562,19 @@ export default async function planningRoutes(app: FastifyInstance) {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
     const userId = (request.user as any)?.sub;
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.status(400).send({ success: false, error: 'Client not found in edro_clients' });
+    }
 
     const body = createConversationSchema.parse(request.body);
 
     const result = await query(
       `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-       VALUES ($1, $2, $3, $4, $5, '[]'::jsonb)
+       VALUES ($1, $2::uuid, $3, $4, $5, '[]'::jsonb)
        RETURNING *`,
-      [tenantId, clientId, userId, body.title || 'New Planning Session', body.provider]
+      [tenantId, edroId, userId, body.title || 'New Planning Session', body.provider]
     );
 
     return reply.send({
@@ -555,15 +586,16 @@ export default async function planningRoutes(app: FastifyInstance) {
   // Delete conversation
   app.delete<{ Params: { clientId: string; conversationId: string } }>(
     '/clients/:clientId/planning/conversations/:conversationId',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
+      const edroId = await resolveEdroClientId(clientId);
 
       await query(
         `DELETE FROM planning_conversations
-         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
-        [conversationId, clientId, tenantId]
+         WHERE id = $1 AND client_id = $2::uuid AND tenant_id = $3`,
+        [conversationId, edroId, tenantId]
       );
 
       return reply.send({ success: true });
@@ -576,10 +608,15 @@ export default async function planningRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.send({ success: true, data: { opportunities: [] } });
+    }
 
     const result = await query(
       `SELECT * FROM ai_opportunities
-       WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+       WHERE client_id = $1::uuid AND tenant_id = $2::text AND status != 'dismissed'
        ORDER BY
          CASE priority
            WHEN 'urgent' THEN 1
@@ -589,7 +626,7 @@ export default async function planningRoutes(app: FastifyInstance) {
          END,
          created_at DESC
        LIMIT 20`,
-      [clientId, tenantId]
+      [edroId, tenantId]
     );
 
     return reply.send({
@@ -604,13 +641,18 @@ export default async function planningRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
 
-    // Gather context: clipping, trends, calendar
+    if (!edroId) {
+      return reply.status(400).send({ success: false, error: 'Client not found in edro_clients' });
+    }
+
+    // Gather context: clipping (TEXT client_id), trends (TEXT client_id), calendar (global)
     const [clippingResult, trendsResult, calendarResult] = await Promise.all([
       query(
         `SELECT title, snippet, relevance_score, published_at
          FROM clipping_matches
-         WHERE client_id = $1 AND tenant_id = $2
+         WHERE client_id = $1 AND tenant_id = $2::uuid
          ORDER BY relevance_score DESC, published_at DESC
          LIMIT 10`,
         [clientId, tenantId]
@@ -618,7 +660,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       query(
         `SELECT keyword, platform, mention_count, average_sentiment
          FROM social_listening_trends
-         WHERE client_id = $1 AND tenant_id = $2
+         WHERE client_id = $1 AND tenant_id = $2::uuid
          ORDER BY mention_count DESC
          LIMIT 10`,
         [clientId, tenantId]
@@ -684,15 +726,15 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       console.error('Failed to parse opportunities:', e);
     }
 
-    // Save opportunities
+    // Save opportunities (ai_opportunities.client_id is UUID → edro_clients)
     for (const opp of opportunities) {
       await query(
         `INSERT INTO ai_opportunities
          (tenant_id, client_id, title, description, source, suggested_action, priority, confidence)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES ($1::text, $2::uuid, $3, $4, $5, $6, $7, $8)`,
         [
           tenantId,
-          clientId,
+          edroId,
           opp.title,
           opp.description,
           opp.source,
@@ -715,15 +757,16 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // Update opportunity status
   app.patch<{ Params: { clientId: string; opportunityId: string } }>(
     '/clients/:clientId/insights/opportunities/:opportunityId',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const { clientId, opportunityId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
       const userId = (request.user as any)?.sub;
+      const edroId = await resolveEdroClientId(clientId);
       const { status } = request.body as { status: string };
 
       const updates: string[] = ['status = $4', 'updated_at = now()'];
-      const params: any[] = [opportunityId, clientId, tenantId, status];
+      const params: any[] = [opportunityId, edroId, tenantId, status];
 
       if (status === 'actioned') {
         updates.push('actioned_at = now()');
@@ -733,7 +776,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
       await query(
         `UPDATE ai_opportunities SET ${updates.join(', ')}
-         WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
+         WHERE id = $1 AND client_id = $2::uuid AND tenant_id = $3::text`,
         params
       );
 
@@ -747,8 +790,10 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
 
     // Gather ALL data sources in parallel
+    // TEXT tables (library/clipping/social) use clientId; UUID tables (briefings/opportunities) use edroId
     const [
       clientContext,
       contextPack,
@@ -768,7 +813,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         `SELECT cm.score, cm.matched_keywords, ci.title, ci.excerpt, ci.published_at
          FROM clipping_matches cm
          JOIN clipping_items ci ON ci.id = cm.clipping_item_id
-         WHERE cm.client_id = $1 AND cm.tenant_id = $2
+         WHERE cm.client_id = $1 AND cm.tenant_id = $2::uuid
          ORDER BY cm.score DESC, cm.created_at DESC
          LIMIT 15`,
         [clientId, tenantId]
@@ -776,7 +821,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       query(
         `SELECT keyword, platform, mention_count, average_sentiment, positive_count, negative_count, total_engagement
          FROM social_listening_trends
-         WHERE client_id = $1 AND tenant_id = $2
+         WHERE client_id = $1 AND tenant_id = $2::uuid
          ORDER BY mention_count DESC
          LIMIT 15`,
         [clientId, tenantId]
@@ -792,18 +837,18 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       query(
         `SELECT title, description, source, suggested_action, priority, confidence, status
          FROM ai_opportunities
-         WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+         WHERE client_id = $1::uuid AND tenant_id = $2::text AND status != 'dismissed'
          ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, confidence DESC
          LIMIT 10`,
-        [clientId, tenantId]
+        [edroId, tenantId]
       ).catch(() => ({ rows: [] })),
       query(
         `SELECT title, payload, created_at
          FROM edro_briefings
-         WHERE client_id = $1 AND tenant_id = $2
+         WHERE client_id = $1::uuid
          ORDER BY created_at DESC
          LIMIT 10`,
-        [clientId, tenantId]
+        [edroId]
       ).catch(() => ({ rows: [] })),
       query(
         `SELECT platform, time_window, payload, created_at
@@ -1013,21 +1058,26 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     };
 
     try {
+      const edroId = await resolveEdroClientId(clientId);
+
+      // $1 = clientId (TEXT, for clients-based tables)
+      // $2 = tenantId (UUID string)
+      // $3 = edroId (UUID string or null, for edro_clients-based tables)
       const result = await Promise.race([
         query(`
           SELECT
-            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2) as lib_total,
-            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready') as lib_ready,
-            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'error') as lib_error,
-            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days') as clip_total,
-            (SELECT COUNT(*) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_total,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2::uuid) as lib_total,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2::uuid AND status = 'ready') as lib_ready,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2::uuid AND status = 'error') as lib_error,
+            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2::uuid AND created_at > NOW() - INTERVAL '30 days') as clip_total,
+            (SELECT COUNT(*) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2::uuid AND created_at > NOW() - INTERVAL '7 days') as social_total,
             (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD')) as cal_total,
             (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')) as cal_upcoming,
-            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed') as opp_total,
-            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND priority = 'urgent') as opp_urgent,
-            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total,
-            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days') as brief_total
-        `, [clientId, tenantId]),
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed') as opp_total,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed' AND priority = 'urgent') as opp_urgent,
+            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $3::uuid AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $3::uuid AND created_at > NOW() - INTERVAL '90 days') as brief_total
+        `, [clientId, tenantId, edroId]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health timed out')), 8000)),
       ]);
 
@@ -1100,23 +1150,25 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     };
 
     try {
-      // Single SQL query with scalar subqueries — 1 DB connection, fast
+      const edroId = await resolveEdroClientId(clientId);
+
+      // $1 = clientId (TEXT), $2 = tenantId, $3 = edroId (UUID or null)
       const result = await Promise.race([
         query(`
           SELECT
-            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready') as library_total,
-            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days' AND score > 70) as clipping_total,
-            (SELECT COALESCE(SUM(mention_count), 0) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_mentions,
-            (SELECT COALESCE(AVG(average_sentiment), 50) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_sentiment,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2::uuid AND status = 'ready') as library_total,
+            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2::uuid AND created_at > NOW() - INTERVAL '30 days' AND score > 70) as clipping_total,
+            (SELECT COALESCE(SUM(mention_count), 0) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2::uuid AND created_at > NOW() - INTERVAL '7 days') as social_mentions,
+            (SELECT COALESCE(AVG(average_sentiment), 50) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2::uuid AND created_at > NOW() - INTERVAL '7 days') as social_sentiment,
             (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')) as calendar_next14,
             (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD') AND base_relevance > 80) as calendar_high_rel,
-            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed') as opps_total,
-            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND priority = 'urgent') as opps_urgent,
-            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND confidence >= 80) as opps_high,
-            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days') as briefings_total,
-            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days' AND status NOT IN ('done', 'cancelled')) as briefings_pending,
-            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total
-        `, [clientId, tenantId]),
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed') as opps_total,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed' AND priority = 'urgent') as opps_urgent,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $3::uuid AND tenant_id = $2::text AND status != 'dismissed' AND confidence >= 80) as opps_high,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $3::uuid AND created_at > NOW() - INTERVAL '90 days') as briefings_total,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $3::uuid AND created_at > NOW() - INTERVAL '90 days' AND status NOT IN ('done', 'cancelled')) as briefings_pending,
+            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $3::uuid AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total
+        `, [clientId, tenantId, edroId]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Context query timed out')), 8000)),
       ]);
 
@@ -1242,17 +1294,18 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/opportunities/:oppId/action - Convert opportunity to briefing
   app.post<{ Params: { clientId: string; oppId: string } }>(
     '/clients/:clientId/planning/opportunities/:oppId/action',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const { clientId, oppId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
       const user = request.user as any;
+      const edroId = await resolveEdroClientId(clientId);
       const { action } = request.body as { action: 'create_briefing' | 'dismiss' };
 
-      // Get opportunity
+      // Get opportunity (ai_opportunities.client_id is UUID → edro_clients)
       const { rows: oppRows } = await query(
-        `SELECT * FROM ai_opportunities WHERE id = $1 AND client_id = $2 AND tenant_id = $3`,
-        [oppId, clientId, tenantId]
+        `SELECT * FROM ai_opportunities WHERE id = $1 AND client_id = $2::uuid AND tenant_id = $3::text`,
+        [oppId, edroId, tenantId]
       );
 
       if (!oppRows.length) {
@@ -1316,8 +1369,13 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
+    const edroId = await resolveEdroClientId(clientId);
 
-    const briefings = await listBriefings({ clientId, limit: 50 });
+    if (!edroId) {
+      return reply.send({ success: true, briefings: [] });
+    }
+
+    const briefings = await listBriefings({ clientId: edroId, limit: 50 });
 
     return reply.send({
       success: true,
@@ -1330,15 +1388,20 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
+    const edroId = await resolveEdroClientId(clientId);
+
+    if (!edroId) {
+      return reply.send({ success: true, copies: [] });
+    }
 
     const result = await query(
       `SELECT ecv.*
        FROM edro_copy_versions ecv
        JOIN edro_briefings eb ON eb.id = ecv.briefing_id
-       WHERE eb.client_id = $1
+       WHERE eb.client_id = $1::uuid
        ORDER BY ecv.created_at DESC
        LIMIT 50`,
-      [clientId]
+      [edroId]
     );
 
     return reply.send({
@@ -1353,6 +1416,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
+    const edroId = await resolveEdroClientId(clientId);
     const results: Record<string, any> = {};
 
     // 1) Ensure calendar events exist
@@ -1364,18 +1428,22 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
     // 2) Run opportunity detection if none exist (with 10s timeout — uses AI so can be slow)
     try {
-      const { rows } = await query(
-        `SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`,
-        [clientId, tenantId],
-      );
-      if (Number(rows[0]?.total) === 0) {
-        const count = await Promise.race([
-          detectOpportunitiesForClient({ tenant_id: tenantId, client_id: clientId }),
-          new Promise<number>((resolve) => setTimeout(() => resolve(0), 10000)),
-        ]);
-        results.opportunities = { detected: count };
+      if (!edroId) {
+        results.opportunities = { skipped: 'no edro_clients match' };
       } else {
-        results.opportunities = { existing: Number(rows[0]?.total) };
+        const { rows } = await query(
+          `SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1::uuid AND tenant_id = $2::text AND status != 'dismissed'`,
+          [edroId, tenantId],
+        );
+        if (Number(rows[0]?.total) === 0) {
+          const count = await Promise.race([
+            detectOpportunitiesForClient({ tenant_id: tenantId, client_id: edroId }),
+            new Promise<number>((resolve) => setTimeout(() => resolve(0), 10000)),
+          ]);
+          results.opportunities = { detected: count };
+        } else {
+          results.opportunities = { existing: Number(rows[0]?.total) };
+        }
       }
     } catch (e: any) {
       results.opportunities = { error: e?.message };
