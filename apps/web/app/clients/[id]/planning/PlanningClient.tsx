@@ -409,7 +409,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Stats Bar */}
       <Card sx={sectionCardSx}>
-        <CardContent sx={{ py: 1.5, px: 2.5 }}>
+        <CardContent sx={{ py: 0.75, px: 2, '&:last-child': { pb: 0.75 } }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
             {intelligenceStats && (() => {
               const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
