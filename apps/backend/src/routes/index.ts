@@ -25,8 +25,10 @@ import integrationRoutes from './integration';
 import mockupsRoutes from './mockups';
 import planningRoutes from './planning';
 import adminAiCostsRoutes from './adminAiCosts';
+import tempPgVectorCheck from './_temp_pgvector_check';
 
 export async function registerRoutes(app: FastifyInstance) {
+  app.register(tempPgVectorCheck);
   app.register(healthRoutes);
   app.register(authRoutes, { prefix: '/api' });
   app.register(ssoRoutes, { prefix: '/api' });
