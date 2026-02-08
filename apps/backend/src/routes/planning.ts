@@ -41,7 +41,7 @@ type Conversation = {
 const chatSchema = z.object({
   message: z.string().min(1),
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
-  conversationId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().nullish(),
   mode: z.enum(['chat', 'command']).optional().default('chat'),
 });
 
