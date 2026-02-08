@@ -1371,12 +1371,19 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
     try {
       const startTime = Date.now();
-      const context = await buildIntelligenceContext({
+
+      // Add a 45s timeout to prevent proxy timeout
+      const contextPromise = buildIntelligenceContext({
         tenant_id: tenantId,
         client_id: clientId,
         query: userQuery,
         maxTokens,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Intelligence context build timed out')), 45000)
+      );
+
+      const context = await Promise.race([contextPromise, timeoutPromise]);
 
       const duration = Date.now() - startTime;
 
@@ -1397,20 +1404,57 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
         data: {
           context,
           prompt: formatIntelligencePrompt(context),
-          stats: {
-            library: context.library.totalItems,
-            clipping: context.clipping.totalMatches,
-            social: context.social.totalMentions,
-            calendar: context.calendar.upcoming.length,
-            opportunities: context.opportunities.active.length,
-          },
+          stats: (() => {
+            const activeOpps = Array.isArray(context.opportunities?.active) ? context.opportunities.active : [];
+            return {
+              library: { totalItems: context.library?.totalItems || 0, packedText: context.library?.packedText },
+              clipping: { totalMatches: context.clipping?.totalMatches || 0, topKeywords: context.clipping?.topKeywords || [] },
+              social: { totalMentions: context.social?.totalMentions || 0, sentimentAvg: context.social?.sentimentAvg || 0 },
+              calendar: { next14Days: context.calendar?.upcoming?.length || 0, highRelevance: context.calendar?.highRelevance?.length || 0 },
+              opportunities: {
+                active: activeOpps.length,
+                urgent: activeOpps.filter((o: any) => o.priority === 'urgent').length,
+                highConfidence: activeOpps.filter((o: any) => (o.confidence || 0) >= 80).length,
+              },
+              briefings: { recent: 0, pending: 0 },
+              copies: { recentHashes: 0, usedAngles: 0 },
+            };
+          })(),
         },
       });
     } catch (error: any) {
       request.log?.error({ err: error }, 'planning_context_failed');
-      return reply.status(500).send({
-        success: false,
-        error: error?.message || 'Falha ao carregar contexto.',
+
+      // Return partial stats fallback instead of a hard error
+      const fallbackStats = {
+        library: { totalItems: 0 },
+        clipping: { totalMatches: 0, topKeywords: [] as string[] },
+        social: { totalMentions: 0, sentimentAvg: 0 },
+        calendar: { next14Days: 0, highRelevance: 0 },
+        opportunities: { active: 0, urgent: 0, highConfidence: 0 },
+        briefings: { recent: 0, pending: 0 },
+        copies: { recentHashes: 0, usedAngles: 0 },
+      };
+      try {
+        const [libRes, clipRes, oppRes] = await Promise.allSettled([
+          query(`SELECT COUNT(*) as total FROM library_items WHERE client_id = $1 AND tenant_id = $2`, [clientId, tenantId]),
+          query(`SELECT COUNT(*) as total FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2`, [clientId, tenantId]),
+          query(`SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`, [clientId, tenantId]),
+        ]);
+        if (libRes.status === 'fulfilled') fallbackStats.library.totalItems = Number(libRes.value.rows[0]?.total || 0);
+        if (clipRes.status === 'fulfilled') fallbackStats.clipping.totalMatches = Number(clipRes.value.rows[0]?.total || 0);
+        if (oppRes.status === 'fulfilled') fallbackStats.opportunities.active = Number(oppRes.value.rows[0]?.total || 0);
+      } catch { /* ignore fallback errors */ }
+
+      return reply.send({
+        success: true,
+        data: {
+          context: null,
+          prompt: '',
+          stats: fallbackStats,
+          partial: true,
+          warning: error?.message || 'Contexto carregado parcialmente.',
+        },
       });
     }
   });
@@ -1571,4 +1615,68 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       return reply.status(400).send({ success: false, error: 'Invalid action' });
     }
   );
+
+  // GET /clients/:clientId/briefings - List briefings for a specific client
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/briefings', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+
+    const briefings = await listBriefings({ clientId, limit: 50 });
+
+    return reply.send({
+      success: true,
+      briefings,
+    });
+  });
+
+  // GET /clients/:clientId/copies - List copy versions for a specific client
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/copies', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+
+    const result = await query(
+      `SELECT ecv.*
+       FROM edro_copy_versions ecv
+       JOIN edro_briefings eb ON eb.id = ecv.briefing_id
+       WHERE eb.client_id = $1
+       ORDER BY ecv.created_at DESC
+       LIMIT 50`,
+      [clientId]
+    );
+
+    return reply.send({
+      success: true,
+      copies: result.rows,
+    });
+  });
+
+  // GET /clients/:clientId/planning/opportunities - List opportunities (alias)
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+
+    const result = await query(
+      `SELECT * FROM ai_opportunities
+       WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'
+       ORDER BY
+         CASE priority
+           WHEN 'urgent' THEN 1
+           WHEN 'high' THEN 2
+           WHEN 'medium' THEN 3
+           ELSE 4
+         END,
+         created_at DESC
+       LIMIT 20`,
+      [clientId, tenantId]
+    );
+
+    return reply.send({
+      success: true,
+      opportunities: result.rows,
+    });
+  });
 }

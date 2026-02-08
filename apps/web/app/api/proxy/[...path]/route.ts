@@ -5,7 +5,7 @@ import { Buffer } from 'node:buffer';
 export const maxDuration = 60;
 
 const DEFAULT_BACKEND_URL = 'http://localhost:3333';
-const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 30000);
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 60000);
 const API_SUFFIX_REGEX = /\/api$/i;
 
 function isAbortError(error: unknown) {

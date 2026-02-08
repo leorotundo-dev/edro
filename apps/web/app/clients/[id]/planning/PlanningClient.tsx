@@ -89,11 +89,16 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         data?: {
           context?: any;
           stats?: IntelligenceStats;
+          partial?: boolean;
+          warning?: string;
         };
       }>(`/clients/${clientId}/planning/context`, {});
 
       if (response?.data?.stats) {
         setIntelligenceStats(response.data.stats);
+      }
+      if (response?.data?.partial) {
+        setContextError(response.data.warning || 'Contexto carregado parcialmente.');
       }
     } catch (err: any) {
       setContextError(err?.message || 'Falha ao carregar contexto.');
