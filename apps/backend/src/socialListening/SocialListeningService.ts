@@ -7,12 +7,13 @@ import { LinkedInCollector } from './LinkedInCollector';
 import { MetaFacebookCollector } from './MetaFacebookCollector';
 import { MetaInstagramCollector } from './MetaInstagramCollector';
 import { SentimentAnalyzer } from './SentimentAnalyzer';
-import type { AnalyzedMention, Platform } from './types';
+import type { AnalyzedMention, Platform, RawMention } from './types';
 import { getMetaConnector, type MetaConnectorConfig } from './metaConnector';
 import type { ClientKnowledge } from '../providers/contracts';
 import { knowledgeBaseProvider } from '../providers/base';
 
 const PLATFORMS: Platform[] = ['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin', 'instagram', 'facebook'];
+const COMMENTS_KEYWORD = 'comentarios';
 
 type KeywordRow = {
   id: string;
@@ -120,16 +121,20 @@ export class SocialListeningService {
     return rows;
   }
 
-  async collectAll(options: { limit?: number; clientId?: string; platforms?: Platform[] } = {}) {
+  async collectAll(
+    options: {
+      limit?: number;
+      clientId?: string;
+      platforms?: Platform[];
+      includeComments?: boolean;
+      commentsPostsLimit?: number;
+      commentsLimitPerPost?: number;
+    } = {}
+  ) {
     const errors: string[] = [];
     let collected = 0;
     let analyzed = 0;
     const knowledgeCache = new Map<string, ClientKnowledge | null>();
-
-    const keywords = await this.getActiveKeywords(options.clientId);
-    if (!keywords.length) {
-      return { collected, analyzed, errors: ['no_active_keywords'] };
-    }
 
     const metaConfig = await this.resolveMetaConfig(options.clientId ?? null);
     let platforms = this.resolvePlatforms(options.platforms);
@@ -140,6 +145,63 @@ export class SocialListeningService {
       if (options.platforms?.includes('facebook') || options.platforms?.includes('instagram')) {
         errors.push('meta_not_configured');
       }
+    }
+
+    const includeComments = Boolean(options.includeComments);
+    if (includeComments && options.clientId && metaConfig?.accessToken) {
+      const limitPosts = Math.min(Math.max(Number(options.commentsPostsLimit ?? 10), 1), 25);
+      const limitCommentsPerPost = Math.min(Math.max(Number(options.commentsLimitPerPost ?? 50), 1), 200);
+
+      const commentMentions: RawMention[] = [];
+
+      if (platforms.includes('facebook') && metaConfig.pageId) {
+        try {
+          const result = await this.metaFacebook.collectRecentComments(limitPosts, limitCommentsPerPost, {
+            accessToken: metaConfig.accessToken,
+            pageId: metaConfig.pageId,
+          });
+          if (result?.mentions?.length) commentMentions.push(...result.mentions);
+        } catch (error: any) {
+          const message = 'collect_facebook_comments';
+          errors.push(message);
+          console.error(message, error?.message || String(error));
+        }
+      }
+
+      if (platforms.includes('instagram') && metaConfig.instagramBusinessId) {
+        try {
+          const result = await this.metaInstagram.collectRecentComments(limitPosts, limitCommentsPerPost, {
+            accessToken: metaConfig.accessToken,
+            instagramBusinessId: metaConfig.instagramBusinessId,
+          });
+          if (result?.mentions?.length) commentMentions.push(...result.mentions);
+        } catch (error: any) {
+          const message = 'collect_instagram_comments';
+          errors.push(message);
+          console.error(message, error?.message || String(error));
+        }
+      }
+
+      if (commentMentions.length) {
+        const analyzedMentions: AnalyzedMention[] = commentMentions.map((mention) => ({
+          ...mention,
+          sentiment: 'neutral',
+          sentimentScore: 50,
+          keywords: [],
+        }));
+        await this.storeMentions(analyzedMentions, COMMENTS_KEYWORD, options.clientId ?? null);
+        collected += commentMentions.length;
+        analyzed += analyzedMentions.length;
+      }
+    }
+
+    const keywords = await this.getActiveKeywords(options.clientId);
+    if (!keywords.length) {
+      const outErrors = errors.length ? [...errors, 'no_active_keywords'] : ['no_active_keywords'];
+      if (collected > 0) {
+        await this.generateTrends({ clientId: options.clientId });
+      }
+      return { collected, analyzed, errors: outErrors };
     }
 
     for (const keyword of keywords) {
@@ -279,39 +341,32 @@ export class SocialListeningService {
   }
 
   private async storeMentions(mentions: AnalyzedMention[], keyword: string, clientId: string | null) {
-    for (const mention of mentions) {
-      const keywordList = Array.from(
-        new Set([keyword, ...(mention.keywords || [])].filter(Boolean))
-      );
+    if (!mentions.length) return;
 
-      await query(
-        `
-        INSERT INTO social_listening_mentions
-          (tenant_id, client_id, keyword, platform, external_id, content, author, author_followers,
-           author_verified, engagement_likes, engagement_comments, engagement_shares, engagement_views,
-           sentiment, sentiment_score, keywords, url, language, country, published_at)
-        VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20)
-        ON CONFLICT (tenant_id, platform, external_id)
-        DO UPDATE SET
-          content=EXCLUDED.content,
-          author=EXCLUDED.author,
-          author_followers=EXCLUDED.author_followers,
-          author_verified=EXCLUDED.author_verified,
-          engagement_likes=EXCLUDED.engagement_likes,
-          engagement_comments=EXCLUDED.engagement_comments,
-          engagement_shares=EXCLUDED.engagement_shares,
-          engagement_views=EXCLUDED.engagement_views,
-          sentiment=EXCLUDED.sentiment,
-          sentiment_score=EXCLUDED.sentiment_score,
-          keywords=EXCLUDED.keywords,
-          url=EXCLUDED.url,
-          language=EXCLUDED.language,
-          country=EXCLUDED.country,
-          published_at=EXCLUDED.published_at,
-          collected_at=NOW()
-        `,
-        [
+    // Avoid duplicate keys inside a single INSERT statement (Postgres errors on ON CONFLICT updates twice).
+    const seen = new Set<string>();
+    const unique = mentions.filter((mention) => {
+      const key = `${mention.platform}:${mention.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const chunkSize = 100;
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      const chunk = unique.slice(i, i + chunkSize);
+      const values: any[] = [];
+      const rowsSql: string[] = [];
+      let idx = 1;
+
+      for (const mention of chunk) {
+        const keywordList = Array.from(new Set([keyword, ...(mention.keywords || [])].filter(Boolean)));
+
+        rowsSql.push(
+          `($${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++}::jsonb,$${idx++},$${idx++},$${idx++},$${idx++})`
+        );
+
+        values.push(
           this.tenantId,
           clientId,
           keyword,
@@ -331,8 +386,38 @@ export class SocialListeningService {
           mention.url ?? null,
           mention.language ?? null,
           mention.country ?? null,
-          mention.publishedAt ?? new Date(),
-        ]
+          mention.publishedAt ?? new Date()
+        );
+      }
+
+      await query(
+        `
+        INSERT INTO social_listening_mentions
+          (tenant_id, client_id, keyword, platform, external_id, content, author, author_followers,
+           author_verified, engagement_likes, engagement_comments, engagement_shares, engagement_views,
+           sentiment, sentiment_score, keywords, url, language, country, published_at)
+        VALUES
+          ${rowsSql.join(',\n')}
+        ON CONFLICT (tenant_id, platform, external_id)
+        DO UPDATE SET
+          content=EXCLUDED.content,
+          author=EXCLUDED.author,
+          author_followers=EXCLUDED.author_followers,
+          author_verified=EXCLUDED.author_verified,
+          engagement_likes=EXCLUDED.engagement_likes,
+          engagement_comments=EXCLUDED.engagement_comments,
+          engagement_shares=EXCLUDED.engagement_shares,
+          engagement_views=EXCLUDED.engagement_views,
+          sentiment=EXCLUDED.sentiment,
+          sentiment_score=EXCLUDED.sentiment_score,
+          keywords=EXCLUDED.keywords,
+          url=EXCLUDED.url,
+          language=EXCLUDED.language,
+          country=EXCLUDED.country,
+          published_at=EXCLUDED.published_at,
+          collected_at=NOW()
+        `,
+        values
       );
     }
   }
@@ -572,7 +657,7 @@ export class SocialListeningService {
     return rows[0];
   }
 
-  async updateKeyword(params: { id: string; isActive?: boolean; category?: string | null }) {
+  async updateKeyword(params: { id: string; keyword?: string; isActive?: boolean; category?: string | null }) {
     const { rows } = await query<any>(
       `SELECT * FROM social_listening_keywords WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
       [params.id, this.tenantId]
@@ -582,15 +667,19 @@ export class SocialListeningService {
 
     const nextActive = params.isActive ?? current.is_active;
     const nextCategory = params.category ?? current.category;
+    const nextKeyword = String(params.keyword ?? current.keyword ?? '').trim();
+    if (nextKeyword.length < 2) {
+      throw new Error('keyword_too_short');
+    }
 
     const { rows: updated } = await query<any>(
       `
       UPDATE social_listening_keywords
-      SET is_active=$3, category=$4, updated_at=NOW()
+      SET keyword=$3, is_active=$4, category=$5, updated_at=NOW()
       WHERE id=$1 AND tenant_id=$2
       RETURNING *
       `,
-      [params.id, this.tenantId, nextActive, nextCategory]
+      [params.id, this.tenantId, nextKeyword, nextActive, nextCategory]
     );
 
     return updated[0];

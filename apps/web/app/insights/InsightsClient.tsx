@@ -83,6 +83,16 @@ type InsightsClientProps = {
   embedded?: boolean;
 };
 
+type SocialPlatform = 'twitter' | 'youtube' | 'tiktok' | 'reddit' | 'linkedin' | 'instagram' | 'facebook';
+
+type ConnectorRow = {
+  provider: string;
+  payload?: Record<string, any> | null;
+};
+
+const ALL_SOCIAL_PLATFORMS: SocialPlatform[] = ['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin', 'instagram', 'facebook'];
+const DEFAULT_COLLECT_PLATFORMS: SocialPlatform[] = ['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin'];
+
 function formatNumber(value?: number | null) {
   if (!Number.isFinite(value)) return '0';
   return new Intl.NumberFormat('pt-BR').format(Number(value));
@@ -93,6 +103,10 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '--';
   return date.toLocaleDateString('pt-BR');
+}
+
+function isSocialPlatform(value: any): value is SocialPlatform {
+  return ALL_SOCIAL_PLATFORMS.includes(value);
 }
 
 export default function InsightsClient({ clientId, noShell, embedded }: InsightsClientProps) {
@@ -109,6 +123,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([]);
   const [opportunities, setOpportunities] = useState<AIOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
 
@@ -146,19 +161,19 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
     }
   }, []);
 
-  const loadInsights = useCallback(async () => {
+  const loadInsights = useCallback(async (options?: { preserveError?: boolean }) => {
     if (!selectedClient) return;
     setLoading(true);
-    setError('');
+    if (!options?.preserveError) setError('');
     try {
       const [statsResp, trendsResp, matchesResp, upcomingResp] = await Promise.all([
         apiGet<StatsResponse>(`/social-listening/stats?clientId=${selectedClient.id}`),
-        apiGet<TrendRow[]>(`/social-listening/trends?clientId=${selectedClient.id}`),
+        apiGet<{ trends: TrendRow[] }>(`/social-listening/trends?clientId=${selectedClient.id}`),
         apiGet<{ matches: ClippingMatch[] }>(`/clipping/matches/${selectedClient.id}?limit=8`),
         apiGet<{ items: UpcomingEvent[] }>(`/clients/${selectedClient.id}/calendar/upcoming?days=14`),
       ]);
       setStats(statsResp || {});
-      setTrends(trendsResp || []);
+      setTrends(trendsResp?.trends || []);
       setMatches(matchesResp?.matches || []);
       setUpcoming(upcomingResp?.items || []);
     } catch (err: any) {
@@ -179,6 +194,45 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
       console.error('Failed to load opportunities:', err);
     }
   }, [selectedClient]);
+
+  const resolveCollectPlatforms = useCallback(async () => {
+    if (!selectedClient) return DEFAULT_COLLECT_PLATFORMS;
+    try {
+      const response = await apiGet<ConnectorRow | null>(
+        `/clients/${selectedClient.id}/connectors/social_listening_sources`
+      );
+      const raw = (response?.payload as any)?.platforms;
+      if (Array.isArray(raw)) {
+        const filtered = raw.filter(isSocialPlatform);
+        if (filtered.length) return filtered;
+      }
+    } catch {
+      // Ignore: fallback to defaults.
+    }
+    return DEFAULT_COLLECT_PLATFORMS;
+  }, [selectedClient]);
+
+  const refreshInsights = useCallback(async () => {
+    if (!selectedClient) return;
+    setRefreshing(true);
+    setError('');
+    try {
+      const platforms = await resolveCollectPlatforms();
+      await apiPost('/social-listening/collect', {
+        clientId: selectedClient.id,
+        platforms,
+        limit: 10,
+        includeComments: true,
+        commentsPostsLimit: 10,
+        commentsLimitPerPost: 50,
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao coletar dados.');
+    } finally {
+      await Promise.all([loadInsights({ preserveError: true }), loadOpportunities()]);
+      setRefreshing(false);
+    }
+  }, [loadInsights, loadOpportunities, resolveCollectPlatforms, selectedClient]);
 
   const generateOpportunities = useCallback(async () => {
     if (!selectedClient) return;
@@ -220,6 +274,59 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const summary = stats.summary || {};
   const platforms = stats.platforms || [];
   const topKeywords = stats.top_keywords || [];
+
+  const strategicSummaryLines = (() => {
+    const lines: string[] = [];
+    const total = Number(summary.total || 0);
+    const positive = Number(summary.positive || 0);
+    const neutral = Number(summary.neutral || 0);
+    const negative = Number(summary.negative || 0);
+    const avg = Number(summary.avg_score ?? 0);
+
+    if (total > 0) {
+      lines.push(`Social (7d): ${formatNumber(total)} mencoes; sentimento medio ${formatNumber(avg)}%.`);
+      lines.push(`Distribuicao: ${formatNumber(positive)} positivas, ${formatNumber(neutral)} neutras, ${formatNumber(negative)} negativas.`);
+    } else {
+      lines.push('Social (7d): sem mencoes coletadas ainda.');
+    }
+
+    if (topKeywords.length) {
+      const top = topKeywords.slice(0, 5).map((kw) => kw.keyword).filter(Boolean);
+      if (top.length) lines.push(`Top keywords: ${top.join(', ')}.`);
+    }
+
+    if (trends.length) {
+      const highlights = [...trends]
+        .sort((a, b) => Number(b.mention_count || 0) - Number(a.mention_count || 0))
+        .slice(0, 3);
+      if (highlights.length) {
+        const formatted = highlights
+          .map((t) => `${t.keyword} (${t.platform})`)
+          .filter(Boolean)
+          .join(', ');
+        if (formatted) lines.push(`Tendencias (24h): ${formatted}.`);
+      }
+    }
+
+    if (matches.length) {
+      const topMatch = matches[0];
+      if (topMatch?.title) {
+        const score = typeof topMatch.score === 'number' ? ` (score ${formatNumber(topMatch.score)})` : '';
+        const extra = matches.length > 1 ? ` +${matches.length - 1} outras.` : '.';
+        lines.push(`Radar: ${topMatch.title}${score}${extra}`);
+      }
+    }
+
+    if (upcoming.length) {
+      const next = upcoming[0];
+      if (next?.name) {
+        const extra = upcoming.length > 1 ? ` +${upcoming.length - 1} outras datas.` : '';
+        lines.push(`Calendario: ${next.name} em ${formatDate(next.date)}.${extra}`);
+      }
+    }
+
+    return lines;
+  })();
 
   if (loading && clients.length === 0) {
     return (
@@ -307,10 +414,36 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                   </MenuItem>
                 ))}
               </TextField>
-              <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={loadInsights}>
-                Atualizar
+              <Button
+                variant="outlined"
+                startIcon={<IconRefresh size={16} />}
+                onClick={refreshInsights}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? 'Coletando...' : 'Atualizar'}
               </Button>
             </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="overline" color="text.secondary">
+            Resumo estrategico
+          </Typography>
+          <Stack spacing={0.5} sx={{ mt: 1 }}>
+            {strategicSummaryLines.length ? (
+              strategicSummaryLines.map((line, idx) => (
+                <Typography key={`${idx}-${line}`} variant="body2" color="text.secondary">
+                  - {line}
+                </Typography>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Clique em Atualizar para coletar dados e gerar o resumo.
+              </Typography>
+            )}
           </Stack>
         </CardContent>
       </Card>

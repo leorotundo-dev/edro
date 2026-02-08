@@ -84,6 +84,7 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clipping:write')] },
     async (request: any, reply) => {
       const bodySchema = z.object({
+        keyword: z.string().min(2).optional(),
         is_active: z.boolean().optional(),
         category: z.string().nullable().optional(),
       });
@@ -101,6 +102,7 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
 
       const updated = await service.updateKeyword({
         id,
+        keyword: body.keyword,
         isActive: body.is_active,
         category: body.category ?? undefined,
       });
@@ -136,6 +138,9 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         platforms: z.array(platformEnum).optional(),
         limit: z.number().int().min(1).max(100).optional(),
         clientId: z.string().optional(),
+        includeComments: z.boolean().optional(),
+        commentsPostsLimit: z.number().int().min(1).max(25).optional(),
+        commentsLimitPerPost: z.number().int().min(1).max(200).optional(),
       });
       const body = bodySchema.parse(request.body || {});
 
@@ -160,6 +165,9 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         limit: body.limit,
         clientId: body.clientId,
         platforms: body.platforms,
+        includeComments: body.includeComments,
+        commentsPostsLimit: body.commentsPostsLimit,
+        commentsLimitPerPost: body.commentsLimitPerPost,
       });
 
       return reply.send(result);

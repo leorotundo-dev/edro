@@ -7,6 +7,7 @@ import { enqueueJob, fetchJobs, markJob } from '../jobs/jobQueue';
 import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
 import { computeScore, inferSegments } from './itemScoring';
+import { computeGeoFactor } from './geo';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -187,7 +188,7 @@ async function isDuplicateTitle(tenantId: string, hash: string): Promise<boolean
  */
 async function autoScoreClients(tenantId: string, item: ClippingItem) {
   const { rows: clients } = await query<any>(
-    `SELECT id, profile FROM clients WHERE tenant_id=$1`,
+    `SELECT id, profile, country, uf, city FROM clients WHERE tenant_id=$1`,
     [tenantId]
   );
 
@@ -213,17 +214,26 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
       { keywords, pillars, negativeKeywords }
     );
 
-    // Only create match for scores that are meaningful to the client.
-    if (scoreResult.score >= minClientScore) {
-      const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
+    const geo = computeGeoFactor({
+      client: { country: client.country, uf: client.uf, city: client.city },
+      item: { country: item.country, uf: item.uf, city: item.city },
+    });
+    const finalScore = Math.round(Math.max(0, scoreResult.score * geo.factor) * 100) / 100;
+    const relevanceFactors = {
+      ...scoreResult.relevanceFactors,
+      geo_factor: Math.round(geo.factor * 100) / 100,
+      geo_reason: geo.reason,
+    };
 
+    // Only create match for scores that are meaningful to the client.
+    if (finalScore >= minClientScore) {
       // Add client to suggested_client_ids
       const currentSuggested: string[] = Array.isArray(item.suggested_client_ids) ? item.suggested_client_ids : [];
       if (!currentSuggested.includes(client.id)) {
         const updated = [...currentSuggested, client.id];
         await query(
           `UPDATE clipping_items SET suggested_client_ids=$3, relevance_score=GREATEST(COALESCE(relevance_score,0),$4), updated_at=NOW() WHERE id=$1 AND tenant_id=$2`,
-          [item.id, tenantId, updated, scoreResult.score]
+          [item.id, tenantId, updated, finalScore]
         );
         item.suggested_client_ids = updated;
       }
@@ -239,11 +249,11 @@ async function autoScoreClients(tenantId: string, item: ClippingItem) {
           tenantId,
           item.id,
           client.id,
-          scoreResult.score,
+          finalScore,
           scoreResult.matchedKeywords,
           scoreResult.suggestedActions,
           scoreResult.negativeHits,
-          JSON.stringify(scoreResult.relevanceFactors),
+          JSON.stringify(relevanceFactors),
         ]
       );
     }

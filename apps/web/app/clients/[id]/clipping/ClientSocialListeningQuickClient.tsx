@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -10,10 +10,16 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
@@ -219,6 +225,14 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keywordsBusy, setKeywordsBusy] = useState(false);
+  const [keywordsError, setKeywordsError] = useState('');
+  const [keywordsSuccess, setKeywordsSuccess] = useState('');
+  const [keywordEditOpen, setKeywordEditOpen] = useState(false);
+  const [keywordEditing, setKeywordEditing] = useState<KeywordRow | null>(null);
+  const [keywordEditValue, setKeywordEditValue] = useState('');
+  const [keywordEditActive, setKeywordEditActive] = useState(true);
 
   const getConnector = useCallback(
     (provider: string) => connectors.find((item) => item.provider === provider) || null,
@@ -298,6 +312,103 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const loadKeywordsOnly = useCallback(async () => {
+    try {
+      const keywordsRes = await apiGet<KeywordRow[]>(
+        `/social-listening/keywords?clientId=${encodeURIComponent(clientId)}`
+      );
+      setKeywords(Array.isArray(keywordsRes) ? keywordsRes : []);
+    } catch (err: any) {
+      setKeywordsError(err?.message || 'Falha ao carregar keywords.');
+    }
+  }, [clientId]);
+
+  const handleAddKeywordManual = async () => {
+    const value = keywordInput.trim();
+    if (value.length < 2) return;
+
+    setKeywordsBusy(true);
+    setKeywordsError('');
+    setKeywordsSuccess('');
+    try {
+      await apiPost('/social-listening/keywords', {
+        clientId,
+        keyword: value,
+        category: 'manual',
+      });
+      setKeywordInput('');
+      setKeywordsSuccess('Keyword adicionada.');
+      await loadKeywordsOnly();
+    } catch (err: any) {
+      setKeywordsError(err?.message || 'Falha ao adicionar keyword.');
+    } finally {
+      setKeywordsBusy(false);
+    }
+  };
+
+  const openKeywordEdit = (kw: KeywordRow) => {
+    if (!kw.client_id) return;
+    setKeywordsError('');
+    setKeywordsSuccess('');
+    setKeywordEditing(kw);
+    setKeywordEditValue(kw.keyword);
+    setKeywordEditActive(kw.is_active);
+    setKeywordEditOpen(true);
+  };
+
+  const closeKeywordEdit = () => {
+    setKeywordEditOpen(false);
+    setKeywordEditing(null);
+    setKeywordEditValue('');
+    setKeywordEditActive(true);
+  };
+
+  const saveKeywordEdit = async () => {
+    if (!keywordEditing?.client_id) return;
+    const value = keywordEditValue.trim();
+    if (value.length < 2) {
+      setKeywordsError('A keyword precisa ter pelo menos 2 caracteres.');
+      return;
+    }
+
+    setKeywordsBusy(true);
+    setKeywordsError('');
+    setKeywordsSuccess('');
+    try {
+      await apiPatch(`/social-listening/keywords/${keywordEditing.id}`, {
+        keyword: value,
+        is_active: keywordEditActive,
+      });
+      setKeywordsSuccess('Keyword atualizada.');
+      closeKeywordEdit();
+      await loadKeywordsOnly();
+    } catch (err: any) {
+      setKeywordsError(err?.message || 'Falha ao atualizar keyword.');
+    } finally {
+      setKeywordsBusy(false);
+    }
+  };
+
+  const handleDeleteKeyword = async (kw: KeywordRow) => {
+    if (!kw.client_id) return;
+    const ok = window.confirm(`Remover a keyword \"${kw.keyword}\"?`);
+    if (!ok) return;
+
+    setKeywordsBusy(true);
+    setKeywordsError('');
+    setKeywordsSuccess('');
+    try {
+      await apiDelete(`/social-listening/keywords/${kw.id}`);
+      if (keywordEditing?.id === kw.id) closeKeywordEdit();
+      setKeywordsSuccess('Keyword removida.');
+      await loadKeywordsOnly();
+    } catch (err: any) {
+      setKeywordsError(err?.message || 'Falha ao remover keyword.');
+    } finally {
+      setKeywordsBusy(false);
+    }
+  };
 
   const filteredMentions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -435,7 +546,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
 
       const collectResult = await apiPost<{ collected?: number; analyzed?: number; errors?: string[] }>(
         '/social-listening/collect',
-        { clientId, platforms: sources }
+        { clientId, platforms: sources, includeComments: true, commentsPostsLimit: 10, commentsLimitPerPost: 50 }
       );
       const collected = Number(collectResult?.collected || 0);
       setSuccess(collected > 0 ? `Coleta concluida: ${collected} mencoes.` : 'Coleta concluida, mas nenhuma mencao foi coletada.');
@@ -522,13 +633,17 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
           {keywords.length ? (
             <Grid size={{ xs: 12 }}>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {keywords.slice(0, 20).map((kw) => (
+                {keywords.map((kw) => (
                   <Chip
                     key={kw.id}
                     size="small"
                     label={kw.keyword}
                     variant={kw.is_active ? 'filled' : 'outlined'}
                     color={kw.is_active ? 'primary' : 'default'}
+                    clickable={Boolean(kw.client_id)}
+                    onClick={kw.client_id ? () => openKeywordEdit(kw) : undefined}
+                    onDelete={kw.client_id ? () => void handleDeleteKeyword(kw) : undefined}
+                    deleteIcon={<IconTrash size={16} />}
                   />
                 ))}
               </Stack>
@@ -540,8 +655,103 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
               </Typography>
             </Grid>
           )}
+
+          <Grid size={{ xs: 12 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Adicionar keyword"
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                disabled={keywordsBusy}
+                placeholder="Ex: nome do produto, hashtag..."
+              />
+              <Button
+                variant="outlined"
+                startIcon={<IconPlus size={16} />}
+                onClick={handleAddKeywordManual}
+                disabled={keywordsBusy || keywordInput.trim().length < 2}
+              >
+                Adicionar
+              </Button>
+            </Stack>
+            {keywordsError ? (
+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                {keywordsError}
+              </Typography>
+            ) : null}
+            {keywordsSuccess ? (
+              <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+                {keywordsSuccess}
+              </Typography>
+            ) : null}
+          </Grid>
         </Grid>
       </DashboardCard>
+
+      <Dialog
+        open={keywordEditOpen}
+        onClose={() => {
+          if (keywordsBusy) return;
+          closeKeywordEdit();
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Editar keyword</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Keyword"
+              value={keywordEditValue}
+              onChange={(e) => setKeywordEditValue(e.target.value)}
+              disabled={keywordsBusy}
+            />
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={keywordEditActive}
+                  onChange={(e) => setKeywordEditActive(e.target.checked)}
+                  disabled={keywordsBusy}
+                />
+              )}
+              label="Ativa"
+            />
+            {keywordsError ? (
+              <Typography variant="body2" color="error">
+                {keywordsError}
+              </Typography>
+            ) : null}
+            {keywordsSuccess ? (
+              <Typography variant="body2" color="success.main">
+                {keywordsSuccess}
+              </Typography>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeKeywordEdit} disabled={keywordsBusy}>
+            Cancelar
+          </Button>
+          <Button
+            color="error"
+            onClick={() => (keywordEditing ? void handleDeleteKeyword(keywordEditing) : null)}
+            disabled={keywordsBusy || !keywordEditing}
+          >
+            Excluir
+          </Button>
+          <Button
+            variant="contained"
+            onClick={saveKeywordEdit}
+            disabled={keywordsBusy || keywordEditValue.trim().length < 2}
+          >
+            Salvar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <DashboardCard
         title="Fontes"

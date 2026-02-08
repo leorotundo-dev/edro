@@ -38,6 +38,50 @@ export class MetaInstagramCollector extends BaseCollector {
     };
   }
 
+  async collectRecentComments(
+    limitMedia: number = 10,
+    limitCommentsPerMedia: number = 50,
+    config?: MetaInstagramConfig
+  ): Promise<CollectorResult> {
+    if (!config?.accessToken || !config.instagramBusinessId) {
+      return { mentions: [], hasMore: false };
+    }
+
+    // Fetch recent media from the business account, then fetch top-level comments for each media.
+    const media = await callMetaGraph<{ data?: any[] }>(
+      `${config.instagramBusinessId}/media`,
+      {
+        fields: 'id,permalink,timestamp,caption',
+        access_token: config.accessToken,
+        limit: limitMedia,
+      }
+    );
+
+    const mentions: RawMention[] = [];
+    for (const item of media?.data || []) {
+      if (!item?.id) continue;
+      try {
+        const comments = await callMetaGraph<{ data?: any[] }>(
+          `${item.id}/comments`,
+          {
+            fields: 'id,text,username,timestamp,like_count',
+            access_token: config.accessToken,
+            limit: limitCommentsPerMedia,
+          }
+        );
+
+        for (const comment of comments?.data || []) {
+          const mention = this.normalizeComment(comment, item);
+          if (mention) mentions.push(mention);
+        }
+      } catch (error) {
+        console.error('collect_instagram_comments_error', (error as any)?.message || String(error));
+      }
+    }
+
+    return { mentions, hasMore: false };
+  }
+
   protected normalize(data: any, keyword?: string): RawMention | null {
     const content = data.caption || '';
     if (keyword && content && !content.toLowerCase().includes(keyword.toLowerCase())) {
@@ -54,6 +98,26 @@ export class MetaInstagramCollector extends BaseCollector {
       url: data.permalink,
       language: 'pt',
       publishedAt: data.timestamp ? new Date(data.timestamp) : new Date(),
+    };
+  }
+
+  private normalizeComment(data: any, media?: any): RawMention | null {
+    const content = String(data?.text || '').trim();
+    if (!content) return null;
+
+    const author = data?.username ? String(data.username) : undefined;
+    const url = media?.permalink || undefined;
+
+    return {
+      id: this.generateId(`comment_${String(data.id)}`),
+      platform: this.platform,
+      content,
+      author,
+      engagementLikes: Number(data?.like_count || 0),
+      engagementComments: 0,
+      url,
+      language: 'pt',
+      publishedAt: data?.timestamp ? new Date(data.timestamp) : new Date(),
     };
   }
 }

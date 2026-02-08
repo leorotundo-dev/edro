@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
-import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline, UsageContext } from '../services/ai/copyOrchestrator';
+import { generateWithProvider, CopyProvider, getAvailableProvidersInfo, runCollaborativePipeline, UsageContext, getFallbackProvider } from '../services/ai/copyOrchestrator';
 import { generateCopy } from '../services/ai/copyService';
 import { getClientById } from '../repos/clientsRepo';
 import {
@@ -16,6 +16,9 @@ import {
 import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
+import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
+import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
+import { ToolContext } from '../services/ai/toolExecutor';
 
 /**
  * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
@@ -61,7 +64,7 @@ const chatSchema = z.object({
   message: z.string().min(1),
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
   conversationId: z.string().uuid().nullish(),
-  mode: z.enum(['chat', 'command']).optional().default('chat'),
+  mode: z.enum(['chat', 'command', 'agent']).optional().default('agent'),
 });
 
 const createConversationSchema = z.object({
@@ -217,6 +220,35 @@ GUIDELINES:
 - Consider the client's industry and market context`;
 }
 
+function buildAgentSystemPrompt(clientContext: string): string {
+  return `Voce e o Jarvis, assistente de inteligencia do sistema EDRO.
+Voce tem acesso a ferramentas para consultar e operar dados reais do sistema.
+
+CAPACIDADES:
+- Consultar briefings, copies, e fluxo de trabalho do cliente
+- Buscar noticias e clipping relevante
+- Ver tendencias e mencoes em redes sociais
+- Consultar calendario de datas e eventos
+- Buscar na biblioteca de conhecimento do cliente
+- Listar e gerenciar campanhas
+- Ver e agir sobre oportunidades detectadas pela IA
+- Verificar a saude das fontes de inteligencia
+- Criar briefings e gerar copies
+
+REGRAS:
+- Use as ferramentas SEMPRE que a pergunta envolver dados do sistema
+- Voce pode encadear multiplas ferramentas (ex: buscar clipping -> criar briefing)
+- Responda SEMPRE em portugues brasileiro
+- Seja direto, acionavel e estrategico
+- Quando criar algo (briefing, copy), confirme o que foi criado com os detalhes
+- Quando listar dados, apresente de forma clara e organizada
+- Se nao encontrar dados, sugira acoes concretas
+- Nao invente dados — use apenas o que as ferramentas retornarem
+
+CONTEXTO DO CLIENTE:
+${clientContext || 'Sem contexto disponivel.'}`;
+}
+
 function parseDueAt(value?: string) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -339,12 +371,8 @@ export default async function planningRoutes(app: FastifyInstance) {
       ]);
     } catch { /* ignore */ }
 
-    const systemPrompt =
-      mode === 'command' ? buildCommandPrompt(clientContext) : buildSystemPrompt(clientContext);
-
-    // ── 2. Call AI directly — no heavy context packing ─────────────
     const copyProvider = provider === 'collaborative'
-      ? ('openai' as CopyProvider) // collaborative uses single provider as fast fallback
+      ? ('openai' as CopyProvider)
       : mapProviderToCopy(provider);
 
     const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
@@ -354,36 +382,111 @@ export default async function planningRoutes(app: FastifyInstance) {
     let resultOutput = '';
     let resultProvider = '';
     let resultModel = '';
+    let assistantContent = '';
+    let actionResult: Record<string, any> | null = null;
 
-    console.log(`[planning_chat] calling AI provider=${copyProvider} mode=${mode} tenant=${tenantId} client=${clientId}`);
-    try {
-      const aiPromise = generateWithProvider(copyProvider, {
-        prompt: message,
-        systemPrompt,
-        temperature: mode === 'command' ? 0.2 : 0.7,
-        maxTokens: 2000,
-      }, usageCtx);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('AI_TIMEOUT_25s')), 25000)
-      );
-      const aiResult = await Promise.race([aiPromise, timeoutPromise]);
-      resultOutput = aiResult.output;
-      resultProvider = aiResult.provider;
-      resultModel = aiResult.model;
-      console.log(`[planning_chat] AI ok in ${Date.now() - startMs}ms provider=${aiResult.provider} model=${aiResult.model}`);
-    } catch (aiError: any) {
-      const errMsg = aiError?.message || 'AI_ERROR';
-      const elapsed = Date.now() - startMs;
-      console.error(`[planning_chat] AI FAILED in ${elapsed}ms: ${errMsg}`);
-      return reply.status(500).send({
-        success: false,
-        error: `Falha na IA (${errMsg}). Provider: ${copyProvider}. Tempo: ${elapsed}ms.`,
-      });
+    // ── 2. Load conversation history (for agent + chat modes) ──────
+    let conversationHistory: LoopMessage[] = [];
+    if (conversationId && edroId) {
+      try {
+        const { rows } = await query(
+          `SELECT messages FROM planning_conversations WHERE id = $1 AND client_id = $2::uuid`,
+          [conversationId, edroId],
+        );
+        if (rows[0]?.messages) {
+          conversationHistory = (rows[0].messages as any[])
+            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+            .slice(-20)
+            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
+        }
+      } catch { /* ignore history load failure */ }
     }
 
-    // ── 3. Handle command mode (create briefing / generate copy) ───
-    let assistantContent = resultOutput;
-    let actionResult: Record<string, any> | null = null;
+    console.log(`[planning_chat] mode=${mode} provider=${copyProvider} tenant=${tenantId} client=${clientId} history=${conversationHistory.length}`);
+
+    // ── 3. Agent mode (tool use loop) — also used for 'chat' mode ──
+    if (mode === 'agent' || mode === 'chat') {
+      const resolvedProvider = getFallbackProvider(copyProvider);
+      const toolCtx: ToolContext = {
+        tenantId,
+        clientId,
+        edroClientId: edroId,
+        userId,
+        userEmail: user?.email,
+      };
+
+      const loopMessages: LoopMessage[] = [
+        ...conversationHistory,
+        { role: 'user', content: message },
+      ];
+
+      try {
+        const agentTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AGENT_TIMEOUT_60s')), 60000),
+        );
+        const loopResult = await Promise.race([
+          runToolUseLoop({
+            messages: loopMessages,
+            systemPrompt: buildAgentSystemPrompt(clientContext),
+            tools: getAllToolDefinitions(),
+            provider: resolvedProvider,
+            toolContext: toolCtx,
+            maxIterations: 5,
+            temperature: 0.7,
+            maxTokens: 4096,
+            usageContext: usageCtx,
+          }),
+          agentTimeout,
+        ]);
+
+        resultOutput = loopResult.finalText;
+        resultProvider = loopResult.provider;
+        resultModel = loopResult.model;
+        assistantContent = resultOutput;
+        console.log(`[planning_chat] agent ok in ${loopResult.totalDurationMs}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
+      } catch (agentError: any) {
+        const errMsg = agentError?.message || 'AGENT_ERROR';
+        const elapsed = Date.now() - startMs;
+        console.error(`[planning_chat] agent FAILED in ${elapsed}ms: ${errMsg}`);
+        return reply.status(500).send({
+          success: false,
+          error: `Falha no agente IA (${errMsg}). Provider: ${resolvedProvider}. Tempo: ${elapsed}ms.`,
+        });
+      }
+    }
+
+    // ── 4. Command mode (legacy — no tools) ─────────────────────────
+    if (mode === 'command') {
+      const systemPrompt = buildCommandPrompt(clientContext);
+
+      try {
+        const aiPromise = generateWithProvider(copyProvider, {
+          prompt: message,
+          systemPrompt,
+          temperature: 0.2,
+          maxTokens: 2000,
+        }, usageCtx);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI_TIMEOUT_25s')), 25000),
+        );
+        const aiResult = await Promise.race([aiPromise, timeoutPromise]);
+        resultOutput = aiResult.output;
+        resultProvider = aiResult.provider;
+        resultModel = aiResult.model;
+        assistantContent = resultOutput;
+        console.log(`[planning_chat] ${mode} ok in ${Date.now() - startMs}ms provider=${aiResult.provider}`);
+      } catch (aiError: any) {
+        const errMsg = aiError?.message || 'AI_ERROR';
+        const elapsed = Date.now() - startMs;
+        console.error(`[planning_chat] AI FAILED in ${elapsed}ms: ${errMsg}`);
+        return reply.status(500).send({
+          success: false,
+          error: `Falha na IA (${errMsg}). Provider: ${copyProvider}. Tempo: ${elapsed}ms.`,
+        });
+      }
+    }
+
+    // ── 5. Handle command mode actions (create briefing / generate copy) ──
 
     if (mode === 'command') {
       try {
@@ -459,35 +562,51 @@ export default async function planningRoutes(app: FastifyInstance) {
       }
     }
 
-    // ── 4. Save conversation (fire-and-forget — never blocks response) ──
-    let savedConversationId: string | null = null;
+    // ── 6. Save conversation ──────────────────────────────────────
+    let savedConversationId: string | null = conversationId || null;
     const messagesPayload = [
       { role: 'user', content: message, timestamp: new Date().toISOString() },
       { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
     ];
-    // Don't await — save in background
-    (async () => {
-      try {
-        if (conversationId) {
-          await query(
-            `UPDATE planning_conversations
-             SET messages = messages || $1::jsonb, updated_at = now()
-             WHERE id = $2 AND client_id = $3::uuid`,
-            [JSON.stringify(messagesPayload), conversationId, edroId]
-          );
-        } else if (edroId) {
-          await query(
-            `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-             VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)`,
-            [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)]
-          );
-        }
-      } catch (e) {
-        console.warn('[planning] conversation save failed:', (e as Error).message);
-      }
-    })();
 
-    request.log?.info({ elapsed: Date.now() - startMs, provider: resultProvider }, 'planning_chat_ok');
+    // For agent/chat mode: await the save so we can return conversationId
+    if ((mode === 'agent' || mode === 'chat') && !conversationId && edroId) {
+      try {
+        const { rows } = await query(
+          `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+           VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)
+           RETURNING id`,
+          [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)],
+        );
+        savedConversationId = rows[0]?.id || null;
+      } catch (e) {
+        console.warn('[planning] agent conversation save failed:', (e as Error).message);
+      }
+    } else {
+      // Fire-and-forget for chat/command modes
+      (async () => {
+        try {
+          if (conversationId) {
+            await query(
+              `UPDATE planning_conversations
+               SET messages = messages || $1::jsonb, updated_at = now()
+               WHERE id = $2 AND client_id = $3::uuid`,
+              [JSON.stringify(messagesPayload), conversationId, edroId],
+            );
+          } else if (edroId) {
+            await query(
+              `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
+               VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)`,
+              [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)],
+            );
+          }
+        } catch (e) {
+          console.warn('[planning] conversation save failed:', (e as Error).message);
+        }
+      })();
+    }
+
+    request.log?.info({ elapsed: Date.now() - startMs, provider: resultProvider, mode }, 'planning_chat_ok');
 
     return reply.send({
       success: true,
@@ -496,7 +615,8 @@ export default async function planningRoutes(app: FastifyInstance) {
         provider: resultProvider,
         model: resultModel,
         action: actionResult,
-        conversationId: conversationId || savedConversationId,
+        conversationId: savedConversationId,
+        mode,
       },
     });
   });

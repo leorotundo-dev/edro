@@ -8,6 +8,7 @@ import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
 import { ingestUrl, refreshItem } from '../clipping/ingest';
 import { scoreClippingItem } from '../clipping/scoring';
+import { computeGeoFactor } from '../clipping/geo';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -402,18 +403,21 @@ export default async function clippingRoutes(app: FastifyInstance) {
       }
 
       let clientHasRadarProfile = false;
+      let clientUf: string | null = null;
       if (queryParams.clientId) {
         try {
           const { rows: clientRows } = await query<any>(
-            `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+            `SELECT profile, uf FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
             [tenantId, queryParams.clientId]
           );
           const profile = clientRows[0]?.profile || {};
           const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
           const pillars: string[] = Array.isArray(profile.pillars) ? profile.pillars : [];
           clientHasRadarProfile = keywords.length > 0 || pillars.length > 0;
+          clientUf = clientRows[0]?.uf ? String(clientRows[0].uf).trim() : null;
         } catch {
           clientHasRadarProfile = false;
+          clientUf = null;
         }
       }
 
@@ -488,6 +492,13 @@ export default async function clippingRoutes(app: FastifyInstance) {
         } else {
           // No profile configured: don't show GLOBAL items (there won't be matches), only the client's own sources.
           where.push(`cs.scope='CLIENT' AND cs.client_id = $${clientIdParam}`);
+        }
+
+        // Geo restriction (minimal): if the client has UF set, avoid cross-state noise.
+        // Allow NULL (unknown/national) items to still surface when relevant.
+        if (clientUf) {
+          where.push(`(ci.uf IS NULL OR UPPER(ci.uf) = UPPER($${idx++}))`);
+          values.push(clientUf);
         }
       }
 
@@ -700,21 +711,26 @@ export default async function clippingRoutes(app: FastifyInstance) {
       let keywords = body.clientKeywords || [];
       let pillars = body.clientPillars || [];
       let negativeKeywords: string[] = [];
+      let clientLocality: { country?: string | null; uf?: string | null; city?: string | null } = {};
 
-      if (!keywords.length && !pillars.length) {
+      {
         const { rows } = await query<any>(
-          `SELECT profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+          `SELECT profile, country, uf, city FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
           [body.clientId, tenantId]
         );
-        const profile = rows[0]?.profile || {};
-        keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
-        pillars = Array.isArray(profile.pillars) ? profile.pillars : [];
-        negativeKeywords = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
+        const row = rows[0] || {};
+        clientLocality = { country: row.country ?? null, uf: row.uf ?? null, city: row.city ?? null };
+        if (!keywords.length && !pillars.length) {
+          const profile = row.profile || {};
+          keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
+          pillars = Array.isArray(profile.pillars) ? profile.pillars : [];
+          negativeKeywords = Array.isArray(profile.negative_keywords) ? profile.negative_keywords : [];
+        }
       }
 
       const { rows: items } = await query<any>(
         `
-        SELECT id, title, summary, content, published_at, tags, suggested_client_ids
+        SELECT id, title, summary, content, published_at, tags, suggested_client_ids, country, uf, city
         FROM clipping_items
         WHERE tenant_id=$1
           AND status IN ('NEW','TRIAGED')
@@ -739,11 +755,22 @@ export default async function clippingRoutes(app: FastifyInstance) {
           { keywords, pillars, negativeKeywords }
         );
 
-        const scorePercent = Math.max(0, Math.min(100, Math.round(scoreResult.score * 100)));
+        const geo = computeGeoFactor({
+          client: clientLocality,
+          item: { country: item.country, uf: item.uf, city: item.city },
+        });
+        const finalScore = Math.round(Math.max(0, scoreResult.score * geo.factor) * 100) / 100;
+        const relevanceFactors = {
+          ...scoreResult.relevanceFactors,
+          geo_factor: Math.round(geo.factor * 100) / 100,
+          geo_reason: geo.reason,
+        };
+
+        const scorePercent = Math.max(0, Math.min(100, Math.round(finalScore * 100)));
         const suggested = Array.from(
           new Set([
             ...(item.suggested_client_ids || []),
-            scoreResult.score >= minClientScore ? body.clientId : null,
+            finalScore >= minClientScore ? body.clientId : null,
           ].filter(Boolean))
         );
 
@@ -756,7 +783,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
               updated_at=NOW()
           WHERE id=$1 AND tenant_id=$2
           `,
-          [item.id, tenantId, scorePercent, scoreResult.score, suggested]
+          [item.id, tenantId, scorePercent, finalScore, suggested]
         );
 
         await query(
@@ -771,18 +798,18 @@ export default async function clippingRoutes(app: FastifyInstance) {
             tenantId,
             item.id,
             body.clientId,
-            scoreResult.score,
+            finalScore,
             scoreResult.matchedKeywords,
             scoreResult.suggestedActions,
             scoreResult.negativeHits,
-            JSON.stringify(scoreResult.relevanceFactors),
+            JSON.stringify(relevanceFactors),
           ]
         );
 
         results.push({
           itemId: item.id,
           clientId: body.clientId,
-          score: scoreResult.score,
+          score: finalScore,
           matchedKeywords: scoreResult.matchedKeywords,
           negativeHits: scoreResult.negativeHits,
           suggestedActions: scoreResult.suggestedActions,
@@ -804,6 +831,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
       });
       const queryParams = querySchema.parse(request.query);
       const limit = Math.min(Number(queryParams.limit) || 20, 100);
+      const minClientScore = getClientMinRelevanceScore();
 
       const allowed = await hasClientPerm({
         tenantId,
@@ -816,16 +844,40 @@ export default async function clippingRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: 'client_forbidden' });
       }
 
+      let clientUf: string | null = null;
+      try {
+        const { rows: clientRows } = await query<any>(
+          `SELECT uf FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+          [tenantId, clientId]
+        );
+        clientUf = clientRows[0]?.uf ? String(clientRows[0].uf).trim() : null;
+      } catch {
+        clientUf = null;
+      }
+
       const { rows } = await query<any>(
         `
-        SELECT cm.*, ci.title, ci.url, ci.snippet, ci.image_url, ci.score, ci.published_at
+        SELECT
+          cm.*,
+          cm.score::float8 AS match_score,
+          ROUND(cm.score * 100)::int AS score,
+          ci.title,
+          ci.url,
+          ci.snippet,
+          ci.image_url,
+          ci.score AS item_score,
+          ci.published_at,
+          ci.country,
+          ci.uf,
+          ci.city
         FROM clipping_matches cm
         JOIN clipping_items ci ON ci.id = cm.clipping_item_id
-        WHERE cm.tenant_id=$1 AND cm.client_id=$2
+        WHERE cm.tenant_id=$1 AND cm.client_id=$2 AND cm.score >= $3
+          AND ($4::text IS NULL OR ci.uf IS NULL OR UPPER(ci.uf) = UPPER($4))
         ORDER BY cm.score DESC, cm.created_at DESC
-        LIMIT $3
+        LIMIT $5
         `,
-        [tenantId, clientId, limit]
+        [tenantId, clientId, minClientScore, clientUf, limit]
       );
 
       return reply.send({ matches: rows });

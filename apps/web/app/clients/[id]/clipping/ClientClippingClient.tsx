@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ClippingClient from '@/app/clipping/ClippingClient';
 import ClientSocialListeningQuickClient from './ClientSocialListeningQuickClient';
 import Box from '@mui/material/Box';
@@ -12,13 +13,30 @@ type ClientClippingClientProps = {
 };
 
 export default function ClientClippingClient({ clientId }: ClientClippingClientProps) {
-  const [tab, setTab] = useState<'clipping' | 'social'>('clipping');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [tab, setTab] = useState<'clipping' | 'social'>(() => (
+    searchParams.get('tab') === 'social' ? 'social' : 'clipping'
+  ));
+
+  useEffect(() => {
+    const next = searchParams.get('tab') === 'social' ? 'social' : 'clipping';
+    setTab(next);
+  }, [searchParams]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
       <Tabs
         value={tab}
-        onChange={(_, value) => setTab(value)}
+        onChange={(_, value) => {
+          setTab(value);
+          const next = new URLSearchParams(searchParams.toString());
+          if (value === 'social') next.set('tab', 'social');
+          else next.delete('tab');
+          const qs = next.toString();
+          router.replace(qs ? `/clients/${clientId}/clipping?${qs}` : `/clients/${clientId}/clipping`);
+        }}
         variant="scrollable"
         allowScrollButtonsMobile
         sx={{ borderBottom: '1px solid', borderColor: 'divider' }}

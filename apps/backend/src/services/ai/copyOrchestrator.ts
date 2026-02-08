@@ -70,7 +70,7 @@ function getAvailableProviders(): CopyProvider[] {
   return available;
 }
 
-function getFallbackProvider(preferred: CopyProvider): CopyProvider {
+export function getFallbackProvider(preferred: CopyProvider): CopyProvider {
   const available = getAvailableProviders();
 
   if (available.includes(preferred)) {
@@ -115,7 +115,7 @@ async function callProvider(
 
 export type UsageContext = { tenant_id: string; feature: string; metadata?: Record<string, any> };
 
-function fireAndForgetLog(ctx: UsageContext | undefined, provider: string, result: AiCompletionResult, durationMs?: number) {
+export function fireAndForgetLog(ctx: UsageContext | undefined, provider: string, result: AiCompletionResult, durationMs?: number) {
   if (!ctx) return;
   logAiUsage({
     tenant_id: ctx.tenant_id,
