@@ -89,7 +89,9 @@ export async function detectOpportunitiesForClient(params: {
       base_relevance,
       categories
     FROM events
-    WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'
+    WHERE date IS NOT NULL AND length(date) = 10
+      AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD')
+      AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')
       AND base_relevance > 70
     ORDER BY base_relevance DESC, date
     LIMIT 15

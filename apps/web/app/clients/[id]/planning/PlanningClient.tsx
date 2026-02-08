@@ -206,15 +206,25 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   }, [provider]);
 
-  // Initial Load
+  // Initial Load — bootstrap seeds calendar + opportunities if empty, then load all panels
   useEffect(() => {
-    loadContext();
-    loadHealth();
-    loadLibrary();
-    loadOpportunities();
-    loadOutputs();
-    loadProviders();
-  }, [loadContext, loadHealth, loadLibrary, loadOpportunities, loadOutputs, loadProviders]);
+    let cancelled = false;
+    async function init() {
+      try {
+        await apiPost(`/clients/${clientId}/planning/bootstrap`, {});
+      } catch { /* bootstrap is best-effort */ }
+      if (cancelled) return;
+      loadContext();
+      loadHealth();
+      loadLibrary();
+      loadOpportunities();
+      loadOutputs();
+      loadProviders();
+    }
+    init();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   // Upload File
   const uploadFile = async (file: File) => {

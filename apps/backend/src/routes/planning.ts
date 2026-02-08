@@ -239,6 +239,35 @@ function buildPlanningCopyPrompt(params: {
   return lines.join('\n');
 }
 
+async function ensureCalendarEvents(): Promise<number> {
+  const { rows } = await query(
+    `SELECT COUNT(*) as total FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD')`,
+  );
+  if (Number(rows[0]?.total) > 0) return 0;
+
+  // No future events — import holidays for current and next year
+  const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
+  let total = 0;
+  for (const year of years) {
+    try {
+      const resp = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
+      if (!resp.ok) continue;
+      const holidays = (await resp.json()) as Array<{ date: string; name: string }>;
+      for (const h of holidays) {
+        const slug = h.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        await query(
+          `INSERT INTO events (id, name, slug, date_type, date, scope, country, categories, tags, base_relevance, is_trend_sensitive, source)
+           VALUES ($1, $2, $3, 'fixed', $4, 'BR', 'BR', ARRAY['oficial'], ARRAY[$3], 75, false, 'holiday_api:brasilapi')
+           ON CONFLICT (id) DO NOTHING`,
+          [`holiday_br_${year}_${slug}`, h.name, slug, h.date],
+        );
+        total++;
+      }
+    } catch { /* ignore import errors */ }
+  }
+  return total;
+}
+
 export default async function planningRoutes(app: FastifyInstance) {
   // Get available providers
   app.get('/planning/providers', {
@@ -749,10 +778,12 @@ export default async function planningRoutes(app: FastifyInstance) {
         [clientId, tenantId]
       ),
       query(
-        `SELECT name, date_ref, description
-         FROM edro_calendar_events
-         WHERE date_ref BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'
-         ORDER BY date_ref
+        `SELECT name, date, payload->>'description' as description
+         FROM events
+         WHERE date IS NOT NULL AND length(date) = 10
+           AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD')
+           AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')
+         ORDER BY date
          LIMIT 10`,
         []
       ),
@@ -1114,273 +1145,92 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   });
 
   // POST /clients/:id/planning/health - Check health of all intelligence sources
+  // Single SQL with scalar subqueries — 1 DB connection, fast
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/health', {
     preHandler: [authGuard, tenantGuard],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request as any).tenantId || 'default';
+    const now = new Date().toISOString();
+
+    const defaultHealth = {
+      overall: 'warning' as const,
+      sources: {
+        library:        { status: 'warning' as const, data: null, message: 'Sem dados', lastCheck: now },
+        clipping:       { status: 'warning' as const, data: null, message: 'Sem dados', lastCheck: now },
+        social:         { status: 'warning' as const, data: null, message: 'Sem dados', lastCheck: now },
+        calendar:       { status: 'warning' as const, data: null, message: 'Sem dados', lastCheck: now },
+        opportunities:  { status: 'warning' as const, data: null, message: 'Sem dados', lastCheck: now },
+        antiRepetition: { status: 'healthy' as const, data: null, message: '0 copies', lastCheck: now },
+        briefings:      { status: 'healthy' as const, data: null, message: '0 briefings', lastCheck: now },
+      },
+    };
 
     try {
-      // 10s safety timeout on all health checks
-      const healthChecksPromise = Promise.allSettled([
-        // Library health
+      const result = await Promise.race([
         query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE status = 'ready') as ready,
-                 COUNT(*) FILTER (WHERE status = 'processing') as processing,
-                 COUNT(*) FILTER (WHERE status = 'error') as error
-          FROM library_items
-          WHERE client_id = $1 AND tenant_id = $2
+          SELECT
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2) as lib_total,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'ready') as lib_ready,
+            (SELECT COUNT(*) FROM library_items WHERE client_id = $1 AND tenant_id = $2 AND status = 'error') as lib_error,
+            (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days') as clip_total,
+            (SELECT COUNT(*) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_total,
+            (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD')) as cal_total,
+            (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')) as cal_upcoming,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed') as opp_total,
+            (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND priority = 'urgent') as opp_urgent,
+            (SELECT COUNT(*) FROM edro_copy_versions ecv JOIN edro_briefings eb ON eb.id = ecv.briefing_id WHERE eb.client_id = $1 AND ecv.created_at > NOW() - INTERVAL '90 days') as copies_total,
+            (SELECT COUNT(*) FROM edro_briefings WHERE client_id = $1 AND created_at > NOW() - INTERVAL '90 days') as brief_total
         `, [clientId, tenantId]),
-
-        // Clipping health
-        query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE ci.status = 'NEW') as new,
-                 MAX(ci.published_at) as last_published,
-                 AVG(cm.score) as avg_score
-          FROM clipping_matches cm
-          JOIN clipping_items ci ON ci.id = cm.clipping_item_id
-          WHERE cm.client_id = $1 AND cm.tenant_id = $2
-            AND cm.created_at > NOW() - INTERVAL '30 days'
-        `, [clientId, tenantId]),
-
-        // Social Listening health
-        query(`
-          SELECT COUNT(*) as total,
-                 MAX(created_at) as last_update,
-                 AVG(mention_count) as avg_mentions
-          FROM social_listening_trends
-          WHERE client_id = $1 AND tenant_id = $2
-            AND created_at > NOW() - INTERVAL '7 days'
-        `, [clientId, tenantId]),
-
-        // Calendar health
-        query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days') as upcoming,
-                 AVG(base_relevance) as avg_relevance
-          FROM events
-          WHERE date > CURRENT_DATE
-        `),
-
-        // Opportunities health
-        query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
-                 COUNT(*) FILTER (WHERE priority = 'urgent') as urgent,
-                 MAX(created_at) as last_created
-          FROM ai_opportunities
-          WHERE client_id = $1 AND tenant_id = $2
-            AND status != 'dismissed'
-        `, [clientId, tenantId]),
-
-        // Copy versions health (for anti-repetition)
-        query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE embedding IS NOT NULL) as with_embeddings,
-                 MAX(ecv.created_at) as last_generated
-          FROM edro_copy_versions ecv
-          JOIN edro_briefings eb ON eb.id = ecv.briefing_id
-          WHERE eb.client_id = $1
-            AND ecv.created_at > NOW() - INTERVAL '90 days'
-        `, [clientId]),
-
-        // Briefings health
-        query(`
-          SELECT COUNT(*) as total,
-                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
-                 MAX(created_at) as last_created
-          FROM edro_briefings
-          WHERE client_id = $1
-            AND created_at > NOW() - INTERVAL '90 days'
-        `, [clientId]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health timed out')), 8000)),
       ]);
 
-      const healthChecks = await Promise.race([
-        healthChecksPromise,
-        new Promise<PromiseSettledResult<any>[]>((resolve) =>
-          setTimeout(() => resolve(Array(7).fill({ status: 'rejected', reason: new Error('Health check timed out') })), 10000)
-        ),
-      ]);
+      const r = result.rows?.[0] || {};
+      const n = (v: any) => Number(v) || 0;
 
-      const [libraryRes, clippingRes, socialRes, calendarRes, opportunitiesRes, copiesRes, briefingsRes] = healthChecks;
+      type HS = 'healthy' | 'warning' | 'error';
+      const src = (status: HS, message: string, data?: any) => ({ status, data: data ?? null, message, lastCheck: now });
 
-      // Build health status for each source
+      const libTotal = n(r.lib_total); const libReady = n(r.lib_ready); const libError = n(r.lib_error);
+      const clipTotal = n(r.clip_total);
+      const socialTotal = n(r.social_total);
+      const calTotal = n(r.cal_total); const calUpcoming = n(r.cal_upcoming);
+      const oppTotal = n(r.opp_total); const oppUrgent = n(r.opp_urgent);
+      const copiesTotal = n(r.copies_total);
+      const briefTotal = n(r.brief_total);
+
       const health = {
-        overall: 'healthy' as 'healthy' | 'warning' | 'error',
+        overall: 'healthy' as HS,
         sources: {
-          library: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: libraryRes.status === 'fulfilled' ? libraryRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          clipping: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: clippingRes.status === 'fulfilled' ? clippingRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          social: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: socialRes.status === 'fulfilled' ? socialRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          calendar: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: calendarRes.status === 'fulfilled' ? calendarRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          opportunities: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: opportunitiesRes.status === 'fulfilled' ? opportunitiesRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          antiRepetition: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: copiesRes.status === 'fulfilled' ? copiesRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
-          briefings: {
-            status: 'healthy' as 'healthy' | 'warning' | 'error',
-            data: briefingsRes.status === 'fulfilled' ? briefingsRes.value.rows[0] : null,
-            message: '',
-            lastCheck: new Date().toISOString(),
-          },
+          library: libError > 0
+            ? src('warning', `${libError} item(s) com erro`)
+            : libTotal === 0
+              ? src('warning', 'Nenhum item na library')
+              : src('healthy', `${libReady} item(s) pronto(s)`),
+          clipping: clipTotal === 0
+            ? src('warning', 'Nenhum clipping nos ultimos 30 dias')
+            : src('healthy', `${clipTotal} matches ativos`),
+          social: socialTotal === 0
+            ? src('warning', 'Nenhum dado social nos ultimos 7 dias')
+            : src('healthy', `${socialTotal} trends detectadas`),
+          calendar: calTotal === 0
+            ? src('warning', 'Nenhum evento futuro cadastrado')
+            : src('healthy', `${calUpcoming} eventos proximos`),
+          opportunities: oppUrgent > 0
+            ? src('warning', `${oppUrgent} oportunidade(s) urgente(s)`)
+            : src('healthy', `${oppTotal} oportunidades ativas`),
+          antiRepetition: src('healthy', `${copiesTotal} copies recentes`),
+          briefings: src('healthy', `${briefTotal} briefings (ultimos 90 dias)`),
         },
       };
 
-      // Determine health status for Library
-      if (libraryRes.status === 'rejected') {
-        health.sources.library.status = 'error';
-        health.sources.library.message = 'Falha ao carregar dados da library';
-      } else if (libraryRes.value.rows[0].error > 0) {
-        health.sources.library.status = 'warning';
-        health.sources.library.message = `${libraryRes.value.rows[0].error} item(s) com erro`;
-      } else if (libraryRes.value.rows[0].total === 0) {
-        health.sources.library.status = 'warning';
-        health.sources.library.message = 'Nenhum item na library';
-      } else {
-        health.sources.library.message = `${libraryRes.value.rows[0].ready} item(s) pronto(s)`;
-      }
+      const warnCount = Object.values(health.sources).filter(s => s.status === 'warning').length;
+      if (warnCount > 2) health.overall = 'warning';
 
-      // Determine health status for Clipping
-      if (clippingRes.status === 'rejected') {
-        health.sources.clipping.status = 'error';
-        health.sources.clipping.message = 'Falha ao carregar clipping';
-      } else if (clippingRes.value.rows[0].total === 0) {
-        health.sources.clipping.status = 'warning';
-        health.sources.clipping.message = 'Nenhum clipping nos últimos 30 dias';
-      } else {
-        const lastPublished = clippingRes.value.rows[0].last_published;
-        const daysSinceLastPublish = lastPublished
-          ? Math.floor((Date.now() - new Date(lastPublished).getTime()) / (1000 * 60 * 60 * 24))
-          : 999;
-
-        if (daysSinceLastPublish > 7) {
-          health.sources.clipping.status = 'warning';
-          health.sources.clipping.message = `Último clipping há ${daysSinceLastPublish} dias`;
-        } else {
-          health.sources.clipping.message = `${clippingRes.value.rows[0].total} matches ativos`;
-        }
-      }
-
-      // Determine health status for Social
-      if (socialRes.status === 'rejected') {
-        health.sources.social.status = 'error';
-        health.sources.social.message = 'Falha ao carregar social listening';
-      } else if (socialRes.value.rows[0].total === 0) {
-        health.sources.social.status = 'warning';
-        health.sources.social.message = 'Nenhum dado social nos últimos 7 dias';
-      } else {
-        const lastUpdate = socialRes.value.rows[0].last_update;
-        const daysSinceLastUpdate = lastUpdate
-          ? Math.floor((Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24))
-          : 999;
-
-        if (daysSinceLastUpdate > 2) {
-          health.sources.social.status = 'warning';
-          health.sources.social.message = `Última atualização há ${daysSinceLastUpdate} dias`;
-        } else {
-          health.sources.social.message = `${socialRes.value.rows[0].total} trends detectadas`;
-        }
-      }
-
-      // Determine health status for Calendar
-      if (calendarRes.status === 'rejected') {
-        health.sources.calendar.status = 'error';
-        health.sources.calendar.message = 'Falha ao carregar calendar';
-      } else if (calendarRes.value.rows[0].total === 0) {
-        health.sources.calendar.status = 'warning';
-        health.sources.calendar.message = 'Nenhum evento futuro cadastrado';
-      } else {
-        health.sources.calendar.message = `${calendarRes.value.rows[0].upcoming} eventos próximos`;
-      }
-
-      // Determine health status for Opportunities
-      if (opportunitiesRes.status === 'rejected') {
-        health.sources.opportunities.status = 'error';
-        health.sources.opportunities.message = 'Falha ao carregar opportunities';
-      } else {
-        const urgent = opportunitiesRes.value.rows[0].urgent || 0;
-        if (urgent > 0) {
-          health.sources.opportunities.status = 'warning';
-          health.sources.opportunities.message = `${urgent} oportunidade(s) urgente(s)`;
-        } else {
-          health.sources.opportunities.message = `${opportunitiesRes.value.rows[0].total} oportunidades ativas`;
-        }
-      }
-
-      // Determine health status for Anti-Repetition
-      if (copiesRes.status === 'rejected') {
-        health.sources.antiRepetition.status = 'error';
-        health.sources.antiRepetition.message = 'Falha ao carregar histórico de copies';
-      } else {
-        const total = copiesRes.value.rows[0].total || 0;
-        const withEmbeddings = copiesRes.value.rows[0].with_embeddings || 0;
-        const coverage = total > 0 ? (withEmbeddings / total) * 100 : 0;
-
-        if (coverage < 50) {
-          health.sources.antiRepetition.status = 'warning';
-          health.sources.antiRepetition.message = `Apenas ${Math.round(coverage)}% das copies têm embeddings`;
-        } else {
-          health.sources.antiRepetition.message = `${withEmbeddings}/${total} copies com embeddings`;
-        }
-      }
-
-      // Determine health status for Briefings
-      if (briefingsRes.status === 'rejected') {
-        health.sources.briefings.status = 'error';
-        health.sources.briefings.message = 'Falha ao carregar briefings';
-      } else {
-        health.sources.briefings.message = `${briefingsRes.value.rows[0].total} briefings (últimos 90 dias)`;
-      }
-
-      // Determine overall health
-      const errorCount = Object.values(health.sources).filter(s => s.status === 'error').length;
-      const warningCount = Object.values(health.sources).filter(s => s.status === 'warning').length;
-
-      if (errorCount > 0) {
-        health.overall = 'error';
-      } else if (warningCount > 2) {
-        health.overall = 'warning';
-      }
-
-      return reply.send({
-        success: true,
-        data: health,
-      });
+      return reply.send({ success: true, data: health });
     } catch (error: any) {
-      request.log?.error({ error, clientId }, 'Failed to check intelligence health');
-      return reply.status(500).send({
-        success: false,
-        error: error.message,
-      });
+      request.log?.error({ err: error, clientId }, 'health_check_failed');
+      return reply.send({ success: true, data: defaultHealth });
     }
   });
 
@@ -1412,8 +1262,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
             (SELECT COUNT(*) FROM clipping_matches WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '30 days' AND score > 70) as clipping_total,
             (SELECT COALESCE(SUM(mention_count), 0) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_mentions,
             (SELECT COALESCE(AVG(average_sentiment), 50) FROM social_listening_trends WHERE client_id = $1 AND tenant_id = $2 AND created_at > NOW() - INTERVAL '7 days') as social_sentiment,
-            (SELECT COUNT(*) FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days') as calendar_next14,
-            (SELECT COUNT(*) FROM events WHERE date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND base_relevance > 80) as calendar_high_rel,
+            (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD')) as calendar_next14,
+            (SELECT COUNT(*) FROM events WHERE date IS NOT NULL AND length(date) = 10 AND date >= to_char(CURRENT_DATE, 'YYYY-MM-DD') AND date <= to_char(CURRENT_DATE + INTERVAL '14 days', 'YYYY-MM-DD') AND base_relevance > 80) as calendar_high_rel,
             (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed') as opps_total,
             (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND priority = 'urgent') as opps_urgent,
             (SELECT COUNT(*) FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed' AND confidence >= 80) as opps_high,
@@ -1649,6 +1499,40 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       success: true,
       copies: result.rows,
     });
+  });
+
+  // POST /clients/:id/planning/bootstrap - Seed initial data for a client
+  app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/bootstrap', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (request, reply) => {
+    const { clientId } = request.params;
+    const tenantId = (request as any).tenantId || 'default';
+    const results: Record<string, any> = {};
+
+    // 1) Ensure calendar events exist
+    try {
+      results.calendar = { imported: await ensureCalendarEvents() };
+    } catch (e: any) {
+      results.calendar = { error: e?.message };
+    }
+
+    // 2) Run opportunity detection if none exist
+    try {
+      const { rows } = await query(
+        `SELECT COUNT(*) as total FROM ai_opportunities WHERE client_id = $1 AND tenant_id = $2 AND status != 'dismissed'`,
+        [clientId, tenantId],
+      );
+      if (Number(rows[0]?.total) === 0) {
+        const count = await detectOpportunitiesForClient({ tenant_id: tenantId, client_id: clientId });
+        results.opportunities = { detected: count };
+      } else {
+        results.opportunities = { existing: Number(rows[0]?.total) };
+      }
+    } catch (e: any) {
+      results.opportunities = { error: e?.message };
+    }
+
+    return reply.send({ success: true, data: results });
   });
 
   // GET /clients/:clientId/planning/opportunities - List opportunities (alias)
