@@ -104,7 +104,6 @@ export async function detectOpportunitiesForClient(params: {
       id,
       name,
       date,
-      description,
       base_relevance,
       categories
     FROM events
