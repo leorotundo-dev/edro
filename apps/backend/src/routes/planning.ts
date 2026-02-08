@@ -269,7 +269,7 @@ async function ensureCalendarEvents(): Promise<number> {
 export default async function planningRoutes(app: FastifyInstance) {
   // Get available providers
   app.get('/planning/providers', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const info = getAvailableProvidersInfo();
     return reply.send({
@@ -294,7 +294,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Chat with AI — kept simple and fast: message → AI → response
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/chat', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const startMs = Date.now();
     const { clientId } = request.params;
@@ -483,7 +483,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // List conversations
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -531,7 +531,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Create new conversation
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -572,7 +572,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // AI Opportunities endpoints
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -600,7 +600,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Generate opportunities from clipping and trends
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities/generate', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -743,7 +743,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // ── Full AI Analysis ──────────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/analyze', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -993,7 +993,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/health - Check health of all intelligence sources
   // Single SQL with scalar subqueries — 1 DB connection, fast
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/health', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1083,7 +1083,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/context - Load intelligence stats via single DB query
   // Single SQL with scalar subqueries — uses 1 DB connection instead of 7
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1156,7 +1156,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/validate-copy - Anti-repetition + brand safety
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/validate-copy', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1212,7 +1212,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/opportunities/detect - Trigger opportunity detection
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities/detect', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1313,7 +1313,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/briefings - List briefings for a specific client
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/briefings', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
 
@@ -1327,7 +1327,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/copies - List copy versions for a specific client
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/copies', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
 
@@ -1349,7 +1349,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/bootstrap - Seed initial data for a client
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/bootstrap', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1386,7 +1386,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/planning/opportunities - List opportunities (alias)
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
