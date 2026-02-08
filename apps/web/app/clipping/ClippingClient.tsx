@@ -334,9 +334,15 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     try {
       const includeKw = sourceIncludeKw.split(',').map((s) => s.trim()).filter(Boolean);
       const excludeKw = sourceExcludeKw.split(',').map((s) => s.trim()).filter(Boolean);
+      const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
+      const effectiveScope = isLocked ? 'CLIENT' : sourceScope;
+      if (effectiveScope === 'CLIENT' && !effectiveClientId) {
+        setError('Cliente invalido para criar fonte.');
+        return;
+      }
       await apiPost('/clipping/sources', {
-        scope: sourceScope,
-        client_id: sourceScope === 'CLIENT' ? selectedClient?.id : undefined,
+        scope: effectiveScope,
+        client_id: effectiveScope === 'CLIENT' ? effectiveClientId : undefined,
         name: sourceName.trim(),
         url: sourceUrl.trim(),
         type: sourceType,
@@ -378,7 +384,11 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setError('');
     setSuccess('');
     try {
-      await apiPost('/clipping/items/ingest-url', { url: ingestUrl.trim(), clientId: selectedClient?.id });
+      const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
+      await apiPost('/clipping/items/ingest-url', {
+        url: ingestUrl.trim(),
+        clientId: effectiveClientId || undefined,
+      });
       setSuccess('URL ingerida com sucesso.');
       setIngestUrl('');
       await Promise.all([loadItems(), loadSources(), loadStats()]);
@@ -454,7 +464,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     setFetchingAll(true);
     setError('');
     try {
-      const res = await apiPost<{ enqueued?: number; sources_enqueued?: number }>('/clipping/admin/fetch-all', {});
+      const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
+      const res = await apiPost<{ enqueued?: number; sources_enqueued?: number }>('/clipping/admin/fetch-all', {
+        clientId: effectiveClientId || undefined,
+      });
       const enqueued = res?.enqueued ?? res?.sources_enqueued ?? 0;
       setSuccess(`Busca enfileirada para ${enqueued} fontes.`);
 
@@ -463,6 +476,9 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
       window.setTimeout(() => {
         void loadSources();
       }, 6000);
+      window.setTimeout(() => {
+        void loadSources();
+      }, 20000);
     } catch (err: any) {
       setError(err?.message || 'Falha ao enfileirar busca.');
     } finally {

@@ -499,7 +499,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
 
       const recency = parseRecency(queryParams.recency);
       if (recency) {
-        where.push(`ci.published_at >= NOW() - INTERVAL '${recency}'`);
+        // Some sources don't provide published_at (or parsers fail). Use created_at as fallback
+        // so recency filters don't hide fresh items.
+        where.push(`COALESCE(ci.published_at, ci.created_at) >= NOW() - INTERVAL '${recency}'`);
       }
 
       const limit = Math.min(Number(queryParams.limit) || 200, 500);
@@ -515,8 +517,9 @@ export default async function clippingRoutes(app: FastifyInstance) {
       const orderBy = useClientScope
         ? `CASE WHEN cs.scope='CLIENT' AND cs.client_id = $${clientIdParam} THEN 1 ELSE 0 END DESC,
            COALESCE(cm.score, 0) DESC,
-           ci.published_at DESC NULLS LAST`
-        : `ci.score DESC, ci.published_at DESC NULLS LAST, ci.created_at DESC`;
+           COALESCE(ci.published_at, ci.created_at) DESC,
+           ci.created_at DESC`
+        : `ci.score DESC, COALESCE(ci.published_at, ci.created_at) DESC, ci.created_at DESC`;
 
       const { rows } = await query<any>(
         `
@@ -1718,19 +1721,44 @@ export default async function clippingRoutes(app: FastifyInstance) {
   app.post(
     '/clipping/admin/fetch-all',
     { preHandler: [requirePerm('clipping:write')] },
-    async (request: any) => {
+    async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
+
+      const bodySchema = z.object({
+        clientId: z.string().optional(),
+      });
+      const body = bodySchema.parse(request.body ?? {});
+      const clientId = body.clientId ? String(body.clientId) : undefined;
+
+      if (clientId) {
+        const allowed = await hasClientPerm({
+          tenantId,
+          userId: (request.user as any).sub,
+          role: (request.user as any).role,
+          clientId,
+          perm: 'write',
+        });
+        if (!allowed) {
+          return reply.status(403).send({ error: 'client_forbidden' });
+        }
+      }
 
       const { rows: sources } = await query<{ id: string }>(
         `SELECT cs.id FROM clipping_sources cs
          WHERE cs.tenant_id=$1 AND cs.is_active=true
+           ${
+             clientId
+               ? `AND (cs.scope='GLOBAL' OR (cs.scope='CLIENT' AND cs.client_id=$2))`
+               : ''
+           }
            AND NOT EXISTS (
              SELECT 1 FROM job_queue jq
-             WHERE jq.type='clipping_fetch_source'
+             WHERE jq.tenant_id = cs.tenant_id
+               AND jq.type='clipping_fetch_source'
                AND jq.status IN ('queued','processing')
                AND jq.payload->>'source_id' = cs.id::text
            )`,
-        [tenantId]
+        clientId ? [tenantId, clientId] : [tenantId]
       );
 
       for (const source of sources) {

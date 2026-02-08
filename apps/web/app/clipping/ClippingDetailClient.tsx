@@ -95,11 +95,16 @@ export default function ClippingDetailClient({ itemId }: ClippingDetailClientPro
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!isUuid(itemId)) {
+      router.replace('/clipping');
+    }
+  }, [itemId, router]);
+
   const loadDetail = useCallback(async () => {
     if (!isUuid(itemId)) {
       setItem(null);
       setLoading(false);
-      setError('ID do item invalido.');
       return;
     }
 
