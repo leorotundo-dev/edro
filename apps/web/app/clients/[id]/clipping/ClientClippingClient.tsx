@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ClippingClient from '@/app/clipping/ClippingClient';
 import ClippingDetailClient from '@/app/clipping/ClippingDetailClient';
+import ClientClippingKeywordsQuickClient from './ClientClippingKeywordsQuickClient';
 import ClientSocialListeningQuickClient from './ClientSocialListeningQuickClient';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -70,7 +71,10 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
             <ClippingDetailClient itemId={itemId} noShell embedded backHref={`/clients/${clientId}/clipping`} />
           </Box>
         ) : (
-          <ClippingClient clientId={clientId} noShell embedded />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <ClientClippingKeywordsQuickClient clientId={clientId} />
+            <ClippingClient clientId={clientId} noShell embedded />
+          </Box>
         )
       ) : (
         <ClientSocialListeningQuickClient clientId={clientId} />
