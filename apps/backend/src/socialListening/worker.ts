@@ -35,5 +35,13 @@ export async function runSocialListeningWorkerOnce() {
     } catch (error) {
       console.error('social_listening_worker', error);
     }
+
+    // Also collect from tracked LinkedIn profiles (Proxycurl)
+    try {
+      const service = new SocialListeningService(tenant.id);
+      await service.collectProfilePosts({ limit: 10 });
+    } catch (error) {
+      console.error('social_listening_worker_profiles', error);
+    }
   }
 }

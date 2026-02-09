@@ -4,6 +4,7 @@ import { YouTubeCollector } from './YouTubeCollector';
 import { TikTokCollector } from './TikTokCollector';
 import { RedditCollector } from './RedditCollector';
 import { LinkedInCollector } from './LinkedInCollector';
+import { LinkedInProfileCollector } from './LinkedInProfileCollector';
 import { MetaFacebookCollector } from './MetaFacebookCollector';
 import { MetaInstagramCollector } from './MetaInstagramCollector';
 import { SentimentAnalyzer } from './SentimentAnalyzer';
@@ -28,6 +29,7 @@ export class SocialListeningService {
   private collectors: Map<Platform, { collect: Function }>;
   private metaFacebook: MetaFacebookCollector;
   private metaInstagram: MetaInstagramCollector;
+  private linkedInProfile: LinkedInProfileCollector;
   private analyzer: SentimentAnalyzer;
 
   constructor(tenantId: string) {
@@ -40,6 +42,7 @@ export class SocialListeningService {
     this.collectors.set('linkedin', new LinkedInCollector());
     this.metaFacebook = new MetaFacebookCollector();
     this.metaInstagram = new MetaInstagramCollector();
+    this.linkedInProfile = new LinkedInProfileCollector();
     this.analyzer = new SentimentAnalyzer();
   }
 
@@ -741,5 +744,103 @@ export class SocialListeningService {
       platforms,
       top_keywords: keywords,
     };
+  }
+
+  // ── LinkedIn Profile Tracking ────────────────────────────────────
+
+  async addProfile(params: { profileUrl: string; displayName?: string; headline?: string; clientId?: string | null }) {
+    const url = params.profileUrl.trim().replace(/\/+$/, '');
+    const { rows } = await query<any>(
+      `INSERT INTO social_listening_profiles
+        (tenant_id, client_id, platform, profile_url, display_name, headline, is_active)
+       VALUES ($1,$2,'linkedin',$3,$4,$5,true)
+       ON CONFLICT (tenant_id, platform, profile_url)
+       DO UPDATE SET display_name=COALESCE(EXCLUDED.display_name, social_listening_profiles.display_name),
+                     headline=COALESCE(EXCLUDED.headline, social_listening_profiles.headline),
+                     is_active=true, updated_at=NOW()
+       RETURNING *`,
+      [this.tenantId, params.clientId ?? null, url, params.displayName ?? null, params.headline ?? null]
+    );
+    return rows[0];
+  }
+
+  async removeProfile(id: string) {
+    await query(`DELETE FROM social_listening_profiles WHERE id=$1 AND tenant_id=$2`, [id, this.tenantId]);
+  }
+
+  async getProfiles(filters: { clientId?: string }) {
+    const where: string[] = ['tenant_id=$1', 'is_active=true'];
+    const params: any[] = [this.tenantId];
+    let idx = 2;
+    if (filters.clientId) {
+      where.push(`(client_id IS NULL OR client_id=$${idx++})`);
+      params.push(filters.clientId);
+    }
+    const { rows } = await query<any>(
+      `SELECT * FROM social_listening_profiles WHERE ${where.join(' AND ')} ORDER BY created_at DESC`,
+      params
+    );
+    return rows;
+  }
+
+  async getProfileById(id: string) {
+    const { rows } = await query<any>(
+      `SELECT * FROM social_listening_profiles WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+      [id, this.tenantId]
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Collect posts from all tracked LinkedIn profiles for a client (or all).
+   * Each post is stored as a social_listening_mention with keyword = profile URL.
+   */
+  async collectProfilePosts(options: { clientId?: string; limit?: number } = {}) {
+    if (!this.linkedInProfile.isConfigured()) {
+      return { collected: 0, profiles: 0, errors: ['PROXYCURL_API_KEY not configured'] };
+    }
+
+    const profiles = await this.getProfiles({ clientId: options.clientId });
+    if (!profiles.length) {
+      return { collected: 0, profiles: 0, errors: [] };
+    }
+
+    const limit = options.limit ?? 10;
+    let totalCollected = 0;
+    const errors: string[] = [];
+    const knowledgeCache = new Map<string, ClientKnowledge | null>();
+
+    for (const profile of profiles) {
+      try {
+        const result = await this.linkedInProfile.collectProfilePosts(profile.profile_url, limit);
+        if (!result.mentions.length) continue;
+
+        // Enrich author with profile display name
+        const enriched = result.mentions.map((m) => ({
+          ...m,
+          author: profile.display_name || m.author,
+        }));
+
+        const clientId = profile.client_id ?? options.clientId ?? null;
+        const knowledge = await this.resolveClientKnowledge(clientId, knowledgeCache);
+        const analyzed = await this.analyzer.analyzeBatch(enriched, { knowledge });
+        await this.storeMentions(analyzed, profile.profile_url, clientId);
+        totalCollected += analyzed.length;
+
+        // Update last_collected_at
+        await query(
+          `UPDATE social_listening_profiles SET last_collected_at=NOW(), updated_at=NOW() WHERE id=$1`,
+          [profile.id]
+        );
+      } catch (err: any) {
+        errors.push(`profile_${profile.id}: ${err?.message || String(err)}`);
+      }
+    }
+
+    if (totalCollected > 0) {
+      await this.generateTrends({ clientId: options.clientId });
+    }
+
+    return { collected: totalCollected, profiles: profiles.length, errors };
   }
 }

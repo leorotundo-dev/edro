@@ -345,4 +345,83 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
       return reply.send({ items, updated_at: updatedAt });
     }
   );
+
+  // ── LinkedIn Profile Tracking ────────────────────────────────────
+
+  app.get(
+    '/social-listening/profiles',
+    { preHandler: [requirePerm('clipping:read')] },
+    async (request: any, reply) => {
+      const querySchema = z.object({ clientId: z.string().optional() });
+      const q = querySchema.parse(request.query);
+      if (q.clientId) {
+        const allowed = await assertClientAccess(request, q.clientId, 'read');
+        if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+      }
+      const service = new SocialListeningService(request.user.tenant_id);
+      return reply.send(await service.getProfiles({ clientId: q.clientId }));
+    }
+  );
+
+  app.post(
+    '/social-listening/profiles',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        profileUrl: z.string().url().refine((u) => u.includes('linkedin.com/in/'), { message: 'Must be a LinkedIn profile URL' }),
+        displayName: z.string().optional(),
+        headline: z.string().optional(),
+        clientId: z.string().optional(),
+      });
+      const body = bodySchema.parse(request.body);
+      if (body.clientId) {
+        const allowed = await assertClientAccess(request, body.clientId, 'write');
+        if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+      }
+      const service = new SocialListeningService(request.user.tenant_id);
+      const profile = await service.addProfile({
+        profileUrl: body.profileUrl,
+        displayName: body.displayName,
+        headline: body.headline,
+        clientId: body.clientId ?? null,
+      });
+      return reply.send(profile);
+    }
+  );
+
+  app.delete(
+    '/social-listening/profiles/:id',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any, reply) => {
+      const id = String(request.params.id);
+      const service = new SocialListeningService(request.user.tenant_id);
+      const existing = await service.getProfileById(id);
+      if (!existing) return reply.status(404).send({ error: 'not_found' });
+      if (existing.client_id) {
+        const allowed = await assertClientAccess(request, existing.client_id, 'write');
+        if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+      }
+      await service.removeProfile(id);
+      return reply.send({ ok: true });
+    }
+  );
+
+  app.post(
+    '/social-listening/profiles/collect',
+    { preHandler: [requirePerm('clipping:write')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        clientId: z.string().optional(),
+        limit: z.number().int().min(1).max(50).optional(),
+      });
+      const body = bodySchema.parse(request.body || {});
+      if (body.clientId) {
+        const allowed = await assertClientAccess(request, body.clientId, 'write');
+        if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+      }
+      const service = new SocialListeningService(request.user.tenant_id);
+      const result = await service.collectProfilePosts({ clientId: body.clientId, limit: body.limit });
+      return reply.send(result);
+    }
+  );
 }

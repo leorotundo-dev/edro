@@ -92,6 +92,14 @@ type ConnectorRow = {
   updated_at?: string | null;
 };
 
+type ProfileRow = {
+  id: string;
+  profile_url: string;
+  display_name?: string | null;
+  headline?: string | null;
+  last_collected_at?: string | null;
+};
+
 type SocialPlatform = 'twitter' | 'youtube' | 'tiktok' | 'reddit' | 'linkedin' | 'instagram' | 'facebook';
 
 const ALL_SOCIAL_PLATFORMS: SocialPlatform[] = ['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin', 'instagram', 'facebook'];
@@ -234,6 +242,14 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
   const [keywordEditValue, setKeywordEditValue] = useState('');
   const [keywordEditActive, setKeywordEditActive] = useState(true);
 
+  // LinkedIn profiles state
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [profileUrlInput, setProfileUrlInput] = useState('');
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [profilesBusy, setProfilesBusy] = useState(false);
+  const [profilesMsg, setProfilesMsg] = useState('');
+  const [profilesCollecting, setProfilesCollecting] = useState(false);
+
   const getConnector = useCallback(
     (provider: string) => connectors.find((item) => item.provider === provider) || null,
     [connectors]
@@ -264,7 +280,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
     setLoading(true);
     setError('');
     try {
-      const [clientRes, keywordsRes, statsRes, mentionsRes, connectorsRes] = await Promise.all([
+      const [clientRes, keywordsRes, statsRes, mentionsRes, connectorsRes, profilesRes] = await Promise.all([
         apiGet<ClientRow>(`/clients/${clientId}`),
         apiGet<KeywordRow[]>(`/social-listening/keywords?clientId=${encodeURIComponent(clientId)}`),
         apiGet<StatsResponse>(`/social-listening/stats?clientId=${encodeURIComponent(clientId)}`),
@@ -272,6 +288,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
           `/social-listening/mentions?clientId=${encodeURIComponent(clientId)}&limit=25`
         ),
         apiGet<ConnectorRow[]>(`/clients/${clientId}/connectors`),
+        apiGet<ProfileRow[]>(`/social-listening/profiles?clientId=${encodeURIComponent(clientId)}`).catch(() => []),
       ]);
 
       setClient(clientRes || null);
@@ -279,6 +296,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
       setKeywords(Array.isArray(keywordsRes) ? keywordsRes : []);
       setStats(statsRes || {});
       setMentions(Array.isArray(mentionsRes?.mentions) ? mentionsRes.mentions : []);
+      setProfiles(Array.isArray(profilesRes) ? profilesRes : []);
 
       const connectorList = Array.isArray(connectorsRes) ? connectorsRes : [];
       setConnectors(connectorList);
@@ -451,6 +469,62 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
     const ok = await saveSources(next);
     if (!ok) {
       setSources(prev);
+    }
+  };
+
+  // ── LinkedIn Profile handlers ──
+  const handleAddProfile = async () => {
+    const url = profileUrlInput.trim();
+    if (!url || !url.includes('linkedin.com/in/')) {
+      setProfilesMsg('Cole uma URL valida de perfil LinkedIn (linkedin.com/in/...)');
+      return;
+    }
+    setProfilesBusy(true);
+    setProfilesMsg('');
+    try {
+      const created = await apiPost<ProfileRow>('/social-listening/profiles', {
+        profileUrl: url,
+        displayName: profileNameInput.trim() || undefined,
+        clientId,
+      });
+      setProfiles((prev) => [created, ...prev]);
+      setProfileUrlInput('');
+      setProfileNameInput('');
+      setProfilesMsg('Perfil adicionado.');
+    } catch (err: any) {
+      setProfilesMsg(err?.message || 'Falha ao adicionar perfil.');
+    } finally {
+      setProfilesBusy(false);
+    }
+  };
+
+  const handleRemoveProfile = async (id: string) => {
+    if (!window.confirm('Remover este perfil?')) return;
+    setProfilesBusy(true);
+    try {
+      await apiDelete(`/social-listening/profiles/${id}`);
+      setProfiles((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      setProfilesMsg('Falha ao remover perfil.');
+    } finally {
+      setProfilesBusy(false);
+    }
+  };
+
+  const handleCollectProfiles = async () => {
+    setProfilesCollecting(true);
+    setProfilesMsg('');
+    try {
+      const result = await apiPost<{ collected: number; profiles: number; errors: string[] }>(
+        '/social-listening/profiles/collect',
+        { clientId, limit: 10 }
+      );
+      setProfilesMsg(`Coletados ${result.collected} posts de ${result.profiles} perfis.`);
+      await loadAll();
+    } catch (err: any) {
+      setProfilesMsg(err?.message || 'Falha ao coletar posts de perfis.');
+    } finally {
+      setProfilesCollecting(false);
     }
   };
 
@@ -951,6 +1025,108 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
               );
             })}
           </Grid>
+        </Stack>
+      </DashboardCard>
+
+      {/* ── Perfis LinkedIn ── */}
+      <DashboardCard
+        title="Perfis LinkedIn"
+        subtitle="Cadastre perfis de pessoas do segmento para monitorar posts via Proxycurl."
+        action={<Chip size="small" label={`${profiles.length} perfis`} color="info" variant="outlined" />}
+      >
+        <Stack spacing={2}>
+          <Grid container spacing={2} alignItems="flex-end">
+            <Grid size={{ xs: 12, md: 5 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="URL do perfil LinkedIn"
+                placeholder="https://linkedin.com/in/nome-da-pessoa"
+                value={profileUrlInput}
+                onChange={(e) => setProfileUrlInput(e.target.value)}
+                disabled={profilesBusy}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Nome (opcional)"
+                placeholder="Nome da pessoa"
+                value={profileNameInput}
+                onChange={(e) => setProfileNameInput(e.target.value)}
+                disabled={profilesBusy}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  startIcon={<IconPlus size={16} />}
+                  onClick={handleAddProfile}
+                  disabled={profilesBusy || !profileUrlInput.trim()}
+                  fullWidth
+                >
+                  Adicionar
+                </Button>
+                {profiles.length > 0 && (
+                  <Button
+                    variant="contained"
+                    startIcon={profilesCollecting ? <CircularProgress size={14} color="inherit" /> : <IconRefresh size={16} />}
+                    onClick={handleCollectProfiles}
+                    disabled={profilesCollecting || profilesBusy}
+                    sx={{ whiteSpace: 'nowrap' }}
+                  >
+                    Coletar posts
+                  </Button>
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
+
+          {profilesMsg && (
+            <Typography variant="body2" color={profilesMsg.includes('Falha') || profilesMsg.includes('valida') ? 'error' : 'success.main'}>
+              {profilesMsg}
+            </Typography>
+          )}
+
+          {profiles.length > 0 && (
+            <Grid container spacing={2}>
+              {profiles.map((profile) => (
+                <Grid key={profile.id} size={{ xs: 12, md: 6, lg: 4 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                            <Avatar sx={{ bgcolor: '#0A66C222', color: '#0A66C2', width: 40, height: 40 }}>
+                              <IconBrandLinkedin size={20} />
+                            </Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="subtitle2" fontWeight={700} noWrap>
+                                {profile.display_name || profile.profile_url.split('/in/')[1]?.replace(/\/$/, '') || 'Perfil'}
+                              </Typography>
+                              {profile.headline && (
+                                <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', maxWidth: 200 }}>
+                                  {profile.headline}
+                                </Typography>
+                              )}
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                {profile.last_collected_at ? `Coletado: ${formatDateTime(profile.last_collected_at)}` : 'Nunca coletado'}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                          <IconButton size="small" onClick={() => handleRemoveProfile(profile.id)} disabled={profilesBusy}>
+                            <IconTrash size={16} />
+                          </IconButton>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </Stack>
       </DashboardCard>
 

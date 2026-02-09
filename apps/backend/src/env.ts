@@ -58,6 +58,7 @@ const envSchema = z.object({
   CALENDAR_YEAR: z.coerce.number().optional(),
   SOCIAL_DATA_API_URL: z.string().optional(),
   SOCIAL_DATA_API_KEY: z.string().optional(),
+  PROXYCURL_API_KEY: z.string().optional(),
   META_GRAPH_VERSION: z.string().optional(),
   REPORTEI_BASE_URL: z.string().url().optional().or(z.literal('')),
   REPORTEI_TOKEN: z.string().optional(),

@@ -23,7 +23,7 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconChevronLeft, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
+import { IconCheck, IconChevronLeft, IconDeviceFloppy, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
 
 type ClientBasic = {
   id: string;
@@ -109,6 +109,8 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [collabStep, setCollabStep] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +147,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
     setAnalyzing(true);
     setAnalysisError('');
     setAnalysisResult(null);
+    setSaved(false);
     setAnalysisOpen(true);
 
     try {
@@ -162,6 +165,28 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
       setAnalysisError(err?.message || 'Falha ao gerar analise.');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const saveToLibrary = async () => {
+    if (!analysisResult?.analysis) return;
+    setSaving(true);
+    try {
+      const today = new Date().toLocaleDateString('pt-BR');
+      await apiPost(`/clients/${clientId}/library`, {
+        type: 'note',
+        title: `Analise Estrategica — ${clientName} (${today})`,
+        description: analysisResult.analysis,
+        category: 'estrategia',
+        tags: ['analise-estrategica', 'ai-generated'],
+        weight: 'high',
+        use_in_ai: true,
+      });
+      setSaved(true);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -378,9 +403,21 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                     <Chip key={i} label={`${s.role}: ${s.provider}`} size="small" variant="outlined" color={s.provider === 'claude' ? 'secondary' : s.provider === 'openai' ? 'warning' : 'primary'} />
                   ))}
                 </Stack>
-                <Button variant="outlined" onClick={runAnalysis} startIcon={<IconRefresh size={16} />} size="small">
-                  Gerar novamente
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    variant={saved ? 'contained' : 'outlined'}
+                    color={saved ? 'success' : 'primary'}
+                    onClick={saveToLibrary}
+                    disabled={saving || saved}
+                    startIcon={saved ? <IconCheck size={16} /> : <IconDeviceFloppy size={16} />}
+                    size="small"
+                  >
+                    {saving ? 'Salvando...' : saved ? 'Salvo na Library' : 'Salvar na Library'}
+                  </Button>
+                  <Button variant="outlined" onClick={runAnalysis} startIcon={<IconRefresh size={16} />} size="small">
+                    Gerar novamente
+                  </Button>
+                </Stack>
               </Stack>
             </>
           )}
