@@ -31,6 +31,13 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
   app.register(healthRoutes);
 
+  // TEMP: list clients to find CSPORTOS client_id
+  app.get('/debug/clients', async (_req: any, reply) => {
+    const { query: qm } = require('../db');
+    const { rows } = await qm(`SELECT id, name, slug FROM clients ORDER BY name ASC LIMIT 100`);
+    return reply.send(rows);
+  });
+
   app.register(authRoutes, { prefix: '/api' });
   app.register(ssoRoutes, { prefix: '/api' });
   app.register(edroRoutes, { prefix: '/api' });
