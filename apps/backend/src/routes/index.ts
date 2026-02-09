@@ -34,7 +34,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // TEMP: list clients to find CSPORTOS client_id
   app.get('/debug/clients', async (_req: any, reply) => {
     const { query: qm } = require('../db');
-    const { rows } = await qm(`SELECT id, name, slug FROM clients ORDER BY name ASC LIMIT 100`);
+    const { rows } = await qm(`SELECT id, name FROM clients ORDER BY name ASC LIMIT 100`);
     return reply.send(rows);
   });
 
