@@ -475,8 +475,8 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
   // ── LinkedIn Profile handlers ──
   const handleAddProfile = async () => {
     const url = profileUrlInput.trim();
-    if (!url || !url.includes('linkedin.com/in/')) {
-      setProfilesMsg('Cole uma URL valida de perfil LinkedIn (linkedin.com/in/...)');
+    if (!url || (!url.includes('linkedin.com/in/') && !url.includes('linkedin.com/company/'))) {
+      setProfilesMsg('Cole uma URL de perfil ou page LinkedIn (linkedin.com/in/... ou linkedin.com/company/...)');
       return;
     }
     setProfilesBusy(true);
@@ -1030,8 +1030,8 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
 
       {/* ── Perfis LinkedIn ── */}
       <DashboardCard
-        title="Perfis LinkedIn"
-        subtitle="Cadastre perfis de pessoas do segmento para monitorar posts via Proxycurl."
+        title="Perfis & Pages LinkedIn"
+        subtitle="Cadastre perfis ou pages do LinkedIn para monitorar posts automaticamente."
         action={<Chip size="small" label={`${profiles.length} perfis`} color="info" variant="outlined" />}
       >
         <Stack spacing={2}>
@@ -1041,7 +1041,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
                 fullWidth
                 size="small"
                 label="URL do perfil LinkedIn"
-                placeholder="https://linkedin.com/in/nome-da-pessoa"
+                placeholder="https://linkedin.com/in/... ou /company/..."
                 value={profileUrlInput}
                 onChange={(e) => setProfileUrlInput(e.target.value)}
                 disabled={profilesBusy}

@@ -368,7 +368,10 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clipping:write')] },
     async (request: any, reply) => {
       const bodySchema = z.object({
-        profileUrl: z.string().url().refine((u) => u.includes('linkedin.com/in/'), { message: 'Must be a LinkedIn profile URL' }),
+        profileUrl: z.string().url().refine(
+          (u) => u.includes('linkedin.com/in/') || u.includes('linkedin.com/company/'),
+          { message: 'Must be a LinkedIn profile or company URL' }
+        ),
         displayName: z.string().optional(),
         headline: z.string().optional(),
         clientId: z.string().optional(),
