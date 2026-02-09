@@ -31,21 +31,6 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
   app.register(healthRoutes);
 
-  // TEMP: move profiles from cs-mobi-leste-sp to cs-portos-detalhado
-  app.post('/debug/move-profiles', async (_req: any, reply) => {
-    const { query: qm } = require('../db');
-    const { rows } = await qm(
-      `UPDATE social_listening_profiles SET client_id='cs-portos-detalhado', updated_at=NOW()
-       WHERE client_id='cs-mobi-leste-sp' RETURNING id, profile_url, display_name, client_id`
-    );
-    // Also move related linkedin mentions
-    const { rowCount } = await qm(
-      `UPDATE social_listening_mentions SET client_id='cs-portos-detalhado'
-       WHERE client_id='cs-mobi-leste-sp' AND platform='linkedin'`
-    );
-    return reply.send({ moved_profiles: rows, moved_mentions: rowCount });
-  });
-
   app.register(authRoutes, { prefix: '/api' });
   app.register(ssoRoutes, { prefix: '/api' });
   app.register(edroRoutes, { prefix: '/api' });
