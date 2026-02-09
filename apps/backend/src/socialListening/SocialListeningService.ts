@@ -797,7 +797,7 @@ export class SocialListeningService {
    */
   async collectProfilePosts(options: { clientId?: string; limit?: number } = {}) {
     if (!this.linkedInProfile.isConfigured()) {
-      return { collected: 0, profiles: 0, errors: ['PROXYCURL_API_KEY not configured'] };
+      return { collected: 0, profiles: 0, errors: ['RAPIDAPI_KEY not configured'] };
     }
 
     const profiles = await this.getProfiles({ clientId: options.clientId });

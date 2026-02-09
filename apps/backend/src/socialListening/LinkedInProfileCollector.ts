@@ -1,35 +1,82 @@
 import { env } from '../env';
 import type { RawMention, CollectorResult } from './types';
 
-const PROXYCURL_BASE = 'https://nubela.co/proxycurl/api/v2';
+const API_BASE = 'https://fresh-linkedin-scraper-api.p.rapidapi.com/api/v1';
+const API_HOST = 'fresh-linkedin-scraper-api.p.rapidapi.com';
 const TIMEOUT_MS = 25000;
 
-type ProxycurlPost = {
+type LinkedInPost = {
   urn?: string;
   text?: string;
   author?: string;
   url?: string;
-  num_likes?: number;
-  num_comments?: number;
-  num_reposts?: number;
-  num_impressions?: number;
-  time_posted?: string;
+  totalReactionCount?: number;
+  commentsCount?: number;
+  repostsCount?: number;
+  impressionCount?: number;
+  postedDate?: string;
+  postedDateTimestamp?: number;
 };
 
 /**
- * Fetches recent posts from a specific LinkedIn profile using Proxycurl API.
- * Unlike the keyword-based LinkedInCollector, this collector targets a single
- * profile URL and returns actual post content.
+ * Fetches recent posts from a specific LinkedIn profile using
+ * Fresh LinkedIn Scraper API (RapidAPI).
+ *
+ * Flow: extract username from URL → fetch profile for URN → fetch posts.
  */
 export class LinkedInProfileCollector {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = env.PROXYCURL_API_KEY || '';
+    this.apiKey = env.RAPIDAPI_KEY || '';
   }
 
   isConfigured(): boolean {
     return Boolean(this.apiKey);
+  }
+
+  private headers() {
+    return {
+      'x-rapidapi-key': this.apiKey,
+      'x-rapidapi-host': API_HOST,
+    };
+  }
+
+  /**
+   * Extract LinkedIn username from a profile URL.
+   * e.g. "https://linkedin.com/in/john-doe" → "john-doe"
+   */
+  private extractUsername(profileUrl: string): string | null {
+    const clean = profileUrl.trim().replace(/\/+$/, '');
+    const match = clean.match(/linkedin\.com\/in\/([^/?#]+)/i);
+    return match?.[1] ?? null;
+  }
+
+  /**
+   * Fetch the profile URN needed for the posts endpoint.
+   */
+  private async fetchProfileUrn(username: string): Promise<string | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const url = `${API_BASE}/user/profile?username=${encodeURIComponent(username)}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers(),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      // The API returns the URN in different possible fields
+      return data?.urn || data?.profileUrn || data?.entityUrn || null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async collectProfilePosts(profileUrl: string, limit: number = 20): Promise<CollectorResult> {
@@ -37,36 +84,43 @@ export class LinkedInProfileCollector {
       return { mentions: [], hasMore: false };
     }
 
-    const cleanUrl = profileUrl.trim().replace(/\/+$/, '');
+    const username = this.extractUsername(profileUrl);
+    if (!username) {
+      console.error('LinkedInProfileCollector: invalid URL, cannot extract username:', profileUrl);
+      return { mentions: [], hasMore: false };
+    }
 
+    // Step 1: get URN from profile
+    const urn = await this.fetchProfileUrn(username);
+    if (!urn) {
+      console.error('LinkedInProfileCollector: could not fetch URN for', username);
+      return { mentions: [], hasMore: false };
+    }
+
+    // Step 2: fetch posts
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     try {
-      const url = new URL(`${PROXYCURL_BASE}/linkedin/profile/posts`);
-      url.searchParams.set('linkedin_profile_url', cleanUrl);
-      url.searchParams.set('category', 'posts');
-
-      const response = await fetch(url.toString(), {
+      const url = `${API_BASE}/user/posts?urn=${encodeURIComponent(urn)}&page=1`;
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+        headers: this.headers(),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const text = await response.text();
-        console.error(`Proxycurl error (${response.status}):`, text.slice(0, 200));
+        console.error(`LinkedIn posts API error (${response.status}):`, text.slice(0, 200));
         return { mentions: [], hasMore: false };
       }
 
       const data = await response.json();
-      const posts: ProxycurlPost[] = Array.isArray(data) ? data : data?.posts ?? data?.data ?? [];
+      const posts: LinkedInPost[] = Array.isArray(data) ? data : data?.posts ?? data?.data ?? [];
 
       const mentions: RawMention[] = [];
       for (const post of posts.slice(0, limit)) {
-        const mention = this.normalize(post, cleanUrl);
+        const mention = this.normalize(post, profileUrl, username);
         if (mention) mentions.push(mention);
       }
 
@@ -76,7 +130,7 @@ export class LinkedInProfileCollector {
       };
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        console.error('Proxycurl request timed out');
+        console.error('LinkedIn posts API request timed out');
       } else {
         console.error('Error collecting LinkedIn profile posts:', err?.message || err);
       }
@@ -92,17 +146,17 @@ export class LinkedInProfileCollector {
   async getProfileInfo(profileUrl: string): Promise<{ name: string; headline: string } | null> {
     if (!this.apiKey) return null;
 
+    const username = this.extractUsername(profileUrl);
+    if (!username) return null;
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const url = new URL(`${PROXYCURL_BASE.replace('/v2', '')}/v2/linkedin`);
-      url.searchParams.set('linkedin_profile_url', profileUrl.trim().replace(/\/+$/, ''));
-      url.searchParams.set('use_cache', 'if-present');
-
-      const response = await fetch(url.toString(), {
+      const url = `${API_BASE}/user/profile?username=${encodeURIComponent(username)}`;
+      const response = await fetch(url, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+        headers: this.headers(),
         signal: controller.signal,
       });
 
@@ -110,8 +164,8 @@ export class LinkedInProfileCollector {
 
       const data = await response.json();
       return {
-        name: [data.first_name, data.last_name].filter(Boolean).join(' ') || 'Unknown',
-        headline: data.headline || '',
+        name: data?.fullName || data?.firstName || 'Unknown',
+        headline: data?.headline || '',
       };
     } catch {
       return null;
@@ -120,7 +174,7 @@ export class LinkedInProfileCollector {
     }
   }
 
-  private normalize(post: ProxycurlPost, profileUrl: string): RawMention | null {
+  private normalize(post: LinkedInPost, profileUrl: string, username: string): RawMention | null {
     const text = post.text?.trim();
     if (!text) return null;
 
@@ -128,8 +182,10 @@ export class LinkedInProfileCollector {
     const id = urn || `lnkd-${this.hashCode(text)}`;
 
     let publishedAt: Date | undefined;
-    if (post.time_posted) {
-      const parsed = new Date(post.time_posted);
+    if (post.postedDateTimestamp) {
+      publishedAt = new Date(post.postedDateTimestamp);
+    } else if (post.postedDate) {
+      const parsed = new Date(post.postedDate);
       if (!isNaN(parsed.getTime())) publishedAt = parsed;
     }
 
@@ -137,13 +193,13 @@ export class LinkedInProfileCollector {
       id: `linkedin-profile-${id}`,
       platform: 'linkedin',
       content: text,
-      author: post.author || profileUrl,
+      author: post.author || username,
       authorVerified: false,
       url: post.url || profileUrl,
-      engagementLikes: post.num_likes ?? 0,
-      engagementComments: post.num_comments ?? 0,
-      engagementShares: post.num_reposts ?? 0,
-      engagementViews: post.num_impressions ?? 0,
+      engagementLikes: post.totalReactionCount ?? 0,
+      engagementComments: post.commentsCount ?? 0,
+      engagementShares: post.repostsCount ?? 0,
+      engagementViews: post.impressionCount ?? 0,
       language: 'pt',
       publishedAt,
     };
