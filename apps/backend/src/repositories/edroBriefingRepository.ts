@@ -256,6 +256,24 @@ export async function updateBriefingStatus(id: string, status: string) {
   return rows[0] ?? null;
 }
 
+export async function deleteBriefing(id: string): Promise<boolean> {
+  // Delete related data first (stages, copies, tasks, notifications)
+  await query(`DELETE FROM edro_notifications WHERE briefing_id = $1`, [id]);
+  await query(`DELETE FROM edro_tasks WHERE briefing_id = $1`, [id]);
+  await query(`DELETE FROM edro_copy_versions WHERE briefing_id = $1`, [id]);
+  await query(`DELETE FROM edro_briefing_stages WHERE briefing_id = $1`, [id]);
+  const { rows } = await query(`DELETE FROM edro_briefings WHERE id = $1 RETURNING id`, [id]);
+  return rows.length > 0;
+}
+
+export async function archiveBriefing(id: string): Promise<EdroBriefing | null> {
+  const { rows } = await query<EdroBriefing>(
+    `UPDATE edro_briefings SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
 export async function listCopyVersions(briefingId: string): Promise<EdroCopyVersion[]> {
   const { rows } = await query<EdroCopyVersion>(
     `

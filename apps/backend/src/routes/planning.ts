@@ -12,6 +12,8 @@ import {
   createCopyVersion,
   getBriefingById,
   listBriefings,
+  deleteBriefing,
+  archiveBriefing,
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
@@ -1601,6 +1603,26 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       success: true,
       briefings,
     });
+  });
+
+  // DELETE /clients/:clientId/briefings/:briefingId - Delete a briefing
+  app.delete<{ Params: { clientId: string; briefingId: string } }>('/clients/:clientId/briefings/:briefingId', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const { briefingId } = request.params;
+    const deleted = await deleteBriefing(briefingId);
+    if (!deleted) return reply.status(404).send({ error: 'not_found' });
+    return reply.send({ ok: true });
+  });
+
+  // PATCH /clients/:clientId/briefings/:briefingId/archive - Archive a briefing
+  app.patch<{ Params: { clientId: string; briefingId: string } }>('/clients/:clientId/briefings/:briefingId/archive', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const { briefingId } = request.params;
+    const briefing = await archiveBriefing(briefingId);
+    if (!briefing) return reply.status(404).send({ error: 'not_found' });
+    return reply.send(briefing);
   });
 
   // GET /clients/:clientId/copies - List copy versions for a specific client

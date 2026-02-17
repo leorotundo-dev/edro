@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
+import { apiGet, apiPost, apiDelete, apiPatch, buildApiUrl } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -514,6 +514,18 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         briefings={briefings}
         copies={copies}
         loading={outputsLoading}
+        onDeleteBriefing={async (id) => {
+          try {
+            await apiDelete(`/clients/${clientId}/briefings/${id}`);
+            setBriefings((prev) => prev.filter((b) => b.id !== id));
+          } catch { /* ignore */ }
+        }}
+        onArchiveBriefing={async (id) => {
+          try {
+            await apiPatch(`/clients/${clientId}/briefings/${id}/archive`);
+            setBriefings((prev) => prev.map((b) => b.id === id ? { ...b, status: 'archived' } : b));
+          } catch { /* ignore */ }
+        }}
       />
     </Box>
   );

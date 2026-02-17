@@ -7,12 +7,23 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconExternalLink, IconFileText, IconSparkles } from '@tabler/icons-react';
+import {
+  IconArchive,
+  IconDotsVertical,
+  IconExternalLink,
+  IconFileText,
+  IconSparkles,
+  IconTrash,
+} from '@tabler/icons-react';
 
 export type Briefing = {
   id: string;
@@ -38,14 +49,19 @@ type OutputsListProps = {
   error?: string;
   onViewBriefing?: (briefingId: string) => void;
   onViewCopy?: (copyId: string) => void;
+  onDeleteBriefing?: (briefingId: string) => void;
+  onArchiveBriefing?: (briefingId: string) => void;
 };
 
 const statusColors: Record<string, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
   draft: 'default',
+  briefing: 'default',
   approved: 'success',
+  aprovacao: 'success',
   review: 'warning',
   done: 'info',
   cancelled: 'error',
+  archived: 'default',
 };
 
 function formatDate(dateStr?: string): string {
@@ -61,8 +77,40 @@ export default function OutputsList({
   error,
   onViewBriefing,
   onViewCopy,
+  onDeleteBriefing,
+  onArchiveBriefing,
 }: OutputsListProps) {
   const [activeTab, setActiveTab] = useState<'briefings' | 'copies'>('briefings');
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuBriefingId, setMenuBriefingId] = useState<string | null>(null);
+
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, briefingId: string) => {
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget);
+    setMenuBriefingId(briefingId);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuBriefingId(null);
+  };
+
+  const handleArchive = () => {
+    if (menuBriefingId && onArchiveBriefing) onArchiveBriefing(menuBriefingId);
+    handleMenuClose();
+  };
+
+  const handleDelete = () => {
+    if (menuBriefingId && onDeleteBriefing) {
+      if (window.confirm('Excluir este briefing permanentemente? Todas as copies associadas tambem serao removidas.')) {
+        onDeleteBriefing(menuBriefingId);
+      }
+    }
+    handleMenuClose();
+  };
+
+  const visibleBriefings = briefings.filter((b) => b.status !== 'archived');
+  const archivedCount = briefings.length - visibleBriefings.length;
 
   if (loading) {
     return (
@@ -86,7 +134,7 @@ export default function OutputsList({
           <Typography variant="overline" color="text.secondary">
             Outputs Gerados
           </Typography>
-          <Chip size="small" label={activeTab === 'briefings' ? `${briefings.length}` : `${copies.length}`} />
+          <Chip size="small" label={activeTab === 'briefings' ? `${visibleBriefings.length}` : `${copies.length}`} />
         </Stack>
 
         {error && <Typography color="error" variant="body2" sx={{ mb: 2 }}>{error}</Typography>}
@@ -103,9 +151,9 @@ export default function OutputsList({
         <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
           {activeTab === 'briefings' && (
             <>
-              {briefings.length > 0 ? (
+              {visibleBriefings.length > 0 ? (
                 <Stack spacing={1}>
-                  {briefings.map((briefing) => (
+                  {visibleBriefings.map((briefing) => (
                     <Box
                       key={briefing.id}
                       sx={{
@@ -140,10 +188,23 @@ export default function OutputsList({
                               </IconButton>
                             </Tooltip>
                           )}
+                          {(onArchiveBriefing || onDeleteBriefing) && (
+                            <IconButton
+                              size="small"
+                              onClick={(e) => handleMenuOpen(e, briefing.id)}
+                            >
+                              <IconDotsVertical size={14} />
+                            </IconButton>
+                          )}
                         </Stack>
                       </Stack>
                     </Box>
                   ))}
+                  {archivedCount > 0 && (
+                    <Typography variant="caption" color="text.disabled" align="center" sx={{ py: 1 }}>
+                      {archivedCount} briefing{archivedCount > 1 ? 's' : ''} arquivado{archivedCount > 1 ? 's' : ''}
+                    </Typography>
+                  )}
                 </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
@@ -201,6 +262,28 @@ export default function OutputsList({
           )}
         </Box>
       </CardContent>
+
+      {/* Context menu for briefing actions */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        {onArchiveBriefing && (
+          <MenuItem onClick={handleArchive}>
+            <ListItemIcon><IconArchive size={16} /></ListItemIcon>
+            <ListItemText>Arquivar</ListItemText>
+          </MenuItem>
+        )}
+        {onDeleteBriefing && (
+          <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+            <ListItemIcon><IconTrash size={16} color="inherit" /></ListItemIcon>
+            <ListItemText>Excluir</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
     </Card>
   );
 }
