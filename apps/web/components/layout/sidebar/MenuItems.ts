@@ -6,7 +6,7 @@ import {
   IconLayoutKanban,
   IconPalette,
   IconRadar2,
-  IconChartBar,
+
   IconChartLine,
   IconShare,
   IconFileText,
@@ -50,12 +50,6 @@ const MenuItems: MenuGroupType[] = [
         href: '/edro',
         badge: 'New',
         badgeColor: 'primary',
-      },
-      {
-        id: 'edro-dashboard',
-        title: 'Dashboard Edro',
-        icon: IconChartBar,
-        href: '/edro/dashboard',
       },
       {
         id: 'clients',
