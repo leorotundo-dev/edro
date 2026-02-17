@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiDelete, apiPatch, buildApiUrl } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -27,6 +28,8 @@ type PlanningClientProps = {
 };
 
 export default function PlanningClient({ clientId }: PlanningClientProps) {
+  const router = useRouter();
+
   // Intelligence Context
   const [intelligenceStats, setIntelligenceStats] = useState<IntelligenceStats | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
@@ -514,6 +517,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         briefings={briefings}
         copies={copies}
         loading={outputsLoading}
+        onViewBriefing={(id) => router.push(`/edro/${id}`)}
         onDeleteBriefing={async (id) => {
           try {
             await apiDelete(`/clients/${clientId}/briefings/${id}`);
