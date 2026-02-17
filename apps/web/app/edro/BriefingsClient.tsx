@@ -310,7 +310,7 @@ export default function BriefingsClient() {
     if (!window.confirm(`Avançar ${selectedIds.size} briefing(s) para a próxima etapa?`)) return;
     setBulkLoading(true);
     try {
-      await apiPost('/edro/briefings/bulk/advance', { ids: [...selectedIds] });
+      await apiPost('/edro/briefings/bulk/advance', { ids: Array.from(selectedIds) });
       setSelectedIds(new Set());
       await loadBriefings();
     } catch (err: any) {
