@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
 import { WORKFLOW_STAGES_UI, STAGE_COLORS } from '@edro/shared/workflow';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -16,10 +16,12 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import {
+  IconArchive,
   IconBuilding,
   IconCheck,
   IconChevronRight,
   IconPhoto,
+  IconTrash,
   IconUser,
 } from '@tabler/icons-react';
 
@@ -161,6 +163,26 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     router.push('/edro');
   };
 
+  const handleArchive = async () => {
+    if (!briefing) return;
+    try {
+      await apiPatch(`/edro/briefings/${briefingId}/archive`);
+      setBriefing({ ...briefing, status: 'archived' });
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao arquivar briefing.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
+    try {
+      await apiDelete(`/edro/briefings/${briefingId}`);
+      router.push('/edro');
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao excluir briefing.');
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -226,12 +248,36 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                   )}
                 </Stack>
               </Box>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="body2" color="text.secondary">Status Atual</Typography>
-                <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>
-                  {briefing.status.replace('_', ' ')}
-                </Typography>
-              </Box>
+              <Stack alignItems="flex-end" spacing={1}>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2" color="text.secondary">Status Atual</Typography>
+                  <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>
+                    {briefing.status.replace('_', ' ')}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1}>
+                  {briefing.status !== 'archived' && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<IconArchive size={16} />}
+                      onClick={handleArchive}
+                    >
+                      Arquivar
+                    </Button>
+                  )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<IconTrash size={16} />}
+                    onClick={handleDelete}
+                  >
+                    Excluir
+                  </Button>
+                </Stack>
+              </Stack>
             </Stack>
 
             {briefing.payload && (

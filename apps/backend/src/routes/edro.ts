@@ -35,6 +35,8 @@ import {
   updateBriefingStageStatus,
   updateBriefingStatus,
   updateTaskStatus,
+  deleteBriefing,
+  archiveBriefing,
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
 import {
@@ -624,6 +626,22 @@ export default async function edroRoutes(app: FastifyInstance) {
         tasks,
       },
     });
+  });
+
+  // DELETE /edro/briefings/:id - Delete a briefing permanently
+  app.delete('/edro/briefings/:id', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const deleted = await deleteBriefing(id);
+    if (!deleted) return reply.status(404).send({ success: false, error: 'not_found' });
+    return reply.send({ success: true });
+  });
+
+  // PATCH /edro/briefings/:id/archive - Archive a briefing
+  app.patch('/edro/briefings/:id/archive', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const briefing = await archiveBriefing(id);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
+    return reply.send({ success: true, data: briefing });
   });
 
   app.get('/edro/briefings/:id/stages', async (request, reply) => {
