@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiDelete, apiPatch } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -16,6 +16,11 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
 import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import StatusChip from '@/components/shared/StatusChip';
 import {
   IconDownload,
@@ -25,8 +30,11 @@ import {
   IconBuilding,
   IconSourceCode,
   IconAlertTriangle,
+  IconArchive,
   IconClipboardList,
+  IconDotsVertical,
   IconFileText,
+  IconTrash,
   IconUsers,
 } from '@tabler/icons-react';
 
@@ -51,6 +59,7 @@ const STATUS_LABELS: Record<string, string> = {
   revisao: 'Revisão',
   iclips_out: 'iClips Saída',
   done: 'Concluído',
+  archived: 'Arquivado',
 };
 
 function formatDate(value?: string | null) {
@@ -97,6 +106,8 @@ export default function BriefingsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuBriefingId, setMenuBriefingId] = useState<string | null>(null);
 
   const loadBriefings = useCallback(async () => {
     setLoading(true);
@@ -157,6 +168,42 @@ export default function BriefingsClient() {
       }
     } catch (err: any) {
       alert(err?.message || 'Erro ao exportar relatório.');
+    }
+  };
+
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, briefingId: string) => {
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget);
+    setMenuBriefingId(briefingId);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuBriefingId(null);
+  };
+
+  const handleArchive = async () => {
+    if (!menuBriefingId) return;
+    const id = menuBriefingId;
+    handleMenuClose();
+    try {
+      await apiPatch(`/edro/briefings/${id}/archive`);
+      setBriefings((prev) => prev.map((b) => (b.id === id ? { ...b, status: 'archived' } : b)));
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao arquivar briefing.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!menuBriefingId) return;
+    const id = menuBriefingId;
+    handleMenuClose();
+    if (!window.confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
+    try {
+      await apiDelete(`/edro/briefings/${id}`);
+      setBriefings((prev) => prev.filter((b) => b.id !== id));
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao excluir briefing.');
     }
   };
 
@@ -434,6 +481,12 @@ export default function BriefingsClient() {
                               )}
                             </Stack>
                           )}
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleMenuOpen(e, briefing.id)}
+                          >
+                            <IconDotsVertical size={18} />
+                          </IconButton>
                         </Stack>
                       </Stack>
                     </Stack>
@@ -444,6 +497,23 @@ export default function BriefingsClient() {
           </Stack>
         )}
       </Stack>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem onClick={handleArchive}>
+          <ListItemIcon><IconArchive size={16} /></ListItemIcon>
+          <ListItemText>Arquivar</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+          <ListItemIcon><IconTrash size={16} color="inherit" /></ListItemIcon>
+          <ListItemText>Excluir</ListItemText>
+        </MenuItem>
+      </Menu>
     </AppShell>
   );
 }
