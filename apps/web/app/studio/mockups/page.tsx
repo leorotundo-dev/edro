@@ -1345,6 +1345,8 @@ export default function Page() {
       const tallImage = createSvgDataUri(shortText, 1080, 1920);
       const baseProps: Record<string, any> = {
         username,
+        name: displayName || username,
+        brandName: displayName || username,
         profileImage,
         avatar: profileImage,
         logo: profileImage,
@@ -1354,10 +1356,14 @@ export default function Page() {
         postText: captionText,
         caption: captionText,
         description: captionText,
+        body: fields.body || captionText,
+        text: captionText,
         title: shortText,
         headline: shortText,
         subheadline,
         subtitle: context?.event || '',
+        cta: fields.cta || '',
+        ctaText: fields.cta || 'Saiba mais',
         timeAgo: '2h',
         likes,
         comments,
@@ -1470,10 +1476,6 @@ export default function Page() {
         );
       };
 
-      const useMinimalMockups = true;
-      if (useMinimalMockups) {
-        return renderMinimal();
-      }
       const normalizedPlatform = normalizeCatalogToken(item.platform || '');
       const normalizedFormat = normalizeCatalogToken(item.format || '');
       const productionKey = normalizeProductionType(productionType);
@@ -1565,45 +1567,8 @@ export default function Page() {
       console.warn('mockup render failed', error);
     }
 
-    return (
-      <Box
-        sx={{
-          width: 375,
-          height: 667,
-          bgcolor: 'background.paper',
-          borderRadius: '32px',
-          boxShadow: 6,
-          border: 1,
-          borderColor: 'grey.200',
-          display: 'flex',
-          flexDirection: 'column',
-          p: 3,
-          gap: 2,
-        }}
-      >
-        <Typography variant="overline" color="text.secondary">{item.platform}</Typography>
-        <Typography variant="subtitle1" fontWeight={600} color="text.primary">{item.format}</Typography>
-        <Box
-          sx={{
-            flex: 1,
-            borderRadius: 4,
-            border: '1px dashed',
-            borderColor: 'grey.200',
-            bgcolor: 'grey.50',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            px: 2,
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Copie o texto para visualizar o mockup.
-          </Typography>
-        </Box>
-        <Typography variant="caption" color="text.disabled">Mockup dinâmico gerado com base no briefing.</Typography>
-      </Box>
-    );
+    // Fallback: render minimal copy preview when no matching rich component found
+    return renderMinimal();
   };
 
   return (
