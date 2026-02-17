@@ -25,6 +25,11 @@ import integrationRoutes from './integration';
 import mockupsRoutes from './mockups';
 import planningRoutes from './planning';
 import adminAiCostsRoutes from './adminAiCosts';
+import adminUsersRoutes from './adminUsers';
+import notificationsRoutes from './notifications';
+import automationsRoutes from './automations';
+import reportsRoutes from './reports';
+import integrationDataRoutes from './integrationData';
 import tempPgVectorCheck from './_temp_pgvector_check';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -56,4 +61,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(mockupsRoutes, { prefix: '/api' });
   app.register(planningRoutes, { prefix: '/api' });
   app.register(adminAiCostsRoutes, { prefix: '/api' });
+  app.register(adminUsersRoutes, { prefix: '/api' });
+  app.register(notificationsRoutes, { prefix: '/api' });
+  app.register(automationsRoutes, { prefix: '/api' });
+  app.register(reportsRoutes, { prefix: '/api' });
+  app.register(integrationDataRoutes, { prefix: '/api' });
 }

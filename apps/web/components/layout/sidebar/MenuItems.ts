@@ -16,6 +16,7 @@ import {
   IconCoin,
   IconTargetArrow,
   IconBug,
+  IconRobot,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -26,11 +27,13 @@ export type MenuItemType = {
   href: string;
   badge?: string;
   badgeColor?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
+  requiredRole?: string[];
 };
 
 export type MenuGroupType = {
   subheader: string;
   items: MenuItemType[];
+  requiredGroupRole?: string[];
 };
 
 const MenuItems: MenuGroupType[] = [
@@ -119,30 +122,49 @@ const MenuItems: MenuGroupType[] = [
   },
   {
     subheader: 'Admin',
+    requiredGroupRole: ['admin', 'manager'],
     items: [
       {
         id: 'admin-system',
         title: 'System Admin',
         icon: IconShieldCheck,
         href: '/admin/system',
+        requiredRole: ['admin'],
+      },
+      {
+        id: 'admin-users',
+        title: 'Usuarios',
+        icon: IconUsers,
+        href: '/admin/users',
+        requiredRole: ['admin'],
       },
       {
         id: 'admin-ai-costs',
         title: 'AI Costs',
         icon: IconCoin,
         href: '/admin/ai-costs',
+        requiredRole: ['admin', 'manager'],
       },
       {
         id: 'admin-radar',
         title: 'Radar Diagnostics',
         icon: IconBug,
         href: '/clipping/diagnostics',
+        requiredRole: ['admin', 'manager'],
+      },
+      {
+        id: 'admin-automations',
+        title: 'Automacoes',
+        icon: IconRobot,
+        href: '/admin/automations',
+        requiredRole: ['admin', 'manager'],
       },
       {
         id: 'admin-import',
         title: 'Import Events',
         icon: IconUpload,
         href: '/admin/events/import',
+        requiredRole: ['admin', 'manager'],
       },
       {
         id: 'settings',

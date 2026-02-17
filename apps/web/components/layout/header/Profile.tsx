@@ -12,7 +12,8 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
-import { IconUser, IconSettings, IconLogout } from '@tabler/icons-react';
+import { IconUser, IconSettings, IconLogout, IconUsers } from '@tabler/icons-react';
+import { useRole } from '@/hooks/useRole';
 
 type UserInfo = {
   name?: string;
@@ -25,6 +26,7 @@ export default function Profile() {
   const [user, setUser] = useState<UserInfo>({});
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
+  const { isAdmin } = useRole();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -116,6 +118,16 @@ export default function Profile() {
             Configurações
           </ListItemText>
         </MenuItem>
+        {isAdmin && (
+          <MenuItem onClick={() => { setAnchorEl(null); router.push('/admin/users'); }}>
+            <ListItemIcon>
+              <IconUsers size={18} stroke={1.5} />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>
+              Gerenciar Usuarios
+            </ListItemText>
+          </MenuItem>
+        )}
         <Divider sx={{ my: 0.5 }} />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>

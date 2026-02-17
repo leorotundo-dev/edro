@@ -1,5 +1,6 @@
 import { createTheme } from '@mui/material/styles';
 import DefaultColors from './DefaultColors';
+import DarkColors from './DarkColors';
 import TypographyConfig from './Typography';
 import ComponentOverrides from './Components';
 import shadows from './Shadows';
@@ -17,4 +18,17 @@ const baselightTheme = createTheme({
   },
 });
 
-export { baselightTheme };
+const basedarkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    ...DarkColors,
+  },
+  typography: TypographyConfig,
+  shadows,
+  components: ComponentOverrides,
+  shape: {
+    borderRadius: 12,
+  },
+});
+
+export { baselightTheme, basedarkTheme };

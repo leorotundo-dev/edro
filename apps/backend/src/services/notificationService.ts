@@ -1,6 +1,7 @@
 import { sendEmail } from './emailService';
 import { sendWhatsAppText } from './whatsappService';
-import { updateNotificationStatus } from '../repositories/edroBriefingRepository';
+import { updateNotificationStatus, createNotification } from '../repositories/edroBriefingRepository';
+import { query } from '../db/db';
 
 export type DispatchNotificationInput = {
   id: string;
@@ -111,4 +112,164 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
     id: input.id,
     status: 'queued',
   });
+}
+
+// ============================================================
+// IN-APP NOTIFICATIONS
+// ============================================================
+
+export type CreateInAppInput = {
+  tenantId: string;
+  userId: string;
+  eventType: string;
+  title: string;
+  body?: string;
+  link?: string;
+};
+
+export async function createInAppNotification(input: CreateInAppInput) {
+  const { rows } = await query(
+    `INSERT INTO in_app_notifications (tenant_id, user_id, event_type, title, body, link)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    [input.tenantId, input.userId, input.eventType, input.title, input.body || null, input.link || null]
+  );
+  return rows[0];
+}
+
+export async function getInAppNotifications(userId: string, limit = 20) {
+  const { rows } = await query(
+    `SELECT * FROM in_app_notifications
+     WHERE user_id = $1
+     ORDER BY read_at IS NULL DESC, created_at DESC
+     LIMIT $2`,
+    [userId, limit]
+  );
+  return rows;
+}
+
+export async function markNotificationRead(id: string, userId: string) {
+  await query(
+    `UPDATE in_app_notifications SET read_at = now() WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  await query(
+    `UPDATE in_app_notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL`,
+    [userId]
+  );
+}
+
+// ============================================================
+// NOTIFICATION PREFERENCES
+// ============================================================
+
+export async function getNotificationPreferences(userId: string) {
+  const { rows } = await query(
+    `SELECT event_type, channel, enabled FROM notification_preferences WHERE user_id = $1`,
+    [userId]
+  );
+  return rows;
+}
+
+export async function upsertNotificationPreferences(
+  userId: string,
+  prefs: { event_type: string; channel: string; enabled: boolean }[]
+) {
+  for (const pref of prefs) {
+    await query(
+      `INSERT INTO notification_preferences (user_id, event_type, channel, enabled)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, event_type, channel) DO UPDATE SET enabled = $4`,
+      [userId, pref.event_type, pref.channel, pref.enabled]
+    );
+  }
+}
+
+// ============================================================
+// NOTIFY EVENT — multi-channel dispatch based on preferences
+// ============================================================
+
+export type NotifyEventInput = {
+  event: string;
+  tenantId: string;
+  userId: string;
+  title: string;
+  body?: string;
+  link?: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
+  payload?: Record<string, any>;
+};
+
+export async function notifyEvent(input: NotifyEventInput) {
+  // Get user preferences for this event
+  const { rows: prefs } = await query(
+    `SELECT channel, enabled FROM notification_preferences WHERE user_id = $1 AND event_type = $2`,
+    [input.userId, input.event]
+  );
+
+  // Default channels if no preferences set
+  const enabledChannels = prefs.length > 0
+    ? prefs.filter((p: any) => p.enabled).map((p: any) => p.channel)
+    : ['email', 'in_app'];
+
+  // Always create in-app notification
+  if (enabledChannels.includes('in_app') || prefs.length === 0) {
+    try {
+      await createInAppNotification({
+        tenantId: input.tenantId,
+        userId: input.userId,
+        eventType: input.event,
+        title: input.title,
+        body: input.body,
+        link: input.link,
+      });
+    } catch (err) {
+      console.error('[notifyEvent] in_app error:', err);
+    }
+  }
+
+  // Send email if enabled and recipient available
+  if (enabledChannels.includes('email') && input.recipientEmail) {
+    try {
+      const notif = await createNotification({
+        channel: 'email',
+        recipient: input.recipientEmail,
+        payload: {
+          _email: { subject: `Edro: ${input.title}`, text: input.body || input.title },
+          ...input.payload,
+        },
+      });
+      await dispatchNotification({
+        id: notif.id,
+        channel: 'email',
+        recipient: input.recipientEmail,
+        payload: notif.payload,
+      });
+    } catch (err) {
+      console.error('[notifyEvent] email error:', err);
+    }
+  }
+
+  // Send WhatsApp if enabled and phone available
+  if (enabledChannels.includes('whatsapp') && input.recipientPhone) {
+    try {
+      const notif = await createNotification({
+        channel: 'whatsapp',
+        recipient: input.recipientPhone,
+        payload: input.payload,
+      });
+      await dispatchNotification({
+        id: notif.id,
+        channel: 'whatsapp',
+        recipient: input.recipientPhone,
+        payload: notif.payload,
+      });
+    } catch (err) {
+      console.error('[notifyEvent] whatsapp error:', err);
+    }
+  }
 }

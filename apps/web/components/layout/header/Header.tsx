@@ -10,6 +10,7 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import { IconMenu2 } from '@tabler/icons-react';
 import Notifications from './Notifications';
+import DarkModeToggle from './DarkModeToggle';
 import Profile from './Profile';
 
 type ActionButton = {
@@ -91,6 +92,7 @@ export default function Header({
           )}
           {topbarExtra}
           {topbarRight}
+          <DarkModeToggle />
           <Notifications />
           <Profile />
         </Stack>

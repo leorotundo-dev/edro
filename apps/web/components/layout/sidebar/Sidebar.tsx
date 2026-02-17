@@ -14,6 +14,7 @@ import Stack from '@mui/material/Stack';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MenuItems from './MenuItems';
+import { useRole } from '@/hooks/useRole';
 
 const SIDEBAR_WIDTH = 270;
 const SIDEBAR_MINI_WIDTH = 70;
@@ -34,6 +35,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const pathname = usePathname();
   const theme = useTheme();
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
+  const { role } = useRole();
 
   const sidebarContent = (
     <Box
@@ -66,7 +68,16 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
 
       {/* Navigation */}
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: 2, py: 1 }}>
-        {MenuItems.map((group) => (
+        {MenuItems.map((group) => {
+          // Filter items by required role
+          const visibleItems = group.items.filter(
+            (item) => !item.requiredRole || item.requiredRole.includes(role)
+          );
+          // Hide entire group if it has requiredGroupRole and user doesn't match, or no visible items
+          if (group.requiredGroupRole && !group.requiredGroupRole.includes(role)) return null;
+          if (visibleItems.length === 0) return null;
+
+          return (
           <Box key={group.subheader} sx={{ mb: 1.5 }}>
             {open && (
               <Typography
@@ -85,7 +96,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
               </Typography>
             )}
             <List disablePadding>
-              {group.items.map((item) => {
+              {visibleItems.map((item) => {
                 const active = getActive(pathname, item.href);
                 const Icon = item.icon;
 
@@ -140,7 +151,8 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
               })}
             </List>
           </Box>
-        ))}
+          );
+        })}
       </Box>
     </Box>
   );
