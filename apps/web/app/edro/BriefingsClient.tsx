@@ -15,6 +15,7 @@ import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
+import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -36,6 +37,7 @@ import {
   IconFileText,
   IconTrash,
   IconUsers,
+  IconX,
 } from '@tabler/icons-react';
 
 type Briefing = {
@@ -108,6 +110,8 @@ export default function BriefingsClient() {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuBriefingId, setMenuBriefingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const loadBriefings = useCallback(async () => {
     setLoading(true);
@@ -204,6 +208,57 @@ export default function BriefingsClient() {
       setBriefings((prev) => prev.filter((b) => b.id !== id));
     } catch (err: any) {
       alert(err?.message || 'Erro ao excluir briefing.');
+    }
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === briefings.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(briefings.map((b) => b.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkArchive = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map((id) => apiPatch(`/edro/briefings/${id}/archive`)));
+      setBriefings((prev) => prev.map((b) => (ids.includes(b.id) ? { ...b, status: 'archived' } : b)));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao arquivar briefings.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Excluir ${selectedIds.size} briefing(s) permanentemente? Todas as copies e tarefas associadas serão removidas.`)) return;
+    setBulkLoading(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map((id) => apiDelete(`/edro/briefings/${id}`)));
+      setBriefings((prev) => prev.filter((b) => !ids.includes(b.id)));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao excluir briefings.');
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -382,6 +437,53 @@ export default function BriefingsClient() {
           ))}
         </Stack>
 
+        {selectedIds.size > 0 && (
+          <Card
+            variant="outlined"
+            sx={{ bgcolor: 'primary.50', borderColor: 'primary.light' }}
+          >
+            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Checkbox
+                    checked={selectedIds.size === briefings.length}
+                    indeterminate={selectedIds.size > 0 && selectedIds.size < briefings.length}
+                    onChange={toggleSelectAll}
+                    size="small"
+                  />
+                  <Typography variant="body2" fontWeight={600}>
+                    {selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<IconArchive size={16} />}
+                    onClick={handleBulkArchive}
+                    disabled={bulkLoading}
+                  >
+                    Arquivar
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<IconTrash size={16} />}
+                    onClick={handleBulkDelete}
+                    disabled={bulkLoading}
+                  >
+                    Excluir
+                  </Button>
+                  {bulkLoading && <CircularProgress size={20} />}
+                </Stack>
+                <IconButton size="small" onClick={clearSelection}>
+                  <IconX size={18} />
+                </IconButton>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
         {briefings.length === 0 && !loading ? (
           <Card variant="outlined">
             <CardContent sx={{ textAlign: 'center', py: 6 }}>
@@ -422,6 +524,12 @@ export default function BriefingsClient() {
                         alignItems={{ xs: 'flex-start', md: 'center' }}
                       >
                         <Stack direction="row" spacing={2} alignItems="center">
+                          <Checkbox
+                            size="small"
+                            checked={selectedIds.has(briefing.id)}
+                            onClick={(e) => toggleSelect(briefing.id, e)}
+                            sx={{ p: 0.5 }}
+                          />
                           <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>
                             <IconFileText size={18} />
                           </Avatar>
