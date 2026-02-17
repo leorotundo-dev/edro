@@ -65,6 +65,14 @@ import {
 } from '../services/abTestService';
 import { buildPredictiveInsights, predictEngagement } from '../services/predictiveService';
 import { buildIndustryBenchmarks, getIndustryBenchmarks, compareClientToIndustry } from '../services/benchmarkService';
+import {
+  searchPerplexity,
+  searchTrendingTopics,
+  enrichClippingItem,
+  researchCompetitorActivity,
+  researchForCopy,
+  isPerplexityConfigured,
+} from '../services/perplexityService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -2583,5 +2591,82 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const comparison = await compareClientToIndustry({ tenant_id: tenantId, client_id: clientId });
     return reply.send({ success: true, data: comparison });
+  });
+
+  // ── Perplexity AI Search Endpoints ──────────────────────────────
+
+  app.get('/edro/perplexity/status', async (_request, reply) => {
+    return reply.send({ success: true, data: { configured: isPerplexityConfigured() } });
+  });
+
+  app.post('/edro/perplexity/search', async (request, reply) => {
+    const body = z.object({
+      query: z.string().min(3).max(1000),
+      model: z.enum(['sonar', 'sonar-pro', 'sonar-reasoning-pro']).optional(),
+      search_recency_filter: z.enum(['hour', 'day', 'week', 'month', 'year']).optional(),
+      search_domain_filter: z.array(z.string()).optional(),
+      max_tokens: z.number().int().min(100).max(4096).optional(),
+    }).parse(request.body);
+
+    const result = await searchPerplexity(body);
+    return reply.send({ success: true, data: result });
+  });
+
+  app.post('/edro/clients/:clientId/perplexity/trending', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    // Fetch client keywords for trending search
+    const { rows: clients } = await query(
+      `SELECT name, profile FROM clients WHERE id = $1 AND tenant_id = $2`,
+      [clientId, tenantId],
+    );
+    const client = clients[0] as any;
+    if (!client) return reply.status(404).send({ success: false, error: 'Client not found' });
+
+    const profile = typeof client.profile === 'string' ? JSON.parse(client.profile) : client.profile || {};
+    const keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
+
+    const result = await searchTrendingTopics({
+      client_name: client.name,
+      keywords: keywords.length ? keywords : [client.name],
+      segment: profile.segment || undefined,
+    });
+    return reply.send({ success: true, data: result });
+  });
+
+  app.post('/edro/perplexity/enrich-clipping', async (request, reply) => {
+    const body = z.object({
+      title: z.string(),
+      snippet: z.string().optional().default(''),
+      url: z.string(),
+      client_keywords: z.array(z.string()).optional(),
+    }).parse(request.body);
+
+    const result = await enrichClippingItem(body);
+    return reply.send({ success: true, data: result });
+  });
+
+  app.post('/edro/perplexity/research-competitor', async (request, reply) => {
+    const body = z.object({
+      client_name: z.string(),
+      segment: z.string(),
+      platforms: z.array(z.string()).optional(),
+    }).parse(request.body);
+
+    const result = await researchCompetitorActivity(body);
+    return reply.send({ success: true, data: result });
+  });
+
+  app.post('/edro/perplexity/research-for-copy', async (request, reply) => {
+    const body = z.object({
+      topic: z.string(),
+      platform: z.string(),
+      objective: z.string(),
+    }).parse(request.body);
+
+    const result = await researchForCopy(body);
+    return reply.send({ success: true, data: result });
   });
 }

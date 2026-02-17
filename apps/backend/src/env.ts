@@ -74,6 +74,7 @@ const envSchema = z.object({
   WHATSAPP_TOKEN: z.string().optional(),
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().optional(),
+  PERPLEXITY_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);

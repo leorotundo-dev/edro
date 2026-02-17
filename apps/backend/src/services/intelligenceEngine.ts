@@ -3,6 +3,7 @@ import { buildContextPack } from '../library/contextPack';
 import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { getClientPreferences, type LearnedPreferences } from './learningLoopService';
 import { formatTimeSlot } from './predictiveService';
+import { searchTrendingTopics, isPerplexityConfigured, type PerplexityResponse } from './perplexityService';
 
 export type IntelligenceContext = {
   client: {
@@ -70,6 +71,10 @@ export type IntelligenceContext = {
     best_times: { platform: string; day_of_week: number; hour: number; engagement: number }[];
     content_mix: { format: string; recommended_pct: number; current_pct: number }[];
   } | null;
+  perplexity_trends: {
+    content: string;
+    citations: string[];
+  } | null;
 };
 
 /**
@@ -99,6 +104,7 @@ export async function buildIntelligenceContext(params: {
     clientInsightData,
     learnedPrefsData,
     predictiveTimesData,
+    perplexityData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -233,6 +239,9 @@ export async function buildIntelligenceContext(params: {
       ORDER BY avg_engagement DESC
       LIMIT 10
     `, [params.tenant_id, params.client_id]),
+
+    // Perplexity placeholder — fetched separately after client data resolves
+    Promise.resolve(null as PerplexityResponse | null),
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -255,6 +264,25 @@ export async function buildIntelligenceContext(params: {
   const latestInsight = clientInsightData.status === 'fulfilled' ? clientInsightData.value : null;
   const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
   const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
+
+  // Perplexity trending: fetch now that we have client keywords (fire-and-forget with timeout)
+  let perplexityTrends: PerplexityResponse | null = null;
+  if (isPerplexityConfigured() && client) {
+    const profile = typeof client.profile === 'string' ? JSON.parse(client.profile) : client.profile || {};
+    const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
+    try {
+      perplexityTrends = await Promise.race([
+        searchTrendingTopics({
+          client_name: client.name || 'Cliente',
+          keywords: keywords.length ? keywords : [client.name || 'marketing digital'],
+          segment: client.segment_primary || profile.segment || undefined,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+    } catch {
+      // Perplexity failed — graceful degradation
+    }
+  }
 
   // Build structured context
   const context: IntelligenceContext = {
@@ -348,6 +376,10 @@ export async function buildIntelligenceContext(params: {
         engagement: Number(t.avg_engagement),
       })),
       content_mix: [],
+    } : null,
+    perplexity_trends: perplexityTrends ? {
+      content: perplexityTrends.content.slice(0, 1500),
+      citations: perplexityTrends.citations.slice(0, 10),
     } : null,
   };
 
@@ -472,6 +504,15 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
     context.predictive.best_times.forEach((t) => {
       sections.push(`- ${t.platform}: ${formatTimeSlot(t as any)} (engagement: ${t.engagement.toFixed(0)})`);
     });
+  }
+
+  // Perplexity AI — Real-time Trends
+  if (context.perplexity_trends) {
+    sections.push(`\n# TENDENCIAS EM TEMPO REAL (via Perplexity AI)`);
+    sections.push(context.perplexity_trends.content);
+    if (context.perplexity_trends.citations.length) {
+      sections.push(`Fontes: ${context.perplexity_trends.citations.slice(0, 5).join(', ')}`);
+    }
   }
 
   // Performance insights
