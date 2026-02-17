@@ -1,4 +1,5 @@
 import { sendEmail } from './emailService';
+import { sendWhatsAppText } from './whatsappService';
 import { updateNotificationStatus } from '../repositories/edroBriefingRepository';
 
 export type DispatchNotificationInput = {
@@ -53,13 +54,19 @@ function buildEmailSubject(payload?: Record<string, any> | null) {
 
 export async function dispatchNotification(input: DispatchNotificationInput) {
   if (input.channel === 'email') {
-    const subject = buildEmailSubject(input.payload ?? null);
-    const text = buildEmailText(input.payload ?? null);
+    const prebuilt = input.payload?._email as
+      | { subject: string; text: string; html?: string }
+      | undefined;
+
+    const subject = prebuilt?.subject || buildEmailSubject(input.payload ?? null);
+    const text = prebuilt?.text || buildEmailText(input.payload ?? null);
+    const html = prebuilt?.html || undefined;
 
     const result = await sendEmail({
       to: input.recipient,
       subject,
       text,
+      html,
     });
 
     if (result.ok) {
@@ -73,6 +80,27 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
         id: input.id,
         status: 'failed',
         error: result.error || 'email_failed',
+      });
+    }
+
+    return;
+  }
+
+  if (input.channel === 'whatsapp') {
+    const text = buildEmailText(input.payload ?? null);
+    const result = await sendWhatsAppText(input.recipient, text);
+
+    if (result.ok) {
+      await updateNotificationStatus({
+        id: input.id,
+        status: 'sent',
+        sentAt: new Date(),
+      });
+    } else {
+      await updateNotificationStatus({
+        id: input.id,
+        status: 'failed',
+        error: result.error || 'whatsapp_failed',
       });
     }
 

@@ -15,12 +15,18 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
 import {
   IconArchive,
   IconBuilding,
   IconCheck,
   IconChevronRight,
+  IconClock,
+  IconMail,
+  IconMessageCircle,
   IconPhoto,
+  IconPlayerPlay,
+  IconRobot,
   IconTrash,
   IconUser,
 } from '@tabler/icons-react';
@@ -63,12 +69,70 @@ type Task = {
   created_at: string;
 };
 
+type TimelineEvent = {
+  id: string;
+  type: 'stage_change' | 'copy_generated' | 'notification' | 'task';
+  label: string;
+  detail: string;
+  actor: string | null;
+  metadata: Record<string, any> | null;
+  timestamp: string;
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  briefing: 'Briefing',
+  iclips_in: 'iClips Entrada',
+  alinhamento: 'Alinhamento',
+  copy_ia: 'Copy IA',
+  aprovacao: 'Aprovação',
+  producao: 'Produção',
+  revisao: 'Revisão',
+  entrega: 'Entrega',
+  iclips_out: 'iClips Saída',
+};
+
+function timelineIcon(type: string) {
+  switch (type) {
+    case 'stage_change': return <IconPlayerPlay size={16} />;
+    case 'copy_generated': return <IconRobot size={16} />;
+    case 'notification': return <IconMail size={16} />;
+    case 'task': return <IconMessageCircle size={16} />;
+    default: return <IconClock size={16} />;
+  }
+}
+
+function timelineColor(type: string) {
+  switch (type) {
+    case 'stage_change': return '#6366f1';
+    case 'copy_generated': return '#8b5cf6';
+    case 'notification': return '#f59e0b';
+    case 'task': return '#3b82f6';
+    default: return '#94a3b8';
+  }
+}
+
+function timelineDescription(event: TimelineEvent) {
+  switch (event.type) {
+    case 'stage_change':
+      return `Etapa "${STAGE_LABELS[event.label] || event.label}" marcada como ${event.detail === 'done' ? 'concluída' : event.detail === 'in_progress' ? 'em andamento' : event.detail}`;
+    case 'copy_generated':
+      return `Copy gerada via ${event.label} (${event.detail})`;
+    case 'notification':
+      return `Notificação ${event.label} — ${event.detail === 'sent' ? 'enviada' : event.detail}`;
+    case 'task':
+      return `Tarefa "${event.label}" — ${event.detail}`;
+    default:
+      return event.label;
+  }
+}
+
 export default function BriefingDetailClient({ briefingId }: { briefingId: string }) {
   const router = useRouter();
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [copies, setCopies] = useState<Copy[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -93,6 +157,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
         setCopies(response.data.copies);
         setTasks(response.data.tasks);
       }
+
+      apiGet<{ data: TimelineEvent[] }>(`/edro/briefings/${briefingId}/timeline`)
+        .then((res) => setTimeline(res?.data ?? []))
+        .catch(() => {});
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar briefing.');
     } finally {
@@ -465,7 +533,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
         {/* Tasks Section */}
         {tasks.length > 0 && (
-          <Card variant="outlined">
+          <Card variant="outlined" sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Tarefas ({tasks.length})
@@ -487,6 +555,54 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                       </Stack>
                     </CardContent>
                   </Card>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Activity Timeline */}
+        {timeline.length > 0 && (
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Histórico de Atividades ({timeline.length})
+              </Typography>
+              <Stack spacing={0}>
+                {timeline.map((event, index) => (
+                  <Box key={event.id + index}>
+                    <Stack direction="row" spacing={2} sx={{ py: 1.5 }}>
+                      <Box
+                        sx={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: `${timelineColor(event.type)}18`,
+                          color: timelineColor(event.type),
+                          flexShrink: 0, mt: 0.25,
+                        }}
+                      >
+                        {timelineIcon(event.type)}
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={500}>
+                          {timelineDescription(event)}
+                        </Typography>
+                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.25 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(event.timestamp).toLocaleString('pt-BR')}
+                          </Typography>
+                          {event.actor && (
+                            <Typography variant="caption" color="text.secondary">
+                              por {event.actor}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </Box>
+                    </Stack>
+                    {index < timeline.length - 1 && (
+                      <Divider sx={{ ml: 6 }} />
+                    )}
+                  </Box>
                 ))}
               </Stack>
             </CardContent>

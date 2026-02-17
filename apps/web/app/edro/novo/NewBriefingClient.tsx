@@ -1,20 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiPost } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconChevronRight } from '@tabler/icons-react';
+import { IconChevronRight, IconTemplate } from '@tabler/icons-react';
+
+type BriefingTemplate = {
+  id: string;
+  name: string;
+  category: string;
+  objective?: string;
+  target_audience?: string;
+  channels?: string[];
+  additional_notes?: string;
+};
 
 type BriefingFormData = {
   client_name: string;
@@ -27,10 +38,21 @@ type BriefingFormData = {
   additional_notes: string;
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  social: 'Social',
+  ads: 'Tráfego Pago',
+  email: 'Email',
+  launch: 'Lançamento',
+  seasonal: 'Sazonal',
+  content: 'Conteúdo',
+};
+
 export default function NewBriefingClient() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [templates, setTemplates] = useState<BriefingTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [formData, setFormData] = useState<BriefingFormData>({
     client_name: '',
     title: '',
@@ -41,6 +63,23 @@ export default function NewBriefingClient() {
     traffic_owner: '',
     additional_notes: '',
   });
+
+  useEffect(() => {
+    apiGet<{ data: BriefingTemplate[] }>('/edro/templates')
+      .then((res) => setTemplates(res?.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  const applyTemplate = (tpl: BriefingTemplate) => {
+    setSelectedTemplate(tpl.id);
+    setFormData((prev) => ({
+      ...prev,
+      objective: tpl.objective || prev.objective,
+      target_audience: tpl.target_audience || prev.target_audience,
+      channels: tpl.channels?.join(', ') || prev.channels,
+      additional_notes: tpl.additional_notes || prev.additional_notes,
+    }));
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -108,6 +147,35 @@ export default function NewBriefingClient() {
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
+        )}
+
+        {templates.length > 0 && (
+          <Card variant="outlined" sx={{ mb: 3, bgcolor: 'action.hover' }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                <IconTemplate size={18} />
+                <Typography variant="subtitle2">Começar a partir de um template</Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {templates.map((tpl) => (
+                  <Chip
+                    key={tpl.id}
+                    label={tpl.name}
+                    size="small"
+                    variant={selectedTemplate === tpl.id ? 'filled' : 'outlined'}
+                    color={selectedTemplate === tpl.id ? 'primary' : 'default'}
+                    onClick={() => applyTemplate(tpl)}
+                    sx={{ mb: 0.5 }}
+                  />
+                ))}
+              </Stack>
+              {selectedTemplate && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Campos preenchidos pelo template. Você pode editar antes de criar.
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         <form onSubmit={handleSubmit}>

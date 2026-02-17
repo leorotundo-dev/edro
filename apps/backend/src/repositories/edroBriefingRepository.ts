@@ -591,6 +591,68 @@ export async function getTaskById(taskId: string): Promise<EdroTask | null> {
   return rows[0] ?? null;
 }
 
+export async function getBriefingTimeline(briefingId: string) {
+  const { rows } = await query<any>(
+    `
+    (
+      SELECT
+        s.id,
+        'stage_change' as type,
+        s.stage as label,
+        s.status as detail,
+        s.updated_by as actor,
+        s.metadata,
+        COALESCE(s.updated_at, s.created_at) as timestamp
+      FROM edro_briefing_stages s
+      WHERE s.briefing_id = $1 AND s.status != 'pending'
+    )
+    UNION ALL
+    (
+      SELECT
+        c.id,
+        'copy_generated' as type,
+        COALESCE(c.model, 'IA') as label,
+        c.language as detail,
+        c.created_by as actor,
+        NULL as metadata,
+        c.created_at as timestamp
+      FROM edro_copy_versions c
+      WHERE c.briefing_id = $1
+    )
+    UNION ALL
+    (
+      SELECT
+        n.id,
+        'notification' as type,
+        n.channel as label,
+        n.status as detail,
+        n.recipient as actor,
+        NULL as metadata,
+        COALESCE(n.sent_at, n.created_at) as timestamp
+      FROM edro_notifications n
+      WHERE n.briefing_id = $1
+    )
+    UNION ALL
+    (
+      SELECT
+        t.id,
+        'task' as type,
+        t.type as label,
+        t.status as detail,
+        t.assigned_to as actor,
+        NULL as metadata,
+        t.created_at as timestamp
+      FROM edro_tasks t
+      WHERE t.briefing_id = $1
+    )
+    ORDER BY timestamp DESC
+    LIMIT 100
+    `,
+    [briefingId]
+  );
+  return rows;
+}
+
 export async function updateTaskStatus(params: {
   taskId: string;
   status: string;

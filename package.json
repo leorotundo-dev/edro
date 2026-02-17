@@ -16,10 +16,15 @@
     "start": "pnpm --filter @edro/backend start",
     "start:web": "pnpm --filter @edro/web start",
     "lint": "pnpm --filter @edro/backend lint || true && pnpm --filter @edro/web lint || true",
-    "migrate": "pnpm --filter @edro/backend db:migrate || true"
+    "migrate": "pnpm --filter @edro/backend db:migrate || true",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "dependencies": {}
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
+    "vitest": "^4.0.18"
+  }
 }

@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
+import multipart from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
@@ -38,8 +40,10 @@ import {
   deleteBriefing,
   archiveBriefing,
   listEdroClients,
+  getBriefingTimeline,
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
+import { buildStageChangeEmail } from '../services/stageNotificationTemplates';
 import {
   WORKFLOW_STAGES,
   WorkflowStage,
@@ -48,6 +52,8 @@ import {
   isWorkflowStage,
 } from '@edro/shared/workflow';
 import { env } from '../env';
+import { saveFile, buildKey } from '../library/storage';
+import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -443,8 +449,67 @@ async function createTaskNotifications(params: {
   return notifications;
 }
 
+async function notifyStageChange(params: {
+  briefingId: string;
+  fromStage: WorkflowStage;
+  toStage: WorkflowStage;
+  updatedBy?: string | null;
+}) {
+  try {
+    const briefing = await getBriefingById(params.briefingId);
+    if (!briefing) return;
+
+    const recipients = new Set<string>();
+    if (briefing.created_by) recipients.add(briefing.created_by);
+    if (briefing.traffic_owner) recipients.add(briefing.traffic_owner);
+    if (params.updatedBy) recipients.add(params.updatedBy);
+
+    if (!recipients.size) return;
+
+    const email = buildStageChangeEmail({
+      briefingTitle: briefing.title,
+      clientName: briefing.client_name,
+      fromStage: params.fromStage,
+      toStage: params.toStage,
+      updatedBy: params.updatedBy,
+      briefingId: params.briefingId,
+      baseUrl: env.WEB_URL || undefined,
+    });
+
+    for (const recipient of recipients) {
+      const notification = await createNotification({
+        briefingId: params.briefingId,
+        channel: 'email',
+        recipient,
+        payload: {
+          briefing: { id: briefing.id, title: briefing.title, client_name: briefing.client_name },
+          fromStage: params.fromStage,
+          toStage: params.toStage,
+          type: 'stage_change',
+        },
+      });
+      await dispatchNotification({
+        id: notification.id,
+        channel: 'email',
+        recipient,
+        payload: {
+          _email: email,
+          briefing: { id: briefing.id, title: briefing.title, client_name: briefing.client_name },
+        },
+      });
+    }
+  } catch (err) {
+    // Non-blocking — log but don't fail the stage transition
+    console.error('[notifyStageChange] error:', err);
+  }
+}
+
 export default async function edroRoutes(app: FastifyInstance) {
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+
   app.addHook('preHandler', async (request, reply) => {
+    // Public approval endpoints don't require authentication
+    if ((request.url as string).startsWith('/api/edro/public/')) return;
     try {
       await request.jwtVerify();
     } catch {
@@ -481,6 +546,115 @@ export default async function edroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: clients });
   });
 
+  // ── Briefing Templates ────────────────────────────────────────
+  app.get('/edro/templates', async (_request, reply) => {
+    const { rows } = await query<any>(
+      `SELECT * FROM edro_briefing_templates
+       WHERE tenant_id = '00000000-0000-0000-0000-000000000000' OR is_system = true
+       ORDER BY is_system DESC, name ASC`
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
+  app.post('/edro/templates', async (request, reply) => {
+    const bodySchema = z.object({
+      name: z.string().min(2),
+      category: z.string().default('social'),
+      objective: z.string().optional(),
+      target_audience: z.string().optional(),
+      channels: z.array(z.string()).optional(),
+      additional_notes: z.string().optional(),
+      platform_config: z.record(z.any()).optional(),
+    });
+
+    const body = bodySchema.parse(request.body);
+    const id = `tpl_${crypto.randomUUID().slice(0, 12)}`;
+
+    const { rows } = await query<any>(
+      `INSERT INTO edro_briefing_templates (id, tenant_id, name, category, objective, target_audience, channels, additional_notes, platform_config)
+       VALUES ($1, '00000000-0000-0000-0000-000000000000', $2, $3, $4, $5, $6, $7, $8::jsonb)
+       RETURNING *`,
+      [
+        id,
+        body.name,
+        body.category,
+        body.objective ?? null,
+        body.target_audience ?? null,
+        body.channels ?? [],
+        body.additional_notes ?? null,
+        JSON.stringify(body.platform_config ?? {}),
+      ]
+    );
+
+    return reply.status(201).send({ success: true, data: rows[0] });
+  });
+
+  app.delete('/edro/templates/:id', async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+
+    const { rows } = await query<any>(
+      `DELETE FROM edro_briefing_templates WHERE id = $1 AND is_system = false RETURNING id`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Template não encontrado ou é do sistema.' });
+    }
+
+    return reply.send({ success: true });
+  });
+
+  // ── Creative Image for Mockups ────────────────────────────────
+  app.post('/edro/briefings/:id/creative-image', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+
+    const briefing = await getBriefingById(id);
+    if (!briefing) {
+      return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+    }
+
+    const contentType = String(request.headers['content-type'] || '');
+
+    if (contentType.includes('multipart')) {
+      const file = await request.file();
+      if (!file) {
+        return reply.status(400).send({ success: false, error: 'Arquivo não enviado.' });
+      }
+
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowed.includes(file.mimetype)) {
+        return reply.status(400).send({ success: false, error: 'Formato não suportado. Use JPG, PNG, WebP ou GIF.' });
+      }
+
+      const buffer = await file.toBuffer();
+      const ext = file.filename.split('.').pop() || 'jpg';
+      const key = `edro/briefings/${id}/creative_${Date.now()}.${ext}`;
+      await saveFile(buffer, key);
+
+      const imageUrl = env.S3_ENDPOINT
+        ? `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`
+        : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
+
+      await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [imageUrl, id]);
+
+      return reply.send({ success: true, data: { creative_image_url: imageUrl } });
+    }
+
+    const bodySchema = z.object({ imageUrl: z.string().url() });
+    const body = bodySchema.parse(request.body);
+
+    await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [body.imageUrl, id]);
+
+    return reply.send({ success: true, data: { creative_image_url: body.imageUrl } });
+  });
+
+  app.delete('/edro/briefings/:id/creative-image', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    await query(`UPDATE edro_briefings SET creative_image_url = NULL WHERE id = $1`, [id]);
+    return reply.send({ success: true });
+  });
+
+  // ── Briefings CRUD ────────────────────────────────────────────
   app.post('/edro/briefings', async (request, reply) => {
     const bodySchema = z
       .object({
@@ -681,6 +855,12 @@ export default async function edroRoutes(app: FastifyInstance) {
         const next = getNextStage(current.stage as WorkflowStage);
         if (next) {
           await promoteStageIfPending(briefingId, next, user.email ?? null);
+          notifyStageChange({
+            briefingId,
+            fromStage: current.stage as WorkflowStage,
+            toStage: next,
+            updatedBy: user.email ?? null,
+          });
         }
         await refreshBriefingStatus(briefingId);
 
@@ -700,6 +880,12 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const stages = await ensureBriefingStages(params.id);
     return reply.send({ success: true, data: stages });
+  });
+
+  app.get('/edro/briefings/:id/timeline', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const timeline = await getBriefingTimeline(id);
+    return reply.send({ success: true, data: timeline });
   });
 
   app.patch('/edro/briefings/:id/stages/:stage', async (request, reply) => {
@@ -760,6 +946,12 @@ export default async function edroRoutes(app: FastifyInstance) {
       const nextStage = getNextStage(params.stage);
       if (nextStage) {
         await promoteStageIfPending(params.id, nextStage, user.email);
+        notifyStageChange({
+          briefingId: params.id,
+          fromStage: params.stage as WorkflowStage,
+          toStage: nextStage,
+          updatedBy: user.email,
+        });
       }
 
       if (params.stage === 'iclips_in' || params.stage === 'iclips_out') {
@@ -795,6 +987,97 @@ export default async function edroRoutes(app: FastifyInstance) {
         stages: refreshed.stages,
       },
     });
+  });
+
+  // ── Copy Feedback & Scoring ────────────────────────────────────
+  app.patch('/edro/copies/:copyId/feedback', async (request, reply) => {
+    const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);
+    const bodySchema = z.object({
+      status: z.enum(['approved', 'rejected']).optional(),
+      score: z.number().int().min(1).max(5).optional(),
+      feedback: z.string().max(2000).optional(),
+    });
+    const body = bodySchema.parse(request.body);
+
+    const { rows } = await query<any>(
+      `UPDATE edro_copy_versions
+       SET status = COALESCE($2, status),
+           score = COALESCE($3, score),
+           feedback = COALESCE($4, feedback)
+       WHERE id = $1
+       RETURNING *`,
+      [copyId, body.status ?? null, body.score ?? null, body.feedback ?? null]
+    );
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
+    }
+
+    return reply.send({ success: true, data: rows[0] });
+  });
+
+  // ── Bulk Copy Generation ──────────────────────────────────────
+  app.post('/edro/briefings/bulk-copy', async (request, reply) => {
+    const bodySchema = z.object({
+      briefingIds: z.array(z.string().uuid()).min(1).max(20),
+      language: z.string().default('pt'),
+      count: z.number().int().min(1).max(5).default(3),
+    });
+
+    const body = bodySchema.parse(request.body);
+    const results: { briefingId: string; ok: boolean; copies?: number; error?: string }[] = [];
+
+    for (const briefingId of body.briefingIds) {
+      try {
+        const briefing = await getBriefingById(briefingId);
+        if (!briefing) {
+          results.push({ briefingId, ok: false, error: 'not_found' });
+          continue;
+        }
+
+        const clientRow = briefing.client_id
+          ? await getClientById('81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5', briefing.client_id)
+          : null;
+        const knowledge = buildClientKnowledgeFromRow(clientRow);
+        const knowledgeBlock = buildClientKnowledgeBlock(knowledge);
+
+        const payload = briefing.payload || {};
+        const platforms = String(payload.channels || 'instagram').split(',').map((c: string) => c.trim());
+        const platform = platforms[0] || 'instagram';
+        const platformProfile = getPlatformProfile(platform);
+
+        const generated = await generateCopy({
+          brief: `Campanha: ${briefing.title}\nObjetivo: ${payload.objective || 'engajamento'}\nPúblico: ${payload.target_audience || 'público geral'}\nObservações: ${payload.additional_notes || ''}`,
+          platform,
+          language: body.language,
+          count: body.count,
+          customKnowledge: knowledgeBlock || undefined,
+          platformProfile: platformProfile || undefined,
+        });
+
+        let copyCount = 0;
+        if (generated?.copies) {
+          for (const copy of generated.copies) {
+            await createCopyVersion({
+              briefingId,
+              language: body.language,
+              model: generated.model || null,
+              prompt: null,
+              output: copy.text || copy.output || String(copy),
+              payload: { bulk: true, platform },
+              createdBy: (request as any).user?.email || null,
+            });
+            copyCount++;
+          }
+        }
+
+        results.push({ briefingId, ok: true, copies: copyCount });
+      } catch (err: any) {
+        results.push({ briefingId, ok: false, error: err.message });
+      }
+    }
+
+    return reply.send({ success: true, data: results });
   });
 
   app.post('/edro/briefings/:id/copy', async (request, reply) => {
@@ -1513,6 +1796,79 @@ export default async function edroRoutes(app: FastifyInstance) {
         LIMIT 3
       `);
 
+      // Weekly velocity (completed briefings per week, last 8 weeks)
+      const { rows: weeklyRows } = await query<any>(`
+        SELECT
+          date_trunc('week', updated_at) as week,
+          COUNT(*) as count
+        FROM edro_briefings
+        WHERE status = 'done' AND updated_at >= NOW() - INTERVAL '8 weeks'
+        GROUP BY week
+        ORDER BY week ASC
+      `);
+
+      // Overdue briefings
+      const { rows: overdueRows } = await query<any>(`
+        SELECT COUNT(*) as count
+        FROM edro_briefings
+        WHERE due_at < NOW() AND status NOT IN ('done', 'archived', 'cancelled')
+      `);
+      const overdue = Number(overdueRows[0]?.count || 0);
+
+      // Stage funnel (count per current stage)
+      const { rows: funnelRows } = await query<any>(`
+        SELECT
+          COALESCE(
+            (SELECT stage FROM edro_briefing_stages WHERE briefing_id = b.id AND status = 'in_progress' ORDER BY position LIMIT 1),
+            (SELECT stage FROM edro_briefing_stages WHERE briefing_id = b.id AND status <> 'done' ORDER BY position LIMIT 1),
+            'done'
+          ) as current_stage,
+          COUNT(*) as count
+        FROM edro_briefings b
+        WHERE b.status NOT IN ('archived', 'cancelled')
+        GROUP BY current_stage
+      `);
+
+      // Copies per week (last 8 weeks)
+      const { rows: copiesWeeklyRows } = await query<any>(`
+        SELECT
+          date_trunc('week', created_at) as week,
+          COUNT(*) as count
+        FROM edro_copy_versions
+        WHERE created_at >= NOW() - INTERVAL '8 weeks'
+        GROUP BY week
+        ORDER BY week ASC
+      `);
+
+      // Reportei: latest insights per platform (aggregated across clients)
+      const { rows: reporteiRows } = await query<any>(`
+        SELECT DISTINCT ON (platform)
+          platform,
+          payload,
+          created_at
+        FROM learned_insights
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        ORDER BY platform, created_at DESC
+      `);
+
+      const reporteiPlatforms = reporteiRows.map((row: any) => {
+        const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+        const topFormats = (payload?.by_format || [])
+          .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
+          .slice(0, 3)
+          .map((f: any) => ({
+            format: f.format,
+            score: f.score,
+            kpis: (f.kpis || []).slice(0, 4),
+          }));
+        return {
+          platform: row.platform,
+          updatedAt: row.created_at,
+          topFormats,
+          insights: (payload?.editorial_insights || []).slice(0, 3),
+        };
+      });
+
       return reply.send({
         success: true,
         data: {
@@ -1531,16 +1887,227 @@ export default async function edroRoutes(app: FastifyInstance) {
             return acc;
           }, {}),
           recentBriefings,
+          overdue,
           bottlenecks: bottleneckRows.map((row: any) => ({
             stage: row.stage,
             count: Number(row.count),
           })),
+          weeklyVelocity: weeklyRows.map((row: any) => ({
+            week: row.week,
+            count: Number(row.count),
+          })),
+          stageFunnel: funnelRows.map((row: any) => ({
+            stage: row.current_stage,
+            count: Number(row.count),
+          })),
+          copiesWeekly: copiesWeeklyRows.map((row: any) => ({
+            week: row.week,
+            count: Number(row.count),
+          })),
+          reporteiPlatforms,
         },
       });
     } catch (err: any) {
       request.log?.error({ err }, 'metrics_failed');
       return reply.status(500).send({ success: false, error: 'Erro ao buscar métricas.' });
     }
+  });
+
+  // ── Client Approval Portal ────────────────────────────────────
+  app.post('/edro/briefings/:id/approval-link', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const bodySchema = z.object({
+      clientName: z.string().optional(),
+      expiresInDays: z.number().int().min(1).max(30).default(7),
+    });
+    const body = bodySchema.parse(request.body);
+
+    const briefing = await getBriefingById(id);
+    if (!briefing) {
+      return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+    }
+
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    const expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000);
+
+    await query(
+      `INSERT INTO edro_approval_tokens (briefing_id, token, client_name, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [id, token, body.clientName || briefing.client_name || null, expiresAt]
+    );
+
+    const baseUrl = env.WEB_URL || '';
+    const approvalUrl = `${baseUrl}/edro/aprovacao-externa?token=${token}`;
+
+    return reply.send({ success: true, data: { token, approvalUrl, expiresAt } });
+  });
+
+  // Public endpoint — no auth required (registered in separate scope below)
+  app.get('/edro/public/approval', async (request, reply) => {
+    const { token } = z.object({ token: z.string().min(20) }).parse(request.query);
+
+    const { rows } = await query<any>(
+      `SELECT t.*, b.title, b.payload, b.client_id,
+              c.name as client_name_from_client
+       FROM edro_approval_tokens t
+       JOIN edro_briefings b ON b.id = t.briefing_id
+       LEFT JOIN edro_clients c ON c.id = b.client_id
+       WHERE t.token = $1 AND t.expires_at > NOW() AND t.used_at IS NULL
+       LIMIT 1`,
+      [token]
+    );
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Link inválido ou expirado.' });
+    }
+
+    const approval = rows[0];
+    const copies = await listCopyVersions(approval.briefing_id);
+
+    return reply.send({
+      success: true,
+      data: {
+        briefingTitle: approval.title,
+        clientName: approval.client_name || approval.client_name_from_client,
+        copies: copies.map((c: any) => ({
+          id: c.id,
+          output: c.output,
+          language: c.language,
+          created_at: c.created_at,
+        })),
+        expiresAt: approval.expires_at,
+      },
+    });
+  });
+
+  app.post('/edro/public/approval', async (request, reply) => {
+    const bodySchema = z.object({
+      token: z.string().min(20),
+      copyId: z.string().uuid(),
+      action: z.enum(['approve', 'reject']),
+      comments: z.string().max(2000).optional(),
+    });
+    const body = bodySchema.parse(request.body);
+
+    const { rows } = await query<any>(
+      `SELECT * FROM edro_approval_tokens
+       WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL
+       LIMIT 1`,
+      [body.token]
+    );
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Link inválido ou expirado.' });
+    }
+
+    const approval = rows[0];
+
+    // Update copy status
+    await query(
+      `UPDATE edro_copy_versions SET status = $1, feedback = $2 WHERE id = $3`,
+      [body.action === 'approve' ? 'approved' : 'rejected', body.comments ?? null, body.copyId]
+    );
+
+    // If approved, advance the approval stage
+    if (body.action === 'approve') {
+      await updateBriefingStageStatus({
+        briefingId: approval.briefing_id,
+        stage: 'aprovacao',
+        status: 'done',
+        updatedBy: approval.client_name || 'cliente',
+        metadata: { approvedCopyId: body.copyId, approvedViaPortal: true, comments: body.comments },
+      });
+
+      const nextStage = getNextStage('aprovacao');
+      if (nextStage) {
+        await promoteStageIfPending(approval.briefing_id, nextStage, approval.client_name);
+        notifyStageChange({
+          briefingId: approval.briefing_id,
+          fromStage: 'aprovacao',
+          toStage: nextStage,
+          updatedBy: approval.client_name || 'cliente (portal)',
+        });
+      }
+    }
+
+    // Mark token as used
+    await query(`UPDATE edro_approval_tokens SET used_at = NOW() WHERE id = $1`, [approval.id]);
+
+    return reply.send({ success: true, data: { action: body.action } });
+  });
+
+  // ── Intelligence Refresh ──────────────────────────────────────
+  app.post('/edro/intelligence/refresh-all', async (request, reply) => {
+    const user = resolveUser(request);
+    if (user.role !== 'admin' && user.role !== 'gestor') {
+      return reply.status(403).send({ success: false, error: 'Apenas admin ou gestor pode disparar refresh.' });
+    }
+
+    // Use a fixed tenant for Edro (same as used elsewhere)
+    const tenantId = '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5';
+    const result = await refreshAllClientsForTenant(tenantId);
+
+    return reply.send({ success: true, data: result });
+  });
+
+  // ── Publication Scheduling ────────────────────────────────────
+  app.post('/edro/briefings/:id/schedule', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const bodySchema = z.object({
+      copyId: z.string().uuid(),
+      channel: z.string().min(1),
+      scheduledFor: z.string(),
+      payload: z.record(z.any()).optional(),
+    });
+    const body = bodySchema.parse(request.body);
+    const user = resolveUser(request);
+
+    const briefing = await getBriefingById(id);
+    if (!briefing) {
+      return reply.status(404).send({ success: false, error: 'Briefing nao encontrado.' });
+    }
+
+    const copies = await listCopyVersions(id);
+    const copy = copies.find((c: any) => c.id === body.copyId);
+    if (!copy) {
+      return reply.status(404).send({ success: false, error: 'Copy nao encontrada.' });
+    }
+
+    const { rows } = await query<any>(
+      `INSERT INTO edro_publish_schedule (briefing_id, copy_id, channel, scheduled_for, payload, created_by)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+       RETURNING id`,
+      [id, body.copyId, body.channel, body.scheduledFor, JSON.stringify(body.payload || {}), user.email || user.sub]
+    );
+
+    return reply.send({ success: true, data: { scheduleId: rows[0]?.id } });
+  });
+
+  app.get('/edro/briefings/:id/schedules', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+
+    const { rows } = await query<any>(
+      `SELECT ps.*, cv.output as copy_output, cv.language
+       FROM edro_publish_schedule ps
+       LEFT JOIN edro_copy_versions cv ON cv.id = ps.copy_id
+       WHERE ps.briefing_id = $1
+       ORDER BY ps.scheduled_for ASC`,
+      [id]
+    );
+
+    return reply.send({ success: true, data: rows });
+  });
+
+  app.delete('/edro/schedules/:scheduleId', async (request, reply) => {
+    const { scheduleId } = z.object({ scheduleId: z.string().uuid() }).parse(request.params);
+
+    await query(
+      `UPDATE edro_publish_schedule SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND status = 'scheduled'`,
+      [scheduleId]
+    );
+
+    return reply.send({ success: true });
   });
 
   app.get('/edro/reports/export', async (request, reply) => {

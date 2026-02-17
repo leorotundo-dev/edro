@@ -23,12 +23,18 @@ import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
 import {
   IconZoomIn,
   IconZoomOut,
   IconRefresh,
   IconArrowLeft,
   IconArrowRight,
+  IconUpload,
+  IconEdit,
+  IconX,
+  IconPhoto,
+  IconLink,
 } from '@tabler/icons-react';
 
 type InventoryItem = {
@@ -621,6 +627,15 @@ export default function Page() {
   const [clientLogo, setClientLogo] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
   const [syncing, setSyncing] = useState<boolean>(false);
+  const [creativeImageUrl, setCreativeImageUrl] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showCopyEditor, setShowCopyEditor] = useState(false);
+  const [editedCopy, setEditedCopy] = useState<{ headline: string; body: string; cta: string }>({
+    headline: '',
+    body: '',
+    cta: '',
+  });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map());
   const gridRef = useRef<HTMLDivElement | null>(null);
 
@@ -1167,6 +1182,50 @@ export default function Page() {
   const handleZoomOut = () => setZoomLevel((value) => Math.max(MIN_ZOOM, Number((value - 0.07).toFixed(2))));
   const handleZoomReset = () => setZoomLevel(DEFAULT_ZOOM);
 
+  const handleCreativeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const briefingId = safeGet('edro_briefing_id');
+    if (briefingId) {
+      setUploadingImage(true);
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        await api.post(`/edro/briefings/${briefingId}/creative-image`, form);
+      } catch {
+        // fallback to local preview
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setCreativeImageUrl(result);
+    };
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleCreativeImageUrlPaste = (url: string) => {
+    if (!url) return;
+    setCreativeImageUrl(url);
+    const briefingId = safeGet('edro_briefing_id');
+    if (briefingId) {
+      api.post(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: url }).catch(() => null);
+    }
+  };
+
+  const handleRemoveCreativeImage = () => {
+    setCreativeImageUrl('');
+    const briefingId = safeGet('edro_briefing_id');
+    if (briefingId) {
+      api.delete(`/edro/briefings/${briefingId}/creative-image`).catch(() => null);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
@@ -1328,6 +1387,15 @@ export default function Page() {
         ? rawCopy
         : extractCopyVariants(rawCopy)[item.variantIndex ?? 0] || rawCopy;
       const fields = extractCopyFields(variant);
+
+      // Live copy editor overrides
+      const useEdited = showCopyEditor && (editedCopy.headline || editedCopy.body || editedCopy.cta);
+      if (useEdited) {
+        if (editedCopy.headline) fields.headline = editedCopy.headline;
+        if (editedCopy.body) fields.body = editedCopy.body;
+        if (editedCopy.cta) fields.cta = editedCopy.cta;
+      }
+
       const caption = fields.fullText || rawCopy || 'Digite ou gere o copy para visualizar o mockup.';
       const captionText = normalizeWhitespace(fields.body || caption).slice(0, 2200);
       const shortText = clampText(fields.headline || captionText || `${item.platform} ${item.format}`, 90);
@@ -1397,6 +1465,19 @@ export default function Page() {
         baseProps.thumbnail = satoriUrl;
         baseProps.bannerImage = satoriUrl;
       }
+
+      // Creative image override — uploaded image takes priority
+      if (creativeImageUrl) {
+        baseProps.postImage = creativeImageUrl;
+        baseProps.image = creativeImageUrl;
+        baseProps.thumbnail = creativeImageUrl;
+        baseProps.coverImage = creativeImageUrl;
+        baseProps.bannerImage = creativeImageUrl;
+        baseProps.storyImage = creativeImageUrl;
+        baseProps.videoThumbnail = creativeImageUrl;
+        baseProps.adImage = creativeImageUrl;
+      }
+
       const fontScale = Math.max(0.85, Math.min(1.05, frame.width / 520));
       const clampStyle = (lines: number) =>
         ({
@@ -1641,6 +1722,118 @@ export default function Page() {
             Exportar ZIP
           </Button>
         </Stack>
+      </Stack>
+
+      {/* Creative Image + Copy Editor Panel */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+        {/* Creative Image Upload */}
+        <Card variant="outlined" sx={{ flex: '0 0 auto', minWidth: 280 }}>
+          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <IconPhoto size={16} />
+              <Typography variant="subtitle2" fontSize={13}>Imagem do Criativo</Typography>
+            </Stack>
+            {creativeImageUrl ? (
+              <Stack spacing={1}>
+                <Box
+                  component="img"
+                  src={creativeImageUrl}
+                  alt="Creative"
+                  sx={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 1 }}
+                />
+                <Button size="small" color="error" startIcon={<IconX size={14} />} onClick={handleRemoveCreativeImage}>
+                  Remover
+                </Button>
+              </Stack>
+            ) : (
+              <Stack spacing={1}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  aria-label="Upload imagem do criativo"
+                  style={{ display: 'none' }}
+                  onChange={handleCreativeImageUpload}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={uploadingImage ? undefined : <IconUpload size={14} />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? 'Enviando...' : 'Upload Imagem'}
+                </Button>
+                <TextField
+                  size="small"
+                  placeholder="Ou cole a URL da imagem"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreativeImageUrlPaste((e.target as HTMLInputElement).value);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                  InputProps={{ sx: { fontSize: 12 } }}
+                />
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Copy Editor Toggle */}
+        <Card variant="outlined" sx={{ flex: 1 }}>
+          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <IconEdit size={16} />
+                <Typography variant="subtitle2" fontSize={13}>Editor de Copy</Typography>
+              </Stack>
+              <Button
+                size="small"
+                variant={showCopyEditor ? 'contained' : 'outlined'}
+                onClick={() => setShowCopyEditor((v) => !v)}
+              >
+                {showCopyEditor ? 'Fechar Editor' : 'Editar Copy'}
+              </Button>
+            </Stack>
+            {showCopyEditor && (
+              <Stack spacing={1.5}>
+                <TextField
+                  size="small"
+                  label="Headline"
+                  value={editedCopy.headline}
+                  onChange={(e) => setEditedCopy((prev) => ({ ...prev, headline: e.target.value }))}
+                  placeholder="Título principal do criativo"
+                  fullWidth
+                  InputProps={{ sx: { fontSize: 13 } }}
+                />
+                <TextField
+                  size="small"
+                  label="Corpo"
+                  value={editedCopy.body}
+                  onChange={(e) => setEditedCopy((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Texto principal / caption"
+                  multiline
+                  rows={3}
+                  fullWidth
+                  InputProps={{ sx: { fontSize: 13 } }}
+                />
+                <TextField
+                  size="small"
+                  label="CTA"
+                  value={editedCopy.cta}
+                  onChange={(e) => setEditedCopy((prev) => ({ ...prev, cta: e.target.value }))}
+                  placeholder="Ex: Saiba mais, Compre agora"
+                  fullWidth
+                  InputProps={{ sx: { fontSize: 13 } }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Alterações aplicadas em tempo real nos mockups abaixo.
+                </Typography>
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
       </Stack>
 
       {/* Grid Area */}

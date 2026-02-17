@@ -71,6 +71,9 @@ const envSchema = z.object({
   CALENDAR_RECALC_INTERVAL_MS: z.coerce.number().optional(),
   CALENDAR_RECALC_FROM: z.string().optional(),
   CALENDAR_RECALC_TO: z.string().optional(),
+  WHATSAPP_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_ID: z.string().optional(),
+  WHATSAPP_API_VERSION: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);
