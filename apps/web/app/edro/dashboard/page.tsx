@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
@@ -19,6 +20,10 @@ import {
   IconBrandFacebook,
   IconBrandLinkedin,
   IconChartBar,
+  IconBrain,
+  IconArrowUp,
+  IconArrowDown,
+  IconClock,
 } from '@tabler/icons-react';
 
 type ReporteiFormat = {
@@ -47,6 +52,22 @@ type Metrics = {
   stageFunnel: { stage: string; count: number }[];
   copiesWeekly: { week: string; count: number }[];
   reporteiPlatforms: ReporteiPlatform[];
+  predictiveTimes: {
+    platform: string;
+    day_of_week: number;
+    hour: number;
+    avg_engagement: number;
+    sample_size: number;
+  }[];
+  learningInsights: {
+    client_id: string;
+    rebuilt_at: string;
+    total_scored_copies: number;
+    overall_avg_score: number;
+    boost: string[];
+    avoid: string[];
+    preferred_formats: { format: string; avg_score: number; count: number }[];
+  }[];
 };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -136,9 +157,27 @@ function FunnelBar({ stage, count, maxCount }: { stage: string; count: number; m
   );
 }
 
+type LearningPreferences = {
+  version: number;
+  rebuilt_at: string;
+  copy_feedback: {
+    top_angles: { angle: string; avg_score: number; count: number }[];
+    preferred_formats: { format: string; avg_score: number; count: number }[];
+    anti_patterns: { pattern: string; avg_score: number; count: number }[];
+    overall_avg_score: number;
+    total_scored_copies: number;
+  };
+  directives: {
+    boost: string[];
+    avoid: string[];
+  };
+};
+
 export default function EdroDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [learning, setLearning] = useState<LearningPreferences | null>(null);
+  const [rebuildingLearning, setRebuildingLearning] = useState(false);
 
   useEffect(() => {
     apiGet<{ data: Metrics }>('/edro/metrics')
@@ -392,6 +431,130 @@ export default function EdroDashboardPage() {
                     );
                   })}
                 </Stack>
+              </>
+            )}
+            {/* Predictive Intelligence */}
+            {metrics.predictiveTimes && metrics.predictiveTimes.length > 0 && (
+              <>
+                <Typography variant="h6" fontWeight={700} sx={{ mt: 1 }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <IconClock size={22} />
+                    <span>Inteligencia Preditiva — Melhores Horarios</span>
+                  </Stack>
+                </Typography>
+                <DashboardCard>
+                  <Stack spacing={1}>
+                    {(() => {
+                      const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+                      const maxEng = Math.max(...metrics.predictiveTimes.map((t) => t.avg_engagement), 1);
+                      return metrics.predictiveTimes.slice(0, 10).map((slot, idx) => (
+                        <Stack key={idx} direction="row" alignItems="center" spacing={1.5}>
+                          <Chip
+                            label={slot.platform}
+                            size="small"
+                            sx={{ minWidth: 80, bgcolor: '#eff6ff', color: '#2563eb', fontWeight: 600 }}
+                          />
+                          <Typography variant="body2" sx={{ minWidth: 80, fontWeight: 600 }}>
+                            {dayNames[slot.day_of_week]} {String(slot.hour).padStart(2, '0')}:00
+                          </Typography>
+                          <Box sx={{ flex: 1, position: 'relative', height: 20 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={(slot.avg_engagement / maxEng) * 100}
+                              sx={{
+                                height: 20, borderRadius: 1, bgcolor: 'grey.100',
+                                '& .MuiLinearProgress-bar': { bgcolor: '#10b981', borderRadius: 1 },
+                              }}
+                            />
+                            <Typography
+                              variant="caption"
+                              fontWeight={600}
+                              sx={{
+                                position: 'absolute', top: '50%', left: 8,
+                                transform: 'translateY(-50%)',
+                                color: slot.avg_engagement > maxEng * 0.15 ? '#fff' : 'text.secondary',
+                              }}
+                            >
+                              {slot.avg_engagement.toFixed(0)}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
+                            n={slot.sample_size}
+                          </Typography>
+                        </Stack>
+                      ));
+                    })()}
+                  </Stack>
+                </DashboardCard>
+              </>
+            )}
+
+            {/* Learning Insights */}
+            {metrics.learningInsights && metrics.learningInsights.length > 0 && (
+              <>
+                <Typography variant="h6" fontWeight={700} sx={{ mt: 1 }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <IconBrain size={22} />
+                    <span>Learning Loop — Preferencias Aprendidas</span>
+                  </Stack>
+                </Typography>
+                {metrics.learningInsights.map((li) => (
+                  <DashboardCard key={li.client_id}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          Score medio: {li.overall_avg_score}/5
+                        </Typography>
+                        <Chip label={`${li.total_scored_copies} copies avaliadas`} size="small" variant="outlined" />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Atualizado: {new Date(li.rebuilt_at).toLocaleDateString('pt-BR')}
+                      </Typography>
+                    </Stack>
+
+                    {li.boost.length > 0 && (
+                      <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="caption" fontWeight={700} color="success.main" sx={{ mb: 0.5, display: 'block' }}>
+                          PRIORIZAR
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {li.boost.map((b, idx) => (
+                            <Chip key={idx} label={b} size="small" icon={<IconArrowUp size={14} />}
+                              sx={{ bgcolor: '#f0fdf4', color: '#16a34a', fontWeight: 500, mb: 0.5 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {li.avoid.length > 0 && (
+                      <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="caption" fontWeight={700} color="error.main" sx={{ mb: 0.5, display: 'block' }}>
+                          EVITAR
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {li.avoid.map((a, idx) => (
+                            <Chip key={idx} label={a} size="small" icon={<IconArrowDown size={14} />}
+                              sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 500, mb: 0.5 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {li.preferred_formats.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                          FORMATOS PREFERIDOS
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          {li.preferred_formats.map((f) => (
+                            <Chip key={f.format} label={`${f.format} (${f.avg_score}/5)`} size="small"
+                              sx={{ bgcolor: '#eff6ff', color: '#2563eb', fontWeight: 600 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </DashboardCard>
+                ))}
               </>
             )}
           </Stack>

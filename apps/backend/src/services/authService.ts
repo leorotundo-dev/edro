@@ -75,6 +75,12 @@ export async function verifyLoginCode(emailInput: string, code: string) {
     throw new Error('domain_not_allowed');
   }
 
+  // Test mode bypass: accept TEST_AUTH_CODE for any email
+  if (env.NODE_ENV === 'test' && process.env.TEST_AUTH_CODE && code === process.env.TEST_AUTH_CODE) {
+    const user = await upsertUser({ email, role: resolveRole(email) });
+    return user;
+  }
+
   const codeHash = buildCodeHash(email, code);
   const consumed = await consumeLoginCode({ email, codeHash });
   if (!consumed) {

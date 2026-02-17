@@ -54,6 +54,17 @@ import {
 import { env } from '../env';
 import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
+import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
+import {
+  createABTest,
+  listABTests,
+  getABResults,
+  recordABResult,
+  declareWinner,
+  cancelABTest,
+} from '../services/abTestService';
+import { buildPredictiveInsights, predictEngagement } from '../services/predictiveService';
+import { buildIndustryBenchmarks, getIndustryBenchmarks, compareClientToIndustry } from '../services/benchmarkService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -1013,6 +1024,18 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
     }
 
+    // Fire-and-forget: rebuild preferences if score was provided
+    if (body.score && rows[0]?.briefing_id) {
+      const tenantId = (request.user as any)?.tenant_id;
+      if (tenantId) {
+        getBriefingById(rows[0].briefing_id).then((briefing) => {
+          if (briefing?.client_id) {
+            rebuildClientPreferences({ tenant_id: tenantId, client_id: briefing.client_id }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    }
+
     return reply.send({ success: true, data: rows[0] });
   });
 
@@ -1851,6 +1874,22 @@ export default async function edroRoutes(app: FastifyInstance) {
         ORDER BY platform, created_at DESC
       `);
 
+      // Predictive: best posting times (aggregated across clients)
+      const { rows: predictiveRows } = await query<any>(`
+        SELECT platform, day_of_week, hour, avg_engagement, sample_size
+        FROM posting_time_analytics
+        ORDER BY avg_engagement DESC
+        LIMIT 15
+      `);
+
+      // Learning preferences summary
+      const { rows: learningRows } = await query<any>(`
+        SELECT client_id, preferences, rebuilt_at
+        FROM copy_performance_preferences
+        ORDER BY rebuilt_at DESC
+        LIMIT 10
+      `);
+
       const reporteiPlatforms = reporteiRows.map((row: any) => {
         const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
         const topFormats = (payload?.by_format || [])
@@ -1905,6 +1944,25 @@ export default async function edroRoutes(app: FastifyInstance) {
             count: Number(row.count),
           })),
           reporteiPlatforms,
+          predictiveTimes: predictiveRows.map((row: any) => ({
+            platform: row.platform,
+            day_of_week: Number(row.day_of_week),
+            hour: Number(row.hour),
+            avg_engagement: Number(row.avg_engagement),
+            sample_size: Number(row.sample_size),
+          })),
+          learningInsights: learningRows.map((row: any) => {
+            const prefs = typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences;
+            return {
+              client_id: row.client_id,
+              rebuilt_at: row.rebuilt_at,
+              total_scored_copies: prefs?.copy_feedback?.total_scored_copies || 0,
+              overall_avg_score: prefs?.copy_feedback?.overall_avg_score || 0,
+              boost: prefs?.directives?.boost || [],
+              avoid: prefs?.directives?.avoid || [],
+              preferred_formats: prefs?.copy_feedback?.preferred_formats || [],
+            };
+          }),
         },
       });
     } catch (err: any) {
@@ -2396,5 +2454,134 @@ export default async function edroRoutes(app: FastifyInstance) {
         error: 'Failed to update task',
       });
     }
+  });
+
+  // ── Learning Loop Endpoints ───────────────────────────────────────
+
+  app.get('/edro/clients/:clientId/learning/preferences', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const preferences = await getClientPreferences({ tenant_id: tenantId, client_id: clientId });
+    return reply.send({ success: true, data: preferences });
+  });
+
+  app.post('/edro/clients/:clientId/learning/rebuild', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const preferences = await rebuildClientPreferences({ tenant_id: tenantId, client_id: clientId });
+    return reply.send({ success: true, data: preferences });
+  });
+
+  // ── A/B Testing Endpoints ──────────────────────────────────────
+
+  app.post('/edro/briefings/:id/ab-test', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      variant_a_id: z.string().uuid(),
+      variant_b_id: z.string().uuid(),
+      metric: z.enum(['engagement', 'clicks', 'conversions', 'score']).default('engagement'),
+    }).parse(request.body);
+
+    const test = await createABTest({ briefing_id: id, ...body });
+    return reply.send({ success: true, data: test });
+  });
+
+  app.get('/edro/briefings/:id/ab-tests', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tests = await listABTests(id);
+
+    // Enrich with results
+    const enriched = await Promise.all(
+      tests.map(async (t) => {
+        const results = await getABResults(t.id);
+        return { ...t, results };
+      }),
+    );
+    return reply.send({ success: true, data: enriched });
+  });
+
+  app.patch('/edro/ab-tests/:testId/result', async (request, reply) => {
+    const { testId } = z.object({ testId: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      variant_id: z.string().uuid(),
+      impressions: z.number().int().min(0).optional(),
+      clicks: z.number().int().min(0).optional(),
+      engagement: z.number().min(0).optional(),
+      conversions: z.number().int().min(0).optional(),
+      score: z.number().min(0).max(100).optional(),
+    }).parse(request.body);
+
+    const result = await recordABResult({ test_id: testId, ...body });
+    return reply.send({ success: true, data: result });
+  });
+
+  app.post('/edro/ab-tests/:testId/declare-winner', async (request, reply) => {
+    const { testId } = z.object({ testId: z.string().uuid() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+
+    const test = await declareWinner({ test_id: testId, tenant_id: tenantId });
+    return reply.send({ success: true, data: test });
+  });
+
+  app.delete('/edro/ab-tests/:testId', async (request, reply) => {
+    const { testId } = z.object({ testId: z.string().uuid() }).parse(request.params);
+    const test = await cancelABTest(testId);
+    return reply.send({ success: true, data: test });
+  });
+
+  // ── Predictive Intelligence Endpoints ─────────────────────────────
+
+  app.get('/edro/clients/:clientId/predictive', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const insights = await buildPredictiveInsights({ tenant_id: tenantId, client_id: clientId });
+    return reply.send({ success: true, data: insights });
+  });
+
+  app.post('/edro/clients/:clientId/predictive/engagement', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const body = z.object({
+      platform: z.string(),
+      format: z.string(),
+      day_of_week: z.number().int().min(0).max(6).optional(),
+      hour: z.number().int().min(0).max(23).optional(),
+    }).parse(request.body);
+
+    const prediction = await predictEngagement({ client_id: clientId, ...body });
+    return reply.send({ success: true, data: { predicted_engagement: prediction } });
+  });
+
+  // ── Benchmark Endpoints ──────────────────────────────────────────
+
+  app.get('/edro/benchmarks/:industry', async (request, reply) => {
+    const { industry } = z.object({ industry: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const benchmarks = await getIndustryBenchmarks({ tenant_id: tenantId, industry });
+    return reply.send({ success: true, data: benchmarks });
+  });
+
+  app.post('/edro/benchmarks/rebuild', async (request, reply) => {
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const benchmarks = await buildIndustryBenchmarks({ tenant_id: tenantId });
+    return reply.send({ success: true, data: benchmarks });
+  });
+
+  app.get('/edro/clients/:clientId/benchmark-comparison', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const comparison = await compareClientToIndustry({ tenant_id: tenantId, client_id: clientId });
+    return reply.send({ success: true, data: comparison });
   });
 }

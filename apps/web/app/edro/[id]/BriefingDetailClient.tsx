@@ -29,6 +29,8 @@ import {
   IconRobot,
   IconTrash,
   IconUser,
+  IconAB2,
+  IconTrophy,
 } from '@tabler/icons-react';
 
 type Briefing = {
@@ -136,6 +138,8 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [abTests, setAbTests] = useState<any[]>([]);
+  const [abCreating, setAbCreating] = useState(false);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -160,6 +164,9 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
       apiGet<{ data: TimelineEvent[] }>(`/edro/briefings/${briefingId}/timeline`)
         .then((res) => setTimeline(res?.data ?? []))
+        .catch(() => {});
+      apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`)
+        .then((res) => setAbTests(res?.data ?? []))
         .catch(() => {});
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar briefing.');
@@ -526,6 +533,113 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                     </CardContent>
                   </Card>
                 ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* A/B Testing Section */}
+        {copies.length >= 2 && (
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="h6">
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <IconAB2 size={20} />
+                    <span>Testes A/B ({abTests.length})</span>
+                  </Stack>
+                </Typography>
+                {copies.length >= 2 && !abCreating && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={async () => {
+                      if (copies.length < 2) return;
+                      setAbCreating(true);
+                      try {
+                        await apiPost(`/edro/briefings/${briefingId}/ab-test`, {
+                          variant_a_id: copies[0].id,
+                          variant_b_id: copies[1].id,
+                          metric: 'engagement',
+                        });
+                        const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
+                        setAbTests(res?.data ?? []);
+                      } catch { /* ignore */ }
+                      setAbCreating(false);
+                    }}
+                  >
+                    {abCreating ? 'Criando...' : 'Novo Teste A/B'}
+                  </Button>
+                )}
+              </Stack>
+
+              {abTests.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum teste A/B criado. Crie um para comparar duas versoes de copy.
+                </Typography>
+              )}
+
+              <Stack spacing={2}>
+                {abTests.map((test) => {
+                  const varA = copies.find((c) => c.id === test.variant_a_id);
+                  const varB = copies.find((c) => c.id === test.variant_b_id);
+                  return (
+                    <Card key={test.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                      <CardContent>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                          <Chip
+                            label={test.status}
+                            size="small"
+                            color={test.status === 'completed' ? 'success' : test.status === 'running' ? 'primary' : 'default'}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            Metrica: {test.metric}
+                          </Typography>
+                        </Stack>
+
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                          <Box sx={{ flex: 1, p: 1.5, border: '1px solid', borderColor: test.winner_id === test.variant_a_id ? 'success.main' : 'grey.300', borderRadius: 1, bgcolor: test.winner_id === test.variant_a_id ? '#f0fdf4' : 'white' }}>
+                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+                              <Typography variant="subtitle2" fontWeight={700}>Variante A</Typography>
+                              {test.winner_id === test.variant_a_id && <IconTrophy size={16} color="#16a34a" />}
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
+                              {varA?.output?.slice(0, 150) || 'Copy removida'}...
+                            </Typography>
+                          </Box>
+                          <Box sx={{ flex: 1, p: 1.5, border: '1px solid', borderColor: test.winner_id === test.variant_b_id ? 'success.main' : 'grey.300', borderRadius: 1, bgcolor: test.winner_id === test.variant_b_id ? '#f0fdf4' : 'white' }}>
+                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+                              <Typography variant="subtitle2" fontWeight={700}>Variante B</Typography>
+                              {test.winner_id === test.variant_b_id && <IconTrophy size={16} color="#16a34a" />}
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
+                              {varB?.output?.slice(0, 150) || 'Copy removida'}...
+                            </Typography>
+                          </Box>
+                        </Stack>
+
+                        {test.status === 'running' && (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            startIcon={<IconTrophy size={14} />}
+                            sx={{ mt: 1.5 }}
+                            onClick={async () => {
+                              try {
+                                await apiPost(`/edro/ab-tests/${test.id}/declare-winner`, {});
+                                const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
+                                setAbTests(res?.data ?? []);
+                              } catch { /* ignore */ }
+                            }}
+                          >
+                            Declarar Vencedor
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </Stack>
             </CardContent>
           </Card>

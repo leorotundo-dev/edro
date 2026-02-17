@@ -1,6 +1,8 @@
 import { query } from '../db';
 import { buildContextPack } from '../library/contextPack';
 import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
+import { getClientPreferences, type LearnedPreferences } from './learningLoopService';
+import { formatTimeSlot } from './predictiveService';
 
 export type IntelligenceContext = {
   client: {
@@ -56,6 +58,18 @@ export type IntelligenceContext = {
     totalDocuments: number;
     latestInsight: Record<string, any> | null;
   };
+  learned_preferences: {
+    top_angles: { angle: string; avg_score: number }[];
+    preferred_formats: { format: string; avg_score: number }[];
+    anti_patterns: { pattern: string; avg_score: number }[];
+    boost_directives: string[];
+    avoid_directives: string[];
+    reportei_top_formats: { platform: string; format: string; score: number }[];
+  } | null;
+  predictive: {
+    best_times: { platform: string; day_of_week: number; hour: number; engagement: number }[];
+    content_mix: { format: string; recommended_pct: number; current_pct: number }[];
+  } | null;
 };
 
 /**
@@ -83,6 +97,8 @@ export async function buildIntelligenceContext(params: {
     copiesData,
     clientDocumentsData,
     clientInsightData,
+    learnedPrefsData,
+    predictiveTimesData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -202,6 +218,21 @@ export async function buildIntelligenceContext(params: {
       tenantId: params.tenant_id,
       clientId: params.client_id,
     }),
+
+    // Learned preferences (learning loop)
+    getClientPreferences({
+      tenant_id: params.tenant_id,
+      client_id: params.client_id,
+    }),
+
+    // Predictive intelligence (best posting times)
+    query(`
+      SELECT platform, day_of_week, hour, avg_engagement, sample_size
+      FROM posting_time_analytics
+      WHERE tenant_id = $1 AND client_id = $2
+      ORDER BY avg_engagement DESC
+      LIMIT 10
+    `, [params.tenant_id, params.client_id]),
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -222,6 +253,8 @@ export async function buildIntelligenceContext(params: {
   const copies = copiesData.status === 'fulfilled' ? copiesData.value.rows : [];
   const clientDocuments = clientDocumentsData.status === 'fulfilled' ? clientDocumentsData.value : [];
   const latestInsight = clientInsightData.status === 'fulfilled' ? clientInsightData.value : null;
+  const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
+  const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
 
   // Build structured context
   const context: IntelligenceContext = {
@@ -299,6 +332,23 @@ export async function buildIntelligenceContext(params: {
       totalDocuments: clientDocuments.length,
       latestInsight: latestInsight?.summary || null,
     },
+    learned_preferences: learnedPrefs ? {
+      top_angles: learnedPrefs.copy_feedback.top_angles.slice(0, 5).map((a) => ({ angle: a.angle, avg_score: a.avg_score })),
+      preferred_formats: learnedPrefs.copy_feedback.preferred_formats.slice(0, 5).map((f) => ({ format: f.format, avg_score: f.avg_score })),
+      anti_patterns: learnedPrefs.copy_feedback.anti_patterns.slice(0, 3).map((p) => ({ pattern: p.pattern, avg_score: p.avg_score })),
+      boost_directives: learnedPrefs.directives.boost,
+      avoid_directives: learnedPrefs.directives.avoid,
+      reportei_top_formats: learnedPrefs.reportei_performance.top_formats.slice(0, 5),
+    } : null,
+    predictive: predictiveTimes.length > 0 ? {
+      best_times: predictiveTimes.slice(0, 5).map((t: any) => ({
+        platform: t.platform,
+        day_of_week: Number(t.day_of_week),
+        hour: Number(t.hour),
+        engagement: Number(t.avg_engagement),
+      })),
+      content_mix: [],
+    } : null,
   };
 
   // Token validation: estimate tokens and truncate if needed
@@ -393,6 +443,35 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
     if (insight.positioning) sections.push(`Posicionamento: ${insight.positioning}`);
     if (insight.tone) sections.push(`Tom de voz: ${insight.tone}`);
     if (insight.industry) sections.push(`Industria: ${insight.industry}`);
+  }
+
+  // Learned Preferences (learning loop)
+  if (context.learned_preferences) {
+    const lp = context.learned_preferences;
+    sections.push(`\n# PREFERENCIAS APRENDIDAS`);
+    if (lp.boost_directives.length) {
+      sections.push(`## PRIORIZAR:`);
+      lp.boost_directives.forEach((d, i) => sections.push(`${i + 1}. ${d}`));
+    }
+    if (lp.avoid_directives.length) {
+      sections.push(`## EVITAR:`);
+      lp.avoid_directives.forEach((d, i) => sections.push(`${i + 1}. ${d}`));
+    }
+    if (lp.preferred_formats.length) {
+      sections.push(`Formatos preferidos: ${lp.preferred_formats.map((f) => `${f.format} (${f.avg_score})`).join(', ')}`);
+    }
+    if (lp.top_angles.length) {
+      sections.push(`Angulos top: ${lp.top_angles.map((a) => `${a.angle} (${a.avg_score})`).join(', ')}`);
+    }
+  }
+
+  // Predictive Intelligence
+  if (context.predictive?.best_times.length) {
+    sections.push(`\n# INTELIGENCIA PREDITIVA`);
+    sections.push(`## Melhores Horarios:`);
+    context.predictive.best_times.forEach((t) => {
+      sections.push(`- ${t.platform}: ${formatTimeSlot(t as any)} (engagement: ${t.engagement.toFixed(0)})`);
+    });
   }
 
   // Performance insights
