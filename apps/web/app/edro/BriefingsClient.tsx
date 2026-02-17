@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiGet, apiDelete, apiPatch } from '@/lib/api';
+import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -17,11 +17,16 @@ import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
 import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
+import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import InputLabel from '@mui/material/InputLabel';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import TextField from '@mui/material/TextField';
 import StatusChip from '@/components/shared/StatusChip';
 import {
   IconDownload,
@@ -35,6 +40,10 @@ import {
   IconClipboardList,
   IconDotsVertical,
   IconFileText,
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlayerSkipForward,
+  IconSearch,
   IconTrash,
   IconUsers,
   IconX,
@@ -101,6 +110,13 @@ type Metrics = {
   bottlenecks: { stage: string; count: number }[];
 };
 
+type EdroClient = {
+  id: string;
+  name: string;
+};
+
+const PAGE_SIZE = 30;
+
 export default function BriefingsClient() {
   const router = useRouter();
   const [briefings, setBriefings] = useState<Briefing[]>([]);
@@ -112,6 +128,13 @@ export default function BriefingsClient() {
   const [menuBriefingId, setMenuBriefingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
+  const [clients, setClients] = useState<EdroClient[]>([]);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadBriefings = useCallback(async () => {
     setLoading(true);
@@ -119,17 +142,22 @@ export default function BriefingsClient() {
     try {
       const params = new URLSearchParams();
       if (filterStatus) params.set('status', filterStatus);
+      if (search) params.set('search', search);
+      if (clientFilter) params.set('clientId', clientFilter);
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(page * PAGE_SIZE));
 
-      const response = await apiGet<{ success: boolean; data: Briefing[] }>(
+      const response = await apiGet<{ success: boolean; data: Briefing[]; total: number }>(
         `/edro/briefings?${params.toString()}`
       );
       setBriefings(response?.data || []);
+      setTotal(response?.total ?? 0);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar briefings.');
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [filterStatus, search, clientFilter, page]);
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -144,6 +172,21 @@ export default function BriefingsClient() {
     loadBriefings();
     loadMetrics();
   }, [loadBriefings, loadMetrics]);
+
+  useEffect(() => {
+    apiGet<{ success: boolean; data: EdroClient[] }>('/edro/clients')
+      .then((res) => setClients(res?.data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setSearch(value);
+      setPage(0);
+    }, 400);
+  };
 
   const handleNewBriefing = () => {
     router.push('/edro/novo');
@@ -234,7 +277,7 @@ export default function BriefingsClient() {
   const handleBulkArchive = async () => {
     if (selectedIds.size === 0) return;
     setBulkLoading(true);
-    const ids = [...selectedIds];
+    const ids = Array.from(selectedIds);
     try {
       await Promise.all(ids.map((id) => apiPatch(`/edro/briefings/${id}/archive`)));
       setBriefings((prev) => prev.map((b) => (ids.includes(b.id) ? { ...b, status: 'archived' } : b)));
@@ -250,7 +293,7 @@ export default function BriefingsClient() {
     if (selectedIds.size === 0) return;
     if (!window.confirm(`Excluir ${selectedIds.size} briefing(s) permanentemente? Todas as copies e tarefas associadas serão removidas.`)) return;
     setBulkLoading(true);
-    const ids = [...selectedIds];
+    const ids = Array.from(selectedIds);
     try {
       await Promise.all(ids.map((id) => apiDelete(`/edro/briefings/${id}`)));
       setBriefings((prev) => prev.filter((b) => !ids.includes(b.id)));
@@ -261,6 +304,23 @@ export default function BriefingsClient() {
       setBulkLoading(false);
     }
   };
+
+  const handleBulkAdvance = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Avançar ${selectedIds.size} briefing(s) para a próxima etapa?`)) return;
+    setBulkLoading(true);
+    try {
+      await apiPost('/edro/briefings/bulk/advance', { ids: [...selectedIds] });
+      setSelectedIds(new Set());
+      await loadBriefings();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao avançar briefings.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (loading && briefings.length === 0) {
     return (
@@ -417,11 +477,48 @@ export default function BriefingsClient() {
           </Alert>
         )}
 
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Buscar por título ou cliente..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconSearch size={18} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{ minWidth: 280 }}
+          />
+          {clients.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Cliente</InputLabel>
+              <Select
+                value={clientFilter}
+                label="Cliente"
+                onChange={(e) => { setClientFilter(e.target.value); setPage(0); }}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            {total} resultado{total !== 1 ? 's' : ''}
+          </Typography>
+        </Stack>
+
         <Stack direction="row" spacing={1} flexWrap="wrap">
           <Button
             variant={filterStatus === '' ? 'contained' : 'outlined'}
             size="small"
-            onClick={() => setFilterStatus('')}
+            onClick={() => { setFilterStatus(''); setPage(0); }}
           >
             Todos
           </Button>
@@ -430,7 +527,7 @@ export default function BriefingsClient() {
               key={status}
               variant={filterStatus === status ? 'contained' : 'outlined'}
               size="small"
-              onClick={() => setFilterStatus(status)}
+              onClick={() => { setFilterStatus(status); setPage(0); }}
             >
               {STATUS_LABELS[status]}
             </Button>
@@ -454,6 +551,16 @@ export default function BriefingsClient() {
                   <Typography variant="body2" fontWeight={600}>
                     {selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}
                   </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="info"
+                    startIcon={<IconPlayerSkipForward size={16} />}
+                    onClick={handleBulkAdvance}
+                    disabled={bulkLoading}
+                  >
+                    Avançar Stage
+                  </Button>
                   <Button
                     size="small"
                     variant="outlined"
@@ -602,6 +709,28 @@ export default function BriefingsClient() {
                 </Card>
               );
             })}
+          </Stack>
+        )}
+
+        {totalPages > 1 && (
+          <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
+            <IconButton
+              size="small"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              <IconChevronLeft size={20} />
+            </IconButton>
+            <Typography variant="body2">
+              Página {page + 1} de {totalPages}
+            </Typography>
+            <IconButton
+              size="small"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <IconChevronRight size={20} />
+            </IconButton>
           </Stack>
         )}
       </Stack>

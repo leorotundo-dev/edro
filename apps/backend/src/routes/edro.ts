@@ -37,6 +37,7 @@ import {
   updateTaskStatus,
   deleteBriefing,
   archiveBriefing,
+  listEdroClients,
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
 import {
@@ -455,22 +456,29 @@ export default async function edroRoutes(app: FastifyInstance) {
     const querySchema = z.object({
       status: z.string().optional(),
       clientId: z.string().optional(),
+      search: z.string().optional(),
       limit: z.string().optional(),
       offset: z.string().optional(),
     });
 
-    const query = querySchema.parse(request.query);
-    const limit = query.limit ? Math.min(parseInt(query.limit, 10) || 50, 200) : 50;
-    const offset = query.offset ? parseInt(query.offset, 10) || 0 : 0;
+    const q = querySchema.parse(request.query);
+    const limit = q.limit ? Math.min(parseInt(q.limit, 10) || 50, 200) : 50;
+    const offset = q.offset ? parseInt(q.offset, 10) || 0 : 0;
 
-    const briefings = await listBriefings({
-      status: query.status,
-      clientId: query.clientId,
+    const { rows: briefings, total } = await listBriefings({
+      status: q.status,
+      clientId: q.clientId,
+      search: q.search,
       limit,
       offset,
     });
 
-    return reply.send({ success: true, data: briefings });
+    return reply.send({ success: true, data: briefings, total, limit, offset });
+  });
+
+  app.get('/edro/clients', async (_request, reply) => {
+    const clients = await listEdroClients();
+    return reply.send({ success: true, data: clients });
   });
 
   app.post('/edro/briefings', async (request, reply) => {
@@ -642,6 +650,48 @@ export default async function edroRoutes(app: FastifyInstance) {
     const briefing = await archiveBriefing(id);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
     return reply.send({ success: true, data: briefing });
+  });
+
+  // POST /edro/briefings/bulk/advance - Advance multiple briefings to next stage
+  app.post('/edro/briefings/bulk/advance', async (request, reply) => {
+    const bodySchema = z.object({
+      ids: z.array(z.string().uuid()).min(1).max(200),
+    });
+    const { ids } = bodySchema.parse(request.body);
+
+    const user = (request as any).user || {};
+    const results: { id: string; ok: boolean; from?: string; to?: string; error?: string }[] = [];
+
+    for (const briefingId of ids) {
+      try {
+        const stages = await ensureBriefingStages(briefingId);
+        const current = stages.find((s: any) => s.status === 'in_progress');
+        if (!current) {
+          results.push({ id: briefingId, ok: false, error: 'no_active_stage' });
+          continue;
+        }
+
+        await updateBriefingStageStatus({
+          briefingId,
+          stage: current.stage as WorkflowStage,
+          status: 'done',
+          updatedBy: user.email ?? null,
+        });
+
+        const next = getNextStage(current.stage as WorkflowStage);
+        if (next) {
+          await promoteStageIfPending(briefingId, next, user.email ?? null);
+        }
+        await refreshBriefingStatus(briefingId);
+
+        results.push({ id: briefingId, ok: true, from: current.stage, to: next ?? 'done' });
+      } catch (err: any) {
+        results.push({ id: briefingId, ok: false, error: err.message });
+      }
+    }
+
+    const advanced = results.filter((r) => r.ok).length;
+    return reply.send({ success: true, advanced, total: ids.length, results });
   });
 
   app.get('/edro/briefings/:id/stages', async (request, reply) => {

@@ -160,9 +160,10 @@ export async function createBriefing(input: {
 export async function listBriefings(params?: {
   status?: string;
   clientId?: string;
+  search?: string;
   limit?: number;
   offset?: number;
-}): Promise<EdroBriefing[]> {
+}): Promise<{ rows: EdroBriefing[]; total: number }> {
   const filters: string[] = [];
   const values: any[] = [];
 
@@ -176,9 +177,27 @@ export async function listBriefings(params?: {
     filters.push(`b.client_id = $${values.length}`);
   }
 
+  if (params?.search) {
+    values.push(`%${params.search}%`);
+    const idx = values.length;
+    filters.push(`(b.title ILIKE $${idx} OR c.name ILIKE $${idx})`);
+  }
+
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const limit = params?.limit ?? 50;
   const offset = params?.offset ?? 0;
+
+  const countResult = await query<{ count: string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM edro_briefings b
+      LEFT JOIN edro_clients c ON c.id = b.client_id
+      ${whereClause}
+    `,
+    values
+  );
+  const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
   values.push(limit, offset);
 
   const { rows } = await query<EdroBriefing>(
@@ -208,6 +227,13 @@ export async function listBriefings(params?: {
       LIMIT $${values.length - 1} OFFSET $${values.length}
     `,
     values
+  );
+  return { rows, total };
+}
+
+export async function listEdroClients(): Promise<EdroClient[]> {
+  const { rows } = await query<EdroClient>(
+    `SELECT id, name, segment, timezone, created_at, updated_at FROM edro_clients ORDER BY name ASC`
   );
   return rows;
 }
