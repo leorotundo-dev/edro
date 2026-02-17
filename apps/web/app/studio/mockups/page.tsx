@@ -1644,12 +1644,13 @@ export default function Page() {
       if (RegistryComponent) {
         return <RegistryComponent {...baseProps} />;
       }
+
+      // Fallback: render minimal copy preview when no matching rich component found
+      return renderMinimal();
     } catch (error) {
       console.warn('mockup render failed', error);
+      return null;
     }
-
-    // Fallback: render minimal copy preview when no matching rich component found
-    return renderMinimal();
   };
 
   return (
