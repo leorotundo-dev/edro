@@ -1,4 +1,5 @@
 import { env } from '../env';
+import { logAiUsage } from './ai/aiUsageLogger';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -37,8 +38,12 @@ function getApiKey(): string {
   return key;
 }
 
+// Edro tenant ID for cost logging
+const EDRO_TENANT_ID = '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5';
+
 export async function searchPerplexity(options: PerplexitySearchOptions): Promise<PerplexityResponse> {
   const apiKey = getApiKey();
+  const startMs = Date.now();
 
   const body: Record<string, any> = {
     model: options.model || 'sonar',
@@ -74,6 +79,21 @@ export async function searchPerplexity(options: PerplexitySearchOptions): Promis
   }
 
   const data = await response.json();
+  const durationMs = Date.now() - startMs;
+  const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  const modelUsed = data.model || options.model || 'sonar';
+
+  // Log cost (fire-and-forget)
+  logAiUsage({
+    tenant_id: EDRO_TENANT_ID,
+    provider: 'perplexity',
+    model: modelUsed,
+    feature: 'perplexity_search',
+    input_tokens: usage.prompt_tokens || 0,
+    output_tokens: usage.completion_tokens || 0,
+    duration_ms: durationMs,
+    metadata: { query: options.query.slice(0, 200) },
+  }).catch(() => {});
 
   return {
     content: data.choices?.[0]?.message?.content || '',
@@ -84,8 +104,8 @@ export async function searchPerplexity(options: PerplexitySearchOptions): Promis
       snippet: sr.snippet || '',
       date: sr.date || undefined,
     })),
-    model: data.model || options.model || 'sonar',
-    usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    model: modelUsed,
+    usage,
   };
 }
 

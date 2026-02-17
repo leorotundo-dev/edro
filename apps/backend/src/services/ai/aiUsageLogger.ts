@@ -14,6 +14,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
   'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
   'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
+  'sonar': { input: 1.00, output: 1.00 },
+  'sonar-pro': { input: 3.00, output: 15.00 },
+  'sonar-reasoning-pro': { input: 3.00, output: 15.00 },
 };
 
 // Default pricing per provider when model not found
@@ -21,6 +24,7 @@ const PROVIDER_DEFAULT_PRICING: Record<string, { input: number; output: number }
   openai: { input: 0.15, output: 0.60 },
   gemini: { input: 0.075, output: 0.30 },
   claude: { input: 3.00, output: 15.00 },
+  perplexity: { input: 1.00, output: 1.00 },
 };
 
 function getPricing(model: string, provider: string): { input: number; output: number } {

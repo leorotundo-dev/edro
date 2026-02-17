@@ -91,6 +91,16 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     ],
   },
   {
+    id: 'perplexity',
+    name: 'Perplexity AI',
+    description: 'Pesquisa em tempo real com IA para enriquecer clipping e inteligencia',
+    icon: '\uD83D\uDD0E',
+    configFields: [
+      { key: 'api_key', label: 'Perplexity API Key', type: 'password', required: true },
+      { key: 'model', label: 'Modelo', type: 'select', required: false, options: ['sonar', 'sonar-pro', 'sonar-reasoning-pro'] },
+    ],
+  },
+  {
     id: 'webhook',
     name: 'Custom Webhook',
     description: 'Webhook personalizado para receber dados externos',

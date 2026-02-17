@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -24,7 +24,6 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconClock,
-  IconWorldSearch,
 } from '@tabler/icons-react';
 
 type ReporteiFormat = {
@@ -173,92 +172,6 @@ type LearningPreferences = {
     avoid: string[];
   };
 };
-
-function PerplexityTrendsPanel() {
-  const [query, setQuery] = useState('');
-  const [result, setResult] = useState<{ content: string; citations: string[] } | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [configured, setConfigured] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    apiGet<{ data: { configured: boolean } }>('/edro/perplexity/status')
-      .then((r) => setConfigured(r.data.configured))
-      .catch(() => setConfigured(false));
-  }, []);
-
-  if (configured === false) return null;
-  if (configured === null) return null;
-
-  const doSearch = async () => {
-    if (!query.trim() || searching) return;
-    setSearching(true);
-    try {
-      const res = await apiPost<{ data: { content: string; citations: string[] } }>('/edro/perplexity/search', {
-        query: query.trim(),
-        search_recency_filter: 'week',
-        max_tokens: 1024,
-      });
-      setResult(res.data);
-    } catch {
-      setResult({ content: 'Erro ao buscar. Verifique a API key do Perplexity.', citations: [] });
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  return (
-    <>
-      <Typography variant="h6" fontWeight={700} sx={{ mt: 1 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <IconWorldSearch size={22} />
-          <span>Perplexity AI — Pesquisa em Tempo Real</span>
-        </Stack>
-      </Typography>
-      <DashboardCard>
-        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-          <input
-            type="text"
-            placeholder="Pesquisar tendencias, noticias, dados de mercado..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && doSearch()}
-            style={{
-              flex: 1, padding: '10px 14px', borderRadius: 8,
-              border: '1px solid #e0e0e0', fontSize: 14, outline: 'none',
-            }}
-          />
-          <Button variant="contained" size="small" onClick={doSearch} disabled={searching || !query.trim()}
-            sx={{ textTransform: 'none', minWidth: 100 }}>
-            {searching ? 'Buscando...' : 'Pesquisar'}
-          </Button>
-        </Stack>
-        {result && (
-          <Box>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 1.5 }}>
-              {result.content}
-            </Typography>
-            {result.citations.length > 0 && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="caption" fontWeight={700} color="text.secondary">
-                  Fontes ({result.citations.length}):
-                </Typography>
-                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {result.citations.slice(0, 8).map((url, idx) => (
-                    <Typography key={idx} variant="caption" color="primary"
-                      component="a" href={url} target="_blank" rel="noopener"
-                      sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {url}
-                    </Typography>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-          </Box>
-        )}
-      </DashboardCard>
-    </>
-  );
-}
 
 export default function EdroDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -575,9 +488,6 @@ export default function EdroDashboardPage() {
                 </DashboardCard>
               </>
             )}
-
-            {/* Perplexity AI — Trending Search */}
-            <PerplexityTrendsPanel />
 
             {/* Learning Insights */}
             {metrics.learningInsights && metrics.learningInsights.length > 0 && (

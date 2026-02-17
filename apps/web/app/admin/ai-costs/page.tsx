@@ -89,12 +89,14 @@ const PROVIDER_COLORS: Record<string, string> = {
   gemini: '#4285F4',
   openai: '#10A37F',
   claude: '#D97706',
+  perplexity: '#20B2AA',
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Gemini',
   openai: 'OpenAI',
   claude: 'Claude',
+  perplexity: 'Perplexity',
 };
 
 function formatNumber(n: number): string {
