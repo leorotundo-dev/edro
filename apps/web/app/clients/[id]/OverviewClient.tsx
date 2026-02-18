@@ -332,6 +332,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const [briefings, setBriefings] = useState<BriefingRow[]>([]);
   const [copies, setCopies] = useState<CopyRow[]>([]);
 
+  const [healthScore, setHealthScore] = useState<{ score: number; status: string; statusColor: string } | null>(null);
+
   const [coreLoading, setCoreLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coreError, setCoreError] = useState('');
@@ -374,6 +376,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       setLibraryItems([]);
       setBriefings([]);
       setCopies([]);
+      setHealthScore(null);
     }
 
     setRefreshing(true);
@@ -447,6 +450,11 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       if (keywordsRes.status === 'fulfilled') setSocialKeywords(Array.isArray(keywordsRes.value) ? keywordsRes.value : []);
       if (commentsRes.status === 'fulfilled') setCommentMentions(commentsRes.value?.mentions || []);
     });
+
+    // Load health score (fire-and-forget, no blocking)
+    apiGet<{ score: number; status: string; statusColor: string }>(`/clients/${clientId}/health-score`)
+      .then((hs) => { if (reqRef.current === reqId) setHealthScore(hs); })
+      .catch(() => {});
 
     const groupD = Promise.allSettled([
       apiGet<{ matches: ClippingMatch[] }>(`/clipping/matches/${encodeURIComponent(clientId)}?limit=1`).catch(() => ({ matches: [] })),
@@ -752,6 +760,52 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+      {/* ══ Health Score Banner ══════════════════════════════════════ */}
+      {healthScore && (
+        <Box
+          component={Link}
+          href={`/clients/${clientId}/analytics`}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 1.5,
+            borderRadius: 2, textDecoration: 'none',
+            bgcolor: `${healthScore.statusColor}12`,
+            border: `1px solid ${healthScore.statusColor}40`,
+            transition: 'all 0.15s',
+            '&:hover': { bgcolor: `${healthScore.statusColor}20` },
+          }}
+        >
+          <IconHeartbeat size={22} color={healthScore.statusColor} />
+          <Box flex={1}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+              Health Score
+            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="h6" fontWeight={800} sx={{ color: healthScore.statusColor, lineHeight: 1 }}>
+                {healthScore.score}
+              </Typography>
+              <Typography variant="body2" sx={{ color: healthScore.statusColor, fontWeight: 600 }}>
+                / 100
+              </Typography>
+              <Chip
+                label={healthScore.status.toUpperCase()}
+                size="small"
+                sx={{ bgcolor: healthScore.statusColor, color: '#fff', fontWeight: 700, fontSize: '0.65rem', height: 20 }}
+              />
+            </Stack>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={healthScore.score}
+            sx={{
+              width: 120, height: 6, borderRadius: 3,
+              bgcolor: `${healthScore.statusColor}25`,
+              '& .MuiLinearProgress-bar': { bgcolor: healthScore.statusColor, borderRadius: 3 },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>Ver detalhes →</Typography>
+        </Box>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════
           SECTION 1 — KPIs & Visao Geral

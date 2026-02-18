@@ -3,6 +3,7 @@ import { runClippingWorkerOnce } from '../clipping/worker';
 import { runSocialListeningWorkerOnce } from '../socialListening/worker';
 import { runClientIntelligenceWorkerOnce } from '../clientIntelligence/worker';
 import { runCalendarRelevanceWorkerOnce } from './calendarRelevanceWorker';
+import { runDailyAlertsWorkerOnce } from './dailyAlertsWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -46,4 +47,6 @@ export function startJobsRunner() {
   startWorkerLoop('socialListening', runSocialListeningWorkerOnce, 1000);
   startWorkerLoop('clientIntelligence', runClientIntelligenceWorkerOnce, 1500);
   startWorkerLoop('calendarRelevance', runCalendarRelevanceWorkerOnce, 2000);
+  // Daily alerts (bottleneck + PoV) — ticks every 60s, runs at 09h
+  startWorkerLoop('dailyAlerts', runDailyAlertsWorkerOnce, 3000);
 }
