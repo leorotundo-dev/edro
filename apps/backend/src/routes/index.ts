@@ -29,6 +29,7 @@ import adminUsersRoutes from './adminUsers';
 import notificationsRoutes from './notifications';
 import automationsRoutes from './automations';
 import reportsRoutes from './reports';
+import analyticsRoutes from './analytics';
 import integrationDataRoutes from './integrationData';
 import tempPgVectorCheck from './_temp_pgvector_check';
 
@@ -65,5 +66,6 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(notificationsRoutes, { prefix: '/api' });
   app.register(automationsRoutes, { prefix: '/api' });
   app.register(reportsRoutes, { prefix: '/api' });
+  app.register(analyticsRoutes, { prefix: '/api' });
   app.register(integrationDataRoutes, { prefix: '/api' });
 }

@@ -61,6 +61,7 @@ const CLIENT_TABS = [
   { label: 'Insights', path: '/insights' },
   { label: 'Performance', path: '/performance' },
   { label: 'Reports', path: '/reports' },
+  { label: 'Analytics', path: '/analytics' },
 ];
 
 function formatMarkdown(text: string): string {
