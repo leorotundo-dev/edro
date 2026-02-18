@@ -1,6 +1,6 @@
 -- Workflow automation triggers
 CREATE TABLE IF NOT EXISTS workflow_triggers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
   trigger_event TEXT NOT NULL,
   action_type TEXT NOT NULL,

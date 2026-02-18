@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 
 -- In-app notifications (bell icon)
 CREATE TABLE IF NOT EXISTS in_app_notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
   user_id UUID NOT NULL REFERENCES edro_users(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL,
