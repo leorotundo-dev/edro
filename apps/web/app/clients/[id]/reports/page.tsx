@@ -21,6 +21,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import { IconFileAnalytics, IconDownload, IconMail } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
+import Chart from '@/components/charts/Chart';
 
 type ReportData = {
   period: { from: string; to: string };
@@ -179,58 +180,54 @@ export default function ClientReportsPage() {
             </Grid>
           </Grid>
 
-          {/* By Stage */}
-          {report.byStage.length > 0 && (
-            <Card variant="outlined" sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>Por Etapa</Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {report.byStage.map((s) => (
-                    <Chip
-                      key={s.status}
-                      label={`${s.status}: ${s.count}`}
-                      sx={{
-                        bgcolor: STAGE_COLORS[s.status] || '#94a3b8',
-                        color: '#fff',
-                        fontWeight: 600,
+          {/* Charts Row: By Stage + Stage Timeline */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {report.byStage.length > 0 && (
+              <Grid size={{ xs: 12, md: 5 }}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 1 }}>Briefings por Etapa</Typography>
+                    <Chart
+                      type="donut"
+                      height={280}
+                      series={report.byStage.map((s) => s.count)}
+                      options={{
+                        chart: { type: 'donut' as const },
+                        labels: report.byStage.map((s) => s.status),
+                        colors: report.byStage.map((s) => STAGE_COLORS[s.status] || '#94a3b8'),
+                        legend: { position: 'bottom' as const },
+                        dataLabels: { formatter: (val: number) => `${val.toFixed(0)}%` },
+                        tooltip: { y: { formatter: (v: number) => `${v} briefings` } },
                       }}
                     />
-                  ))}
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Stage Timeline */}
-          {report.stageTimeline.length > 0 && (
-            <Card variant="outlined" sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>Tempo Medio por Etapa</Typography>
-                {report.stageTimeline.map((s) => (
-                  <Box key={s.stage} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    <Typography variant="body2" sx={{ width: 120 }}>{s.stage}</Typography>
-                    <Box sx={{ flex: 1, height: 24, bgcolor: 'grey.100', borderRadius: 1, overflow: 'hidden' }}>
-                      <Box
-                        sx={{
-                          height: '100%',
-                          width: `${Math.min(100, (Number(s.avg_hours) / 48) * 100)}%`,
-                          bgcolor: STAGE_COLORS[s.stage] || 'primary.main',
-                          borderRadius: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          px: 1,
-                        }}
-                      >
-                        <Typography variant="caption" color="white" fontWeight={600}>
-                          {s.avg_hours}h
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+            {report.stageTimeline.length > 0 && (
+              <Grid size={{ xs: 12, md: 7 }}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 1 }}>Tempo Medio por Etapa</Typography>
+                    <Chart
+                      type="bar"
+                      height={280}
+                      series={[{ name: 'Horas', data: report.stageTimeline.map((s) => Number(s.avg_hours)) }]}
+                      options={{
+                        chart: { toolbar: { show: false } },
+                        plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
+                        xaxis: { categories: report.stageTimeline.map((s) => s.stage) },
+                        colors: report.stageTimeline.map((s) => STAGE_COLORS[s.stage] || '#5D87FF'),
+                        dataLabels: { enabled: true, formatter: (v: number) => `${v}h` },
+                        tooltip: { y: { formatter: (v: number) => `${v} horas` } },
+                        grid: { borderColor: '#f0f0f0' },
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+          </Grid>
 
           {/* Briefings List */}
           <Card variant="outlined">

@@ -20,6 +20,7 @@ import TableRow from '@mui/material/TableRow';
 import Chip from '@mui/material/Chip';
 import { IconBrandMeta, IconBrandGoogle, IconRefresh } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
+import Chart from '@/components/charts/Chart';
 
 type MetaData = {
   campaigns: {
@@ -139,6 +140,34 @@ export default function ClientIntegrationsPage() {
                 </Grid>
               </Grid>
 
+              {metaData.campaigns.length > 1 && (
+                <Card variant="outlined" sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 1 }}>Investimento por Campanha</Typography>
+                    <Chart
+                      type="bar"
+                      height={Math.max(200, metaData.campaigns.length * 40)}
+                      series={[
+                        { name: 'Gasto (R$)', data: metaData.campaigns.map((c) => parseFloat(c.insights?.spend || '0')) },
+                        { name: 'Cliques', data: metaData.campaigns.map((c) => parseInt(c.insights?.clicks || '0', 10)) },
+                      ]}
+                      options={{
+                        chart: { toolbar: { show: false }, stacked: false },
+                        plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
+                        xaxis: { categories: metaData.campaigns.map((c) => c.name.length > 25 ? c.name.slice(0, 25) + '...' : c.name) },
+                        colors: ['#ff6600', '#5D87FF'],
+                        dataLabels: { enabled: false },
+                        grid: { borderColor: '#f0f0f0' },
+                        legend: { position: 'top' as const },
+                        tooltip: {
+                          y: { formatter: (v: number, opts: any) => opts.seriesIndex === 0 ? `R$ ${v.toFixed(2)}` : v.toLocaleString('pt-BR') },
+                        },
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" sx={{ mb: 2 }}>Campanhas</Typography>
@@ -213,33 +242,66 @@ export default function ClientIntegrationsPage() {
               </Grid>
 
               {gaData.rows.length > 0 && (
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2 }}>Por Dia</Typography>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell><strong>Data</strong></TableCell>
-                          <TableCell align="right"><strong>Sessoes</strong></TableCell>
-                          <TableCell align="right"><strong>Pageviews</strong></TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {gaData.rows.map((r) => (
-                          <TableRow key={r.dimension} hover>
-                            <TableCell>
-                              {r.dimension.length === 8
-                                ? `${r.dimension.slice(6, 8)}/${r.dimension.slice(4, 6)}/${r.dimension.slice(0, 4)}`
-                                : r.dimension}
-                            </TableCell>
-                            <TableCell align="right">{r.sessions.toLocaleString('pt-BR')}</TableCell>
-                            <TableCell align="right">{r.pageviews.toLocaleString('pt-BR')}</TableCell>
+                <>
+                  <Card variant="outlined" sx={{ mb: 3 }}>
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 1 }}>Sessoes e Pageviews por Dia</Typography>
+                      <Chart
+                        type="area"
+                        height={300}
+                        series={[
+                          { name: 'Sessoes', data: gaData.rows.map((r) => r.sessions) },
+                          { name: 'Pageviews', data: gaData.rows.map((r) => r.pageviews) },
+                        ]}
+                        options={{
+                          chart: { type: 'area' as const, toolbar: { show: false }, stacked: false },
+                          colors: ['#5D87FF', '#13DEB9'],
+                          xaxis: {
+                            categories: gaData.rows.map((r) =>
+                              r.dimension.length === 8
+                                ? `${r.dimension.slice(6, 8)}/${r.dimension.slice(4, 6)}`
+                                : r.dimension
+                            ),
+                          },
+                          dataLabels: { enabled: false },
+                          stroke: { curve: 'smooth' as const, width: 2 },
+                          fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+                          tooltip: { y: { formatter: (v: number) => v.toLocaleString('pt-BR') } },
+                          legend: { position: 'top' as const },
+                          grid: { borderColor: '#f0f0f0' },
+                        }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 2 }}>Detalhamento Diario</Typography>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell><strong>Data</strong></TableCell>
+                            <TableCell align="right"><strong>Sessoes</strong></TableCell>
+                            <TableCell align="right"><strong>Pageviews</strong></TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+                        </TableHead>
+                        <TableBody>
+                          {gaData.rows.map((r) => (
+                            <TableRow key={r.dimension} hover>
+                              <TableCell>
+                                {r.dimension.length === 8
+                                  ? `${r.dimension.slice(6, 8)}/${r.dimension.slice(4, 6)}/${r.dimension.slice(0, 4)}`
+                                  : r.dimension}
+                              </TableCell>
+                              <TableCell align="right">{r.sessions.toLocaleString('pt-BR')}</TableCell>
+                              <TableCell align="right">{r.pageviews.toLocaleString('pt-BR')}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </>
               )}
             </>
           )}
