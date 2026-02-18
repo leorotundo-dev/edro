@@ -250,7 +250,7 @@ export default function DashboardClient() {
 
         const upcoming = Object.entries(calendarRes.days)
           .filter(([date]) => date > today)
-          .flatMap(([date, events]) => events.map((event) => ({ ...event, date })))
+          .flatMap(([date, events]) => (events as any[]).map((event: any) => ({ ...event, date })))
           .sort((a, b) => b.score - a.score)
           .slice(0, 8);
         setUpcomingEvents(upcoming);
