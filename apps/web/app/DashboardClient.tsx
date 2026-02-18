@@ -221,10 +221,7 @@ export default function DashboardClient() {
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventWithDate[]>([]);
   const [priorityTags, setPriorityTags] = useState<string[]>([]);
-
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const [showNonRelevant, setShowNonRelevant] = useState(true);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -237,7 +234,9 @@ export default function DashboardClient() {
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
-        apiGet<{ success?: boolean; month: string; days: Record<string, CalendarEvent[]> }>(`/calendar/events/${currentMonth}`).catch(() => null),
+        apiGet<{ success?: boolean; month: string; days: Record<string, CalendarEvent[]> }>(
+          `/calendar/events/${currentMonth}${showNonRelevant ? '?include_non_relevant=true' : ''}`
+        ).catch(() => null),
       ]);
 
       if (metricsRes?.data) setMetrics(metricsRes.data);
@@ -276,6 +275,10 @@ export default function DashboardClient() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDashboard();
+  }, [showNonRelevant]);
 
   if (loading) {
     return (
@@ -334,7 +337,7 @@ export default function DashboardClient() {
             alt=""
             sx={{
               position: 'absolute', right: 0, top: 0,
-              height: '100%', width: 'auto', opacity: 0.3, pointerEvents: 'none',
+              height: '100%', width: 'auto', opacity: 0.3, pointerEvents: 'none', zIndex: 0,
             }}
           />
           <CardContent sx={{ position: 'relative', pb: 3 }}>
@@ -367,12 +370,17 @@ export default function DashboardClient() {
           <Divider />
 
           {/* Today's events + summary sidebar */}
-          <CardContent sx={{ position: 'relative' }}>
+          <CardContent sx={{ position: 'relative', zIndex: 1 }}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, lg: 8 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                   <Typography variant="overline" color="text.secondary">Celebracoes de hoje</Typography>
-                  <Button size="small" onClick={() => router.push('/calendar')}>Abrir dia</Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" onClick={() => setShowNonRelevant((prev) => !prev)}>
+                      {showNonRelevant ? 'Somente relevantes' : 'Mostrar nao relevantes'}
+                    </Button>
+                    <Button size="small" onClick={() => router.push('/calendar')}>Abrir dia</Button>
+                  </Stack>
                 </Stack>
                 <Stack spacing={2} sx={{ maxHeight: 280, overflowY: 'auto', pr: 1 }}>
                   {todayEvents.length > 0 ? (
@@ -395,7 +403,9 @@ export default function DashboardClient() {
                       </Card>
                     ))
                   ) : (
-                    <Typography variant="body2" color="text.secondary">Sem eventos relevantes para hoje.</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {showNonRelevant ? 'Sem eventos para hoje.' : 'Sem eventos relevantes para hoje.'}
+                    </Typography>
                   )}
                 </Stack>
               </Grid>
@@ -546,7 +556,9 @@ export default function DashboardClient() {
         {upcomingEvents.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">Proximas datas relevantes</Typography>
+              <Typography variant="h5">
+                {showNonRelevant ? 'Proximas datas' : 'Proximas datas relevantes'}
+              </Typography>
               <Button size="small" onClick={() => router.push('/calendar')}>Ver calendario</Button>
             </Stack>
             <Grid container spacing={2}>

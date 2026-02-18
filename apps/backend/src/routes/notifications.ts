@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import {
@@ -53,13 +52,26 @@ export default async function notificationsRoutes(app: FastifyInstance) {
   app.put('/notifications/preferences', {
     preHandler: [authGuard, tenantGuard()],
     schema: {
-      body: z.object({
-        preferences: z.array(z.object({
-          event_type: z.string(),
-          channel: z.string(),
-          enabled: z.boolean(),
-        })),
-      }),
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['preferences'],
+        properties: {
+          preferences: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['event_type', 'channel', 'enabled'],
+              properties: {
+                event_type: { type: 'string', minLength: 1 },
+                channel: { type: 'string', minLength: 1 },
+                enabled: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
     },
   }, async (request: any) => {
     const userId = request.user.sub;

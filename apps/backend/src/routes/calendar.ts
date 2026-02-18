@@ -17,6 +17,8 @@ import { listOverridesForClient, upsertOverride } from '../repos/calendarOverrid
 import { upsertRelevance } from '../repos/calendarRelevanceRepo';
 import { query } from '../db';
 import { generateEventDescription } from '../services/calendarDescriptionService';
+import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
+import { matchesWordBoundary } from '../clipping/scoring';
 
 const platformSchema = z.enum([
   'Instagram',
@@ -36,6 +38,7 @@ const toneSchema = z.enum(['conservative', 'balanced', 'bold']);
 const riskSchema = z.enum(['low', 'medium', 'high']);
 
 const RELEVANCE_THRESHOLD = 55;
+const TIER_A_THRESHOLD = 80;
 
 const calendarProfileSchema = z.object({
   enable_calendar_total: z.boolean().optional().default(true),
@@ -87,8 +90,212 @@ const generateCalendarSchema = z.object({
   postsPerWeek: z.number().int().min(1).max(14).optional().default(3),
 });
 
-function buildClientProfile(row: any): ClientProfile {
+type CalendarClientProfile = ClientProfile & {
+  negative_keywords?: string[];
+  clipping?: {
+    geo_mode?: GeoMode | null;
+    required_keywords?: string[];
+  };
+};
+
+type CalendarRelevanceResult = {
+  score: number;
+  tier: 'A' | 'B' | 'C';
+  why: string;
+};
+
+function normalizeSearchText(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function normalizeKeywords(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const list: string[] = [];
+  for (const value of values) {
+    const normalized = normalizeSearchText(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    list.push(normalized);
+  }
+  return list;
+}
+
+function buildEventSearchText(event: any): string {
+  const tags = Array.isArray(event?.tags) ? event.tags : [];
+  const categories = Array.isArray(event?.categories) ? event.categories : [];
+  const fields = [
+    event?.name,
+    event?.slug,
+    event?.source,
+    event?.city,
+    event?.uf,
+    event?.country,
+    ...tags,
+    ...categories,
+  ];
+  return fields
+    .map((item) => normalizeSearchText(item))
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+function collectMatchedTerms(text: string, terms: string[]): string[] {
+  if (!terms.length || !text) return [];
+  const hits: string[] = [];
+  const seen = new Set<string>();
+  for (const term of terms) {
+    if (!term || seen.has(term)) continue;
+    if (!matchesWordBoundary(text, term)) continue;
+    seen.add(term);
+    hits.push(term);
+  }
+  return hits;
+}
+
+function computeTierFromScore(score: number): 'A' | 'B' | 'C' {
+  if (score >= TIER_A_THRESHOLD) return 'A';
+  if (score >= RELEVANCE_THRESHOLD) return 'B';
+  return 'C';
+}
+
+function computeClientNameTerms(name: string): string[] {
+  const normalizedName = normalizeSearchText(name);
+  if (!normalizedName) return [];
+  return normalizeKeywords(
+    normalizedName
+      .split(/[^a-z0-9]+/g)
+      .filter((token) => token.length >= 3)
+  );
+}
+
+function scoreCalendarBusinessPriority(event: any, client: CalendarClientProfile) {
+  const text = buildEventSearchText(event);
+  const requiredKeywords = normalizeKeywords(client.clipping?.required_keywords);
+  const strategicKeywords = normalizeKeywords([...(client.keywords || []), ...(client.pillars || [])]);
+  const clientNameTerms = computeClientNameTerms(client.name);
+
+  const requiredHits = collectMatchedTerms(text, requiredKeywords);
+  const requiredSet = new Set(requiredHits);
+  const strategicHits = collectMatchedTerms(
+    text,
+    strategicKeywords.filter((term) => !requiredSet.has(term))
+  );
+  const strategicSet = new Set([...requiredSet, ...strategicHits]);
+  const nameHits = collectMatchedTerms(
+    text,
+    clientNameTerms.filter((term) => !strategicSet.has(term))
+  );
+
+  const requiredBoost = Math.min(24, requiredHits.length * 6);
+  const strategicBoost = Math.min(15, strategicHits.length * 3);
+  const nameBoost = Math.min(8, nameHits.length * 4);
+  const boost = requiredBoost + strategicBoost + nameBoost;
+
+  return {
+    boost,
+    requiredHits,
+    strategicHits,
+    nameHits,
+    requiredBoost,
+    strategicBoost,
+    nameBoost,
+  };
+}
+
+function scoreCalendarEventForClient(
+  event: any,
+  client: CalendarClientProfile,
+  override?: { force_exclude?: boolean | null; force_include?: boolean | null; custom_priority?: number | null } | null
+): CalendarRelevanceResult {
+  const baseRaw = scoreEventRelevance(event, client, override as any);
+  const base: CalendarRelevanceResult = {
+    score: Number(baseRaw.score || 0),
+    tier:
+      baseRaw.tier === 'A' || baseRaw.tier === 'B' || baseRaw.tier === 'C'
+        ? baseRaw.tier
+        : computeTierFromScore(Number(baseRaw.score || 0)),
+    why: String(baseRaw.why || ''),
+  };
+  if (override?.force_exclude) return base;
+
+  const business = scoreCalendarBusinessPriority(event, client);
+  if (business.boost <= 0) return base;
+
+  const score = Math.max(0, Math.min(100, Math.round(base.score + business.boost)));
+  const tier = computeTierFromScore(score);
+  const businessWhy = [
+    business.requiredBoost ? `business:req:+${business.requiredBoost}` : '',
+    business.strategicBoost ? `business:strategic:+${business.strategicBoost}` : '',
+    business.nameBoost ? `business:name:+${business.nameBoost}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
+  const why = [base.why, businessWhy].filter(Boolean).join(' | ');
+
+  return { score, tier, why };
+}
+
+function passesCalendarBusinessFilters(
+  event: any,
+  client: CalendarClientProfile
+): { ok: true } | { ok: false; reason: string } {
+  const requiredKeywords = normalizeKeywords(client.clipping?.required_keywords);
+  const negativeKeywords = normalizeKeywords(client.negative_keywords);
+  const text = buildEventSearchText(event);
+
+  if (
+    requiredKeywords.length &&
+    !requiredKeywords.some((keyword) => matchesWordBoundary(text, keyword))
+  ) {
+    return { ok: false, reason: 'business:required_keywords_missing' };
+  }
+
+  if (negativeKeywords.some((keyword) => matchesWordBoundary(text, keyword))) {
+    return { ok: false, reason: 'business:negative_keyword_match' };
+  }
+
+  const geoMode = normalizeGeoMode(client.clipping?.geo_mode);
+  const geo = computeGeoFactorWithMode({
+    mode: geoMode,
+    client: {
+      country: client.country,
+      uf: client.uf,
+      city: client.city,
+    },
+    item: {
+      country: event?.country,
+      uf: event?.uf,
+      city: event?.city,
+    },
+  });
+
+  if (geo.factor <= 0) {
+    return { ok: false, reason: `business:geo:${geo.reason}` };
+  }
+
+  return { ok: true };
+}
+
+function checkCalendarEventEligibility(
+  event: any,
+  client: CalendarClientProfile,
+  override?: { force_exclude?: boolean | null; force_include?: boolean | null } | null
+): { ok: true } | { ok: false; reason: string } {
+  if (override?.force_exclude) return { ok: false, reason: 'override:exclude' };
+  if (override?.force_include) return { ok: true };
+  if (!matchesLocality(event, client)) return { ok: false, reason: 'locality:mismatch' };
+  return passesCalendarBusinessFilters(event, client);
+}
+
+function buildClientProfile(row: any): CalendarClientProfile {
   const profile = row.profile || {};
+  const clipping = profile.clipping || {};
   return {
     id: row.id,
     name: row.name,
@@ -124,7 +331,124 @@ function buildClientProfile(row: any): ClientProfile {
       ...(profile.trend_profile || {}),
     },
     platform_preferences: profile.platform_preferences || undefined,
+    negative_keywords: normalizeKeywords(profile.negative_keywords),
+    clipping: {
+      geo_mode: normalizeGeoMode(clipping.geo_mode),
+      required_keywords: normalizeKeywords(clipping.required_keywords),
+    },
   };
+}
+
+const CALENDAR_NAME_STOPWORDS = new Set([
+  'dia',
+  'de',
+  'da',
+  'do',
+  'das',
+  'dos',
+  'e',
+  'a',
+  'o',
+  'em',
+  'no',
+  'na',
+  'nos',
+  'nas',
+  'internacional',
+  'nacional',
+  'mundial',
+]);
+
+function tokenizeCalendarName(name: unknown) {
+  return normalizeSearchText(name)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !CALENDAR_NAME_STOPWORDS.has(token));
+}
+
+function buildCalendarTokenSet(name: unknown) {
+  return new Set(tokenizeCalendarName(name));
+}
+
+function countIntersection(a: Set<string>, b: Set<string>) {
+  let count = 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const token of small) {
+    if (large.has(token)) count += 1;
+  }
+  return count;
+}
+
+function areEquivalentCalendarNames(aName: unknown, bName: unknown) {
+  const aNorm = normalizeSearchText(aName);
+  const bNorm = normalizeSearchText(bName);
+  if (!aNorm || !bNorm) return false;
+  if (aNorm === bNorm) return true;
+
+  const aSet = buildCalendarTokenSet(aName);
+  const bSet = buildCalendarTokenSet(bName);
+  if (!aSet.size || !bSet.size) return false;
+
+  const intersection = countIntersection(aSet, bSet);
+  const minSize = Math.min(aSet.size, bSet.size);
+  const maxSize = Math.max(aSet.size, bSet.size);
+  const subset = intersection === minSize;
+  if (subset) {
+    if (minSize >= 2) return true;
+    const only = Array.from(aSet.size <= bSet.size ? aSet : bSet)[0] || '';
+    if (only.length >= 6) return true;
+  }
+
+  const overlap = intersection / maxSize;
+  return overlap >= 0.8;
+}
+
+function calendarNameSpecificity(name: unknown) {
+  const tokens = tokenizeCalendarName(name);
+  const tokenScore = tokens.length * 10;
+  const textScore = normalizeSearchText(name).length;
+  return tokenScore + textScore / 100;
+}
+
+function pickPreferredCalendarItem<T extends { name?: string; score?: number }>(a: T, b: T) {
+  const aSpecificity = calendarNameSpecificity(a.name);
+  const bSpecificity = calendarNameSpecificity(b.name);
+  if (aSpecificity !== bSpecificity) return aSpecificity > bSpecificity ? a : b;
+
+  const aScore = Number(a.score || 0);
+  const bScore = Number(b.score || 0);
+  if (aScore !== bScore) return aScore > bScore ? a : b;
+
+  const aLen = normalizeSearchText(a.name).length;
+  const bLen = normalizeSearchText(b.name).length;
+  return aLen >= bLen ? a : b;
+}
+
+function dedupeCalendarItems<T extends { name?: string; score?: number; date?: string }>(
+  items: T[],
+  options?: { byDate?: boolean }
+) {
+  const byDate = Boolean(options?.byDate);
+  const groups = new Map<string, T[]>();
+
+  for (const item of items) {
+    const groupKey = byDate ? String(item.date || '') : '__single__';
+    const bucket = groups.get(groupKey) || [];
+    let merged = false;
+
+    for (let i = 0; i < bucket.length; i += 1) {
+      if (!areEquivalentCalendarNames(bucket[i]?.name, item?.name)) continue;
+      bucket[i] = pickPreferredCalendarItem(bucket[i], item);
+      merged = true;
+      break;
+    }
+
+    if (!merged) bucket.push(item);
+    groups.set(groupKey, bucket);
+  }
+
+  return Array.from(groups.values()).flat();
 }
 
 function toMonthKey(date: Date) {
@@ -243,27 +567,18 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const items = clients.map((row) => {
         const client = buildClientProfile(row);
         const override = overrideMap.get(client.id);
-        if (override?.force_exclude) {
+        const eligibility = checkCalendarEventEligibility(payload, client, override);
+        if (!eligibility.ok) {
           return {
             client_id: client.id,
             name: client.name,
             score: 0,
             tier: 'C',
             is_relevant: false,
-            why: 'override:exclude',
+            why: 'reason' in eligibility ? eligibility.reason : 'eligibility:blocked',
           };
         }
-        if (!override?.force_include && !matchesLocality(payload, client)) {
-          return {
-            client_id: client.id,
-            name: client.name,
-            score: 0,
-            tier: 'C',
-            is_relevant: false,
-            why: 'locality:mismatch',
-          };
-        }
-        const relevance = scoreEventRelevance(payload, client, override);
+        const relevance = scoreCalendarEventForClient(payload, client, override);
         return {
           client_id: client.id,
           name: client.name,
@@ -288,19 +603,93 @@ export default async function calendarRoutes(app: FastifyInstance) {
   app.get('/calendar/events/:month', { preHandler: [requirePerm('calendars:read')] }, async (request, reply) => {
     const params = monthParamSchema.parse(request.params);
     const tenantId = (request.user as any).tenant_id;
+    const includeNonRelevant = ['1', 'true', 'yes', 'sim'].includes(
+      String((request.query as any)?.include_non_relevant || '')
+        .trim()
+        .toLowerCase()
+    );
     const country =
       typeof (request.query as any)?.country === 'string' ? (request.query as any).country : 'BR';
     const year = Number(params.month.split('-')[0]);
     const sourceEvents = await buildGlobalEvents({ tenantId, year, country });
     const hits = expandEventsForMonth(sourceEvents, params.month);
+    const { rows: clientRows } = await query<any>(
+      `SELECT * FROM clients WHERE tenant_id=$1 ORDER BY name ASC`,
+      [tenantId]
+    );
+    const clients = clientRows.map((row) => buildClientProfile(row));
+    const eventIds = Array.from(new Set(hits.map((hit) => hit.event.id)));
+    const overrideByEventClient = new Map<string, any>();
+
+    if (clients.length && eventIds.length) {
+      const { rows: overrideRows } = await query<any>(
+        `SELECT calendar_event_id, client_id, force_include, force_exclude, custom_priority, notes
+         FROM calendar_event_overrides
+         WHERE tenant_id=$1 AND calendar_event_id = ANY($2)`,
+        [tenantId, eventIds]
+      );
+      for (const row of overrideRows) {
+        overrideByEventClient.set(`${row.calendar_event_id}:${row.client_id}`, row);
+      }
+    }
 
     const days: Record<string, any[]> = {};
     let totalEvents = 0;
 
     for (const hit of hits) {
-      const score = Number(hit.event.base_relevance ?? 50);
-      const tier = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
       const eventAny = hit.event as any;
+      let score = Number(hit.event.base_relevance ?? 50);
+      let tier: 'A' | 'B' | 'C' = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
+      let why = `base_relevance:${score}`;
+      let isRelevant = true;
+      let possibleClients: Array<{
+        client_id: string;
+        name: string;
+        score: number;
+        tier: 'A' | 'B' | 'C';
+        why: string;
+      }> = [];
+
+      if (clients.length) {
+        possibleClients = clients
+          .map((client) => {
+            const override = overrideByEventClient.get(`${hit.event.id}:${client.id}`);
+            const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+            if (!eligibility.ok) return null;
+            const relevance = scoreCalendarEventForClient(hit.event, client, override);
+            if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) return null;
+            return {
+              client_id: client.id,
+              name: client.name,
+              score: relevance.score,
+              tier: relevance.tier,
+              why: relevance.why,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .sort((a, b) => b.score - a.score);
+
+        if (!possibleClients.length) {
+          if (!includeNonRelevant) {
+            continue;
+          }
+          isRelevant = false;
+          tier = 'C';
+          why = ['business:no_client_match', `base_relevance:${score}`].join(' | ');
+        } else {
+          const bestMatch = possibleClients[0];
+          score = Number(bestMatch.score || 0);
+          tier = bestMatch.tier;
+          why = [
+            `best_client:${bestMatch.name}:${score}`,
+            `possible_clients:${possibleClients.length}`,
+            bestMatch.why,
+          ]
+            .filter(Boolean)
+            .join(' | ');
+        }
+      }
+
       for (const date of hit.hitDates) {
         if (!days[date]) days[date] = [];
         days[date].push({
@@ -312,7 +701,14 @@ export default async function calendarRoutes(app: FastifyInstance) {
           source: hit.event.source,
           score,
           tier,
-          why: `base_relevance:${score}`,
+          why,
+          is_relevant: isRelevant,
+          possible_clients: possibleClients.map(({ client_id, name, score: clientScore, tier: clientTier }) => ({
+            client_id,
+            name,
+            score: clientScore,
+            tier: clientTier,
+          })),
           descricao_ai: eventAny.descricao_ai || eventAny.payload?.descricao_ai || null,
           origem_ai: eventAny.origem_ai || eventAny.payload?.origem_ai || null,
           curiosidade_ai: eventAny.curiosidade_ai || eventAny.payload?.curiosidade_ai || null,
@@ -321,8 +717,11 @@ export default async function calendarRoutes(app: FastifyInstance) {
       }
     }
 
+    totalEvents = 0;
     for (const date of Object.keys(days)) {
+      days[date] = dedupeCalendarItems(days[date]);
       days[date].sort((a, b) => b.score - a.score);
+      totalEvents += days[date].length;
     }
 
     return reply.send({
@@ -361,10 +760,10 @@ export default async function calendarRoutes(app: FastifyInstance) {
 
       for (const hit of hits) {
         const override = overrideMap.get(hit.event.id);
-        if (override?.force_exclude) continue;
-        if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
+        const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+        if (!eligibility.ok) continue;
 
-        const relevance = scoreEventRelevance(hit.event, client, override);
+        const relevance = scoreCalendarEventForClient(hit.event, client, override);
         if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         for (const date of hit.hitDates) {
           if (!days[date]) days[date] = [];
@@ -383,8 +782,11 @@ export default async function calendarRoutes(app: FastifyInstance) {
         }
       }
 
+      totalEvents = 0;
       for (const date of Object.keys(days)) {
+        days[date] = dedupeCalendarItems(days[date]);
         days[date].sort((a, b) => b.score - a.score);
+        totalEvents += days[date].length;
       }
 
       return reply.send({
@@ -425,9 +827,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
       for (const hit of hits) {
         if (!hit.hitDates.includes(dateISO)) continue;
         const override = overrideMap.get(hit.event.id);
-        if (override?.force_exclude) continue;
-        if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
-        const relevance = scoreEventRelevance(hit.event, client, override);
+        const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+        if (!eligibility.ok) continue;
+        const relevance = scoreCalendarEventForClient(hit.event, client, override);
         if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         items.push({
           id: hit.event.id,
@@ -442,8 +844,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
         });
       }
 
-      items.sort((a, b) => b.score - a.score);
-      return reply.send({ date: dateISO, client_id: client.id, items });
+      const dedupedItems = dedupeCalendarItems(items);
+      dedupedItems.sort((a, b) => b.score - a.score);
+      return reply.send({ date: dateISO, client_id: client.id, items: dedupedItems });
     }
   );
 
@@ -472,9 +875,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
       for (const hit of hits) {
         if (!hit.hitDates.includes(dateISO)) continue;
         const override = overrideMap.get(hit.event.id);
-        if (override?.force_exclude) continue;
-        if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
-        const relevance = scoreEventRelevance(hit.event, client, override);
+        const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+        if (!eligibility.ok) continue;
+        const relevance = scoreCalendarEventForClient(hit.event, client, override);
         if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         items.push({
           id: hit.event.id,
@@ -489,8 +892,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
         });
       }
 
-      items.sort((a, b) => b.score - a.score);
-      return reply.send({ date: dateISO, client_id: client.id, items });
+      const dedupedItems = dedupeCalendarItems(items);
+      dedupedItems.sort((a, b) => b.score - a.score);
+      return reply.send({ date: dateISO, client_id: client.id, items: dedupedItems });
     }
   );
 
@@ -530,9 +934,9 @@ export default async function calendarRoutes(app: FastifyInstance) {
           for (const dateISO of hit.hitDates) {
             if (!isIsoInRange(dateISO, fromISO, toISO)) continue;
             const override = overrideMap.get(hit.event.id);
-            if (override?.force_exclude) continue;
-            if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
-            const relevance = scoreEventRelevance(hit.event, client, override);
+            const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+            if (!eligibility.ok) continue;
+            const relevance = scoreCalendarEventForClient(hit.event, client, override);
             if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
             items.push({
               date: dateISO,
@@ -550,8 +954,11 @@ export default async function calendarRoutes(app: FastifyInstance) {
         }
       }
 
-      items.sort((a, b) => (a.date === b.date ? b.score - a.score : a.date.localeCompare(b.date)));
-      return reply.send({ from: fromISO, to: toISO, client_id: client.id, items });
+      const dedupedItems = dedupeCalendarItems(items, { byDate: true });
+      dedupedItems.sort((a, b) =>
+        a.date === b.date ? b.score - a.score : a.date.localeCompare(b.date)
+      );
+      return reply.send({ from: fromISO, to: toISO, client_id: client.id, items: dedupedItems });
     }
   );
 
@@ -634,9 +1041,10 @@ export default async function calendarRoutes(app: FastifyInstance) {
             if (!isIsoInRange(dateISO, fromISO, toISO)) continue;
             if (touched.has(hit.event.id)) continue;
             const override = overrideMap.get(hit.event.id);
-            if (override?.force_exclude) continue;
-            if (!override?.force_include && !matchesLocality(hit.event, client)) continue;
-            const relevance = scoreEventRelevance(hit.event, client, override);
+            const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+            if (!eligibility.ok) continue;
+            const relevance = scoreCalendarEventForClient(hit.event, client, override);
+            if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
             await upsertRelevance({
               tenantId,
               clientId: client.id,

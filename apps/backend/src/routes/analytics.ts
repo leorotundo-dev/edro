@@ -1077,4 +1077,126 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       meta_available: metaData.length > 0,
     };
   });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 11. ADMIN — ALL CLIENTS HEALTH SCORES
+  // Returns health score for every client in the tenant (for admin dashboard)
+  // ────────────────────────────────────────────────────────────────────────────
+  app.get('/admin/clients-health', {
+    preHandler: [authGuard, tenantGuard],
+  }, async (req, reply) => {
+    const tenantId = (req as any).tenantId as string;
+    const user = (req as any).user;
+    if (!['admin', 'manager'].includes(user?.role)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+
+    // Get all clients for tenant
+    const { rows: clients } = await query<{ id: string; name: string; segment: string | null; edro_id: string | null }>(
+      `SELECT c.id, c.name, c.segment_primary AS segment,
+         (SELECT ec.id::text FROM edro_clients ec WHERE LOWER(ec.name) = LOWER(c.name) LIMIT 1) AS edro_id
+       FROM clients c WHERE c.tenant_id = $1 ORDER BY c.name ASC`,
+      [tenantId]
+    );
+
+    const results = await Promise.all(clients.map(async (client) => {
+      if (!client.edro_id) {
+        return { id: client.id, name: client.name, segment: client.segment, score: null, status: 'no_data', statusColor: '#94a3b8' };
+      }
+
+      try {
+        const [onTimeRes, velocityRes, copyRes, volumeRes, activityRes] = await Promise.all([
+          query<{ total: string; on_time: string }>(
+            `SELECT COUNT(*) FILTER (WHERE status = 'done') AS total,
+               COUNT(*) FILTER (WHERE status = 'done' AND (due_at IS NULL OR updated_at <= due_at)) AS on_time
+             FROM edro_briefings WHERE client_id = $1 AND created_at >= $2`,
+            [client.edro_id, thirtyDaysAgo]
+          ),
+          query<{ avg_hours: string }>(
+            `SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(exited_at,NOW())-entered_at))/3600) AS avg_hours
+             FROM edro_briefing_stages WHERE briefing_id IN (
+               SELECT id FROM edro_briefings WHERE client_id=$1 AND created_at>=$2
+             ) AND exited_at IS NOT NULL`,
+            [client.edro_id, thirtyDaysAgo]
+          ),
+          query<{ total: string; approved: string }>(
+            `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status='approved') AS approved
+             FROM edro_copy_versions WHERE briefing_id IN (
+               SELECT id FROM edro_briefings WHERE client_id=$1 AND created_at>=$2
+             )`,
+            [client.edro_id, thirtyDaysAgo]
+          ),
+          query<{ current_count: string; previous_count: string }>(
+            `SELECT COUNT(*) FILTER (WHERE created_at>=$2) AS current_count,
+               COUNT(*) FILTER (WHERE created_at>=$3 AND created_at<$2) AS previous_count
+             FROM edro_briefings WHERE client_id=$1`,
+            [client.edro_id, thirtyDaysAgo, sixtyDaysAgo]
+          ),
+          query<{ count: string }>(
+            `SELECT COUNT(*) AS count FROM edro_briefings WHERE client_id=$1 AND updated_at>=$2`,
+            [client.edro_id, sevenDaysAgo]
+          ),
+        ]);
+
+        const totalCompleted = parseInt(onTimeRes.rows[0]?.total || '0');
+        const onTime = parseInt(onTimeRes.rows[0]?.on_time || '0');
+        const onTimeRate = totalCompleted > 0 ? onTime / totalCompleted : 0.5;
+        const avgHours = parseFloat(velocityRes.rows[0]?.avg_hours || '24');
+        const velocityScore = Math.max(0, Math.min(100, 100 - (avgHours / 96) * 100));
+        const totalCopies = parseInt(copyRes.rows[0]?.total || '0');
+        const approvedCopies = parseInt(copyRes.rows[0]?.approved || '0');
+        const approvalRate = totalCopies > 0 ? approvedCopies / totalCopies : 0.5;
+        const current = parseInt(volumeRes.rows[0]?.current_count || '0');
+        const previous = parseInt(volumeRes.rows[0]?.previous_count || '0');
+        const growthRate = previous > 0 ? (current - previous) / previous : 0;
+        const volumeScore = Math.min(100, Math.max(0, 50 + growthRate * 50));
+        const recentActivity = parseInt(activityRes.rows[0]?.count || '0');
+        const activityScore = Math.min(100, recentActivity * 20);
+
+        const score = Math.round(
+          onTimeRate * 100 * 0.30 + velocityScore * 0.25 +
+          approvalRate * 100 * 0.20 + volumeScore * 0.15 + activityScore * 0.10
+        );
+        const status = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'warning' : 'critical';
+        const statusColor = status === 'excellent' ? '#13DEB9' : status === 'good' ? '#5D87FF' : status === 'warning' ? '#FFAE1F' : '#FA896B';
+
+        // Count bottlenecks
+        const { rows: bots } = await query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM edro_briefings b
+           JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NULL
+           WHERE b.client_id=$1 AND b.status NOT IN ('done','cancelled')
+             AND EXTRACT(EPOCH FROM (NOW()-s.entered_at))/3600 > 48`,
+          [client.edro_id]
+        );
+
+        return {
+          id: client.id, name: client.name, segment: client.segment,
+          score, status, statusColor, briefings: current,
+          bottlenecks: parseInt(bots.rows[0]?.count || '0'),
+        };
+      } catch {
+        return { id: client.id, name: client.name, segment: client.segment, score: null, status: 'error', statusColor: '#94a3b8' };
+      }
+    }));
+
+    const scored = results.filter((r) => r.score !== null);
+    const avgScore = scored.length > 0 ? Math.round(scored.reduce((s, r) => s + (r.score ?? 0), 0) / scored.length) : 0;
+
+    return {
+      clients: results,
+      summary: {
+        total: results.length,
+        excellent: results.filter((r) => r.status === 'excellent').length,
+        good: results.filter((r) => r.status === 'good').length,
+        warning: results.filter((r) => r.status === 'warning').length,
+        critical: results.filter((r) => r.status === 'critical').length,
+        avg_score: avgScore,
+        total_bottlenecks: results.reduce((s, r: any) => s + (r.bottlenecks || 0), 0),
+      },
+    };
+  });
 }

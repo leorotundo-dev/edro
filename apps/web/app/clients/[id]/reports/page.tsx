@@ -19,9 +19,9 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers } from '@tabler/icons-react';
+import LinearProgress from '@mui/material/LinearProgress';
+import Divider from '@mui/material/Divider';
+import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 
@@ -32,6 +32,18 @@ type ReportData = {
   copies: { total_copies: number; avg_chars: number };
   stageTimeline: { stage: string; avg_hours: number }[];
   briefings: { id: string; title: string; status: string; due_at: string; created_at: string }[];
+};
+
+type AiSummary = {
+  narrative: string;
+  strategicReview: string;
+  kpis: { label: string; value: string; trend?: string }[];
+  bottlenecks: string[];
+  highlights: string[];
+  riskAlerts: string[];
+  marketContext: string | null;
+  providers: { provider: string; role: string; model: string; duration_ms: number }[];
+  duration_ms: number;
 };
 
 type TemplateKey = 'executivo' | 'completo' | 'cliente';
@@ -52,6 +64,23 @@ const STAGE_COLORS: Record<string, string> = {
   done: '#13DEB9',
 };
 
+function escapeAiHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatAiMarkdownToSafeHtml(value: string): string {
+  const escaped = escapeAiHtml(value || '');
+  return escaped
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br/>');
+}
+
 export default function ClientReportsPage() {
   const params = useParams();
   const clientId = params.id as string;
@@ -68,10 +97,13 @@ export default function ClientReportsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState('');
+  const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const generateReport = async () => {
     setLoading(true);
     setError('');
+    setAiSummary(null);
     try {
       const data = await apiGet<ReportData>(`/clients/${clientId}/reports/summary?from=${from}&to=${to}`);
       setReport(data);
@@ -100,6 +132,20 @@ export default function ClientReportsPage() {
       setTimeout(() => setEmailSent(''), 4000);
     } catch (err: any) {
       setError(err?.message || 'Erro ao enviar email.');
+    }
+  };
+
+  const handleAiSummary = async () => {
+    setAiLoading(true);
+    setError('');
+    setAiSummary(null);
+    try {
+      const data = await apiGet<AiSummary>(`/clients/${clientId}/reports/ai-summary?from=${from}&to=${to}&template=${template}`);
+      setAiSummary(data);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao gerar analise estrategica.');
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -165,6 +211,15 @@ export default function ClientReportsPage() {
             </Button>
             {report && (
               <>
+                <Button
+                  variant="contained"
+                  startIcon={aiLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconSparkles size={18} />}
+                  onClick={handleAiSummary}
+                  disabled={aiLoading}
+                  sx={{ bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
+                >
+                  {aiLoading ? 'Analisando...' : 'Analise Estrategica'}
+                </Button>
                 <Button variant="outlined" startIcon={<IconDownload size={18} />} onClick={handlePrint}>
                   Imprimir / PDF
                 </Button>
@@ -320,6 +375,140 @@ export default function ClientReportsPage() {
                 </Table>
               </CardContent>
             </Card>
+          )}
+
+          {/* AI Loading */}
+          {aiLoading && (
+            <Card variant="outlined" sx={{ mt: 3 }}>
+              <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                <IconSparkles size={32} style={{ color: '#7c3aed', marginBottom: 8 }} />
+                <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Gerando Analise Estrategica...</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Consolidando dados do cliente para gerar recomendacoes acionaveis.
+                </Typography>
+                <LinearProgress sx={{ maxWidth: 400, mx: 'auto', '& .MuiLinearProgress-bar': { bgcolor: '#7c3aed' } }} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Summary */}
+          {aiSummary && !aiLoading && (
+            <Box sx={{ mt: 3 }}>
+              <Divider sx={{ mb: 3 }}>
+                <Chip icon={<IconSparkles size={16} />} label="Insights Estrategicos" sx={{ bgcolor: '#7c3aed', color: '#fff', fontWeight: 700 }} />
+              </Divider>
+
+              {/* KPIs from Gemini */}
+              {aiSummary.kpis.length > 0 && (
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  {aiSummary.kpis.slice(0, 4).map((kpi, i) => (
+                    <Grid key={i} size={{ xs: 6, md: 3 }}>
+                      <Card variant="outlined" sx={{ borderLeft: '3px solid #7c3aed' }}>
+                        <CardContent sx={{ py: 1.5 }}>
+                          <Typography variant="h5" fontWeight={800} color="#7c3aed">{kpi.value}</Typography>
+                          <Typography variant="caption" color="text.secondary">{kpi.label}</Typography>
+                          {kpi.trend && (
+                            <Typography variant="caption" display="block" sx={{ color: kpi.trend.includes('+') || kpi.trend.toLowerCase().includes('up') ? '#13DEB9' : '#FA896B', fontWeight: 600 }}>
+                              {kpi.trend}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+
+              {/* Alerts Row */}
+              {(aiSummary.highlights.length > 0 || aiSummary.riskAlerts.length > 0 || aiSummary.bottlenecks.length > 0) && (
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  {aiSummary.highlights.length > 0 && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                            <IconTrendingUp size={18} color="#13DEB9" />
+                            <Typography variant="subtitle2" fontWeight={700} color="#13DEB9">Destaques</Typography>
+                          </Stack>
+                          {aiSummary.highlights.map((h, i) => (
+                            <Typography key={i} variant="body2" sx={{ mb: 0.5, pl: 1, borderLeft: '2px solid #13DEB9' }}>{h}</Typography>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                  {aiSummary.bottlenecks.length > 0 && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                            <IconAlertTriangle size={18} color="#FFAE1F" />
+                            <Typography variant="subtitle2" fontWeight={700} color="#FFAE1F">Gargalos</Typography>
+                          </Stack>
+                          {aiSummary.bottlenecks.map((b, i) => (
+                            <Typography key={i} variant="body2" sx={{ mb: 0.5, pl: 1, borderLeft: '2px solid #FFAE1F' }}>{b}</Typography>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                  {aiSummary.riskAlerts.length > 0 && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                            <IconAlertTriangle size={18} color="#FA896B" />
+                            <Typography variant="subtitle2" fontWeight={700} color="#FA896B">Riscos</Typography>
+                          </Stack>
+                          {aiSummary.riskAlerts.map((r, i) => (
+                            <Typography key={i} variant="body2" sx={{ mb: 0.5, pl: 1, borderLeft: '2px solid #FA896B' }}>{r}</Typography>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )}
+                </Grid>
+              )}
+
+              {/* Narrative */}
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <IconBulb size={20} color="#ff6600" />
+                    <Typography variant="h6" fontWeight={700}>Diagnostico Executivo</Typography>
+                  </Stack>
+                  <Typography
+                    variant="body2"
+                    component="div"
+                    sx={{ lineHeight: 1.8, whiteSpace: 'pre-wrap', '& h2, & h3': { mt: 2, mb: 1, fontWeight: 700 } }}
+                    dangerouslySetInnerHTML={{
+                      __html: formatAiMarkdownToSafeHtml(aiSummary.narrative),
+                    }}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Strategic Review (Claude) */}
+              {aiSummary.strategicReview && (
+                <Card variant="outlined" sx={{ mb: 3, borderColor: '#7c3aed', borderWidth: 2 }}>
+                  <CardContent>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <IconSparkles size={20} color="#7c3aed" />
+                      <Typography variant="h6" fontWeight={700} color="#7c3aed">Analise Estrategica</Typography>
+                      <Chip label="Revisao Final" size="small" sx={{ bgcolor: '#7c3aed', color: '#fff', fontSize: '0.65rem' }} />
+                    </Stack>
+                    <Typography
+                      variant="body2"
+                      component="div"
+                      sx={{ lineHeight: 1.8, whiteSpace: 'pre-wrap' }}
+                      dangerouslySetInnerHTML={{
+                        __html: formatAiMarkdownToSafeHtml(aiSummary.strategicReview),
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </Box>
           )}
         </Box>
       )}

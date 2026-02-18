@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import {
@@ -23,11 +22,19 @@ export default async function automationsRoutes(app: FastifyInstance) {
   app.post('/automations', {
     preHandler: [authGuard, tenantGuard(), requirePerm('integrations:write')],
     schema: {
-      body: z.object({
-        trigger_event: z.string().min(1),
-        action_type: z.enum(['notify_team', 'notify_client', 'generate_copy']),
-        config: z.record(z.any()).optional(),
-      }),
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['trigger_event', 'action_type'],
+        properties: {
+          trigger_event: { type: 'string', minLength: 1 },
+          action_type: {
+            type: 'string',
+            enum: ['notify_team', 'notify_client', 'generate_copy'],
+          },
+          config: { type: 'object', additionalProperties: true },
+        },
+      },
     },
   }, async (request: any) => {
     const tenantId = request.user.tenant_id;
@@ -40,10 +47,14 @@ export default async function automationsRoutes(app: FastifyInstance) {
   app.patch('/automations/:id', {
     preHandler: [authGuard, tenantGuard(), requirePerm('integrations:write')],
     schema: {
-      body: z.object({
-        enabled: z.boolean().optional(),
-        config: z.record(z.any()).optional(),
-      }),
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          enabled: { type: 'boolean' },
+          config: { type: 'object', additionalProperties: true },
+        },
+      },
     },
   }, async (request: any) => {
     const tenantId = request.user.tenant_id;

@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import crypto from 'crypto';
 import { parse } from 'csv-parse/sync';
 import type { CalendarEvent, CalendarCategory, Scope, Platform } from './calendarTotal';
 
@@ -41,17 +40,53 @@ const PLATFORM_ALIASES: Record<string, Platform> = {
 };
 
 const EVENT_TYPE_CATEGORY: Record<string, CalendarCategory[]> = {
+  oficial: ['oficial'],
   official: ['oficial'],
   retail: ['comercial'],
+  comercial: ['comercial'],
   cultural: ['cultural'],
+  cultura: ['cultural'],
   international: ['cultural'],
+  internacional: ['cultural'],
   seasonal: ['sazonalidade'],
+  sazonal: ['sazonalidade'],
   behavior: ['sazonalidade'],
+  comportamental: ['sazonalidade'],
   industry: ['setorial'],
+  industrial: ['setorial'],
+  setorial: ['setorial'],
   regional: ['local'],
+  local: ['local'],
   data_comemorativa: ['sazonalidade'],
+  comemorativa: ['sazonalidade'],
+  evento_feira: ['setorial'],
   politico_civico: ['oficial'],
+  politico: ['oficial'],
+  civico: ['oficial'],
   saude: ['causa_social'],
+};
+
+const CATEGORY_ALIAS_MAP: Record<string, CalendarCategory> = {
+  oficial: 'oficial',
+  official: 'oficial',
+  comercial: 'comercial',
+  retail: 'comercial',
+  cultural: 'cultural',
+  cultura: 'cultural',
+  causa_social: 'causa_social',
+  social: 'causa_social',
+  profissao: 'profissao',
+  profession: 'profissao',
+  sazonalidade: 'sazonalidade',
+  seasonal: 'sazonalidade',
+  esportivo: 'esportivo',
+  sport: 'esportivo',
+  geek_pop: 'geek_pop',
+  geek: 'geek_pop',
+  setorial: 'setorial',
+  industry: 'setorial',
+  industrial: 'setorial',
+  local: 'local',
 };
 
 const SEGMENT_CODE_MAP: Record<string, string> = {
@@ -211,6 +246,17 @@ function normalizeSegmentKey(value?: string) {
     .replace(/^_+|_+$/g, '');
 }
 
+function normalizeLookupKey(value?: string | null) {
+  if (!value) return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function buildSegmentBoosts(segmentLabel?: string | null, extraTags: string[] = []) {
   const boosts: Record<string, number> = {};
   const addBoost = (label?: string | null) => {
@@ -237,11 +283,13 @@ function parsePlatformFit(value?: string): Platform[] {
 
 function normalizeCategories(eventType?: string, rawCategories?: string): CalendarCategory[] {
   const categories = rawCategories ? splitValues(rawCategories) : [];
-  const lower = categories.map((category) => category.toLowerCase().trim());
-  const typeKey = (eventType || '').toLowerCase().trim();
+  const explicit = categories
+    .map((category) => CATEGORY_ALIAS_MAP[normalizeLookupKey(category)])
+    .filter((category): category is CalendarCategory => Boolean(category));
+  const typeKey = normalizeLookupKey(eventType);
   const mapped = EVENT_TYPE_CATEGORY[typeKey];
-  const isFairLike = /feira|congresso|expo|exposicao|simp[oó]sio/.test(typeKey);
-  const merged = mapped ? [...mapped, ...lower] : lower;
+  const isFairLike = /feira|congresso|expo|exposicao|simposio/.test(typeKey);
+  const merged = mapped ? [...mapped, ...explicit] : explicit;
   if (isFairLike) merged.push('setorial');
   const unique = Array.from(new Set(merged)).filter(Boolean);
   return unique as CalendarCategory[];

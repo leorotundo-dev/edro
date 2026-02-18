@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { query } from '../db/db';
 import { authGuard, requirePerm, type Role } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
@@ -30,9 +29,14 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
   app.patch('/admin/users/:userId/role', {
     preHandler: [authGuard, tenantGuard(), requirePerm('*')],
     schema: {
-      body: z.object({
-        role: z.enum(['admin', 'manager', 'reviewer', 'viewer', 'staff']),
-      }),
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['role'],
+        properties: {
+          role: { type: 'string', enum: VALID_ROLES },
+        },
+      },
     },
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
@@ -98,10 +102,18 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
   app.post('/admin/clients/:clientId/permissions', {
     preHandler: [authGuard, tenantGuard(), requirePerm('*')],
     schema: {
-      body: z.object({
-        userId: z.string().uuid(),
-        perms: z.array(z.enum(['read', 'write', 'review', 'publish'])),
-      }),
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['userId', 'perms'],
+        properties: {
+          userId: { type: 'string', format: 'uuid' },
+          perms: {
+            type: 'array',
+            items: { type: 'string', enum: ['read', 'write', 'review', 'publish'] },
+          },
+        },
+      },
     },
   }, async (request: any) => {
     const tenantId = request.user.tenant_id;

@@ -11,7 +11,12 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
@@ -38,6 +43,7 @@ import {
   IconPlayerPlay,
   IconX,
   IconAlertTriangle,
+  IconSparkles,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -90,6 +96,12 @@ type ClippingClientProps = {
   clientId?: string;
   noShell?: boolean;
   embedded?: boolean;
+};
+
+type CompetitiveIntelResponse = {
+  strategic_brief?: string;
+  draft?: string;
+  assets_used?: number;
 };
 
 const STATUS_OPTIONS = [
@@ -197,6 +209,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [editingUrl, setEditingUrl] = useState('');
   const [savingSourceUrl, setSavingSourceUrl] = useState(false);
   const [fetchingAll, setFetchingAll] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [competitiveLoading, setCompetitiveLoading] = useState(false);
+  const [competitiveOpen, setCompetitiveOpen] = useState(false);
+  const [competitiveBrief, setCompetitiveBrief] = useState('');
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -324,6 +340,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     loadItems();
     loadSources();
   }, [selectedClient, loadItems, loadSources]);
+
+  useEffect(() => {
+    setSelectedItemIds((prev) => prev.filter((id) => items.some((item) => item.id === id)));
+  }, [items]);
 
   const handleSaveSource = async () => {
     if (!sourceName.trim() || !sourceUrl.trim()) return;
@@ -485,6 +505,64 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     }
   };
 
+  const toggleItemSelection = (itemId: string, checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      if (checked) {
+        if (prev.includes(itemId)) return prev;
+        return [...prev, itemId];
+      }
+      return prev.filter((id) => id !== itemId);
+    });
+  };
+
+  const handleSelectTopTen = () => {
+    setSelectedItemIds(items.slice(0, 10).map((item) => item.id));
+  };
+
+  const handleRunCompetitiveIntel = async () => {
+    const clientIdForAnalysis = selectedClient?.id || lockedClientId;
+    if (!clientIdForAnalysis) {
+      setError('Selecione um cliente para analise.');
+      return;
+    }
+
+    const selectedAssets = items
+      .filter((item) => selectedItemIds.includes(item.id))
+      .slice(0, 10)
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        snippet: item.snippet || '',
+        url: item.url || '',
+        source: formatSource(item.source_name, item.source_url),
+        published_at: item.published_at || '',
+        score: item.client_score ?? item.score ?? null,
+      }));
+
+    if (!selectedAssets.length) {
+      setError('Selecione ate 10 materias para analise.');
+      return;
+    }
+
+    setCompetitiveLoading(true);
+    setError('');
+    try {
+      const response = await apiPost<CompetitiveIntelResponse>(
+        `/clients/${encodeURIComponent(clientIdForAnalysis)}/reports/competitive-intelligence`,
+        { assets: selectedAssets }
+      );
+      setCompetitiveBrief(
+        response?.strategic_brief || response?.draft || 'Analise concluida sem conteudo retornado.'
+      );
+      setCompetitiveOpen(true);
+      setSuccess(`Analise de concorrencia gerada com ${selectedAssets.length} ativo(s).`);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao gerar analise de concorrencia.');
+    } finally {
+      setCompetitiveLoading(false);
+    }
+  };
+
   const errorSourceCount = useMemo(
     () => sources.filter((s) => s.status === 'ERROR' || s.last_error).length,
     [sources]
@@ -617,7 +695,27 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 8 }}>
-          <DashboardCard title="Itens" action={<Chip size="small" label={totalLabel} color="primary" variant="outlined" />}>
+          <DashboardCard
+            title="Itens"
+            action={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip size="small" label={totalLabel} color="primary" variant="outlined" />
+                <Chip size="small" label={`${selectedItemIds.length} selecionados`} variant="outlined" />
+                <Button size="small" variant="outlined" onClick={handleSelectTopTen}>
+                  Selecionar top 10
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<IconSparkles size={14} />}
+                  onClick={handleRunCompetitiveIntel}
+                  disabled={competitiveLoading || selectedItemIds.length === 0}
+                >
+                  {competitiveLoading ? 'Analisando...' : 'Analisar concorrencia'}
+                </Button>
+              </Stack>
+            }
+          >
             <Stack spacing={1}>
               {items.length ? (
                 items.map((item) => {
@@ -642,6 +740,19 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     >
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction="row" spacing={2}>
+                          <Box
+                            onClick={(event) => event.stopPropagation()}
+                            sx={{ display: 'flex', alignItems: 'flex-start', pt: 0.2 }}
+                          >
+                            <Checkbox
+                              size="small"
+                              checked={selectedItemIds.includes(item.id)}
+                              onChange={(event) =>
+                                toggleItemSelection(item.id, event.target.checked)
+                              }
+                            />
+                          </Box>
+
                           {/* Text content — takes most space */}
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -889,6 +1000,29 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
           </Stack>
         </Grid>
       </Grid>
+
+      <Dialog open={competitiveOpen} onClose={() => setCompetitiveOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Briefing estratégico de concorrência</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+            {competitiveBrief || 'Sem conteúdo.'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCompetitiveOpen(false)}>Fechar</Button>
+          {selectedClient?.id ? (
+            <Button
+              variant="contained"
+              onClick={() => {
+                setCompetitiveOpen(false);
+                router.push(`/clients/${selectedClient.id}/reports`);
+              }}
+            >
+              Ir para Reports
+            </Button>
+          ) : null}
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 

@@ -11,6 +11,7 @@
     "db:migrate": "ts-node --transpile-only src/db/migrate.ts",
     "calendar:generate": "ts-node --transpile-only src/scripts/generateEdroCalendarMaster.ts",
     "calendar:import": "ts-node --transpile-only src/scripts/importCalendarCsv.ts",
+    "calendar:sanitize": "ts-node --transpile-only src/scripts/sanitizeCalendarCsv.ts",
     "calendar:recalc": "ts-node --transpile-only src/scripts/recalcCalendarRelevance.ts"
   },
   "dependencies": {

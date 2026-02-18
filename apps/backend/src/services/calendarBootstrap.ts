@@ -38,7 +38,9 @@ function resolveCsvPath() {
 export async function bootstrapCalendarEvents(): Promise<BootstrapResult> {
   const csvPath = resolveCsvPath();
   if (!csvPath) {
-    console.warn('[calendar] CSV master not found. Skipping bootstrap.');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[calendar] CSV master not found locally. Skipping bootstrap.');
+    }
     return { loaded: 0, errors: 0, skipped: true };
   }
 

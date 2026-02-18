@@ -24,6 +24,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -70,6 +71,13 @@ type CalendarEventItem = {
   score: number;
   tier: 'A' | 'B' | 'C';
   why?: string;
+  is_relevant?: boolean;
+  possible_clients?: Array<{
+    client_id: string;
+    name: string;
+    score: number;
+    tier: 'A' | 'B' | 'C';
+  }>;
   descricao_ai?: string | null;
   origem_ai?: string | null;
   curiosidade_ai?: string | null;
@@ -214,9 +222,9 @@ function formatDayLabel(dateISO: string) {
 
 function formatEventWhy(value?: string) {
   if (!value) return '';
-  const match = value.match(/base_relevance[:=]\s*(\d+)/i);
-  if (!match) return value;
-  return `Relevancia: ${match[1]}%`;
+  return value
+    .replace(/\s*\|\s*/g, ' • ')
+    .replace(/base_relevance[:=]\s*(\d+)/gi, 'Relevância base: $1%');
 }
 
 function buildMonthGrid(month: string): CalendarCell[] {
@@ -256,8 +264,9 @@ function buildMonthGrid(month: string): CalendarCell[] {
 }
 
 function getDayTierClass(events: CalendarEventItem[]) {
-  if (events.some((event) => event.tier === 'A')) return 'relevance-high';
-  if (events.some((event) => event.tier === 'B')) return 'relevance-mid';
+  const relevant = events.filter((event) => event.is_relevant !== false);
+  if (relevant.some((event) => event.tier === 'A')) return 'relevance-high';
+  if (relevant.some((event) => event.tier === 'B')) return 'relevance-mid';
   return '';
 }
 
@@ -289,6 +298,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [relevanceByClientId, setRelevanceByClientId] = useState<Record<string, EventRelevanceItem>>({});
   const [relevanceLoading, setRelevanceLoading] = useState(false);
   const [showAllClients, setShowAllClients] = useState(false);
+  const [showNonRelevant, setShowNonRelevant] = useState(false);
 
   const isLocked = Boolean(lockClient && initialClientId);
 
@@ -348,8 +358,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setEventsLoading(true);
     setError('');
     try {
+      const includeNonRelevantQuery =
+        !clientId && showNonRelevant ? '?include_non_relevant=true' : '';
       const response = (await apiGet(
-        clientId ? `/clients/${clientId}/calendar/month/${month}` : `/calendar/events/${month}`
+        clientId
+          ? `/clients/${clientId}/calendar/month/${month}`
+          : `/calendar/events/${month}${includeNonRelevantQuery}`
       )) as MonthEventsResponse;
       const days = response?.days || {};
       const map = new Map<string, CalendarEventItem[]>();
@@ -369,7 +383,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     } finally {
       setEventsLoading(false);
     }
-  }, []);
+  }, [showNonRelevant]);
 
   useEffect(() => {
     const storedUser = typeof window !== 'undefined' ? localStorage.getItem('edro_user') : null;
@@ -892,6 +906,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               sx={{ minWidth: 160 }}
             />
 
+            {!selectedClient ? (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ minHeight: 40 }}>
+                <Switch
+                  size="small"
+                  checked={showNonRelevant}
+                  onChange={(event) => setShowNonRelevant(event.target.checked)}
+                />
+                <Typography variant="body2" color="text.secondary">
+                  Mostrar não relevantes
+                </Typography>
+              </Stack>
+            ) : null}
+
             {activeCalendar ? (
               <Button
                 variant="contained"
@@ -983,7 +1010,13 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         >
                           <ListItemText
                             primary={event.name}
-                            secondary={`${Math.round(event.score)}%`}
+                            secondary={`${Math.round(event.score)}%${
+                              !selectedClient && (event.possible_clients?.length || 0)
+                                ? ` • ${event.possible_clients?.length} clientes possíveis`
+                                : !selectedClient && event.is_relevant === false
+                                  ? ' • não relevante'
+                                : ''
+                            }`}
                           />
                           <Chip
                             size="small"
@@ -1056,6 +1089,23 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         <Typography variant="body2">{selectedEvent.score}</Typography>
                         <Typography variant="caption" color="text.secondary">Client</Typography>
                         <Typography variant="body2">{selectedClient?.name || 'Global calendar'}</Typography>
+                        {!selectedClient && selectedEvent.possible_clients?.length ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">Clientes possíveis</Typography>
+                            <Typography variant="body2">
+                              {selectedEvent.possible_clients
+                                .slice(0, 5)
+                                .map((client) => `${client.name} (${Math.round(client.score)}%)`)
+                                .join(' • ')}
+                            </Typography>
+                          </>
+                        ) : null}
+                        {!selectedClient && selectedEvent.is_relevant === false ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">Match</Typography>
+                            <Typography variant="body2">Sem cliente relevante para este evento</Typography>
+                          </>
+                        ) : null}
                         {selectedClient?.segment_primary ? (
                           <>
                             <Typography variant="caption" color="text.secondary">Segment</Typography>
