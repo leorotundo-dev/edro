@@ -1891,3 +1891,22 @@ a {
   cursor: not-allowed;
   opacity: 0.95;
 }
+
+/* Print styles */
+@media print {
+  .no-print,
+  nav,
+  header,
+  [class*="Sidebar"],
+  [class*="MuiDrawer"] {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
