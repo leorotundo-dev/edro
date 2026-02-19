@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import ClientClippingClient from './ClientClippingClient';
 
 type ClientRadarPageProps = {
@@ -6,5 +7,9 @@ type ClientRadarPageProps = {
 
 export default async function Page({ params }: ClientRadarPageProps) {
   const { id } = await params;
-  return <ClientClippingClient clientId={id} />;
+  return (
+    <Suspense>
+      <ClientClippingClient clientId={id} />
+    </Suspense>
+  );
 }

@@ -1,5 +1,10 @@
+import { Suspense } from 'react';
 import SocialListeningClient from './SocialListeningClient';
 
 export default function Page() {
-  return <SocialListeningClient />;
+  return (
+    <Suspense>
+      <SocialListeningClient />
+    </Suspense>
+  );
 }

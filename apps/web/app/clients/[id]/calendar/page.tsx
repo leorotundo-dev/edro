@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import ClientCalendarClient from './ClientCalendarClient';
 
 type ClientCalendarPageProps = {
@@ -6,5 +7,9 @@ type ClientCalendarPageProps = {
 
 export default async function Page({ params }: ClientCalendarPageProps) {
   const { id } = await params;
-  return <ClientCalendarClient clientId={id} />;
+  return (
+    <Suspense>
+      <ClientCalendarClient clientId={id} />
+    </Suspense>
+  );
 }
