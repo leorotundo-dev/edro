@@ -56,12 +56,8 @@ const CLIENT_TABS = [
   { label: 'Calendar', path: '/calendar' },
   { label: 'Planning', path: '/planning' },
   { label: 'Creative', path: '/creative' },
-  { label: 'Clipping', path: '/clipping' },
-  { label: 'Library', path: '/library' },
-  { label: 'Insights', path: '/insights' },
-  { label: 'Performance', path: '/performance' },
-  { label: 'Reports', path: '/reports' },
-  { label: 'Analytics', path: '/analytics' },
+  { label: 'Inteligência', path: '/inteligencia' },
+  { label: 'Métricas', path: '/metricas' },
 ];
 
 function formatMarkdown(text: string): string {
