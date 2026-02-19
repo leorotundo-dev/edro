@@ -417,11 +417,11 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
             {intelligenceStats && (() => {
               const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
               const items = [
-                { key: 'library', label: 'Library', value: intelligenceStats.library.totalItems, icon: <IconDatabase size={14} /> },
-                { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping.totalMatches, icon: <IconClipboard size={14} /> },
-                { key: 'social', label: 'Social', value: intelligenceStats.social.totalMentions, icon: <IconTrendingUp size={14} /> },
-                { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar.next14Days, icon: <IconCalendar size={14} /> },
-                { key: 'opportunities', label: 'Oportunidades', value: intelligenceStats.opportunities.active, icon: <IconBrain size={14} /> },
+                { key: 'library', label: 'Library', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={14} /> },
+                { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping?.totalMatches ?? 0, icon: <IconClipboard size={14} /> },
+                { key: 'social', label: 'Social', value: intelligenceStats.social?.totalMentions ?? 0, icon: <IconTrendingUp size={14} /> },
+                { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar?.next14Days ?? 0, icon: <IconCalendar size={14} /> },
+                { key: 'opportunities', label: 'Oportunidades', value: intelligenceStats.opportunities?.active ?? 0, icon: <IconBrain size={14} /> },
               ];
               return (
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -445,8 +445,8 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                       </Tooltip>
                     );
                   })}
-                  {intelligenceStats.opportunities.urgent > 0 && (
-                    <Chip size="small" color="error" label={`${intelligenceStats.opportunities.urgent} urgente`} sx={{ fontWeight: 700 }} />
+                  {(intelligenceStats.opportunities?.urgent ?? 0) > 0 && (
+                    <Chip size="small" color="error" label={`${intelligenceStats.opportunities?.urgent ?? 0} urgente`} sx={{ fontWeight: 700 }} />
                   )}
                 </Stack>
               );
