@@ -148,7 +148,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     setOpportunitiesError('');
     try {
       const response = await apiGet<{ opportunities?: Opportunity[] }>(`/clients/${clientId}/planning/opportunities`);
-      setOpportunities(response?.opportunities || []);
+      setOpportunities(Array.isArray(response?.opportunities) ? response.opportunities : []);
     } catch (err: any) {
       setOpportunitiesError(err?.message || 'Falha ao carregar oportunidades.');
     } finally {
@@ -166,10 +166,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       ]);
 
       if (briefingsRes.status === 'fulfilled') {
-        setBriefings(briefingsRes.value?.briefings || []);
+        setBriefings(Array.isArray(briefingsRes.value?.briefings) ? briefingsRes.value.briefings : []);
       }
       if (copiesRes.status === 'fulfilled') {
-        setCopies(copiesRes.value?.copies || []);
+        setCopies(Array.isArray(copiesRes.value?.copies) ? copiesRes.value.copies : []);
       }
     } catch (err) {
       console.error('Failed to load outputs:', err);
