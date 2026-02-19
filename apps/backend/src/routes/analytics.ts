@@ -44,10 +44,10 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Composite score (0-100) measuring client relationship health
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/health-score', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
 
     const client = await resolveEdroClient(tenantId, clientId);
     if (!client || !client.edro_id) {
@@ -165,10 +165,10 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Briefings stuck in a stage longer than expected
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/bottleneck-alerts', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { threshold_hours = '24' } = req.query as { threshold_hours?: string };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -230,10 +230,10 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // AI-generated monthly value report for client presentation
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/proof-of-value', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { from, to, retainer_value } = req.body as { from?: string; to?: string; retainer_value?: number };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -339,10 +339,10 @@ Seja objetivo, use dados concretos, tom consultivo e profissional. Máximo 400 p
   // Extracts brand voice characteristics from copy history
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/brand-voice', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
 
     const client = await resolveEdroClient(tenantId, clientId);
     if (!client || !client.edro_id) return reply.status(404).send({ error: 'Client not found' });
@@ -428,10 +428,10 @@ Retorne JSON com exatamente esta estrutura:
   // Compare client metrics vs anonymized cross-client averages
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/benchmark', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { days = '30' } = req.query as { days?: string };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -570,10 +570,10 @@ Retorne JSON com exatamente esta estrutura:
   // Uses Perplexity to find content opportunities not yet in calendar
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/content-gap', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
 
     const client = await resolveEdroClient(tenantId, clientId);
     if (!client || !client.edro_id) return reply.status(404).send({ error: 'Client not found' });
@@ -671,10 +671,10 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
   // Full strategic brief using Claude for premium quality
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/strategic-brief', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { month, year } = req.body as { month?: number; year?: number };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -803,10 +803,10 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Calculates true ROI of the client retainer relationship
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/roi-retainer', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { months = '3', retainer_value } = req.query as { months?: string; retainer_value?: string };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -896,10 +896,10 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Suggests optimal content dates based on historical patterns
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/predictive-calendar', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { days = '30' } = req.query as { days?: string };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -989,10 +989,10 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Links copy versions to campaign performance
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/content-results', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const { from, to } = req.query as { from?: string; to?: string };
 
     const client = await resolveEdroClient(tenantId, clientId);
@@ -1083,9 +1083,9 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Returns health score for every client in the tenant (for admin dashboard)
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/admin/clients-health', {
-    preHandler: [authGuard, tenantGuard],
+    preHandler: [authGuard, tenantGuard()],
   }, async (req, reply) => {
-    const tenantId = (req as any).tenantId as string;
+    const tenantId = (req.user as any).tenant_id as string;
     const user = (req as any).user;
     if (!['admin', 'manager'].includes(user?.role)) {
       return reply.status(403).send({ error: 'Forbidden' });

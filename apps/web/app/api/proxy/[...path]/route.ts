@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'node:buffer';
 
-// Increase timeout for large uploads
-export const maxDuration = 60;
+// Increase timeout for AI-heavy requests (brand voice, strategic brief, etc.)
+export const maxDuration = 120;
 
 const DEFAULT_BACKEND_URL = 'http://localhost:3333';
-const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 60000);
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 90000);
 const API_SUFFIX_REGEX = /\/api$/i;
 
 function isAbortError(error: unknown) {
