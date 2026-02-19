@@ -77,12 +77,12 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     // Compare avg stage duration vs benchmark of 24h
     const { rows: velocityRows } = await query<{ avg_hours: string }>(
       `SELECT AVG(
-         EXTRACT(EPOCH FROM (COALESCE(exited_at, NOW()) - entered_at)) / 3600
+         EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600
        ) AS avg_hours
        FROM edro_briefing_stages
        WHERE briefing_id IN (
          SELECT id FROM edro_briefings WHERE client_id = $1 AND created_at >= $2
-       ) AND exited_at IS NOT NULL`,
+       ) AND updated_at > created_at`,
       [edroId, thirtyDaysAgo]
     );
     const avgHours = parseFloat(velocityRows[0]?.avg_hours || '24');
@@ -182,20 +182,21 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       current_stage: string;
       stage_entered_at: string;
       hours_stuck: number;
-      responsible?: string;
     }>(
       `SELECT
          b.id AS briefing_id,
          b.title,
          s.stage AS current_stage,
-         s.entered_at AS stage_entered_at,
-         EXTRACT(EPOCH FROM (NOW() - s.entered_at)) / 3600 AS hours_stuck,
-         b.responsible
+         s.created_at AS stage_entered_at,
+         EXTRACT(EPOCH FROM (NOW() - s.created_at)) / 3600 AS hours_stuck
        FROM edro_briefings b
-       JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NULL
+       JOIN LATERAL (
+         SELECT stage, created_at FROM edro_briefing_stages
+         WHERE briefing_id = b.id ORDER BY position DESC LIMIT 1
+       ) s ON TRUE
        WHERE b.client_id = $1
          AND b.status NOT IN ('done', 'cancelled')
-         AND EXTRACT(EPOCH FROM (NOW() - s.entered_at)) / 3600 > $2
+         AND EXTRACT(EPOCH FROM (NOW() - s.created_at)) / 3600 > $2
        ORDER BY hours_stuck DESC`,
       [client.edro_id, thresholdH]
     );
@@ -213,7 +214,6 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         severity,
         severityColor,
         message: `"${b.title}" está em "${b.current_stage}" há ${h}h`,
-        responsible: b.responsible || null,
       };
     });
 
@@ -253,17 +253,17 @@ export default async function analyticsRoutes(app: FastifyInstance) {
         [client.edro_id, periodFrom, periodTo]
       ),
       query<{ total: string; avg_chars: string }>(
-        `SELECT COUNT(cv.*) AS total, AVG(LENGTH(cv.content)) AS avg_chars
+        `SELECT COUNT(cv.*) AS total, AVG(LENGTH(cv.output)) AS avg_chars
          FROM edro_copy_versions cv
          JOIN edro_briefings b ON b.id = cv.briefing_id
          WHERE b.client_id = $1 AND cv.created_at BETWEEN $2 AND $3`,
         [client.edro_id, periodFrom, periodTo]
       ),
       query<{ stage: string; avg_hours: string }>(
-        `SELECT s.stage, AVG(EXTRACT(EPOCH FROM (s.exited_at - s.entered_at))/3600) AS avg_hours
+        `SELECT s.stage, AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_hours
          FROM edro_briefing_stages s
          JOIN edro_briefings b ON b.id = s.briefing_id
-         WHERE b.client_id = $1 AND s.entered_at BETWEEN $2 AND $3 AND s.exited_at IS NOT NULL
+         WHERE b.client_id = $1 AND s.created_at BETWEEN $2 AND $3 AND s.updated_at > s.created_at
          GROUP BY s.stage ORDER BY avg_hours DESC`,
         [client.edro_id, periodFrom, periodTo]
       ),
@@ -349,10 +349,10 @@ Seja objetivo, use dados concretos, tom consultivo e profissional. Máximo 400 p
 
     // Get last 30 approved copies
     const { rows: copyRows } = await query<{ content: string; platform: string | null; briefing_title: string | null }>(
-      `SELECT cv.content, b.platform, b.title AS briefing_title
+      `SELECT cv.output AS content, b.payload->>'platform' AS platform, b.title AS briefing_title
        FROM edro_copy_versions cv
        JOIN edro_briefings b ON b.id = cv.briefing_id
-       WHERE b.client_id = $1 AND cv.status = 'approved' AND cv.content IS NOT NULL
+       WHERE b.client_id = $1 AND cv.status = 'approved' AND cv.output IS NOT NULL
        ORDER BY cv.created_at DESC LIMIT 30`,
       [client.edro_id]
     );
@@ -448,11 +448,11 @@ Retorne JSON com exatamente esta estrutura:
          COUNT(DISTINCT b.id) AS total_briefings,
          COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'done') AS completed,
          COUNT(cv.id) AS total_copies,
-         AVG(EXTRACT(EPOCH FROM (s.exited_at - s.entered_at))/3600) AS avg_stage_hours,
+         AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_stage_hours,
          COUNT(DISTINCT b.id) FILTER (WHERE b.due_at < NOW() AND b.status != 'done') AS overdue
        FROM edro_briefings b
        LEFT JOIN edro_copy_versions cv ON cv.briefing_id = b.id
-       LEFT JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NOT NULL
+       LEFT JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.updated_at > s.created_at
        WHERE b.client_id = $1 AND b.created_at >= $2`,
       [client.edro_id, periodFrom]
     );
@@ -475,12 +475,12 @@ Retorne JSON com exatamente esta estrutura:
            COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'done')::float /
              NULLIF(COUNT(DISTINCT b.id), 0) * 100 AS completed_rate,
            COUNT(cv.id) AS total_c,
-           AVG(EXTRACT(EPOCH FROM (s.exited_at - s.entered_at))/3600) AS avg_hours,
+           AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_hours,
            COUNT(DISTINCT b.id) FILTER (WHERE b.due_at < NOW() AND b.status != 'done')::float /
              NULLIF(COUNT(DISTINCT b.id), 0) * 100 AS overdue_rate
          FROM edro_briefings b
          LEFT JOIN edro_copy_versions cv ON cv.briefing_id = b.id
-         LEFT JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NOT NULL
+         LEFT JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.updated_at > s.created_at
          WHERE b.created_at >= $1
          GROUP BY b.client_id
        ) sub`,
@@ -695,7 +695,7 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
         [client.edro_id, periodFrom]
       ),
       query<{ content: string; platform: string | null }>(
-        `SELECT cv.content, b.platform FROM edro_copy_versions cv
+        `SELECT cv.output AS content, b.payload->>'platform' AS platform FROM edro_copy_versions cv
          JOIN edro_briefings b ON b.id = cv.briefing_id
          WHERE b.client_id = $1 AND cv.status = 'approved'
          ORDER BY cv.created_at DESC LIMIT 10`,
@@ -825,7 +825,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
          COUNT(DISTINCT b.id) AS total_briefings,
          COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'done') AS completed_briefings,
          COUNT(cv.id) AS total_copies,
-         SUM(LENGTH(cv.content)) AS total_copy_chars,
+         SUM(LENGTH(cv.output)) AS total_copy_chars,
          COUNT(s.id) AS total_stage_transitions,
          AVG(EXTRACT(EPOCH FROM (
            CASE WHEN b.status = 'done' THEN b.updated_at ELSE NOW() END
@@ -912,11 +912,11 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       `SELECT
          EXTRACT(DOW FROM b.created_at) AS day_of_week,
          EXTRACT(HOUR FROM b.created_at) AS hour_of_day,
-         b.platform,
+         b.payload->>'platform' AS platform,
          COUNT(*) AS count
        FROM edro_briefings b
        WHERE b.client_id = $1 AND b.status = 'done' AND b.created_at >= NOW() - INTERVAL '90 days'
-       GROUP BY day_of_week, hour_of_day, b.platform
+       GROUP BY day_of_week, hour_of_day, b.payload->>'platform'
        ORDER BY count DESC`,
       [client.edro_id]
     );
@@ -933,10 +933,10 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
 
     // Get stage bottlenecks to predict lead times
     const { rows: leadTimeData } = await query<{ stage: string; avg_hours: string }>(
-      `SELECT s.stage, AVG(EXTRACT(EPOCH FROM (s.exited_at - s.entered_at))/3600) AS avg_hours
+      `SELECT s.stage, AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_hours
        FROM edro_briefing_stages s
        JOIN edro_briefings b ON b.id = s.briefing_id
-       WHERE b.client_id = $1 AND s.exited_at IS NOT NULL AND s.entered_at >= NOW() - INTERVAL '60 days'
+       WHERE b.client_id = $1 AND s.updated_at > s.created_at AND s.created_at >= NOW() - INTERVAL '60 days'
        GROUP BY s.stage`,
       [client.edro_id]
     );
@@ -1007,7 +1007,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       briefing_title: string; created_at: string;
       predicted_format: string | null; predicted_score: number | null;
     }>(
-      `SELECT cv.id AS copy_id, cv.content, b.platform,
+      `SELECT cv.id AS copy_id, cv.output AS content, b.payload->>'platform' AS platform,
          b.title AS briefing_title, cv.created_at::text,
          cf.format_type AS predicted_format, cf.confidence_score AS predicted_score
        FROM edro_copy_versions cv
@@ -1117,10 +1117,10 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
             [client.edro_id, thirtyDaysAgo]
           ),
           query<{ avg_hours: string }>(
-            `SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(exited_at,NOW())-entered_at))/3600) AS avg_hours
+            `SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/3600) AS avg_hours
              FROM edro_briefing_stages WHERE briefing_id IN (
                SELECT id FROM edro_briefings WHERE client_id=$1 AND created_at>=$2
-             ) AND exited_at IS NOT NULL`,
+             ) AND updated_at > created_at`,
             [client.edro_id, thirtyDaysAgo]
           ),
           query<{ total: string; approved: string }>(
@@ -1167,9 +1167,12 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
         // Count bottlenecks
         const { rows: bots } = await query<{ count: string }>(
           `SELECT COUNT(*) AS count FROM edro_briefings b
-           JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NULL
+           JOIN LATERAL (
+             SELECT created_at FROM edro_briefing_stages
+             WHERE briefing_id = b.id ORDER BY position DESC LIMIT 1
+           ) s ON TRUE
            WHERE b.client_id=$1 AND b.status NOT IN ('done','cancelled')
-             AND EXTRACT(EPOCH FROM (NOW()-s.entered_at))/3600 > 48`,
+             AND EXTRACT(EPOCH FROM (NOW()-s.created_at))/3600 > 48`,
           [client.edro_id]
         );
 
