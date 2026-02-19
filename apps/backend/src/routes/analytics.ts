@@ -578,17 +578,17 @@ Retorne JSON com exatamente esta estrutura:
     const client = await resolveEdroClient(tenantId, clientId);
     if (!client || !client.edro_id) return reply.status(404).send({ error: 'Client not found' });
 
-    // Get client keywords and segment
-    const { rows: clientInfo } = await query<{ keywords: string[]; segment: string | null; content_pillars: string[] }>(
-      `SELECT c.keywords, c.segment_primary AS segment, c.content_pillars
-       FROM clients c WHERE c.id::text = $1 OR LOWER(c.name) = LOWER($2)
-       LIMIT 1`,
-      [clientId, client.name]
+    // Get client keywords from social listening
+    const { rows: keywordRows } = await query<{ keyword: string }>(
+      `SELECT keyword FROM social_listening_keywords
+       WHERE tenant_id = $1 AND (client_id = $2 OR client_id IS NULL) AND is_active = true
+       ORDER BY created_at DESC LIMIT 20`,
+      [tenantId, clientId]
     );
 
-    const keywords = clientInfo[0]?.keywords || [];
-    const segment = clientInfo[0]?.segment || client.name;
-    const pillars = clientInfo[0]?.content_pillars || [];
+    const keywords = keywordRows.map((r) => r.keyword);
+    const segment = client.segment || client.name;
+    const pillars: string[] = [];
 
     // Get last 30 days of calendar events to understand existing coverage
     const { rows: calendarRows } = await query<{ title: string; event_date: string }>(
@@ -596,7 +596,7 @@ Retorne JSON com exatamente esta estrutura:
        WHERE client_id = $1 AND event_date >= NOW() - INTERVAL '30 days'
        ORDER BY event_date DESC LIMIT 20`,
       [client.edro_id]
-    );
+    ).catch(() => ({ rows: [] as { title: string; event_date: string }[] }));
 
     const existingTopics = calendarRows.map((e) => e.title).join(', ');
 
@@ -707,14 +707,14 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
          WHERE client_id = $1 AND EXTRACT(MONTH FROM event_date) = $2 AND EXTRACT(YEAR FROM event_date) = $3
          ORDER BY relevance_score DESC NULLS LAST LIMIT 15`,
         [client.edro_id, targetMonth, targetYear]
-      ),
+      ).catch(() => ({ rows: [] as { title: string; event_date: string; relevance_score: number | null }[] })),
       query<{ title: string; priority: string; description: string | null }>(
         `SELECT title, priority, description FROM ai_opportunities
          WHERE client_id = $1 AND status = 'active'
          ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
          LIMIT 8`,
         [client.edro_id]
-      ),
+      ).catch(() => ({ rows: [] as { title: string; priority: string; description: string | null }[] })),
     ]);
 
     const metrics = metricsRes.rows[0];
@@ -929,7 +929,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
        ORDER BY relevance_score DESC NULLS LAST, event_date ASC
        LIMIT 20`,
       [client.edro_id]
-    );
+    ).catch(() => ({ rows: [] as { title: string; event_date: string; relevance_score: number | null; category: string | null }[] }));
 
     // Get stage bottlenecks to predict lead times
     const { rows: leadTimeData } = await query<{ stage: string; avg_hours: string }>(
