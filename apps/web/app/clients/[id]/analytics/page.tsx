@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -89,12 +89,118 @@ function formatAiText(text: string) {
     .replace(/\n/g, '<br/>');
 }
 
+// ─── AI Task Progress ─────────────────────────────────────────────────────────
+
+type AIStep = { label: string; durationMs: number };
+
+function AITaskProgress({ steps, loading }: { steps: AIStep[]; loading: boolean }) {
+  const [stepIdx, setStepIdx] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const interval = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    if (interval.current) clearInterval(interval.current);
+
+    if (!loading) { setStepIdx(0); setElapsed(0); return; }
+
+    setStepIdx(0);
+    setElapsed(0);
+
+    let cumMs = 0;
+    steps.forEach((_, i) => {
+      if (i === 0) return;
+      cumMs += steps[i - 1].durationMs;
+      const t = setTimeout(() => setStepIdx(i), cumMs);
+      timers.current.push(t);
+    });
+
+    interval.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => {
+      timers.current.forEach(clearTimeout);
+      if (interval.current) clearInterval(interval.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  if (!loading) return null;
+
+  return (
+    <Card variant="outlined" sx={{ mt: 2, borderColor: 'rgba(124,58,237,0.25)', bgcolor: 'rgba(124,58,237,0.02)' }}>
+      <CardContent sx={{ py: 3 }}>
+        <Stack spacing={2.5}>
+          {/* Header */}
+          <Stack direction="row" spacing={2} alignItems="center">
+            <CircularProgress size={32} sx={{ color: '#7c3aed', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700} color="#7c3aed">
+                {steps[stepIdx]?.label}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {elapsed}s decorridos · isso pode levar alguns segundos
+              </Typography>
+            </Box>
+          </Stack>
+
+          {/* Step list */}
+          <Stack spacing={1}>
+            {steps.map((step, i) => (
+              <Stack key={i} direction="row" spacing={1.5} alignItems="center">
+                <Box sx={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  bgcolor: i < stepIdx ? '#13DEB9' : i === stepIdx ? '#7c3aed' : 'action.hover',
+                  color: i <= stepIdx ? '#fff' : 'text.disabled',
+                  fontSize: 10, fontWeight: 700,
+                  transition: 'background 0.4s ease',
+                }}>
+                  {i < stepIdx ? '✓' : i + 1}
+                </Box>
+                <Typography variant="body2" sx={{
+                  fontWeight: i === stepIdx ? 600 : 400,
+                  color: i < stepIdx ? 'text.secondary' : i === stepIdx ? 'text.primary' : 'text.disabled',
+                  textDecoration: i < stepIdx ? 'line-through' : 'none',
+                  opacity: i > stepIdx ? 0.5 : 1,
+                  transition: 'all 0.4s ease',
+                }}>
+                  {step.label}
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+
+          {/* Overall progress bar */}
+          <LinearProgress
+            variant="determinate"
+            value={steps.length > 1 ? Math.min((stepIdx / (steps.length - 1)) * 100, 98) : 50}
+            sx={{
+              height: 4, borderRadius: 2, bgcolor: 'rgba(124,58,237,0.1)',
+              '& .MuiLinearProgress-bar': { bgcolor: '#7c3aed', borderRadius: 2 },
+            }}
+          />
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 const positionLabel: Record<string, string> = {
   top_quartile: 'Top 25%', above_average: 'Acima da média', average: 'Na média', below_average: 'Abaixo da média',
 };
 const positionColor: Record<string, string> = {
   top_quartile: '#13DEB9', above_average: '#5D87FF', average: '#FFAE1F', below_average: '#FA896B',
 };
+
+function toFriendlyErrorMessage(err: any) {
+  const raw = String(err?.message || '').trim();
+  if (!raw) return 'Erro ao carregar dados de analytics.';
+  if (/not linked to edro/i.test(raw) || /client not found/i.test(raw)) {
+    return 'Cliente sem vínculo com a base Edro para Analytics. Verifique o cadastro/vínculo do cliente.';
+  }
+  return raw;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -132,65 +238,54 @@ export default function ClientAnalyticsPage() {
   const [calendar, setCalendar] = useState<PredictiveCalendar | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  const wrap = async (fn: () => Promise<void>) => {
+  const wrap = async (setLoading: (value: boolean) => void, fn: () => Promise<void>) => {
     setError('');
-    try { await fn(); } catch (e: any) { setError(e?.message || 'Erro ao carregar.'); }
+    setLoading(true);
+    try {
+      await fn();
+    } catch (e: any) {
+      setError(toFriendlyErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadHealth = () => wrap(async () => {
-    setHealthLoading(true);
+  const loadHealth = () => wrap(setHealthLoading, async () => {
     setHealthScore(await apiGet<HealthScore>(`/clients/${clientId}/health-score`));
-    setHealthLoading(false);
   });
 
-  const loadAlerts = () => wrap(async () => {
-    setAlertsLoading(true);
+  const loadAlerts = () => wrap(setAlertsLoading, async () => {
     setAlerts(await apiGet<BottleneckAlerts>(`/clients/${clientId}/bottleneck-alerts`));
-    setAlertsLoading(false);
   });
 
-  const loadPov = () => wrap(async () => {
-    setPovLoading(true);
+  const loadPov = () => wrap(setPovLoading, async () => {
     setPov(await apiPost<ProofOfValue>(`/clients/${clientId}/proof-of-value`, {
       retainer_value: retainerValue ? parseFloat(retainerValue) : undefined,
     }));
-    setPovLoading(false);
   });
 
-  const loadBrandVoice = () => wrap(async () => {
-    setBrandVoiceLoading(true);
+  const loadBrandVoice = () => wrap(setBrandVoiceLoading, async () => {
     setBrandVoice(await apiGet<BrandVoice>(`/clients/${clientId}/brand-voice`));
-    setBrandVoiceLoading(false);
   });
 
-  const loadBenchmark = () => wrap(async () => {
-    setBenchmarkLoading(true);
+  const loadBenchmark = () => wrap(setBenchmarkLoading, async () => {
     setBenchmark(await apiGet<BenchmarkData>(`/clients/${clientId}/benchmark`));
-    setBenchmarkLoading(false);
   });
 
-  const loadGaps = () => wrap(async () => {
-    setGapsLoading(true);
+  const loadGaps = () => wrap(setGapsLoading, async () => {
     setGaps(await apiPost<ContentGap>(`/clients/${clientId}/content-gap`, {}));
-    setGapsLoading(false);
   });
 
-  const loadBrief = () => wrap(async () => {
-    setBriefLoading(true);
+  const loadBrief = () => wrap(setBriefLoading, async () => {
     setBrief(await apiPost<StrategicBrief>(`/clients/${clientId}/strategic-brief`, {}));
-    setBriefLoading(false);
   });
 
-  const loadRoi = () => wrap(async () => {
-    setRoiLoading(true);
+  const loadRoi = () => wrap(setRoiLoading, async () => {
     setRoi(await apiGet<RoiData>(`/clients/${clientId}/roi-retainer${retainerValue ? `?retainer_value=${retainerValue}` : ''}`));
-    setRoiLoading(false);
   });
 
-  const loadCalendar = () => wrap(async () => {
-    setCalendarLoading(true);
+  const loadCalendar = () => wrap(setCalendarLoading, async () => {
     setCalendar(await apiGet<PredictiveCalendar>(`/clients/${clientId}/predictive-calendar`));
-    setCalendarLoading(false);
   });
 
   const tabs = [
@@ -347,6 +442,12 @@ export default function ClientAnalyticsPage() {
             </Button>
           </Stack>
 
+          <AITaskProgress loading={povLoading} steps={[
+            { label: 'Calculando métricas de produção', durationMs: 2000 },
+            { label: 'Estimando valor de mercado gerado', durationMs: 3000 },
+            { label: 'Redigindo narrativa executiva com IA', durationMs: 6000 },
+          ]} />
+
           {pov && (
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -401,9 +502,16 @@ export default function ClientAnalyticsPage() {
         <Box>
           <Button variant="contained" startIcon={brandVoiceLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconDna size={18} />}
             onClick={loadBrandVoice} disabled={brandVoiceLoading}
-            sx={{ mb: 3, bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4d77ef' } }}>
+            sx={{ mb: brandVoiceLoading ? 0 : 3, bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4d77ef' } }}>
             {brandVoiceLoading ? 'Analisando copies...' : 'Extrair DNA de Marca'}
           </Button>
+
+          <AITaskProgress loading={brandVoiceLoading} steps={[
+            { label: 'Buscando copies aprovadas', durationMs: 2000 },
+            { label: 'Extraindo padrões de linguagem', durationMs: 7000 },
+            { label: 'Analisando tom e personalidade', durationMs: 8000 },
+            { label: 'Estruturando DNA da marca', durationMs: 6000 },
+          ]} />
 
           {brandVoice && brandVoice.dna && (
             <Grid container spacing={3}>
@@ -546,9 +654,16 @@ export default function ClientAnalyticsPage() {
         <Box>
           <Button variant="contained" startIcon={gapsLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconSearch size={18} />}
             onClick={loadGaps} disabled={gapsLoading}
-            sx={{ mb: 3, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            sx={{ mb: gapsLoading ? 0 : 3, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
             {gapsLoading ? 'Pesquisando tendências...' : 'Detectar Content Gaps'}
           </Button>
+
+          <AITaskProgress loading={gapsLoading} steps={[
+            { label: 'Analisando conteúdo existente', durationMs: 2000 },
+            { label: 'Pesquisando tendências de mercado via Perplexity', durationMs: 12000 },
+            { label: 'Identificando lacunas de conteúdo', durationMs: 10000 },
+            { label: 'Estruturando oportunidades com IA', durationMs: 8000 },
+          ]} />
 
           {gaps && (
             <Box>
@@ -598,9 +713,16 @@ export default function ClientAnalyticsPage() {
         <Box>
           <Button variant="contained" startIcon={briefLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconRobot size={18} />}
             onClick={loadBrief} disabled={briefLoading}
-            sx={{ mb: 3, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>
+            sx={{ mb: briefLoading ? 0 : 3, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>
             {briefLoading ? 'Elaborando estratégia...' : 'Gerar Planejamento Estratégico'}
           </Button>
+
+          <AITaskProgress loading={briefLoading} steps={[
+            { label: 'Coletando dados do período', durationMs: 2000 },
+            { label: 'Analisando briefings e calendário', durationMs: 6000 },
+            { label: 'Construindo estratégia com Claude AI', durationMs: 16000 },
+            { label: 'Refinando planejamento mensal', durationMs: 8000 },
+          ]} />
 
           {brief && (
             <Card variant="outlined" sx={{ borderColor: '#7c3aed', borderWidth: 2 }}>
