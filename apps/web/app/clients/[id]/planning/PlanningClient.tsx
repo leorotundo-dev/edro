@@ -10,6 +10,8 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import Link from 'next/link';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -58,6 +60,9 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [copies, setCopies] = useState<Copy[]>([]);
   const [outputsLoading, setOutputsLoading] = useState(false);
+
+  // Intelligence Score (from profile/suggestions)
+  const [intelligenceScore, setIntelligenceScore] = useState<number | null>(null);
 
   // AI Chat
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -208,6 +213,9 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       loadOpportunities();
       loadOutputs();
       loadProviders();
+      apiGet<{ intelligence_score?: number }>(`/clients/${clientId}/suggestions`)
+        .then((res) => { if (!cancelled) setIntelligenceScore(Number(res?.intelligence_score || 0)); })
+        .catch(() => {});
     }
     init();
     return () => { cancelled = true; };
@@ -412,9 +420,48 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Stats Bar */}
       <Card sx={sectionCardSx}>
-        <CardContent sx={{ py: 0.75, px: 2, '&:last-child': { pb: 0.75 } }}>
+        <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+          {/* Intelligence Score row */}
+          {intelligenceScore !== null && (
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: intelligenceStats ? 1 : 0 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, whiteSpace: 'nowrap', minWidth: 110 }}>
+                IA Readiness
+              </Typography>
+              <Box sx={{ flex: 1, position: 'relative' }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={intelligenceScore}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: 'grey.100',
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 4,
+                      bgcolor: intelligenceScore >= 85 ? '#16a34a' : intelligenceScore >= 60 ? '#2563eb' : intelligenceScore >= 30 ? '#d97706' : '#dc2626',
+                    },
+                  }}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 32, textAlign: 'right' }}>
+                {intelligenceScore}%
+              </Typography>
+              {intelligenceScore < 60 && (
+                <Tooltip title="Preencha o perfil do cliente para melhorar a qualidade das sugestões de IA" arrow>
+                  <Typography
+                    variant="caption"
+                    component={Link}
+                    href={`/clients/${clientId}/perfil`}
+                    sx={{ color: '#d97706', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, whiteSpace: 'nowrap' }}
+                  >
+                    Melhorar perfil →
+                  </Typography>
+                </Tooltip>
+              )}
+            </Stack>
+          )}
+
           <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
-            {intelligenceStats && (() => {
+            {intelligenceStats ? (() => {
               const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
               const items = [
                 { key: 'library', label: 'Library', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={14} /> },
@@ -456,7 +503,13 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                   )}
                 </Stack>
               );
-            })()}
+            })() : (
+              !contextLoading && (
+                <Typography variant="caption" color="text.secondary">
+                  Clique em Refresh para carregar o contexto de inteligência.
+                </Typography>
+              )
+            )}
 
             <Stack direction="row" spacing={0.5} alignItems="center">
               {(contextLoading || healthLoading) && <CircularProgress size={14} />}
@@ -465,6 +518,9 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
               </Button>
             </Stack>
           </Stack>
+          {(contextLoading || healthLoading) && (
+            <LinearProgress sx={{ mt: 1, height: 2, borderRadius: 1 }} />
+          )}
         </CardContent>
       </Card>
 
