@@ -954,8 +954,14 @@ export default async function calendarRoutes(app: FastifyInstance) {
 
       for (const hit of hits) {
         const override = overrideMap.get(hit.event.id);
-        const eligibility = checkCalendarEventEligibility(hit.event, client, override);
-        if (!eligibility.ok) continue;
+
+        if (showAll) {
+          // In browse mode: only skip events explicitly force-excluded
+          if ((override as any)?.force_exclude) continue;
+        } else {
+          const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+          if (!eligibility.ok) continue;
+        }
 
         const relevance = scoreCalendarEventForClient(hit.event, client, override);
         if (!showAll && !override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
