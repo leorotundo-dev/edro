@@ -1205,23 +1205,40 @@ export default function EditorClient() {
                                         )}
                                       </Box>
 
-                                      {/* Legenda — caption do post nas redes sociais */}
+                                      {/* Legenda */}
                                       {option.legenda && (
                                         <Box sx={{ mb: 1.5, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
-                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.5 }}>
-                                            Legenda do post
+                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                            Legenda
                                           </Typography>
-                                          <Typography variant="body2" color="text.secondary"
-                                            sx={{ whiteSpace: 'pre-line' }}>
+                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
                                             {option.legenda}
                                           </Typography>
                                         </Box>
                                       )}
 
+                                      {/* Hashtags */}
+                                      {option.hashtags && (
+                                        <Box sx={{ mb: 1.5, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                            Hashtags
+                                          </Typography>
+                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {option.hashtags}
+                                          </Typography>
+                                        </Box>
+                                      )}
+
+                                      {/* CTA */}
                                       {option.cta && (
-                                        <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1.25 }}>
-                                          CTA: {option.cta}
-                                        </Typography>
+                                        <Box sx={{ pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                            CTA
+                                          </Typography>
+                                          <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
+                                            {option.cta}
+                                          </Typography>
+                                        </Box>
                                       )}
 
                                       <Box sx={{ mt: 'auto', pt: 1 }}>
