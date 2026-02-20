@@ -28,9 +28,7 @@ type LiveMockupPreviewProps = {
   copy?: string | null;
   option?: CopyOption | null;
   legenda?: string | null;
-  bestPractices?: string[] | null;
   maxChars?: Record<string, number> | null;
-  notes?: string | null;
   brandName?: string | null;
   className?: string;
   showHeader?: boolean;
@@ -232,9 +230,7 @@ export default function LiveMockupPreview({
   copy,
   option,
   legenda,
-  bestPractices,
   maxChars,
-  notes,
   brandName,
   className,
   showHeader = true,
@@ -470,7 +466,6 @@ export default function LiveMockupPreview({
     ]
   );
 
-  const practiceItems = (bestPractices || []).map((item) => item.trim()).filter(Boolean);
   const counters = [
     headlineLimit
       ? { label: 'Headline', count: rawHeadline.length, limit: headlineLimit }
@@ -594,26 +589,6 @@ export default function LiveMockupPreview({
         </div>
       ) : null}
 
-      {practiceItems.length ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-semibold">
-            Boas praticas
-          </div>
-          <ul className="mt-2 space-y-1 text-xs text-slate-600">
-            {practiceItems.slice(0, 5).map((item, index) => (
-              <li key={`${item}-${index}`} className="flex items-start gap-2">
-                <span className="mt-0.5 text-primary">•</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-          {notes ? <div className="mt-2 text-[11px] text-slate-400">{notes}</div> : null}
-        </div>
-      ) : notes ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
-          {notes}
-        </div>
-      ) : null}
 
       {counters.length ? (
         <div className="mt-3 flex flex-wrap gap-2 text-[11px]">

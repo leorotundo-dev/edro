@@ -1024,17 +1024,10 @@ export default function EditorClient() {
                         copy={output}
                         option={selectedOptionData}
                         legenda={selectedOptionData?.legenda || null}
-                        bestPractices={catalogItem?.best_practices}
                         maxChars={catalogItem?.max_chars}
-                        notes={catalogItem?.notes}
                         brandName={briefing?.client_name}
                         showHeader={false}
                       />
-                      {catalogLoading ? (
-                        <Typography variant="overline" color="text.disabled" sx={{ mt: 1 }}>
-                          carregando boas praticas...
-                        </Typography>
-                      ) : null}
                     </CardContent>
                   </Card>
                 </Grid>
