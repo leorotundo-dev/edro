@@ -1,13 +1,13 @@
 ﻿{
-    "generated_at":  "2026-02-20T12:13:47",
+    "generated_at":  "2026-02-20T12:18:25",
     "web":  {
                 "service":  "edro-web",
-                "deployment_id":  "4bed8e13-cf86-49aa-8244-5a73659de7f0",
-                "status":  "INITIALIZING"
+                "deployment_id":  "1c9b91c9-19f0-46a1-8ef0-3dc0e81c359a",
+                "status":  "BUILDING"
             },
     "backend":  {
                     "service":  "edro-backend",
-                    "deployment_id":  "c0a57d70-a3df-4d0c-9c54-2726dec7f7a5",
+                    "deployment_id":  "227effe1-9691-4b24-b34d-29c9f1d1e304",
                     "status":  "BUILDING"
                 }
 }
