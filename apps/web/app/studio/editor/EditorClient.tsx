@@ -1172,12 +1172,12 @@ export default function EditorClient() {
                                           </Typography>
                                         )}
                                         {option.body && (
-                                          <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
                                             {option.body}
                                           </Typography>
                                         )}
                                         {!option.title && !option.body && (
-                                          <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
                                             {option.raw}
                                           </Typography>
                                         )}
@@ -1190,7 +1190,7 @@ export default function EditorClient() {
                                             Legenda do post
                                           </Typography>
                                           <Typography variant="body2" color="text.secondary"
-                                            sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', whiteSpace: 'pre-line' }}>
+                                            sx={{ whiteSpace: 'pre-line' }}>
                                             {option.legenda}
                                           </Typography>
                                         </Box>
