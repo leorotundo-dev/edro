@@ -1423,7 +1423,7 @@ export default function BriefClient() {
                         <Card
                           key={evt.id || idx}
                           variant="outlined"
-                          onClick={() => handleEventPick(evt)}
+                          onClick={() => handleEventPick({ ...evt, date: selectedDay })}
                           sx={{
                             cursor: 'pointer',
                             '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.02)' },
