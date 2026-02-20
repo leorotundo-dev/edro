@@ -139,6 +139,19 @@ export default function PerfilPage() {
     intelligence_score: 0,
   });
 
+  const loadClient = async () => {
+    try {
+      const clientRes = await apiGet(`/clients/${clientId}`);
+      const payload =
+        (clientRes as { client?: ClientData })?.client ??
+        (clientRes as { data?: { client?: ClientData } })?.data?.client ??
+        (clientRes as { data?: ClientData })?.data ??
+        (clientRes as ClientData) ??
+        null;
+      if (payload) setClient(payload);
+    } catch {}
+  };
+
   const loadSuggestions = async () => {
     try {
       const res = await apiGet<SuggestionsPayload>(`/clients/${clientId}/suggestions`);
@@ -154,6 +167,10 @@ export default function PerfilPage() {
         enrichment_status: prev.enrichment_status || 'pending',
       }));
     }
+  };
+
+  const onProfileChanged = async () => {
+    await Promise.all([loadClient(), loadSuggestions()]);
   };
 
   useEffect(() => {
@@ -302,7 +319,7 @@ export default function PerfilPage() {
               sectionRefreshedAt.strategy ||
               null
             }
-            onRefreshRequested={loadSuggestions}
+            onRefreshRequested={onProfileChanged}
           />
 
           <ManualFieldsChecklist fields={missingManual} />
@@ -328,7 +345,7 @@ export default function PerfilPage() {
                 suggestion={profileSuggestions.identity}
                 refreshedAt={sectionRefreshedAt.identity}
                 existingValues={sectionExistingValues.identity}
-                onChanged={loadSuggestions}
+                onChanged={onProfileChanged}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -340,7 +357,7 @@ export default function PerfilPage() {
                 suggestion={profileSuggestions.voice}
                 refreshedAt={sectionRefreshedAt.voice}
                 existingValues={sectionExistingValues.voice}
-                onChanged={loadSuggestions}
+                onChanged={onProfileChanged}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -352,7 +369,7 @@ export default function PerfilPage() {
                 suggestion={profileSuggestions.strategy}
                 refreshedAt={sectionRefreshedAt.strategy}
                 existingValues={sectionExistingValues.strategy}
-                onChanged={loadSuggestions}
+                onChanged={onProfileChanged}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -364,7 +381,7 @@ export default function PerfilPage() {
                 suggestion={profileSuggestions.competitors}
                 refreshedAt={sectionRefreshedAt.competitors}
                 existingValues={sectionExistingValues.competitors}
-                onChanged={loadSuggestions}
+                onChanged={onProfileChanged}
               />
             </Grid>
             <Grid size={{ xs: 12 }}>
@@ -376,7 +393,7 @@ export default function PerfilPage() {
                 suggestion={profileSuggestions.calendar}
                 refreshedAt={sectionRefreshedAt.calendar}
                 existingValues={sectionExistingValues.calendar}
-                onChanged={loadSuggestions}
+                onChanged={onProfileChanged}
               />
             </Grid>
           </Grid>
