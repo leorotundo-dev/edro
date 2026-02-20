@@ -94,12 +94,14 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
         <div className="flex items-center gap-3">
           {/* Avatar com anel de story */}
           <div className="rounded-full p-[2px] flex-shrink-0"
-               style={{ background: 'linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)' }}>
+               style={{ background: arteBgColor
+                 ? `linear-gradient(45deg, ${arteBgColor}, ${arteBgColor}bb)`
+                 : 'linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)' }}>
             <div className="rounded-full border-2 border-white overflow-hidden" style={{ width: 36, height: 36 }}>
               {profileImage ? (
                 <img src={profileImage} alt={username} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full" style={{ background: '#e2e8f0' }} />
+                <div className="w-full h-full" style={{ background: arteBgColor || '#e2e8f0' }} />
               )}
             </div>
           </div>
