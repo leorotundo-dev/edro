@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,12 +11,14 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
@@ -27,11 +29,14 @@ import {
   IconBrandX,
   IconBrandYoutube,
   IconBulb,
+  IconCheck,
+  IconEdit,
   IconExternalLink,
   IconHash,
   IconPlugConnected,
   IconTarget,
   IconUserSquare,
+  IconX,
 } from '@tabler/icons-react';
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
 import ContentGapSection from '../analytics/sections/ContentGapSection';
@@ -139,6 +144,10 @@ export default function PerfilPage() {
     intelligence_score: 0,
   });
 
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [identityForm, setIdentityForm] = useState({ segment_primary: '', segment_secondary: '', city: '', uf: '', country: '' });
+  const [savingIdentity, setSavingIdentity] = useState(false);
+
   const loadClient = async () => {
     try {
       const clientRes = await apiGet(`/clients/${clientId}`);
@@ -171,6 +180,36 @@ export default function PerfilPage() {
 
   const onProfileChanged = async () => {
     await Promise.all([loadClient(), loadSuggestions()]);
+  };
+
+  const openIdentityEdit = () => {
+    setIdentityForm({
+      segment_primary: client?.segment_primary || '',
+      segment_secondary: (client?.segment_secondary || []).join(', '),
+      city: client?.city || '',
+      uf: client?.uf || '',
+      country: client?.country || '',
+    });
+    setEditingIdentity(true);
+  };
+
+  const saveIdentity = async () => {
+    setSavingIdentity(true);
+    try {
+      await apiPatch(`/clients/${clientId}`, {
+        segment_primary: identityForm.segment_primary.trim() || null,
+        segment_secondary: identityForm.segment_secondary
+          ? identityForm.segment_secondary.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+          : [],
+        city: identityForm.city.trim() || null,
+        uf: identityForm.uf.trim() || null,
+        country: identityForm.country.trim() || null,
+      });
+      setEditingIdentity(false);
+      await loadClient();
+    } finally {
+      setSavingIdentity(false);
+    }
   };
 
   useEffect(() => {
@@ -400,21 +439,80 @@ export default function PerfilPage() {
 
           <Card variant="outlined">
             <CardContent>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
-                <Avatar sx={{ bgcolor: '#fff1e6', color: '#ff6600', width: 36, height: 36 }}>
-                  <IconUserSquare size={20} />
-                </Avatar>
-                <Typography variant="h6" fontWeight={700}>Identidade do Cliente</Typography>
+              <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Avatar sx={{ bgcolor: '#fff1e6', color: '#ff6600', width: 36, height: 36 }}>
+                    <IconUserSquare size={20} />
+                  </Avatar>
+                  <Typography variant="h6" fontWeight={700}>Identidade do Cliente</Typography>
+                </Stack>
+                {!editingIdentity ? (
+                  <Tooltip title="Editar segmento e localização">
+                    <IconButton size="small" onClick={openIdentityEdit}>
+                      <IconEdit size={16} />
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Stack direction="row" spacing={0.5}>
+                    <IconButton size="small" color="success" onClick={saveIdentity} disabled={savingIdentity}>
+                      {savingIdentity ? <CircularProgress size={14} /> : <IconCheck size={16} />}
+                    </IconButton>
+                    <IconButton size="small" onClick={() => setEditingIdentity(false)} disabled={savingIdentity}>
+                      <IconX size={16} />
+                    </IconButton>
+                  </Stack>
+                )}
               </Stack>
+
               {kb.description && (
                 <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, mb: 2 }}>
                   {kb.description}
                 </Typography>
               )}
+
+              <Collapse in={editingIdentity} unmountOnExit>
+                <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Segmento primário"
+                      value={identityForm.segment_primary}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, segment_primary: e.target.value }))} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="Segmentos secundários" placeholder="Ex: mobilidade, saúde"
+                      value={identityForm.segment_secondary}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, segment_secondary: e.target.value }))}
+                      helperText="Separe por vírgula" />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField fullWidth size="small" label="Cidade"
+                      value={identityForm.city}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, city: e.target.value }))} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField fullWidth size="small" label="Estado (UF)"
+                      value={identityForm.uf}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, uf: e.target.value }))} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField fullWidth size="small" label="País"
+                      value={identityForm.country}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, country: e.target.value }))} />
+                  </Grid>
+                </Grid>
+                <Divider sx={{ mb: 2 }} />
+              </Collapse>
+
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="caption" color="text.secondary">Segmento</Typography>
                   <Typography variant="subtitle2">{client?.segment_primary || '--'}</Typography>
+                  {(client?.segment_secondary || []).length > 0 && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                      {(client?.segment_secondary || []).map((s) => (
+                        <Chip key={s} size="small" label={s} variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                      ))}
+                    </Stack>
+                  )}
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="caption" color="text.secondary">Tom de voz</Typography>
