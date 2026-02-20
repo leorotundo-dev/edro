@@ -301,7 +301,13 @@ export default function ClientsListClient() {
                   </Stack>
 
                   {client.urgent_tasks ? (
-                    <Chip size="small" color="warning" label={`${client.urgent_tasks} tarefas urgentes`} />
+                    <Chip
+                      size="small"
+                      color="warning"
+                      label={`${client.urgent_tasks} tarefas urgentes`}
+                      onClick={(e) => { e.stopPropagation(); router.push(`/clients/${client.id}/planning`); }}
+                      sx={{ cursor: 'pointer' }}
+                    />
                   ) : null}
                 </CardContent>
               </Card>

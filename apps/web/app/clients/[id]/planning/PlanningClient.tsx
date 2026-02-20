@@ -446,7 +446,13 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                     );
                   })}
                   {(intelligenceStats.opportunities?.urgent ?? 0) > 0 && (
-                    <Chip size="small" color="error" label={`${intelligenceStats.opportunities?.urgent ?? 0} urgente`} sx={{ fontWeight: 700 }} />
+                    <Chip
+                      size="small"
+                      color="error"
+                      label={`${intelligenceStats.opportunities?.urgent ?? 0} urgente`}
+                      sx={{ fontWeight: 700, cursor: 'pointer' }}
+                      onClick={() => document.getElementById('opportunities-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    />
                   )}
                 </Stack>
               );
@@ -497,7 +503,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                 onAddReference={addReference}
               />
             </Box>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <Box id="opportunities-section" sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
               <OpportunitiesList
                 opportunities={opportunities}
                 loading={opportunitiesLoading}

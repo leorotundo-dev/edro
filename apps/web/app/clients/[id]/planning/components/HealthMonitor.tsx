@@ -181,6 +181,8 @@ export default function HealthMonitor({ clientId, healthData, loading, onRefresh
               label={`${warningCount} ⚠️`}
               color="warning"
               variant="outlined"
+              onClick={() => setExpanded(true)}
+              sx={{ cursor: 'pointer' }}
             />
           )}
           {errorCount > 0 && (
@@ -189,6 +191,8 @@ export default function HealthMonitor({ clientId, healthData, loading, onRefresh
               label={`${errorCount} ❌`}
               color="error"
               variant="outlined"
+              onClick={() => setExpanded(true)}
+              sx={{ cursor: 'pointer' }}
             />
           )}
         </Stack>

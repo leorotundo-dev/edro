@@ -983,7 +983,21 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
       {error && <Alert severity="error">{error}</Alert>}
       {success && <Alert severity="success">{success}</Alert>}
       {planMissing.length > 0 && (
-        <Alert severity="warning">
+        <Alert
+          severity="warning"
+          action={
+            selectedId ? (
+              <Button
+                size="small"
+                color="warning"
+                variant="outlined"
+                onClick={() => { window.location.href = `/clients/${selectedId}`; }}
+              >
+                Completar perfil
+              </Button>
+            ) : undefined
+          }
+        >
           Informações faltando: {planMissing.map((key) => missingLabels[key] || key).join(', ')}.
         </Alert>
       )}

@@ -868,7 +868,16 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
       {/* Alertas críticos */}
       {(planningAlerts.length > 0 || opportunitiesUrgentCount > 0) && (
-        <Card sx={{ borderRadius: 2, border: '1px solid #fecaca', bgcolor: '#fff1f2' }}>
+        <Card
+          component={Link}
+          href={`/clients/${clientId}/planning`}
+          sx={{
+            borderRadius: 2, border: '1px solid #fecaca', bgcolor: '#fff1f2',
+            textDecoration: 'none', display: 'block',
+            cursor: 'pointer', transition: 'box-shadow 0.15s',
+            '&:hover': { boxShadow: 3, borderColor: '#f87171' },
+          }}
+        >
           <CardContent sx={{ py: 1.5, px: 2 }}>
             <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
               <IconAlertTriangle size={18} color="#dc2626" />
@@ -894,6 +903,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 700 }}
                 />
               )}
+              <Typography variant="caption" color="error.main" sx={{ ml: 'auto', fontWeight: 600 }}>
+                Ver planning →
+              </Typography>
             </Stack>
           </CardContent>
         </Card>
@@ -965,7 +977,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               { label: 'Social (7d)', value: formatNumber(socialStats?.summary?.total), sub: `Sentimento: ${formatPercent(socialStats?.summary?.avg_score ?? null)}`, icon: IconAntenna, color: SECTION_COLORS.social },
               { label: 'Radar', value: formatNumber(radarMatch?.score), sub: radarMatch?.title || 'Sem radar', icon: IconTarget, color: SECTION_COLORS.radar, href: radarDetailHref || undefined },
               { label: 'Calendario', value: formatNumber(calendarItems.length), sub: `Alta relev.: ${formatNumber(calendarHighRelevanceCount)}`, icon: IconCalendar, color: SECTION_COLORS.calendar },
-              { label: 'Oportunidades', value: formatNumber(opportunities.length), sub: `Urgentes: ${formatNumber(opportunitiesUrgentCount)}`, icon: IconBulb, color: SECTION_COLORS.opportunities, alert: opportunitiesUrgentCount > 0 },
+              { label: 'Oportunidades', value: formatNumber(opportunities.length), sub: `Urgentes: ${formatNumber(opportunitiesUrgentCount)}`, icon: IconBulb, color: SECTION_COLORS.opportunities, alert: opportunitiesUrgentCount > 0, href: `/clients/${clientId}/planning` },
               { label: 'Performance', value: reporteiConfigured ? 'OK' : '--', sub: reporteiConfigured ? `Atualizado: ${formatDate(reportei?.updated_at || null)}` : 'Reportei nao configurado', icon: IconChartBar, color: SECTION_COLORS.performance },
               { label: 'Biblioteca', value: formatNumber(planningStats?.library?.totalItems), sub: 'Itens prontos para IA', icon: IconBook2, color: SECTION_COLORS.library },
               { label: 'Creative', value: formatNumber(planningStats?.briefings?.pending), sub: `Copies (90d): ${formatNumber(planningStats?.copies?.recentHashes)}`, icon: IconSparkles, color: SECTION_COLORS.creative },
