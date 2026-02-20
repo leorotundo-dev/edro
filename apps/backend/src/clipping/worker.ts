@@ -108,6 +108,17 @@ function titleHash(title: string) {
   return crypto.createHash('md5').update(normalized).digest('hex');
 }
 
+function parsePublishedAt(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function isHttpUrl(value?: string | null) {
   if (!value) return false;
   return value.startsWith('http://') || value.startsWith('https://');
@@ -651,59 +662,71 @@ function extractUrlCandidatesFromHtml(html: string, baseUrl: string, sourceUrl: 
 
 async function ingestFeedItems(feed: any, source: ClippingSource) {
   let inserted = 0;
+  let skippedWithError = 0;
 
   for (const item of feed.items || []) {
-    const url = (item.link || item.guid || '').trim();
-    if (!url) continue;
-    const title = (item.title || 'Untitled').trim();
-    const snippet = (item.contentSnippet || item.content || item.summary || '').toString().slice(0, 600);
+    try {
+      const url = (item.link || item.guid || '').trim();
+      if (!url) continue;
+      const title = (item.title || 'Untitled').trim();
+      const snippet = (item.contentSnippet || item.content || item.summary || '').toString().slice(0, 600);
 
-    // Source-level include/exclude filter
-    if (!shouldIngestItem(title, snippet, source)) continue;
+      // Source-level include/exclude filter
+      if (!shouldIngestItem(title, snippet, source)) continue;
 
-    // Title dedup check
-    const tHash = titleHash(title);
-    const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
-    if (isDupe) continue;
+      // Title dedup check
+      const tHash = titleHash(title);
+      const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+      if (isDupe) continue;
 
-    const publishedAt = item.isoDate || item.pubDate || null;
-    const imageUrl = extractImageFromRssItem(item);
-    const type = source.type === 'YOUTUBE' ? 'TREND' : 'NEWS';
-    const segments = inferSegments(`${title} ${snippet}`, source.tags ?? []);
-    const score = computeScore({ publishedAt, segments, type });
+      const publishedAtRaw = item.isoDate || item.pubDate || null;
+      const publishedAt = parsePublishedAt(publishedAtRaw);
+      const imageUrl = extractImageFromRssItem(item);
+      const type = source.type === 'YOUTUBE' ? 'TREND' : 'NEWS';
+      const segments = inferSegments(`${title} ${snippet}`, source.tags ?? []);
+      const score = computeScore({ publishedAt: publishedAtRaw, segments, type });
 
-    const { rows: insertedRows } = await query<{ id: string }>(
-      `
-      INSERT INTO clipping_items
-        (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
-      VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-      ON CONFLICT (tenant_id, url_hash) DO NOTHING
-      RETURNING id
-      `,
-      [
-        source.tenant_id,
-        source.id,
-        title,
-        url,
-        hashUrl(normalizeUrlForHash(url)),
-        tHash,
-        publishedAt ? new Date(publishedAt) : null,
-        snippet,
-        imageUrl,
-        type,
-        segments,
-        score,
-        source.country ?? null,
-        source.uf ?? null,
-        source.city ?? null,
-      ]
-    );
+      const { rows: insertedRows } = await query<{ id: string }>(
+        `
+        INSERT INTO clipping_items
+          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
+        VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        ON CONFLICT (tenant_id, url_hash) DO NOTHING
+        RETURNING id
+        `,
+        [
+          source.tenant_id,
+          source.id,
+          title,
+          url,
+          hashUrl(normalizeUrlForHash(url)),
+          tHash,
+          publishedAt,
+          snippet,
+          imageUrl,
+          type,
+          segments,
+          score,
+          source.country ?? null,
+          source.uf ?? null,
+          source.city ?? null,
+        ]
+      );
 
-    if (insertedRows[0]) {
-      inserted += 1;
-      await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+      if (insertedRows[0]) {
+        inserted += 1;
+        await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+      }
+    } catch (error: any) {
+      skippedWithError += 1;
+      const message = safeErrorMessage(error, 'ingest_item_failed');
+      console.warn(`[clipping] source ${source.id} skipped feed item due to error: ${message}`);
     }
+  }
+
+  if (skippedWithError > 0) {
+    console.warn(`[clipping] source ${source.id} skipped ${skippedWithError} feed item(s) with parse/insert errors`);
   }
 
   return inserted;
@@ -750,54 +773,65 @@ async function ingestUrlSource(source: ClippingSource) {
   const candidates = extractUrlCandidatesFromHtml(html, finalUrl, source.url);
   const maxInsert = getUrlSourceMaxItems();
   let inserted = 0;
+  let skippedWithError = 0;
 
   for (const candidate of candidates) {
     if (inserted >= maxInsert) break;
 
-    const snippet = '';
+    try {
+      const snippet = '';
 
-    if (!shouldIngestItem(candidate.title, snippet, source)) continue;
+      if (!shouldIngestItem(candidate.title, snippet, source)) continue;
 
-    const tHash = titleHash(candidate.title);
-    const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
-    if (isDupe) continue;
+      const tHash = titleHash(candidate.title);
+      const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+      if (isDupe) continue;
 
-    const type = 'NEWS';
-    const segments = inferSegments(candidate.title, source.tags ?? []);
-    const score = computeScore({ publishedAt: null, segments, type });
+      const type = 'NEWS';
+      const segments = inferSegments(candidate.title, source.tags ?? []);
+      const score = computeScore({ publishedAt: null, segments, type });
 
-    const { rows: insertedRows } = await query<{ id: string }>(
-      `
-      INSERT INTO clipping_items
-        (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
-      VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-      ON CONFLICT (tenant_id, url_hash) DO NOTHING
-      RETURNING id
-      `,
-      [
-        source.tenant_id,
-        source.id,
-        candidate.title,
-        candidate.url,
-        hashUrl(normalizeUrlForHash(candidate.url)),
-        tHash,
-        null,
-        snippet,
-        null,
-        type,
-        segments,
-        score,
-        source.country ?? null,
-        source.uf ?? null,
-        source.city ?? null,
-      ]
-    );
+      const { rows: insertedRows } = await query<{ id: string }>(
+        `
+        INSERT INTO clipping_items
+          (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, image_url, type, segments, score, country, uf, city)
+        VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        ON CONFLICT (tenant_id, url_hash) DO NOTHING
+        RETURNING id
+        `,
+        [
+          source.tenant_id,
+          source.id,
+          candidate.title,
+          candidate.url,
+          hashUrl(normalizeUrlForHash(candidate.url)),
+          tHash,
+          null,
+          snippet,
+          null,
+          type,
+          segments,
+          score,
+          source.country ?? null,
+          source.uf ?? null,
+          source.city ?? null,
+        ]
+      );
 
-    if (insertedRows[0]) {
-      inserted += 1;
-      await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+      if (insertedRows[0]) {
+        inserted += 1;
+        await enqueueJob(source.tenant_id, 'clipping_enrich_item', { item_id: insertedRows[0].id });
+      }
+    } catch (error: any) {
+      skippedWithError += 1;
+      const message = safeErrorMessage(error, 'ingest_candidate_failed');
+      console.warn(`[clipping] source ${source.id} skipped url candidate due to error: ${message}`);
     }
+  }
+
+  if (skippedWithError > 0) {
+    console.warn(`[clipping] source ${source.id} skipped ${skippedWithError} url candidate(s) with parse/insert errors`);
   }
 
   if (!candidates.length) {
@@ -948,6 +982,16 @@ async function handleAutoScore(job: any) {
   await autoScoreClients(job.tenant_id, item);
 }
 
+async function safeMarkJob(id: string, status: 'processing' | 'done' | 'failed', error?: string) {
+  try {
+    return await markJob(id, status, error);
+  } catch (markError: any) {
+    const message = safeErrorMessage(markError, `mark_${status}_failed`);
+    console.error(`[clipping] markJob(${status}) failed for job ${id}: ${message}`);
+    return false;
+  }
+}
+
 export async function runClippingWorkerOnce() {
   await autoReapStuckFetchJobs();
 
@@ -963,37 +1007,37 @@ export async function runClippingWorkerOnce() {
 
   const pendingFetchJobs = await fetchJobs('clipping_fetch_source', 3);
   for (const job of pendingFetchJobs) {
-    const started = await markJob(job.id, 'processing');
+    const started = await safeMarkJob(job.id, 'processing');
     if (!started) continue;
     try {
       await handleFetchSource(job);
-      await markJob(job.id, 'done');
+      await safeMarkJob(job.id, 'done');
     } catch (error: any) {
-      await markJob(job.id, 'failed', error?.message || 'fetch_failed');
+      await safeMarkJob(job.id, 'failed', error?.message || 'fetch_failed');
     }
   }
 
   const pendingEnrichJobs = await fetchJobs('clipping_enrich_item', 5);
   for (const job of pendingEnrichJobs) {
-    const started = await markJob(job.id, 'processing');
+    const started = await safeMarkJob(job.id, 'processing');
     if (!started) continue;
     try {
       await handleEnrichItem(job);
-      await markJob(job.id, 'done');
+      await safeMarkJob(job.id, 'done');
     } catch (error: any) {
-      await markJob(job.id, 'failed', error?.message || 'enrich_failed');
+      await safeMarkJob(job.id, 'failed', error?.message || 'enrich_failed');
     }
   }
 
   const pendingAutoScoreJobs = await fetchJobs('clipping_auto_score', 10);
   for (const job of pendingAutoScoreJobs) {
-    const started = await markJob(job.id, 'processing');
+    const started = await safeMarkJob(job.id, 'processing');
     if (!started) continue;
     try {
       await handleAutoScore(job);
-      await markJob(job.id, 'done');
+      await safeMarkJob(job.id, 'done');
     } catch (error: any) {
-      await markJob(job.id, 'failed', error?.message || 'auto_score_failed');
+      await safeMarkJob(job.id, 'failed', error?.message || 'auto_score_failed');
     }
   }
 }

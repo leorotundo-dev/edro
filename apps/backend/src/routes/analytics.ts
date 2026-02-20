@@ -424,6 +424,81 @@ Retorne JSON com exatamente esta estrutura:
   });
 
   // ────────────────────────────────────────────────────────────────────────────
+  // 4b. SAVE BRAND VOICE DNA TO CLIENT PROFILE
+  // ────────────────────────────────────────────────────────────────────────────
+  app.patch('/clients/:clientId/brand-voice', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+    const { dna } = req.body as { dna: Record<string, any> };
+
+    if (!dna || typeof dna !== 'object') {
+      return reply.status(400).send({ error: 'dna é obrigatório' });
+    }
+
+    const { rows } = await query<{ profile: Record<string, any> | null }>(
+      `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+      [tenantId, clientId]
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Client not found' });
+
+    const nextProfile = {
+      ...(rows[0]?.profile || {}),
+      brand_voice: dna,
+      brand_voice_saved_at: new Date().toISOString(),
+    };
+
+    await query(
+      `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+      [JSON.stringify(nextProfile), tenantId, clientId]
+    );
+
+    return reply.send({ ok: true });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 4c. QUALITY SCORE TIMELINE
+  // Evolução mensal dos quality scores das copies geradas (pipeline collaborative)
+  // ────────────────────────────────────────────────────────────────────────────
+  app.get('/clients/:clientId/quality-timeline', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+
+    const client = await resolveEdroClient(tenantId, clientId);
+    if (!client?.edro_id) return reply.status(404).send({ error: 'Client not found' });
+
+    const { rows } = await query<{
+      month: string;
+      avg_overall: number;
+      avg_brand_dna: number;
+      avg_platform: number;
+      avg_cta: number;
+      count: string;
+    }>(
+      `SELECT
+         TO_CHAR(DATE_TRUNC('month', cv.created_at), 'YYYY-MM') as month,
+         ROUND(AVG((cv.payload->>'quality_score')::jsonb->>'overall')::numeric::numeric, 1)     as avg_overall,
+         ROUND(AVG((cv.payload->>'quality_score')::jsonb->>'brand_dna_match')::numeric::numeric, 1) as avg_brand_dna,
+         ROUND(AVG((cv.payload->>'quality_score')::jsonb->>'platform_fit')::numeric::numeric, 1)   as avg_platform,
+         ROUND(AVG((cv.payload->>'quality_score')::jsonb->>'cta_clarity')::numeric::numeric, 1)    as avg_cta,
+         COUNT(*)::text as count
+       FROM edro_copy_versions cv
+       JOIN edro_briefings b ON b.id = cv.briefing_id
+       WHERE b.client_id = $1
+         AND cv.payload ? 'quality_score'
+         AND cv.created_at > NOW() - INTERVAL '6 months'
+       GROUP BY DATE_TRUNC('month', cv.created_at)
+       ORDER BY DATE_TRUNC('month', cv.created_at)`,
+      [client.edro_id]
+    );
+
+    return reply.send({ client_name: client.name, timeline: rows });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
   // 5. BENCHMARK ENTRE CLIENTES
   // Compare client metrics vs anonymized cross-client averages
   // ────────────────────────────────────────────────────────────────────────────

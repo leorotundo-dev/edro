@@ -480,6 +480,19 @@ export function buildPreferencePromptBlock(context: PreferenceContext): string {
     parts.push(`TOM PREFERIDO: ${context.creative.preferred_tone}`);
   }
 
+  if (context.creative.preferred_length) {
+    parts.push(`TAMANHO PREFERIDO: ${context.creative.preferred_length}`);
+  }
+
+  const bestPlatforms = (context.creative.platform_patterns || [])
+    .filter((p) => p.approval_rate >= 0.65 && p.platform)
+    .map((p) => `${p.platform} (${Math.round(p.approval_rate * 100)}% aprovacao)`)
+    .slice(0, 3)
+    .join(', ');
+  if (bestPlatforms) {
+    parts.push(`PLATAFORMAS COM MELHOR APROVACAO: ${bestPlatforms}`);
+  }
+
   parts.push(`MATURIDADE DE APRENDIZADO: ${context.learning_maturity}`);
   return parts.length ? `\n\nPreferencias editoriais do cliente:\n${parts.join('\n')}` : '';
 }

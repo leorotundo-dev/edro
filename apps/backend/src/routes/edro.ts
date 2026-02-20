@@ -1369,6 +1369,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         // O filtro de plataforma garante isolamento: copy aprovado no Instagram
         // não contamina a geração de posts do LinkedIn e vice-versa.
         let preferenceBlock = '';
+        let learnedBlock = '';
         if (selectedClientId && tenantId) {
           try {
             const prefCtx = await getClientPreferenceContext(
@@ -1378,10 +1379,24 @@ export default async function edroRoutes(app: FastifyInstance) {
             );
             preferenceBlock = buildPreferencePromptBlock(prefCtx);
           } catch { /* sem histórico ainda — seguir sem bloco */ }
+
+          // Injetar directives de performance histórica (learned preferences)
+          try {
+            const learnedPrefs = await getClientPreferences({ tenant_id: tenantId, client_id: selectedClientId });
+            if (learnedPrefs?.directives) {
+              const boostLines = (learnedPrefs.directives.boost || []).slice(0, 4);
+              const avoidLines = (learnedPrefs.directives.avoid || []).slice(0, 3);
+              if (boostLines.length || avoidLines.length) {
+                learnedBlock = '\n\nPadroes de performance historica:\n';
+                if (boostLines.length) learnedBlock += `POTENCIALIZAR: ${boostLines.join(' | ')}\n`;
+                if (avoidLines.length) learnedBlock += `BAIXA PERFORMANCE (evitar): ${avoidLines.join(' | ')}`;
+              }
+            }
+          } catch { /* sem preferencias aprendidas ainda — continuar */ }
         }
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock].filter(Boolean).join('\n');
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = preferenceBlock ? `${prompt}${preferenceBlock}` : prompt;
+        const enrichedPrompt = (preferenceBlock || learnedBlock) ? `${prompt}${preferenceBlock}${learnedBlock}` : prompt;
 
         let result;
         if (pipeline === 'collaborative') {

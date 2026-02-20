@@ -85,7 +85,11 @@ export class EnxovalGenerator {
       !mediumPriority.find(m => m.format_name === f.format_name)
     );
     
-    const niceToHave = this.selectNiceToHaveFormats(remainingAfterMedium, parameters);
+    // Calcular custo real já alocado nas prioridades anteriores
+    const budgetAlreadyUsed = [...mustHave, ...highPriority, ...mediumPriority]
+      .reduce((sum, f) => sum + (f.production_cost?.min_brl || 1000), 0);
+
+    const niceToHave = this.selectNiceToHaveFormats(remainingAfterMedium, parameters, budgetAlreadyUsed);
     console.log(`   Nice-to-have: ${niceToHave.length} formatos`);
     
     // Combinar todos
@@ -135,21 +139,27 @@ export class EnxovalGenerator {
     formats: ScoredFormat[],
     params: ExtractedParameters
   ): ScoredFormat[] {
-    // Garantir cobertura de todas as plataformas solicitadas
     const platforms = params.channels.platforms;
     const selected: ScoredFormat[] = [];
-    
-    // Para cada plataforma, pegar os 2 melhores formatos
+
+    // Com poucas plataformas, pegar mais formatos por plataforma para diversidade
+    const perPlatform = platforms.length <= 2 ? 3 : 2;
+
     platforms.forEach(platform => {
       const platformFormats = formats
         .filter(f => f.platform === platform)
-        .slice(0, 2); // Top 2
-      
+        .slice(0, perPlatform);
+
       selected.push(...platformFormats);
     });
-    
-    // Remover duplicatas
-    return Array.from(new Set(selected));
+
+    // Deduplicar por format_name (objetos distintos podem ter o mesmo nome)
+    const seen = new Set<string>();
+    return selected.filter(f => {
+      if (seen.has(f.format_name)) return false;
+      seen.add(f.format_name);
+      return true;
+    });
   }
   
   /**
@@ -183,32 +193,33 @@ export class EnxovalGenerator {
    */
   private selectNiceToHaveFormats(
     formats: ScoredFormat[],
-    params: ExtractedParameters
+    params: ExtractedParameters,
+    budgetAlreadyUsed: number = 0
   ): ScoredFormat[] {
-    // Verificar budget disponível
     const totalBudget = params.budget.total;
-    
-    // Calcular budget já usado
-    // (será calculado depois, por enquanto assume 70% usado)
-    const budgetUsed = totalBudget * 0.7;
-    const budgetAvailable = totalBudget - budgetUsed;
-    
-    // Selecionar formatos que cabem no budget
+
+    // Budget disponível = total - custo real das prioridades anteriores
+    // Garante pelo menos 20% do total para nice-to-have
+    const budgetAvailable = Math.max(
+      totalBudget * 0.20,
+      totalBudget - budgetAlreadyUsed
+    );
+
     const selected: ScoredFormat[] = [];
     let currentBudget = 0;
-    
+
     for (const format of formats) {
       const cost = format.production_cost?.min_brl || 1000;
-      
+
       if (currentBudget + cost <= budgetAvailable) {
         selected.push(format);
         currentBudget += cost;
       }
-      
-      // Limite de 5 nice-to-have
-      if (selected.length >= 5) break;
+
+      // Limite máximo de nice-to-have (aumentado de 5 → 7)
+      if (selected.length >= 7) break;
     }
-    
+
     return selected;
   }
   

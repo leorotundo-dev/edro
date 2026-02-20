@@ -8,6 +8,7 @@ import { requireClientPerm } from '../auth/clientPerms';
 import { createClient, getClientById, updateClient, deleteClient, listClients } from '../repos/clientsRepo';
 import { ClientIntelligenceService } from '../services/clientIntelligence';
 import { syncReporteiInsightsForClient } from '../services/reporteiInsights';
+import { syncRejectionPatternsToProfile } from '../services/rejectionPatternService';
 import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
 import { OpenAIService } from '../services/ai/openaiService';
@@ -718,6 +719,10 @@ export default async function clientsRoutes(app: FastifyInstance) {
 
       // Fire-and-forget: sincronizar exemplos aprovados/rejeitados no profile do cliente
       syncCopyExamplesToProfile(params.id, tenantId).catch(() => {});
+      // Re-analisar padrões de rejeição quando há texto de motivo
+      if (body.action === 'rejected' && body.rejection_reason) {
+        syncRejectionPatternsToProfile(params.id, tenantId).catch(() => {});
+      }
 
       return reply.send({ ok: true, feedback });
     }

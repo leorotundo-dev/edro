@@ -360,6 +360,8 @@ export async function generateCollaborativeCopy(params: {
         analysis_json: result.analysis_json,
         creative_raw: result.creative_raw,
         total_duration_ms: result.total_duration_ms,
+        quality_score: result.quality_score ?? null,
+        cycle_count: result.cycle_count ?? 0,
       },
     };
   } catch (error: any) {

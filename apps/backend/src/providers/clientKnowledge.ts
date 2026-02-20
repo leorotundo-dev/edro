@@ -88,6 +88,31 @@ export function buildClientKnowledgeFromRow(row: ClientRow | null): ClientKnowle
   if (knowledge.notes) notes.push(`Observações: ${knowledge.notes}`);
   if (profile.risk_tolerance) notes.push(`Tolerância a risco: ${profile.risk_tolerance}`);
 
+  // Brand Voice DNA — saved from Analytics tab
+  const brandVoiceDna = profile.brand_voice;
+  if (brandVoiceDna && typeof brandVoiceDna === 'object') {
+    if (brandVoiceDna.personality) notes.push(`Personalidade da marca: ${brandVoiceDna.personality}`);
+    const dnaTonerr = normalizeList(brandVoiceDna.tone);
+    if (dnaTonerr.length) notes.push(`Tom de voz (DNA): ${dnaTonerr.join(', ')}`);
+    const dnaPreferred = normalizeList(brandVoiceDna.vocabulary?.preferred);
+    if (dnaPreferred.length) notes.push(`Vocabulário preferido: ${dnaPreferred.join(', ')}`);
+    const dnaAvoid = normalizeList(brandVoiceDna.vocabulary?.avoid);
+    if (dnaAvoid.length) notes.push(`Vocabulário a evitar: ${dnaAvoid.join(', ')}`);
+    const dnaDos = normalizeList(brandVoiceDna.dos);
+    if (dnaDos.length) notes.push(`Práticas recomendadas: ${dnaDos.join(' • ')}`);
+    const dnaDonts = normalizeList(brandVoiceDna.donts);
+    if (dnaDonts.length) notes.push(`Práticas a evitar: ${dnaDonts.join(' • ')}`);
+    if (brandVoiceDna.brand_promise) notes.push(`Promessa central da marca: ${brandVoiceDna.brand_promise}`);
+    const contentThemes = normalizeList(brandVoiceDna.content_themes);
+    if (contentThemes.length) notes.push(`Temas de conteúdo: ${contentThemes.join(', ')}`);
+  }
+
+  // Rejection Patterns — aggregated from rejected copy reasons via AI analysis
+  const rejectionPatterns = normalizeList(profile.rejection_patterns);
+  if (rejectionPatterns.length) {
+    notes.push(`Padrões de rejeição históricos deste cliente (EVITAR): ${rejectionPatterns.join(' | ')}`);
+  }
+
   const tags = new Set<string>();
   normalizeList(profile.keywords).forEach((tag) => tags.add(tag));
   normalizeList(profile.pillars).forEach((tag) => tags.add(tag));

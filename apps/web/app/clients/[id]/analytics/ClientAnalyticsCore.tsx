@@ -23,7 +23,7 @@ import {
   IconBulb, IconRefresh, IconTrendingUp, IconTrendingDown,
   IconHeartbeat, IconDna, IconSearch, IconRobot,
 } from '@tabler/icons-react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +74,9 @@ type PredictiveCalendar = {
   best_posting_days: string[]; lead_time_summary: { avg_days: number };
   urgent: number;
 };
+
+type QualityTimelineRow = { month: string; avg_overall: number; avg_brand_dna: number; avg_platform: number; avg_cta: number; count: string };
+type QualityTimeline = { client_name: string; timeline: QualityTimelineRow[] };
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -233,6 +236,8 @@ export default function ClientAnalyticsCore({
 
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(null);
   const [brandVoiceLoading, setBrandVoiceLoading] = useState(false);
+  const [savingDna, setSavingDna] = useState(false);
+  const [dnaSaved, setDnaSaved] = useState(false);
 
   const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null);
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
@@ -248,6 +253,9 @@ export default function ClientAnalyticsCore({
 
   const [calendar, setCalendar] = useState<PredictiveCalendar | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const [qualityTimeline, setQualityTimeline] = useState<QualityTimeline | null>(null);
+  const [qualityTimelineLoading, setQualityTimelineLoading] = useState(false);
 
   useEffect(() => {
     if (typeof forcedTab === 'number') {
@@ -285,8 +293,22 @@ export default function ClientAnalyticsCore({
   });
 
   const loadBrandVoice = () => wrap(setBrandVoiceLoading, async () => {
+    setDnaSaved(false);
     setBrandVoice(await apiGet<BrandVoice>(`/clients/${clientId}/brand-voice`));
   });
+
+  const handleSaveDna = async () => {
+    if (!brandVoice?.dna) return;
+    setSavingDna(true);
+    try {
+      await apiPatch(`/clients/${clientId}/brand-voice`, { dna: brandVoice.dna });
+      setDnaSaved(true);
+    } catch {
+      setError('Erro ao salvar DNA no perfil.');
+    } finally {
+      setSavingDna(false);
+    }
+  };
 
   const loadBenchmark = () => wrap(setBenchmarkLoading, async () => {
     setBenchmark(await apiGet<BenchmarkData>(`/clients/${clientId}/benchmark`));
@@ -308,10 +330,15 @@ export default function ClientAnalyticsCore({
     setCalendar(await apiGet<PredictiveCalendar>(`/clients/${clientId}/predictive-calendar`));
   });
 
+  const loadQualityTimeline = () => wrap(setQualityTimelineLoading, async () => {
+    setQualityTimeline(await apiGet<QualityTimeline>(`/clients/${clientId}/quality-timeline`));
+  });
+
   useEffect(() => {
     if (!clientId) return;
     if (activeTab === 0 && !healthScore && !healthLoading) {
       void loadHealth();
+      void loadQualityTimeline();
     }
     if (activeTab === 1 && !alerts && !alertsLoading) {
       void loadAlerts();
@@ -405,6 +432,86 @@ export default function ClientAnalyticsCore({
                 </Card>
               </Grid>
             </Grid>
+          )}
+
+          {/* Quality Score Timeline */}
+          {(qualityTimeline || qualityTimelineLoading) && (
+            <Box sx={{ mt: 4 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                <IconTrendingUp size={20} color="#7c3aed" />
+                <Typography variant="h6" fontWeight={700}>Evolução da Qualidade das Copies</Typography>
+                {qualityTimelineLoading && <CircularProgress size={16} sx={{ color: '#7c3aed' }} />}
+              </Stack>
+
+              {qualityTimeline && qualityTimeline.timeline.length === 0 && (
+                <Alert severity="info">Nenhum dado de quality score ainda. Gere copies com pipeline colaborativo para começar a acumular histórico.</Alert>
+              )}
+
+              {qualityTimeline && qualityTimeline.timeline.length > 0 && (
+                <Grid container spacing={2}>
+                  {qualityTimeline.timeline.map((row, i) => {
+                    const prev = qualityTimeline.timeline[i - 1];
+                    const trend = prev ? row.avg_overall - prev.avg_overall : null;
+                    const scoreColor = row.avg_overall >= 4 ? '#13DEB9' : row.avg_overall >= 3 ? '#FFAE1F' : '#FA896B';
+                    return (
+                      <Grid key={row.month} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <Card variant="outlined" sx={{ borderTop: `3px solid ${scoreColor}` }}>
+                          <CardContent sx={{ pb: '12px !important' }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                              <Box>
+                                <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                  {row.month}
+                                </Typography>
+                                <Typography variant="h4" fontWeight={800} sx={{ color: scoreColor, lineHeight: 1.1 }}>
+                                  {row.avg_overall ?? '–'}
+                                  <Typography component="span" variant="body2" color="text.secondary" fontWeight={400}>/5</Typography>
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">{row.count} copies</Typography>
+                              </Box>
+                              {trend !== null && (
+                                <Chip
+                                  size="small"
+                                  icon={trend >= 0 ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
+                                  label={`${trend >= 0 ? '+' : ''}${trend.toFixed(1)}`}
+                                  sx={{
+                                    bgcolor: trend >= 0 ? 'rgba(19,222,185,0.12)' : 'rgba(250,137,107,0.12)',
+                                    color: trend >= 0 ? '#13DEB9' : '#FA896B',
+                                    fontWeight: 700, fontSize: '0.75rem',
+                                  }}
+                                />
+                              )}
+                            </Stack>
+                            <Stack spacing={0.8} sx={{ mt: 1.5 }}>
+                              {[
+                                { label: 'DNA Marca', val: row.avg_brand_dna },
+                                { label: 'Fit Plataforma', val: row.avg_platform },
+                                { label: 'Clareza CTA', val: row.avg_cta },
+                              ].map(({ label, val }) => (
+                                <Box key={label}>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">{label}</Typography>
+                                    <Typography variant="caption" fontWeight={600}>{val ?? '–'}</Typography>
+                                  </Stack>
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={val ? (val / 5) * 100 : 0}
+                                    sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover',
+                                      '& .MuiLinearProgress-bar': {
+                                        bgcolor: val >= 4 ? '#13DEB9' : val >= 3 ? '#FFAE1F' : '#FA896B',
+                                        borderRadius: 2,
+                                      }}}
+                                  />
+                                </Box>
+                              ))}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              )}
+            </Box>
           )}
         </Box>
       )}
@@ -623,9 +730,24 @@ export default function ClientAnalyticsCore({
                 </Card>
               </Grid>
               <Grid size={12}>
-                <Typography variant="caption" color="text.secondary">
-                  Baseado em {brandVoice.copies_analyzed} copies aprovadas.
-                </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Typography variant="caption" color="text.secondary">
+                    Baseado em {brandVoice.copies_analyzed} copies aprovadas.
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={handleSaveDna}
+                    disabled={savingDna || dnaSaved}
+                    sx={{
+                      bgcolor: dnaSaved ? '#13DEB9' : '#5D87FF',
+                      '&:hover': { bgcolor: dnaSaved ? '#0fc9a8' : '#4d77ef' },
+                      '&.Mui-disabled': dnaSaved ? { bgcolor: '#13DEB9', color: '#fff', opacity: 1 } : undefined,
+                    }}
+                  >
+                    {savingDna ? 'Salvando...' : dnaSaved ? '✓ DNA salvo no perfil' : 'Salvar DNA no Perfil'}
+                  </Button>
+                </Stack>
               </Grid>
             </Grid>
           )}

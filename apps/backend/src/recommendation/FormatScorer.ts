@@ -53,9 +53,9 @@ export class FormatScorer {
     // Calcular score para cada formato
     const scored = formats.map(format => {
       const breakdown = this.calculateBreakdown(format, parameters, weights);
-      
-      // Score final é a soma ponderada
-      const finalScore = 
+
+      // Score base é a soma ponderada
+      const baseScore =
         breakdown.ml_performance * weights.ml_performance +
         breakdown.measurability * weights.measurability +
         breakdown.cost_efficiency * weights.cost_efficiency +
@@ -64,10 +64,14 @@ export class FormatScorer {
         breakdown.objective_alignment * weights.objective_alignment +
         breakdown.reusability * weights.reusability +
         breakdown.market_trend * weights.market_trend;
-      
+
+      // Bonus por campaign_type — torna a recomendação sensível ao contexto da campanha
+      const typeBonus = this.getCampaignTypeBonus(format, parameters.campaign_type);
+      const finalScore = Math.min(100, baseScore + typeBonus);
+
       return {
         ...format,
-        recommendation_score: Math.round(finalScore * 10) / 10, // Arredondar para 1 casa decimal
+        recommendation_score: Math.round(finalScore * 10) / 10,
         score_breakdown: breakdown
       };
     });
@@ -302,7 +306,7 @@ export class FormatScorer {
    */
   private scoreMarketTrend(format: ProductionFormat): number {
     const trend = format.market_trend?.market_trend;
-    
+
     const trendScores: Record<string, number> = {
       'emerging': 100,
       'rising': 90,
@@ -310,7 +314,81 @@ export class FormatScorer {
       'mature': 60,
       'declining': 40
     };
-    
+
     return trendScores[trend || 'stable'] || 70;
+  }
+
+  /**
+   * Bonus por campaign_type — diferencia campanhas de datas comemorativas,
+   * lançamentos, institucional, etc. sem alterar os pesos globais.
+   * Retorna pontos extras (0-20) a adicionar ao score base.
+   */
+  private getCampaignTypeBonus(format: ProductionFormat, campaignType: string): number {
+    if (!campaignType) return 0;
+    const type = campaignType.toLowerCase();
+    const name = (format.format_name || '').toLowerCase();
+    const platform = (format.platform || '').toLowerCase();
+
+    // Data comemorativa / causa social / awareness de data
+    if (
+      type.includes('data') || type.includes('commemo') || type.includes('social_cause') ||
+      type.includes('causa') || type.includes('awareness_date') || type.includes('comemorativ')
+    ) {
+      if (name.includes('carrossel') || name.includes('carousel')) return 18;
+      if (name.includes('reels') || name.includes('reel')) return 12;
+      if (name.includes('infogr')) return 15;
+      if (name.includes('stories') || name.includes('story')) return 8;
+      if (platform.includes('tiktok')) return 10;
+      return 0;
+    }
+
+    // Lançamento de produto
+    if (
+      type.includes('lancamento') || type.includes('product_launch') ||
+      type.includes('launch') || type.includes('lançamento')
+    ) {
+      if (name.includes('shopping') || name.includes('catálogo') || name.includes('catalogo')) return 18;
+      if (name.includes('stories') || name.includes('story')) return 12;
+      if (name.includes('reels') || name.includes('reel')) return 10;
+      if (name.includes('feed') && !name.includes('shop')) return 8;
+      return 0;
+    }
+
+    // Institucional / branding
+    if (
+      type.includes('institucional') || type.includes('institutional') ||
+      type.includes('brand') || type.includes('corporat')
+    ) {
+      if (name.includes('video') || name.includes('vídeo')) return 18;
+      if (platform.includes('linkedin')) return 15;
+      if (platform.includes('youtube')) return 12;
+      if (name.includes('apresent')) return 10;
+      return 0;
+    }
+
+    // Promocional / ofertas
+    if (
+      type.includes('promocional') || type.includes('promotional') ||
+      type.includes('oferta') || type.includes('sale') || type.includes('desconto')
+    ) {
+      if (name.includes('shopping') || name.includes('catálogo') || name.includes('catalogo')) return 15;
+      if (name.includes('stories') || name.includes('story')) return 12;
+      if (name.includes('reels') || name.includes('reel')) return 8;
+      return 0;
+    }
+
+    // Conteúdo educacional / editorial
+    if (
+      type.includes('educac') || type.includes('educational') ||
+      type.includes('conteudo') || type.includes('content') || type.includes('editorial')
+    ) {
+      if (name.includes('infogr')) return 18;
+      if (name.includes('carrossel') || name.includes('carousel')) return 15;
+      if (platform.includes('linkedin')) return 12;
+      if (name.includes('video') || name.includes('vídeo')) return 10;
+      return 0;
+    }
+
+    return 0;
   }
 }
