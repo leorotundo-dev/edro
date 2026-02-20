@@ -945,6 +945,10 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
       const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
 
+      const showAll = ['1', 'true', 'yes'].includes(
+        String((request.query as any)?.all || '')
+      );
+
       const days: Record<string, any[]> = {};
       let totalEvents = 0;
 
@@ -954,7 +958,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
         if (!eligibility.ok) continue;
 
         const relevance = scoreCalendarEventForClient(hit.event, client, override);
-        if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
+        if (!showAll && !override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
         for (const date of hit.hitDates) {
           if (!days[date]) days[date] = [];
           days[date].push({
@@ -967,6 +971,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
             score: relevance.score,
             tier: relevance.tier,
             why: relevance.why,
+            is_relevant: relevance.score >= RELEVANCE_THRESHOLD,
           });
           totalEvents += 1;
         }

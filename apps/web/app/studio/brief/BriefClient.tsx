@@ -575,7 +575,7 @@ export default function BriefClient() {
   const loadCalendarMonth = async (month: string, clientId: string) => {
     setCalendarLoading(true);
     try {
-      const res = await apiGet<{ days?: Record<string, any[]> }>(`/clients/${clientId}/calendar/month/${month}`);
+      const res = await apiGet<{ days?: Record<string, any[]> }>(`/clients/${clientId}/calendar/month/${month}?all=true`);
       setCalendarDays(res?.days || {});
     } catch {
       setCalendarDays({});
@@ -1341,6 +1341,7 @@ export default function BriefClient() {
                     const isToday = dateStr === todayStr;
                     const isSelected = dateStr === selectedDay;
                     const hasEvents = dayEvents.length > 0;
+                    const hasRelevant = dayEvents.some((e: any) => e.is_relevant);
 
                     return (
                       <Box
@@ -1357,9 +1358,7 @@ export default function BriefClient() {
                             ? 'rgba(255,102,0,0.12)'
                             : 'transparent',
                           color: isSelected ? '#fff' : 'text.primary',
-                          '&:hover': hasEvents
-                            ? { bgcolor: isSelected ? '#e65c00' : 'rgba(255,102,0,0.1)' }
-                            : {},
+                          '&:hover': { bgcolor: isSelected ? '#e65c00' : 'rgba(255,102,0,0.08)' },
                           transition: 'background 0.12s',
                         }}
                       >
@@ -1372,7 +1371,11 @@ export default function BriefClient() {
                               width: 5,
                               height: 5,
                               borderRadius: '50%',
-                              bgcolor: isSelected ? '#fff' : '#ff6600',
+                              bgcolor: isSelected
+                                ? '#fff'
+                                : hasRelevant
+                                ? '#ff6600'
+                                : '#94a3b8',
                               mx: 'auto',
                               mt: 0.25,
                             }}
@@ -1385,8 +1388,20 @@ export default function BriefClient() {
                   })}
                 </Box>
 
+                {/* Legend */}
+                <Stack direction="row" spacing={2} sx={{ mt: 1.5 }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center">
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#ff6600' }} />
+                    <Typography variant="caption" color="text.secondary">Relevante para o cliente</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.75} alignItems="center">
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#94a3b8' }} />
+                    <Typography variant="caption" color="text.secondary">Baixa relevância</Typography>
+                  </Stack>
+                </Stack>
+
                 {/* Events for selected day */}
-                <Divider sx={{ mt: 2, mb: 1.5 }} />
+                <Divider sx={{ mt: 1.5, mb: 1.5 }} />
                 {selectedDay && (calendarDays[selectedDay] || []).length > 0 ? (
                   <Box>
                     <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase' }}>
@@ -1421,11 +1436,13 @@ export default function BriefClient() {
                                   </Typography>
                                 ) : null}
                               </Box>
-                              {evt.tier ? (
-                                <Chip size="small" label={`Tier ${evt.tier}`} variant="outlined" />
+                              {evt.is_relevant === false ? (
+                                <Chip size="small" label="Baixa rel." variant="outlined" sx={{ color: '#94a3b8', borderColor: '#94a3b8' }} />
+                              ) : evt.tier ? (
+                                <Chip size="small" label={`Tier ${evt.tier}`} variant="outlined" sx={{ color: '#ff6600', borderColor: '#ff6600' }} />
                               ) : null}
                               {evt.score != null ? (
-                                <Chip size="small" label={`Score ${evt.score}`} sx={{ bgcolor: 'rgba(255,102,0,0.08)', color: '#ff6600' }} />
+                                <Chip size="small" label={`${evt.score}`} sx={{ bgcolor: evt.is_relevant !== false ? 'rgba(255,102,0,0.08)' : 'rgba(148,163,184,0.1)', color: evt.is_relevant !== false ? '#ff6600' : '#94a3b8', minWidth: 36 }} />
                               ) : null}
                             </Stack>
                           </CardContent>
