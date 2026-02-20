@@ -65,6 +65,7 @@ type Props = {
   description?: string;
   suggestion?: SectionSuggestion | null;
   refreshedAt?: string | null;
+  existingValues?: Record<string, string>;
   onChanged?: () => Promise<void> | void;
 };
 
@@ -100,6 +101,7 @@ export default function SectionEnrichmentCard({
   description,
   suggestion,
   refreshedAt,
+  existingValues,
   onChanged,
 }: Props) {
   const [loadingField, setLoadingField] = useState<string | null>(null);
@@ -159,7 +161,10 @@ export default function SectionEnrichmentCard({
                   variant="outlined"
                   color="inherit"
                   startIcon={<IconEdit size={13} />}
-                  onClick={() => setManualMode(true)}
+                  onClick={() => {
+                    setManualValues(existingValues || {});
+                    setManualMode(true);
+                  }}
                   sx={{ fontSize: '0.7rem', py: 0.25, px: 1, minWidth: 0 }}
                 >
                   Preencher

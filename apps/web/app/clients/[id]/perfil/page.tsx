@@ -190,6 +190,44 @@ export default function PerfilPage() {
   const hasSocials = Object.entries(socials).some(([k, v]) => k !== 'other' && v);
   const location = [client?.city, client?.uf, client?.country].filter(Boolean).join(', ');
 
+  // Helper: convert profile values to strings for pre-filling manual forms
+  const toStr = (val: any): string => {
+    if (val == null) return '';
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val)) return val.map((v) => (v && typeof v === 'object' ? (v.name ?? JSON.stringify(v)) : String(v ?? ''))).join(', ');
+    if (typeof val === 'object') return JSON.stringify(val, null, 2);
+    return String(val);
+  };
+
+  const p = client?.profile || {};
+  const sectionExistingValues: Record<string, Record<string, string>> = {
+    identity: {
+      description: toStr(kb.description),
+      audience: toStr(kb.audience),
+      brand_promise: toStr(kb.brand_promise),
+      differentiators: toStr(kb.differentiators),
+      website: toStr(kb.website),
+    },
+    voice: {
+      tone_description: toStr(p.tone_description),
+      personality_traits: toStr(p.personality_traits),
+      formality_level: p.formality_level != null ? String(p.formality_level) : '',
+      emoji_usage: toStr(p.emoji_usage),
+    },
+    strategy: {
+      pillars: toStr(p.pillars),
+      keywords: toStr(p.keywords),
+      negative_keywords: toStr(p.negative_keywords),
+      content_mix: toStr(p.content_mix),
+    },
+    competitors: {
+      competitors: toStr(p.competitors),
+    },
+    calendar: {
+      strategic_dates: toStr(p.strategic_dates),
+    },
+  };
+
   const reporteiConnector = connectors.find((c) => c.provider === 'reportei') || null;
   const reporteiPayload = (reporteiConnector?.payload as Record<string, unknown>) || {};
   const reporteiConfigured = Boolean(reporteiPayload?.embed_url || reporteiPayload?.dashboard_url);
@@ -289,6 +327,7 @@ export default function PerfilPage() {
                 description="Descricao, audiencia, promessa e diferenciais."
                 suggestion={profileSuggestions.identity}
                 refreshedAt={sectionRefreshedAt.identity}
+                existingValues={sectionExistingValues.identity}
                 onChanged={loadSuggestions}
               />
             </Grid>
@@ -300,6 +339,7 @@ export default function PerfilPage() {
                 description="Tonalidade, formalidade e estilo de linguagem."
                 suggestion={profileSuggestions.voice}
                 refreshedAt={sectionRefreshedAt.voice}
+                existingValues={sectionExistingValues.voice}
                 onChanged={loadSuggestions}
               />
             </Grid>
@@ -311,6 +351,7 @@ export default function PerfilPage() {
                 description="Pilares, keywords e mix de conteudo."
                 suggestion={profileSuggestions.strategy}
                 refreshedAt={sectionRefreshedAt.strategy}
+                existingValues={sectionExistingValues.strategy}
                 onChanged={loadSuggestions}
               />
             </Grid>
@@ -322,6 +363,7 @@ export default function PerfilPage() {
                 description="Concorrentes para monitoramento e comparacao."
                 suggestion={profileSuggestions.competitors}
                 refreshedAt={sectionRefreshedAt.competitors}
+                existingValues={sectionExistingValues.competitors}
                 onChanged={loadSuggestions}
               />
             </Grid>
@@ -333,6 +375,7 @@ export default function PerfilPage() {
                 description="Datas estrategicas com maior potencial para o cliente."
                 suggestion={profileSuggestions.calendar}
                 refreshedAt={sectionRefreshedAt.calendar}
+                existingValues={sectionExistingValues.calendar}
                 onChanged={loadSuggestions}
               />
             </Grid>
