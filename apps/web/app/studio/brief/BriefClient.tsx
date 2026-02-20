@@ -10,6 +10,11 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import Avatar from '@mui/material/Avatar';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -19,6 +24,8 @@ import Grid from '@mui/material/Grid';
 import {
   IconBuildingSkyscraper,
   IconCalendarEvent,
+  IconChevronLeft,
+  IconChevronRight,
   IconClock,
   IconDna,
   IconFileText,
@@ -26,6 +33,7 @@ import {
   IconNews,
   IconRocket,
   IconSparkles,
+  IconX,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -210,6 +218,14 @@ export default function BriefClient() {
   const [sourceContext, setSourceContext] = useState<SourceContext | null>(null);
   const [clientDnaTone, setClientDnaTone] = useState('');
   const [deadlineSuggestion, setDeadlineSuggestion] = useState<{ value: string; label: string } | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [calendarDays, setCalendarDays] = useState<Record<string, any[]>>({});
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [selectedDay, setSelectedDay] = useState('');
   const [form, setForm] = useState<BriefForm>({
     title: queryEvent ? `Briefing: ${queryEvent}` : '',
     objective: queryObjective,
@@ -553,6 +569,57 @@ export default function BriefClient() {
       window.localStorage.removeItem('edro_selected_clients');
       window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
     }
+  };
+
+  const loadCalendarMonth = async (month: string, clientId: string) => {
+    setCalendarLoading(true);
+    try {
+      const res = await apiGet<{ days?: Record<string, any[]> }>(`/clients/${clientId}/calendar/month/${month}`);
+      setCalendarDays(res?.days || {});
+    } catch {
+      setCalendarDays({});
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const openCalendar = () => {
+    const clientId = queryClientId || activeClientId;
+    if (!clientId) return;
+    setCalendarOpen(true);
+    setSelectedDay('');
+    loadCalendarMonth(calendarMonth, clientId);
+  };
+
+  const navigateMonth = (delta: number) => {
+    const [y, m] = calendarMonth.split('-').map(Number);
+    const next = new Date(y, m - 1 + delta, 1);
+    const newMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    setCalendarMonth(newMonth);
+    setSelectedDay('');
+    const clientId = queryClientId || activeClientId;
+    if (clientId) loadCalendarMonth(newMonth, clientId);
+  };
+
+  const handleEventPick = (evt: any) => {
+    const eventName = evt.name || evt.title || evt.event_name || '';
+    const eventDate = evt.date || '';
+    setForm((prev) => ({
+      ...prev,
+      event: eventName,
+      date: eventDate,
+      title: prev.title && !prev.title.startsWith('Briefing:') ? prev.title : `Briefing: ${eventName}`,
+      tags: prev.tags || (Array.isArray(evt.tags) ? evt.tags.join(', ') : ''),
+      categories: prev.categories || (Array.isArray(evt.categories) ? evt.categories.join(', ') : ''),
+      score: prev.score || (evt.score != null ? String(evt.score) : ''),
+    }));
+    setCalendarOpen(false);
+    setSelectedDay('');
+  };
+
+  const formatMonthLabel = (ym: string) => {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
   const handleSubmit = async () => {
@@ -915,7 +982,28 @@ export default function BriefClient() {
       ) : null}
 
       {hasSelectedClient && !hasTopContext ? (
-        <Alert severity="warning">Selecione um evento no calendario para continuar o briefing.</Alert>
+        <Card variant="outlined" sx={{ borderColor: 'warning.light', bgcolor: 'rgba(245,158,11,0.03)' }}>
+          <CardContent sx={{ py: 1.75, '&:last-child': { pb: 1.75 } }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} justifyContent="space-between">
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700}>
+                  Escolha um evento do calendario
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Selecione a data e o evento para guiar a producao do conteudo.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<IconCalendarEvent size={16} />}
+                onClick={openCalendar}
+                sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                Abrir calendario
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
       ) : null}
 
       {sourceContext ? (
@@ -1184,6 +1272,180 @@ export default function BriefClient() {
           {saving ? 'Criando...' : 'Criar briefing e avancar'}
         </Button>
       </Stack>
+
+      {/* Calendar Dialog */}
+      <Dialog
+        open={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{ pb: 0 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <IconButton size="small" onClick={() => navigateMonth(-1)} disabled={calendarLoading}>
+                <IconChevronLeft size={18} />
+              </IconButton>
+              <Typography fontWeight={700} sx={{ minWidth: 180, textAlign: 'center', textTransform: 'capitalize' }}>
+                {formatMonthLabel(calendarMonth)}
+              </Typography>
+              <IconButton size="small" onClick={() => navigateMonth(1)} disabled={calendarLoading}>
+                <IconChevronRight size={18} />
+              </IconButton>
+            </Stack>
+            <IconButton size="small" onClick={() => setCalendarOpen(false)}>
+              <IconX size={18} />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 2 }}>
+          {calendarLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : (() => {
+            const [calYear, calMonthNum] = calendarMonth.split('-').map(Number);
+            const daysInMonth = new Date(calYear, calMonthNum, 0).getDate();
+            const firstWeekday = new Date(calYear, calMonthNum - 1, 1).getDay();
+            const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const WEEKDAYS_BR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+
+            return (
+              <Box>
+                {/* Weekday headers */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', mb: 0.5 }}>
+                  {WEEKDAYS_BR.map((wd) => (
+                    <Typography
+                      key={wd}
+                      variant="caption"
+                      color="text.secondary"
+                      fontWeight={600}
+                      sx={{ textAlign: 'center', py: 0.5 }}
+                    >
+                      {wd}
+                    </Typography>
+                  ))}
+                </Box>
+
+                {/* Day cells */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.25 }}>
+                  {Array.from({ length: totalCells }, (_, i) => {
+                    const dayNum = i - firstWeekday + 1;
+                    if (dayNum < 1 || dayNum > daysInMonth) return <Box key={i} />;
+                    const dateStr = `${calendarMonth}-${String(dayNum).padStart(2, '0')}`;
+                    const dayEvents = calendarDays[dateStr] || [];
+                    const isToday = dateStr === todayStr;
+                    const isSelected = dateStr === selectedDay;
+                    const hasEvents = dayEvents.length > 0;
+
+                    return (
+                      <Box
+                        key={i}
+                        onClick={() => hasEvents && setSelectedDay(isSelected ? '' : dateStr)}
+                        sx={{
+                          textAlign: 'center',
+                          py: 0.75,
+                          borderRadius: 1,
+                          cursor: hasEvents ? 'pointer' : 'default',
+                          bgcolor: isSelected
+                            ? '#ff6600'
+                            : isToday
+                            ? 'rgba(255,102,0,0.12)'
+                            : 'transparent',
+                          color: isSelected ? '#fff' : 'text.primary',
+                          '&:hover': hasEvents
+                            ? { bgcolor: isSelected ? '#e65c00' : 'rgba(255,102,0,0.1)' }
+                            : {},
+                          transition: 'background 0.12s',
+                        }}
+                      >
+                        <Typography variant="body2" fontWeight={isToday ? 700 : 400} lineHeight={1.2}>
+                          {dayNum}
+                        </Typography>
+                        {hasEvents ? (
+                          <Box
+                            sx={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: '50%',
+                              bgcolor: isSelected ? '#fff' : '#ff6600',
+                              mx: 'auto',
+                              mt: 0.25,
+                            }}
+                          />
+                        ) : (
+                          <Box sx={{ height: 5, mt: 0.25 }} />
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
+
+                {/* Events for selected day */}
+                <Divider sx={{ mt: 2, mb: 1.5 }} />
+                {selectedDay && (calendarDays[selectedDay] || []).length > 0 ? (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase' }}>
+                      {new Date(`${selectedDay}T12:00:00`).toLocaleDateString('pt-BR', {
+                        weekday: 'long',
+                        day: '2-digit',
+                        month: 'long',
+                      })}
+                    </Typography>
+                    <Stack spacing={1} sx={{ mt: 1 }}>
+                      {(calendarDays[selectedDay] || []).map((evt: any, idx: number) => (
+                        <Card
+                          key={evt.id || idx}
+                          variant="outlined"
+                          onClick={() => handleEventPick(evt)}
+                          sx={{
+                            cursor: 'pointer',
+                            '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.02)' },
+                            transition: 'border-color 0.12s',
+                          }}
+                        >
+                          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                              <IconCalendarEvent size={16} color="#ff6600" />
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle2" fontWeight={700}>
+                                  {evt.name || evt.title || evt.event_name || 'Sem nome'}
+                                </Typography>
+                                {evt.why ? (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {evt.why}
+                                  </Typography>
+                                ) : null}
+                              </Box>
+                              {evt.tier ? (
+                                <Chip size="small" label={`Tier ${evt.tier}`} variant="outlined" />
+                              ) : null}
+                              {evt.score != null ? (
+                                <Chip size="small" label={`Score ${evt.score}`} sx={{ bgcolor: 'rgba(255,102,0,0.08)', color: '#ff6600' }} />
+                              ) : null}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </Box>
+                ) : selectedDay ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhum evento cadastrado em {new Date(`${selectedDay}T12:00:00`).toLocaleDateString('pt-BR')}.
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Clique em um dia com ponto laranja para ver os eventos disponíveis.
+                  </Typography>
+                )}
+              </Box>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }
