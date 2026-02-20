@@ -363,7 +363,7 @@ export default function EditorClient() {
   const [output, setOutput] = useState('');
   const [options, setOptions] = useState<ParsedOption[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
-  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium' | 'collaborative'>('standard');
+  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium' | 'collaborative'>('collaborative');
   const [collabStep, setCollabStep] = useState(0);
   const [taskType, setTaskType] = useState('social_post');
   const [forceProvider, setForceProvider] = useState('');
@@ -913,27 +913,38 @@ export default function EditorClient() {
     const rejectedIdx = selectedIdx === 0 ? 1 : 0;
     const activeClient = resolveActiveClient();
     const clientId = activeClient?.id;
+    const copyId = resolveActiveCopyId();
     try {
-      if (clientId) {
-        await Promise.all([
-          apiPost(`/clients/${clientId}/copy-feedback`, {
-            feedback_type: 'copy',
-            action: 'approved',
-            copy_approved_text: optionToText(options[selectedIdx] ?? null),
-            copy_platform: activeFormat?.platform,
-            copy_pipeline: pipeline,
-          }),
-          options[rejectedIdx]
-            ? apiPost(`/clients/${clientId}/copy-feedback`, {
-                feedback_type: 'copy',
-                action: 'rejected',
-                copy_rejected_text: optionToText(options[rejectedIdx] ?? null),
-                copy_platform: activeFormat?.platform,
-                copy_pipeline: pipeline,
-              })
-            : Promise.resolve(),
-        ]);
-      }
+      await Promise.all([
+        // Aprovar o copy no sistema
+        copyId
+          ? apiPatch(`/edro/copies/${copyId}/feedback`, {
+              status: 'approved',
+              approved_text: optionToText(options[selectedIdx] ?? null),
+              feedback: 'Aprovada no Creative Studio',
+            })
+          : Promise.resolve(),
+        // Registrar preferência aprendida (aprovado)
+        clientId
+          ? apiPost(`/clients/${clientId}/copy-feedback`, {
+              feedback_type: 'copy',
+              action: 'approved',
+              copy_approved_text: optionToText(options[selectedIdx] ?? null),
+              copy_platform: activeFormat?.platform,
+              copy_pipeline: pipeline,
+            })
+          : Promise.resolve(),
+        // Registrar preferência aprendida (rejeitado)
+        clientId && options[rejectedIdx]
+          ? apiPost(`/clients/${clientId}/copy-feedback`, {
+              feedback_type: 'copy',
+              action: 'rejected',
+              copy_rejected_text: optionToText(options[rejectedIdx] ?? null),
+              copy_platform: activeFormat?.platform,
+              copy_pipeline: pipeline,
+            })
+          : Promise.resolve(),
+      ]);
     } catch { /* non-blocking */ }
     advanceToNextPendingFormat();
   };
@@ -1087,16 +1098,6 @@ export default function EditorClient() {
                           >
                             History
                           </Button>
-                          <Chip size="small" label={activeCopyLabel} />
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                            {providerLabels.length ? (
-                              providerLabels.map((provider) => (
-                                <Chip key={provider.provider} size="small" label={`${provider.label} ${provider.configured ? '\u2713' : 'x'}`} />
-                              ))
-                            ) : (
-                              <Chip size="small" label="Sem IA" />
-                            )}
-                          </Stack>
                           {reporteiBadges.length ? (
                             <Stack direction="row" spacing={0.5} flexWrap="wrap">
                               {reporteiBadges.map((badge) => (
@@ -1104,21 +1105,6 @@ export default function EditorClient() {
                               ))}
                             </Stack>
                           ) : null}
-                          <TextField
-                            select
-                            size="small"
-                            value={pipeline}
-                            onChange={(e) => setPipeline(e.target.value as any)}
-                            sx={{ minWidth: 160 }}
-                          >
-                            <MenuItem value="simple">Simples (1 IA)</MenuItem>
-                            <MenuItem value="standard">Standard (2 IAs)</MenuItem>
-                            <MenuItem value="premium">Premium (Claude)</MenuItem>
-                            <MenuItem value="collaborative">Colaborativo (3 IAs)</MenuItem>
-                          </TextField>
-                          <Button size="small" variant="contained" onClick={handleGenerate} disabled={generating}>
-                            {generating ? 'Gerando...' : 'Gerar com IA'}
-                          </Button>
                         </Stack>
                       </Stack>
                       {reporteiLabel ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{reporteiLabel}</Typography> : null}
