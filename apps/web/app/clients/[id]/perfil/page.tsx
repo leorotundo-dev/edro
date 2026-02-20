@@ -35,6 +35,7 @@ import {
 } from '@tabler/icons-react';
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
 import ContentGapSection from '../analytics/sections/ContentGapSection';
+import BrandColorsCard from './BrandColorsCard';
 import IntelligenceScoreBar from './IntelligenceScoreBar';
 import ManualFieldsChecklist from './ManualFieldsChecklist';
 import SectionEnrichmentCard from './SectionEnrichmentCard';
@@ -267,6 +268,17 @@ export default function PerfilPage() {
           />
 
           <ManualFieldsChecklist fields={missingManual} />
+
+          <BrandColorsCard
+            clientId={clientId}
+            website={kb.website}
+            initialColors={profile?.brand_colors || []}
+            onSaved={(colors) => {
+              setClient((prev) =>
+                prev ? { ...prev, profile: { ...(prev.profile || {}), brand_colors: colors } } : prev
+              );
+            }}
+          />
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
