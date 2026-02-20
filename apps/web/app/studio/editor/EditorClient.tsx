@@ -223,6 +223,17 @@ const isVideoFormat = (format?: string | null): boolean => {
   );
 };
 
+// Strip common markdown formatting from a string
+function stripMd(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .trim();
+}
+
 function parseOptionChunk(chunk: string): ParsedOption {
   const lines = chunk.split('\n');
   const fields: Record<string, string> = {};
@@ -230,50 +241,58 @@ function parseOptionChunk(chunk: string): ParsedOption {
   const slides: CarouselSlide[] = [];
 
   for (const rawLine of lines) {
-    const line = rawLine.trim();
+    const raw = rawLine.trim();
+    if (!raw) continue;
+
+    // Strip markdown from line for matching (keep raw value for display)
+    const line = stripMd(raw);
     if (!line) continue;
 
-    // Skip OPCAO N: header lines
-    if (/^OPCA[OÃo]\s*\d+\s*:/i.test(line)) { currentField = ''; continue; }
+    // Skip OPCAO N: header lines (with or without markdown / extra suffix)
+    if (/^OPCA[OÃo]\s*\d+/i.test(line)) { currentField = ''; continue; }
+    // Skip editorial meta lines (e.g. "ANÁLISE EDITORIAL", "REESCRITA", score lines)
+    if (/^ANÁLISE\b|^REESCRITA\b|^\d+[\.,]\d+\/10|^---+$/i.test(line)) continue;
 
-    // Carousel slide detection — must come before field matchers
+    // Carousel slide detection
     const slideM = line.match(/^slide\s*(\d+)\s*[:\-]\s*(.*)/i);
     if (slideM) {
       const idx = Math.min(parseInt(slideM[1], 10) - 1, 4);
       while (slides.length <= idx) slides.push({ title: '', body: '' });
-      slides[idx].title = slideM[2].trim();
+      slides[idx].title = stripMd(slideM[2]).trim();
       currentField = `_slide_${idx}`;
       continue;
     }
 
-    const arteTitle = line.match(/^arte\s*[-–]\s*t[ií]tulo\s*[:\-]\s*(.+)/i);
-    const arteBody  = line.match(/^arte\s*[-–]\s*corpo\s*[:\-]\s*(.+)/i);
+    const arteTitle = line.match(/^arte\s*[-–]\s*t[ií]tulo(?:\s+slide\s*\d+)?\s*[:\-]\s*(.+)/i);
+    const arteBody  = line.match(/^arte\s*[-–]\s*corpo(?:\s+slide\s*\d+)?\s*[:\-]\s*(.+)/i);
     const legenda   = line.match(/^legenda\s*[:\-]\s*(.*)/i);
     const cta       = line.match(/^cta\s*[:\-]\s*(.+)/i);
     const hashtags  = line.match(/^hashtags?\s*[:\-]\s*(.+)/i);
     const titleFb   = line.match(/^(?:t[ií]tulo|title|headline|chamada)\s*[:\-]\s*(.+)/i);
     const bodyFb    = line.match(/^(?:corpo|body|texto)\s*[:\-]\s*(.+)/i);
 
-    if (arteTitle)  { currentField = 'title';    fields.title    = arteTitle[1].trim(); continue; }
-    if (arteBody)   { currentField = 'body';     fields.body     = arteBody[1].trim();  continue; }
-    if (legenda)    { currentField = 'legenda';  fields.legenda  = legenda[1]?.trim() ?? ''; continue; }
-    if (cta)        { currentField = 'cta';      fields.cta      = cta[1].trim();       continue; }
-    if (hashtags)   { currentField = 'hashtags'; fields.hashtags = hashtags[1].trim();  continue; }
-    if (!fields.title && titleFb) { currentField = 'title'; fields.title = titleFb[1].trim(); continue; }
-    if (!fields.body  && bodyFb)  { currentField = 'body';  fields.body  = bodyFb[1].trim();  continue; }
+    if (arteTitle)  { currentField = 'title';    fields.title    = stripMd(arteTitle[1]); continue; }
+    if (arteBody)   { currentField = 'body';     fields.body     = stripMd(arteBody[1]);  continue; }
+    if (legenda)    { currentField = 'legenda';  fields.legenda  = stripMd(legenda[1] ?? ''); continue; }
+    if (cta)        { currentField = 'cta';      fields.cta      = stripMd(cta[1]);       continue; }
+    if (hashtags)   { currentField = 'hashtags'; fields.hashtags = stripMd(hashtags[1]);  continue; }
+    if (!fields.title && titleFb) { currentField = 'title'; fields.title = stripMd(titleFb[1]); continue; }
+    if (!fields.body  && bodyFb)  { currentField = 'body';  fields.body  = stripMd(bodyFb[1]);  continue; }
 
     // Multi-line continuation
     if (currentField.startsWith('_slide_')) {
       const idx = parseInt(currentField.split('_')[2], 10);
       if (slides[idx]) {
-        slides[idx].body = slides[idx].body ? `${slides[idx].body}\n${line}` : line;
+        const clean = stripMd(raw);
+        slides[idx].body = slides[idx].body ? `${slides[idx].body}\n${clean}` : clean;
       }
     } else if (currentField) {
-      fields[currentField] = fields[currentField] ? `${fields[currentField]}\n${line}` : line;
+      const clean = stripMd(raw);
+      fields[currentField] = fields[currentField] ? `${fields[currentField]}\n${clean}` : clean;
     }
   }
 
-  const body = fields.body || (Object.keys(fields).length === 0 && slides.length === 0 ? chunk : '');
+  const body = fields.body || (Object.keys(fields).length === 0 && slides.length === 0 ? stripMd(chunk) : '');
   return {
     title:    fields.title    || '',
     body,
@@ -319,8 +338,9 @@ function parseOptions(text: string): ParsedOption[] {
     // not JSON — continue
   }
 
-  // Split on OPCAO N: headers (primary format)
-  const opcaoSplit = trimmed.split(/\n(?=OPCA[OÃo]\s*\d+\s*:)/i).filter(Boolean);
+  // Split on OPCAO N: headers — supports plain, markdown heading prefix,
+  // and extra suffix like "(REESCRITA - 8.2/10)"
+  const opcaoSplit = trimmed.split(/\n(?=(?:#{1,3}\s*)?OPCA[OÃo]\s*\d+\s*[:\(\-]?)/i).filter(Boolean);
   if (opcaoSplit.length > 1) {
     return opcaoSplit.map(parseOptionChunk);
   }
@@ -1336,7 +1356,7 @@ export default function EditorClient() {
                                       {option.title || `Opcao ${index + 1}`}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                                      {option.body || option.raw}
+                                      {option.body || option.legenda || ''}
                                     </Typography>
                                     {option.cta ? (
                                       <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
