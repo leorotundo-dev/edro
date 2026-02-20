@@ -540,6 +540,13 @@ export default function BriefClient() {
     setForm((prev) => ({ ...prev, ...patch }));
   };
 
+  const getRelevanceColor = (score: number): string => {
+    if (score >= 75) return '#22c55e';  // verde
+    if (score >= 50) return '#f97316';  // laranja
+    if (score >= 25) return '#eab308';  // amarelo
+    return '#94a3b8';                   // cinza
+  };
+
   const CLIENT_COLORS = ['#ff6600', '#5D87FF', '#7c3aed', '#dc2626', '#059669', '#d97706'];
   const getClientColor = (name: string) => CLIENT_COLORS[name.charCodeAt(0) % CLIENT_COLORS.length];
 
@@ -1341,7 +1348,8 @@ export default function BriefClient() {
                     const isToday = dateStr === todayStr;
                     const isSelected = dateStr === selectedDay;
                     const hasEvents = dayEvents.length > 0;
-                    const hasRelevant = dayEvents.some((e: any) => e.is_relevant);
+                    const maxScore = dayEvents.reduce((m: number, e: any) => Math.max(m, e.score ?? 0), 0);
+                    const dotColor = hasEvents ? getRelevanceColor(maxScore) : 'transparent';
 
                     return (
                       <Box
@@ -1371,11 +1379,7 @@ export default function BriefClient() {
                               width: 5,
                               height: 5,
                               borderRadius: '50%',
-                              bgcolor: isSelected
-                                ? '#fff'
-                                : hasRelevant
-                                ? '#ff6600'
-                                : '#94a3b8',
+                              bgcolor: isSelected ? '#fff' : dotColor,
                               mx: 'auto',
                               mt: 0.25,
                             }}
@@ -1389,15 +1393,18 @@ export default function BriefClient() {
                 </Box>
 
                 {/* Legend */}
-                <Stack direction="row" spacing={2} sx={{ mt: 1.5 }}>
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#ff6600' }} />
-                    <Typography variant="caption" color="text.secondary">Relevante para o cliente</Typography>
-                  </Stack>
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#94a3b8' }} />
-                    <Typography variant="caption" color="text.secondary">Baixa relevância</Typography>
-                  </Stack>
+                <Stack direction="row" spacing={1.5} flexWrap="wrap" sx={{ mt: 1.5 }}>
+                  {[
+                    { color: '#22c55e', label: '75–100%' },
+                    { color: '#f97316', label: '50–74%' },
+                    { color: '#eab308', label: '25–49%' },
+                    { color: '#94a3b8', label: '0–24%' },
+                  ].map(({ color, label }) => (
+                    <Stack key={label} direction="row" spacing={0.5} alignItems="center">
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                      <Typography variant="caption" color="text.secondary">{label}</Typography>
+                    </Stack>
+                  ))}
                 </Stack>
 
                 {/* Events for selected day */}
@@ -1425,24 +1432,24 @@ export default function BriefClient() {
                         >
                           <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                             <Stack direction="row" spacing={1.5} alignItems="center">
-                              <IconCalendarEvent size={16} color="#ff6600" />
+                              <IconCalendarEvent size={16} color={getRelevanceColor(evt.score ?? 0)} />
                               <Box sx={{ flex: 1 }}>
                                 <Typography variant="subtitle2" fontWeight={700}>
                                   {evt.name || evt.title || evt.event_name || 'Sem nome'}
                                 </Typography>
-                                {evt.why ? (
-                                  <Typography variant="caption" color="text.secondary">
-                                    {evt.why}
-                                  </Typography>
-                                ) : null}
                               </Box>
-                              {evt.is_relevant === false ? (
-                                <Chip size="small" label="Baixa rel." variant="outlined" sx={{ color: '#94a3b8', borderColor: '#94a3b8' }} />
-                              ) : evt.tier ? (
-                                <Chip size="small" label={`Tier ${evt.tier}`} variant="outlined" sx={{ color: '#ff6600', borderColor: '#ff6600' }} />
-                              ) : null}
                               {evt.score != null ? (
-                                <Chip size="small" label={`${evt.score}`} sx={{ bgcolor: evt.is_relevant !== false ? 'rgba(255,102,0,0.08)' : 'rgba(148,163,184,0.1)', color: evt.is_relevant !== false ? '#ff6600' : '#94a3b8', minWidth: 36 }} />
+                                <Chip
+                                  size="small"
+                                  label={`${Math.round(evt.score)}%`}
+                                  sx={{
+                                    bgcolor: getRelevanceColor(evt.score),
+                                    color: '#fff',
+                                    fontWeight: 700,
+                                    minWidth: 44,
+                                    fontSize: '0.72rem',
+                                  }}
+                                />
                               ) : null}
                             </Stack>
                           </CardContent>
