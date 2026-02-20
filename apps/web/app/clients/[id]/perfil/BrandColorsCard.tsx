@@ -87,7 +87,7 @@ export default function BrandColorsCard({ clientId, website, initialColors = [],
     setError('');
     setSuccess('');
     try {
-      await apiPatch(`/clients/${clientId}`, { brand_colors: colors });
+      await apiPatch(`/clients/${clientId}/brand-colors`, { colors });
       setSuccess('Cores salvas com sucesso!');
       onSaved?.(colors);
     } catch (e: any) {
