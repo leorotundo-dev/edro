@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -16,14 +16,12 @@ import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
-import Tab from '@mui/material/Tab';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import {
   IconRefresh,
@@ -69,9 +67,7 @@ type SecurityDashboard = {
 };
 
 export default function AdminSystemPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState('feature-flags');
 
   // Feature Flags
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
@@ -90,14 +86,14 @@ export default function AdminSystemPage() {
   const [loadingInsights, setLoadingInsights] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 0) {
+    if (activeSection === 'feature-flags') {
       loadFlags();
-    } else if (activeTab === 1) {
+    } else if (activeSection === 'security-logs') {
       loadSecurityLogs();
-    } else if (activeTab === 3) {
+    } else if (activeSection === 'dashboard') {
       loadSecurityDashboard();
     }
-  }, [activeTab]);
+  }, [activeSection]);
 
   const loadFlags = async () => {
     setLoadingFlags(true);
@@ -525,7 +521,7 @@ export default function AdminSystemPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>System Administration</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -533,22 +529,13 @@ export default function AdminSystemPage() {
           </Typography>
         </Box>
 
-        <Tabs
-          value={activeTab}
-          onChange={(_, value) => setActiveTab(value)}
-          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Feature Flags" />
-          <Tab label="Security Logs" />
-          <Tab label="Jobs" />
-          <Tab label="Dashboard" />
-        </Tabs>
+        <AdminSubmenu value={activeSection} onInternalChange={setActiveSection} />
 
         <Box>
-          {activeTab === 0 && renderFeatureFlags()}
-          {activeTab === 1 && renderSecurityLogs()}
-          {activeTab === 2 && renderJobs()}
-          {activeTab === 3 && renderSecurityDashboard()}
+          {activeSection === 'feature-flags' && renderFeatureFlags()}
+          {activeSection === 'security-logs' && renderSecurityLogs()}
+          {activeSection === 'jobs' && renderJobs()}
+          {activeSection === 'dashboard' && renderSecurityDashboard()}
         </Box>
       </Box>
     </AppShell>

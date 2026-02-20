@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import { apiGet, apiPost } from '@/lib/api';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Alert from '@mui/material/Alert';
@@ -159,14 +160,16 @@ export default function SettingsClient() {
   }
 
   return (
-    <AppShell title="Settings">
-      <Box sx={{ p: 3 }}>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>Configuracoes</Typography>
           <Typography variant="body2" color="text.secondary">
             Visao geral de seguranca e flags operacionais.
           </Typography>
         </Box>
+
+        <AdminSubmenu value="settings" />
 
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
 

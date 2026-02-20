@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
@@ -86,7 +88,8 @@ export default function AdminHealthPage() {
   };
 
   return (
-    <Box>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
         <IconHeartbeat size={28} color="#ff6600" />
         <Box flex={1}>
@@ -98,6 +101,8 @@ export default function AdminHealthPage() {
           Atualizar
         </Button>
       </Stack>
+
+      <AdminSubmenu value="health" />
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -231,6 +236,7 @@ export default function AdminHealthPage() {
           )}
         </Grid>
       )}
-    </Box>
+      </Box>
+    </AppShell>
   );
 }

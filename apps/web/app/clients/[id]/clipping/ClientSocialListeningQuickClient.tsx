@@ -1239,6 +1239,9 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
           {filteredMentions.length ? (
             filteredMentions.map((mention) => {
               const chip = sentimentChip(mention.sentiment);
+              const socialTitle = mention.keyword?.trim() ? `Social: ${mention.keyword}` : 'Oportunidade social';
+              const socialDraft = String(mention.content || '').slice(0, 180);
+              const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(mention.id)}&draft=${encodeURIComponent(socialDraft)}`;
               return (
                 <Card
                   key={mention.id}
@@ -1260,18 +1263,29 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
                           {(mention.author || 'Autor desconhecido') + ' - ' + formatDateTime(mention.published_at)}
                         </Typography>
                       </Box>
-                      {mention.url ? (
+                      <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}>
                         <Button
                           size="small"
-                          variant="text"
-                          href={mention.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}
+                          variant="outlined"
+                          href={createHref}
+                          component="a"
+                          startIcon={<IconPlus size={14} />}
+                          sx={{ textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
                         >
-                          Abrir
+                          Criar pauta
                         </Button>
-                      ) : null}
+                        {mention.url ? (
+                          <Button
+                            size="small"
+                            variant="text"
+                            href={mention.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Abrir
+                          </Button>
+                        ) : null}
+                      </Stack>
                     </Stack>
                   </CardContent>
                 </Card>

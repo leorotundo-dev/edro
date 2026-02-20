@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
 import { apiGet } from '@/lib/api';
@@ -191,8 +192,10 @@ export default function AiCostsPage() {
   ];
 
   return (
-    <AppShell title="Custos de IA">
-      <Box sx={{ p: 3 }}>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+        <AdminSubmenu value="ai-costs" />
+
         {/* Header row */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <ToggleButtonGroup

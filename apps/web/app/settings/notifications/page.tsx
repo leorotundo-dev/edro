@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
@@ -103,63 +105,67 @@ export default function NotificationPreferencesPage() {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <IconBellCog size={28} stroke={1.5} />
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Preferencias de Notificacao</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Escolha como e quando voce quer ser notificado.
-          </Typography>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <IconBellCog size={28} stroke={1.5} />
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Preferencias de Notificacao</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Escolha como e quando voce quer ser notificado.
+            </Typography>
+          </Box>
         </Box>
-      </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
+        <AdminSubmenu value="settings" />
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ minWidth: 200 }}><strong>Evento</strong></TableCell>
-                  {CHANNELS.map((ch) => (
-                    <TableCell key={ch.id} align="center"><strong>{ch.label}</strong></TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {EVENT_TYPES.map((et) => (
-                  <TableRow key={et.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>{et.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">{et.description}</Typography>
-                    </TableCell>
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ minWidth: 200 }}><strong>Evento</strong></TableCell>
                     {CHANNELS.map((ch) => (
-                      <TableCell key={ch.id} align="center">
-                        <Switch
-                          checked={prefs[et.id]?.[ch.id] ?? true}
-                          onChange={() => toggle(et.id, ch.id)}
-                          size="small"
-                        />
-                      </TableCell>
+                      <TableCell key={ch.id} align="center"><strong>{ch.label}</strong></TableCell>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {EVENT_TYPES.map((et) => (
+                    <TableRow key={et.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>{et.label}</Typography>
+                        <Typography variant="caption" color="text.secondary">{et.description}</Typography>
+                      </TableCell>
+                      {CHANNELS.map((ch) => (
+                        <TableCell key={ch.id} align="center">
+                          <Switch
+                            checked={prefs[et.id]?.[ch.id] ?? true}
+                            onChange={() => toggle(et.id, ch.id)}
+                            size="small"
+                          />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-          <Button variant="contained" onClick={handleSave} disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar Preferencias'}
-          </Button>
-        </>
-      )}
-    </Box>
+            <Button variant="contained" onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar Preferencias'}
+            </Button>
+          </>
+        )}
+      </Box>
+    </AppShell>
   );
 }

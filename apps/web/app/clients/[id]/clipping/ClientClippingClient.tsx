@@ -19,6 +19,7 @@ import { IconWorldSearch, IconExternalLink } from '@tabler/icons-react';
 
 type ClientClippingClientProps = {
   clientId: string;
+  forceTab?: TabValue;
 };
 
 type TabValue = 'clipping' | 'social' | 'perplexity';
@@ -178,11 +179,12 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
 
 // ── Main Component ──────────────────────────────────────────────────
 
-export default function ClientClippingClient({ clientId }: ClientClippingClientProps) {
+export default function ClientClippingClient({ clientId, forceTab }: ClientClippingClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<TabValue>(() => {
+    if (forceTab) return forceTab;
     const t = searchParams.get('tab');
     if (t === 'social') return 'social';
     if (t === 'perplexity') return 'perplexity';
@@ -190,45 +192,53 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
   });
 
   const itemId = searchParams.get('item');
+  const baseRoute = forceTab ? `/clients/${clientId}/inteligencia` : `/clients/${clientId}/clipping`;
 
   useEffect(() => {
+    if (forceTab) {
+      setTab(forceTab);
+      return;
+    }
     const t = searchParams.get('tab');
     if (t === 'social') setTab('social');
     else if (t === 'perplexity') setTab('perplexity');
     else setTab('clipping');
-  }, [searchParams]);
+  }, [forceTab, searchParams]);
 
   const changeTab = (value: TabValue) => {
+    if (forceTab) return;
     setTab(value);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('item');
     if (value === 'clipping') next.delete('tab');
     else next.set('tab', value);
     const qs = next.toString();
-    router.replace(qs ? `/clients/${clientId}/clipping?${qs}` : `/clients/${clientId}/clipping`);
+    router.replace(qs ? `${baseRoute}?${qs}` : baseRoute);
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-      <Tabs
-        value={tab}
-        onChange={(_, value) => changeTab(value)}
-        variant="scrollable"
-        allowScrollButtonsMobile
-        sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
-      >
-        <Tab label="Clipping" value="clipping" />
-        <Tab label="Social Listening" value="social" />
-        <Tab
-          label={
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <IconWorldSearch size={16} />
-              <span>Perplexity AI</span>
-            </Stack>
-          }
-          value="perplexity"
-        />
-      </Tabs>
+      {!forceTab && (
+        <Tabs
+          value={tab}
+          onChange={(_, value) => changeTab(value)}
+          variant="scrollable"
+          allowScrollButtonsMobile
+          sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+        >
+          <Tab label="Clipping" value="clipping" />
+          <Tab label="Social Listening" value="social" />
+          <Tab
+            label={
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <IconWorldSearch size={16} />
+                <span>Perplexity AI</span>
+              </Stack>
+            }
+            value="perplexity"
+          />
+        </Tabs>
+      )}
 
       {tab === 'clipping' ? (
         itemId ? (
@@ -241,13 +251,13 @@ export default function ClientClippingClient({ clientId }: ClientClippingClientP
                   const next = new URLSearchParams(searchParams.toString());
                   next.delete('item');
                   const qs = next.toString();
-                  router.replace(qs ? `/clients/${clientId}/clipping?${qs}` : `/clients/${clientId}/clipping`);
+                  router.replace(qs ? `${baseRoute}?${qs}` : baseRoute);
                 }}
               >
                 Voltar
               </Button>
             </Box>
-            <ClippingDetailClient itemId={itemId} noShell embedded backHref={`/clients/${clientId}/clipping`} />
+            <ClippingDetailClient itemId={itemId} noShell embedded backHref={baseRoute} />
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>

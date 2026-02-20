@@ -112,6 +112,36 @@ function normalizeSearchText(value: unknown): string {
     .toLowerCase();
 }
 
+function slugify(value: string): string {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+    .slice(0, 80);
+}
+
+function normalizeStringList(value: unknown): string[] {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\n;|]/g)
+      : [];
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const entry of source) {
+    const text = String(entry || '').trim();
+    if (!text) continue;
+    const key = normalizeSearchText(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(text);
+  }
+  return output;
+}
+
 function normalizeKeywords(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   const seen = new Set<string>();
@@ -289,6 +319,16 @@ function checkCalendarEventEligibility(
 ): { ok: true } | { ok: false; reason: string } {
   if (override?.force_exclude) return { ok: false, reason: 'override:exclude' };
   if (override?.force_include) return { ok: true };
+  const targetClientIds = normalizeStringList(
+    Array.isArray(event?.target_client_ids)
+      ? event.target_client_ids
+      : Array.isArray(event?.payload?.target_client_ids)
+        ? event.payload.target_client_ids
+        : []
+  );
+  if (targetClientIds.length && !targetClientIds.includes(client.id)) {
+    return { ok: false, reason: 'target_client:mismatch' };
+  }
   if (!matchesLocality(event, client)) return { ok: false, reason: 'locality:mismatch' };
   return passesCalendarBusinessFilters(event, client);
 }
@@ -504,6 +544,156 @@ export default async function calendarRoutes(app: FastifyInstance) {
     '/calendar/events/retail-br',
     { preHandler: [requirePerm('calendars:read')] },
     async () => RETAIL_BR_EVENTS
+  );
+
+  app.post(
+    '/calendar/events/manual',
+    { preHandler: [requirePerm('calendars:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const bodySchema = z.object({
+        name: z.string().min(2).max(180),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        relevance_score: z.number().min(0).max(100).optional(),
+        client_id: z.string().optional().nullable(),
+      });
+      const body = bodySchema.parse(request.body || {});
+
+      let clientRow: any | null = null;
+      if (body.client_id) {
+        const { rows } = await query<any>(
+          `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+          [body.client_id, tenantId]
+        );
+        if (!rows[0]) return reply.status(404).send({ error: 'client_not_found' });
+        clientRow = rows[0];
+      }
+
+      const eventName = body.name.trim();
+      const eventSlug = slugify(eventName) || 'evento-manual';
+      const baseRelevance = Math.max(0, Math.min(100, Math.round(Number(body.relevance_score ?? 70))));
+      const dateISO = body.date;
+      const country = String(clientRow?.country || 'BR').toUpperCase();
+      const uf = clientRow?.uf ? String(clientRow.uf).toUpperCase() : null;
+      const city = clientRow?.city ? String(clientRow.city).trim() : null;
+      const scope = city ? 'CITY' : uf ? 'UF' : country === 'BR' ? 'BR' : 'global';
+      const categories = ['manual'];
+      const tags = ['manual', eventSlug];
+
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const eventId = `manual_${String(tenantId).slice(0, 8)}_${dateISO.replace(/-/g, '')}_${eventSlug}_${suffix}`;
+      const payload: any = {
+        id: eventId,
+        name: eventName,
+        slug: eventSlug,
+        date_type: 'fixed',
+        date: dateISO,
+        rule: null,
+        start_date: null,
+        end_date: null,
+        scope,
+        country,
+        uf,
+        city,
+        categories,
+        tags,
+        base_relevance: baseRelevance,
+        segment_boosts: {},
+        platform_affinity: {},
+        avoid_segments: [],
+        is_trend_sensitive: true,
+        source: 'manual:calendar-ui',
+      };
+      if (clientRow?.id) payload.target_client_ids = [clientRow.id];
+
+      const eventYear = Number(dateISO.slice(0, 4));
+      await query(
+        `INSERT INTO events (
+           id, name, slug, date_type, date, rule, start_date, end_date,
+           scope, country, uf, city, categories, tags, base_relevance,
+           segment_boosts, platform_affinity, avoid_segments, is_trend_sensitive,
+           source, payload, status, reviewed_by, reviewed_at, source_url, year, tenant_id
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,
+           $9,$10,$11,$12,$13,$14,$15,
+           $16::jsonb,$17::jsonb,$18,$19,
+           $20,$21::jsonb,$22,$23,$24,$25,$26,$27
+         )`,
+        [
+          eventId,
+          eventName,
+          eventSlug,
+          'fixed',
+          dateISO,
+          null,
+          null,
+          null,
+          scope,
+          country,
+          uf,
+          city,
+          categories,
+          tags,
+          baseRelevance,
+          JSON.stringify({}),
+          JSON.stringify({}),
+          [],
+          true,
+          'manual:calendar-ui',
+          JSON.stringify(payload),
+          'approved',
+          (request.user as any)?.email ?? null,
+          new Date().toISOString(),
+          null,
+          Number.isNaN(eventYear) ? null : eventYear,
+          tenantId,
+        ]
+      );
+
+      let override: any = null;
+      let score = baseRelevance;
+      let tier: 'A' | 'B' | 'C' = computeTierFromScore(score);
+      let why = `base_relevance:${score}`;
+
+      if (clientRow?.id) {
+        override = await upsertOverride({
+          tenantId,
+          clientId: clientRow.id,
+          calendarEventId: eventId,
+          forceInclude: true,
+          forceExclude: false,
+          customPriority: Math.max(1, Math.min(10, Math.round(baseRelevance / 10) || 1)),
+          notes: 'manual:calendar-ui',
+        });
+        const relevance = scoreCalendarEventForClient(payload, buildClientProfile(clientRow), override);
+        score = relevance.score;
+        tier = relevance.tier;
+        why = relevance.why;
+        await upsertRelevance({
+          tenantId,
+          clientId: clientRow.id,
+          calendarEventId: eventId,
+          relevanceScore: relevance.score,
+          isRelevant: relevance.score >= RELEVANCE_THRESHOLD,
+          relevanceReason: { why: relevance.why, tier: relevance.tier, manual: true },
+        });
+      }
+
+      return reply.send({
+        event: {
+          id: eventId,
+          date: dateISO,
+          name: eventName,
+          slug: eventSlug,
+          source: 'manual:calendar-ui',
+          score,
+          tier,
+          why,
+          client_id: clientRow?.id ?? null,
+        },
+        override,
+      });
+    }
   );
 
   app.get(

@@ -384,24 +384,62 @@ export default function DashboardClient() {
                 </Stack>
                 <Stack spacing={2} sx={{ maxHeight: 280, overflowY: 'auto', pr: 1 }}>
                   {todayEvents.length > 0 ? (
-                    todayEvents.map((event) => (
-                      <Card key={event.id} variant="outlined" sx={{ borderRadius: 3 }}>
-                        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, py: 2 }}>
-                          <Stack direction="row" spacing={2} alignItems="center">
-                            <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 48, height: 48 }}>
-                              <IconCalendar size={22} />
+                    todayEvents.map((event, idx) => {
+                      const name = String((event as any)?.name || (event as any)?.title || (event as any)?.slug || '').trim() || `Evento ${idx + 1}`;
+                      const scoreValue = Number((event as any)?.score ?? (event as any)?.base_relevance ?? 0);
+                      const safeScore = Number.isFinite(scoreValue) ? Math.max(0, Math.min(100, Math.round(scoreValue))) : 0;
+                      const tierValue = String((event as any)?.tier || (safeScore >= 80 ? 'A' : safeScore >= 55 ? 'B' : 'C')) as 'A' | 'B' | 'C';
+                      const isRelevant = (event as any)?.is_relevant !== false;
+                      return (
+                        <Box
+                          key={String((event as any)?.id || `${name}-${idx}`)}
+                          sx={{
+                            py: 0.85,
+                            px: 0.35,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 1.5,
+                            width: '100%',
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            opacity: isRelevant ? 1 : 0.7,
+                          }}
+                        >
+                          <Stack
+                            direction="row"
+                            spacing={1.5}
+                            alignItems="center"
+                            sx={{ minWidth: 0, flex: 1, overflow: 'hidden' }}
+                          >
+                            <Avatar variant="rounded" sx={{ bgcolor: 'grey.100', color: 'primary.main', width: 32, height: 32 }}>
+                              <IconCalendar size={18} />
                             </Avatar>
-                            <Box>
-                              <Typography fontWeight={600}>{event.name}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Relevancia: {event.score}%
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ display: 'block', fontWeight: 600, color: '#24324b', lineHeight: 1.2 }} noWrap>
+                                {name}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#5f6f8d', lineHeight: 1.2 }}>
+                                {safeScore}%{!isRelevant ? ' • nao relevante' : ''}
                               </Typography>
                             </Box>
                           </Stack>
-                          <Chip label={`Tier ${event.tier}`} size="small" variant="outlined" color={getTierColor(event.tier)} />
-                        </CardContent>
-                      </Card>
-                    ))
+                          <Chip
+                            label={`Tier ${tierValue}`}
+                            size="small"
+                            variant={isRelevant ? 'filled' : 'outlined'}
+                            color={getTierColor(tierValue)}
+                            sx={{
+                              flexShrink: 0,
+                              minWidth: 74,
+                              justifyContent: 'center',
+                              fontWeight: 600,
+                              bgcolor: isRelevant ? undefined : 'transparent',
+                            }}
+                          />
+                        </Box>
+                      );
+                    })
                   ) : (
                     <Typography variant="body2" color="text.secondary">
                       {showNonRelevant ? 'Sem eventos para hoje.' : 'Sem eventos relevantes para hoje.'}

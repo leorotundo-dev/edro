@@ -7,7 +7,7 @@ import moment from 'moment';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import StatusChip from '@/components/shared/StatusChip';
-import { apiGet, buildApiUrl } from '@/lib/api';
+import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -227,6 +227,11 @@ function formatEventWhy(value?: string) {
     .replace(/base_relevance[:=]\s*(\d+)/gi, 'Relevância base: $1%');
 }
 
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 function buildMonthGrid(month: string): CalendarCell[] {
   const [year, monthNum] = month.split('-').map(Number);
   if (!year || !monthNum) return [];
@@ -299,6 +304,11 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [relevanceLoading, setRelevanceLoading] = useState(false);
   const [showAllClients, setShowAllClients] = useState(false);
   const [showNonRelevant, setShowNonRelevant] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [addEventLoading, setAddEventLoading] = useState(false);
+  const [manualRelevance, setManualRelevance] = useState('');
+  const [manualRelevanceClientId, setManualRelevanceClientId] = useState('');
+  const [saveRelevanceLoading, setSaveRelevanceLoading] = useState(false);
 
   const isLocked = Boolean(lockClient && initialClientId);
 
@@ -629,6 +639,20 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return recommendedClients;
   }, [clients, recommendedClients, selectedEvent, showAllClients, isFilteredToClient, selectedClient]);
 
+  const relevanceClientOptions = useMemo(() => {
+    if (selectedClient?.id) return [selectedClient];
+    if (!selectedEvent) return [];
+    const possibleClientIds = new Set((selectedEvent.possible_clients || []).map((item) => item.client_id));
+    const possibleClients = clients.filter((client) => possibleClientIds.has(client.id));
+    return possibleClients.length ? possibleClients : clients;
+  }, [clients, selectedClient, selectedEvent]);
+
+  const manualRelevanceTargetClient = useMemo(() => {
+    if (selectedClient?.id) return selectedClient;
+    if (!manualRelevanceClientId) return null;
+    return clients.find((client) => client.id === manualRelevanceClientId) || null;
+  }, [clients, manualRelevanceClientId, selectedClient]);
+
   const selectedDayLabel = useMemo(() => {
     if (!selectedDayISO) return '';
     return formatDayLabel(selectedDayISO);
@@ -650,6 +674,29 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     if (!eventDetailDateISO) return '';
     return formatDayLabel(eventDetailDateISO);
   }, [eventDetailDateISO]);
+
+  useEffect(() => {
+    if (!selectedEvent) {
+      setManualRelevance('');
+      setManualRelevanceClientId('');
+      return;
+    }
+    setManualRelevance(String(clampScore(Number(selectedEvent.score || 0))));
+    if (selectedClient?.id) {
+      setManualRelevanceClientId(selectedClient.id);
+      return;
+    }
+    const possibleClients = selectedEvent.possible_clients || [];
+    if (possibleClients.length === 1) {
+      setManualRelevanceClientId(possibleClients[0].client_id);
+      return;
+    }
+    setManualRelevanceClientId((prev) => {
+      if (!prev) return '';
+      const stillValid = possibleClients.some((item) => item.client_id === prev);
+      return stillValid ? prev : '';
+    });
+  }, [selectedClient?.id, selectedEvent]);
 
   const handleSelectDay = useCallback((dateISO: string) => {
     setActiveDateISO(dateISO);
@@ -755,6 +802,84 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     router.push(buildStudioUrl(event, dateISO));
   };
 
+  const handleOpenAddEvent = () => {
+    if (typeof window === 'undefined') return;
+    const dateISO = selectedDayISO || activeDateISO;
+    const name = window.prompt('Nome do evento:');
+    if (!name?.trim()) return;
+    const scoreInput = window.prompt('Relevância do evento (0-100):', '70');
+    const score = clampScore(Number(scoreInput ?? 70));
+
+    setAddEventLoading(true);
+    setNotice('');
+    setError('');
+    (async () => {
+      try {
+      await apiPost('/calendar/events/manual', {
+        name: name.trim(),
+        date: dateISO,
+        relevance_score: score,
+        client_id: selectedClient?.id || null,
+      });
+
+      await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
+      setActiveDateISO(dateISO);
+      setSelectedDayISO(dateISO);
+      setNotice('Evento adicionado com sucesso.');
+      } catch (err: any) {
+        setError(err?.message || 'Falha ao adicionar evento.');
+      } finally {
+        setAddEventLoading(false);
+      }
+    })();
+  };
+
+  const handleSaveEventRelevance = async () => {
+    const targetClientId = selectedClient?.id || manualRelevanceClientId;
+    if (!targetClientId) {
+      setError('Selecione um cliente-alvo para ajustar a relevância.');
+      return;
+    }
+    if (!selectedEvent?.id) {
+      setError('Selecione um evento para ajustar a relevância.');
+      return;
+    }
+
+    const score = clampScore(Number(manualRelevance));
+    setSaveRelevanceLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const customPriority = Math.max(1, Math.min(10, Math.round(score / 10) || 1));
+      await apiPost(`/clients/${targetClientId}/calendar/overrides`, {
+        calendar_event_id: selectedEvent.id,
+        force_include: true,
+        force_exclude: false,
+        custom_priority: customPriority,
+        notes: `manual_relevance:${score}`,
+      });
+      const tier: 'A' | 'B' | 'C' = score >= 80 ? 'A' : score >= 55 ? 'B' : 'C';
+
+      setSelectedEvent((prev) =>
+        prev
+          ? {
+              ...prev,
+              score,
+              tier,
+              why: prev.why ? `${prev.why} | override:priority:${customPriority}` : `override:priority:${customPriority}`,
+            }
+          : prev
+      );
+      setManualRelevance(String(score));
+      await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
+      setNotice('Relevância atualizada com sucesso.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar relevância.');
+    } finally {
+      setSaveRelevanceLoading(false);
+    }
+  };
+
   const handlePrev = () => {
     if (view === 'month') {
       setMonthFilter(shiftMonth(monthFilter, -1));
@@ -822,6 +947,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
       {error ? <Alert severity="error">{error}</Alert> : null}
+      {notice ? <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert> : null}
 
       {/* Calendar controls and filters */}
       <DashboardCard>
@@ -995,9 +1121,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
                 {/* Daily events */}
                 <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
                     <Chip size="small" label="Daily events" />
                     <Chip size="small" label={`${selectedDayEvents.length} tasks`} variant="outlined" />
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<IconPlus size={14} />}
+                      onClick={handleOpenAddEvent}
+                      disabled={addEventLoading}
+                    >
+                      {addEventLoading ? 'Adicionando...' : 'Adicionar evento'}
+                    </Button>
                   </Stack>
                   {selectedDayEvents.length ? (
                     <List dense disablePadding>
@@ -1125,6 +1261,56 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                           </>
                         ) : null}
                       </Box>
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Ajuste de relevância</Typography>
+                        {selectedClient || relevanceClientOptions.length ? (
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-end' }}>
+                            {!selectedClient ? (
+                              <TextField
+                                select
+                                size="small"
+                                label="Cliente alvo"
+                                value={manualRelevanceClientId}
+                                onChange={(event) => setManualRelevanceClientId(event.target.value)}
+                                sx={{ minWidth: 180 }}
+                              >
+                                <MenuItem value="">Selecione</MenuItem>
+                                {relevanceClientOptions.map((client) => (
+                                  <MenuItem key={client.id} value={client.id}>
+                                    {client.name}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
+                            ) : null}
+                            <TextField
+                              type="number"
+                              size="small"
+                              label="Relevância (%)"
+                              value={manualRelevance}
+                              onChange={(event) => setManualRelevance(event.target.value)}
+                              inputProps={{ min: 0, max: 100 }}
+                              sx={{ width: 140 }}
+                            />
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={handleSaveEventRelevance}
+                              disabled={saveRelevanceLoading}
+                            >
+                              {saveRelevanceLoading ? 'Salvando...' : 'Salvar'}
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Nenhum cliente disponível para ajuste de relevância neste evento.
+                          </Typography>
+                        )}
+                        {!selectedClient && manualRelevanceTargetClient ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                            Ajuste será aplicado para: {manualRelevanceTargetClient.name}
+                          </Typography>
+                        ) : null}
+                      </Box>
                       {selectedEvent.why ? (
                         <Typography variant="body2" color="text.secondary">{formatEventWhy(selectedEvent.why)}</Typography>
                       ) : null}
@@ -1234,6 +1420,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
           </Card>
         ) : null}
       </Stack>
+
     </Stack>
   );
 

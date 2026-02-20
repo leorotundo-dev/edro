@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
@@ -72,88 +74,92 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <IconUsers size={28} stroke={1.5} />
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuarios</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Gerencie papeis e permissoes dos membros da equipe.
-          </Typography>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <IconUsers size={28} stroke={1.5} />
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuarios</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Gerencie papeis e permissoes dos membros da equipe.
+            </Typography>
+          </Box>
         </Box>
-      </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
+        <AdminSubmenu value="users" />
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer component={Paper} variant="outlined">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>Nome</strong></TableCell>
-                <TableCell><strong>Email</strong></TableCell>
-                <TableCell><strong>Papel</strong></TableCell>
-                <TableCell><strong>Status</strong></TableCell>
-                <TableCell><strong>Ultimo Login</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id} hover>
-                  <TableCell>{user.name || '-'}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={user.role}
-                      size="small"
-                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      sx={{ minWidth: 130 }}
-                    >
-                      {ROLES.map((r) => (
-                        <MenuItem key={r} value={r}>
-                          <Chip
-                            label={r.charAt(0).toUpperCase() + r.slice(1)}
-                            size="small"
-                            color={ROLE_COLORS[r] || 'default'}
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.status === 'active' ? 'Ativo' : 'Inativo'}
-                      color={user.status === 'active' ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {user.last_login_at
-                      ? new Date(user.last_login_at).toLocaleDateString('pt-BR', {
-                          day: '2-digit', month: '2-digit', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
-                        })
-                      : 'Nunca'}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {users.length === 0 && (
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                    <Typography color="text.secondary">Nenhum usuario encontrado.</Typography>
-                  </TableCell>
+                  <TableCell><strong>Nome</strong></TableCell>
+                  <TableCell><strong>Email</strong></TableCell>
+                  <TableCell><strong>Papel</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Ultimo Login</strong></TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-    </Box>
+              </TableHead>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>{user.name || '-'}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.role}
+                        size="small"
+                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                        sx={{ minWidth: 130 }}
+                      >
+                        {ROLES.map((r) => (
+                          <MenuItem key={r} value={r}>
+                            <Chip
+                              label={r.charAt(0).toUpperCase() + r.slice(1)}
+                              size="small"
+                              color={ROLE_COLORS[r] || 'default'}
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.status === 'active' ? 'Ativo' : 'Inativo'}
+                        color={user.status === 'active' ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {user.last_login_at
+                        ? new Date(user.last_login_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })
+                        : 'Nunca'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {users.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary">Nenhum usuario encontrado.</Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Box>
+    </AppShell>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
@@ -18,6 +19,7 @@ import {
   IconDownload,
   IconCheckupList,
   IconChevronRight,
+  IconExternalLink,
   IconX,
 } from '@tabler/icons-react';
 
@@ -48,9 +50,61 @@ function getCurrentStep(pathname: string): number {
   return step?.step || 1;
 }
 
+type StoredClient = {
+  id: string;
+  name: string;
+  segment?: string | null;
+  tone?: string | null;
+  pillars?: string[];
+};
+
 export default function StudioLayout({ children }: StudioLayoutProps) {
   const pathname = usePathname();
   const currentStep = getCurrentStep(pathname);
+  const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const readClient = () => {
+      try {
+        const selected = JSON.parse(
+          window.localStorage.getItem('edro_selected_clients') || '[]'
+        ) as StoredClient[];
+        const activeId = window.localStorage.getItem('edro_active_client_id') || '';
+        const contextRaw = window.localStorage.getItem('edro_studio_context') || '{}';
+        const context = JSON.parse(contextRaw || '{}') as Record<string, any>;
+        const fallback = selected[0] || null;
+        const found = activeId
+          ? selected.find((client) => client.id === activeId) || fallback
+          : fallback;
+        if (!found) {
+          setActiveClient(null);
+          return;
+        }
+        setActiveClient({
+          ...found,
+          tone: context?.tone || found.tone || null,
+          pillars: Array.isArray(context?.pillars)
+            ? context.pillars
+            : String(context?.pillars || '')
+                .split(/[,;\n]/)
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 2),
+        });
+      } catch {
+        setActiveClient(null);
+      }
+    };
+
+    readClient();
+    window.addEventListener('edro-studio-context-change', readClient);
+    window.addEventListener('storage', readClient);
+    return () => {
+      window.removeEventListener('edro-studio-context-change', readClient);
+      window.removeEventListener('storage', readClient);
+    };
+  }, []);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', fontFamily: 'sans-serif', color: 'text.primary', bgcolor: 'background.default' }}>
@@ -196,14 +250,62 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
             flexShrink: 0,
           }}
         >
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
-              Creative Studio
-            </Typography>
-            <IconChevronRight size={14} />
-            <Typography variant="overline" color="text.primary">
-              {STUDIO_STEPS.find((s) => pathname.startsWith(s.path))?.label || 'Briefing'}
-            </Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
+                Creative Studio
+              </Typography>
+              <IconChevronRight size={14} />
+              <Typography variant="overline" color="text.primary">
+                {STUDIO_STEPS.find((s) => pathname.startsWith(s.path))?.label || 'Briefing'}
+              </Typography>
+            </Stack>
+            {activeClient ? (
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{
+                  px: 1.25,
+                  py: 0.6,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(255,102,0,0.04)',
+                  border: '1px solid rgba(255,102,0,0.12)',
+                }}
+              >
+                <Avatar sx={{ width: 22, height: 22, bgcolor: '#ff6600', fontSize: '0.7rem' }}>
+                  {activeClient.name?.[0] || 'C'}
+                </Avatar>
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                  {activeClient.name}
+                </Typography>
+                {activeClient.tone ? (
+                  <Chip size="small" label={activeClient.tone} sx={{ height: 18, fontSize: '0.62rem' }} />
+                ) : null}
+                {(activeClient.pillars || []).slice(0, 2).map((pillar) => (
+                  <Chip
+                    key={pillar}
+                    size="small"
+                    label={pillar}
+                    sx={{
+                      height: 18,
+                      fontSize: '0.62rem',
+                      bgcolor: 'rgba(255,102,0,0.08)',
+                      color: '#ff6600',
+                    }}
+                  />
+                ))}
+                <IconButton
+                  size="small"
+                  component={Link}
+                  href={`/clients/${activeClient.id}`}
+                  target="_blank"
+                  sx={{ color: 'text.secondary' }}
+                >
+                  <IconExternalLink size={12} />
+                </IconButton>
+              </Stack>
+            ) : null}
           </Stack>
 
           <Stack direction="row" spacing={2} alignItems="center">

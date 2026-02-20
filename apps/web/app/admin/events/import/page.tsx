@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import { apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -128,8 +129,10 @@ export default function EventImportPage() {
   };
 
   return (
-    <AppShell title="Event Import">
-      <Box sx={{ p: 3 }}>
+    <AppShell title="System Admin">
+      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+        <AdminSubmenu value="import-events" />
+
         {/* Header */}
         <Box sx={{ mb: 3 }}>
           <Button

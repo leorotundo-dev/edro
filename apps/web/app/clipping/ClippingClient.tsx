@@ -791,6 +791,32 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                               <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.65rem', height: 22 }} />
                             </Stack>
                             <Stack direction="row" spacing={0.5} alignItems="center">
+                              {(selectedClient?.id || lockedClientId) ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    const targetClientId = selectedClient?.id || lockedClientId;
+                                    if (!targetClientId) return;
+                                    const title = encodeURIComponent(item.title || 'Pauta');
+                                    router.push(
+                                      `/studio?clientId=${encodeURIComponent(targetClientId)}&title=${title}&source=clipping&sourceId=${encodeURIComponent(item.id)}`,
+                                    );
+                                  }}
+                                  sx={{
+                                    fontSize: '0.7rem',
+                                    py: 0.25,
+                                    px: 1,
+                                    borderColor: '#ff6600',
+                                    color: '#ff6600',
+                                    textTransform: 'none',
+                                    '&:hover': { bgcolor: 'rgba(255,102,0,0.05)', borderColor: '#ff6600' },
+                                  }}
+                                >
+                                  Criar Pauta
+                                </Button>
+                              ) : null}
                               {item.url ? (
                                 <Tooltip title="Abrir original">
                                   <IconButton
