@@ -41,6 +41,7 @@ type ClientRow = {
   name: string;
   segment_primary?: string | null;
   timezone?: string | null;
+  profile?: { brand_colors?: string[] } | null;
 };
 
 type StoredClient = {
@@ -841,7 +842,7 @@ export default function BriefClient() {
               ) : (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                   {clients.map((client) => {
-                    const color = getClientColor(client.name);
+                    const color = client.profile?.brand_colors?.[0] || getClientColor(client.name);
                     return (
                       <Card
                         key={client.id}
@@ -906,7 +907,7 @@ export default function BriefClient() {
                   sx={{
                     width: 34,
                     height: 34,
-                    bgcolor: selectedClient ? getClientColor(selectedClient.name) : '#ff6600',
+                    bgcolor: selectedClient ? (selectedClient.profile?.brand_colors?.[0] || getClientColor(selectedClient.name)) : '#ff6600',
                     fontSize: '0.95rem',
                     fontWeight: 700,
                   }}
