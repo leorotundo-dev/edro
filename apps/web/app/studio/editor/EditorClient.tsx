@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
@@ -80,6 +80,8 @@ type ParsedOption = {
   title: string;
   body: string;
   cta: string;
+  legenda: string;
+  hashtags: string;
   raw: string;
 };
 
@@ -199,51 +201,118 @@ const normalizeCatalogToken = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// Vídeos CURTOS de social media (Hook/Corpo/CTA) — exclui vídeos institucionais/TV
+const isVideoFormat = (format?: string | null): boolean => {
+  if (!format) return false;
+  const f = format.toLowerCase();
+  return (
+    f.includes('reels') ||
+    f.includes('tiktok') ||
+    f.includes('shorts') ||
+    f.includes('youtube shorts') ||
+    (f.includes('video') && (f.includes('social') || f.includes('feed') || f.includes('story') || f.includes('ig ') || f.includes('instagram') || f.includes('tik') || f.includes('reel')))
+  );
+};
+
+function parseOptionChunk(chunk: string): ParsedOption {
+  const lines = chunk.split('\n');
+  const fields: Record<string, string> = {};
+  let currentField = '';
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // Skip OPCAO N: header lines
+    if (/^OPCA[OÃo]\s*\d+\s*:/i.test(line)) { currentField = ''; continue; }
+
+    const arteTitle = line.match(/^arte\s*[-–]\s*t[ií]tulo\s*[:\-]\s*(.+)/i);
+    const arteBody  = line.match(/^arte\s*[-–]\s*corpo\s*[:\-]\s*(.+)/i);
+    const legenda   = line.match(/^legenda\s*[:\-]\s*(.*)/i);
+    const cta       = line.match(/^cta\s*[:\-]\s*(.+)/i);
+    const hashtags  = line.match(/^hashtags?\s*[:\-]\s*(.+)/i);
+    // Fallback label matches (backward compat with old format)
+    const titleFb   = line.match(/^(?:t[ií]tulo|title|headline|chamada)\s*[:\-]\s*(.+)/i);
+    const bodyFb    = line.match(/^(?:corpo|body|texto)\s*[:\-]\s*(.+)/i);
+
+    if (arteTitle)  { currentField = 'title';    fields.title    = arteTitle[1].trim(); continue; }
+    if (arteBody)   { currentField = 'body';     fields.body     = arteBody[1].trim();  continue; }
+    if (legenda)    { currentField = 'legenda';  fields.legenda  = legenda[1]?.trim() ?? ''; continue; }
+    if (cta)        { currentField = 'cta';      fields.cta      = cta[1].trim();       continue; }
+    if (hashtags)   { currentField = 'hashtags'; fields.hashtags = hashtags[1].trim();  continue; }
+    if (!fields.title && titleFb) { currentField = 'title'; fields.title = titleFb[1].trim(); continue; }
+    if (!fields.body  && bodyFb)  { currentField = 'body';  fields.body  = bodyFb[1].trim();  continue; }
+
+    // Multi-line continuation for legenda (can span paragraphs)
+    if (currentField) {
+      fields[currentField] = fields[currentField]
+        ? `${fields[currentField]}\n${line}`
+        : line;
+    }
+  }
+
+  const body = fields.body || (Object.keys(fields).length === 0 ? chunk : '');
+  return {
+    title:    fields.title    || '',
+    body,
+    cta:      fields.cta      || '',
+    legenda:  fields.legenda  || '',
+    hashtags: fields.hashtags || '',
+    raw: chunk,
+  };
+}
+
 function parseOptions(text: string): ParsedOption[] {
   if (!text) return [];
-  const trimmed = text.trim();
+
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  let trimmed = text.trim()
+    .replace(/^```(?:json|javascript|text|plaintext)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim();
+
+  // Try JSON parse — handle keys from multiple AI formats
   try {
     const parsed = JSON.parse(trimmed);
-    const options = parsed.options || parsed.copys || parsed.copies || parsed.variations;
-    if (Array.isArray(options)) {
-      return options.map((option: any) => ({
-        title: option.title || option.headline || option.titulo || '',
-        body: option.body || option.corpo || option.text || '',
-        cta: option.cta || option.call_to_action || option.callToAction || '',
-        raw: JSON.stringify(option),
+    const arr =
+      parsed.options     ||
+      parsed.copys       ||
+      parsed.copies      ||
+      parsed.variations  ||
+      parsed.copies_ranqueadas ||
+      parsed.copias_ranqueadas ||
+      parsed.opcoes;
+    if (Array.isArray(arr)) {
+      return arr.map((o: any) => ({
+        title:    o.arte_titulo || o.title    || o.headline || o.titulo || '',
+        body:     o.arte_corpo  || o.body     || o.corpo    || o.text   || '',
+        cta:      o.cta || o.call_to_action || o.callToAction || '',
+        legenda:  o.legenda || o.caption || '',
+        hashtags: Array.isArray(o.hashtags) ? o.hashtags.join(' ') : (o.hashtags || ''),
+        raw: JSON.stringify(o),
       }));
     }
   } catch {
-    // ignore JSON parse
+    // not JSON — continue
   }
 
+  // Split on OPCAO N: headers (primary format)
+  const opcaoSplit = trimmed.split(/\n(?=OPCA[OÃo]\s*\d+\s*:)/i).filter(Boolean);
+  if (opcaoSplit.length > 1) {
+    return opcaoSplit.map(parseOptionChunk);
+  }
+
+  // Split on numbered list fallback
   const chunks = trimmed
     .split(/\n(?=\s*\d+[\).:-]\s+)/g)
-    .map((chunk) => chunk.replace(/^\s*\d+[\).:-]\s*/, '').trim())
+    .map((c) => c.replace(/^\s*\d+[\).:-]\s*/, '').trim())
     .filter(Boolean);
 
   if (!chunks.length) {
-    return [
-      {
-        title: '',
-        body: trimmed,
-        cta: '',
-        raw: trimmed,
-      },
-    ];
+    return [{ title: '', body: trimmed, cta: '', legenda: '', hashtags: '', raw: trimmed }];
   }
 
-  return chunks.map((chunk) => {
-    const titleMatch = chunk.match(/(?:titulo|title|headline)\s*[:\-]\s*(.+)/i);
-    const bodyMatch = chunk.match(/(?:corpo|body|texto)\s*[:\-]\s*(.+)/i);
-    const ctaMatch = chunk.match(/(?:cta|call to action)\s*[:\-]\s*(.+)/i);
-    return {
-      title: titleMatch?.[1]?.trim() || '',
-      body: bodyMatch?.[1]?.trim() || chunk,
-      cta: ctaMatch?.[1]?.trim() || '',
-      raw: chunk,
-    };
-  });
+  return chunks.map(parseOptionChunk);
 }
 
 const extractCopyMeta = (copy?: CopyVersion | null): CopyMeta | null => {
@@ -288,6 +357,8 @@ export default function EditorClient() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(true);
   const [regenerationCount, setRegenerationCount] = useState(0);
+  const [videoScript, setVideoScript] = useState<{ hook: string; corpo: string; cta: string }>({ hook: '', corpo: '', cta: '' });
+  const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -588,6 +659,16 @@ export default function EditorClient() {
     };
   }, [loadCopyForActiveClient]);
 
+  // Auto-generate on first visit when briefing has no copies yet
+  const hasAutoGeneratedRef = useRef(false);
+  useEffect(() => {
+    if (loading || !briefing?.id || generating || options.length > 0) return;
+    if (hasAutoGeneratedRef.current) return;
+    hasAutoGeneratedRef.current = true;
+    handleGenerate(); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, briefing?.id, options.length]);
+
   // Collaborative stepper progress simulation
   useEffect(() => {
     if (!generating || pipeline !== 'collaborative') {
@@ -613,7 +694,13 @@ export default function EditorClient() {
       if (formatLower.includes('radio') || formatLower.includes('spot')) {
         extraGuidelines.push('Formato de radio: gerar roteiro curto com tempo estimado e fala fluida.');
       }
-      if (formatLower.includes('tv') || formatLower.includes('video')) {
+      if (isVideoFormat(formatName)) {
+        // Vídeo curto (Reels/TikTok/Shorts): estrutura Hook/Corpo/CTA — sobrepõe a instrução genérica
+        extraGuidelines.push(
+          'FORMATO VIDEO CURTO — estruture CADA OPCAO obrigatoriamente com:\nHook: [gancho de abertura 0-3s]\nCorpo: [desenvolvimento 10-25s]\nCTA: [chamada para acao final]'
+        );
+      } else if (formatLower.includes('tv') || formatLower.includes('video')) {
+        // TV e vídeo institucional longo: roteiro com cenas (NÃO é Hook/Corpo/CTA)
         extraGuidelines.push('Formato audiovisual: incluir indicacoes de cena e locucao quando pertinente.');
       }
       if (formatLower.includes('outdoor') || formatLower.includes('ooh') || formatLower.includes('busdoor')) {
@@ -701,6 +788,11 @@ export default function EditorClient() {
         setComparisonMode(true);
         setRegenerationCount((c) => c + 1);
         setActiveCopyMeta(extractCopyMeta(primaryCopy));
+        if (isVideoFormat(activeFormat?.format) && parsed[0]) {
+          setVideoScript({ hook: parsed[0].title || '', corpo: parsed[0].body || '', cta: parsed[0].cta || '' });
+        }
+        const qs = primaryCopy.payload?.quality_score ?? null;
+        setQualityScore(qs ? { overall: qs.overall, brand_dna_match: qs.brand_dna_match, platform_fit: qs.platform_fit, cta_clarity: qs.cta_clarity, needs_revision: qs.needs_revision } : null);
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('edro_copy_version_id', primaryCopy.id);
         }
@@ -797,7 +889,13 @@ export default function EditorClient() {
 
   const optionToText = (option: ParsedOption | null) => {
     if (!option) return output || '';
-    const parts = [option.title, option.body, option.cta ? `CTA: ${option.cta}` : ''].filter(Boolean);
+    const parts = [
+      option.title  ? `Arte - Titulo: ${option.title}` : '',
+      option.body   ? `Arte - Corpo: ${option.body}`   : '',
+      option.legenda ? `Legenda: ${option.legenda}`    : '',
+      option.cta    ? `CTA: ${option.cta}`             : '',
+      option.hashtags ? `Hashtags: ${option.hashtags}` : '',
+    ].filter(Boolean);
     return parts.join('\n').trim();
   };
 
@@ -898,6 +996,7 @@ export default function EditorClient() {
                         productionType={activeFormat?.production_type}
                         copy={output}
                         option={selectedOptionData}
+                        legenda={selectedOptionData?.legenda || null}
                         bestPractices={catalogItem?.best_practices}
                         maxChars={catalogItem?.max_chars}
                         notes={catalogItem?.notes}
@@ -1018,9 +1117,28 @@ export default function EditorClient() {
                       {options.length >= 2 && comparisonMode ? (
                         /* ── Comparação pareada A vs B ── */
                         <Box sx={{ mt: 2 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                            Qual abordagem representa melhor a marca?
-                          </Typography>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Qual abordagem representa melhor a marca?
+                            </Typography>
+                            {qualityScore && (
+                              <Stack direction="row" spacing={0.75} alignItems="center">
+                                <Chip
+                                  size="small"
+                                  label={`Score IA: ${qualityScore.overall.toFixed(1)}/10`}
+                                  sx={{
+                                    fontSize: '0.65rem',
+                                    height: 20,
+                                    bgcolor: qualityScore.overall >= 8 ? '#e8f5e9' : qualityScore.overall >= 7 ? '#fff8e1' : '#ffebee',
+                                    color: qualityScore.overall >= 8 ? '#2e7d32' : qualityScore.overall >= 7 ? '#f57c00' : '#c62828',
+                                  }}
+                                />
+                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                                  DNA:{qualityScore.brand_dna_match} · Plat:{qualityScore.platform_fit} · CTA:{qualityScore.cta_clarity}
+                                </Typography>
+                              </Stack>
+                            )}
+                          </Stack>
                           <Grid container spacing={2}>
                             {[0, 1].map((idx) => {
                               const option = options[idx];
@@ -1038,34 +1156,64 @@ export default function EditorClient() {
                                       flexDirection: 'column',
                                     }}
                                   >
-                                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 }, flex: 1 }}>
+                                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 2 }, flex: 1, display: 'flex', flexDirection: 'column' }}>
                                       <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                                         Opção {idx === 0 ? 'A' : 'B'}
                                       </Typography>
-                                      {option.title && (
-                                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
-                                          {option.title}
+
+                                      {/* Arte — texto que vai na peça gráfica */}
+                                      <Box sx={{ mb: 1.5 }}>
+                                        <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                          Arte
                                         </Typography>
+                                        {option.title && (
+                                          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
+                                            {option.title}
+                                          </Typography>
+                                        )}
+                                        {option.body && (
+                                          <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                            {option.body}
+                                          </Typography>
+                                        )}
+                                        {!option.title && !option.body && (
+                                          <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                            {option.raw}
+                                          </Typography>
+                                        )}
+                                      </Box>
+
+                                      {/* Legenda — caption do post nas redes sociais */}
+                                      {option.legenda && (
+                                        <Box sx={{ mb: 1.5, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.5 }}>
+                                            Legenda do post
+                                          </Typography>
+                                          <Typography variant="body2" color="text.secondary"
+                                            sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', whiteSpace: 'pre-line' }}>
+                                            {option.legenda}
+                                          </Typography>
+                                        </Box>
                                       )}
-                                      <Typography variant="body2" color="text.secondary"
-                                        sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', mb: 1.5 }}>
-                                        {option.body || option.raw}
-                                      </Typography>
+
                                       {option.cta && (
-                                        <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1.5 }}>
+                                        <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1.25 }}>
                                           CTA: {option.cta}
                                         </Typography>
                                       )}
-                                      <Button
-                                        fullWidth
-                                        size="small"
-                                        variant="contained"
-                                        onClick={() => handleCopySelected(idx)}
-                                        disabled={feedbackLoading}
-                                        sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
-                                      >
-                                        Esta é a melhor
-                                      </Button>
+
+                                      <Box sx={{ mt: 'auto', pt: 1 }}>
+                                        <Button
+                                          fullWidth
+                                          size="small"
+                                          variant="contained"
+                                          onClick={() => handleCopySelected(idx)}
+                                          disabled={feedbackLoading}
+                                          sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
+                                        >
+                                          Esta é a melhor
+                                        </Button>
+                                      </Box>
                                     </CardContent>
                                   </Card>
                                 </Grid>
@@ -1121,11 +1269,54 @@ export default function EditorClient() {
                                 </Card>
                               ))
                             ) : (
-                              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                Nenhuma opcao gerada.
-                              </Typography>
+                              <Box sx={{ textAlign: 'center', py: 4 }}>
+                                {generating ? (
+                                  <>
+                                    <CircularProgress size={24} sx={{ mb: 1 }} />
+                                    <Typography variant="body2" color="text.secondary">
+                                      Preparando opcoes de copy...
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Nenhuma opcao gerada.
+                                  </Typography>
+                                )}
+                              </Box>
                             )}
                           </Stack>
+
+                          {/* Video script editor — aparece quando formato é video e opção selecionada */}
+                          {isVideoFormat(activeFormat?.format) && selectedOptionData && (
+                            <Box sx={{ mt: 2, p: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+                              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'block', mb: 1.25 }}>
+                                Roteiro estruturado
+                              </Typography>
+                              <Stack spacing={1.5}>
+                                <TextField
+                                  label="Hook (0-3s)"
+                                  placeholder="Gancho de abertura..."
+                                  fullWidth multiline rows={2} size="small"
+                                  value={videoScript.hook}
+                                  onChange={(e) => setVideoScript((s) => ({ ...s, hook: e.target.value }))}
+                                />
+                                <TextField
+                                  label="Corpo (10-25s)"
+                                  placeholder="Desenvolvimento da mensagem..."
+                                  fullWidth multiline rows={3} size="small"
+                                  value={videoScript.corpo}
+                                  onChange={(e) => setVideoScript((s) => ({ ...s, corpo: e.target.value }))}
+                                />
+                                <TextField
+                                  label="CTA / Encerramento"
+                                  placeholder="Chamada para ação..."
+                                  fullWidth multiline rows={2} size="small"
+                                  value={videoScript.cta}
+                                  onChange={(e) => setVideoScript((s) => ({ ...s, cta: e.target.value }))}
+                                />
+                              </Stack>
+                            </Box>
+                          )}
 
                           {options.length ? (
                             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>

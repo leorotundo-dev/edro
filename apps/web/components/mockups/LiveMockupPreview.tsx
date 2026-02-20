@@ -27,6 +27,7 @@ type LiveMockupPreviewProps = {
   productionType?: string | null;
   copy?: string | null;
   option?: CopyOption | null;
+  legenda?: string | null;
   bestPractices?: string[] | null;
   maxChars?: Record<string, number> | null;
   notes?: string | null;
@@ -230,6 +231,7 @@ export default function LiveMockupPreview({
   productionType,
   copy,
   option,
+  legenda,
   bestPractices,
   maxChars,
   notes,
@@ -263,10 +265,13 @@ export default function LiveMockupPreview({
   const displayBody = clampText(rawBody, bodyLimit ?? 220);
   const displayCta = clampText(rawCta, ctaLimit ?? 40);
   const captionText = displayBody || displayHeadline || mergedCopy;
-  const feedCaption = [displayHeadline, displayBody, displayCta ? `CTA: ${displayCta}` : '']
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-    .join(' ');
+  // Use the full social media caption (legenda) when available; fall back to arte copy
+  const resolvedLegenda = legenda?.trim() || '';
+  const feedCaption = resolvedLegenda ||
+    [displayHeadline, displayBody, displayCta ? `CTA: ${displayCta}` : '']
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ');
 
   const displayName = (brandName || platform || 'edro').trim() || 'edro';
   const avatar = createSvgDataUri(displayName, 400, 400, '#ff8a4c');
@@ -577,6 +582,17 @@ export default function LiveMockupPreview({
           </div>
         </div>
       </div>
+
+      {/* Legenda panel — full caption text readable outside the phone frame */}
+      {resolvedLegenda ? (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-semibold">Legenda do post</span>
+            <span className="text-[10px] text-slate-400">{resolvedLegenda.length} chars</span>
+          </div>
+          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line line-clamp-6">{resolvedLegenda}</p>
+        </div>
+      ) : null}
 
       {practiceItems.length ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">

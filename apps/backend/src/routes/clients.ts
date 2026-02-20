@@ -195,6 +195,62 @@ const suggestionFieldPathSchema = z.object({
   field: z.string().min(1),
 });
 
+async function syncCopyExamplesToProfile(clientId: string, tenantId: string): Promise<void> {
+  // Buscar exemplos agrupados por plataforma E formato — isolamento completo de contexto
+  const [approvedRows, rejectedRows] = await Promise.all([
+    query<{ text: string; platform: string | null; format: string | null }>(
+      `SELECT copy_approved_text as text, copy_platform as platform, copy_format as format
+       FROM preference_feedback
+       WHERE client_id=$1 AND tenant_id=$2 AND feedback_type='copy'
+         AND action IN ('approved','approved_after_edit') AND copy_approved_text IS NOT NULL
+       ORDER BY created_at DESC LIMIT 50`,
+      [clientId, tenantId]
+    ),
+    query<{ text: string; platform: string | null; format: string | null }>(
+      `SELECT copy_rejected_text as text, copy_platform as platform, copy_format as format
+       FROM preference_feedback
+       WHERE client_id=$1 AND tenant_id=$2 AND feedback_type='copy'
+         AND action='rejected' AND copy_rejected_text IS NOT NULL
+       ORDER BY created_at DESC LIMIT 50`,
+      [clientId, tenantId]
+    ),
+  ]);
+
+  // Agrupar por "Plataforma::Formato" — ex: { "Instagram::Reels": [...], "LinkedIn::Post": [...] }
+  const groupByContext = (rows: Array<{ text: string; platform: string | null; format: string | null }>) => {
+    const groups: Record<string, string[]> = {};
+    for (const row of rows) {
+      const key = [row.platform, row.format].filter(Boolean).join('::') || 'geral';
+      if (!groups[key]) groups[key] = [];
+      if (groups[key].length < 5) groups[key].push(String(row.text).trim());
+    }
+    return groups;
+  };
+
+  const existing = await query<{ profile: Record<string, any> | null }>(
+    `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+    [tenantId, clientId]
+  );
+  if (!existing.rows.length) return;
+
+  const nextProfile = {
+    ...(existing.rows[0]?.profile || {}),
+    // Exemplos segmentados por contexto (plataforma::formato) — fonte da verdade
+    copy_examples_by_context: {
+      approved: groupByContext(approvedRows.rows),
+      rejected: groupByContext(rejectedRows.rows),
+    },
+    // Compat: flat com os 5 mais recentes globais (fallback para sistemas que leem este campo)
+    good_copy_examples: approvedRows.rows.slice(0, 5).map((r) => String(r.text).trim()).filter(Boolean),
+    bad_copy_examples:  rejectedRows.rows.slice(0, 5).map((r) => String(r.text).trim()).filter(Boolean),
+  };
+
+  await query(
+    `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+    [JSON.stringify(nextProfile), tenantId, clientId]
+  );
+}
+
 export default async function clientsRoutes(app: FastifyInstance) {
   await app.register(multipart);
   app.addHook('preHandler', authGuard);
@@ -658,6 +714,9 @@ export default async function clientsRoutes(app: FastifyInstance) {
           created_by: user?.email || user?.sub || null,
         },
       });
+
+      // Fire-and-forget: sincronizar exemplos aprovados/rejeitados no profile do cliente
+      syncCopyExamplesToProfile(params.id, tenantId).catch(() => {});
 
       return reply.send({ ok: true, feedback });
     }

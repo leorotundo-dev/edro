@@ -44,6 +44,7 @@ import {
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
 import { buildStageChangeEmail } from '../services/stageNotificationTemplates';
+import { getClientPreferenceContext, buildPreferencePromptBlock } from '../services/preferenceEngine';
 import {
   WORKFLOW_STAGES,
   WorkflowStage,
@@ -425,6 +426,17 @@ async function loadClientKnowledge(
   }
 }
 
+function briefingPayloadToLines(payload: Record<string, any>): string[] {
+  const skip = new Set(['id', 'created_at', 'updated_at', 'allow_auto_stage', 'source', 'origin']);
+  return Object.entries(payload)
+    .filter(([k, v]) => !skip.has(k) && v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => {
+      const label = k.replace(/_/g, ' ');
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return `${label}: ${val}`;
+    });
+}
+
 function buildCopyPrompt(params: {
   briefing: {
     title: string;
@@ -438,20 +450,39 @@ function buildCopyPrompt(params: {
   reporteiHint?: string | null;
 }): string {
   const languageLabel = params.language === 'es' ? 'espanhol' : 'portugues';
-  const payloadText = JSON.stringify(params.briefing.payload || {}, null, 2);
+  const payloadLines = briefingPayloadToLines(params.briefing.payload || {});
   const knowledgeBlock = buildClientKnowledgeBlock(params.clientKnowledge);
 
   return [
-    'Voce e um redator para agencia de propaganda.',
-    `Crie ${params.count} copys para pecas criativas.`,
+    'Voce e um redator para agencia de publicidade.',
+    `Crie ${params.count} variacoes de copy para pecas criativas de redes sociais.`,
     `Idioma: ${languageLabel}.`,
-    'Formato: lista numerada. Cada item deve ter titulo curto, corpo e CTA.',
-    `Cliente: ${params.briefing.client_name || 'nao informado'}.`,
+    '',
+    'FORMATO DE SAIDA — use EXATAMENTE este modelo para cada variacao:',
+    'OPCAO 1:',
+    'Arte - Titulo: [headline curto e impactante para o creative/arte, ate 8 palavras]',
+    'Arte - Corpo: [texto curto que aparece na peca criativa, 1 a 2 frases]',
+    'Legenda: [caption completo para postar nas redes sociais. Estilo conversacional, 3 a 5 paragrafos. Inclua hashtags relevantes ao final do texto.]',
+    'CTA: [chamada para acao]',
+    '',
+    'OPCAO 2:',
+    '(mesmo formato acima)',
+    '',
+    'REGRAS OBRIGATORIAS:',
+    '- NAO retorne JSON nem blocos de codigo',
+    '- NAO use markdown (asteriscos, hashes, etc.)',
+    '- Retorne apenas texto simples com o formato OPCAO N: acima',
+    '- Arte - Titulo e Arte - Corpo sao curtos (para caber na peca grafica)',
+    '- Legenda e o texto que sera publicado abaixo da imagem no Instagram/Facebook/LinkedIn',
+    '',
+    `Cliente: ${params.briefing.client_name || 'nao informado'}`,
     knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
-    params.reporteiHint ? params.reporteiHint : '',
-    `Titulo do briefing: ${params.briefing.title}.`,
-    'Detalhes do briefing (JSON):',
-    payloadText,
+    params.reporteiHint || '',
+    `Briefing: ${params.briefing.title}`,
+    '',
+    'DETALHES DO BRIEFING:',
+    ...payloadLines,
+    '',
     params.instructions ? `Instrucoes extras: ${params.instructions}` : '',
   ]
     .filter(Boolean)
@@ -1324,21 +1355,40 @@ export default async function edroRoutes(app: FastifyInstance) {
         });
 
       try {
+        const pipeline = body.pipeline ?? 'standard';
         const baseParams = {
           prompt,
           temperature: 0.6,
           maxTokens: 1500,
         };
-        const pipeline = body.pipeline ?? 'standard';
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
         const knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
+
+        // Enriquecer com histórico de preferências do cliente (feedback loop)
+        // O filtro de plataforma garante isolamento: copy aprovado no Instagram
+        // não contamina a geração de posts do LinkedIn e vice-versa.
+        let preferenceBlock = '';
+        if (selectedClientId && tenantId) {
+          try {
+            const prefCtx = await getClientPreferenceContext(
+              selectedClientId,
+              tenantId,
+              selectedPlatform ? { platform: selectedPlatform } : undefined
+            );
+            preferenceBlock = buildPreferencePromptBlock(prefCtx);
+          } catch { /* sem histórico ainda — seguir sem bloco */ }
+        }
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock].filter(Boolean).join('\n');
+        // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
+        const enrichedPrompt = preferenceBlock ? `${prompt}${preferenceBlock}` : prompt;
+
         let result;
         if (pipeline === 'collaborative') {
           result = await generateCollaborativeCopy({
             prompt: prompt!,
             count,
-            knowledgeBlock: knowledgeBlock || undefined,
+            knowledgeBlock: enrichedKnowledgeBlock || undefined,
             reporteiHint: reporteiContext?.promptBlock || undefined,
             clientName: briefing.client_name || metadata.client_name || undefined,
             instructions: body.instructions || undefined,
@@ -1347,14 +1397,15 @@ export default async function edroRoutes(app: FastifyInstance) {
         } else if (pipeline === 'simple') {
           result = await generateCopy({
             ...baseParams,
+            prompt: enrichedPrompt!,
             taskType,
             forceProvider: body.force_provider,
             usageContext: usageCtx,
           });
         } else if (pipeline === 'premium') {
-          result = await generatePremiumCopy({ ...baseParams, usageContext: usageCtx });
+          result = await generatePremiumCopy({ ...baseParams, prompt: enrichedPrompt!, usageContext: usageCtx });
         } else {
-          result = await generateCopyWithValidation({ ...baseParams, usageContext: usageCtx });
+          result = await generateCopyWithValidation({ ...baseParams, prompt: enrichedPrompt!, usageContext: usageCtx });
         }
         output = result.output;
         model = result.model;

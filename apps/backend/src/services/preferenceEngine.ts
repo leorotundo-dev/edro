@@ -128,11 +128,12 @@ export async function recordPreferenceFeedback(params: {
 
 export async function getClientPreferenceContext(
   clientId: string,
-  tenantId: string
+  tenantId: string,
+  filter?: { platform?: string; format?: string }
 ): Promise<PreferenceContext> {
   const [editorial, creative, totalRows] = await Promise.all([
     loadEditorialPreferences(clientId, tenantId),
-    loadCreativePreferences(clientId, tenantId),
+    loadCreativePreferences(clientId, tenantId, filter),
     query<{ count: string }>(
       `SELECT COUNT(*)::text as count
        FROM preference_feedback
@@ -305,35 +306,50 @@ async function loadEditorialPreferences(
 
 async function loadCreativePreferences(
   clientId: string,
-  tenantId: string
+  tenantId: string,
+  filter?: { platform?: string; format?: string }
 ): Promise<PreferenceContext['creative']> {
+  // Quando platform é fornecido, exemplos são isolados por plataforma —
+  // copy do Instagram não influencia geração de LinkedIn e vice-versa.
   const [approved, rejected, rejectionTags, toneStats, platformStats, approval30d, avgLengthRows] = await Promise.all([
-    query<{ text: string | null }>(
-      `
-      SELECT copy_approved_text as text
-      FROM preference_feedback
-      WHERE tenant_id=$1 AND client_id=$2
-        AND feedback_type='copy'
-        AND action IN ('approved','approved_after_edit')
-        AND copy_approved_text IS NOT NULL
-      ORDER BY created_at DESC
-      LIMIT 5
-      `,
-      [tenantId, clientId]
-    ),
-    query<{ text: string | null }>(
-      `
-      SELECT copy_rejected_text as text
-      FROM preference_feedback
-      WHERE tenant_id=$1 AND client_id=$2
-        AND feedback_type='copy'
-        AND action='rejected'
-        AND copy_rejected_text IS NOT NULL
-      ORDER BY created_at DESC
-      LIMIT 5
-      `,
-      [tenantId, clientId]
-    ),
+    filter?.platform
+      ? query<{ text: string | null }>(
+          `SELECT copy_approved_text as text
+           FROM preference_feedback
+           WHERE tenant_id=$1 AND client_id=$2
+             AND feedback_type='copy' AND action IN ('approved','approved_after_edit')
+             AND copy_approved_text IS NOT NULL AND copy_platform=$3
+           ORDER BY created_at DESC LIMIT 5`,
+          [tenantId, clientId, filter.platform]
+        )
+      : query<{ text: string | null }>(
+          `SELECT copy_approved_text as text
+           FROM preference_feedback
+           WHERE tenant_id=$1 AND client_id=$2
+             AND feedback_type='copy' AND action IN ('approved','approved_after_edit')
+             AND copy_approved_text IS NOT NULL
+           ORDER BY created_at DESC LIMIT 5`,
+          [tenantId, clientId]
+        ),
+    filter?.platform
+      ? query<{ text: string | null }>(
+          `SELECT copy_rejected_text as text
+           FROM preference_feedback
+           WHERE tenant_id=$1 AND client_id=$2
+             AND feedback_type='copy' AND action='rejected'
+             AND copy_rejected_text IS NOT NULL AND copy_platform=$3
+           ORDER BY created_at DESC LIMIT 5`,
+          [tenantId, clientId, filter.platform]
+        )
+      : query<{ text: string | null }>(
+          `SELECT copy_rejected_text as text
+           FROM preference_feedback
+           WHERE tenant_id=$1 AND client_id=$2
+             AND feedback_type='copy' AND action='rejected'
+             AND copy_rejected_text IS NOT NULL
+           ORDER BY created_at DESC LIMIT 5`,
+          [tenantId, clientId]
+        ),
     query<{ tag: string; total: string }>(
       `
       SELECT unnest(rejection_tags) as tag, COUNT(*)::text as total
