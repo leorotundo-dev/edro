@@ -113,7 +113,7 @@ export default function SectionEnrichmentCard({
 
   const fields = useMemo(() => {
     const entries = Object.entries(suggestion?.fields || {});
-    return entries.filter(([key, value]) => value?.status !== 'discarded' && !doneFields.has(key));
+    return entries.filter(([key, value]) => value?.status !== 'discarded' && value?.status !== 'confirmed' && !doneFields.has(key));
   }, [suggestion, doneFields]);
 
   const allDone = doneFields.size > 0 && fields.length === 0;
