@@ -76,6 +76,8 @@ type StoredClient = {
   uf?: string | null;
 };
 
+type CarouselSlide = { title: string; body: string };
+
 type ParsedOption = {
   title: string;
   body: string;
@@ -83,6 +85,7 @@ type ParsedOption = {
   legenda: string;
   hashtags: string;
   raw: string;
+  slides?: CarouselSlide[];
 };
 
 type ReporteiSummary = {
@@ -202,6 +205,12 @@ const normalizeCatalogToken = (value: string) =>
     .trim();
 
 // Vídeos CURTOS de social media (Hook/Corpo/CTA) — exclui vídeos institucionais/TV
+const isCarouselFormat = (format?: string | null): boolean => {
+  if (!format) return false;
+  const f = format.toLowerCase();
+  return f.includes('carrossel') || f.includes('carousel') || f.includes('caroussel');
+};
+
 const isVideoFormat = (format?: string | null): boolean => {
   if (!format) return false;
   const f = format.toLowerCase();
@@ -218,6 +227,7 @@ function parseOptionChunk(chunk: string): ParsedOption {
   const lines = chunk.split('\n');
   const fields: Record<string, string> = {};
   let currentField = '';
+  const slides: CarouselSlide[] = [];
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -226,12 +236,21 @@ function parseOptionChunk(chunk: string): ParsedOption {
     // Skip OPCAO N: header lines
     if (/^OPCA[OÃo]\s*\d+\s*:/i.test(line)) { currentField = ''; continue; }
 
+    // Carousel slide detection — must come before field matchers
+    const slideM = line.match(/^slide\s*(\d+)\s*[:\-]\s*(.*)/i);
+    if (slideM) {
+      const idx = Math.min(parseInt(slideM[1], 10) - 1, 4);
+      while (slides.length <= idx) slides.push({ title: '', body: '' });
+      slides[idx].title = slideM[2].trim();
+      currentField = `_slide_${idx}`;
+      continue;
+    }
+
     const arteTitle = line.match(/^arte\s*[-–]\s*t[ií]tulo\s*[:\-]\s*(.+)/i);
     const arteBody  = line.match(/^arte\s*[-–]\s*corpo\s*[:\-]\s*(.+)/i);
     const legenda   = line.match(/^legenda\s*[:\-]\s*(.*)/i);
     const cta       = line.match(/^cta\s*[:\-]\s*(.+)/i);
     const hashtags  = line.match(/^hashtags?\s*[:\-]\s*(.+)/i);
-    // Fallback label matches (backward compat with old format)
     const titleFb   = line.match(/^(?:t[ií]tulo|title|headline|chamada)\s*[:\-]\s*(.+)/i);
     const bodyFb    = line.match(/^(?:corpo|body|texto)\s*[:\-]\s*(.+)/i);
 
@@ -243,15 +262,18 @@ function parseOptionChunk(chunk: string): ParsedOption {
     if (!fields.title && titleFb) { currentField = 'title'; fields.title = titleFb[1].trim(); continue; }
     if (!fields.body  && bodyFb)  { currentField = 'body';  fields.body  = bodyFb[1].trim();  continue; }
 
-    // Multi-line continuation for legenda (can span paragraphs)
-    if (currentField) {
-      fields[currentField] = fields[currentField]
-        ? `${fields[currentField]}\n${line}`
-        : line;
+    // Multi-line continuation
+    if (currentField.startsWith('_slide_')) {
+      const idx = parseInt(currentField.split('_')[2], 10);
+      if (slides[idx]) {
+        slides[idx].body = slides[idx].body ? `${slides[idx].body}\n${line}` : line;
+      }
+    } else if (currentField) {
+      fields[currentField] = fields[currentField] ? `${fields[currentField]}\n${line}` : line;
     }
   }
 
-  const body = fields.body || (Object.keys(fields).length === 0 ? chunk : '');
+  const body = fields.body || (Object.keys(fields).length === 0 && slides.length === 0 ? chunk : '');
   return {
     title:    fields.title    || '',
     body,
@@ -259,6 +281,7 @@ function parseOptionChunk(chunk: string): ParsedOption {
     legenda:  fields.legenda  || '',
     hashtags: fields.hashtags || '',
     raw: chunk,
+    slides:   slides.length ? slides : undefined,
   };
 }
 
@@ -693,6 +716,16 @@ export default function EditorClient() {
       const extraGuidelines: string[] = [];
       if (formatLower.includes('radio') || formatLower.includes('spot')) {
         extraGuidelines.push('Formato de radio: gerar roteiro curto com tempo estimado e fala fluida.');
+      }
+      if (isCarouselFormat(formatName)) {
+        extraGuidelines.push(
+          'FORMATO CARROSSEL — estruture CADA OPCAO com exatamente 3 slides:\n' +
+          'Slide 1: [Titulo do slide — gancho/abertura]\n[texto do slide 1]\n' +
+          'Slide 2: [Titulo do slide — desenvolvimento]\n[texto do slide 2]\n' +
+          'Slide 3: [Titulo do slide — fechamento ou CTA]\n[texto do slide 3]\n' +
+          'Legenda: [caption para o post]\n' +
+          'Hashtags: [#tag1 #tag2 ...]'
+        );
       }
       if (isVideoFormat(formatName)) {
         // Vídeo curto (Reels/TikTok/Shorts): estrutura Hook/Corpo/CTA — sobrepõe a instrução genérica
@@ -1183,27 +1216,47 @@ export default function EditorClient() {
                                         Opção {idx === 0 ? 'A' : 'B'}
                                       </Typography>
 
-                                      {/* Arte — texto que vai na peça gráfica */}
-                                      <Box sx={{ mb: 1.5 }}>
-                                        <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
-                                          Arte
-                                        </Typography>
-                                        {option.title && (
-                                          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
-                                            {option.title}
+                                      {/* Slides (Carrossel) ou Arte (demais formatos) */}
+                                      {isCarouselFormat(activeFormat?.format) && option.slides?.length ? (
+                                        option.slides.map((slide, si) => (
+                                          <Box key={si} sx={{ mb: 1.5, ...(si > 0 ? { pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' } : {}) }}>
+                                            <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                              Slide {si + 1}/{option.slides!.length}
+                                            </Typography>
+                                            {slide.title && (
+                                              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
+                                                {slide.title}
+                                              </Typography>
+                                            )}
+                                            {slide.body && (
+                                              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                                                {slide.body}
+                                              </Typography>
+                                            )}
+                                          </Box>
+                                        ))
+                                      ) : (
+                                        <Box sx={{ mb: 1.5 }}>
+                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
+                                            Arte
                                           </Typography>
-                                        )}
-                                        {option.body && (
-                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
-                                            {option.body}
-                                          </Typography>
-                                        )}
-                                        {!option.title && !option.body && (
-                                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
-                                            {option.raw}
-                                          </Typography>
-                                        )}
-                                      </Box>
+                                          {option.title && (
+                                            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
+                                              {option.title}
+                                            </Typography>
+                                          )}
+                                          {option.body && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                                              {option.body}
+                                            </Typography>
+                                          )}
+                                          {!option.title && !option.body && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                                              {option.raw}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                      )}
 
                                       {/* Legenda */}
                                       {option.legenda && (
