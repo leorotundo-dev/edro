@@ -17,11 +17,13 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
   IconArchive,
+  IconBrain,
   IconBriefcase,
   IconCalendar,
   IconDotsVertical,
@@ -45,6 +47,7 @@ type Client = {
   pending_posts?: number;
   approval_rate?: number;
   urgent_tasks?: number;
+  intelligence_score?: number;
   updated_at?: string;
   logo_url?: string;
   profile?: { brand_colors?: string[] } | null;
@@ -263,6 +266,27 @@ export default function ClientsListClient() {
                       {[client.city, client.uf, client.country].filter(Boolean).join(', ') || 'Brasil'}
                     </Typography>
                   </Stack>
+
+                  {client.intelligence_score != null && client.intelligence_score > 0 && (() => {
+                    const score = client.intelligence_score!;
+                    const color = score >= 85 ? '#16a34a' : score >= 60 ? '#2563eb' : score >= 30 ? '#d97706' : '#dc2626';
+                    return (
+                      <Box>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+                          <IconBrain size={13} color={color} />
+                          <Typography variant="caption" sx={{ color, fontWeight: 600 }}>
+                            IA {score}%
+                          </Typography>
+                        </Stack>
+                        <LinearProgress
+                          variant="determinate"
+                          value={score}
+                          sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover',
+                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 } }}
+                        />
+                      </Box>
+                    );
+                  })()}
 
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 6 }}>
