@@ -226,6 +226,7 @@ export default function BriefClient() {
   const [calendarDays, setCalendarDays] = useState<Record<string, any[]>>({});
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState('');
+  const [manualEventName, setManualEventName] = useState('');
   const [form, setForm] = useState<BriefForm>({
     title: queryEvent ? `Briefing: ${queryEvent}` : '',
     objective: queryObjective,
@@ -1344,12 +1345,12 @@ export default function BriefClient() {
                     return (
                       <Box
                         key={i}
-                        onClick={() => hasEvents && setSelectedDay(isSelected ? '' : dateStr)}
+                        onClick={() => { setSelectedDay(isSelected ? '' : dateStr); setManualEventName(''); }}
                         sx={{
                           textAlign: 'center',
                           py: 0.75,
                           borderRadius: 1,
-                          cursor: hasEvents ? 'pointer' : 'default',
+                          cursor: 'pointer',
                           bgcolor: isSelected
                             ? '#ff6600'
                             : isToday
@@ -1433,12 +1434,39 @@ export default function BriefClient() {
                     </Stack>
                   </Box>
                 ) : selectedDay ? (
-                  <Typography variant="body2" color="text.secondary">
-                    Nenhum evento cadastrado em {new Date(`${selectedDay}T12:00:00`).toLocaleDateString('pt-BR')}.
-                  </Typography>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                      Nenhum evento cadastrado para{' '}
+                      {new Date(`${selectedDay}T12:00:00`).toLocaleDateString('pt-BR', {
+                        weekday: 'long', day: '2-digit', month: 'long',
+                      })}. Defina um evento manualmente:
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Nome do evento"
+                      placeholder="Ex: Dia do Cliente, Aniversário da empresa..."
+                      value={manualEventName}
+                      onChange={(e) => setManualEventName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && manualEventName.trim()) {
+                          handleEventPick({ name: manualEventName.trim(), date: selectedDay });
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      disabled={!manualEventName.trim()}
+                      onClick={() => handleEventPick({ name: manualEventName.trim(), date: selectedDay })}
+                      sx={{ mt: 1, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                    >
+                      Usar esta data
+                    </Button>
+                  </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    Clique em um dia com ponto laranja para ver os eventos disponíveis.
+                    Clique em qualquer dia para ver os eventos ou definir um evento manualmente.
                   </Typography>
                 )}
               </Box>
