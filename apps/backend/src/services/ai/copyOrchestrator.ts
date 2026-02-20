@@ -331,16 +331,16 @@ export async function runCollaborativePipeline(params: {
     const scoringInstruction = `
 
 ---
-Após revisar, retorne APENAS o seguinte JSON (sem mais texto):
+Após revisar, retorne APENAS o seguinte JSON (sem qualquer texto antes ou depois):
 {
-  "revised_copy": "<copy revisado completo>",
+  "revised_copy": "<TODAS as opcoes revisadas no formato OPCAO 1: ... OPCAO 2: ... — copie o texto limpo de cada campo sem comentarios editoriais, justificativas ou notas de melhoria>",
   "brand_dna_match": <0-10>,
   "platform_fit": <0-10>,
   "cta_clarity": <0-10>,
   "message_clarity": <0-10>,
   "originality": <0-10>,
   "needs_revision": <true se média dos 5 scores < 7.0, senão false>,
-  "revision_instruction": "<instrução específica e acionável para melhorar o copy — obrigatório se needs_revision for true>"
+  "revision_instruction": "<instrução específica e acionável para melhorar o copy — obrigatório se needs_revision for true, senão string vazia>"
 }`;
 
     const t3 = Date.now();
