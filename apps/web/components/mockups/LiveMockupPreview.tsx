@@ -14,11 +14,17 @@ import { InstagramStoryMockup } from '@/components/mockups/instagram/InstagramSt
 import { InstagramProfileMockup } from '@/components/mockups/instagram/InstagramProfileMockup';
 import { InstagramGridMockup } from '@/components/mockups/instagram/InstagramGridMockup';
 
+type CarouselSlide = {
+  title?: string;
+  body?: string;
+};
+
 type CopyOption = {
   title?: string;
   body?: string;
   cta?: string;
   raw?: string;
+  slides?: CarouselSlide[];
 };
 
 type LiveMockupPreviewProps = {
@@ -30,6 +36,8 @@ type LiveMockupPreviewProps = {
   legenda?: string | null;
   maxChars?: Record<string, number> | null;
   brandName?: string | null;
+  brandColor?: string;
+  align?: 'left' | 'center';
   className?: string;
   showHeader?: boolean;
 };
@@ -232,6 +240,8 @@ export default function LiveMockupPreview({
   legenda,
   maxChars,
   brandName,
+  brandColor,
+  align = 'center',
   className,
   showHeader = true,
 }: LiveMockupPreviewProps) {
@@ -282,12 +292,26 @@ export default function LiveMockupPreview({
   const formatLower = normalizeWhitespace(format || '').toLowerCase();
   const platformLower = normalizeWhitespace(platform || '').toLowerCase();
   const isInstagram = platformLower.includes('instagram');
-  const isStoryLike = /story|reels|9:16|vertical|shorts/.test(formatLower);
+  const isCarouselFormat = formatLower.includes('carrossel') || formatLower.includes('carousel') || formatLower.includes('caroussel');
+
+  // Gera imagens SVG para cada slide quando é carrossel
+  const slideImages = useMemo(() => {
+    const rawSlides = option?.slides;
+    if (isCarouselFormat && rawSlides && rawSlides.length > 0) {
+      return rawSlides.map((slide) =>
+        createSvgDataUri([slide.title, slide.body].filter(Boolean).join('\n'), 1080, 1080)
+      );
+    }
+    return [squareImage];
+  }, [isCarouselFormat, option?.slides, squareImage]);
+  const isReelsLike = /reels|shorts/.test(formatLower);
+  const isStoryLike = /story|9:16|vertical/.test(formatLower) && !isReelsLike;
   const isProfileLike = formatLower.includes('profile');
   const isGridLike = formatLower.includes('grid');
   const isFeedLike =
     isInstagram &&
     !isStoryLike &&
+    !isReelsLike &&
     !isProfileLike &&
     (formatLower.includes('feed') ||
       formatLower.includes('post') ||
@@ -298,6 +322,7 @@ export default function LiveMockupPreview({
       formatLower.includes('branded') ||
       formatLower.includes('video') ||
       formatLower.includes('carousel') ||
+      isCarouselFormat ||
       /1:1|4:5/.test(formatLower));
 
   const componentName = useMemo(
@@ -312,7 +337,7 @@ export default function LiveMockupPreview({
   const isFeedFrame = isFeedLike || isFeedMockup;
   const usesPhoneFrame =
     isInstagram &&
-    (isFeedLike || isStoryLike || isProfileLike || isGridLike || isFeedMockup || isStoryMockup || isProfileMockup || isGridMockup);
+    (isFeedLike || isStoryLike || isReelsLike || isProfileLike || isGridLike || isFeedMockup || isStoryMockup || isProfileMockup || isGridMockup);
 
   const frame = useMemo(() => {
     const base = resolveFrameSize(format || '', platform);
@@ -448,6 +473,7 @@ export default function LiveMockupPreview({
       coverImage: wideImage,
       bannerImage: wideImage,
       storyImage: tallImage,
+      reelImage: tallImage,
       videoThumbnail: wideImage,
       adImage: wideImage,
     }),
@@ -535,7 +561,11 @@ export default function LiveMockupPreview({
         <InstagramFeedMockup
           username={displayName}
           profileImage={avatar}
-          postImage={squareImage}
+          postImage={slideImages[0]}
+          slides={slideImages}
+          isCarousel={isCarouselFormat && slideImages.length > 1}
+          arteText={[displayHeadline, displayBody].filter(Boolean).join('\n\n')}
+          arteBgColor={brandColor}
           likes={1280}
           caption={feedCaption || captionText}
           comments={instagramComments}
@@ -560,34 +590,18 @@ export default function LiveMockupPreview({
         </div>
       ) : null}
       <div
-        className={`rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center ${
-          showHeader ? 'mt-3 p-4' : 'mt-2 p-3'
-        }`}
+        ref={containerRef}
+        className={`flex items-center overflow-hidden ${align === 'left' ? 'justify-start' : 'justify-center'} ${showHeader ? 'mt-3' : 'mt-2'}`}
+        style={{ width: '100%' }}
       >
         <div
-          ref={containerRef}
-          className="relative flex items-center justify-center overflow-hidden rounded-[28px] bg-white/60 shadow-inner"
-          style={{ width: '100%', maxWidth: frame.width, aspectRatio: `${frame.ratio}`, minHeight: 220 }}
+          className={`pointer-events-none flex items-center w-full ${align === 'left' ? 'justify-start' : 'justify-center'}`}
+          style={{ transform: `scale(${phoneZoom})`, transformOrigin: align === 'left' ? 'top left' : 'top center' }}
         >
-          <div
-            className="pointer-events-none flex items-center justify-center"
-            style={{ transform: `scale(${phoneZoom})`, transformOrigin: 'center' }}
-          >
-            {renderResolved()}
-          </div>
+          {renderResolved()}
         </div>
       </div>
 
-      {/* Legenda panel — full caption text readable outside the phone frame */}
-      {resolvedLegenda ? (
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-semibold">Legenda do post</span>
-            <span className="text-[10px] text-slate-400">{resolvedLegenda.length} chars</span>
-          </div>
-          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line line-clamp-6">{resolvedLegenda}</p>
-        </div>
-      ) : null}
 
 
       {counters.length ? (
