@@ -105,17 +105,15 @@ export default function BrandColorsCard({ clientId, website, initialColors = [],
             Cores da Marca
           </Typography>
           <Stack direction="row" spacing={1}>
-            {website && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={extracting ? <CircularProgress size={14} /> : <IconWand size={14} />}
-                onClick={handleExtract}
-                disabled={extracting || saving}
-              >
-                Extrair do site
-              </Button>
-            )}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={extracting ? <CircularProgress size={14} /> : <IconWand size={14} />}
+              onClick={handleExtract}
+              disabled={extracting || saving}
+            >
+              Extrair do site
+            </Button>
             <Button
               size="small"
               variant="contained"
