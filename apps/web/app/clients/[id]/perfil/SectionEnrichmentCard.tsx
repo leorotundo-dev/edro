@@ -7,11 +7,42 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconBulb, IconCircleCheck, IconTrash } from '@tabler/icons-react';
+import { IconBulb, IconCircleCheck, IconEdit, IconTrash } from '@tabler/icons-react';
+
+type ManualField = { key: string; label: string; multiline?: boolean; hint?: string };
+
+const MANUAL_FIELDS: Record<string, ManualField[]> = {
+  identity: [
+    { key: 'description', label: 'Descrição do cliente', multiline: true },
+    { key: 'audience', label: 'Público-alvo', multiline: true },
+    { key: 'brand_promise', label: 'Promessa da marca' },
+    { key: 'differentiators', label: 'Diferenciais', multiline: true },
+    { key: 'website', label: 'Website' },
+  ],
+  voice: [
+    { key: 'tone_description', label: 'Descrição do tom de voz', multiline: true },
+    { key: 'personality_traits', label: 'Traços de personalidade', hint: 'Separe por vírgula' },
+    { key: 'formality_level', label: 'Nível de formalidade' },
+    { key: 'emoji_usage', label: 'Uso de emojis (ex: nunca, raramente, frequente)' },
+  ],
+  strategy: [
+    { key: 'pillars', label: 'Pilares de conteúdo', hint: 'Separe por vírgula' },
+    { key: 'keywords', label: 'Palavras-chave', hint: 'Separe por vírgula' },
+    { key: 'negative_keywords', label: 'Palavras a evitar', hint: 'Separe por vírgula' },
+    { key: 'content_mix', label: 'Mix de conteúdo (ex: 40% educativo, 30% entretenimento...)', multiline: true },
+  ],
+  competitors: [
+    { key: 'competitors', label: 'Concorrentes', hint: 'Separe por vírgula', multiline: true },
+  ],
+  calendar: [
+    { key: 'strategic_dates', label: 'Datas estratégicas', hint: 'Separe por vírgula (ex: 12/06 Dia dos Namorados)', multiline: true },
+  ],
+};
 
 type FieldSuggestion = {
   value: any;
@@ -74,6 +105,9 @@ export default function SectionEnrichmentCard({
   const [loadingField, setLoadingField] = useState<string | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [doneFields, setDoneFields] = useState<Set<string>>(new Set());
+  const [manualMode, setManualMode] = useState(false);
+  const [manualValues, setManualValues] = useState<Record<string, string>>({});
+  const [savingManual, setSavingManual] = useState(false);
 
   const fields = useMemo(() => {
     const entries = Object.entries(suggestion?.fields || {});
@@ -81,6 +115,33 @@ export default function SectionEnrichmentCard({
   }, [suggestion, doneFields]);
 
   const allDone = doneFields.size > 0 && fields.length === 0;
+
+  const manualFields = MANUAL_FIELDS[sectionKey] || [];
+
+  const handleSaveManual = async () => {
+    const filledEntries = Object.entries(manualValues).filter(([, v]) => v.trim());
+    if (!filledEntries.length) return;
+    setSavingManual(true);
+    try {
+      for (const [field, rawValue] of filledEntries) {
+        const originalField = MANUAL_FIELDS[sectionKey]?.find((f) => f.key === field);
+        const isArray = Boolean(originalField?.hint?.toLowerCase().includes('vírgula'));
+        const value = isArray
+          ? rawValue.split(/[,;\n]/).map((v) => v.trim()).filter(Boolean)
+          : rawValue.trim();
+        await apiPost(`/clients/${clientId}/suggestions/confirm`, {
+          section: sectionKey,
+          field,
+          value,
+        });
+      }
+      setManualMode(false);
+      setManualValues({});
+      onChanged?.();
+    } finally {
+      setSavingManual(false);
+    }
+  };
 
   if (!suggestion || (!fields.length && !allDone)) {
     return (
@@ -90,13 +151,71 @@ export default function SectionEnrichmentCard({
             <Typography variant="subtitle2" fontWeight={700}>
               {title}
             </Typography>
-            <Chip size="small" label="Sem sugestoes" />
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <Chip size="small" label="Sem sugestoes" />
+              {manualFields.length > 0 && !manualMode && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<IconEdit size={13} />}
+                  onClick={() => setManualMode(true)}
+                  sx={{ fontSize: '0.7rem', py: 0.25, px: 1, minWidth: 0 }}
+                >
+                  Preencher
+                </Button>
+              )}
+            </Stack>
           </Stack>
           {description ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               {description}
             </Typography>
           ) : null}
+
+          <Collapse in={manualMode} unmountOnExit>
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              <Divider />
+              {manualFields.map((mf) => (
+                <Box key={mf.key}>
+                  <Typography variant="caption" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                    {mf.label}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    multiline={mf.multiline}
+                    minRows={mf.multiline ? 2 : 1}
+                    placeholder={mf.hint || ''}
+                    value={manualValues[mf.key] || ''}
+                    onChange={(e) =>
+                      setManualValues((prev) => ({ ...prev, [mf.key]: e.target.value }))
+                    }
+                  />
+                </Box>
+              ))}
+              <Stack direction="row" spacing={1} sx={{ pt: 0.5 }}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={handleSaveManual}
+                  disabled={savingManual}
+                  sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                >
+                  {savingManual ? 'Salvando...' : 'Salvar'}
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="inherit"
+                  onClick={() => { setManualMode(false); setManualValues({}); }}
+                  disabled={savingManual}
+                >
+                  Cancelar
+                </Button>
+              </Stack>
+            </Stack>
+          </Collapse>
         </CardContent>
       </Card>
     );
