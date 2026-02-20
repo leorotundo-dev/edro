@@ -47,6 +47,7 @@ type Client = {
   urgent_tasks?: number;
   updated_at?: string;
   logo_url?: string;
+  profile?: { brand_colors?: string[] } | null;
 };
 
 export default function ClientsListClient() {
@@ -216,13 +217,18 @@ export default function ClientsListClient() {
         <Grid container spacing={2}>
           {filteredClients.map((client) => (
             <Grid key={client.id} size={{ xs: 12, md: 6, lg: 4 }}>
+              {(() => {
+                const brandColor = client.profile?.brand_colors?.[0];
+                return (
               <Card
                 variant="outlined"
                 sx={{
                   cursor: 'pointer',
                   height: '100%',
                   transition: 'all 0.2s ease',
-                  '&:hover': { borderColor: 'primary.light', boxShadow: 4 },
+                  borderLeftWidth: brandColor ? 4 : 1,
+                  borderLeftColor: brandColor || undefined,
+                  '&:hover': { borderColor: brandColor || 'primary.light', boxShadow: 4 },
                 }}
                 onClick={() => router.push(`/clients/${client.id}`)}
               >
@@ -232,7 +238,7 @@ export default function ClientsListClient() {
                       <Avatar
                         variant="rounded"
                         src={client.logo_url}
-                        sx={{ bgcolor: 'grey.100', width: 48, height: 48, color: 'primary.main' }}
+                        sx={{ bgcolor: brandColor ? `${brandColor}22` : 'grey.100', width: 48, height: 48, color: brandColor || 'primary.main' }}
                       >
                         <IconBriefcase size={22} />
                       </Avatar>
@@ -311,6 +317,8 @@ export default function ClientsListClient() {
                   ) : null}
                 </CardContent>
               </Card>
+                );
+              })()}
             </Grid>
           ))}
         </Grid>

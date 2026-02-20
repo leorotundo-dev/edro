@@ -6,6 +6,7 @@ import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -390,6 +391,7 @@ export default function EditorClient() {
   const [tone, setTone] = useState('');
   const [count, setCount] = useState(3);
   const [activeCopyMeta, setActiveCopyMeta] = useState<CopyMeta | null>(null);
+  const [clientBrandColor, setClientBrandColor] = useState('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -485,6 +487,16 @@ export default function EditorClient() {
       if (data.briefing?.payload?.tone && !tone) {
         setTone(String(data.briefing.payload.tone));
       }
+      // Carregar cor da marca do cliente ativo
+      const activeClient = resolveActiveClient();
+      if (activeClient?.id) {
+        apiGet<any>(`/clients/${activeClient.id}/profile`)
+          .then((res) => {
+            const colors: string[] = res?.profile?.brand_colors || res?.brand_colors || [];
+            if (colors.length) setClientBrandColor(colors[0]);
+          })
+          .catch(() => {});
+      }
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar briefing.');
     } finally {
@@ -567,6 +579,27 @@ export default function EditorClient() {
   }, [activeFormat?.platform, activeFormat?.format, catalogItem?.production_type]);
 
   const selectedOptionData = useMemo(() => options[selectedOption] || null, [options, selectedOption]);
+
+  const copyWarnings = useMemo(() => {
+    const rule = matchPlatformRule(activeFormat?.platform || '');
+    if (!rule) return [];
+    const legendaText = selectedOptionData?.legenda || '';
+    const warnings: Array<{ type: string; message: string }> = [];
+    if (legendaText.length > rule.fold) {
+      warnings.push({
+        type: 'truncation',
+        message: `${rule.hookWarning} (+${legendaText.length - rule.fold} chars além da dobra)`,
+      });
+    }
+    const hashCount = (legendaText.match(/#/g) || []).length;
+    if (rule.maxHashtags >= 0 && hashCount > rule.maxHashtags) {
+      warnings.push({
+        type: 'hashtags',
+        message: `${hashCount} hashtags na legenda — ideal para ${activeFormat?.platform}: máx ${rule.maxHashtags}.`,
+      });
+    }
+    return warnings;
+  }, [activeFormat?.platform, selectedOptionData?.legenda]);
 
   const providerLabels = useMemo(() => {
     const available = orchestrator?.available ?? orchestrator?.providers?.available ?? [];
@@ -1057,7 +1090,22 @@ export default function EditorClient() {
               Gere e refine copies com base no briefing e nas boas praticas.
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+            {(() => {
+              const ac = resolveActiveClient();
+              return ac?.name ? (
+                <Chip
+                  size="small"
+                  label={ac.name}
+                  sx={{
+                    fontWeight: 700,
+                    bgcolor: clientBrandColor ? `${clientBrandColor}22` : 'action.selected',
+                    color: clientBrandColor || 'text.primary',
+                    border: `1.5px solid ${clientBrandColor || 'transparent'}`,
+                  }}
+                />
+              ) : null;
+            })()}
             {activeFormat?.platform ? <Chip size="small" variant="outlined" label={activeFormat.platform} /> : null}
             {formatLabel ? <Chip size="small" variant="outlined" label={formatLabel} /> : null}
             {activeCopyLabel ? <Chip size="small" label={activeCopyLabel} /> : null}
@@ -1073,30 +1121,33 @@ export default function EditorClient() {
           <Grid size={{ xs: 12, lg: 9 }}>
             <Stack spacing={3}>
               <Grid container spacing={3}>
-                {/* Mockup card */}
-                <Grid size={{ xs: 12, xl: 5 }}>
-                  <Card>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 2 }}>
-                        <Chip size="small" label="Mockup ao vivo" />
-                        {mockupMeta ? <Typography variant="caption" color="text.secondary">{mockupMeta}</Typography> : null}
-                      </Stack>
-                      <LiveMockupPreview
-                        platform={activeFormat?.platform}
-                        format={activeFormat?.format}
-                        productionType={activeFormat?.production_type}
-                        copy={output}
-                        option={selectedOptionData}
-                        legenda={selectedOptionData?.legenda || null}
-                        maxChars={catalogItem?.max_chars}
-                        brandName={briefing?.client_name}
-                        showHeader={false}
-                      />
-                    </CardContent>
-                  </Card>
+                {/* Mockup */}
+                <Grid size={{ xs: 12, xl: 4 }}>
+                  <LiveMockupPreview
+                    platform={activeFormat?.platform}
+                    format={activeFormat?.format}
+                    productionType={activeFormat?.production_type}
+                    copy={output}
+                    option={selectedOptionData}
+                    legenda={selectedOptionData?.legenda || null}
+                    maxChars={catalogItem?.max_chars}
+                    brandName={briefing?.client_name}
+                    brandColor={clientBrandColor || undefined}
+                    align="left"
+                    showHeader={false}
+                  />
+                  {copyWarnings.length > 0 && (
+                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                      {copyWarnings.map((w, i) => (
+                        <Alert key={i} severity="warning" sx={{ py: 0.5, fontSize: 12 }}>
+                          {w.message}
+                        </Alert>
+                      ))}
+                    </Stack>
+                  )}
                 </Grid>
                 {/* Copy options card */}
-                <Grid size={{ xs: 12, xl: 7 }}>
+                <Grid size={{ xs: 12, xl: 8 }}>
                   <Card>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>

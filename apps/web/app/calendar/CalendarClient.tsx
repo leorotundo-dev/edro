@@ -163,6 +163,7 @@ type CalendarHubProps = {
   noShell?: boolean;
   embedded?: boolean;
   lockClient?: boolean;
+  brandColor?: string;
 };
 
 function parseISODate(dateISO: string) {
@@ -281,7 +282,7 @@ const TIER_COLORS: Record<string, string> = {
   C: 'default',
 };
 
-export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient }: CalendarHubProps) {
+export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -923,8 +924,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   const rbcEventPropGetter = useCallback((event: CalendarRbcEvent) => {
+    if (brandColor) {
+      const opacity = event.tier === 'A' ? 'ff' : event.tier === 'B' ? 'cc' : '88';
+      return { style: { backgroundColor: `${brandColor}${opacity}`, border: 'none', color: '#fff' } };
+    }
     return { className: `tier-${event.tier.toLowerCase()}` };
-  }, []);
+  }, [brandColor]);
 
   const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => (
     <span className="rbc-event-content">
