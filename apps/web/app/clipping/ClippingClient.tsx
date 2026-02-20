@@ -850,9 +850,18 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                   );
                 })
               ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                  Nenhum item encontrado.
-                </Typography>
+                <Stack alignItems="center" spacing={1.5} sx={{ py: 6 }}>
+                  <IconNews size={36} color="#bdbdbd" />
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Nenhum item encontrado
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 280 }}>
+                    Tente ajustar os filtros ou adicione novas fontes para começar a capturar conteúdo.
+                  </Typography>
+                  <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={() => loadItems()}>
+                    Recarregar
+                  </Button>
+                </Stack>
               )}
             </Stack>
           </DashboardCard>
@@ -972,7 +981,15 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     );
                   })
                 ) : (
-                  <Typography variant="body2" color="text.secondary">Nenhuma fonte cadastrada.</Typography>
+                  <Stack alignItems="center" spacing={1} sx={{ py: 3 }}>
+                    <IconRss size={28} color="#bdbdbd" />
+                    <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                      Nenhuma fonte cadastrada
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      Adicione uma fonte abaixo para começar a monitorar conteúdo.
+                    </Typography>
+                  </Stack>
                 )}
               </Stack>
             </DashboardCard>

@@ -82,6 +82,56 @@ function formatDate(value?: string | null) {
   return date.toLocaleString('pt-BR');
 }
 
+const PAYLOAD_LABELS: Record<string, string> = {
+  clientIds: 'Clientes',
+  client_id: 'Cliente',
+  platform: 'Plataforma',
+  format: 'Formato',
+  scope: 'Escopo',
+  feedback: 'Feedback',
+  note: 'Nota',
+  status: 'Status',
+  reason: 'Motivo',
+  url: 'URL',
+  name: 'Nome',
+};
+
+function renderPayload(payload: Record<string, any> | null | undefined) {
+  if (!payload) return null;
+  const entries = Object.entries(payload).filter(([, v]) => v != null && v !== '');
+  if (!entries.length) return null;
+  return (
+    <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+      {entries.map(([key, value]) => (
+        <Stack key={key} direction="row" spacing={1} alignItems="flex-start">
+          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 72, fontWeight: 600, flexShrink: 0 }}>
+            {PAYLOAD_LABELS[key] || key}:
+          </Typography>
+          <Typography variant="caption" sx={{ wordBreak: 'break-all' }}>
+            {Array.isArray(value)
+              ? value.join(', ')
+              : typeof value === 'object'
+              ? JSON.stringify(value)
+              : String(value)}
+          </Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+const PLATFORMS = ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Twitter / X', 'Pinterest', 'Google'];
+const FORMATS_BY_PLATFORM: Record<string, string[]> = {
+  Instagram: ['Feed', 'Stories', 'Reels', 'Carrossel', 'IGTV', 'Live'],
+  Facebook: ['Feed', 'Stories', 'Reels', 'Live', 'Evento'],
+  LinkedIn: ['Feed', 'Artigo', 'Vídeo'],
+  TikTok: ['Vídeo', 'Live'],
+  YouTube: ['Vídeo', 'Shorts', 'Live'],
+  'Twitter / X': ['Post', 'Thread'],
+  Pinterest: ['Pin', 'Ideia'],
+  Google: ['Anúncio', 'Post GMB'],
+};
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
@@ -174,6 +224,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
   };
 
   const handleArchive = async () => {
+    if (!window.confirm('Arquivar este item? Ele não aparecerá mais na lista principal.')) return;
     setSaving(true);
     setError('');
     setSuccess('');
@@ -331,6 +382,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   onChange={(event) => setClientId(event.target.value)}
                   size="small"
                   fullWidth
+                  helperText={!clientId ? 'Selecione um cliente para as ações abaixo' : undefined}
                 >
                   {clients.map((client) => (
                     <MenuItem key={client.id} value={client.id}>
@@ -339,24 +391,38 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   ))}
                 </TextField>
                 <TextField
+                  select
                   label="Plataforma"
                   value={platform}
-                  onChange={(event) => setPlatform(event.target.value)}
+                  onChange={(event) => {
+                    setPlatform(event.target.value);
+                    const options = FORMATS_BY_PLATFORM[event.target.value];
+                    if (options) setFormat(options[0]);
+                  }}
                   size="small"
                   fullWidth
-                />
+                >
+                  {PLATFORMS.map((p) => (
+                    <MenuItem key={p} value={p}>{p}</MenuItem>
+                  ))}
+                </TextField>
                 <TextField
+                  select
                   label="Formato"
                   value={format}
                   onChange={(event) => setFormat(event.target.value)}
                   size="small"
                   fullWidth
-                />
+                >
+                  {(FORMATS_BY_PLATFORM[platform] || ['Feed', 'Stories', 'Reels', 'Vídeo', 'Post']).map((f) => (
+                    <MenuItem key={f} value={f}>{f}</MenuItem>
+                  ))}
+                </TextField>
                 <Button
                   variant="contained"
                   startIcon={<IconSend size={16} />}
                   onClick={handleCreatePost}
-                  disabled={saving}
+                  disabled={saving || !clientId}
                   fullWidth
                 >
                   Criar post
@@ -365,7 +431,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   variant="outlined"
                   startIcon={<IconUserPlus size={16} />}
                   onClick={handleAssign}
-                  disabled={saving}
+                  disabled={saving || !clientId}
                   fullWidth
                 >
                   Atribuir ao cliente
@@ -374,7 +440,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   variant="outlined"
                   startIcon={<IconPin size={16} />}
                   onClick={handlePin}
-                  disabled={saving}
+                  disabled={saving || !clientId}
                   fullWidth
                 >
                   Fixar no cliente
@@ -432,8 +498,8 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
 
           <Grid size={{ xs: 12, md: 8 }}>
             <DashboardCard
-              title="Historico"
-              action={<Chip size="small" icon={<IconHistory size={14} />} label={`${actions.length} acoes`} variant="outlined" />}
+              title="Histórico"
+              action={<Chip size="small" icon={<IconHistory size={14} />} label={`${actions.length} ações`} variant="outlined" />}
             >
               <Stack spacing={1.5}>
                 {actions.length ? (
@@ -456,19 +522,8 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                         </Typography>
                       </Stack>
                       {action.payload ? (
-                        <Box
-                          component="pre"
-                          sx={{
-                            bgcolor: 'grey.50',
-                            p: 1.5,
-                            borderRadius: 1,
-                            fontSize: '0.75rem',
-                            overflow: 'auto',
-                            maxHeight: 200,
-                            m: 0,
-                          }}
-                        >
-                          {JSON.stringify(action.payload, null, 2)}
+                        <Box sx={{ bgcolor: 'grey.50', p: 1.5, borderRadius: 1 }}>
+                          {renderPayload(action.payload)}
                         </Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">Sem detalhes.</Typography>
