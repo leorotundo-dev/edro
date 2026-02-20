@@ -136,7 +136,7 @@ export default function SectionEnrichmentCard({
         value: parsedValue,
       });
       // Remoção otimista: campo some imediatamente após confirmar
-      setDoneFields((prev) => new Set([...prev, field]));
+      setDoneFields((prev) => { const next = new Set(prev); next.add(field); return next; });
       onChanged?.();
     } finally {
       setLoadingField(null);
@@ -148,7 +148,7 @@ export default function SectionEnrichmentCard({
     try {
       await apiDelete(`/clients/${clientId}/suggestions/${sectionKey}/${field}`);
       // Remoção otimista: campo some imediatamente após descartar
-      setDoneFields((prev) => new Set([...prev, field]));
+      setDoneFields((prev) => { const next = new Set(prev); next.add(field); return next; });
       onChanged?.();
     } finally {
       setLoadingField(null);
