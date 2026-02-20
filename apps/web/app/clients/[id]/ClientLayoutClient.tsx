@@ -33,11 +33,33 @@ type ClientBasic = {
   uf?: string | null;
   city?: string | null;
   profile?: {
-    knowledge_base?: {
-      description?: string;
-    };
+    knowledge_base?: { description?: string };
+    brand_colors?: string[];
   } | null;
 };
+
+function darkenHex(hex: string, factor = 0.28): string {
+  try {
+    const clean = hex.replace('#', '');
+    const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+    if (full.length !== 6) return hex;
+    const r = Math.max(0, Math.round(parseInt(full.slice(0, 2), 16) * (1 - factor)));
+    const g = Math.max(0, Math.round(parseInt(full.slice(2, 4), 16) * (1 - factor)));
+    const b = Math.max(0, Math.round(parseInt(full.slice(4, 6), 16) * (1 - factor)));
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  } catch { return hex; }
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  try {
+    const clean = hex.replace('#', '');
+    const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  } catch { return `rgba(0,0,0,${alpha})`; }
+}
 
 type ClientLayoutClientProps = {
   children: React.ReactNode;
@@ -202,6 +224,16 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const clientName = client?.name || 'Cliente';
   const location = [client?.city, client?.uf, client?.country].filter(Boolean).join(', ');
 
+  const brandColors = client?.profile?.brand_colors || [];
+  const c0 = brandColors[0];
+  const c1 = brandColors[1] || (c0 ? darkenHex(c0) : undefined);
+  const headerBg = c0
+    ? `linear-gradient(135deg, ${c0} 0%, ${c1} 100%)`
+    : 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)';
+  const headerShadow = c0
+    ? `0 8px 32px ${hexToRgba(c0, 0.35)}`
+    : '0 8px 32px rgba(255, 102, 0, 0.3)';
+
   const sourcesLabel = analysisResult?.sources_used
     ? Object.entries(analysisResult.sources_used)
         .filter(([, v]) => v > 0)
@@ -213,9 +245,9 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
     <AppShell title={clientName}>
       <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <Card sx={{
-          background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)',
+          background: headerBg,
           borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(255, 102, 0, 0.3)',
+          boxShadow: headerShadow,
           border: 'none',
           p: { xs: 2, sm: 3 },
           pb: 0,
