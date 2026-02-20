@@ -418,7 +418,15 @@ export default function PerfilPage() {
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="caption" color="text.secondary">Tom de voz</Typography>
-                  <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>{client?.tone_profile || '--'}</Typography>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ textTransform: p.tone_description ? 'none' : 'capitalize',
+                          overflow: 'hidden', display: '-webkit-box',
+                          WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                    title={p.tone_description || client?.tone_profile || undefined}
+                  >
+                    {p.tone_description || client?.tone_profile || '--'}
+                  </Typography>
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="caption" color="text.secondary">Localização</Typography>
