@@ -1146,10 +1146,12 @@ export default function EditorClient() {
                                 <Grid key={idx} size={{ xs: 12, md: 6 }}>
                                   <Card
                                     variant="outlined"
+                                    onClick={() => setSelectedOption(idx)}
                                     sx={{
                                       border: '2px solid',
-                                      borderColor: 'divider',
+                                      borderColor: selectedOption === idx ? '#ff6600' : 'divider',
                                       transition: 'border-color 0.15s',
+                                      cursor: 'pointer',
                                       '&:hover': { borderColor: '#ff6600' },
                                       height: '100%',
                                       display: 'flex',
