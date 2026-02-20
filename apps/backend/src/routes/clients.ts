@@ -184,6 +184,7 @@ const baseClientSchema = z.object({
   pillars: z.array(z.string()).optional(),
   negative_keywords: z.array(z.string()).optional(),
   knowledge_base: z.record(z.any()).optional(),
+  brand_colors: z.array(z.string()).optional(),
   status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
 });
 
@@ -721,6 +722,109 @@ export default async function clientsRoutes(app: FastifyInstance) {
       return reply.send({ ok: true, feedback });
     }
   );
+
+  // ── Brand colors: extração automática do site ────────────────────────────────
+
+  async function extractBrandColorsFromUrl(url: string): Promise<string[]> {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EdroBot/1.0; +https://edro.digital)' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const html = await res.text();
+      const colors: string[] = [];
+
+      // 1. meta theme-color (maior confiança)
+      const themeA = html.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9A-Fa-f]{3,8})/i);
+      const themeB = html.match(/<meta[^>]+content=["'](#[0-9A-Fa-f]{3,8})[^>]+name=["']theme-color["']/i);
+      const themeColor = (themeA?.[1] || themeB?.[1] || '').toLowerCase();
+      if (themeColor) colors.push(themeColor);
+
+      // 2. Variáveis CSS comuns de cor primária
+      const cssVarRe = /--(?:color-primary|primary-color|brand-color|accent-color|color-accent|primary|brand|accent)\s*:\s*(#[0-9A-Fa-f]{3,8})/gi;
+      let m: RegExpExecArray | null;
+      while ((m = cssVarRe.exec(html)) !== null) {
+        const c = m[1].toLowerCase();
+        if (!colors.includes(c)) colors.push(c);
+        if (colors.length >= 3) break;
+      }
+
+      // 3. Hex mais frequentes (exclui preto/branco/cinza)
+      if (colors.length < 2) {
+        const freq: Record<string, number> = {};
+        const hexRe = /#([0-9A-Fa-f]{6})\b/g;
+        let hm: RegExpExecArray | null;
+        while ((hm = hexRe.exec(html)) !== null) {
+          const c = `#${hm[1].toLowerCase()}`;
+          const r = parseInt(hm[1].slice(0, 2), 16);
+          const g = parseInt(hm[1].slice(2, 4), 16);
+          const b = parseInt(hm[1].slice(4, 6), 16);
+          const isGray = Math.abs(r - g) < 25 && Math.abs(g - b) < 25;
+          const isBW = (r > 215 && g > 215 && b > 215) || (r < 30 && g < 30 && b < 30);
+          if (!isGray && !isBW) freq[c] = (freq[c] || 0) + 1;
+        }
+        const top = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        for (const [color] of top) {
+          if (!colors.includes(color)) colors.push(color);
+        }
+      }
+
+      return colors.slice(0, 5);
+    } catch {
+      return [];
+    }
+  }
+
+  app.get(
+    '/clients/:id/extract-brand-colors',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const profile = (client as any).profile || {};
+      const website: string = profile?.knowledge_base?.website || '';
+      if (!website) {
+        return reply.status(400).send({
+          error: 'no_website',
+          message: 'Cliente não tem website em knowledge_base.website. Adicione o site antes de extrair as cores.',
+        });
+      }
+
+      const url = website.startsWith('http') ? website : `https://${website}`;
+      const colors = await extractBrandColorsFromUrl(url);
+      return reply.send({ ok: true, colors, website: url });
+    }
+  );
+
+  app.patch(
+    '/clients/:id/brand-colors',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = z.object({
+        colors: z.array(z.string().regex(/^#[0-9A-Fa-f]{3,8}$/)).min(0).max(10),
+      }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const existing = await query<{ profile: Record<string, any> | null }>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, params.id]
+      );
+      if (!existing.rows.length) return reply.status(404).send({ error: 'client_not_found' });
+
+      const nextProfile = { ...(existing.rows[0]?.profile || {}), brand_colors: body.colors };
+      await query(
+        `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+        [JSON.stringify(nextProfile), tenantId, params.id]
+      );
+      return reply.send({ ok: true, brand_colors: body.colors });
+    }
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   app.patch(
     '/clients/:id',

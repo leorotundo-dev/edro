@@ -28,6 +28,7 @@ type ClientProfilePatch = {
   pillars?: string[];
   negative_keywords?: string[];
   knowledge_base?: Record<string, any>;
+  brand_colors?: string[];
 };
 
 type ClientPayload = {
@@ -68,6 +69,7 @@ function normalizeProfile(current: any, patch: ClientProfilePatch) {
   if (patch.pillars !== undefined) next.pillars = patch.pillars;
   if (patch.negative_keywords !== undefined) next.negative_keywords = patch.negative_keywords;
   if (patch.knowledge_base !== undefined) next.knowledge_base = patch.knowledge_base;
+  if (patch.brand_colors !== undefined) next.brand_colors = patch.brand_colors;
 
   next.calendar_profile = {
     ...calendarDefaults,
