@@ -523,6 +523,38 @@ export default function BriefClient() {
     setForm((prev) => ({ ...prev, ...patch }));
   };
 
+  const CLIENT_COLORS = ['#ff6600', '#5D87FF', '#7c3aed', '#dc2626', '#059669', '#d97706'];
+  const getClientColor = (name: string) => CLIENT_COLORS[name.charCodeAt(0) % CLIENT_COLORS.length];
+
+  const handleSelectClient = (client: ClientRow) => {
+    setActiveClientId(client.id);
+    setSelectedClientsCount(1);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('edro_active_client_id', client.id);
+      window.localStorage.setItem(
+        'edro_selected_clients',
+        JSON.stringify([{
+          id: client.id,
+          name: client.name,
+          segment: client.segment_primary || null,
+          city: null,
+          uf: null,
+        }])
+      );
+      window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
+    }
+  };
+
+  const handleClearClient = () => {
+    setActiveClientId('');
+    setSelectedClientsCount(0);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('edro_active_client_id');
+      window.localStorage.removeItem('edro_selected_clients');
+      window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
+    }
+  };
+
   const handleSubmit = async () => {
     if (!activeClientId) {
       setError('Selecione o cliente no topo para continuar.');
@@ -716,7 +748,121 @@ export default function BriefClient() {
         </Card>
       ) : null}
 
-      {!queryClientId && !activeClientId && !context?.event && !context?.date ? (
+      {/* Client Selector */}
+      {!queryClientId ? (
+        !hasSelectedClient ? (
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 0.5 }}>
+                Selecione o cliente
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Escolha para qual cliente esta pauta sera criada.
+              </Typography>
+              {clients.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum cliente cadastrado.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  {clients.map((client) => {
+                    const color = getClientColor(client.name);
+                    return (
+                      <Card
+                        key={client.id}
+                        variant="outlined"
+                        onClick={() => handleSelectClient(client)}
+                        sx={{
+                          cursor: 'pointer',
+                          width: 110,
+                          textAlign: 'center',
+                          p: 1.5,
+                          borderColor: 'divider',
+                          '&:hover': { borderColor: color, bgcolor: `${color}08` },
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Avatar
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            bgcolor: color,
+                            mx: 'auto',
+                            mb: 1,
+                            fontSize: '1.1rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {client.name.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Typography
+                          variant="caption"
+                          fontWeight={600}
+                          sx={{ display: 'block', lineHeight: 1.3, wordBreak: 'break-word' }}
+                        >
+                          {client.name.length > 16 ? `${client.name.slice(0, 15)}…` : client.name}
+                        </Typography>
+                        {client.segment_primary ? (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ fontSize: '0.62rem', display: 'block', mt: 0.25 }}
+                          >
+                            {client.segment_primary.length > 14
+                              ? `${client.segment_primary.slice(0, 13)}…`
+                              : client.segment_primary}
+                          </Typography>
+                        ) : null}
+                      </Card>
+                    );
+                  })}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card
+            variant="outlined"
+            sx={{ borderColor: 'rgba(255,102,0,0.35)', bgcolor: 'rgba(255,102,0,0.02)' }}
+          >
+            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    bgcolor: selectedClient ? getClientColor(selectedClient.name) : '#ff6600',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  {selectedClient?.name?.charAt(0).toUpperCase() ?? '?'}
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    {selectedClient?.name ?? activeClientId}
+                  </Typography>
+                  {selectedClient?.segment_primary ? (
+                    <Typography variant="caption" color="text.secondary">
+                      {selectedClient.segment_primary}
+                    </Typography>
+                  ) : null}
+                </Box>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={handleClearClient}
+                  sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem' }}
+                >
+                  Trocar cliente
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        )
+      ) : null}
+
+      {!context?.event && !context?.date ? (
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 0.5 }}>
@@ -768,9 +914,6 @@ export default function BriefClient() {
         </Card>
       ) : null}
 
-      {!hasSelectedClient ? (
-        <Alert severity="warning">Selecione um cliente no topo para continuar o briefing.</Alert>
-      ) : null}
       {hasSelectedClient && !hasTopContext ? (
         <Alert severity="warning">Selecione um evento no calendario para continuar o briefing.</Alert>
       ) : null}
