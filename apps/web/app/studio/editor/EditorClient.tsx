@@ -979,7 +979,7 @@ export default function EditorClient() {
         {/* Main + Sidebar grid */}
         <Grid container spacing={3}>
           {/* Main panel */}
-          <Grid size={{ xs: 12, lg: 8 }}>
+          <Grid size={{ xs: 12, lg: 9 }}>
             <Stack spacing={3}>
               <Grid container spacing={3}>
                 {/* Mockup card */}
@@ -1382,7 +1382,7 @@ export default function EditorClient() {
           </Grid>
 
           {/* Sidebar */}
-          <Grid size={{ xs: 12, lg: 4 }}>
+          <Grid size={{ xs: 12, lg: 3 }}>
             <Card>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
