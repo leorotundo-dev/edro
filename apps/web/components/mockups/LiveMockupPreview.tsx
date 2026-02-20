@@ -569,6 +569,13 @@ export default function LiveMockupPreview({
           likes={1280}
           caption={feedCaption || captionText}
           comments={instagramComments}
+          postAspectRatio={(() => {
+            const r = resolveFormatRatio(format || '', platform);
+            if (!r || Math.abs(r - 4 / 5) < 0.01) return '4/5';
+            if (Math.abs(r - 1) < 0.01) return '1/1';
+            if (Math.abs(r - 16 / 9) < 0.01) return '16/9';
+            return `${r}`;
+          })()}
         />
       );
     }

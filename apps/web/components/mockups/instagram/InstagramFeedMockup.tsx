@@ -14,6 +14,7 @@ interface InstagramFeedMockupProps {
   location?: string;
   dateLabel?: string;
   likedBy?: string;
+  postAspectRatio?: string;
 }
 
 const INSTAGRAM_FOLD = 125;
@@ -64,6 +65,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   comments = [],
   location,
   dateLabel = 'HÁ 2 HORAS',
+  postAspectRatio = '4/5',
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -132,7 +134,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
       </div>
 
       {/* ── Post Image ── */}
-      <div className="w-full relative" style={{ aspectRatio: '4/5', background: '#efefef' }}>
+      <div className="w-full relative" style={{ aspectRatio: postAspectRatio, background: '#efefef' }}>
         {currentImage && !currentImage.startsWith('data:') ? (
           <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
         ) : arteText ? (
