@@ -73,13 +73,16 @@ export default function SectionEnrichmentCard({
 }: Props) {
   const [loadingField, setLoadingField] = useState<string | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [doneFields, setDoneFields] = useState<Set<string>>(new Set());
 
   const fields = useMemo(() => {
     const entries = Object.entries(suggestion?.fields || {});
-    return entries.filter(([, value]) => value?.status !== 'discarded');
-  }, [suggestion]);
+    return entries.filter(([key, value]) => value?.status !== 'discarded' && !doneFields.has(key));
+  }, [suggestion, doneFields]);
 
-  if (!suggestion || !fields.length) {
+  const allDone = doneFields.size > 0 && fields.length === 0;
+
+  if (!suggestion || (!fields.length && !allDone)) {
     return (
       <Card variant="outlined">
         <CardContent>
@@ -99,6 +102,29 @@ export default function SectionEnrichmentCard({
     );
   }
 
+  if (allDone) {
+    return (
+      <Card variant="outlined" sx={{ borderColor: 'success.light', bgcolor: 'rgba(46,125,50,0.04)' }}>
+        <CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
+            <Chip
+              size="small"
+              icon={<IconCircleCheck size={14} />}
+              label="Aplicado ao perfil"
+              sx={{ bgcolor: 'rgba(46,125,50,0.12)', color: 'success.dark' }}
+            />
+          </Stack>
+          {description ? (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {description}
+            </Typography>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
+
   const handleConfirm = async (field: string, original: any) => {
     setLoadingField(field);
     try {
@@ -109,7 +135,9 @@ export default function SectionEnrichmentCard({
         field,
         value: parsedValue,
       });
-      await onChanged?.();
+      // Remoção otimista: campo some imediatamente após confirmar
+      setDoneFields((prev) => new Set([...prev, field]));
+      onChanged?.();
     } finally {
       setLoadingField(null);
     }
@@ -119,7 +147,9 @@ export default function SectionEnrichmentCard({
     setLoadingField(field);
     try {
       await apiDelete(`/clients/${clientId}/suggestions/${sectionKey}/${field}`);
-      await onChanged?.();
+      // Remoção otimista: campo some imediatamente após descartar
+      setDoneFields((prev) => new Set([...prev, field]));
+      onChanged?.();
     } finally {
       setLoadingField(null);
     }
