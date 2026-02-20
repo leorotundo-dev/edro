@@ -118,6 +118,8 @@ export default function SectionEnrichmentCard({
 
   const allDone = doneFields.size > 0 && fields.length === 0;
 
+  const hasExistingData = Object.values(existingValues || {}).some((v) => v && String(v).trim());
+
   const manualFields = MANUAL_FIELDS[sectionKey] || [];
 
   const handleSaveManual = async () => {
@@ -147,14 +149,26 @@ export default function SectionEnrichmentCard({
 
   if (!suggestion || (!fields.length && !allDone)) {
     return (
-      <Card variant="outlined">
+      <Card
+        variant="outlined"
+        sx={hasExistingData ? { borderColor: 'success.light', bgcolor: 'rgba(46,125,50,0.04)' } : undefined}
+      >
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" fontWeight={700}>
               {title}
             </Typography>
             <Stack direction="row" spacing={0.75} alignItems="center">
-              <Chip size="small" label="Sem sugestoes" />
+              {hasExistingData ? (
+                <Chip
+                  size="small"
+                  icon={<IconCircleCheck size={14} />}
+                  label="Aplicado ao perfil"
+                  sx={{ bgcolor: 'rgba(46,125,50,0.12)', color: 'success.dark' }}
+                />
+              ) : (
+                <Chip size="small" label="Sem sugestoes" />
+              )}
               {manualFields.length > 0 && !manualMode && (
                 <Button
                   size="small"
@@ -167,7 +181,7 @@ export default function SectionEnrichmentCard({
                   }}
                   sx={{ fontSize: '0.7rem', py: 0.25, px: 1, minWidth: 0 }}
                 >
-                  Preencher
+                  {hasExistingData ? 'Editar' : 'Preencher'}
                 </Button>
               )}
             </Stack>
