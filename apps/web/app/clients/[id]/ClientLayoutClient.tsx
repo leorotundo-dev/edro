@@ -23,7 +23,7 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconCheck, IconChevronLeft, IconDeviceFloppy, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
+import { IconCheck, IconChevronLeft, IconDeviceFloppy, IconPlus, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
 
 type ClientBasic = {
   id: string;
@@ -55,7 +55,7 @@ const CLIENT_TABS = [
   { label: 'Overview', path: '' },
   { label: 'Calendar', path: '/calendar' },
   { label: 'Planning', path: '/planning' },
-  { label: 'Creative', path: '/creative' },
+  { label: 'Perfil', path: '/perfil' },
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas', path: '/metricas' },
 ];
@@ -262,6 +262,20 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               </Box>
             </Stack>
             <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                startIcon={<IconPlus size={16} />}
+                component={Link}
+                href={`/studio?clientId=${clientId}`}
+                sx={{
+                  textTransform: 'none',
+                  bgcolor: '#ff6600',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#e65c00' },
+                }}
+              >
+                Criar Pauta
+              </Button>
               <Button
                 variant="contained"
                 startIcon={<IconSparkles size={16} />}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
+import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -109,6 +110,13 @@ const TASK_TYPES = [
   { value: 'campaign_strategy', label: 'Estrategia de campanha' },
 ];
 
+const PIPELINE_LABELS: Record<string, string> = {
+  simple: 'Rapido',
+  standard: 'Padrao',
+  premium: 'Premium',
+  collaborative: 'Colaborativo (Gemini -> OpenAI -> Claude)',
+};
+
 const TONE_OPTIONS = ['Profissional', 'Inspirador', 'Casual', 'Persuasivo'];
 const MAX_CHAR_LABELS: Record<string, string> = {
   caption: 'Legenda',
@@ -122,6 +130,34 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
   gemini: 'Gemini',
   claude: 'Claude',
+};
+
+const autoSelectPipeline = (dueAt?: string | null, clientTier?: string | null) => {
+  const due = dueAt ? new Date(dueAt) : null;
+  const hoursUntilDue = due ? (due.getTime() - Date.now()) / (1000 * 60 * 60) : 999;
+  if (hoursUntilDue > 0 && hoursUntilDue < 4) return 'simple';
+  if (String(clientTier || '').toLowerCase() === 'premium') return 'collaborative';
+  return 'standard';
+};
+
+const autoSelectTaskType = (platform?: string | null, format?: string | null) => {
+  const formatText = String(format || '').toLowerCase();
+  const platformText = String(platform || '').toLowerCase();
+  if (
+    formatText.includes('reels') ||
+    formatText.includes('tiktok') ||
+    formatText.includes('youtube') ||
+    formatText.includes('video')
+  ) {
+    return 'campaign_strategy';
+  }
+  if (platformText.includes('linkedin') || formatText.includes('institucional')) {
+    return 'institutional_copy';
+  }
+  if (formatText.includes('headline') || formatText.includes('ooh') || formatText.includes('outdoor')) {
+    return 'headlines';
+  }
+  return 'social_post';
 };
 
 const formatReporteiSummary = (reportei?: ReporteiSummary | null) => {
@@ -248,6 +284,10 @@ export default function EditorClient() {
   const [success, setSuccess] = useState('');
   const [copyProgressTick, setCopyProgressTick] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState(true);
+  const [regenerationCount, setRegenerationCount] = useState(0);
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -658,6 +698,8 @@ export default function EditorClient() {
         const parsed = parseOptions(primaryCopy.output || '');
         setOptions(parsed);
         setSelectedOption(0);
+        setComparisonMode(true);
+        setRegenerationCount((c) => c + 1);
         setActiveCopyMeta(extractCopyMeta(primaryCopy));
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('edro_copy_version_id', primaryCopy.id);
@@ -717,6 +759,91 @@ export default function EditorClient() {
       }
     }
     setCopyProgressTick((prev) => prev + 1);
+  };
+
+  const handleCopySelected = async (selectedIdx: number) => {
+    handleSelectOption(selectedIdx);
+    const rejectedIdx = selectedIdx === 0 ? 1 : 0;
+    const activeClient = resolveActiveClient();
+    const clientId = activeClient?.id;
+    if (!clientId) { setComparisonMode(false); return; }
+    try {
+      await Promise.all([
+        apiPost(`/clients/${clientId}/copy-feedback`, {
+          feedback_type: 'copy',
+          action: 'approved',
+          copy_approved_text: optionToText(options[selectedIdx] ?? null),
+          copy_platform: activeFormat?.platform,
+          copy_pipeline: pipeline,
+        }),
+        options[rejectedIdx]
+          ? apiPost(`/clients/${clientId}/copy-feedback`, {
+              feedback_type: 'copy',
+              action: 'rejected',
+              copy_rejected_text: optionToText(options[rejectedIdx] ?? null),
+              copy_platform: activeFormat?.platform,
+              copy_pipeline: pipeline,
+            })
+          : Promise.resolve(),
+      ]);
+    } catch { /* non-blocking */ }
+    setComparisonMode(false);
+  };
+
+  const resolveActiveCopyId = () => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem('edro_copy_version_id') || '';
+  };
+
+  const optionToText = (option: ParsedOption | null) => {
+    if (!option) return output || '';
+    const parts = [option.title, option.body, option.cta ? `CTA: ${option.cta}` : ''].filter(Boolean);
+    return parts.join('\n').trim();
+  };
+
+  const handleApproveOption = async () => {
+    const copyId = resolveActiveCopyId();
+    if (!copyId) {
+      setError('Selecione uma versao de copy antes de aprovar.');
+      return;
+    }
+    setFeedbackLoading(true);
+    try {
+      await apiPatch(`/edro/copies/${copyId}/feedback`, {
+        status: 'approved',
+        approved_text: optionToText(selectedOptionData),
+        feedback: 'Aprovada no Creative Studio',
+      });
+      setSuccess('Opcao aprovada e aprendizado salvo no perfil do cliente.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar aprovacao.');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  const handleRejectOption = async (tags: string[], reason: string) => {
+    const copyId = resolveActiveCopyId();
+    if (!copyId) {
+      setError('Selecione uma versao de copy antes de rejeitar.');
+      return;
+    }
+    setFeedbackLoading(true);
+    try {
+      await apiPatch(`/edro/copies/${copyId}/feedback`, {
+        status: 'rejected',
+        rejected_text: optionToText(selectedOptionData),
+        rejection_tags: tags,
+        rejection_reason: reason || undefined,
+        feedback: reason || 'Rejeitada no Creative Studio',
+      });
+      setSuccess('Rejeicao registrada. As proximas geracoes vao evitar este padrao.');
+      setRejectOpen(false);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar rejeicao.');
+    } finally {
+      setFeedbackLoading(false);
+    }
   };
 
   if (loading && !briefing) {
@@ -888,40 +1015,142 @@ export default function EditorClient() {
                         </Card>
                       )}
 
-                      <Stack spacing={1} sx={{ mt: 2 }}>
-                        {options.length ? (
-                          options.map((option, index) => (
-                            <Card
-                              key={index}
-                              variant={selectedOption === index ? 'elevation' : 'outlined'}
-                              sx={{
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                ...(selectedOption === index ? { borderColor: 'primary.main', bgcolor: 'primary.lighter' } : {}),
-                              }}
-                              onClick={() => handleSelectOption(index)}
-                            >
-                              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                <Typography variant="subtitle2" fontWeight={600}>
-                                  {option.title || `Opcao ${index + 1}`}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                                  {option.body || option.raw}
-                                </Typography>
-                                {option.cta ? (
-                                  <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
-                                    CTA: {option.cta}
-                                  </Typography>
-                                ) : null}
-                              </CardContent>
-                            </Card>
-                          ))
-                        ) : (
-                          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                            Nenhuma opcao gerada.
+                      {options.length >= 2 && comparisonMode ? (
+                        /* ── Comparação pareada A vs B ── */
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                            Qual abordagem representa melhor a marca?
                           </Typography>
-                        )}
-                      </Stack>
+                          <Grid container spacing={2}>
+                            {[0, 1].map((idx) => {
+                              const option = options[idx];
+                              return (
+                                <Grid key={idx} size={{ xs: 12, md: 6 }}>
+                                  <Card
+                                    variant="outlined"
+                                    sx={{
+                                      border: '2px solid',
+                                      borderColor: 'divider',
+                                      transition: 'border-color 0.15s',
+                                      '&:hover': { borderColor: '#ff6600' },
+                                      height: '100%',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                    }}
+                                  >
+                                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 }, flex: 1 }}>
+                                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                                        Opção {idx === 0 ? 'A' : 'B'}
+                                      </Typography>
+                                      {option.title && (
+                                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+                                          {option.title}
+                                        </Typography>
+                                      )}
+                                      <Typography variant="body2" color="text.secondary"
+                                        sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', mb: 1.5 }}>
+                                        {option.body || option.raw}
+                                      </Typography>
+                                      {option.cta && (
+                                        <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1.5 }}>
+                                          CTA: {option.cta}
+                                        </Typography>
+                                      )}
+                                      <Button
+                                        fullWidth
+                                        size="small"
+                                        variant="contained"
+                                        onClick={() => handleCopySelected(idx)}
+                                        disabled={feedbackLoading}
+                                        sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
+                                      >
+                                        Esta é a melhor
+                                      </Button>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                              );
+                            })}
+                          </Grid>
+                          <Box sx={{ textAlign: 'center', mt: 1.5 }}>
+                            <Button
+                              size="small"
+                              variant="text"
+                              onClick={() => setRejectOpen(true)}
+                              disabled={feedbackLoading}
+                              sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem' }}
+                            >
+                              Nenhuma representa a marca — rejeitar
+                            </Button>
+                          </Box>
+                          {regenerationCount >= 3 && (
+                            <Alert severity="info" sx={{ mt: 1.5, fontSize: '0.8rem' }}>
+                              Após várias regenerações, considere revisar o briefing para dar mais contexto à IA.
+                            </Alert>
+                          )}
+                        </Box>
+                      ) : (
+                        /* ── Lista vertical (fallback: 1 opção ou pós-seleção) ── */
+                        <>
+                          <Stack spacing={1} sx={{ mt: 2 }}>
+                            {options.length ? (
+                              options.map((option, index) => (
+                                <Card
+                                  key={index}
+                                  variant={selectedOption === index ? 'elevation' : 'outlined'}
+                                  sx={{
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    ...(selectedOption === index ? { borderColor: 'primary.main', bgcolor: 'primary.lighter' } : {}),
+                                  }}
+                                  onClick={() => handleSelectOption(index)}
+                                >
+                                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Typography variant="subtitle2" fontWeight={600}>
+                                      {option.title || `Opcao ${index + 1}`}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                      {option.body || option.raw}
+                                    </Typography>
+                                    {option.cta ? (
+                                      <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
+                                        CTA: {option.cta}
+                                      </Typography>
+                                    ) : null}
+                                  </CardContent>
+                                </Card>
+                              ))
+                            ) : (
+                              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                                Nenhuma opcao gerada.
+                              </Typography>
+                            )}
+                          </Stack>
+
+                          {options.length ? (
+                            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleApproveOption}
+                                disabled={feedbackLoading || !selectedOptionData}
+                                sx={{ bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
+                              >
+                                Aprovar opcao
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                onClick={() => setRejectOpen(true)}
+                                disabled={feedbackLoading || !selectedOptionData}
+                              >
+                                Rejeitar opcao
+                              </Button>
+                            </Stack>
+                          ) : null}
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 </Grid>
@@ -1037,6 +1266,14 @@ export default function EditorClient() {
           onClose={() => setShowVersionHistory(false)}
         />
       )}
+
+      <RejectionReasonPicker
+        open={rejectOpen}
+        type="copy"
+        loading={feedbackLoading}
+        onClose={() => setRejectOpen(false)}
+        onSubmit={handleRejectOption}
+      />
     </>
   );
 }

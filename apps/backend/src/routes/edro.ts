@@ -55,6 +55,7 @@ import { env } from '../env';
 import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
+import { recordPreferenceFeedback } from '../services/preferenceEngine';
 import {
   createABTest,
   listABTests,
@@ -341,6 +342,61 @@ function resolveClientIdFromPayload(payload: Record<string, any> | null | undefi
     payload.client_ref ||
     payload.clientRef ||
     null
+  );
+}
+
+async function syncExamplesToProfile(tenantId: string, clientId: string) {
+  const [approvedRows, rejectedRows] = await Promise.all([
+    query<{ text: string | null }>(
+      `
+      SELECT copy_approved_text as text
+      FROM preference_feedback
+      WHERE tenant_id=$1 AND client_id=$2
+        AND feedback_type='copy'
+        AND action IN ('approved','approved_after_edit')
+        AND copy_approved_text IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 5
+      `,
+      [tenantId, clientId]
+    ),
+    query<{ text: string | null }>(
+      `
+      SELECT copy_rejected_text as text
+      FROM preference_feedback
+      WHERE tenant_id=$1 AND client_id=$2
+        AND feedback_type='copy'
+        AND action='rejected'
+        AND copy_rejected_text IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 5
+      `,
+      [tenantId, clientId]
+    ),
+  ]);
+
+  const goodExamples = approvedRows.rows
+    .map((row) => String(row.text || '').trim())
+    .filter(Boolean);
+  const badExamples = rejectedRows.rows
+    .map((row) => String(row.text || '').trim())
+    .filter(Boolean);
+
+  const existing = await query<{ profile: Record<string, any> | null }>(
+    `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+    [tenantId, clientId]
+  );
+  if (!existing.rows.length) return;
+
+  const nextProfile = {
+    ...(existing.rows[0]?.profile || {}),
+    good_copy_examples: goodExamples,
+    bad_copy_examples: badExamples,
+  };
+
+  await query(
+    `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+    [JSON.stringify(nextProfile), tenantId, clientId]
   );
 }
 
@@ -1015,6 +1071,12 @@ export default async function edroRoutes(app: FastifyInstance) {
       status: z.enum(['approved', 'rejected']).optional(),
       score: z.number().int().min(1).max(5).optional(),
       feedback: z.string().max(2000).optional(),
+      rejection_tags: z.array(z.string()).optional(),
+      rejection_reason: z.string().max(2000).optional(),
+      approved_text: z.string().optional(),
+      rejected_text: z.string().optional(),
+      regeneration_instruction: z.string().max(2000).optional(),
+      regeneration_count: z.number().int().min(0).max(20).optional(),
     });
     const body = bodySchema.parse(request.body);
 
@@ -1032,11 +1094,58 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
     }
 
+    const copyRow = rows[0];
+    const tenantId = (request.user as any)?.tenant_id;
+    const user = resolveUser(request);
+
+    if (tenantId && copyRow?.briefing_id) {
+      try {
+        const briefing = await getBriefingById(copyRow.briefing_id);
+        const clientId = briefing?.client_id || null;
+        if (clientId) {
+          const payload = copyRow.payload || {};
+          const action =
+            body.status === 'approved'
+              ? body.rejected_text || body.regeneration_count
+                ? 'approved_after_edit'
+                : 'approved'
+              : 'rejected';
+
+          await recordPreferenceFeedback({
+            tenantId,
+            clientId,
+            payload: {
+              feedback_type: 'copy',
+              action,
+              copy_briefing_id: copyRow.briefing_id,
+              copy_platform: payload?.platform || null,
+              copy_format: payload?.format || null,
+              copy_pipeline: payload?.pipeline || null,
+              copy_task_type: payload?.taskType || null,
+              copy_tone: payload?.tone || null,
+              copy_approved_text:
+                body.approved_text || (body.status === 'approved' ? copyRow.output : null),
+              copy_rejected_text:
+                body.rejected_text || (body.status === 'rejected' ? copyRow.output : null),
+              rejection_tags: body.rejection_tags,
+              rejection_reason: body.rejection_reason || body.feedback,
+              regeneration_instruction: body.regeneration_instruction,
+              regeneration_count: body.regeneration_count || 0,
+              created_by: user.email || user.id || null,
+            },
+          });
+
+          await syncExamplesToProfile(tenantId, clientId);
+        }
+      } catch {
+        // Keep feedback endpoint resilient; preference logging cannot block UX.
+      }
+    }
+
     // Fire-and-forget: rebuild preferences if score was provided
-    if (body.score && rows[0]?.briefing_id) {
-      const tenantId = (request.user as any)?.tenant_id;
+    if (body.score && copyRow?.briefing_id) {
       if (tenantId) {
-        getBriefingById(rows[0].briefing_id).then((briefing) => {
+        getBriefingById(copyRow.briefing_id).then((briefing) => {
           if (briefing?.client_id) {
             rebuildClientPreferences({ tenant_id: tenantId, client_id: briefing.client_id }).catch(() => {});
           }

@@ -195,6 +195,17 @@ export type CollaborativeStage = {
   duration_ms: number;
 };
 
+export type QualityScore = {
+  brand_dna_match: number;   // 0-10
+  platform_fit: number;      // 0-10
+  cta_clarity: number;       // 0-10
+  message_clarity: number;   // 0-10
+  originality: number;       // 0-10
+  overall: number;           // média dos 5 critérios
+  needs_revision: boolean;   // true se overall < 7.0
+  revision_instruction: string;
+};
+
 export type CollaborativePipelineResult = {
   output: string;
   model: string;
@@ -203,7 +214,37 @@ export type CollaborativePipelineResult = {
   creative_raw: string;
   editorial_notes: string;
   total_duration_ms: number;
+  quality_score: QualityScore | null;
+  cycle_count: number;
 };
+
+function safeParseJson(text: string): Record<string, any> | null {
+  try {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1));
+  } catch {}
+  return null;
+}
+
+function buildQualityScore(parsed: Record<string, any>): QualityScore {
+  const bm = Number(parsed.brand_dna_match ?? 7);
+  const pf = Number(parsed.platform_fit ?? 7);
+  const cc = Number(parsed.cta_clarity ?? 7);
+  const mc = Number(parsed.message_clarity ?? 7);
+  const or = Number(parsed.originality ?? 7);
+  const overall = (bm + pf + cc + mc + or) / 5;
+  return {
+    brand_dna_match: bm,
+    platform_fit: pf,
+    cta_clarity: cc,
+    message_clarity: mc,
+    originality: or,
+    overall: Math.round(overall * 10) / 10,
+    needs_revision: overall < 7.0,
+    revision_instruction: parsed.revision_instruction ?? '',
+  };
+}
 
 export async function runCollaborativePipeline(params: {
   analysisPrompt: string;
@@ -252,52 +293,103 @@ export async function runCollaborativePipeline(params: {
     // Analysis output is text, not JSON — still usable
   }
 
-  // --- Etapa 2: Creative (OpenAI preferred) ---
+  // --- Etapa 2 + 3: Creative (OpenAI) → Review (Claude) com quality loop ---
   const creatorProvider = getFallbackProvider('openai');
-  const t2 = Date.now();
-  const creativeResult = await callProvider(creatorProvider, {
-    prompt: params.creativePrompt(analysisOutput),
-    temperature: params.temperature?.creative ?? 0.7,
-    maxTokens: params.maxTokens?.creative ?? 2000,
-  });
-  const d2 = Date.now() - t2;
-  stages.push({
-    provider: creatorProvider,
-    role: 'creator',
-    model: `${creatorProvider}:${creativeResult.model}`,
-    duration_ms: d2,
-  });
-  fireAndForgetLog(params.usageContext, creatorProvider, creativeResult, d2);
-
-  const creativeOutput = creativeResult.text;
-
-  // --- Etapa 3: Editorial Review (Claude preferred) ---
   const editorProvider = getFallbackProvider('claude');
-  const t3 = Date.now();
-  const reviewResult = await callProvider(editorProvider, {
-    prompt: params.reviewPrompt(analysisOutput, creativeOutput),
-    temperature: params.temperature?.review ?? 0.4,
-    maxTokens: params.maxTokens?.review ?? 2500,
-  });
-  const d3 = Date.now() - t3;
-  stages.push({
-    provider: editorProvider,
-    role: 'editor',
-    model: `${editorProvider}:${reviewResult.model}`,
-    duration_ms: d3,
-  });
-  fireAndForgetLog(params.usageContext, editorProvider, reviewResult, d3);
 
-  const providers = stages.map((s) => s.provider).join('+');
+  const MAX_CYCLES = 2;
+  let cycleCount = 0;
+  let creativeOutput = '';
+  let finalOutput = '';
+  let qualityScore: QualityScore | null = null;
+  let revisionInstruction = '';
+
+  while (cycleCount <= MAX_CYCLES) {
+    // Etapa 2: Creative
+    const creativePromptText = cycleCount === 0
+      ? params.creativePrompt(analysisOutput)
+      : `${params.creativePrompt(analysisOutput)}\n\nINSTRUÇÃO DE MELHORIA (revisão ${cycleCount}): ${revisionInstruction}\n\nReescreva o copy aplicando esta instrução específica.`;
+
+    const t2 = Date.now();
+    const creativeResult = await callProvider(creatorProvider, {
+      prompt: creativePromptText,
+      temperature: params.temperature?.creative ?? 0.7,
+      maxTokens: params.maxTokens?.creative ?? 2000,
+    });
+    const d2 = Date.now() - t2;
+    stages.push({
+      provider: creatorProvider,
+      role: 'creator',
+      model: `${creatorProvider}:${creativeResult.model}`,
+      duration_ms: d2,
+    });
+    fireAndForgetLog(params.usageContext, creatorProvider, creativeResult, d2);
+    creativeOutput = creativeResult.text;
+
+    // Etapa 3: Editorial Review com scoring JSON
+    const baseReviewPrompt = params.reviewPrompt(analysisOutput, creativeOutput);
+    const scoringInstruction = `
+
+---
+Após revisar, retorne APENAS o seguinte JSON (sem mais texto):
+{
+  "revised_copy": "<copy revisado completo>",
+  "brand_dna_match": <0-10>,
+  "platform_fit": <0-10>,
+  "cta_clarity": <0-10>,
+  "message_clarity": <0-10>,
+  "originality": <0-10>,
+  "needs_revision": <true se média dos 5 scores < 7.0, senão false>,
+  "revision_instruction": "<instrução específica e acionável para melhorar o copy — obrigatório se needs_revision for true>"
+}`;
+
+    const t3 = Date.now();
+    const reviewResult = await callProvider(editorProvider, {
+      prompt: baseReviewPrompt + scoringInstruction,
+      temperature: params.temperature?.review ?? 0.4,
+      maxTokens: params.maxTokens?.review ?? 2500,
+    });
+    const d3 = Date.now() - t3;
+    stages.push({
+      provider: editorProvider,
+      role: 'editor',
+      model: `${editorProvider}:${reviewResult.model}`,
+      duration_ms: d3,
+    });
+    fireAndForgetLog(params.usageContext, editorProvider, reviewResult, d3);
+
+    // Parsear JSON de qualidade
+    const parsed = safeParseJson(reviewResult.text);
+    if (parsed) {
+      qualityScore = buildQualityScore(parsed);
+      finalOutput = parsed.revised_copy ?? reviewResult.text;
+    } else {
+      // Claude não retornou JSON — aceitar texto direto
+      finalOutput = reviewResult.text;
+      qualityScore = null;
+    }
+
+    // Decidir se precisa de mais um ciclo
+    if (!qualityScore || !qualityScore.needs_revision || cycleCount >= MAX_CYCLES) {
+      break;
+    }
+
+    revisionInstruction = qualityScore.revision_instruction;
+    cycleCount++;
+  }
+
+  const providers = [...new Set(stages.map((s) => s.provider))].join('+');
 
   return {
-    output: reviewResult.text,
+    output: finalOutput,
     model: `collaborative:${providers}`,
     stages,
     analysis_json: analysisJson,
     creative_raw: creativeOutput,
-    editorial_notes: '',
+    editorial_notes: qualityScore ? `Score: ${qualityScore.overall}/10 | Ciclos: ${cycleCount}` : '',
     total_duration_ms: Date.now() - startTotal,
+    quality_score: qualityScore,
+    cycle_count: cycleCount,
   };
 }
 

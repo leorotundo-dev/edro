@@ -353,6 +353,13 @@ export default function BriefingsClient() {
           <Button
             variant="outlined"
             size="small"
+            onClick={() => router.push('/edro/inbox')}
+          >
+            Pauta Inbox
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
             startIcon={<IconDownload size={16} />}
             onClick={() => handleExport('csv')}
           >

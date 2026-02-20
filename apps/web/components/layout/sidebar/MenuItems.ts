@@ -5,18 +5,7 @@ import {
   IconCalendar,
   IconLayoutKanban,
   IconPalette,
-  IconRadar2,
-
-  IconChartLine,
-  IconShare,
-  IconFileText,
   IconShieldCheck,
-  IconUpload,
-  IconSettings,
-  IconCoin,
-  IconTargetArrow,
-  IconBug,
-  IconRobot,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -83,41 +72,6 @@ const MenuItems: MenuGroupType[] = [
         icon: IconPalette,
         href: '/studio',
       },
-      {
-        id: 'production',
-        title: 'Production Catalog',
-        icon: IconFileText,
-        href: '/production/catalog',
-      },
-    ],
-  },
-  {
-    subheader: 'Inteligência',
-    items: [
-      {
-        id: 'radar',
-        title: 'Radar',
-        icon: IconRadar2,
-        href: '/clipping',
-      },
-      {
-        id: 'analytics',
-        title: 'Clipping Analytics',
-        icon: IconChartLine,
-        href: '/clipping/dashboard',
-      },
-      {
-        id: 'quality',
-        title: 'Radar Quality',
-        icon: IconTargetArrow,
-        href: '/clipping/quality',
-      },
-      {
-        id: 'social',
-        title: 'Social Listening',
-        icon: IconShare,
-        href: '/social-listening',
-      },
     ],
   },
   {
@@ -130,47 +84,6 @@ const MenuItems: MenuGroupType[] = [
         icon: IconShieldCheck,
         href: '/admin/system',
         requiredRole: ['admin'],
-      },
-      {
-        id: 'admin-users',
-        title: 'Usuarios',
-        icon: IconUsers,
-        href: '/admin/users',
-        requiredRole: ['admin'],
-      },
-      {
-        id: 'admin-ai-costs',
-        title: 'AI Costs',
-        icon: IconCoin,
-        href: '/admin/ai-costs',
-        requiredRole: ['admin', 'manager'],
-      },
-      {
-        id: 'admin-radar',
-        title: 'Radar Diagnostics',
-        icon: IconBug,
-        href: '/clipping/diagnostics',
-        requiredRole: ['admin', 'manager'],
-      },
-      {
-        id: 'admin-automations',
-        title: 'Automacoes',
-        icon: IconRobot,
-        href: '/admin/automations',
-        requiredRole: ['admin', 'manager'],
-      },
-      {
-        id: 'admin-import',
-        title: 'Import Events',
-        icon: IconUpload,
-        href: '/admin/events/import',
-        requiredRole: ['admin', 'manager'],
-      },
-      {
-        id: 'settings',
-        title: 'Settings',
-        icon: IconSettings,
-        href: '/settings',
       },
     ],
   },

@@ -31,6 +31,7 @@ import automationsRoutes from './automations';
 import reportsRoutes from './reports';
 import analyticsRoutes from './analytics';
 import integrationDataRoutes from './integrationData';
+import pautaInboxRoutes from './pautaInbox';
 import tempPgVectorCheck from './_temp_pgvector_check';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -68,4 +69,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(reportsRoutes, { prefix: '/api' });
   app.register(analyticsRoutes, { prefix: '/api' });
   app.register(integrationDataRoutes, { prefix: '/api' });
+  app.register(pautaInboxRoutes, { prefix: '/api' });
 }

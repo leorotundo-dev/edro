@@ -19,6 +19,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Chart from '@/components/charts/Chart';
 import {
+  IconAlertTriangle,
   IconAntenna,
   IconBook2,
   IconBolt,
@@ -40,6 +41,7 @@ import {
   IconHeartbeat,
   IconMoodHappy,
   IconNews,
+  IconPlus,
   IconRefresh,
   IconRocket,
   IconSettings2,
@@ -408,7 +410,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
     const groupB = Promise.allSettled([
       apiGet<any>(`/clipping/dashboard?clientId=${encodeURIComponent(clientId)}`),
-      apiGet<ClippingItem[]>(`/clipping/items?clientId=${encodeURIComponent(clientId)}&limit=5&recency=7d`).catch(() => [] as ClippingItem[]),
+      apiGet<ClippingItem[]>(`/clipping/items?clientId=${encodeURIComponent(clientId)}&limit=3&recency=7d`).catch(() => [] as ClippingItem[]),
       apiGet<ClippingSource[]>(`/clipping/sources?scope=CLIENT&clientId=${encodeURIComponent(clientId)}`).catch(() => [] as ClippingSource[]),
     ]).then((results) => {
       if (reqRef.current !== reqId) return;
@@ -642,9 +644,85 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       .slice(0, 4);
   }, [planningHealth]);
 
-  const recentLibrary = useMemo(() => (Array.isArray(libraryItems) ? libraryItems.slice(0, 5) : []), [libraryItems]);
+  const recentLibrary = useMemo(() => (Array.isArray(libraryItems) ? libraryItems.slice(0, 3) : []), [libraryItems]);
   const recentBriefings = useMemo(() => (Array.isArray(briefings) ? briefings.slice(0, 3) : []), [briefings]);
   const recentCopies = useMemo(() => (Array.isArray(copies) ? copies.slice(0, 3) : []), [copies]);
+
+  const pipelineByStage = useMemo(() => {
+    const counters = {
+      briefing: 0,
+      copyIa: 0,
+      aprovacao: 0,
+      producao: 0,
+      revisao: 0,
+      entregue: 0,
+    };
+    const norm = (value?: string | null) => String(value || '').trim().toLowerCase();
+
+    for (const b of briefings || []) {
+      const status = norm(b.status);
+      if (!status || status === 'new' || status === 'novo' || status === 'briefing' || status === 'draft') {
+        counters.briefing += 1;
+      } else if (status.includes('copy') || status.includes('ia')) {
+        counters.copyIa += 1;
+      } else if (status.includes('aprov')) {
+        counters.aprovacao += 1;
+      } else if (status.includes('produc')) {
+        counters.producao += 1;
+      } else if (status.includes('revis')) {
+        counters.revisao += 1;
+      } else if (
+        status === 'done' ||
+        status === 'completed' ||
+        status === 'concluido' ||
+        status === 'concluído' ||
+        status.includes('entreg')
+      ) {
+        counters.entregue += 1;
+      } else {
+        counters.briefing += 1;
+      }
+    }
+
+    return [
+      { key: 'briefing', label: 'Briefing', count: counters.briefing, color: '#5D87FF' },
+      { key: 'copy-ia', label: 'Copy IA', count: counters.copyIa, color: '#64748b' },
+      { key: 'aprovacao', label: 'Aprovação', count: counters.aprovacao, color: '#FFAE1F' },
+      { key: 'producao', label: 'Produção', count: counters.producao, color: '#FA896B' },
+      { key: 'revisao', label: 'Revisão', count: counters.revisao, color: '#ff6600' },
+      { key: 'entregue', label: 'Entregue', count: counters.entregue, color: '#13DEB9' },
+    ];
+  }, [briefings]);
+
+  const recommendation = useMemo(() => {
+    if (topOpportunities[0]) {
+      const first = topOpportunities[0];
+      return {
+        title: 'Oportunidade prioritária',
+        text: first.description || first.title,
+        href: `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(first.title || 'Nova pauta')}`,
+        action: 'Criar pauta',
+      };
+    }
+    if (nextCalendarItem?.name) {
+      return {
+        title: 'Data estratégica próxima',
+        text: `${nextCalendarItem.name} em ${formatDate(nextCalendarItem.date)}.`,
+        href: `/clients/${clientId}/calendar`,
+        action: 'Abrir calendário',
+      };
+    }
+    if (clippingItems[0]?.title) {
+      const first = clippingItems[0];
+      return {
+        title: 'Radar ativo',
+        text: first.title,
+        href: `/clients/${clientId}/inteligencia`,
+        action: 'Abrir Inteligência',
+      };
+    }
+    return null;
+  }, [topOpportunities, nextCalendarItem, clippingItems, clientId]);
 
   // ── Chart data (must be before early returns) ──────────────────
   const sentimentChartOptions = useMemo(() => ({
@@ -739,25 +817,6 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const sectionCardSx = { borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
   const sectionContentSx = { p: { xs: 2, sm: 3 } };
 
-  const hasProfileData = Boolean(
-    kb.description ||
-    client?.segment_primary ||
-    client?.tone_profile ||
-    location ||
-    kb.website ||
-    hasSocials ||
-    kb.audience ||
-    kb.brand_promise ||
-    kb.differentiators ||
-    (client?.content_pillars && client.content_pillars.length > 0) ||
-    (client?.keywords && client.keywords.length > 0) ||
-    (kb.hashtags && kb.hashtags.length > 0) ||
-    (kb.must_mentions && kb.must_mentions.length > 0) ||
-    (kb.approved_terms && kb.approved_terms.length > 0) ||
-    (kb.forbidden_claims && kb.forbidden_claims.length > 0) ||
-    kb.notes
-  );
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
@@ -765,7 +824,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       {healthScore && (
         <Box
           component={Link}
-          href={`/clients/${clientId}/analytics`}
+          href={`/clients/${clientId}/metricas?sub=operacional`}
           sx={{
             display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 1.5,
             borderRadius: 2, textDecoration: 'none',
@@ -806,6 +865,93 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
           <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>Ver detalhes →</Typography>
         </Box>
       )}
+
+      {/* Alertas críticos */}
+      {(planningAlerts.length > 0 || opportunitiesUrgentCount > 0) && (
+        <Card sx={{ borderRadius: 2, border: '1px solid #fecaca', bgcolor: '#fff1f2' }}>
+          <CardContent sx={{ py: 1.5, px: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+              <IconAlertTriangle size={18} color="#dc2626" />
+              <Typography variant="subtitle2" fontWeight={700} color="error.main">
+                Atenção necessária:
+              </Typography>
+              {planningAlerts.map((alert) => (
+                <Chip
+                  key={alert.key}
+                  size="small"
+                  label={`${alert.label}: ${alert.message}`}
+                  sx={{
+                    bgcolor: alert.status === 'error' ? '#fef2f2' : '#fffbeb',
+                    color: alert.status === 'error' ? '#dc2626' : '#d97706',
+                    fontWeight: 600,
+                  }}
+                />
+              ))}
+              {opportunitiesUrgentCount > 0 && (
+                <Chip
+                  size="small"
+                  label={`${opportunitiesUrgentCount} oportunidade(s) urgente(s)`}
+                  sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 700 }}
+                />
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recomendação + Pipeline */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'rgba(255,102,0,0.03)', borderColor: 'rgba(255,102,0,0.2)', height: '100%' }}>
+            <CardContent>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <IconSparkles size={18} color="#ff6600" />
+                <Typography variant="subtitle2" fontWeight={700}>Recomendação do Dia</Typography>
+              </Stack>
+              {recommendation ? (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, minHeight: 42 }}>
+                    {recommendation.text}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    component={Link}
+                    href={recommendation.href}
+                    sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                  >
+                    {recommendation.action}
+                  </Button>
+                </>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Sem recomendações no momento. Rode uma atualização para gerar novos sinais.
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+            <CardContent>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>Pipeline de Produção</Typography>
+              <Stack spacing={1}>
+                {pipelineByStage.map((stage) => (
+                  <Stack key={stage.key} direction="row" alignItems="center" spacing={1.2}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: stage.color, flexShrink: 0 }} />
+                    <Typography variant="body2" sx={{ flex: 1 }}>{stage.label}</Typography>
+                    <Chip
+                      size="small"
+                      label={formatNumber(stage.count)}
+                      sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: 'action.hover' }}
+                    />
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* ══════════════════════════════════════════════════════════════
           SECTION 1 — KPIs & Visao Geral
@@ -947,10 +1093,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             </Avatar>
             <Typography variant="h6" fontWeight={700}>Monitoramento</Typography>
             <Box flex={1} />
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping`} sx={{ color: SECTION_COLORS.clipping.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/inteligencia`} sx={{ color: SECTION_COLORS.clipping.fg }}>
               Clipping
             </Button>
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/clipping?tab=social`} sx={{ color: SECTION_COLORS.social.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/inteligencia?sub=social`} sx={{ color: SECTION_COLORS.social.fg }}>
               Social
             </Button>
           </Stack>
@@ -963,8 +1109,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Typography>
               <Stack spacing={1.5}>
                 {clippingItems.length ? (
-                  clippingItems.slice(0, 5).map((item) => {
+                  clippingItems.slice(0, 3).map((item) => {
                     const score = Number(item.client_score ?? item.score ?? 0);
+                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`;
                     return (
                       <Box key={item.id} sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' }, transition: 'background 0.2s' }}>
                         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
@@ -986,11 +1133,21 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                             </Tooltip>
                           )}
                         </Stack>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap" useFlexGap>
                           <Chip size="small" label={item.source_name || '--'} variant="outlined" sx={{ fontSize: '0.6rem', height: 20 }} />
                           <Typography variant="caption" color="text.secondary" fontSize="0.65rem">{formatDate(item.published_at)}</Typography>
                           <Chip size="small" label={`${score}`}
                             sx={{ fontSize: '0.6rem', height: 20, bgcolor: score >= 80 ? '#ecfdf5' : score >= 50 ? '#fffbeb' : '#f8fafc', color: score >= 80 ? '#059669' : score >= 50 ? '#d97706' : '#94a3b8', fontWeight: 700 }} />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            component={Link}
+                            href={createHref}
+                            startIcon={<IconPlus size={14} />}
+                            sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                          >
+                            Criar pauta
+                          </Button>
                         </Stack>
                       </Box>
                     );
@@ -1022,7 +1179,11 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
               <Stack spacing={1}>
                 {socialMentions.length ? (
-                  socialMentions.slice(0, 4).map((m) => (
+                  socialMentions.slice(0, 4).map((m) => {
+                    const socialTitle = (m.keyword && m.keyword.trim()) ? `Social: ${m.keyword}` : 'Oportunidade social';
+                    const socialDraft = String(m.content || '').slice(0, 180);
+                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(m.id)}&draft=${encodeURIComponent(socialDraft)}`;
+                    return (
                     <Box key={m.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip size="small" label={m.platform} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
@@ -1034,8 +1195,21 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                         {String(m.content || '').slice(0, 100)}
                       </Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          component={Link}
+                          href={createHref}
+                          startIcon={<IconPlus size={14} />}
+                          sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                        >
+                          Criar pauta
+                        </Button>
+                      </Stack>
                     </Box>
-                  ))
+                  );
+                  })
                 ) : (
                   <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem mencoes recentes.</Typography>
                 )}
@@ -1059,10 +1233,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/calendar`} sx={{ color: SECTION_COLORS.calendar.fg }}>
               Calendario
             </Button>
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/insights`} sx={{ color: SECTION_COLORS.insights.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/inteligencia?sub=insights`} sx={{ color: SECTION_COLORS.insights.fg }}>
               Insights
             </Button>
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/performance`} sx={{ color: SECTION_COLORS.performance.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/metricas`} sx={{ color: SECTION_COLORS.performance.fg }}>
               Performance
             </Button>
           </Stack>
@@ -1074,7 +1248,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 Calendario (14d)
               </Typography>
               <Stack spacing={1.5}>
-                {calendarItems.slice(0, 5).map((item, idx) => {
+                {calendarItems.slice(0, 4).map((item, idx) => {
                   const d = formatDayMonth(item.date);
                   const score = Number(item.score || 0);
                   return (
@@ -1132,7 +1306,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Typography>
               <Stack spacing={1}>
                 {topOpportunities.length ? (
-                  topOpportunities.map((opp) => (
+                  topOpportunities.map((opp) => {
+                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(opp.title || 'Nova pauta')}&source=opportunity&sourceId=${encodeURIComponent(opp.id)}`;
+                    return (
                     <Box key={opp.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip size="small" label={opp.priority || 'medium'}
@@ -1150,8 +1326,19 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                           <Typography variant="caption" fontWeight={600} fontSize="0.65rem">{opp.confidence}%</Typography>
                         </Stack>
                       )}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        component={Link}
+                        href={createHref}
+                        startIcon={<IconPlus size={14} />}
+                        sx={{ mt: 0.75, fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                      >
+                        Criar pauta
+                      </Button>
                     </Box>
-                  ))
+                  );
+                  })
                 ) : (
                   <Typography variant="body2" color="text.secondary">Sem oportunidades no momento.</Typography>
                 )}
@@ -1199,13 +1386,13 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 bgcolor: planningHealth?.overall === 'healthy' ? '#ecfdf5' : planningHealth?.overall === 'warning' ? '#fffbeb' : '#f8fafc',
                 color: planningHealth?.overall === 'healthy' ? '#059669' : planningHealth?.overall === 'warning' ? '#d97706' : '#94a3b8' }} />
             <Box flex={1} />
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/creative`} sx={{ color: SECTION_COLORS.creative.fg }}>
-              Creative
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/perfil`} sx={{ color: SECTION_COLORS.creative.fg }}>
+              Perfil
             </Button>
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.planning.fg }}>
               Planning
             </Button>
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/library`} sx={{ color: SECTION_COLORS.library.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.library.fg }}>
               Biblioteca
             </Button>
           </Stack>
@@ -1227,7 +1414,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
           <Grid container spacing={3}>
             {/* Left — Briefings recentes */}
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
                 Briefings recentes
               </Typography>
@@ -1305,262 +1492,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       </Card>
 
       {/* ══════════════════════════════════════════════════════════════
-          SECTION 5 — Perfil do Cliente
-          ══════════════════════════════════════════════════════════════ */}
-      {hasProfileData && (
-        <Card sx={sectionCardSx}>
-          <CardContent sx={sectionContentSx}>
-            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
-              <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 36, height: 36 }}>
-                <IconUsers size={20} color={SECTION_COLORS.insights.fg} />
-              </Avatar>
-              <Typography variant="h6" fontWeight={700}>Perfil do Cliente</Typography>
-            </Stack>
-
-            {/* Summary */}
-            {kb.description && (
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 2, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                {kb.description}
-              </Typography>
-            )}
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <IconBriefcase size={16} color={SECTION_COLORS.insights.fg} />
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>Segmento</Typography>
-                </Stack>
-                <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{client?.segment_primary || 'Nao definido'}</Typography>
-              </Grid>
-              {client?.tone_profile && (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <IconMoodHappy size={16} color={SECTION_COLORS.social.fg} />
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Tom de voz</Typography>
-                  </Stack>
-                  <Typography variant="subtitle2" sx={{ mt: 0.5, textTransform: 'capitalize' }}>{client.tone_profile}</Typography>
-                </Grid>
-              )}
-              {location && (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <IconWorld size={16} color={SECTION_COLORS.calendar.fg} />
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Localizacao</Typography>
-                  </Stack>
-                  <Typography variant="subtitle2" sx={{ mt: 0.5 }}>{location}</Typography>
-                </Grid>
-              )}
-            </Grid>
-
-            {/* Presenca digital */}
-            {(kb.website || hasSocials) && (
-              <>
-                <Divider sx={{ my: 2.5 }} />
-                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                  Presenca digital
-                </Typography>
-                {kb.website && (
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                    <IconWorld size={18} color="#666" />
-                    <Typography
-                      variant="body2"
-                      component="a"
-                      href={ensureUrl(kb.website)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
-                    >
-                      {kb.website}
-                    </Typography>
-                    <IconExternalLink size={14} color="#999" />
-                  </Stack>
-                )}
-                {hasSocials && (
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
-                    {Object.entries(SOCIAL_ICONS).map(([key, cfg]) => {
-                      const value = socials[key as keyof typeof socials];
-                      if (!value) return null;
-                      const Icon = cfg.icon;
-                      return (
-                        <Tooltip key={key} title={`${cfg.label}: ${value}`}>
-                          <IconButton
-                            size="small"
-                            component="a"
-                            href={ensureUrl(value)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{ bgcolor: `${cfg.color}14`, '&:hover': { bgcolor: `${cfg.color}28` } }}
-                          >
-                            <Icon size={20} color={cfg.color} />
-                          </IconButton>
-                        </Tooltip>
-                      );
-                    })}
-                  </Stack>
-                )}
-                {socials.other && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Outras: {socials.other}
-                  </Typography>
-                )}
-              </>
-            )}
-
-            {/* Marca & Posicionamento */}
-            {(kb.audience || kb.brand_promise || kb.differentiators) && (
-              <>
-                <Divider sx={{ my: 2.5 }} />
-                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                  Marca & Posicionamento
-                </Typography>
-                <Grid container spacing={3}>
-                  {kb.audience && (
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                        <IconUsers size={16} color="#666" />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Publico-alvo</Typography>
-                      </Stack>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.audience}</Typography>
-                    </Grid>
-                  )}
-                  {kb.brand_promise && (
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                        <IconTarget size={16} color="#666" />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Promessa da marca</Typography>
-                      </Stack>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.brand_promise}</Typography>
-                    </Grid>
-                  )}
-                  {kb.differentiators && (
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                        <IconSparkles size={16} color="#666" />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Diferenciais</Typography>
-                      </Stack>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{kb.differentiators}</Typography>
-                    </Grid>
-                  )}
-                </Grid>
-              </>
-            )}
-
-            {/* Conteudo */}
-            {((client?.content_pillars && client.content_pillars.length > 0) ||
-              (client?.keywords && client.keywords.length > 0) ||
-              (kb.hashtags && kb.hashtags.length > 0)) && (
-              <>
-                <Divider sx={{ my: 2.5 }} />
-                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                  Conteudo
-                </Typography>
-                <Stack spacing={2}>
-                  {client?.content_pillars && client.content_pillars.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                        Pilares de conteudo
-                      </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {client.content_pillars.map((p, i) => (
-                          <Chip key={i} size="small" label={p} sx={{ bgcolor: 'primary.lighter', color: 'primary.main', fontWeight: 500 }} />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  {client?.keywords && client.keywords.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                        Palavras-chave
-                      </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {client.keywords.map((k, i) => (
-                          <Chip key={i} size="small" variant="outlined" label={k} />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  {kb.hashtags && kb.hashtags.length > 0 && (
-                    <Box>
-                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                        <IconHash size={14} color="#666" />
-                        <Typography variant="caption" color="text.secondary" fontWeight={600}>Hashtags</Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {kb.hashtags.map((h, i) => (
-                          <Chip key={i} size="small" label={h.startsWith('#') ? h : `#${h}`} sx={{ bgcolor: 'grey.100' }} />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                </Stack>
-              </>
-            )}
-
-            {/* Diretrizes */}
-            {((kb.must_mentions && kb.must_mentions.length > 0) ||
-              (kb.approved_terms && kb.approved_terms.length > 0) ||
-              (kb.forbidden_claims && kb.forbidden_claims.length > 0) ||
-              kb.notes) && (
-              <>
-                <Divider sx={{ my: 2.5 }} />
-                <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                  Diretrizes
-                </Typography>
-                <Stack spacing={2}>
-                  {kb.must_mentions && kb.must_mentions.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                        Mencoes obrigatorias
-                      </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {kb.must_mentions.map((m, i) => (
-                          <Chip key={i} size="small" label={m} color="success" variant="outlined" />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  {kb.approved_terms && kb.approved_terms.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                        Termos aprovados
-                      </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {kb.approved_terms.map((t, i) => (
-                          <Chip key={i} size="small" label={t} color="info" variant="outlined" />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  {kb.forbidden_claims && kb.forbidden_claims.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                        Termos proibidos
-                      </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {kb.forbidden_claims.map((f, i) => (
-                          <Chip key={i} size="small" label={f} color="error" variant="outlined" />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  {kb.notes && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                        Observacoes
-                      </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {kb.notes}
-                      </Typography>
-                    </Box>
-                  )}
-                </Stack>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════
-          SECTION 6 — Acoes & Setup
+          SECTION 5 — Acoes Rápidas
           ══════════════════════════════════════════════════════════════ */}
       <Card sx={sectionCardSx}>
         <CardContent sx={sectionContentSx}>
@@ -1568,7 +1500,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Avatar sx={{ bgcolor: SECTION_COLORS.insights.bg, width: 36, height: 36 }}>
               <IconRocket size={20} color={SECTION_COLORS.insights.fg} />
             </Avatar>
-            <Typography variant="h6" fontWeight={700}>Acoes & Setup</Typography>
+            <Typography variant="h6" fontWeight={700}>Ações Rápidas</Typography>
           </Stack>
 
           <Grid container spacing={3}>
@@ -1586,7 +1518,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   <Button fullWidth variant="contained" startIcon={<IconSparkles size={16} />}
                     component={Link} href={`/studio?clientId=${clientId}`}
                     sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 2, backdropFilter: 'blur(4px)', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}>
-                    Criar post
+                    Criar pauta
                   </Button>
                   <Button fullWidth variant="outlined" startIcon={<IconCalendar size={16} />}
                     component={Link} href={`/clients/${clientId}/calendar`}
@@ -1598,14 +1530,14 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 <Grid container spacing={1}>
                   <Grid size={{ xs: 6 }}>
                     <Button fullWidth size="small" startIcon={<IconBook2 size={14} />}
-                      component={Link} href={`/clients/${clientId}/library`}
+                      component={Link} href={`/clients/${clientId}/planning`}
                       sx={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', '&:hover': { color: 'white' } }}>
                       Biblioteca
                     </Button>
                   </Grid>
                   <Grid size={{ xs: 6 }}>
                     <Button fullWidth size="small" startIcon={<IconChartPie size={14} />}
-                      component={Link} href={`/clients/${clientId}/insights`}
+                      component={Link} href={`/clients/${clientId}/inteligencia?sub=insights`}
                       sx={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', '&:hover': { color: 'white' } }}>
                       Insights
                     </Button>
@@ -1619,7 +1551,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   </Grid>
                   <Grid size={{ xs: 6 }}>
                     <Button fullWidth size="small" startIcon={<IconNews size={14} />}
-                      component={Link} href={`/clients/${clientId}/clipping`}
+                      component={Link} href={`/clients/${clientId}/inteligencia`}
                       sx={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', '&:hover': { color: 'white' } }}>
                       Clipping
                     </Button>
@@ -1628,46 +1560,14 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Box>
             </Grid>
 
-            {/* Center — Setup & Integracoes */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                Setup & Integracoes
-              </Typography>
-              <Stack spacing={1}>
-                {[
-                  { label: 'Reportei', ok: reporteiConfigured },
-                  { label: 'Meta', ok: metaConfigured },
-                  { label: `Fontes social (${sourcesPlatforms.length})`, ok: sourcesConfigured },
-                  { label: `Clipping (${clippingActiveSourcesCount})`, ok: clippingActiveSourcesCount > 0, warn: clippingErrorSourcesCount > 0 },
-                  { label: `Keywords (${socialActiveKeywordsCount})`, ok: socialActiveKeywordsCount > 0 },
-                ].map((item) => (
-                  <Stack key={item.label} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.75 }}>
-                    <Box sx={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      bgcolor: item.ok ? '#059669' : (item as any).warn ? '#f59e0b' : '#e2e8f0',
-                      boxShadow: item.ok ? '0 0 6px rgba(5,150,105,0.4)' : 'none',
-                    }} />
-                    <Typography variant="body2" flex={1}>{item.label}</Typography>
-                    <Typography variant="caption" color={item.ok ? 'success.main' : 'text.secondary'} fontWeight={600}>
-                      {item.ok ? 'OK' : 'Configurar'}
-                    </Typography>
-                  </Stack>
-                ))}
-              </Stack>
-              <Button fullWidth variant="outlined" size="small" startIcon={<IconExternalLink size={14} />}
-                component={Link} href={`/clients/${clientId}/connectors`} sx={{ borderRadius: 2, mt: 2 }}>
-                Conectores
-              </Button>
-            </Grid>
-
             {/* Right — Proximas datas */}
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
                 Proximas datas
               </Typography>
               <Stack spacing={1.5}>
                 {calendarItems.length > 0 ? (
-                  calendarItems.slice(0, 5).map((item, idx) => {
+                  calendarItems.slice(0, 4).map((item, idx) => {
                     const { month, day } = formatDayMonth(item.date);
                     const score = Number(item.score || 0);
                     return (
