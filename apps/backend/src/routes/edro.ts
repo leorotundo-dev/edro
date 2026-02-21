@@ -1371,7 +1371,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         const platformBlock = buildPlatformRulesBlock(selectedPlatform, selectedFormat);
 
         // Camada universal de engenharia de decisão (neurociência, PNL, heurísticas, vetos)
-        const promptDNABlock = buildPromptDNABlock();
+        // taskType orienta a seleção do gatilho dominante (Venda, Autoridade ou Retenção)
+        const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined);
 
         // Enriquecer com histórico de preferências do cliente (feedback loop)
         // O filtro de plataforma garante isolamento: copy aprovado no Instagram
