@@ -140,8 +140,14 @@ export function buildClientKnowledgeFromRow(row: ClientRow | null): ClientKnowle
   if (row.segment_primary) tags.add(String(row.segment_primary));
   normalizeList(row.segment_secondary).forEach((tag) => tags.add(tag));
 
+  // Prefer rich AI-generated tone description from enrichment (voice section)
+  // over the preset enum → TONE_LABELS mapping
   const toneKey = String(profile.tone_profile || '').toLowerCase();
-  const toneDescription = TONE_LABELS[toneKey] || profile.tone_profile || 'equilibrado';
+  const toneDescription =
+    (typeof profile.tone_description === 'string' && profile.tone_description.trim()) ||
+    TONE_LABELS[toneKey] ||
+    profile.tone_profile ||
+    'equilibrado';
 
   return {
     tone: { description: toneDescription },
