@@ -35,14 +35,15 @@ const MOMENTO_CONFIG = {
   decisao:  { label: 'Pronto para agir', color: '#10b981', description: 'Pronto para decidir' },
 } as const;
 
-const EMPTY_FORM = { name: '', description: '', momento: 'problema' as const, demographics: '', pain_points_raw: '' };
+const EMPTY_FORM: { name: string; description: string; momento: 'problema' | 'solucao' | 'decisao'; demographics: string; pain_points_raw: string } =
+  { name: '', description: '', momento: 'problema', demographics: '', pain_points_raw: '' };
 
 export default function PersonaManager({ clientId }: { clientId: string }) {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState<{ name: string; description: string; momento: 'problema' | 'solucao' | 'decisao'; demographics: string; pain_points_raw: string }>(EMPTY_FORM);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
