@@ -22,9 +22,12 @@ const PLATFORM_RULES: Record<string, PlatformRule> = {
   instagram: {
     label: 'Instagram',
     directives: [
-      'HOOK OBRIGATÓRIO: as 2 primeiras linhas da legenda devem prender a atenção ANTES do "ver mais" — use pergunta provocadora, dado surpreendente ou afirmação audaciosa.',
+      'VISUAL HOOK SYNC: a primeira linha da legenda deve complementar a imagem com contexto EMOCIONAL ou TÉCNICO imediato — NUNCA apenas descrever o que já é visível na foto/arte.',
+      'HOOK OBRIGATÓRIO: as 2 primeiras linhas devem prender a atenção ANTES do "ver mais". Use pergunta provocadora, dado surpreendente ou afirmação contraintuitiva.',
+      'LEI DA IMAGEM LIMPA: VETO ABSOLUTO de textos, caracteres, subtítulos ou logotipos sobrepostos dentro da imagem. Toda informação textual vai na legenda ou no design estruturado — nunca como overlay na arte.',
+      'SOCIAL SEARCH METADATA: use na legenda termos de intenção de busca reais do nicho (palavras que alguém digitaria na aba Explorar) para garantir entrega orgânica a não seguidores.',
       'TOM: conversacional, dinâmico, próximo. Escreva como uma pessoa fala, não como uma empresa publica.',
-      'ESTRUTURA DE LEGENDA: Hook → Desenvolvimento (2-3 parágrafos curtos) → CTA → Hashtags.',
+      'ESTRUTURA DE LEGENDA: Hook → Desenvolvimento (2-3 parágrafos curtos com espaço entre eles) → CTA → Hashtags.',
       'HASHTAGS: 5 a 12 hashtags relevantes ao final, misturando nichos amplos e específicos.',
       'EMOJIS: use estrategicamente para quebrar texto e criar ritmo visual — 1 a 2 por parágrafo máximo.',
       'CTA: deve ser claro, direto e com baixo atrito. Prefira "Salva esse post", "Marca quem precisa ver", "Comenta aqui" em vez de "Clique no link da bio" (menor conversão).',
@@ -63,14 +66,16 @@ const PLATFORM_RULES: Record<string, PlatformRule> = {
   linkedin: {
     label: 'LinkedIn',
     directives: [
-      'HOOK PROFISSIONAL: abra com dado de negócio, insight de mercado ou pergunta reflexiva sobre a área de atuação.',
-      'TOM: autoridade + humanidade. Profissional mas acessível — evite jargão corporativo vazio.',
-      'ESTRUTURA: gancho (1-2 linhas) → contexto/problema → insight/solução → CTA profissional.',
-      'EMOJIS: use com parcimônia — 1 a 3 por post. Bullets (▪️) e separadores (—) são bem-vindos.',
+      'HOOK TRIPLO (primeiras 140 caracteres — crítico para anti-scroll): combine (1) Afirmação de Autoridade com dado concreto + (2) Tensão Estratégica com desafio do setor + (3) Promessa de Insight que será revelado. Exemplo: "73% das empresas B2B perdem leads por falta de follow-up estruturado. O problema não é o produto — é o processo. O que descobrimos depois de analisar 1.200 ciclos de venda:".',
+      'DWELL TIME & WHITE SPACE: parágrafos de no máximo 3 linhas para aumentar o tempo de permanência e reduzir a fadiga cognitiva. Cada parágrafo = uma ideia completa. Quebre o texto com linha em branco entre blocos.',
+      'SEO SOCIAL LINKEDIN: distribua palavras-chave técnicas do setor nos primeiros 2 parágrafos para indexação no motor de busca interno da rede. Use termos que profissionais do nicho pesquisariam.',
+      'TOM: autoridade com humanidade. Profissional mas acessível — compartilhe perspectiva pessoal, não apenas dados frios. Evite jargão corporativo vazio.',
+      'ESTRUTURA: Hook Triplo → contexto/tensão (1-2 parágrafos) → insight/solução (2-3 parágrafos) → conclusão acionável → CTA profissional.',
+      'EMOJIS: use com parcimônia — 1 a 3 por post. Bullets (▪️) e separadores (—) são bem-vindos para estruturar.',
       'HASHTAGS: 3 a 5 hashtags profissionais e específicas ao segmento. Sem hashtags genéricas.',
-      'CTA PROFISSIONAL: "O que você pensa sobre isso?", "Concorda?", "Conecte-se comigo", "Compartilhe com sua rede".',
-      'COMPRIMENTO: posts médios (150-300 palavras) performam bem. Evite posts muito curtos (sem profundidade) ou muito longos (perda de atenção).',
-      'EVITAR: auto-promoção excessiva, linguagem de vendas direta, muitos emojis, gírias informais.',
+      'CTA PROFISSIONAL: "O que você pensa sobre isso?", "Concorda?", "Qual sua experiência com isso?", "Compartilhe com sua rede".',
+      'COMPRIMENTO: 150-300 palavras é o sweet spot. Muito curto = sem profundidade. Muito longo = abandono.',
+      'EVITAR: auto-promoção direta, linguagem de venda agressiva, mais de 3 emojis, gírias informais, aberturas genéricas.',
     ],
     formats: {
       artigo: [
