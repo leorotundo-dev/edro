@@ -85,6 +85,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   search_client_content: toolSearchClientContent,
   list_client_sources: toolListClientSources,
   get_client_insights: toolGetClientInsights,
+  web_search: toolWebSearch,
 };
 
 export async function executeTool(
@@ -828,4 +829,65 @@ async function toolGetClientInsights(args: any, ctx: ToolContext): Promise<ToolR
       summary: insight.summary,
     },
   };
+}
+
+// ── Web Search (Tavily) ─────────────────────────────────────────
+
+async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return {
+      success: false,
+      error: 'Web search nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.',
+    };
+  }
+
+  const query: string = (args.query || '').slice(0, 400);
+  if (!query.trim()) return { success: false, error: 'Query vazia.' };
+
+  const contextNote = args.context ? ` (contexto: ${args.context})` : '';
+  const fullQuery = contextNote ? `${query} ${contextNote}` : query;
+
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: fullQuery,
+        search_depth: 'basic',
+        max_results: 5,
+        include_answer: true,
+      }),
+      signal: AbortSignal.timeout(9000),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.status.toString());
+      return { success: false, error: `Tavily error ${res.status}: ${errText.slice(0, 200)}` };
+    }
+
+    const data = await res.json() as {
+      answer?: string;
+      results?: Array<{ title: string; url: string; content: string; score?: number }>;
+    };
+
+    const results = (data.results || []).map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: (r.content || '').slice(0, 600),
+    }));
+
+    return {
+      success: true,
+      data: {
+        query: fullQuery,
+        answer: data.answer || null,
+        results,
+      },
+      metadata: { row_count: results.length },
+    };
+  } catch (err: any) {
+    return { success: false, error: `Web search falhou: ${err.message}` };
+  }
 }

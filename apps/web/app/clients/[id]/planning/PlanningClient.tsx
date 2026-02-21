@@ -3,26 +3,31 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiDelete, apiPatch, buildApiUrl } from '@/lib/api';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import Link from 'next/link';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconAlertTriangle, IconBrain, IconCalendar, IconClipboard, IconDatabase, IconRefresh, IconTrendingUp } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconBrain,
+  IconCalendar,
+  IconClipboard,
+  IconDatabase,
+  IconRefresh,
+  IconTrendingUp,
+} from '@tabler/icons-react';
 
-// Components
 import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
 import type { IntelligenceStats } from './components/ContextPanel';
 import type { HealthData, SourceHealth } from './components/HealthMonitor';
-import InsumosList, { ClippingItem, LibraryItem } from './components/InsumosList';
-import OpportunitiesList, { Opportunity } from './components/OpportunitiesList';
 import OutputsList, { Briefing, Copy } from './components/OutputsList';
 
 type PlanningClientProps = {
@@ -41,27 +46,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
-  // Library
-  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
-  const [libraryError, setLibraryError] = useState('');
-  const [uploading, setUploading] = useState(false);
-
-  // Clipping (mock for now)
-  const [clippingItems] = useState<ClippingItem[]>([]);
-
-  // Opportunities
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
-  const [opportunitiesError, setOpportunitiesError] = useState('');
-  const [detecting, setDetecting] = useState(false);
-
-  // Outputs
+  // Outputs (briefings & copies)
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [copies, setCopies] = useState<Copy[]>([]);
   const [outputsLoading, setOutputsLoading] = useState(false);
 
-  // Intelligence Score (from profile/suggestions)
+  // Intelligence Score
   const [intelligenceScore, setIntelligenceScore] = useState<number | null>(null);
 
   // AI Chat
@@ -70,98 +60,49 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   const [chatLoading, setChatLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [provider, setProvider] = useState('openai');
-  const [chatMode, setChatMode] = useState<'chat' | 'command'>('command');
 
-  // Load Intelligence Context (with 30s client-side timeout)
+  // Load Intelligence Context (30s timeout)
   const loadContext = useCallback(async () => {
     setContextLoading(true);
     setContextError('');
     try {
-      const contextPromise = apiPost<{
-        success?: boolean;
-        data?: {
-          context?: any;
-          stats?: IntelligenceStats;
-          partial?: boolean;
-          warning?: string;
-        };
-      }>(`/clients/${clientId}/planning/context`, {});
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 30000)
-      );
-
-      const response = await Promise.race([contextPromise, timeoutPromise]);
-
-      if (response?.data?.stats) {
-        setIntelligenceStats(response.data.stats);
-      }
-      if (response?.data?.partial) {
-        setContextError(response.data.warning || 'Contexto carregado parcialmente.');
-      }
+      const res = await Promise.race([
+        apiPost<{ data?: { stats?: IntelligenceStats; partial?: boolean; warning?: string } }>(
+          `/clients/${clientId}/planning/context`,
+          {}
+        ),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000)),
+      ]);
+      if (res?.data?.stats) setIntelligenceStats(res.data.stats);
+      if (res?.data?.partial) setContextError(res.data.warning || 'Contexto carregado parcialmente.');
     } catch (err: any) {
-      const msg = err?.message === 'timeout'
-        ? 'Contexto demorou demais. Clique Refresh para tentar novamente.'
-        : (err?.message || 'Falha ao carregar contexto.');
-      setContextError(msg);
+      setContextError(
+        err?.message === 'timeout'
+          ? 'Contexto demorou demais. Clique Refresh para tentar novamente.'
+          : err?.message || 'Falha ao carregar contexto.'
+      );
     } finally {
       setContextLoading(false);
     }
   }, [clientId]);
 
-  // Load Health (with 15s timeout)
+  // Load Health (15s timeout)
   const loadHealth = useCallback(async () => {
     setHealthLoading(true);
     try {
-      const healthPromise = apiPost<{
-        success?: boolean;
-        data?: HealthData;
-      }>(`/clients/${clientId}/planning/health`, {});
-
-      const response = await Promise.race([
-        healthPromise,
+      const res = await Promise.race([
+        apiPost<{ data?: HealthData }>(`/clients/${clientId}/planning/health`, {}),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
       ]);
-
-      if (response?.data) {
-        setHealthData(response.data);
-      }
-    } catch (err: any) {
-      console.error('Failed to load health:', err);
+      if (res?.data) setHealthData(res.data);
+    } catch {
+      // silent
     } finally {
       setHealthLoading(false);
     }
   }, [clientId]);
 
-  // Load Library
-  const loadLibrary = useCallback(async () => {
-    setLibraryLoading(true);
-    setLibraryError('');
-    try {
-      const response = await apiGet<LibraryItem[]>(`/clients/${clientId}/library`);
-      setLibraryItems(Array.isArray(response) ? response.slice(0, 10) : []);
-    } catch (err: any) {
-      setLibraryError(err?.message || 'Falha ao carregar materiais.');
-    } finally {
-      setLibraryLoading(false);
-    }
-  }, [clientId]);
-
-  // Load Opportunities
-  const loadOpportunities = useCallback(async () => {
-    setOpportunitiesLoading(true);
-    setOpportunitiesError('');
-    try {
-      const response = await apiGet<{ opportunities?: Opportunity[] }>(`/clients/${clientId}/planning/opportunities`);
-      setOpportunities(Array.isArray(response?.opportunities) ? response.opportunities : []);
-    } catch (err: any) {
-      setOpportunitiesError(err?.message || 'Falha ao carregar oportunidades.');
-    } finally {
-      setOpportunitiesLoading(false);
-    }
-  }, [clientId]);
-
-  // Load Outputs (Briefings & Copies)
+  // Load Outputs (briefings + copies)
   const loadOutputs = useCallback(async () => {
     setOutputsLoading(true);
     try {
@@ -169,48 +110,41 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         apiGet<{ briefings?: Briefing[] }>(`/clients/${clientId}/briefings`),
         apiGet<{ copies?: Copy[] }>(`/clients/${clientId}/copies`),
       ]);
-
-      if (briefingsRes.status === 'fulfilled') {
+      if (briefingsRes.status === 'fulfilled')
         setBriefings(Array.isArray(briefingsRes.value?.briefings) ? briefingsRes.value.briefings : []);
-      }
-      if (copiesRes.status === 'fulfilled') {
+      if (copiesRes.status === 'fulfilled')
         setCopies(Array.isArray(copiesRes.value?.copies) ? copiesRes.value.copies : []);
-      }
-    } catch (err) {
-      console.error('Failed to load outputs:', err);
     } finally {
       setOutputsLoading(false);
     }
   }, [clientId]);
 
-  // Load Providers
+  // Load AI Providers
   const loadProviders = useCallback(async () => {
     try {
-      const response = await apiGet<{ data?: { providers?: ProviderOption[] } }>(`/planning/providers`);
-      const list = response?.data?.providers || [];
+      const res = await apiGet<{ data?: { providers?: ProviderOption[] } }>(`/planning/providers`);
+      const list = res?.data?.providers || [];
       if (list.length) {
         setProviders(list);
-        if (!list.find((p) => p.id === provider)) {
-          setProvider(list[0].id);
-        }
+        if (!list.find((p) => p.id === provider)) setProvider(list[0].id);
       }
-    } catch (err) {
-      console.error('Failed to load providers', err);
+    } catch {
+      // silent
     }
   }, [provider]);
 
-  // Initial Load — bootstrap seeds calendar + opportunities if empty, then load all panels
+  // Bootstrap + initial load
   useEffect(() => {
     let cancelled = false;
     async function init() {
       try {
         await apiPost(`/clients/${clientId}/planning/bootstrap`, {});
-      } catch { /* bootstrap is best-effort */ }
+      } catch {
+        // bootstrap is best-effort
+      }
       if (cancelled) return;
       loadContext();
       loadHealth();
-      loadLibrary();
-      loadOpportunities();
       loadOutputs();
       loadProviders();
       apiGet<{ intelligence_score?: number }>(`/clients/${clientId}/suggestions`)
@@ -222,189 +156,86 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
-  // Upload File
-  const uploadFile = async (file: File) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) {
-      setLibraryError('Sessão expirada. Faça login novamente.');
-      return;
-    }
-    setUploading(true);
-    setLibraryError('');
-    const form = new FormData();
-    form.append('file', file);
-
-    try {
-      const response = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      if (!response.ok) {
-        let serverMsg = '';
-        try {
-          const data = await response.json();
-          serverMsg = data?.error || data?.message || '';
-        } catch {
-          /* ignore parse errors */
-        }
-        throw new Error(serverMsg || `Falha ao enviar (${response.status}).`);
-      }
-      await loadLibrary();
-      await loadContext(); // Refresh context after upload
-    } catch (err: any) {
-      setLibraryError(err?.message || 'Falha ao enviar o arquivo.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Add Reference
-  const addReference = async (url: string) => {
-    setUploading(true);
-    setLibraryError('');
-    try {
-      await apiPost(`/clients/${clientId}/library`, {
-        type: 'link',
-        title: url,
-        source_url: url,
-      });
-      await loadLibrary();
-      await loadContext();
-    } catch (err: any) {
-      setLibraryError(err?.message || 'Falha ao salvar o link.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Detect New Opportunities
-  const detectNewOpportunities = async () => {
-    setDetecting(true);
-    try {
-      await apiPost(`/clients/${clientId}/planning/opportunities/detect`, {});
-      await loadOpportunities();
-    } catch (err: any) {
-      setOpportunitiesError(err?.message || 'Falha ao detectar oportunidades.');
-    } finally {
-      setDetecting(false);
-    }
-  };
-
-  // Create Briefing from Opportunity
-  const createBriefingFromOpportunity = async (opportunityId: string) => {
-    try {
-      await apiPost(`/clients/${clientId}/planning/opportunities/${opportunityId}/action`, {
-        action: 'create_briefing',
-      });
-      await loadOpportunities();
-      await loadOutputs();
-    } catch (err: any) {
-      console.error('Failed to create briefing:', err);
-    }
-  };
-
-  // Dismiss Opportunity
-  const dismissOpportunity = async (opportunityId: string) => {
-    try {
-      await apiPost(`/clients/${clientId}/planning/opportunities/${opportunityId}/action`, {
-        action: 'dismiss',
-      });
-      await loadOpportunities();
-    } catch (err: any) {
-      console.error('Failed to dismiss opportunity:', err);
-    }
-  };
-
-  // Upload file to library and return the item ID
+  // Upload file to library and return ID for chat attachment
   const uploadFileForChat = async (file: File): Promise<string | null> => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
     if (!token) return null;
     const form = new FormData();
     form.append('file', file);
     try {
-      const response = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
+      const res = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      if (!response.ok) return null;
-      const data = await response.json();
+      if (!res.ok) return null;
+      const data = await res.json();
       return data?.data?.id || data?.id || null;
     } catch {
       return null;
     }
   };
 
-  // Send Chat Message (with 55s timeout)
+  // Send Chat Message (55s timeout, always agent mode)
   const sendChatMessage = async (message: string, files?: File[]) => {
     setChatLoading(true);
 
     const fileNames = files?.map((f) => f.name) || [];
-    const userContent = fileNames.length > 0
-      ? `${message}${message ? '\n' : ''}📎 ${fileNames.join(', ')}`
-      : message;
+    const userContent =
+      fileNames.length > 0 ? `${message}${message ? '\n' : ''}📎 ${fileNames.join(', ')}` : message;
 
     setChatMessages((prev) => [
       ...prev,
       { role: 'user', content: userContent, timestamp: new Date().toISOString() },
     ]);
 
-    // Upload files to library first
+    // Upload files first, get attachment IDs
     let attachmentIds: string[] = [];
     if (files?.length) {
-      const uploadResults = await Promise.all(files.map(uploadFileForChat));
-      attachmentIds = uploadResults.filter((id): id is string => id !== null);
+      const results = await Promise.all(files.map(uploadFileForChat));
+      attachmentIds = results.filter((id): id is string => id !== null);
     }
 
     try {
-      const chatPromise = apiPost<{
-        success?: boolean;
-        data?: {
-          response?: string;
-          conversationId?: string;
-          provider?: string;
-          stages?: any[];
-          action?: any;
-        };
-      }>(`/clients/${clientId}/planning/chat`, {
-        message,
-        provider,
-        mode: chatMode,
-        conversationId,
-        ...(attachmentIds.length > 0 && { attachmentIds }),
-      });
+      const res = await Promise.race([
+        apiPost<{
+          data?: {
+            response?: string;
+            conversationId?: string;
+            provider?: string;
+            action?: any;
+          };
+        }>(`/clients/${clientId}/planning/chat`, {
+          message,
+          provider,
+          mode: 'agent',
+          conversationId,
+          ...(attachmentIds.length > 0 && { attachmentIds }),
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 55000)),
+      ]);
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 55000)
-      );
-
-      const response = await Promise.race([chatPromise, timeoutPromise]);
-
-      if (response?.data?.conversationId) {
-        setConversationId(response.data.conversationId);
-      }
-      if (response?.data?.response) {
+      if (res?.data?.conversationId) setConversationId(res.data.conversationId);
+      if (res?.data?.response) {
         setChatMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: response.data!.response!,
+            content: res.data!.response!,
             timestamp: new Date().toISOString(),
-            provider: response.data!.provider,
-            action: response.data!.action,
+            provider: res.data!.provider,
+            action: res.data!.action,
           } as ChatMessage,
         ]);
       }
 
-      // Refresh outputs if action was taken
-      if (response?.data?.action) {
-        await loadOutputs();
-      }
+      // Refresh outputs whenever the agent took an action
+      if (res?.data?.action) void loadOutputs();
     } catch (err: any) {
-      const errorMsg = err?.message === 'timeout'
-        ? 'A IA demorou demais para responder. Tente novamente.'
-        : (err?.message || 'Erro ao conversar com a IA.');
+      const errorMsg =
+        err?.message === 'timeout'
+          ? 'A IA demorou demais. Tente novamente.'
+          : err?.message || 'Erro ao conversar com a IA.';
       setChatMessages((prev) => [
         ...prev,
         { role: 'assistant', content: errorMsg, timestamp: new Date().toISOString() },
@@ -414,30 +245,48 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   };
 
-  const sectionCardSx = { borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: 'none' };
+  const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
+
+  const contextItems = intelligenceStats
+    ? [
+        { key: 'library', label: 'Library', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={13} /> },
+        { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping?.totalMatches ?? 0, icon: <IconClipboard size={13} /> },
+        { key: 'social', label: 'Social', value: intelligenceStats.social?.totalMentions ?? 0, icon: <IconTrendingUp size={13} /> },
+        { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar?.next14Days ?? 0, icon: <IconCalendar size={13} /> },
+        { key: 'opportunities', label: 'Oportunidades', value: intelligenceStats.opportunities?.active ?? 0, icon: <IconBrain size={13} /> },
+      ]
+    : [];
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Stats Bar */}
-      <Card sx={sectionCardSx}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
+
+      {/* Context strip */}
+      <Card sx={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: 'none' }}>
         <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
-          {/* Intelligence Score row */}
+          {/* Intelligence score bar */}
           {intelligenceScore !== null && (
             <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: intelligenceStats ? 1 : 0 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, whiteSpace: 'nowrap', minWidth: 110 }}>
                 IA Readiness
               </Typography>
-              <Box sx={{ flex: 1, position: 'relative' }}>
+              <Box sx={{ flex: 1 }}>
                 <LinearProgress
                   variant="determinate"
                   value={intelligenceScore}
                   sx={{
-                    height: 8,
+                    height: 7,
                     borderRadius: 4,
                     bgcolor: 'grey.100',
                     '& .MuiLinearProgress-bar': {
                       borderRadius: 4,
-                      bgcolor: intelligenceScore >= 85 ? '#16a34a' : intelligenceScore >= 60 ? '#2563eb' : intelligenceScore >= 30 ? '#d97706' : '#dc2626',
+                      bgcolor:
+                        intelligenceScore >= 85
+                          ? '#16a34a'
+                          : intelligenceScore >= 60
+                            ? '#2563eb'
+                            : intelligenceScore >= 30
+                              ? '#d97706'
+                              : '#dc2626',
                     },
                   }}
                 />
@@ -446,12 +295,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                 {intelligenceScore}%
               </Typography>
               {intelligenceScore < 60 && (
-                <Tooltip title="Preencha o perfil do cliente para melhorar a qualidade das sugestões de IA" arrow>
+                <Tooltip title="Preencha o perfil do cliente para melhorar a qualidade da IA" arrow>
                   <Typography
                     variant="caption"
                     component={Link}
                     href={`/clients/${clientId}/perfil`}
-                    sx={{ color: '#d97706', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, whiteSpace: 'nowrap' }}
+                    sx={{ color: '#d97706', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { textDecoration: 'underline' } }}
                   >
                     Melhorar perfil →
                   </Typography>
@@ -460,121 +309,89 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
             </Stack>
           )}
 
-          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={1}>
-            {intelligenceStats ? (() => {
-              const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
-              const items = [
-                { key: 'library', label: 'Library', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={14} /> },
-                { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping?.totalMatches ?? 0, icon: <IconClipboard size={14} /> },
-                { key: 'social', label: 'Social', value: intelligenceStats.social?.totalMentions ?? 0, icon: <IconTrendingUp size={14} /> },
-                { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar?.next14Days ?? 0, icon: <IconCalendar size={14} /> },
-                { key: 'opportunities', label: 'Oportunidades', value: intelligenceStats.opportunities?.active ?? 0, icon: <IconBrain size={14} /> },
-              ];
-              return (
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {items.map((item) => {
-                    const health = sources?.[item.key];
-                    const hasIssue = health && health.status !== 'healthy';
-                    return (
-                      <Tooltip
-                        key={item.key}
-                        title={hasIssue ? health.message : `${item.label}: ${item.value}`}
-                        arrow
-                      >
-                        <Chip
-                          size="small"
-                          icon={hasIssue ? <IconAlertTriangle size={14} /> : item.icon}
-                          label={`${item.label}: ${item.value}`}
-                          color={hasIssue ? (health.status === 'error' ? 'error' : 'warning') : 'default'}
-                          variant={hasIssue ? 'filled' : 'outlined'}
-                          sx={{ fontWeight: 600, fontSize: '0.7rem' }}
-                        />
-                      </Tooltip>
-                    );
-                  })}
-                  {(intelligenceStats.opportunities?.urgent ?? 0) > 0 && (
-                    <Chip
-                      size="small"
-                      color="error"
-                      label={`${intelligenceStats.opportunities?.urgent ?? 0} urgente`}
-                      sx={{ fontWeight: 700, cursor: 'pointer' }}
-                      onClick={() => document.getElementById('opportunities-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                    />
-                  )}
-                </Stack>
-              );
-            })() : (
+          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap rowGap={0.75}>
+            {contextItems.length > 0 ? (
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                {contextItems.map((item) => {
+                  const health = sources?.[item.key];
+                  const hasIssue = health && health.status !== 'healthy';
+                  return (
+                    <Tooltip key={item.key} title={hasIssue ? health.message : `${item.label}: ${item.value}`} arrow>
+                      <Chip
+                        size="small"
+                        icon={hasIssue ? <IconAlertTriangle size={13} /> : item.icon}
+                        label={`${item.label}: ${item.value}`}
+                        color={hasIssue ? (health.status === 'error' ? 'error' : 'warning') : 'default'}
+                        variant={hasIssue ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 600, fontSize: '0.68rem' }}
+                      />
+                    </Tooltip>
+                  );
+                })}
+                {(intelligenceStats?.opportunities?.urgent ?? 0) > 0 && (
+                  <Chip
+                    size="small"
+                    color="error"
+                    label={`${intelligenceStats!.opportunities!.urgent} urgente`}
+                    sx={{ fontWeight: 700, cursor: 'default' }}
+                  />
+                )}
+              </Stack>
+            ) : (
               !contextLoading && (
                 <Typography variant="caption" color="text.secondary">
-                  Clique em Refresh para carregar o contexto de inteligência.
+                  Clique Refresh para carregar o contexto de inteligência.
                 </Typography>
               )
             )}
 
             <Stack direction="row" spacing={0.5} alignItems="center">
-              {(contextLoading || healthLoading) && <CircularProgress size={14} />}
-              <Button size="small" variant="outlined" onClick={() => { loadContext(); loadHealth(); }} disabled={contextLoading}>
-                <IconRefresh size={14} style={{ marginRight: 4 }} /> Refresh
+              {(contextLoading || healthLoading) && <CircularProgress size={12} />}
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => { loadContext(); loadHealth(); }}
+                disabled={contextLoading}
+                sx={{ fontSize: '0.72rem', py: 0.25 }}
+              >
+                <IconRefresh size={13} style={{ marginRight: 4 }} /> Refresh
               </Button>
             </Stack>
           </Stack>
+
+          {contextError && (
+            <Alert severity="warning" sx={{ mt: 1, py: 0.25, fontSize: '0.72rem' }}>
+              {contextError}
+            </Alert>
+          )}
+
           {(contextLoading || healthLoading) && (
             <LinearProgress sx={{ mt: 1, height: 2, borderRadius: 1 }} />
           )}
         </CardContent>
       </Card>
 
-      {/* Main: AI Chat (left) | Insumos + Oportunidades (right) */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Box sx={{ height: 520 }}>
-            <AIAssistant
-              messages={chatMessages}
-              providers={providers}
-              selectedProvider={provider}
-              mode={chatMode}
-              loading={chatLoading}
-              onSendMessage={sendChatMessage}
-              onChangeProvider={setProvider}
-              onChangeMode={setChatMode}
-              onNewConversation={() => {
-                setChatMessages([]);
-                setConversationId(null);
-              }}
-              contextLoaded={!!intelligenceStats}
-            />
-          </Box>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2} sx={{ height: 520, overflow: 'hidden' }}>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <InsumosList
-                clientId={clientId}
-                libraryItems={libraryItems}
-                clippingItems={clippingItems}
-                libraryLoading={libraryLoading}
-                libraryError={libraryError}
-                uploading={uploading}
-                onUploadFile={uploadFile}
-                onAddReference={addReference}
-              />
-            </Box>
-            <Box id="opportunities-section" sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-              <OpportunitiesList
-                opportunities={opportunities}
-                loading={opportunitiesLoading}
-                error={opportunitiesError}
-                onCreateBriefing={createBriefingFromOpportunity}
-                onDismiss={dismissOpportunity}
-                onDetectNew={detectNewOpportunities}
-                detecting={detecting}
-              />
-            </Box>
-          </Stack>
-        </Grid>
-      </Grid>
+      {/* Chat — full width, tall */}
+      <Box sx={{ flex: 1, minHeight: 520 }}>
+        <AIAssistant
+          messages={chatMessages}
+          providers={providers}
+          selectedProvider={provider}
+          mode="command"
+          loading={chatLoading}
+          onSendMessage={sendChatMessage}
+          onChangeProvider={setProvider}
+          onChangeMode={() => {}}
+          onNewConversation={() => {
+            setChatMessages([]);
+            setConversationId(null);
+          }}
+          contextLoaded={!!intelligenceStats}
+          clientId={clientId}
+        />
+      </Box>
 
-      {/* Outputs */}
+      {/* Outputs — briefings & copies below chat */}
       <OutputsList
         briefings={briefings}
         copies={copies}
@@ -584,13 +401,17 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
           try {
             await apiDelete(`/clients/${clientId}/briefings/${id}`);
             setBriefings((prev) => prev.filter((b) => b.id !== id));
-          } catch { /* ignore */ }
+          } catch {
+            // ignore
+          }
         }}
         onArchiveBriefing={async (id) => {
           try {
             await apiPatch(`/clients/${clientId}/briefings/${id}/archive`);
-            setBriefings((prev) => prev.map((b) => b.id === id ? { ...b, status: 'archived' } : b));
-          } catch { /* ignore */ }
+            setBriefings((prev) => prev.map((b) => (b.id === id ? { ...b, status: 'archived' } : b)));
+          } catch {
+            // ignore
+          }
         }}
       />
     </Box>

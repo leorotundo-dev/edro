@@ -288,6 +288,17 @@ export const TOOLS: ToolDefinition[] = [
     required: [],
     category: 'read',
   },
+  // ── Web Search ──
+  {
+    name: 'web_search',
+    description: 'Pesquisa informacoes atuais na internet. Use para buscar noticias recentes, tendencias, dados de mercado, concorrentes, eventos atuais ou qualquer informacao que nao esteja na base do cliente. Retorna trechos relevantes de paginas web.',
+    parameters: {
+      query: { type: 'string', description: 'Termos de busca (em portugues ou ingles, seja especifico)' },
+      context: { type: 'string', description: 'Contexto adicional para refinar a busca (ex: setor, regiao, periodo)' },
+    },
+    required: ['query'],
+    category: 'read',
+  },
 ];
 
 // ── Provider Format Converters ──────────────────────────────────
