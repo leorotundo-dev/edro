@@ -14,14 +14,27 @@ const formatSocials = (socials?: Record<string, string>) => {
 export function buildClientKnowledgeBlock(knowledge?: ClientKnowledge | null) {
   if (!knowledge) return '';
   const lines: string[] = [];
+
+  // ── Tom de voz — destacado no topo para orientar toda a geração ──────────
+  const toneDesc = knowledge.tone?.description;
+  if (toneDesc) {
+    lines.push(`TOM DE VOZ OBRIGATÓRIO: ${toneDesc}`);
+  }
+
+  // ── Base de conhecimento do cliente ─────────────────────────────────────
   const notes = normalizeList(knowledge.notes);
   if (notes.length) {
     lines.push('BASE DO CLIENTE:');
     notes.forEach((note) => lines.push(`- ${note}`));
   }
-  const tags = normalizeList(knowledge.tags);
-  if (tags.length) lines.push(`Tags/palavras-chave: ${tags.join(', ')}`);
 
+  // ── Compliance — restrições absolutas (aparecem com destaque) ───────────
+  const forbiddenClaims = normalizeList(knowledge.compliance?.forbidden_claims);
+  if (forbiddenClaims.length) {
+    lines.push(`AFIRMAÇÕES E TERMOS PROIBIDOS — NUNCA USE NAS COPIES: ${forbiddenClaims.join(' | ')}`);
+  }
+
+  // ── Operacional ──────────────────────────────────────────────────────────
   const mustMentions = normalizeList(knowledge.must_mentions);
   if (mustMentions.length) lines.push(`Menções obrigatórias: ${mustMentions.join(', ')}`);
 
@@ -33,6 +46,9 @@ export function buildClientKnowledgeBlock(knowledge?: ClientKnowledge | null) {
 
   const socialLine = formatSocials(knowledge.social_profiles);
   if (socialLine) lines.push(`Redes sociais: ${socialLine}`);
+
+  const tags = normalizeList(knowledge.tags);
+  if (tags.length) lines.push(`Tags/palavras-chave: ${tags.join(', ')}`);
 
   return lines.join('\n');
 }

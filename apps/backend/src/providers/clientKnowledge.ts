@@ -113,6 +113,17 @@ export function buildClientKnowledgeFromRow(row: ClientRow | null): ClientKnowle
     notes.push(`Padrões de rejeição históricos deste cliente (EVITAR): ${rejectionPatterns.join(' | ')}`);
   }
 
+  // Perfil criativo detalhado — campos de direção editorial
+  if (profile.personality_traits) notes.push(`Traços de personalidade da marca: ${profile.personality_traits}`);
+  if (profile.formality_level) notes.push(`Nível de formalidade: ${profile.formality_level}`);
+  if (profile.emoji_usage) notes.push(`Política de uso de emojis: ${profile.emoji_usage}`);
+  const contentMix = normalizeList(profile.content_mix);
+  if (contentMix.length) notes.push(`Mix de conteúdo: ${contentMix.join(', ')}`);
+  const strategicDates = normalizeList(profile.strategic_dates);
+  if (strategicDates.length) notes.push(`Datas estratégicas da marca: ${strategicDates.join(' | ')}`);
+  const competitorsList = normalizeList(intelligence?.competitors);
+  if (competitorsList.length) notes.push(`Concorrentes (NÃO mencionar positivamente): ${competitorsList.join(', ')}`);
+
   const tags = new Set<string>();
   normalizeList(profile.keywords).forEach((tag) => tags.add(tag));
   normalizeList(profile.pillars).forEach((tag) => tags.add(tag));

@@ -1374,6 +1374,13 @@ export default async function edroRoutes(app: FastifyInstance) {
         // taskType orienta a seleção do gatilho dominante (Venda, Autoridade ou Retenção)
         const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined);
 
+        // Contexto temporal — Bio-Sincronia: mês/ano atual + orientação sazonal
+        // Permite ao motor calibrar para datas comemorativas, sazonalidade e tendências
+        const now = new Date();
+        const monthName = now.toLocaleString('pt-BR', { month: 'long' });
+        const year = now.getFullYear();
+        const temporalBlock = `\n\nContexto temporal: ${monthName} de ${year}. Considere datas comemorativas, eventos de mercado e tendências sazonais relevantes para este período ao criar o conteúdo.`;
+
         // Enriquecer com histórico de preferências do cliente (feedback loop)
         // O filtro de plataforma garante isolamento: copy aprovado no Instagram
         // não contamina a geração de posts do LinkedIn e vice-versa.
@@ -1403,9 +1410,9 @@ export default async function edroRoutes(app: FastifyInstance) {
             }
           } catch { /* sem preferencias aprendidas ainda — continuar */ }
         }
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, platformBlock, promptDNABlock].filter(Boolean).join('\n');
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, platformBlock, temporalBlock, promptDNABlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${platformBlock}${promptDNABlock}`;
+        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${platformBlock}${temporalBlock}${promptDNABlock}`;
 
         let result;
         if (pipeline === 'collaborative') {
