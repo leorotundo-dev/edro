@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -19,7 +19,6 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconPlus, IconTrash, IconUsers } from '@tabler/icons-react';
-import { getAuthHeaders, getApiBase } from '@/lib/api';
 
 type Persona = {
   id: string;
@@ -78,9 +77,7 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
   const handleDelete = async (personaId: string) => {
     setDeletingId(personaId);
     try {
-      const base = getApiBase();
-      const headers = await getAuthHeaders();
-      await fetch(`${base}/clients/${clientId}/personas/${personaId}`, { method: 'DELETE', headers });
+      await apiDelete(`/clients/${clientId}/personas/${personaId}`);
       setPersonas(prev => prev.filter(p => p.id !== personaId));
     } catch { /* silent */ }
     finally { setDeletingId(null); }
