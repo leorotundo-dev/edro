@@ -261,19 +261,34 @@ export async function generateCollaborativeCopy(params: {
   instructions?: string;
   usageContext?: UsageContext;
 }): Promise<CopyPipelineResult> {
+  // ── AGENTE 1: ESTRATEGISTA (Gemini) ─────────────────────────────────────
+  // Chain of Thought forcado: o estrategista declara explicitamente a estrategia
+  // psicologica ANTES de gerar os ganchos criativos. A intencao biologica precede
+  // a gramatica — tecnica de Engenharia de Decisao Digital 2026.
   const analysisPrompt = [
-    'Voce e um estrategista de comunicacao de uma agencia de publicidade.',
-    'Analise o briefing e o perfil do cliente abaixo.',
-    'Extraia e retorne APENAS um JSON valido com a estrutura:',
+    'Voce e o Estrategista-Chefe de uma agencia de publicidade de alta performance.',
+    'Sua funcao: analisar o briefing e o perfil do cliente e declarar PRIMEIRO a estrategia psicologica que guiara a geracao de copy — so entao defina os ganchos e direcoes criativas.',
+    '',
+    'CHAIN OF THOUGHT OBRIGATORIO: preencha os campos nesta ordem:',
+    '1. psychological_strategy — declare em 1-2 frases qual gatilho dominante voce aplicara e por que.',
+    '   Ex: "Vou usar Avercao a Perda pois o objetivo e conversao e o publico enfrenta risco de perder oportunidade de mercado. O Pacing validara a frustracoa atual; o Leading apresentara a solucao como inevitavel."',
+    '2. dominant_trigger — classifique: "loss_aversion", "specificity" ou "curiosity".',
+    '3. tone_approach — como o Terceiro Tom sera expresso: voz de especialista para par, qual vulnerabilidade controlada aplicar se houver, qual espelhamento de linguagem do publico.',
+    '4. Preencha os demais campos criativos JA orientados pela estrategia declarada acima.',
+    '',
+    'Retorne APENAS um JSON valido com a estrutura:',
     '{',
+    '  "psychological_strategy": "declaracao da estrategia psicologica e racional do gatilho escolhido",',
+    '  "dominant_trigger": "loss_aversion | specificity | curiosity",',
+    '  "tone_approach": "como o Terceiro Tom sera expresso e qual espelhamento de linguagem aplicar",',
     '  "target_audience": "descricao do publico ideal para esta peca",',
     '  "ideal_tone": "tom recomendado baseado na marca e formato",',
-    '  "key_hooks": ["3 a 5 ganchos criativos relevantes"],',
+    '  "key_hooks": ["3 a 5 ganchos criativos orientados pelo gatilho dominante declarado"],',
     '  "cultural_references": ["referencias culturais ou de momento oportunas"],',
     '  "mandatory_elements": ["elementos que devem aparecer obrigatoriamente"],',
-    '  "restrictions": ["o que evitar, termos proibidos"],',
-    '  "platform_best_practices": "melhores praticas para o formato/plataforma",',
-    '  "creative_direction": "direcao criativa sugerida em 2-3 frases"',
+    '  "restrictions": ["o que evitar, termos proibidos, vetos de baixa proficiencia aplicaveis"],',
+    '  "platform_best_practices": "melhores praticas para o formato/plataforma considerando o gatilho dominante",',
+    '  "creative_direction": "direcao criativa em 2-3 frases ja incorporando a estrategia psicologica declarada"',
     '}',
     '',
     params.clientName ? `Cliente: ${params.clientName}` : '',
@@ -308,9 +323,25 @@ export async function generateCollaborativeCopy(params: {
     params.instructions ? `\nINSTRUCOES EXTRAS: ${params.instructions}` : '',
   ].filter(Boolean).join('\n');
 
+  // ── AGENTE 3: AUDITOR/CRITICO (Claude) ──────────────────────────────────
+  // Dois passos obrigatorios: AUDITORIA DE VETO primeiro, revisao criativa depois.
+  // Implementa o Chain of Thought critico descrito na Engenharia de Decisao 2026.
   const buildReviewPrompt = (analysisOutput: string, creativeOutput: string) => [
-    'Voce e o editor-chefe de uma agencia de comunicacao de alto nivel.',
-    'Revise e melhore CADA UMA das opcoes de copy abaixo, considerando:',
+    'Voce e o Auditor-Chefe de uma agencia de comunicacao de alto nivel.',
+    'Sua funcao tem DOIS PASSOS OBRIGATORIOS — execute nesta ordem:',
+    '',
+    '══ PASSO 1 — AUDITORIA DE VETO (execute ANTES de qualquer revisao criativa) ══',
+    'Leia cada opcao e elimine TODOS os seguintes problemas antes de continuar:',
+    '□ ABERTURA CLICHE: "No mundo de hoje", "Em um cenario de constantes mudancas", "Descubra como", "Em tempos como esses" → reescreva a abertura com substancia imediata.',
+    '□ ADJETIVO QUALITATIVO SEM DADO: "incrivel", "revolucionario", "melhor", "eficiente", "agil" sem metrica → substitua por evidencia numerica ou fato concreto.',
+    '□ VOZ PASSIVA: "foi entregue", "e realizado", "pode ser usado" → converta para voz ativa e assertiva.',
+    '□ CONCLUSAO OBVIA: "Concluindo...", "Em resumo...", "Portanto...", "Como pudemos ver..." → elimine ou substitua por um novo insight.',
+    '□ PERFEICAO ABSOLUTA: se a peca nao tiver nenhum elemento de vulnerabilidade controlada ou aprendizado humano quando pertinente ao contexto, adicione um (Pratfall Effect: 2.4x mais confianca).',
+    '□ NUMERO REDONDO: se houver numeros genericos como "mais de 10%" ou "muito" → especifique com dado preciso quando possivel.',
+    '',
+    '══ PASSO 2 — REVISAO CRIATIVA ══',
+    'Apos a auditoria de veto, revise e melhore CADA opcao considerando:',
+    '- Estrategia psicologica declarada pelo Estrategista (consulte DIRETRIZES abaixo)',
     '- Tom da marca e adequacao ao publico-alvo',
     '- Compliance (termos proibidos, mencoes obrigatorias)',
     '- Forca e clareza do CTA',
@@ -334,12 +365,12 @@ export async function generateCollaborativeCopy(params: {
     'OPCAO 2:',
     '(mesmo formato)',
     '',
-    'NAO use JSON. NAO use markdown. NAO inclua secoes como "MELHORIAS APLICADAS", "ANALISE", "JUSTIFICATIVA" ou similares.',
+    'NAO use JSON. NAO use markdown. NAO inclua secoes como "MELHORIAS APLICADAS", "ANALISE", "AUDITORIA", "JUSTIFICATIVA" ou similares no output final.',
     '',
-    'DIRETRIZES DO ESTRATEGISTA:',
+    'DIRETRIZES DO ESTRATEGISTA (incluindo estrategia psicologica declarada):',
     analysisOutput,
     '',
-    'COPIES PARA REVISAO:',
+    'COPIES PARA AUDITORIA E REVISAO:',
     creativeOutput,
   ].join('\n');
 
