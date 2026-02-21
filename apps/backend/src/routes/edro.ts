@@ -57,6 +57,7 @@ import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
 import { recordPreferenceFeedback } from '../services/preferenceEngine';
+import { buildPlatformRulesBlock } from '../services/platformRules';
 import {
   createABTest,
   listABTests,
@@ -1365,6 +1366,9 @@ export default async function edroRoutes(app: FastifyInstance) {
         const knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
 
+        // Regras criativas nativas da plataforma selecionada
+        const platformBlock = buildPlatformRulesBlock(selectedPlatform, selectedFormat);
+
         // Enriquecer com histórico de preferências do cliente (feedback loop)
         // O filtro de plataforma garante isolamento: copy aprovado no Instagram
         // não contamina a geração de posts do LinkedIn e vice-versa.
@@ -1394,9 +1398,9 @@ export default async function edroRoutes(app: FastifyInstance) {
             }
           } catch { /* sem preferencias aprendidas ainda — continuar */ }
         }
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock].filter(Boolean).join('\n');
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, platformBlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = (preferenceBlock || learnedBlock) ? `${prompt}${preferenceBlock}${learnedBlock}` : prompt;
+        const enrichedPrompt = (preferenceBlock || learnedBlock || platformBlock) ? `${prompt}${preferenceBlock}${learnedBlock}${platformBlock}` : prompt;
 
         let result;
         if (pipeline === 'collaborative') {
