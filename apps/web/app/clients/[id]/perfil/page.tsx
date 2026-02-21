@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -36,6 +36,7 @@ import {
   IconPlugConnected,
   IconTarget,
   IconUserSquare,
+  IconWorld,
   IconX,
 } from '@tabler/icons-react';
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
@@ -148,6 +149,19 @@ export default function PerfilPage() {
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [identityForm, setIdentityForm] = useState({ segment_primary: '', segment_secondary: '', city: '', uf: '', country: '' });
   const [savingIdentity, setSavingIdentity] = useState(false);
+  const [webIntelLoading, setWebIntelLoading] = useState(false);
+  const [webIntelQueued, setWebIntelQueued] = useState(false);
+
+  const handleWebEnrich = async () => {
+    setWebIntelLoading(true);
+    setWebIntelQueued(false);
+    try {
+      await apiPost(`/clients/${clientId}/web-enrich`, {});
+      setWebIntelQueued(true);
+    } catch {} finally {
+      setWebIntelLoading(false);
+    }
+  };
 
   const loadClient = async () => {
     try {
@@ -376,6 +390,52 @@ export default function PerfilPage() {
           />
 
           <PersonaManager clientId={clientId} />
+
+          {/* Web Market Intelligence Card */}
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5}>
+                <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: 'rgba(93,135,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconWorld size={18} color="#5d87ff" />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight={600}>Inteligência de Mercado via Web</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Pesquisa automática de tendências, concorrentes e referências do setor
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  {sectionRefreshedAt.web_intelligence && !webIntelQueued && (
+                    <Chip
+                      size="small"
+                      label={`Última: ${formatDate(sectionRefreshedAt.web_intelligence)}`}
+                      sx={{ fontSize: 11, bgcolor: 'rgba(19,222,185,0.08)', color: '#13DEB9', border: '1px solid rgba(19,222,185,0.2)' }}
+                    />
+                  )}
+                  {webIntelQueued && (
+                    <Chip
+                      size="small"
+                      icon={<IconCheck size={13} />}
+                      label="Pesquisa agendada!"
+                      sx={{ fontSize: 11, bgcolor: 'rgba(19,222,185,0.1)', color: '#13DEB9', border: '1px solid rgba(19,222,185,0.3)' }}
+                    />
+                  )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleWebEnrich}
+                    disabled={webIntelLoading || webIntelQueued}
+                    startIcon={webIntelLoading ? <CircularProgress size={13} /> : <IconWorld size={14} />}
+                    sx={{ borderRadius: 1.5, fontSize: 12, textTransform: 'none', borderColor: 'rgba(93,135,255,0.4)', color: '#5d87ff', '&:hover': { borderColor: '#5d87ff', bgcolor: 'rgba(93,135,255,0.05)' } }}
+                  >
+                    {webIntelLoading ? 'Agendando...' : 'Atualizar pesquisa'}
+                  </Button>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>

@@ -78,6 +78,7 @@ import {
   researchForCopy,
   isPerplexityConfigured,
 } from '../services/perplexityService';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -1447,9 +1448,39 @@ export default async function edroRoutes(app: FastifyInstance) {
         // AMD sobrepõe taskType na seleção do gatilho dominante quando presente
         const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined, payloadAmd);
 
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, platformBlock, temporalBlock, promptDNABlock].filter(Boolean).join('\n');
+        // ── Web research (não-bloqueante, timeout 8s) ─────────────────────────
+        // Busca referências reais antes de gerar — enriquece o prompt com contexto de mercado
+        let webResearchBlock = '';
+        try {
+          const researchTimeout = new Promise<null>((_, r) => setTimeout(() => r(null), 8000));
+          let researchResult: string | null = null;
+          if (isPerplexityConfigured()) {
+            const res = await Promise.race([
+              researchForCopy({
+                topic: briefing.title,
+                platform: selectedPlatform || 'social media',
+                objective: (briefingPayload as any)?.objective || 'engajamento',
+              }),
+              researchTimeout,
+            ]);
+            researchResult = res?.content?.slice(0, 1000) ?? null;
+          } else if (isTavilyConfigured()) {
+            const res = await Promise.race([
+              tavilySearch(`${briefing.title} ${selectedPlatform || ''} conteúdo referência tendência`, { maxResults: 3 }),
+              researchTimeout,
+            ]);
+            researchResult = res?.results?.map((r) => `- ${r.title}: ${r.snippet}`).join('\n') ?? null;
+          }
+          if (researchResult) {
+            webResearchBlock = `\n\nReferências de mercado pesquisadas para este tema:\n${researchResult}`;
+          }
+        } catch {
+          // Não-bloqueante — falha silenciosa
+        }
+
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, platformBlock, temporalBlock, promptDNABlock, webResearchBlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${platformBlock}${temporalBlock}${promptDNABlock}`;
+        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
 
         let result;
         if (pipeline === 'collaborative') {

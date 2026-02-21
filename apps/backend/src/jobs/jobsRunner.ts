@@ -5,6 +5,7 @@ import { runClientIntelligenceWorkerOnce } from '../clientIntelligence/worker';
 import { runCalendarRelevanceWorkerOnce } from './calendarRelevanceWorker';
 import { runDailyAlertsWorkerOnce } from './dailyAlertsWorker';
 import { runClientEnrichmentWorkerOnce } from './clientEnrichmentWorker';
+import { runWebIntelligenceWorkerOnce } from './webIntelligenceWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -51,4 +52,6 @@ export function startJobsRunner() {
   startWorkerLoop('clientEnrichment', runClientEnrichmentWorkerOnce, 2500);
   // Daily alerts (bottleneck + PoV) — ticks every 60s, runs at 09h
   startWorkerLoop('dailyAlerts', runDailyAlertsWorkerOnce, 3000);
+  // Web market intelligence — auto-schedules stale clients + processes jobs
+  startWorkerLoop('webIntelligence', runWebIntelligenceWorkerOnce, 3500);
 }

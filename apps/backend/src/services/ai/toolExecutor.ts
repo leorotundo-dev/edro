@@ -14,6 +14,7 @@ import {
 import { getClientById } from '../../repos/clientsRepo';
 import { generateCopy } from './copyService';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
+import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../tavilyService';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -86,6 +87,8 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_client_sources: toolListClientSources,
   get_client_insights: toolGetClientInsights,
   web_search: toolWebSearch,
+  web_extract: toolWebExtract,
+  web_research: toolWebResearch,
 };
 
 export async function executeTool(
@@ -889,5 +892,65 @@ async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> 
     };
   } catch (err: any) {
     return { success: false, error: `Web search falhou: ${err.message}` };
+  }
+}
+
+// ── Web Extract ─────────────────────────────────────────────────
+
+async function toolWebExtract(args: any, _ctx: ToolContext): Promise<ToolResult> {
+  if (!isTavilyConfigured()) {
+    return { success: false, error: 'Web extract nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
+  }
+
+  const rawUrls = args.urls;
+  if (!Array.isArray(rawUrls) || rawUrls.length === 0) {
+    return { success: false, error: 'urls deve ser um array nao vazio.' };
+  }
+  const urls = rawUrls.slice(0, 3).map((u: any) => String(u));
+
+  try {
+    const result = await tavilyExtract(urls, { timeoutMs: 14000 });
+    return {
+      success: true,
+      data: {
+        extracted: result.results,
+        failed: result.failed_results ?? [],
+      },
+      metadata: { row_count: result.results.length },
+    };
+  } catch (err: any) {
+    return { success: false, error: `Web extract falhou: ${err.message}` };
+  }
+}
+
+// ── Web Research (deep) ─────────────────────────────────────────
+
+async function toolWebResearch(args: any, _ctx: ToolContext): Promise<ToolResult> {
+  if (!isTavilyConfigured()) {
+    return { success: false, error: 'Web research nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
+  }
+
+  const query: string = (args.query || '').slice(0, 400);
+  if (!query.trim()) return { success: false, error: 'Query vazia.' };
+
+  const focusHint = args.focus ? ` [foco: ${args.focus}]` : '';
+
+  try {
+    const result = await tavilySearch(
+      query + focusHint,
+      { searchDepth: 'advanced', maxResults: 8, includeAnswer: true, timeoutMs: 14000 }
+    );
+    return {
+      success: true,
+      data: {
+        query,
+        focus: args.focus || null,
+        summary: result.answer || null,
+        sources: result.results,
+      },
+      metadata: { row_count: result.results.length },
+    };
+  } catch (err: any) {
+    return { success: false, error: `Web research falhou: ${err.message}` };
   }
 }

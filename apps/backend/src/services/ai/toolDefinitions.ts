@@ -288,13 +288,32 @@ export const TOOLS: ToolDefinition[] = [
     required: [],
     category: 'read',
   },
-  // ── Web Search ──
+  // ── Web ──
   {
     name: 'web_search',
     description: 'Pesquisa informacoes atuais na internet. Use para buscar noticias recentes, tendencias, dados de mercado, concorrentes, eventos atuais ou qualquer informacao que nao esteja na base do cliente. Retorna trechos relevantes de paginas web.',
     parameters: {
       query: { type: 'string', description: 'Termos de busca (em portugues ou ingles, seja especifico)' },
       context: { type: 'string', description: 'Contexto adicional para refinar a busca (ex: setor, regiao, periodo)' },
+    },
+    required: ['query'],
+    category: 'read',
+  },
+  {
+    name: 'web_extract',
+    description: 'Extrai o conteudo completo de uma ou mais URLs especificas. Use quando o usuario mencionar um artigo, site de concorrente ou link que precisa ser analisado em profundidade.',
+    parameters: {
+      urls: { type: 'array', description: 'Lista de URLs para extrair conteudo (maximo 3)', items: { type: 'string' } },
+    },
+    required: ['urls'],
+    category: 'read',
+  },
+  {
+    name: 'web_research',
+    description: 'Pesquisa profunda sobre um topico com multiplas fontes e resposta consolidada. Use para benchmarks de mercado, analise de setor, pesquisa de concorrentes ou entender tendencias com mais profundidade do que web_search.',
+    parameters: {
+      query: { type: 'string', description: 'Topico a ser pesquisado em profundidade' },
+      focus: { type: 'string', description: 'Foco da pesquisa', enum: ['trends', 'competitors', 'strategy', 'market_data', 'general'] },
     },
     required: ['query'],
     category: 'read',

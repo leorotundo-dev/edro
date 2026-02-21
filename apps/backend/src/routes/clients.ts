@@ -896,6 +896,27 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Web Market Intelligence — manual trigger ───────────────────────────────
+
+  app.post(
+    '/clients/:id/web-enrich',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const client = await getClientById(tenantId, id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      await enqueueJob(tenantId, 'web.market_intelligence', {
+        tenant_id: tenantId,
+        client_id: id,
+        trigger: 'manual',
+      });
+
+      return reply.send({ ok: true, queued: true });
+    }
+  );
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   app.patch(
@@ -926,6 +947,20 @@ export default async function clientsRoutes(app: FastifyInstance) {
           sections: ['voice', 'strategy', 'competitors', 'calendar'],
           trigger: 'profile_update',
         });
+      }
+
+      // Auto-trigger web intelligence when website is set for the first time
+      const newWebsite = (body as any)?.knowledge_base?.website;
+      if (newWebsite) {
+        const prevClient = await getClientById(tenantId, params.id);
+        const prevWebsite = (prevClient as any)?.profile?.knowledge_base?.website;
+        if (!prevWebsite && newWebsite) {
+          await enqueueJob(tenantId, 'web.market_intelligence', {
+            tenant_id: tenantId,
+            client_id: params.id,
+            trigger: 'onboarding',
+          }).catch(() => {});
+        }
       }
 
       return reply.send(client);
