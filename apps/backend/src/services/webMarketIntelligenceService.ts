@@ -5,14 +5,21 @@
  * - Searches for industry trends
  * - Searches competitor activity
  * - Saves results as library items for AI use
+ *
+ * RAG Evaluation: before saving each search result, a fast LLM call
+ * (gpt-4o-mini) scores relevance 0-10. Items scoring < 6 are discarded,
+ * preventing noise from polluting the client's library and embeddings.
  */
 
 import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from './tavilyService';
+import { generateCompletion } from './ai/openaiService';
+import { env } from '../env';
 
 export type MarketIntelligenceResult = {
   itemsSaved: number;
+  skipped: number;
   searches: string[];
   errors: string[];
 };
@@ -35,7 +42,7 @@ export async function runMarketIntelligenceForClient(params: {
   const { tenantId, clientId, trigger } = params;
 
   if (!isTavilyConfigured()) {
-    return { itemsSaved: 0, searches: [], errors: ['TAVILY_API_KEY nao configurado'] };
+    return { itemsSaved: 0, skipped: 0, searches: [], errors: ['TAVILY_API_KEY nao configurado'] };
   }
 
   // Load client data
@@ -43,7 +50,7 @@ export async function runMarketIntelligenceForClient(params: {
     `SELECT id, name, tenant_id, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
     [clientId, tenantId]
   );
-  if (!rows.length) return { itemsSaved: 0, searches: [], errors: ['Cliente nao encontrado'] };
+  if (!rows.length) return { itemsSaved: 0, skipped: 0, searches: [], errors: ['Cliente nao encontrado'] };
 
   const client = rows[0];
   const profile = client.profile ?? {};
@@ -56,6 +63,7 @@ export async function runMarketIntelligenceForClient(params: {
   const savedIds: string[] = [];
   const searches: string[] = [];
   const errors: string[] = [];
+  let skipped = 0;
 
   // ── 1. Extract client website ───────────────────────────────
   if (website) {
@@ -91,6 +99,8 @@ export async function runMarketIntelligenceForClient(params: {
       const top = trendResult.results.slice(0, 3);
       for (const r of top) {
         if (!r.snippet || r.snippet.length < 50) continue;
+        const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'tendencia');
+        if (score < 6) { skipped++; continue; }
         const id = await saveLibraryItem({
           tenantId,
           clientId,
@@ -99,7 +109,7 @@ export async function runMarketIntelligenceForClient(params: {
           notes: `${r.title}\n\n${r.snippet}\n\nFonte: ${r.url}`,
           sourceUrl: r.url,
           category: 'tendencia',
-          tags: ['ai_research', 'tendencia', sector.toLowerCase().slice(0, 20)].filter(Boolean),
+          tags: ['ai_research', 'tendencia', `relevance_${score}`, sector.toLowerCase().slice(0, 20)].filter(Boolean),
         });
         if (id) savedIds.push(id);
       }
@@ -116,6 +126,8 @@ export async function runMarketIntelligenceForClient(params: {
       const compResult = await tavilySearch(compQuery, { maxResults: 4, searchDepth: 'basic' });
       for (const r of compResult.results.slice(0, 2)) {
         if (!r.snippet || r.snippet.length < 50) continue;
+        const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'concorrente');
+        if (score < 6) { skipped++; continue; }
         const id = await saveLibraryItem({
           tenantId,
           clientId,
@@ -124,7 +136,7 @@ export async function runMarketIntelligenceForClient(params: {
           notes: `${r.title}\n\n${r.snippet}\n\nFonte: ${r.url}`,
           sourceUrl: r.url,
           category: 'concorrente',
-          tags: ['ai_research', 'concorrente'],
+          tags: ['ai_research', 'concorrente', `relevance_${score}`],
         });
         if (id) savedIds.push(id);
       }
@@ -141,6 +153,8 @@ export async function runMarketIntelligenceForClient(params: {
       const kwResult = await tavilySearch(kwQuery, { maxResults: 3, searchDepth: 'basic' });
       for (const r of kwResult.results.slice(0, 2)) {
         if (!r.snippet || r.snippet.length < 50) continue;
+        const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'referencia');
+        if (score < 6) { skipped++; continue; }
         const id = await saveLibraryItem({
           tenantId,
           clientId,
@@ -149,7 +163,7 @@ export async function runMarketIntelligenceForClient(params: {
           notes: `${r.title}\n\n${r.snippet}\n\nFonte: ${r.url}`,
           sourceUrl: r.url,
           category: 'referencia',
-          tags: ['ai_research', 'keywords', 'referencia'],
+          tags: ['ai_research', 'keywords', 'referencia', `relevance_${score}`],
         });
         if (id) savedIds.push(id);
       }
@@ -178,9 +192,53 @@ export async function runMarketIntelligenceForClient(params: {
     [JSON.stringify({ web_intelligence: now, web_intelligence_trigger: trigger }), clientId, tenantId]
   ).catch(() => {});
 
-  console.log(`[webMarketIntelligence] client=${clientId} trigger=${trigger} saved=${savedIds.length} searches=${searches.length} errors=${errors.length}`);
+  console.log(`[webMarketIntelligence] client=${clientId} trigger=${trigger} saved=${savedIds.length} skipped=${skipped} searches=${searches.length} errors=${errors.length}`);
 
-  return { itemsSaved: savedIds.length, searches, errors };
+  return { itemsSaved: savedIds.length, skipped, searches, errors };
+}
+
+// ── RAG Evaluation: score relevance before saving ───────────────
+// Uses gpt-4o-mini for speed and low cost (~0.0001 USD per call).
+// Returns 0-10. If scoring fails, returns 7 (save by default).
+// The website extraction (section 1) is always relevant — not scored.
+
+async function scoreContentRelevance(
+  client: ClientRow,
+  content: { title: string; snippet: string },
+  category: string
+): Promise<number> {
+  if (!env.OPENAI_API_KEY) return 7; // no LLM available — save everything
+
+  try {
+    const result = await generateCompletion({
+      systemPrompt: 'Você é um avaliador de relevância para marketing de conteúdo. Responda APENAS com JSON.',
+      prompt: `Cliente: ${client.name}
+Setor: ${client.segment_primary || 'não informado'}
+Categoria: ${category}
+
+Título: ${content.title.slice(0, 150)}
+Trecho: ${content.snippet.slice(0, 400)}
+
+Avalie de 0 a 10 a relevância deste conteúdo para embasar a estratégia de marketing do cliente.
+- 0-5: irrelevante, genérico demais ou sem relação com o setor
+- 6-7: relevante, útil como referência
+- 8-10: excelente, específico e acionável para o cliente
+
+Responda APENAS: {"score": <número inteiro>}`,
+      temperature: 0,
+      maxTokens: 20,
+    });
+
+    const match = result.text.match(/"score"\s*:\s*(\d+)/);
+    if (match) {
+      const score = Math.min(10, Math.max(0, parseInt(match[1], 10)));
+      return score;
+    }
+  } catch {
+    // best-effort: if scoring fails, save the item
+  }
+
+  return 7;
 }
 
 // ── Helper: save as library item (deduplicates by source_url) ──
