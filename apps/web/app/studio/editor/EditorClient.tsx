@@ -372,6 +372,11 @@ const extractCopyMeta = (copy?: CopyVersion | null): CopyMeta | null => {
   };
 };
 
+const AMD_LABELS: Record<string, string> = {
+  salvar: 'Salvar', compartilhar: 'Compartilhar', clicar: 'Clicar',
+  responder: 'Responder', marcar_alguem: 'Marcar alguém', pedir_proposta: 'Pedir proposta',
+};
+
 export default function EditorClient() {
   const router = useRouter();
   const [briefing, setBriefing] = useState<BriefingResponse['briefing'] | null>(null);
@@ -404,6 +409,7 @@ export default function EditorClient() {
   const [regenerationCount, setRegenerationCount] = useState(0);
   const [videoScript, setVideoScript] = useState<{ hook: string; corpo: string; cta: string }>({ hook: '', corpo: '', cta: '' });
   const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
+  const [amdResults, setAmdResults] = useState<Record<string, string>>({});
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1114,6 +1120,42 @@ export default function EditorClient() {
 
         {error ? <Alert severity="error">{error}</Alert> : null}
         {success ? <Alert severity="success">{success}</Alert> : null}
+
+        {/* AMD Result — registrar se o comportamento mínimo desejado foi alcançado */}
+        {success && briefing?.payload?.amd && (() => {
+          const briefingAmd = briefing.payload!.amd as string;
+          const activeCopyId = resolveActiveCopyId();
+          if (!activeCopyId) return null;
+          return (
+            <Box sx={{ p: 1.5, bgcolor: 'rgba(93,135,255,0.05)', borderRadius: 1, border: '1px dashed rgba(93,135,255,0.3)' }}>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <Typography variant="caption" color="text.secondary">
+                  AMD: {AMD_LABELS[briefingAmd] ?? briefingAmd} — Atingida?
+                </Typography>
+                {(['sim', 'parcial', 'nao'] as const).map((val) => (
+                  <Chip key={val} size="small"
+                    label={val === 'sim' ? 'Sim' : val === 'parcial' ? 'Parcial' : 'Não'}
+                    onClick={async () => {
+                      try {
+                        await apiPatch(`/edro/copies/${activeCopyId}/amd-result`, { amd_achieved: val });
+                        setAmdResults((prev) => ({ ...prev, [activeCopyId]: val }));
+                      } catch { /* non-blocking */ }
+                    }}
+                    sx={{
+                      cursor: 'pointer',
+                      bgcolor: amdResults[activeCopyId] === val
+                        ? (val === 'sim' ? '#13DEB9' : val === 'parcial' ? '#FFAE1F' : '#FA896B')
+                        : 'transparent',
+                      color: amdResults[activeCopyId] === val ? '#fff' : 'text.secondary',
+                      border: '1px solid',
+                      borderColor: val === 'sim' ? '#13DEB9' : val === 'parcial' ? '#FFAE1F' : '#FA896B',
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          );
+        })()}
 
         {/* Main + Sidebar grid */}
         <Grid container spacing={3}>

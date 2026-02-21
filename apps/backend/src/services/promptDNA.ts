@@ -99,6 +99,21 @@ const TRIGGER_SOCIAL_PROOF =
   'PROVA SOCIAL (neurônios espelho): Use dados de volume real ("mais de X empresas", "Y% dos gestores", "Z cases documentados") em vez de adjetivos de liderança. Dados de movimento ativam os neurônios espelho e reduzem o medo do risco por comparação social.';
 
 /**
+ * Mapeia AMD para task_type equivalente para override de trigger selection.
+ */
+function resolveTaskTypeFromAMD(amd: string): string | null {
+  const map: Record<string, string> = {
+    salvar:         'autoridade',
+    compartilhar:   'awareness',
+    clicar:         'venda',
+    responder:      'engagement',
+    marcar_alguem:  'awareness',
+    pedir_proposta: 'venda',
+  };
+  return map[amd] ?? null;
+}
+
+/**
  * Mapeia o task_type / objetivo para o gatilho dominante e os complementares.
  */
 function selectTriggerStack(objective?: string): string[] {
@@ -133,11 +148,13 @@ function resolveObjectiveLabel(taskType?: string): string {
  * Inclui: Terceiro Tom, Veto rules, Neurociência, PNL, Carga Cognitiva,
  * Dark Social, Bio-Sincronia e stack de gatilhos selecionado por objetivo.
  *
- * @param taskType - Tipo de tarefa ou objetivo ('ad', 'thought_leadership', 'social_post', etc.)
+ * @param taskType    - Tipo de tarefa ou objetivo ('ad', 'thought_leadership', 'social_post', etc.)
+ * @param amdOverride - AMD da peça (ex: 'salvar', 'clicar') — quando presente, sobrepõe taskType no stack de gatilhos
  */
-export function buildPromptDNABlock(taskType?: string): string {
-  const triggerStack = selectTriggerStack(taskType);
-  const objectiveLabel = resolveObjectiveLabel(taskType);
+export function buildPromptDNABlock(taskType?: string, amdOverride?: string | null): string {
+  const effectiveObjective = (amdOverride ? resolveTaskTypeFromAMD(amdOverride) : null) ?? taskType;
+  const triggerStack = selectTriggerStack(effectiveObjective);
+  const objectiveLabel = resolveObjectiveLabel(effectiveObjective);
 
   const sections: string[] = [
     '═══ ENGENHARIA DE PERSUASÃO E BIOLOGIA ALGORÍTMICA 2026 — APLICAR EM TODA PEÇA ═══',

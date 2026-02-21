@@ -78,6 +78,12 @@ type PredictiveCalendar = {
 type QualityTimelineRow = { month: string; avg_overall: number; avg_brand_dna: number; avg_platform: number; avg_cta: number; count: string };
 type QualityTimeline = { client_name: string; timeline: QualityTimelineRow[] };
 
+type AmdPerfRow = {
+  persona_id: string | null; persona_name: string | null;
+  amd: string; momento: string | null; format: string | null;
+  achieved: number; tracked: number; rate: number;
+};
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function formatAiText(text: string) {
@@ -189,6 +195,14 @@ function AITaskProgress({ steps, loading }: { steps: AIStep[]; loading: boolean 
   );
 }
 
+const AMD_LABELS: Record<string, string> = {
+  salvar: 'Salvar', compartilhar: 'Compartilhar', clicar: 'Clicar',
+  responder: 'Responder', marcar_alguem: 'Marcar alguém', pedir_proposta: 'Pedir proposta',
+};
+const MOMENTO_LABELS: Record<string, string> = {
+  problema: 'Descoberta', solucao: 'Avaliando', decisao: 'Pronto para agir', desconhecido: 'Desconhecido',
+};
+
 const positionLabel: Record<string, string> = {
   top_quartile: 'Top 25%', above_average: 'Acima da média', average: 'Na média', below_average: 'Abaixo da média',
 };
@@ -256,6 +270,9 @@ export default function ClientAnalyticsCore({
 
   const [qualityTimeline, setQualityTimeline] = useState<QualityTimeline | null>(null);
   const [qualityTimelineLoading, setQualityTimelineLoading] = useState(false);
+
+  const [amdPerf, setAmdPerf] = useState<AmdPerfRow[]>([]);
+  const [amdPerfLoading, setAmdPerfLoading] = useState(false);
 
   useEffect(() => {
     if (typeof forcedTab === 'number') {
@@ -334,6 +351,11 @@ export default function ClientAnalyticsCore({
     setQualityTimeline(await apiGet<QualityTimeline>(`/clients/${clientId}/quality-timeline`));
   });
 
+  const loadAmdPerf = () => wrap(setAmdPerfLoading, async () => {
+    const res = await apiGet<{ data: AmdPerfRow[] }>(`/clients/${clientId}/amd-performance`);
+    setAmdPerf(res?.data ?? []);
+  });
+
   useEffect(() => {
     if (!clientId) return;
     if (activeTab === 0 && !healthScore && !healthLoading) {
@@ -343,7 +365,10 @@ export default function ClientAnalyticsCore({
     if (activeTab === 1 && !alerts && !alertsLoading) {
       void loadAlerts();
     }
-  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore]);
+    if (activeTab === 9 && !amdPerf.length && !amdPerfLoading) {
+      void loadAmdPerf();
+    }
+  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, amdPerf.length, amdPerfLoading]);
 
   const tabs = [
     { label: 'Health Score', icon: <IconHeartbeat size={18} /> },
@@ -355,6 +380,7 @@ export default function ClientAnalyticsCore({
     { label: 'Estrategista', icon: <IconRobot size={18} /> },
     { label: 'ROI Retainer', icon: <IconCoin size={18} /> },
     { label: 'Cal. Preditivo', icon: <IconCalendarEvent size={18} /> },
+    { label: 'O que funcionou', icon: <IconTarget size={18} /> },
   ];
 
   return (
@@ -1052,6 +1078,107 @@ export default function ClientAnalyticsCore({
                 )}
               </Stack>
             </Box>
+          )}
+        </Box>
+      )}
+
+      {/* ── TAB 9: O que funcionou (AMD Performance) ───────────────────────── */}
+      {activeTab === 9 && (
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>O que funcionou</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Combinações de AMD + Persona + Momento com maior taxa de conversão comportamental
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined" size="small"
+              startIcon={amdPerfLoading ? <CircularProgress size={14} /> : <IconTarget size={16} />}
+              onClick={loadAmdPerf} disabled={amdPerfLoading}
+            >
+              {amdPerfLoading ? 'Carregando...' : 'Atualizar dados'}
+            </Button>
+          </Stack>
+
+          {!amdPerfLoading && amdPerf.length === 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Nenhum dado de AMD ainda. Para começar: (1) configure AMD no briefing, (2) gere e aprove a copy, (3) marque se o comportamento foi atingido no editor.
+            </Alert>
+          )}
+
+          {amdPerf.length > 0 && (
+            <>
+              {/* Combinação campeã */}
+              <Card variant="outlined" sx={{ mb: 3, borderColor: '#13DEB9', borderWidth: 2 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                    <IconTrophy size={20} color="#13DEB9" />
+                    <Typography variant="subtitle1" fontWeight={700} color="#13DEB9">
+                      Combinação Campeã
+                    </Typography>
+                    <Chip size="small" label={`${amdPerf[0].rate}% de sucesso`} sx={{ bgcolor: '#13DEB9', color: '#fff', fontWeight: 700 }} />
+                  </Stack>
+                  <Grid container spacing={2}>
+                    {[
+                      { label: 'Persona', value: amdPerf[0].persona_name ?? 'Não definida' },
+                      { label: 'AMD', value: AMD_LABELS[amdPerf[0].amd] ?? amdPerf[0].amd },
+                      { label: 'Momento', value: MOMENTO_LABELS[amdPerf[0].momento ?? ''] ?? (amdPerf[0].momento ?? '—') },
+                      { label: 'Formato', value: amdPerf[0].format ?? '—' },
+                      { label: 'Taxa', value: `${amdPerf[0].rate}%` },
+                      { label: 'Amostras', value: `${amdPerf[0].achieved}/${amdPerf[0].tracked}` },
+                    ].map(({ label, value }) => (
+                      <Grid key={label} size={{ xs: 6, sm: 4, md: 2 }}>
+                        <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+                        <Typography variant="subtitle2" fontWeight={700}>{value}</Typography>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* Lista completa */}
+              <Stack spacing={1.5}>
+                {amdPerf.map((row, i) => {
+                  const barColor = row.rate >= 70 ? '#13DEB9' : row.rate >= 40 ? '#FFAE1F' : '#FA896B';
+                  return (
+                    <Card key={i} variant="outlined">
+                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                          <Box sx={{ minWidth: 60 }}>
+                            <Typography variant="h6" fontWeight={800} sx={{ color: barColor, lineHeight: 1 }}>
+                              {row.rate}%
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">{row.achieved}/{row.tracked}</Typography>
+                          </Box>
+                          <Box sx={{ flex: 1, minWidth: 120 }}>
+                            <LinearProgress
+                              variant="determinate" value={row.rate}
+                              sx={{ height: 6, borderRadius: 3, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { bgcolor: barColor } }}
+                            />
+                          </Box>
+                          <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center">
+                            <Chip size="small" label={AMD_LABELS[row.amd] ?? row.amd}
+                              sx={{ bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF', fontWeight: 600, fontSize: '0.65rem' }} />
+                            {row.persona_name && (
+                              <Chip size="small" label={row.persona_name}
+                                sx={{ bgcolor: 'rgba(19,222,185,0.1)', color: '#13DEB9', fontWeight: 600, fontSize: '0.65rem' }} />
+                            )}
+                            {row.momento && (
+                              <Chip size="small" label={MOMENTO_LABELS[row.momento] ?? row.momento}
+                                sx={{ bgcolor: 'rgba(255,174,31,0.1)', color: '#FFAE1F', fontWeight: 600, fontSize: '0.65rem' }} />
+                            )}
+                            {row.format && (
+                              <Typography variant="caption" color="text.secondary">{row.format}</Typography>
+                            )}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            </>
           )}
         </Box>
       )}

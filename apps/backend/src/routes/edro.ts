@@ -59,6 +59,7 @@ import { getClientPreferences, rebuildClientPreferences } from '../services/lear
 import { recordPreferenceFeedback } from '../services/preferenceEngine';
 import { buildPlatformRulesBlock } from '../services/platformRules';
 import { buildPromptDNABlock } from '../services/promptDNA';
+import { buildPersonaBlock, buildAMDBlock } from '../services/personaPrompt';
 import {
   createABTest,
   listABTests,
@@ -1137,6 +1138,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         const clientId = briefing?.client_id || null;
         if (clientId) {
           const payload = copyRow.payload || {};
+          const briefingPl = (briefing?.payload as Record<string, any>) ?? {};
           const action =
             body.status === 'approved'
               ? body.rejected_text || body.regeneration_count
@@ -1165,6 +1167,9 @@ export default async function edroRoutes(app: FastifyInstance) {
               regeneration_instruction: body.regeneration_instruction,
               regeneration_count: body.regeneration_count || 0,
               created_by: user.email || user.id || null,
+              persona_id:          briefingPl.persona_id ?? null,
+              momento_consciencia: briefingPl.momento_consciencia ?? null,
+              amd:                 briefingPl.amd ?? null,
             },
           });
 
@@ -1187,6 +1192,20 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: rows[0] });
+  });
+
+  // ── AMD Result — registrar se o comportamento mínimo desejado foi alcançado ─
+  app.patch('/edro/copies/:copyId/amd-result', async (request, reply) => {
+    const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);
+    const { amd_achieved } = z.object({ amd_achieved: z.enum(['sim', 'parcial', 'nao']) }).parse(request.body);
+    const { rows } = await query<any>(
+      `UPDATE preference_feedback SET amd_achieved = $1
+       WHERE copy_briefing_id = (SELECT briefing_id FROM edro_copy_versions WHERE id = $2 LIMIT 1)
+         AND amd IS NOT NULL RETURNING id`,
+      [amd_achieved, copyId]
+    );
+    if (!rows.length) return reply.status(404).send({ success: false, error: 'feedback_not_found' });
+    return reply.send({ success: true, updated: rows.length });
   });
 
   // ── Bulk Copy Generation ──────────────────────────────────────
@@ -1303,6 +1322,11 @@ export default async function edroRoutes(app: FastifyInstance) {
         : typeof (briefing as any)?.client_id === 'string'
           ? (briefing as any).client_id
           : null;
+    // Extrair campos de persona/AMD do payload do briefing
+    const briefingPayload = (briefing?.payload as Record<string, any>) ?? {};
+    const payloadPersonaId = briefingPayload.persona_id ?? null;
+    const payloadMomento   = briefingPayload.momento_consciencia ?? null;
+    const payloadAmd       = briefingPayload.amd ?? null;
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
       : null;
@@ -1370,10 +1394,6 @@ export default async function edroRoutes(app: FastifyInstance) {
         // Regras criativas nativas da plataforma selecionada
         const platformBlock = buildPlatformRulesBlock(selectedPlatform, selectedFormat);
 
-        // Camada universal de engenharia de decisão (neurociência, PNL, heurísticas, vetos)
-        // taskType orienta a seleção do gatilho dominante (Venda, Autoridade ou Retenção)
-        const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined);
-
         // Contexto temporal — Bio-Sincronia: mês/ano atual + orientação sazonal
         // Permite ao motor calibrar para datas comemorativas, sazonalidade e tendências
         const now = new Date();
@@ -1410,9 +1430,26 @@ export default async function edroRoutes(app: FastifyInstance) {
             }
           } catch { /* sem preferencias aprendidas ainda — continuar */ }
         }
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, platformBlock, temporalBlock, promptDNABlock].filter(Boolean).join('\n');
+
+        // Persona + AMD — quem vai receber e que microcomportamento queremos provocar
+        let resolvedPersona: any = null;
+        if (payloadPersonaId && selectedClientId && tenantId) {
+          try {
+            const clientRow = await getClientById(tenantId, selectedClientId);
+            const personas: any[] = (clientRow as any)?.profile?.personas ?? [];
+            resolvedPersona = personas.find((p: any) => p.id === payloadPersonaId) ?? null;
+          } catch { /* non-blocking */ }
+        }
+        const personaBlock = buildPersonaBlock(resolvedPersona, payloadMomento);
+        const amdBlock     = buildAMDBlock(payloadAmd, payloadMomento);
+
+        // Camada universal de engenharia de decisão (neurociência, PNL, heurísticas, vetos)
+        // AMD sobrepõe taskType na seleção do gatilho dominante quando presente
+        const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined, payloadAmd);
+
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, platformBlock, temporalBlock, promptDNABlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${platformBlock}${temporalBlock}${promptDNABlock}`;
+        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${platformBlock}${temporalBlock}${promptDNABlock}`;
 
         let result;
         if (pipeline === 'collaborative') {

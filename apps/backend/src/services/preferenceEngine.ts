@@ -48,6 +48,10 @@ type FeedbackPayload = {
   copy_task_type?: string;
   copy_tone?: string;
   created_by?: string;
+  persona_id?: string | null;
+  momento_consciencia?: string | null;
+  amd?: string | null;
+  amd_achieved?: string | null;
 };
 
 const classifyMaturity = (
@@ -84,14 +88,16 @@ export async function recordPreferenceFeedback(params: {
       rejection_tags, rejection_reason, regeneration_instruction, regeneration_count,
       pauta_id, pauta_source_type, pauta_source_domain, pauta_topic_category, pauta_approach, pauta_platforms, pauta_timing_days, pauta_ai_score,
       copy_briefing_id, copy_rejected_text, copy_approved_text, copy_platform, copy_format, copy_pipeline, copy_task_type, copy_tone,
-      created_by
+      created_by,
+      persona_id, momento_consciencia, amd, amd_achieved
     )
     VALUES (
       $1,$2,$3,$4,
       $5,$6,$7,$8,
       $9,$10,$11,$12,$13,$14,$15,$16,
       $17,$18,$19,$20,$21,$22,$23,$24,
-      $25
+      $25,
+      $26,$27,$28,$29
     )
     RETURNING *
     `,
@@ -121,6 +127,10 @@ export async function recordPreferenceFeedback(params: {
       p.copy_task_type ?? null,
       p.copy_tone ?? null,
       p.created_by ?? null,
+      p.persona_id ?? null,
+      p.momento_consciencia ?? null,
+      p.amd ?? null,
+      p.amd_achieved ?? null,
     ]
   );
   return rows[0] ?? null;

@@ -829,6 +829,73 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Persona Manager ───────────────────────────────────────────────────────────
+
+  app.get(
+    '/clients/:id/personas',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query<{ profile: any }>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, id]
+      );
+      if (!rows.length) return reply.status(404).send({ error: 'client_not_found' });
+      return reply.send({ ok: true, personas: rows[0]?.profile?.personas ?? [] });
+    }
+  );
+
+  app.post(
+    '/clients/:id/personas',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = z.object({
+        name: z.string().min(1).max(120),
+        description: z.string().min(1).max(1000),
+        momento: z.enum(['problema', 'solucao', 'decisao']),
+        demographics: z.string().max(500).optional(),
+        pain_points: z.array(z.string().max(200)).max(10).optional(),
+      }).parse(request.body);
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query<{ profile: any }>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, id]
+      );
+      if (!rows.length) return reply.status(404).send({ error: 'client_not_found' });
+      const profile = rows[0]?.profile ?? {};
+      const { randomUUID } = await import('crypto');
+      const newPersona = { id: randomUUID(), ...body };
+      await query(
+        `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+        [JSON.stringify({ ...profile, personas: [...(profile.personas ?? []), newPersona] }), tenantId, id]
+      );
+      return reply.status(201).send({ ok: true, persona: newPersona });
+    }
+  );
+
+  app.delete(
+    '/clients/:id/personas/:personaId',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id, personaId } = z.object({ id: z.string().min(1), personaId: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query<{ profile: any }>(
+        `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, id]
+      );
+      if (!rows.length) return reply.status(404).send({ error: 'client_not_found' });
+      const profile = rows[0]?.profile ?? {};
+      const personas = (profile.personas ?? []).filter((p: any) => p.id !== personaId);
+      await query(
+        `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+        [JSON.stringify({ ...profile, personas }), tenantId, id]
+      );
+      return reply.send({ ok: true });
+    }
+  );
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   app.patch(

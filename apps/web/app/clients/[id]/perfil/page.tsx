@@ -41,6 +41,7 @@ import {
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
 import ContentGapSection from '../analytics/sections/ContentGapSection';
 import BrandColorsCard from './BrandColorsCard';
+import PersonaManager from './PersonaManager';
 import IntelligenceScoreBar from './IntelligenceScoreBar';
 import ManualFieldsChecklist from './ManualFieldsChecklist';
 import SectionEnrichmentCard from './SectionEnrichmentCard';
@@ -373,6 +374,8 @@ export default function PerfilPage() {
               );
             }}
           />
+
+          <PersonaManager clientId={clientId} />
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>

@@ -22,17 +22,22 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import {
+  IconBookmark,
   IconBuildingSkyscraper,
   IconCalendarEvent,
   IconChevronLeft,
   IconChevronRight,
+  IconClick,
   IconClock,
   IconDna,
   IconFileText,
   IconLink,
+  IconMessage,
   IconNews,
   IconRocket,
+  IconShare,
   IconSparkles,
+  IconUserPlus,
   IconX,
 } from '@tabler/icons-react';
 
@@ -41,7 +46,10 @@ type ClientRow = {
   name: string;
   segment_primary?: string | null;
   timezone?: string | null;
-  profile?: { brand_colors?: string[] } | null;
+  profile?: {
+    brand_colors?: string[];
+    personas?: Array<{ id: string; name: string; momento: string }>;
+  } | null;
 };
 
 type StoredClient = {
@@ -81,6 +89,9 @@ type BriefForm = {
   score: string;
   source: string;
   dueAt: string;
+  persona_id: string;
+  momento_consciencia: 'problema' | 'solucao' | 'decisao' | '';
+  amd: 'salvar' | 'compartilhar' | 'clicar' | 'responder' | 'marcar_alguem' | 'pedir_proposta' | '';
 };
 
 type DraftRecovery = {
@@ -112,6 +123,21 @@ type BriefTemplate = {
     platforms: string[];
   };
 };
+
+const AMD_OPTIONS = [
+  { value: 'salvar',         label: 'Salvar',         icon: <IconBookmark size={13} /> },
+  { value: 'compartilhar',   label: 'Compartilhar',   icon: <IconShare size={13} /> },
+  { value: 'clicar',         label: 'Clicar',         icon: <IconClick size={13} /> },
+  { value: 'responder',      label: 'Responder',      icon: <IconMessage size={13} /> },
+  { value: 'marcar_alguem',  label: 'Marcar alguém',  icon: <IconUserPlus size={13} /> },
+  { value: 'pedir_proposta', label: 'Pedir proposta', icon: <IconFileText size={13} /> },
+];
+
+const MOMENTO_OPTIONS = [
+  { value: 'problema', label: 'Descoberta', color: '#3b82f6' },
+  { value: 'solucao',  label: 'Avaliando',  color: '#f59e0b' },
+  { value: 'decisao',  label: 'Pronto para agir', color: '#10b981' },
+];
 
 const OBJECTIVE_OPTIONS = [
   'Reconhecimento de Marca',
@@ -218,6 +244,7 @@ export default function BriefClient() {
   const [draftRecovery, setDraftRecovery] = useState<DraftRecovery | null>(null);
   const [sourceContext, setSourceContext] = useState<SourceContext | null>(null);
   const [clientDnaTone, setClientDnaTone] = useState('');
+  const [clientPersonas, setClientPersonas] = useState<Array<{ id: string; name: string; momento: string }>>([]);
   const [deadlineSuggestion, setDeadlineSuggestion] = useState<{ value: string; label: string } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -241,6 +268,9 @@ export default function BriefClient() {
     score: queryScore,
     source: querySource || 'manual',
     dueAt: '',
+    persona_id: '',
+    momento_consciencia: '',
+    amd: '',
   });
 
   const suggestDeadline = (eventDateStr: string) => {
@@ -527,6 +557,14 @@ export default function BriefClient() {
     setDeadlineSuggestion(suggestion);
   }, [form.date, form.dueAt]);
 
+  // Auto-fill momento when persona changes
+  useEffect(() => {
+    if (!form.persona_id) return;
+    const found = clientPersonas.find((p) => p.id === form.persona_id);
+    if (found?.momento) updateForm({ momento_consciencia: found.momento as 'problema' | 'solucao' | 'decisao' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.persona_id, clientPersonas]);
+
   const selectedClient = useMemo(
     () => {
       if (activeClientId) {
@@ -554,6 +592,14 @@ export default function BriefClient() {
   const handleSelectClient = (client: ClientRow) => {
     setActiveClientId(client.id);
     setSelectedClientsCount(1);
+    // Load personas for the selected client
+    if (client.profile?.personas?.length) {
+      setClientPersonas(client.profile.personas.map((p) => ({ id: p.id, name: p.name, momento: p.momento })));
+    } else {
+      apiGet<{ personas: any[] }>(`/clients/${client.id}/personas`)
+        .then((res) => setClientPersonas((res?.personas ?? []).map((p: any) => ({ id: p.id, name: p.name, momento: p.momento }))))
+        .catch(() => {});
+    }
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('edro_active_client_id', client.id);
       window.localStorage.setItem(
@@ -677,6 +723,9 @@ export default function BriefClient() {
         categories: form.categories,
         source: form.source,
         productionType: queryProductionType,
+        ...(form.persona_id ? { persona_id: form.persona_id } : {}),
+        ...(form.momento_consciencia ? { momento_consciencia: form.momento_consciencia } : {}),
+        ...(form.amd ? { amd: form.amd } : {}),
         client_ref: activeClientId && !isUuid(activeClientId)
           ? {
               id: activeClientId,
@@ -937,6 +986,76 @@ export default function BriefClient() {
           </Card>
         )
       ) : null}
+
+      {/* ── Seção AMD + Persona (visível apenas com cliente selecionado) ─────────── */}
+      {(activeClientId || queryClientId) && (
+        <Card variant="outlined" sx={{ borderColor: 'rgba(93,135,255,0.35)', bgcolor: 'rgba(93,135,255,0.02)' }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 0.25 }}>Público e Objetivo Comportamental</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Quem vai receber esta copy e o que você quer que ela faça de verdade.
+            </Typography>
+            <Stack spacing={2}>
+              {clientPersonas.length > 0 && (
+                <TextField
+                  select fullWidth size="small" label="Persona alvo"
+                  value={form.persona_id}
+                  onChange={(e) => updateForm({ persona_id: e.target.value })}
+                >
+                  <MenuItem value="">Nenhuma persona selecionada</MenuItem>
+                  {clientPersonas.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                  ))}
+                </TextField>
+              )}
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75, display: 'block' }}>
+                  Momento de consciência
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {MOMENTO_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      label={opt.label}
+                      onClick={() => updateForm({ momento_consciencia: opt.value as 'problema' | 'solucao' | 'decisao' })}
+                      sx={{
+                        cursor: 'pointer',
+                        bgcolor: form.momento_consciencia === opt.value ? opt.color : 'transparent',
+                        color: form.momento_consciencia === opt.value ? '#fff' : 'text.secondary',
+                        border: `1px solid ${opt.color}`,
+                        fontWeight: form.momento_consciencia === opt.value ? 700 : 400,
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75, display: 'block' }}>
+                  AMD — Ação Mínima Desejada
+                </Typography>
+                <Stack direction="row" flexWrap="wrap" gap={1}>
+                  {AMD_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      icon={opt.icon}
+                      label={opt.label}
+                      onClick={() => updateForm({ amd: opt.value as BriefForm['amd'] })}
+                      sx={{
+                        cursor: 'pointer',
+                        bgcolor: form.amd === opt.value ? '#5D87FF' : 'transparent',
+                        color: form.amd === opt.value ? '#fff' : 'text.secondary',
+                        border: '1px solid',
+                        borderColor: form.amd === opt.value ? '#5D87FF' : 'divider',
+                        fontWeight: form.amd === opt.value ? 700 : 400,
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {!context?.event && !context?.date ? (
         <Card variant="outlined">

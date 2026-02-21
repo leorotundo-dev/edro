@@ -1277,4 +1277,54 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       },
     };
   });
+
+  // ── AMD Performance — O que funcionou por AMD + persona + momento ──────────
+  app.get('/clients/:clientId/amd-performance', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+
+    const { rows } = await query<any>(
+      `SELECT pf.persona_id, pf.amd, pf.momento_consciencia, pf.copy_format,
+         COUNT(*) FILTER (WHERE pf.amd_achieved = 'sim')::int   AS achieved,
+         COUNT(*) FILTER (WHERE pf.amd_achieved IS NOT NULL)::int AS tracked,
+         ROUND(
+           COUNT(*) FILTER (WHERE pf.amd_achieved = 'sim')::numeric
+           / NULLIF(COUNT(*) FILTER (WHERE pf.amd_achieved IS NOT NULL), 0) * 100,
+           1
+         ) AS rate,
+         c.profile->'personas' AS personas_json
+       FROM preference_feedback pf
+       JOIN clients c ON c.id = pf.client_id AND c.tenant_id = $1
+       WHERE pf.tenant_id = $1
+         AND c.id = $2
+         AND pf.amd IS NOT NULL
+         AND pf.amd_achieved IS NOT NULL
+       GROUP BY pf.persona_id, pf.amd, pf.momento_consciencia, pf.copy_format, c.profile
+       ORDER BY rate DESC NULLS LAST
+       LIMIT 50`,
+      [tenantId, clientId],
+    );
+
+    const personas: Record<string, string> = {};
+    if (Array.isArray(rows[0]?.personas_json)) {
+      for (const p of rows[0].personas_json) {
+        if (p?.id && p?.name) personas[p.id] = p.name;
+      }
+    }
+
+    return reply.send({
+      data: rows.map((r: any) => ({
+        persona_id:   r.persona_id,
+        persona_name: r.persona_id ? (personas[r.persona_id] ?? r.persona_id) : null,
+        amd:          r.amd,
+        momento:      r.momento_consciencia,
+        format:       r.copy_format,
+        achieved:     Number(r.achieved),
+        tracked:      Number(r.tracked),
+        rate:         Number(r.rate ?? 0),
+      })),
+    });
+  });
 }

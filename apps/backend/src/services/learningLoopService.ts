@@ -2,6 +2,15 @@ import { query } from '../db';
 
 // ── Types ──────────────────────────────────────────────────────────
 
+export type AmdPerformanceRow = {
+  amd: string;
+  momento: string;
+  format: string;
+  achieved: number;
+  tracked: number;
+  rate: number;
+};
+
 export type LearnedPreferences = {
   version: number;
   rebuilt_at: string;
@@ -17,6 +26,7 @@ export type LearnedPreferences = {
     top_tags: { platform: string; tag: string; score: number }[];
     editorial_insights: string[];
   };
+  amd_performance: AmdPerformanceRow[];
   directives: {
     boost: string[];
     avoid: string[];
@@ -41,18 +51,20 @@ export async function rebuildClientPreferences(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<LearnedPreferences> {
-  const [copyFeedback, reporteiPerf] = await Promise.all([
+  const [copyFeedback, reporteiPerf, amdPerf] = await Promise.all([
     aggregateCopyFeedback(params.client_id),
     aggregateReporteiPerformance(params.tenant_id, params.client_id),
+    aggregateAmdPerformance(params.client_id),
   ]);
 
-  const directives = generateDirectives(copyFeedback, reporteiPerf);
+  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf);
 
   const preferences: LearnedPreferences = {
     version: 1,
     rebuilt_at: new Date().toISOString(),
     copy_feedback: copyFeedback,
     reportei_performance: reporteiPerf,
+    amd_performance: amdPerf,
     directives,
   };
 
@@ -206,11 +218,45 @@ async function aggregateReporteiPerformance(
   };
 }
 
+// ── AMD Performance Aggregation ────────────────────────────────────
+
+async function aggregateAmdPerformance(clientId: string): Promise<AmdPerformanceRow[]> {
+  const { rows } = await query<any>(
+    `SELECT amd,
+       COALESCE(momento_consciencia, 'desconhecido') AS momento,
+       COALESCE(copy_format, 'desconhecido')         AS format,
+       COUNT(*) FILTER (WHERE amd_achieved = 'sim')::int AS achieved,
+       COUNT(*) FILTER (WHERE amd_achieved IS NOT NULL)::int AS tracked,
+       ROUND(
+         COUNT(*) FILTER (WHERE amd_achieved = 'sim')::numeric
+         / NULLIF(COUNT(*) FILTER (WHERE amd_achieved IS NOT NULL), 0) * 100,
+         1
+       ) AS rate
+     FROM preference_feedback
+     WHERE client_id = $1
+       AND amd IS NOT NULL
+       AND amd_achieved IS NOT NULL
+     GROUP BY amd, momento_consciencia, copy_format
+     ORDER BY rate DESC NULLS LAST
+     LIMIT 10`,
+    [clientId],
+  );
+  return rows.map((r: any) => ({
+    amd:      r.amd,
+    momento:  r.momento,
+    format:   r.format,
+    achieved: Number(r.achieved),
+    tracked:  Number(r.tracked),
+    rate:     Number(r.rate ?? 0),
+  }));
+}
+
 // ── Directive Generation ───────────────────────────────────────────
 
 function generateDirectives(
   copyFeedback: CopyFeedbackAggregation,
   reporteiPerf: ReporteiPerformanceAggregation,
+  amdPerf: AmdPerformanceRow[] = [],
 ): { boost: string[]; avoid: string[] } {
   const boost: string[] = [];
   const avoid: string[] = [];
@@ -239,8 +285,13 @@ function generateDirectives(
     boost.push(ins);
   }
 
+  // AMD performance directives — AMD com alta taxa de conversão
+  for (const a of amdPerf.filter((r) => r.rate >= 70 && r.tracked >= 3).slice(0, 3)) {
+    boost.push(`AMD "${a.amd}" no momento "${a.momento}" atinge ${a.rate}% de sucesso (${a.tracked} amostras)`);
+  }
+
   return {
-    boost: boost.slice(0, 8),
+    boost: boost.slice(0, 10),
     avoid: avoid.slice(0, 5),
   };
 }
