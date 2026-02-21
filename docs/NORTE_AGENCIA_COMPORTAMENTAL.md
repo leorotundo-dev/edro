@@ -142,6 +142,6 @@ Se a resposta for não para todos os quatro, questionar se a feature precisa exi
 
 ## Referências
 
-- Spec técnica completa: `motor-intervencao-comportamental-spec.md` (Fogg Model, Hook Model, UserBehaviorProfile, PolicyEngine YAML, LearningEngine)
+- Spec técnica completa: `docs/MOTOR_INTERVENCAO_COMPORTAMENTAL_SPEC.md` (Fogg Model, Hook Model, UserBehaviorProfile, PolicyEngine YAML, LearningEngine)
 - Implementação atual: `apps/backend/src/services/personaPrompt.ts`, `preferenceEngine.ts`, `learningLoopService.ts`
 - Commit de base: `dec4e5f` — Motor de Mudança de Comportamento (Persona + AMD + Learning Loop)
