@@ -2872,10 +2872,37 @@ export default async function edroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: comparison });
   });
 
-  // ── Perplexity AI Search Endpoints ──────────────────────────────
+  // ── Perplexity AI Search Endpoints (Tavily fallback when Perplexity unavailable) ──
+
+  // Helper: adapt Tavily results to PerplexityResponse shape so frontend keeps working
+  function tavilyToPerplexityShape(tvRes: any, fallbackContent?: string): any {
+    const content = tvRes.answer?.slice(0, 1500)
+      || tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n')
+      || fallbackContent
+      || '';
+    return {
+      content,
+      citations: tvRes.results.map((r: any) => r.url).filter(Boolean),
+      search_results: tvRes.results.map((r: any) => ({
+        title: r.title || '',
+        url: r.url || '',
+        snippet: r.snippet || '',
+      })),
+      model: 'tavily-search-basic',
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      _provider: 'tavily',
+    };
+  }
 
   app.get('/edro/perplexity/status', async (_request, reply) => {
-    return reply.send({ success: true, data: { configured: isPerplexityConfigured() } });
+    return reply.send({
+      success: true,
+      data: {
+        configured: isPerplexityConfigured(),
+        tavily_configured: isTavilyConfigured(),
+        active_provider: isPerplexityConfigured() ? 'perplexity' : isTavilyConfigured() ? 'tavily' : 'none',
+      },
+    });
   });
 
   app.post('/edro/perplexity/search', async (request, reply) => {
@@ -2887,8 +2914,20 @@ export default async function edroRoutes(app: FastifyInstance) {
       max_tokens: z.number().int().min(100).max(4096).optional(),
     }).parse(request.body);
 
-    const result = await searchPerplexity(body);
-    return reply.send({ success: true, data: result });
+    if (isPerplexityConfigured()) {
+      try {
+        const result = await searchPerplexity(body);
+        return reply.send({ success: true, data: result });
+      } catch { /* fall through to Tavily */ }
+    }
+
+    if (!isTavilyConfigured()) {
+      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
+    }
+    const t0 = Date.now();
+    const tvRes = await tavilySearch(body.query, { maxResults: 5, searchDepth: 'basic' });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_search_fallback', duration_ms: Date.now() - t0, metadata: { query: body.query.slice(0, 100) } });
+    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
   });
 
   app.post('/edro/clients/:clientId/perplexity/trending', async (request, reply) => {
@@ -2907,12 +2946,27 @@ export default async function edroRoutes(app: FastifyInstance) {
     const profile = typeof client.profile === 'string' ? JSON.parse(client.profile) : client.profile || {};
     const keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
 
-    const result = await searchTrendingTopics({
-      client_name: client.name,
-      keywords: keywords.length ? keywords : [client.name],
-      segment: profile.segment || undefined,
-    });
-    return reply.send({ success: true, data: result });
+    if (isPerplexityConfigured()) {
+      try {
+        const result = await searchTrendingTopics({
+          client_name: client.name,
+          keywords: keywords.length ? keywords : [client.name],
+          segment: profile.segment || undefined,
+        });
+        return reply.send({ success: true, data: result });
+      } catch { /* fall through to Tavily */ }
+    }
+
+    if (!isTavilyConfigured()) {
+      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
+    }
+    const segment = profile.segment || profile.segment_primary || '';
+    const kwList = (keywords.length ? keywords : [client.name]).slice(0, 4).join(' ');
+    const trendQuery = `${kwList} ${segment} tendências notícias marketing ${new Date().getFullYear()} Brasil`;
+    const t0 = Date.now();
+    const tvRes = await tavilySearch(trendQuery, { maxResults: 5, searchDepth: 'basic' });
+    logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'perplexity_trending_fallback', duration_ms: Date.now() - t0, metadata: { client_id: clientId } });
+    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
   });
 
   app.post('/edro/perplexity/enrich-clipping', async (request, reply) => {
@@ -2923,8 +2977,22 @@ export default async function edroRoutes(app: FastifyInstance) {
       client_keywords: z.array(z.string()).optional(),
     }).parse(request.body);
 
-    const result = await enrichClippingItem(body);
-    return reply.send({ success: true, data: result });
+    if (isPerplexityConfigured()) {
+      try {
+        const result = await enrichClippingItem(body);
+        return reply.send({ success: true, data: result });
+      } catch { /* fall through to Tavily */ }
+    }
+
+    if (!isTavilyConfigured()) {
+      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
+    }
+    const kws = body.client_keywords?.slice(0, 3).join(', ') || '';
+    const enrichQuery = `${body.title} ${kws} impacto mercado marketing`.trim();
+    const t0 = Date.now();
+    const tvRes = await tavilySearch(enrichQuery, { maxResults: 4, searchDepth: 'basic' });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_enrich_clipping_fallback', duration_ms: Date.now() - t0 });
+    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
   });
 
   app.post('/edro/perplexity/research-competitor', async (request, reply) => {
@@ -2934,8 +3002,22 @@ export default async function edroRoutes(app: FastifyInstance) {
       platforms: z.array(z.string()).optional(),
     }).parse(request.body);
 
-    const result = await researchCompetitorActivity(body);
-    return reply.send({ success: true, data: result });
+    if (isPerplexityConfigured()) {
+      try {
+        const result = await researchCompetitorActivity(body);
+        return reply.send({ success: true, data: result });
+      } catch { /* fall through to Tavily */ }
+    }
+
+    if (!isTavilyConfigured()) {
+      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
+    }
+    const platformList = body.platforms?.join(' ') || 'Instagram LinkedIn';
+    const compQuery = `${body.segment} estratégia conteúdo marketing ${platformList} ${new Date().getFullYear()} Brasil tendências`;
+    const t0 = Date.now();
+    const tvRes = await tavilySearch(compQuery, { maxResults: 5, searchDepth: 'basic' });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_competitor_fallback', duration_ms: Date.now() - t0, metadata: { segment: body.segment } });
+    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
   });
 
   app.post('/edro/perplexity/research-for-copy', async (request, reply) => {
@@ -2945,7 +3027,20 @@ export default async function edroRoutes(app: FastifyInstance) {
       objective: z.string(),
     }).parse(request.body);
 
-    const result = await researchForCopy(body);
-    return reply.send({ success: true, data: result });
+    if (isPerplexityConfigured()) {
+      try {
+        const result = await researchForCopy(body);
+        return reply.send({ success: true, data: result });
+      } catch { /* fall through to Tavily */ }
+    }
+
+    if (!isTavilyConfigured()) {
+      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
+    }
+    const copyQuery = `${body.topic} ${body.objective} ${body.platform} dados estatísticas exemplos conteúdo Brasil ${new Date().getFullYear()}`;
+    const t0 = Date.now();
+    const tvRes = await tavilySearch(copyQuery, { maxResults: 5, searchDepth: 'basic' });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_research_copy_fallback', duration_ms: Date.now() - t0, metadata: { topic: body.topic.slice(0, 80) } });
+    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
   });
 }
