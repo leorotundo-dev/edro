@@ -507,7 +507,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   // Load creative inspirations for high-relevance events
   useEffect(() => {
     if (!selectedEvent?.id) { setInspirations([]); return; }
-    if ((selectedEvent.base_relevance ?? 0) >= 80) {
+    if ((selectedEvent.base_relevance ?? 0) >= 50) {
       loadInspirations(selectedEvent.id);
     } else {
       setInspirations([]);
@@ -1378,7 +1378,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         </Box>
                       ) : null}
                       {/* ── Creative Inspirations Panel ───────────────── */}
-                      {(selectedEvent.base_relevance ?? 0) >= 80 && (
+                      {(selectedEvent.base_relevance ?? 0) >= 50 && (
                         <Box>
                           <Typography variant="overline" color="text.secondary">
                             Inspirações Criativas
