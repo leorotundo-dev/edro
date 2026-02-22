@@ -153,6 +153,35 @@ export async function runMarketIntelligenceForClient(params: {
     }
   }
 
+  // ── 3b. Notícias recentes dos concorrentes ──────────────────
+  if (competitors.length > 0) {
+    const newsQuery = `"${competitors[0]}" noticias recentes marketing lançamento ${new Date().getFullYear()}`;
+    try {
+      const t2b = Date.now();
+      const newsResult = await tavilySearch(newsQuery, { maxResults: 3, searchDepth: 'basic' });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'web_intelligence_news', duration_ms: Date.now() - t2b, metadata: { client_id: clientId } });
+      for (const r of newsResult.results.slice(0, 1)) {
+        if (!r.snippet || r.snippet.length < 50) continue;
+        const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'noticias_concorrente');
+        if (score < 5) { skipped++; continue; }
+        const id = await saveLibraryItem({
+          tenantId,
+          clientId,
+          title: `Notícia: ${r.title.slice(0, 180)}`,
+          description: r.snippet.slice(0, 300),
+          notes: `NOTÍCIA DO CONCORRENTE\n\nEmpresa: ${competitors[0]}\n\n${r.title}\n\n${r.snippet}\n\nFonte: ${r.url}`,
+          sourceUrl: r.url,
+          category: 'noticias_concorrente',
+          tags: ['ai_research', 'noticias', 'concorrente', `relevance_${score}`],
+        });
+        if (id) savedIds.push(id);
+      }
+      searches.push(`competitor_news:${newsQuery}`);
+    } catch (err: any) {
+      errors.push(`competitor_news: ${err.message}`);
+    }
+  }
+
   // ── 4. Keywords search ──────────────────────────────────────
   if (keywords.length >= 2) {
     const kwQuery = `${keywords.slice(0, 3).join(' ')} conteúdo viral tendência`;

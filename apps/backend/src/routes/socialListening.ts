@@ -6,6 +6,8 @@ import { hasClientPerm } from '../auth/clientPerms';
 import { getClientById } from '../repos/clientsRepo';
 import { query } from '../db';
 import { SocialListeningService } from '../socialListening/SocialListeningService';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 const platformEnum = z.enum(['twitter', 'youtube', 'tiktok', 'reddit', 'linkedin', 'instagram', 'facebook']);
 const sentimentEnum = z.enum(['positive', 'negative', 'neutral']);
@@ -233,6 +235,30 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         clientId: query.clientId,
         limit: query.limit ? Number(query.limit) : undefined,
       });
+
+      // Tavily fallback: if no stored trends and clientId provided, enrich with web data
+      if (trends.length === 0 && query.clientId && isTavilyConfigured()) {
+        try {
+          const tenantId = request.user.tenant_id;
+          const { rows: kws } = await query<{ keyword: string }>(
+            `SELECT keyword FROM social_listening_keywords
+             WHERE tenant_id=$1 AND client_id=$2 AND is_active=true LIMIT 3`,
+            [tenantId, query.clientId]
+          );
+          const webTrends: any[] = [];
+          for (const { keyword } of kws) {
+            const t0 = Date.now();
+            const res = await tavilySearch(`${keyword} menções tendência ${new Date().getFullYear()}`, { maxResults: 3, searchDepth: 'basic' });
+            logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'social_listening_fallback', duration_ms: Date.now() - t0, metadata: { keyword } });
+            if (res.results.length > 0) {
+              webTrends.push({ keyword, platform: 'web', results: res.results.slice(0, 2) });
+            }
+          }
+          if (webTrends.length > 0) {
+            return reply.send({ trends, web_trends: webTrends });
+          }
+        } catch { /* fall through to default response */ }
+      }
 
       return reply.send({ trends });
     }

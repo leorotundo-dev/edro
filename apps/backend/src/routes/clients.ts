@@ -14,6 +14,8 @@ import { extractText } from '../library/extract';
 import { OpenAIService } from '../services/ai/openaiService';
 import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import {
   applyFieldToProfile,
   calculateIntelligenceScore,
@@ -914,6 +916,63 @@ export default async function clientsRoutes(app: FastifyInstance) {
       });
 
       return reply.send({ ok: true, queued: true });
+    }
+  );
+
+  // ── Meeting Prep — pesquisa rápida pré-reunião via Tavily ─────────────────────
+
+  app.post(
+    '/clients/:id/meeting-prep',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const { meeting_context } = z.object({
+        meeting_context: z.string().max(500).optional(),
+      }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      if (!isTavilyConfigured()) {
+        return reply.code(503).send({ ok: false, error: 'tavily_not_configured' });
+      }
+
+      const client = await getClientById(tenantId, id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const profile = (client as any).profile ?? {};
+      const segment = (client as any).segment_primary || '';
+      const competitors: string[] = Array.isArray(profile.competitors) ? profile.competitors.slice(0, 2) : [];
+      const contextSuffix = meeting_context ? ` ${meeting_context}` : '';
+
+      const TIMEOUT_MS = 15000;
+      const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
+        Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), TIMEOUT_MS))]);
+
+      const t0 = Date.now();
+
+      const [newsRes, compRes, trendRes] = await Promise.all([
+        withTimeout(tavilySearch(`"${client.name}" noticias recentes marketing${contextSuffix}`, { maxResults: 3, searchDepth: 'basic' })),
+        competitors.length > 0
+          ? withTimeout(tavilySearch(`${competitors.join(' OR ')} estratégia marketing conteúdo recente`, { maxResults: 3, searchDepth: 'basic' }))
+          : Promise.resolve(null),
+        segment
+          ? withTimeout(tavilySearch(`${segment} tendências oportunidades ${new Date().getFullYear()}${contextSuffix}`, { maxResults: 4, searchDepth: 'basic' }))
+          : Promise.resolve(null),
+      ]);
+
+      const duration = Date.now() - t0;
+      const callCount = [newsRes, compRes, trendRes].filter(Boolean).length;
+      if (callCount > 0) {
+        logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: callCount, feature: 'meeting_prep', duration_ms: duration, metadata: { client_id: id } });
+      }
+
+      return reply.send({
+        ok: true,
+        client_name: (client as any).name,
+        generated_at: new Date().toISOString(),
+        client_news: (newsRes?.results ?? []).map((r: any) => ({ title: r.title, snippet: r.snippet?.slice(0, 300), url: r.url })),
+        competitor_activity: (compRes?.results ?? []).map((r: any) => ({ title: r.title, snippet: r.snippet?.slice(0, 300), url: r.url })),
+        sector_trends: (trendRes?.results ?? []).map((r: any) => ({ title: r.title, snippet: r.snippet?.slice(0, 300), url: r.url })),
+      });
     }
   );
 

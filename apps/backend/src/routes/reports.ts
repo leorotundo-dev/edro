@@ -7,7 +7,8 @@ import { GeminiService } from '../services/ai/geminiService';
 import { OpenAIService } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
 import { searchPerplexity, isPerplexityConfigured } from '../services/perplexityService';
-import { logAiUsage } from '../services/ai/aiUsageLogger';
+import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 
 const STAGE_COLORS: Record<string, string> = {
@@ -738,6 +739,22 @@ ${dataSnapshot}`,
         });
         marketContext = pxResult.content;
         providerStages.push({ provider: 'perplexity', role: 'researcher', model: pxResult.model, duration_ms: Date.now() - t2 });
+      } catch {
+        marketContext = '';
+      }
+    } else if (isTavilyConfigured()) {
+      // Tavily fallback quando Perplexity não está configurado
+      try {
+        const t2 = Date.now();
+        const tvRes = await tavilySearch(
+          `${segment} agencia marketing digital benchmark resultados produtividade 2026 Brasil`,
+          { maxResults: 4, searchDepth: 'advanced', includeAnswer: true }
+        );
+        const duration_ms = Date.now() - t2;
+        logTavilyUsage({ tenant_id: tenantId, operation: 'search-advanced', unit_count: 1, feature: 'ai_report_benchmark', duration_ms, metadata: { segment } });
+        const snippets = tvRes.results.slice(0, 2).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 250)}`).join('\n\n');
+        marketContext = tvRes.answer ? `${tvRes.answer.slice(0, 600)}\n\n${snippets}` : snippets;
+        providerStages.push({ provider: 'tavily', role: 'researcher', model: 'search-advanced', duration_ms });
       } catch {
         marketContext = '';
       }
