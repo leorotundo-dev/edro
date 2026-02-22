@@ -8,6 +8,8 @@ import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
 import { computeScore, inferSegments } from './itemScoring';
 import { computeGeoFactorWithMode } from './geo';
+import { tavilyExtract, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -941,6 +943,33 @@ async function handleEnrichItem(job: any) {
       }
     } catch {
       // ignore scrape failures
+    }
+  }
+
+  // Tavily extract fallback: when scraping fails or content is too short
+  if (isTavilyConfigured() && item.url && (!content || content.length < 200)) {
+    try {
+      const t0 = Date.now();
+      const extracted = await tavilyExtract([item.url], { timeoutMs: 10000 });
+      logTavilyUsage({
+        tenant_id: item.tenant_id,
+        operation: 'extract',
+        unit_count: 1,
+        feature: 'clipping_enrich',
+        duration_ms: Date.now() - t0,
+        metadata: { item_id: item.id },
+      });
+      const first = extracted.results?.[0];
+      if (first?.content && first.content.length > 100) {
+        content = first.content.slice(0, 5000);
+        summary = summary || first.content.slice(0, 500);
+        // Re-infer segments with Tavily content
+        const enrichedSegments = inferSegments(`${item.title} ${summary} ${content}`, segments);
+        segments.length = 0;
+        enrichedSegments.forEach((s) => segments.push(s));
+      }
+    } catch {
+      // best-effort — never blocks enrichment
     }
   }
 

@@ -285,7 +285,96 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         clientId: body.clientId,
       });
 
-      return reply.send({ trends });
+      // G1 — Enrich trend report with Tavily web context
+      let webContext: any[] = [];
+      if (isTavilyConfigured() && trends.length > 0) {
+        const topKeywords = [...new Set((trends as any[]).map((t) => t.keyword))].slice(0, 3) as string[];
+        for (const keyword of topKeywords) {
+          try {
+            const t0 = Date.now();
+            const res = await tavilySearch(
+              `${keyword} tendência notícias ${new Date().getFullYear()}`,
+              { maxResults: 3, searchDepth: 'basic' }
+            );
+            logTavilyUsage({
+              tenant_id: request.user.tenant_id,
+              operation: 'search-basic',
+              unit_count: 1,
+              feature: 'social_trend_context',
+              duration_ms: Date.now() - t0,
+              metadata: { keyword },
+            });
+            if (res.results.length > 0) {
+              webContext.push({
+                keyword,
+                articles: res.results.slice(0, 2).map((r: any) => ({
+                  title: r.title,
+                  snippet: r.snippet?.slice(0, 300),
+                  url: r.url,
+                })),
+              });
+            }
+          } catch { /* non-blocking */ }
+        }
+      }
+
+      return reply.send({ trends, ...(webContext.length > 0 && { web_context: webContext }) });
+    }
+  );
+
+  // G2 — Competitive radar: search competitor mentions on the web
+  app.post(
+    '/social-listening/competitive-search',
+    { preHandler: [requirePerm('clipping:read')] },
+    async (request: any, reply) => {
+      const body = z
+        .object({
+          clientId: z.string().optional(),
+          competitorNames: z.array(z.string().min(1)).min(1).max(5),
+        })
+        .parse(request.body || {});
+
+      if (!isTavilyConfigured()) {
+        return reply.code(503).send({ ok: false, error: 'tavily_not_configured' });
+      }
+
+      if (body.clientId) {
+        const allowed = await assertClientAccess(request, body.clientId, 'read');
+        if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
+      }
+
+      const tenantId = request.user.tenant_id;
+      const results: any[] = [];
+
+      for (const competitor of body.competitorNames.slice(0, 5)) {
+        try {
+          const t0 = Date.now();
+          const res = await tavilySearch(
+            `"${competitor}" marketing noticias lançamento ${new Date().getFullYear()}`,
+            { maxResults: 4, searchDepth: 'basic' }
+          );
+          logTavilyUsage({
+            tenant_id: tenantId,
+            operation: 'search-basic',
+            unit_count: 1,
+            feature: 'competitive_radar',
+            duration_ms: Date.now() - t0,
+            metadata: { competitor, client_id: body.clientId },
+          });
+          results.push({
+            competitor,
+            articles: res.results.slice(0, 3).map((r: any) => ({
+              title: r.title,
+              snippet: r.snippet?.slice(0, 300),
+              url: r.url,
+            })),
+          });
+        } catch {
+          results.push({ competitor, articles: [], error: 'search_failed' });
+        }
+      }
+
+      return reply.send({ ok: true, generated_at: new Date().toISOString(), results });
     }
   );
 
