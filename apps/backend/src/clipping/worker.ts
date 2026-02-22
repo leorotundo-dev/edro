@@ -8,7 +8,7 @@ import { UrlScraper } from './urlScraper';
 import { scoreClippingItem, matchesWordBoundary } from './scoring';
 import { computeScore, inferSegments } from './itemScoring';
 import { computeGeoFactorWithMode } from './geo';
-import { tavilyExtract, isTavilyConfigured } from '../services/tavilyService';
+import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 const parser = new Parser({
@@ -893,6 +893,69 @@ async function handleFetchSource(job: any) {
     return inserted;
   } catch (error: any) {
     const msg = safeErrorMessage(error, 'fetch_failed');
+
+    // ── Tavily fallback para fontes com erro de parse/timeout ─────────────
+    // Quando RSS não consegue parsear ou URL dá timeout, usa Tavily para
+    // buscar artigos recentes da publicação pelo nome da fonte.
+    if (isTavilyConfigured()) {
+      try {
+        const t0 = Date.now();
+        const tvRes = await tavilySearch(
+          `${source.name} últimas notícias`,
+          { maxResults: 5, searchDepth: 'basic' }
+        );
+        logTavilyUsage({
+          tenant_id: source.tenant_id,
+          operation: 'search-basic',
+          unit_count: 1,
+          feature: 'clipping_source_fallback',
+          duration_ms: Date.now() - t0,
+          metadata: { source_id: source.id, original_error: msg.slice(0, 80) },
+        });
+
+        let tavilyInserted = 0;
+        for (const r of tvRes.results.slice(0, 4)) {
+          if (!r.url || !r.title || !r.snippet || r.snippet.length < 50) continue;
+          const uHash = hashUrl(r.url);
+          const tHash = titleHash(r.title);
+          const isDupe = await isDuplicateTitle(source.tenant_id, tHash);
+          if (isDupe) continue;
+          const { rows: existing } = await query<{ id: string }>(
+            `SELECT id FROM clipping_items WHERE tenant_id=$1 AND url_hash=$2 LIMIT 1`,
+            [source.tenant_id, uHash]
+          );
+          if (existing.length > 0) continue;
+
+          const segments = inferSegments(`${r.title} ${r.snippet}`, source.tags ?? []);
+          const score = computeScore({ publishedAt: null, segments, type: 'TREND' });
+          const { rows: ins } = await query<{ id: string }>(
+            `INSERT INTO clipping_items
+               (tenant_id, source_id, title, url, url_hash, title_hash, published_at, snippet, type, segments, score)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,'TREND',$8,$9)
+             ON CONFLICT (tenant_id, url_hash) DO NOTHING
+             RETURNING id`,
+            [source.tenant_id, source.id, r.title.slice(0, 500), r.url, uHash, tHash, r.snippet.slice(0, 600), segments, score]
+          );
+          if (ins[0]?.id) {
+            tavilyInserted++;
+            await enqueueJob(source.tenant_id, 'clipping_auto_score', { item_id: ins[0].id });
+          }
+        }
+
+        if (tavilyInserted > 0) {
+          // Tavily recuperou a fonte — marcar como OK com nota no last_error
+          await query(
+            `UPDATE clipping_sources cs
+             SET last_fetched_at=NOW(), status='OK', last_error='tavily_fallback', updated_at=NOW()
+             FROM job_queue jq
+             WHERE cs.id=$1 AND cs.tenant_id=$2 AND jq.id=$3 AND jq.tenant_id=$2 AND jq.status='processing'`,
+            [source.id, job.tenant_id, job.id]
+          );
+          return tavilyInserted;
+        }
+      } catch { /* Tavily também falhou — continuar para ERROR normal */ }
+    }
+
     await query(
       `UPDATE clipping_sources cs
        SET last_fetched_at=NOW(), status='ERROR', last_error=$4, updated_at=NOW()
