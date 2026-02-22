@@ -241,7 +241,7 @@ const buildSelectionId = (platform?: string, formatName?: string, productionType
   return raw.replace(/[^a-z0-9:]+/g, '-').replace(/-+/g, '-');
 };
 
-const RECOMMENDATION_TIMEOUT_MS = 15000;
+const RECOMMENDATION_TIMEOUT_MS = 30000;
 
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
