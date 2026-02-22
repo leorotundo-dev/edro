@@ -264,7 +264,7 @@ function MetricsDialog({
               { k: 'saves', label: 'Salvamentos' },
               { k: 'conversions', label: 'Conversões' },
             ].map(({ k, label }) => (
-              <Grid item xs={6} key={k}>
+              <Grid size={{ xs: 6 }} key={k}>
                 <TextField
                   label={label}
                   size="small"
@@ -278,13 +278,13 @@ function MetricsDialog({
           </Grid>
           <Divider />
           <Grid container spacing={1.5}>
-            <Grid item xs={4}>
+            <Grid size={{ xs: 4 }}>
               <TextField label="Receita (R$)" size="small" type="number" value={fields.revenue_brl} onChange={(e) => set('revenue_brl', e.target.value)} fullWidth InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={{ xs: 4 }}>
               <TextField label="Gasto (R$)" size="small" type="number" value={fields.spend_brl} onChange={(e) => set('spend_brl', e.target.value)} fullWidth InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={{ xs: 4 }}>
               <TextField label="ROAS" size="small" type="number" value={fields.roas} onChange={(e) => set('roas', e.target.value)} fullWidth />
             </Grid>
           </Grid>
@@ -471,7 +471,7 @@ function CampaignDetail({
 
                 {/* Predicted Scores */}
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>PREDIÇÕES</Typography>
                     <Stack spacing={0.75}>
                       <ScoreBar label="Score ML" value={fmt.predicted_ml_score} />
@@ -494,7 +494,7 @@ function CampaignDetail({
                     </Stack>
                   </Grid>
 
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>ESTIMATIVAS</Typography>
                     <Stack spacing={0.5}>
                       <Stack direction="row" justifyContent="space-between">
@@ -568,7 +568,7 @@ function CampaignDetail({
                   </Grid>
 
                   {/* Summary column */}
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
                       PERFORMANCE ACUMULADA
                     </Typography>
@@ -695,10 +695,10 @@ function CreateCampaignDialog({
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {/* Campaign fields */}
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField label="Nome da campanha *" size="small" fullWidth value={form.name} onChange={(e) => setF('name', e.target.value)} />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl size="small" fullWidth>
                 <InputLabel>Objetivo</InputLabel>
                 <Select label="Objetivo" value={form.objective} onChange={(e) => setF('objective', e.target.value)}>
@@ -706,7 +706,7 @@ function CreateCampaignDialog({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 label="Budget (R$)"
                 size="small"
@@ -717,13 +717,13 @@ function CreateCampaignDialog({
                 InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField label="Início *" size="small" type="date" fullWidth value={form.start_date} onChange={(e) => setF('start_date', e.target.value)} InputLabelProps={{ shrink: true }} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField label="Fim" size="small" type="date" fullWidth value={form.end_date} onChange={(e) => setF('end_date', e.target.value)} InputLabelProps={{ shrink: true }} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <FormControl size="small" fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select label="Status" value={form.status} onChange={(e) => setF('status', e.target.value)}>
@@ -744,7 +744,7 @@ function CreateCampaignDialog({
             <Stack spacing={1.5}>
               {formats.map((fmt, i) => (
                 <Grid container spacing={1.5} key={i} alignItems="center">
-                  <Grid item xs={12} md={5}>
+                  <Grid size={{ xs: 12, md: 5 }}>
                     <TextField
                       label="Nome do formato *"
                       size="small"
@@ -754,7 +754,7 @@ function CreateCampaignDialog({
                       onChange={(e) => setFormatField(i, 'format_name', e.target.value)}
                     />
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid size={{ xs: 6, md: 3 }}>
                     <FormControl size="small" fullWidth>
                       <InputLabel>Plataforma</InputLabel>
                       <Select label="Plataforma" value={fmt.platform} onChange={(e) => setFormatField(i, 'platform', e.target.value)}>
@@ -762,7 +762,7 @@ function CreateCampaignDialog({
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={5} md={3}>
+                  <Grid size={{ xs: 5, md: 3 }}>
                     <TextField
                       label="Tipo de produção"
                       size="small"
@@ -772,7 +772,7 @@ function CreateCampaignDialog({
                       onChange={(e) => setFormatField(i, 'production_type', e.target.value)}
                     />
                   </Grid>
-                  <Grid item xs={1}>
+                  <Grid size={{ xs: 1 }}>
                     {formats.length > 1 && (
                       <IconButton size="small" onClick={() => removeFormat(i)} color="error">
                         <IconTrash size={15} />
@@ -862,7 +862,7 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
             { label: 'Concluídas', value: stats.completed, icon: <IconCheck size={18} />, color: '#2563eb' },
             { label: 'Budget total', value: fmtBrl(stats.budget), icon: <IconCoin size={18} />, color: '#d97706' },
           ].map(({ label, value, icon, color }) => (
-            <Grid item xs={6} md={3} key={label}>
+            <Grid size={{ xs: 6, md: 3 }} key={label}>
               <Card variant="outlined" sx={{ borderRadius: 3 }}>
                 <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Stack direction="row" alignItems="center" spacing={1.25}>
@@ -882,7 +882,7 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
       {/* Main layout: list + detail */}
       <Grid container spacing={2}>
         {/* Left: campaign list */}
-        <Grid item xs={12} md={selected ? 4 : 12}>
+        <Grid size={{ xs: 12 }} md={selected ? 4 : 12}>
           {/* Filter */}
           <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap">
             {['all', ...STATUSES].map((s) => (
@@ -968,7 +968,7 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
 
         {/* Right: campaign detail */}
         {selected && (
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Box sx={{ position: 'sticky', top: 16 }}>
               <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
                 <Typography variant="subtitle2" color="text.secondary">Detalhes da campanha</Typography>
