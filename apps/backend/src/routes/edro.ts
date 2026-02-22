@@ -72,6 +72,7 @@ import { buildPredictiveInsights, predictEngagement } from '../services/predicti
 import { buildIndustryBenchmarks, getIndustryBenchmarks, compareClientToIndustry } from '../services/benchmarkService';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
+import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -1550,6 +1551,47 @@ export default async function edroRoutes(app: FastifyInstance) {
       }
     }
 
+    // ── Cognitive Load Analysis + Self-Correction Loop ───────────────────────
+    let cognitiveLoad: ReturnType<typeof analyzeCognitiveLoad> | null = null;
+    try {
+      const rawText = extractText(output);
+      if (rawText && rawText.length > 30) {
+        cognitiveLoad = analyzeCognitiveLoad(rawText, selectedPlatform);
+
+        if (!cognitiveLoad.passed && cognitiveLoad.status === 'too_high') {
+          const correctionPrompt = buildCorrectionPrompt(cognitiveLoad);
+          if (correctionPrompt) {
+            const correctionInstruction = `${correctionPrompt}\n\n${rawText}`;
+            try {
+              const { generateCopy: gcSimple } = await import('../services/ai/copyOrchestrator');
+              const corrected = await gcSimple({
+                provider: body.force_provider || 'openai',
+                model: 'gpt-4o-mini',
+                prompt: correctionInstruction,
+                count: 1,
+                temperature: 0.3,
+                usageContext: { tenant_id: tenantId || 'system', feature: 'cognitive_load_correction' },
+              });
+              if (corrected?.output) {
+                output = corrected.output;
+                // Re-analyse after correction
+                const correctedText = extractText(corrected.output);
+                if (correctedText.length > 30) {
+                  cognitiveLoad = analyzeCognitiveLoad(correctedText, selectedPlatform);
+                }
+                request.log?.info({ lc_before: cognitiveLoad?.lc, lc_after: cognitiveLoad?.lc }, 'cognitive_load_corrected');
+              }
+            } catch {
+              /* correction is best-effort — never blocks delivery */
+            }
+          }
+        }
+      }
+    } catch {
+      /* analysis is non-blocking */
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const basePayload =
       payload && typeof payload === 'object' && !Array.isArray(payload)
         ? payload
@@ -1562,6 +1604,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     } as Record<string, any>;
     if (reporteiContext?.summary) {
       edroPayload.reportei = reporteiContext.summary;
+    }
+    if (cognitiveLoad) {
+      edroPayload.cognitive_load = cognitiveLoad;
     }
     const hasEdroPayload = Object.keys(edroPayload).length > 0;
     const hasBasePayload = Object.keys(basePayload).length > 0;
@@ -2885,6 +2930,19 @@ export default async function edroRoutes(app: FastifyInstance) {
   });
 
   // ── Web Search Endpoints (powered by Tavily) ──────────────────────
+
+  // ── Cognitive Load Analysis endpoint ──────────────────────────────────────
+  app.post('/edro/cognitive-load', async (request, reply) => {
+    const body = z
+      .object({
+        text: z.string().min(10).max(10000),
+        platform: z.string().optional(),
+      })
+      .parse(request.body);
+
+    const analysis = analyzeCognitiveLoad(body.text, body.platform ?? null);
+    return reply.send({ success: true, data: analysis });
+  });
 
   app.get('/edro/perplexity/status', async (_request, reply) => {
     return reply.send({
