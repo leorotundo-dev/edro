@@ -706,7 +706,7 @@ function CreateCampaignDialog({
 
   const handleUseFormat = (fmt: RecoFormat) => {
     const key = `${fmt.format_name}::${fmt.platform}`;
-    setUsedRecos((prev) => new Set([...prev, key]));
+    setUsedRecos((prev) => { const next = new Set(prev); next.add(key); return next; });
     setFormats((prev) => {
       const clean = prev.filter((f) => f.format_name.trim());
       return [...clean, { format_name: fmt.format_name, platform: fmt.platform, production_type: fmt.production_type }];
