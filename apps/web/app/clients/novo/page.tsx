@@ -107,6 +107,7 @@ export default function NewClientWizardPage() {
   const [createdId, setCreatedId] = useState('');
   const [researching, setResearching] = useState(false);
   const [researchDone, setResearchDone] = useState(false);
+  const [researchFieldsFound, setResearchFieldsFound] = useState(0);
 
   const set = (field: keyof WizardData, value: any) => setData((prev) => ({ ...prev, [field]: value }));
 
@@ -121,20 +122,27 @@ export default function NewClientWizardPage() {
       );
       if (res.ok && res.data) {
         const d = res.data;
-        setData((prev) => ({
-          ...prev,
-          segment_primary: d.segment_primary || prev.segment_primary,
-          city: d.city || prev.city,
-          uf: d.uf || prev.uf,
-          website: d.website || prev.website,
-          keywords: d.keywords?.length ? d.keywords : prev.keywords,
-          audience: d.audience || prev.audience,
-          brand_promise: d.brand_promise || prev.brand_promise,
-          instagram: d.instagram || prev.instagram,
-          linkedin: d.linkedin || prev.linkedin,
-          facebook: d.facebook || prev.facebook,
-        }));
-        setResearchDone(true);
+        let filled = 0;
+        setData((prev) => {
+          const next = { ...prev };
+          if (d.segment_primary) { next.segment_primary = d.segment_primary; filled++; }
+          if (d.city) { next.city = d.city; filled++; }
+          if (d.uf) { next.uf = d.uf; filled++; }
+          if (d.website) { next.website = d.website; filled++; }
+          if (d.keywords?.length) { next.keywords = d.keywords; filled++; }
+          if (d.audience) { next.audience = d.audience; filled++; }
+          if (d.brand_promise) { next.brand_promise = d.brand_promise; filled++; }
+          if (d.instagram) { next.instagram = d.instagram; filled++; }
+          if (d.linkedin) { next.linkedin = d.linkedin; filled++; }
+          if (d.facebook) { next.facebook = d.facebook; filled++; }
+          return next;
+        });
+        setResearchFieldsFound(filled);
+        if (filled === 0) {
+          setError('Não encontramos informações sobre este cliente na internet. Preencha manualmente.');
+        } else {
+          setResearchDone(true);
+        }
       }
     } catch {
       setError('Não foi possível buscar informações. Preencha manualmente.');
@@ -317,7 +325,7 @@ export default function NewClientWizardPage() {
                     {researchDone && (
                       <Chip
                         size="small"
-                        label="Campos preenchidos automaticamente"
+                        label={`${researchFieldsFound} campo${researchFieldsFound !== 1 ? 's' : ''} preenchido${researchFieldsFound !== 1 ? 's' : ''} automaticamente`}
                         icon={<IconCheck size={13} />}
                         sx={{ bgcolor: 'rgba(19,222,185,0.12)', color: '#0fc9a8', fontWeight: 600 }}
                       />

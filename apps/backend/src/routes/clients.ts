@@ -1101,28 +1101,28 @@ Responda SOMENTE com JSON válido (array com exatamente 3 personas):
       }
 
       const t0 = Date.now();
-      const [res1, res2] = await Promise.allSettled([
-        tavilySearch(`"${name}" empresa site segmento mercado Brasil`, { maxResults: 4, searchDepth: 'basic' }),
-        tavilySearch(`"${name}" instagram linkedin facebook redes sociais`, { maxResults: 3, searchDepth: 'basic' }),
+      const [res1, res2, res3] = await Promise.allSettled([
+        tavilySearch(`${name} empresa sobre segmento mercado atuação Brasil`, { maxResults: 5, searchDepth: 'advanced' }),
+        tavilySearch(`${name} instagram linkedin facebook site oficial contato`, { maxResults: 4, searchDepth: 'basic' }),
+        tavilySearch(`${name} who company about segment industry`, { maxResults: 3, searchDepth: 'basic' }),
       ]);
       logTavilyUsage({
         tenant_id: tenantId,
-        operation: 'search-basic',
-        unit_count: 2,
+        operation: 'search-advanced',
+        unit_count: 3,
         feature: 'prospect_research',
         duration_ms: Date.now() - t0,
         metadata: { name },
       });
 
+      const seen = new Set<string>();
       const snippets: string[] = [];
-      if (res1.status === 'fulfilled') {
-        for (const r of res1.value.results.slice(0, 4)) {
-          if (r.snippet) snippets.push(`${r.title}\n${r.snippet}\nURL: ${r.url}`);
-        }
-      }
-      if (res2.status === 'fulfilled') {
-        for (const r of res2.value.results.slice(0, 3)) {
-          if (r.snippet) snippets.push(`${r.title}\n${r.snippet}\nURL: ${r.url}`);
+      for (const res of [res1, res2, res3]) {
+        if (res.status !== 'fulfilled') continue;
+        for (const r of res.value.results.slice(0, 4)) {
+          if (!r.snippet || seen.has(r.url)) continue;
+          seen.add(r.url);
+          snippets.push(`${r.title}\n${r.snippet}\nURL: ${r.url}`);
         }
       }
 
