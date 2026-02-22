@@ -141,7 +141,7 @@ export default function ClientsListClient() {
             Gestão do portfólio ativo e operação editorial.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/new')}>
+        <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/novo')}>
           Novo cliente
         </Button>
       </Stack>
@@ -186,7 +186,7 @@ export default function ClientsListClient() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Comece criando o primeiro cliente da sua operação.
             </Typography>
-            <Button variant="contained" startIcon={<IconBriefcase size={16} />} onClick={() => router.push('/clients/new')}>
+            <Button variant="contained" startIcon={<IconBriefcase size={16} />} onClick={() => router.push('/clients/novo')}>
               Criar cliente
             </Button>
           </CardContent>

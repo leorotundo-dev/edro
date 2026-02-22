@@ -21,11 +21,12 @@ import Radio from '@mui/material/Radio';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import RadioGroup from '@mui/material/RadioGroup';
 import {
-  IconBuilding, IconTag, IconBulb, IconBrandInstagram,
+  IconBuilding, IconTag, IconBrandInstagram,
   IconCheck, IconArrowRight, IconArrowLeft, IconSparkles,
-  IconRocket, IconPalette, IconSettings2,
+  IconRocket, IconPalette, IconSettings2, IconWorldSearch,
 } from '@tabler/icons-react';
-import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { apiPost } from '@/lib/api';
+import AppShell from '@/components/AppShell';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -103,8 +104,43 @@ export default function NewClientWizardPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [createdId, setCreatedId] = useState('');
+  const [researching, setResearching] = useState(false);
+  const [researchDone, setResearchDone] = useState(false);
 
   const set = (field: keyof WizardData, value: any) => setData((prev) => ({ ...prev, [field]: value }));
+
+  const handleResearch = async () => {
+    if (!data.name.trim()) { setError('Informe o nome do cliente antes de pesquisar.'); return; }
+    setResearching(true);
+    setError('');
+    try {
+      const res = await apiPost<{ ok: boolean; data: Partial<WizardData> & { audience?: string; brand_promise?: string } }>(
+        '/clients/prospect-research',
+        { name: data.name.trim() }
+      );
+      if (res.ok && res.data) {
+        const d = res.data;
+        setData((prev) => ({
+          ...prev,
+          segment_primary: d.segment_primary || prev.segment_primary,
+          city: d.city || prev.city,
+          uf: d.uf || prev.uf,
+          website: d.website || prev.website,
+          keywords: d.keywords?.length ? d.keywords : prev.keywords,
+          audience: d.audience || prev.audience,
+          brand_promise: d.brand_promise || prev.brand_promise,
+          instagram: d.instagram || prev.instagram,
+          linkedin: d.linkedin || prev.linkedin,
+          facebook: d.facebook || prev.facebook,
+        }));
+        setResearchDone(true);
+      }
+    } catch {
+      setError('Não foi possível buscar informações. Preencha manualmente.');
+    } finally {
+      setResearching(false);
+    }
+  };
 
   const togglePillar = (p: string) => {
     set('content_pillars', data.content_pillars.includes(p)
@@ -191,6 +227,7 @@ export default function NewClientWizardPage() {
   // Done screen
   if (step === STEPS.length) {
     return (
+      <AppShell title="Novo Cliente">
       <Box sx={{ maxWidth: 600, mx: 'auto', textAlign: 'center', py: 6 }}>
         <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: '#13DEB920', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3 }}>
           <IconCheck size={40} color="#13DEB9" />
@@ -213,11 +250,13 @@ export default function NewClientWizardPage() {
           </Button>
         </Stack>
       </Box>
+      </AppShell>
     );
   }
 
   return (
-    <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+    <AppShell title="Novo Cliente">
+    <Box sx={{ maxWidth: 720, mx: 'auto', px: { xs: 2, sm: 4 }, py: 3 }}>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" fontWeight={700}>Novo Cliente</Typography>
         <Typography variant="body2" color="text.secondary">Configure um novo cliente em 5 passos.</Typography>
@@ -257,12 +296,35 @@ export default function NewClientWizardPage() {
                 <Typography variant="h6" fontWeight={700}>Identidade do Cliente</Typography>
               </Stack>
               <Stack spacing={3}>
-                <TextField
-                  label="Nome do cliente *" fullWidth
-                  value={data.name} onChange={(e) => set('name', e.target.value)}
-                  placeholder="Ex: CS Portos, Clínica Silva..."
-                  autoFocus
-                />
+                <Box>
+                  <TextField
+                    label="Nome do cliente *" fullWidth
+                    value={data.name} onChange={(e) => { set('name', e.target.value); setResearchDone(false); }}
+                    placeholder="Ex: CS Portos, Clínica Silva..."
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter' && data.name.trim()) handleResearch(); }}
+                  />
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.5 }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={researching ? <CircularProgress size={14} /> : <IconWorldSearch size={16} />}
+                      onClick={handleResearch}
+                      disabled={researching || !data.name.trim()}
+                      sx={{ borderColor: '#ff6600', color: '#ff6600', '&:hover': { borderColor: '#e65c00', bgcolor: 'rgba(255,102,0,0.05)' } }}
+                    >
+                      {researching ? 'Pesquisando...' : 'Pesquisar na internet'}
+                    </Button>
+                    {researchDone && (
+                      <Chip
+                        size="small"
+                        label="Campos preenchidos automaticamente"
+                        icon={<IconCheck size={13} />}
+                        sx={{ bgcolor: 'rgba(19,222,185,0.12)', color: '#0fc9a8', fontWeight: 600 }}
+                      />
+                    )}
+                  </Stack>
+                </Box>
                 <Box>
                   <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>Segmento *</Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1}>
@@ -516,6 +578,7 @@ export default function NewClientWizardPage() {
         )}
       </Stack>
     </Box>
+    </AppShell>
   );
 }
 

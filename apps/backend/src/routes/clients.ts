@@ -976,6 +976,87 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Prospect Research — busca web para pré-preencher cadastro de cliente ──────
+
+  app.post(
+    '/clients/prospect-research',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const { name } = z.object({ name: z.string().min(2).max(200) }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      if (!isTavilyConfigured()) {
+        return reply.code(503).send({ ok: false, error: 'tavily_not_configured' });
+      }
+
+      const t0 = Date.now();
+      const [res1, res2] = await Promise.allSettled([
+        tavilySearch(`"${name}" empresa site segmento mercado Brasil`, { maxResults: 4, searchDepth: 'basic' }),
+        tavilySearch(`"${name}" instagram linkedin facebook redes sociais`, { maxResults: 3, searchDepth: 'basic' }),
+      ]);
+      logTavilyUsage({
+        tenant_id: tenantId,
+        operation: 'search-basic',
+        unit_count: 2,
+        feature: 'prospect_research',
+        duration_ms: Date.now() - t0,
+        metadata: { name },
+      });
+
+      const snippets: string[] = [];
+      if (res1.status === 'fulfilled') {
+        for (const r of res1.value.results.slice(0, 4)) {
+          if (r.snippet) snippets.push(`${r.title}\n${r.snippet}\nURL: ${r.url}`);
+        }
+      }
+      if (res2.status === 'fulfilled') {
+        for (const r of res2.value.results.slice(0, 3)) {
+          if (r.snippet) snippets.push(`${r.title}\n${r.snippet}\nURL: ${r.url}`);
+        }
+      }
+
+      if (snippets.length === 0) {
+        return reply.send({ ok: true, data: {} });
+      }
+
+      const systemPrompt = `Você é um especialista em pesquisa de mercado. Extraia informações estruturadas sobre empresas a partir de resultados de busca.`;
+      const prompt = `Baseado nos resultados de busca sobre a empresa "${name}", extraia as informações no formato JSON abaixo.
+
+${snippets.join('\n\n---\n\n')}
+
+Responda SOMENTE com JSON válido (sem markdown, sem explicações):
+{
+  "segment_primary": "segmento principal (ex: Saúde, Tecnologia, Varejo, Alimentação, Moda & Beleza, Jurídico, Imobiliário, Educação, Financeiro, Serviços...)",
+  "city": "cidade sede da empresa",
+  "uf": "sigla do estado com 2 letras maiúsculas",
+  "website": "URL do site oficial sem https://",
+  "keywords": ["palavra-chave1", "palavra-chave2", "palavra-chave3"],
+  "audience": "descrição do público-alvo da empresa",
+  "brand_promise": "proposta de valor, missão ou slogan da empresa",
+  "instagram": "handle @usuario ou URL do Instagram",
+  "linkedin": "URL do LinkedIn da empresa",
+  "facebook": "URL da página do Facebook"
+}
+Omita campos que não encontrou informação confiável.`;
+
+      try {
+        const raw = await OpenAIService.generateCompletion({
+          prompt,
+          systemPrompt,
+          temperature: 0.1,
+          maxTokens: 600,
+        });
+        const text = (raw?.text || '').trim();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return reply.send({ ok: true, data: {} });
+        const data = JSON.parse(jsonMatch[0]);
+        return reply.send({ ok: true, data });
+      } catch {
+        return reply.send({ ok: true, data: {} });
+      }
+    }
+  );
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   app.patch(
