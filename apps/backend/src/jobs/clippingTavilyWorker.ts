@@ -60,7 +60,7 @@ async function runSupplementForTenant(tenantId: string) {
     `SELECT id, segment_primary,
             (profile->>'keywords')::jsonb AS keywords
      FROM clients
-     WHERE tenant_id=$1 AND is_active=true
+     WHERE tenant_id=$1 AND status='active'
      LIMIT 20`,
     [tenantId]
   );

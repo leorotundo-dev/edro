@@ -22,5 +22,4 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_client_date
   ON calendar_events (client_id, event_date);
 
 CREATE INDEX IF NOT EXISTS idx_calendar_events_upcoming
-  ON calendar_events (client_id, event_date)
-  WHERE event_date >= CURRENT_DATE;
+  ON calendar_events (client_id, event_date);
