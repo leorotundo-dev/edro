@@ -943,14 +943,15 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
       const tenantId = (request.user as any).tenant_id;
 
-      const { rows } = await query<{ name: string; segment_primary: string; city: string; uf: string; keywords: string[]; profile: any }>(
-        `SELECT name, segment_primary, city, uf, keywords, profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+      const { rows } = await query<{ name: string; segment_primary: string; city: string; uf: string; profile: any }>(
+        `SELECT name, segment_primary, city, uf, profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
         [tenantId, id]
       );
       if (!rows.length) return reply.status(404).send({ error: 'client_not_found' });
 
       const client = rows[0];
       const kb = client.profile?.knowledge_base || {};
+      const profileKeywords: string[] = Array.isArray(client.profile?.keywords) ? client.profile.keywords : [];
       const parts: string[] = [
         `Cliente: ${client.name}`,
         `Segmento: ${client.segment_primary || 'não informado'}`,
@@ -959,7 +960,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
         kb.audience ? `Público-alvo: ${kb.audience}` : '',
         kb.brand_promise ? `Promessa da marca: ${kb.brand_promise}` : '',
         kb.differentiators ? `Diferenciais: ${kb.differentiators}` : '',
-        client.keywords?.length ? `Keywords: ${client.keywords.join(', ')}` : '',
+        profileKeywords.length ? `Keywords: ${profileKeywords.join(', ')}` : '',
       ].filter(Boolean);
 
       const systemPrompt = `Você é um especialista em marketing e construção de personas de público-alvo. Crie personas detalhadas e realistas baseadas no perfil do cliente fornecido.`;

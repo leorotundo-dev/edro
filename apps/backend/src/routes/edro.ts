@@ -3167,8 +3167,15 @@ export default async function edroRoutes(app: FastifyInstance) {
     const { testId } = z.object({ testId: z.string().uuid() }).parse(request.params);
     const tenantId = (request.user as any)?.tenant_id;
 
-    const test = await declareWinner({ test_id: testId, tenant_id: tenantId });
-    return reply.send({ success: true, data: test });
+    try {
+      const test = await declareWinner({ test_id: testId, tenant_id: tenantId });
+      return reply.send({ success: true, data: test });
+    } catch (err: any) {
+      if (err?.message === 'Need results for both variants') {
+        return reply.status(400).send({ error: 'insufficient_data', message: 'Ambas as variantes precisam ter resultados antes de declarar o vencedor.' });
+      }
+      throw err;
+    }
   });
 
   app.delete('/edro/ab-tests/:testId', async (request, reply) => {

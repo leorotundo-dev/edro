@@ -1756,32 +1756,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
     }
   );
 
-  // GET /calendar/admin/inspiration-status
-  app.get(
-    '/calendar/admin/inspiration-status',
-    { preHandler: [authGuard, tenantGuard, requirePerm('admin')] },
-    async (_request: any, reply) => {
-      const { rows: summary } = await query<{
-        eligible_events: string;
-        scraped_events: string;
-        total_inspirations: string;
-      }>(
-        `SELECT
-           (SELECT COUNT(*) FROM events WHERE base_relevance >= 80 AND date IS NOT NULL) AS eligible_events,
-           (SELECT COUNT(DISTINCT event_id) FROM event_inspirations) AS scraped_events,
-           (SELECT COUNT(*) FROM event_inspirations) AS total_inspirations`
-      );
-
-      const row = summary[0] ?? { eligible_events: '0', scraped_events: '0', total_inspirations: '0' };
-      return reply.send({
-        eligible_events: Number(row.eligible_events),
-        scraped_events: Number(row.scraped_events),
-        total_inspirations: Number(row.total_inspirations),
-        window: '7–42 days from today',
-        min_relevance: 80,
-      });
-    }
-  );
+  // (inspiration-status defined earlier at line ~1633)
 
   // POST /calendar/admin/inspiration-batch
   app.post(
