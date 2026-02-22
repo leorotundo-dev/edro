@@ -311,6 +311,37 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [manualRelevanceClientId, setManualRelevanceClientId] = useState('');
   const [saveRelevanceLoading, setSaveRelevanceLoading] = useState(false);
 
+  // ── Creative Inspirations ──────────────────────────────────────────────────
+  type Inspiration = { id: string; title: string; snippet: string | null; url: string; source_lang: string };
+  const [inspirations, setInspirations] = useState<Inspiration[]>([]);
+  const [inspirationsLoading, setInspirationsLoading] = useState(false);
+  const [adaptingId, setAdaptingId] = useState<string | null>(null);
+  const [adaptResult, setAdaptResult] = useState<{ inspirationId: string; text: string } | null>(null);
+
+  const loadInspirations = useCallback(async (eventId: string) => {
+    setInspirationsLoading(true);
+    setInspirations([]);
+    setAdaptResult(null);
+    try {
+      const res = await apiGet(`/calendar/events/${eventId}/inspirations`);
+      setInspirations(res?.inspirations ?? []);
+    } catch { /* non-blocking */ }
+    finally { setInspirationsLoading(false); }
+  }, []);
+
+  const handleAdaptInspiration = useCallback(async (inspirationId: string) => {
+    if (!selectedEvent || !selectedClient) return;
+    setAdaptingId(inspirationId);
+    try {
+      const res = await apiPost(`/calendar/events/${selectedEvent.id}/inspirations/${inspirationId}/adapt`, {
+        clientId: selectedClient.id,
+      });
+      setAdaptResult({ inspirationId, text: res?.adapted_ideas ?? '' });
+    } catch { /* show nothing */ }
+    finally { setAdaptingId(null); }
+  }, [selectedEvent, selectedClient]);
+  // ──────────────────────────────────────────────────────────────────────────
+
   const isLocked = Boolean(lockClient && initialClientId);
 
   const loadClients = useCallback(async () => {
@@ -471,6 +502,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     }
     loadEventRelevance(selectedEvent.id);
   }, [selectedEvent?.id, loadEventRelevance, selectedClient]);
+
+  // Load creative inspirations for high-relevance events
+  useEffect(() => {
+    if (!selectedEvent?.id) { setInspirations([]); return; }
+    if ((selectedEvent.base_relevance ?? 0) >= 80) {
+      loadInspirations(selectedEvent.id);
+    } else {
+      setInspirations([]);
+    }
+  }, [selectedEvent?.id, loadInspirations]);
 
   useEffect(() => {
     if (!activeDateISO.startsWith(monthFilter)) {
@@ -1335,6 +1376,107 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                           ) : null}
                         </Box>
                       ) : null}
+                      {/* ── Creative Inspirations Panel ───────────────── */}
+                      {(selectedEvent.base_relevance ?? 0) >= 80 && (
+                        <Box>
+                          <Typography variant="overline" color="text.secondary">
+                            Inspirações Criativas
+                          </Typography>
+                          {inspirationsLoading && (
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                              <CircularProgress size={14} />
+                              <Typography variant="caption" color="text.secondary">Buscando referências...</Typography>
+                            </Stack>
+                          )}
+                          {!inspirationsLoading && inspirations.length === 0 && (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                              Ainda coletando inspirações para esta data...
+                            </Typography>
+                          )}
+                          {!inspirationsLoading && inspirations.length > 0 && (
+                            <Stack spacing={1} sx={{ mt: 1 }}>
+                              {inspirations.slice(0, 6).map((ins) => (
+                                <Box
+                                  key={ins.id}
+                                  sx={{
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 2,
+                                    p: 1.25,
+                                    bgcolor: 'background.paper',
+                                  }}
+                                >
+                                  <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography
+                                        variant="caption"
+                                        sx={{ fontWeight: 600, display: 'block', lineHeight: 1.3 }}
+                                        noWrap
+                                      >
+                                        {ins.title}
+                                      </Typography>
+                                      {ins.snippet && (
+                                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                          {ins.snippet.slice(0, 150)}{ins.snippet.length > 150 ? '…' : ''}
+                                        </Typography>
+                                      )}
+                                      <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center">
+                                        <Chip
+                                          label={ins.source_lang === 'en' ? 'EN' : 'PT'}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ height: 18, fontSize: '0.65rem' }}
+                                        />
+                                        <Typography
+                                          component="a"
+                                          href={ins.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          variant="caption"
+                                          color="primary"
+                                          sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                                        >
+                                          Ver fonte
+                                        </Typography>
+                                      </Stack>
+                                    </Box>
+                                    {selectedClient && (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ minWidth: 'unset', px: 1, py: 0.5, fontSize: '0.7rem', flexShrink: 0 }}
+                                        disabled={adaptingId === ins.id}
+                                        onClick={() => handleAdaptInspiration(ins.id)}
+                                      >
+                                        {adaptingId === ins.id ? <CircularProgress size={12} /> : 'Adaptar'}
+                                      </Button>
+                                    )}
+                                  </Stack>
+                                  {/* Adaptation result */}
+                                  {adaptResult?.inspirationId === ins.id && (
+                                    <Box
+                                      sx={{
+                                        mt: 1,
+                                        p: 1,
+                                        bgcolor: 'action.hover',
+                                        borderRadius: 1,
+                                        borderLeft: '3px solid',
+                                        borderColor: 'primary.main',
+                                      }}
+                                    >
+                                      <Typography variant="caption" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                                        {adaptResult.text}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </Box>
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      )}
+                      {/* ─────────────────────────────────────────────── */}
+
                       {selectedEvent.categories?.length ? (
                         <Box>
                           <Typography variant="overline" color="text.secondary">Categories</Typography>

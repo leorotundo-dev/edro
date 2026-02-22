@@ -18,6 +18,8 @@ import { upsertRelevance } from '../repos/calendarRelevanceRepo';
 import { query } from '../db';
 import { generateEventDescription } from '../services/calendarDescriptionService';
 import { enrichCalendarEvent } from '../jobs/calendarEnrichmentWorker';
+import { scrapeInspirations } from '../jobs/calendarInspirationWorker';
+import { generateCompletion } from '../services/ai/openaiService';
 import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
 import { matchesWordBoundary } from '../clipping/scoring';
 
@@ -1679,6 +1681,205 @@ export default async function calendarRoutes(app: FastifyInstance) {
         errors,
         items,
         message: `${processed} eventos enriquecidos, ${errors} erros`,
+      });
+    }
+  );
+
+  // ── Calendar Inspiration endpoints ─────────────────────────────────────────
+
+  // GET /calendar/events/:eventId/inspirations
+  app.get(
+    '/calendar/events/:eventId/inspirations',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request: any, reply) => {
+      const { eventId } = z.object({ eventId: z.string().min(1) }).parse(request.params);
+
+      const { rows } = await query<{
+        id: string;
+        title: string;
+        snippet: string | null;
+        url: string;
+        source_lang: string;
+        scraped_at: string;
+      }>(
+        `SELECT id, title, snippet, url, source_lang, scraped_at
+         FROM event_inspirations
+         WHERE event_id = $1
+         ORDER BY scraped_at DESC
+         LIMIT 20`,
+        [eventId]
+      );
+
+      return reply.send({ inspirations: rows, total: rows.length });
+    }
+  );
+
+  // GET /calendar/admin/inspiration-status
+  app.get(
+    '/calendar/admin/inspiration-status',
+    { preHandler: [authGuard, tenantGuard, requirePerm('admin')] },
+    async (_request: any, reply) => {
+      const { rows: summary } = await query<{
+        eligible_events: string;
+        scraped_events: string;
+        total_inspirations: string;
+      }>(
+        `SELECT
+           (SELECT COUNT(*) FROM events WHERE base_relevance >= 80 AND date IS NOT NULL) AS eligible_events,
+           (SELECT COUNT(DISTINCT event_id) FROM event_inspirations) AS scraped_events,
+           (SELECT COUNT(*) FROM event_inspirations) AS total_inspirations`
+      );
+
+      const row = summary[0] ?? { eligible_events: '0', scraped_events: '0', total_inspirations: '0' };
+      return reply.send({
+        eligible_events: Number(row.eligible_events),
+        scraped_events: Number(row.scraped_events),
+        total_inspirations: Number(row.total_inspirations),
+        window: '7–42 days from today',
+        min_relevance: 80,
+      });
+    }
+  );
+
+  // POST /calendar/admin/inspiration-batch
+  app.post(
+    '/calendar/admin/inspiration-batch',
+    { preHandler: [authGuard, tenantGuard, requirePerm('admin')] },
+    async (request: any, reply) => {
+      const body = z.object({ limit: z.number().int().min(1).max(10).optional().default(5) }).parse(
+        request.body || {}
+      );
+
+      const dateMin = new Date();
+      dateMin.setDate(dateMin.getDate() + 7);
+      const dateMax = new Date();
+      dateMax.setDate(dateMax.getDate() + 42);
+
+      const { rows: events } = await query<{ id: string; name: string; date: string }>(
+        `SELECT e.id, e.name, e.date
+         FROM events e
+         LEFT JOIN (
+           SELECT event_id, COUNT(*) AS cnt FROM event_inspirations GROUP BY event_id
+         ) i ON i.event_id = e.id
+         WHERE e.base_relevance >= 80
+           AND e.date IS NOT NULL
+           AND e.date >= $1
+           AND e.date <= $2
+           AND COALESCE(i.cnt, 0) < 8
+         ORDER BY e.base_relevance DESC, e.date ASC
+         LIMIT $3`,
+        [dateMin.toISOString().slice(0, 10), dateMax.toISOString().slice(0, 10), body.limit]
+      );
+
+      if (events.length === 0) {
+        return reply.send({ processed: 0, events: [], message: 'Nenhum evento pendente na janela de 7–42 dias' });
+      }
+
+      const results = [];
+      for (const event of events) {
+        const r = await scrapeInspirations(event);
+        results.push({ name: event.name, date: event.date, inspirations_added: r.inspirations_added, ok: r.ok });
+      }
+
+      return reply.send({
+        processed: results.length,
+        events: results,
+        message: `${results.length} eventos processados`,
+      });
+    }
+  );
+
+  // POST /calendar/events/:eventId/inspirations/:inspirationId/adapt
+  // Adapts a collected inspiration to a specific client's voice, segment and strategy.
+  app.post(
+    '/calendar/events/:eventId/inspirations/:inspirationId/adapt',
+    { preHandler: [authGuard, tenantGuard] },
+    async (request: any, reply) => {
+      const { eventId, inspirationId } = z
+        .object({ eventId: z.string().min(1), inspirationId: z.string().uuid() })
+        .parse(request.params);
+
+      const body = z
+        .object({
+          clientId: z.string().min(1),
+          extra_context: z.string().max(500).optional(),
+        })
+        .parse(request.body || {});
+
+      const tenantId = request.user.tenant_id;
+
+      // Fetch the inspiration
+      const { rows: insRows } = await query<{
+        title: string;
+        snippet: string | null;
+        url: string;
+      }>(
+        `SELECT title, snippet, url FROM event_inspirations WHERE id = $1 AND event_id = $2`,
+        [inspirationId, eventId]
+      );
+      if (insRows.length === 0) {
+        return reply.status(404).send({ error: 'inspiration_not_found' });
+      }
+      const inspiration = insRows[0];
+
+      // Fetch event name
+      const { rows: evRows } = await query<{ name: string; date: string }>(
+        `SELECT name, date FROM events WHERE id = $1`,
+        [eventId]
+      );
+      const eventName = evRows[0]?.name ?? eventId;
+      const eventDate = evRows[0]?.date ?? '';
+
+      // Fetch client profile
+      const { rows: clientRows } = await query<{
+        name: string;
+        segment_primary: string | null;
+        profile: any;
+      }>(
+        `SELECT name, segment_primary, profile FROM clients WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [body.clientId, tenantId]
+      );
+      if (clientRows.length === 0) {
+        return reply.status(404).send({ error: 'client_not_found' });
+      }
+      const client = clientRows[0];
+      const segment = client.segment_primary || '';
+      const voice = client.profile?.voz_marca || client.profile?.voice || '';
+      const audience = client.profile?.publico_alvo || client.profile?.audience || '';
+
+      const prompt = `Você é um especialista em marketing de conteúdo.
+
+DATA COMEMORATIVA: ${eventName}${eventDate ? ` (${eventDate})` : ''}
+CLIENTE: ${client.name}${segment ? ` | Segmento: ${segment}` : ''}${voice ? ` | Voz da marca: ${voice}` : ''}${audience ? ` | Público: ${audience}` : ''}
+${body.extra_context ? `CONTEXTO ADICIONAL: ${body.extra_context}` : ''}
+
+INSPIRAÇÃO ORIGINAL (de referência global):
+Título: ${inspiration.title}
+${inspiration.snippet ? `Descrição: ${inspiration.snippet}` : ''}
+Fonte: ${inspiration.url}
+
+TAREFA: Adapte o conceito criativo desta inspiração para o contexto específico do cliente acima.
+Gere 3 ideias de conteúdo adaptadas — cada uma com:
+- Formato (post, stories, reel, carrossel, etc.)
+- Conceito central em 1 frase
+- Copy de exemplo (2-3 linhas)
+- CTA sugerido
+
+Responda em português. Seja específico, concreto e adequado ao segmento do cliente.`;
+
+      const adapted = await generateCompletion({
+        prompt,
+        maxTokens: 700,
+        temperature: 0.7,
+      });
+
+      return reply.send({
+        ok: true,
+        client_name: client.name,
+        event_name: eventName,
+        inspiration: { title: inspiration.title, url: inspiration.url },
+        adapted_ideas: adapted?.text?.trim() ?? '',
+        generated_at: new Date().toISOString(),
       });
     }
   );

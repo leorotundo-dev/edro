@@ -9,6 +9,7 @@ import { runWebIntelligenceWorkerOnce } from './webIntelligenceWorker';
 import { runTrendRadarWorkerOnce } from './trendRadarWorker';
 import { runCalendarEnrichmentWorkerOnce } from './calendarEnrichmentWorker';
 import { runClippingTavilyWorkerOnce } from './clippingTavilyWorker';
+import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -63,4 +64,6 @@ export function startJobsRunner() {
   startWorkerLoop('calendarEnrichment', runCalendarEnrichmentWorkerOnce, 4500);
   // Clipping Tavily supplement — injects Tavily search results as TREND clipping items (every 6h)
   startWorkerLoop('clippingTavily', runClippingTavilyWorkerOnce, 5000);
+  // Calendar inspiration — scrapes creative campaigns for high-relevance dates (1×/day, up to 5 events)
+  startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500);
 }
