@@ -23,6 +23,7 @@ const ADMIN_SUBMENU_ITEMS: AdminSubmenuItem[] = [
   { label: 'AI Costs', value: 'ai-costs', kind: 'route', href: '/admin/ai-costs' },
   { label: 'Automacoes', value: 'automacoes', kind: 'route', href: '/admin/automations' },
   { label: 'Import Events', value: 'import-events', kind: 'route', href: '/admin/events/import' },
+  { label: 'Recco Engine', value: 'recco-engine', kind: 'route', href: '/admin/recco-engine' },
   { label: 'Settings', value: 'settings', kind: 'route', href: '/settings' },
 ];
 
