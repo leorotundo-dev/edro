@@ -6,6 +6,7 @@ import { runCalendarRelevanceWorkerOnce } from './calendarRelevanceWorker';
 import { runDailyAlertsWorkerOnce } from './dailyAlertsWorker';
 import { runClientEnrichmentWorkerOnce } from './clientEnrichmentWorker';
 import { runWebIntelligenceWorkerOnce } from './webIntelligenceWorker';
+import { runTrendRadarWorkerOnce } from './trendRadarWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -54,4 +55,6 @@ export function startJobsRunner() {
   startWorkerLoop('dailyAlerts', runDailyAlertsWorkerOnce, 3000);
   // Web market intelligence — auto-schedules stale clients + processes jobs
   startWorkerLoop('webIntelligence', runWebIntelligenceWorkerOnce, 3500);
+  // Trend radar — runs every Monday at 08h, saves sector trends to library
+  startWorkerLoop('trendRadar', runTrendRadarWorkerOnce, 4000);
 }

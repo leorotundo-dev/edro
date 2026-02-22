@@ -79,6 +79,7 @@ import {
   isPerplexityConfigured,
 } from '../services/perplexityService';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -842,6 +843,25 @@ export default async function edroRoutes(app: FastifyInstance) {
     });
 
     const stages = await createBriefingStages(briefing.id, user.email);
+
+    // ── Web research para o briefing (não-bloqueante) ──────────
+    if (isTavilyConfigured() && body.title) {
+      setImmediate(async () => {
+        try {
+          const kwQuery = `${body.title} ${clientSegment || ''} conteúdo referência`.trim();
+          const t0 = Date.now();
+          const res = await tavilySearch(kwQuery, { maxResults: 3, searchDepth: 'basic' });
+          logTavilyUsage({ tenant_id: user.tenant_id, operation: 'search-basic', unit_count: 1, feature: 'briefing_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id } });
+          const refs = res.results.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 200)}`).join('\n');
+          if (refs.length > 50) {
+            await query(
+              `UPDATE edro_briefings SET payload = COALESCE(payload, '{}'::jsonb) || $1::jsonb WHERE id = $2`,
+              [JSON.stringify({ web_research_refs: refs }), briefing.id]
+            );
+          }
+        } catch { /* best-effort */ }
+      });
+    }
 
     const shouldNotifyTraffic =
       body.notify_traffic ?? Boolean(body.traffic_owner || body.traffic_recipient);

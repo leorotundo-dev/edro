@@ -2,9 +2,11 @@ import { query } from '../db';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import crypto from 'crypto';
 import { listClientDocuments } from '../repos/clientIntelligenceRepo';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 type OpportunitySource = {
-  type: 'clipping' | 'social' | 'calendar';
+  type: 'clipping' | 'social' | 'calendar' | 'web';
   id: string;
   title: string;
   description: string;
@@ -127,6 +129,37 @@ export async function detectOpportunitiesForClient(params: {
       metadata: { categories: row.categories },
     });
   });
+
+  // 4. Web intelligence (Tavily — tendências do setor do cliente)
+  if (isTavilyConfigured()) {
+    try {
+      const cr = (await query<{ segment_primary?: string; profile?: any }>(
+        `SELECT segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [params.client_id, params.tenant_id]
+      )).rows[0];
+      const sector = cr?.segment_primary || '';
+      const kws: string[] = Array.isArray(cr?.profile?.keywords) ? cr.profile.keywords.slice(0, 3) : [];
+      if (sector || kws.length > 0) {
+        const webQ = sector
+          ? `${sector} tendência marketing conteúdo ${new Date().getFullYear()}`
+          : `${kws.join(' ')} conteúdo viral tendência`;
+        const t0 = Date.now();
+        const webRes = await tavilySearch(webQ, { maxResults: 4, searchDepth: 'basic' });
+        logTavilyUsage({ tenant_id: params.tenant_id, operation: 'search-basic', unit_count: 1, feature: 'opportunity_detector', duration_ms: Date.now() - t0, metadata: { client_id: params.client_id } });
+        for (const r of webRes.results.slice(0, 3)) {
+          if (!r.snippet || r.snippet.length < 80) continue;
+          sources.push({
+            type: 'web',
+            id: crypto.randomUUID(),
+            title: r.title || webQ,
+            description: r.snippet.slice(0, 300),
+            score: 72,
+            metadata: { url: r.url, source: 'tavily' },
+          });
+        }
+      }
+    } catch { /* non-blocking */ }
+  }
 
   // Temporal scoring: boost opportunities closer to now
   const now = new Date();

@@ -5,6 +5,8 @@
  */
 
 import { generateCompletion } from './ai/openaiService';
+import { tavilySearch, isTavilyConfigured } from './tavilyService';
+import { logTavilyUsage } from './ai/aiUsageLogger';
 
 export interface EventDescriptionRequest {
   evento: string;
@@ -81,6 +83,18 @@ Forneça uma descrição informativa sobre esta data.`;
     }
   } catch (error) {
     console.error(`Erro ao gerar descrição para ${evento}:`, error);
+    // Tavily fallback — busca informações reais sobre o evento
+    if (isTavilyConfigured()) {
+      try {
+        const t0 = Date.now();
+        const res = await tavilySearch(`${evento} data comemorativa história origem`, { maxResults: 2, searchDepth: 'basic' });
+        logTavilyUsage({ tenant_id: 'system', operation: 'search-basic', unit_count: 1, feature: 'calendar_enrichment', duration_ms: Date.now() - t0 });
+        const top = res.results[0];
+        if (top?.snippet) {
+          return { evento, descricao: top.snippet.slice(0, 400), origem: top.url };
+        }
+      } catch { /* fall through */ }
+    }
     return {
       evento,
       descricao: '',

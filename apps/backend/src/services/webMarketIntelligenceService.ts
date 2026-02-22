@@ -182,7 +182,37 @@ export async function runMarketIntelligenceForClient(params: {
     }
   }
 
-  // ── 5. Queue embedding for all saved items ──────────────────
+  // ── 5. Content Gap Analysis ──────────────────────────────────
+  // O que o concorrente publica que o cliente ainda não cobre?
+  if (competitors.length > 0 && (sector || keywords.length > 0)) {
+    const gapQuery = `${competitors[0]} ${sector} conteúdo estratégia publicação`;
+    try {
+      const t4 = Date.now();
+      const gapResult = await tavilySearch(gapQuery, { maxResults: 3, searchDepth: 'basic' });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'web_intelligence_gap', duration_ms: Date.now() - t4, metadata: { client_id: clientId } });
+      for (const r of gapResult.results.slice(0, 1)) {
+        if (!r.snippet || r.snippet.length < 50) continue;
+        const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'gap_analysis');
+        if (score < 5) { skipped++; continue; }
+        const id = await saveLibraryItem({
+          tenantId,
+          clientId,
+          title: `Gap: ${r.title.slice(0, 180)}`,
+          description: r.snippet.slice(0, 300),
+          notes: `ANÁLISE DE GAP DE CONTEÚDO\n\nConcorrente: ${competitors[0]}\n\n${r.title}\n\n${r.snippet}\n\nFonte: ${r.url}`,
+          sourceUrl: r.url,
+          category: 'gap_analise',
+          tags: ['ai_research', 'gap_analysis', `relevance_${score}`],
+        });
+        if (id) savedIds.push(id);
+      }
+      searches.push(`gap:${gapQuery}`);
+    } catch (err: any) {
+      errors.push(`gap: ${err.message}`);
+    }
+  }
+
+  // ── 7. Queue embedding for all saved items ──────────────────
   for (const itemId of savedIds) {
     try {
       await enqueueJob(tenantId, 'process_library_item', { library_item_id: itemId, tenant_id: tenantId, client_id: clientId });
@@ -191,7 +221,7 @@ export async function runMarketIntelligenceForClient(params: {
     }
   }
 
-  // ── 6. Update last-run timestamp ────────────────────────────
+  // ── 8. Update last-run timestamp ────────────────────────────
   const now = new Date().toISOString();
   await query(
     `UPDATE clients

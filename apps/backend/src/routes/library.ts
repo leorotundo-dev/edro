@@ -11,6 +11,8 @@ import { query } from '../db';
 import { buildKey, saveFile, readFile, deleteFile } from '../library/storage';
 import { createLibraryItem, listLibraryItems, updateLibraryItem, getLibraryItem } from '../library/libraryRepo';
 import { enqueueJob } from '../jobs/jobQueue';
+import { tavilyExtract, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 let libraryTablesChecked = false;
 let libraryFkDropped = false;
@@ -199,6 +201,72 @@ export default async function libraryRoutes(app: FastifyInstance) {
       });
 
       return item;
+    }
+  );
+
+  // ── Importar URL diretamente para a biblioteca via Tavily Extract ──────────
+  app.post(
+    '/clients/:clientId/library/from-url',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('library:write'), requireClientPerm('write')] },
+    async (request: any, reply: any) => {
+      await ensureLibraryTables();
+
+      if (!isTavilyConfigured()) {
+        return reply.code(503).send({ ok: false, error: 'tavily_not_configured' });
+      }
+
+      const { url, category, tags } = z.object({
+        url: z.string().url(),
+        category: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      }).parse(request.body);
+
+      const tenantId = (request.user as any).tenant_id;
+      const clientId = request.params.clientId;
+
+      // Deduplicação
+      const { rows: existing } = await query<{ id: string }>(
+        `SELECT id FROM library_items WHERE client_id=$1 AND source_url=$2 LIMIT 1`,
+        [clientId, url]
+      );
+      if (existing.length > 0) {
+        return reply.send({ ok: true, library_item_id: existing[0].id, duplicate: true });
+      }
+
+      // Extração via Tavily
+      const t0 = Date.now();
+      let extracted: { url: string; content: string; title?: string } | null = null;
+      try {
+        const result = await tavilyExtract([url], { timeoutMs: 15000 });
+        logTavilyUsage({ tenant_id: tenantId, operation: 'extract', unit_count: 1, feature: 'library_import', duration_ms: Date.now() - t0, metadata: { client_id: clientId, url } });
+        extracted = result.results[0] ?? null;
+      } catch (err: any) {
+        return reply.code(502).send({ ok: false, error: 'extract_failed', detail: err?.message });
+      }
+
+      if (!extracted?.content || extracted.content.length < 50) {
+        return reply.code(422).send({ ok: false, error: 'content_empty' });
+      }
+
+      const item = await createLibraryItem({
+        tenant_id: tenantId,
+        client_id: clientId,
+        type: 'note',
+        title: (extracted.title || url).slice(0, 200),
+        description: extracted.content.slice(0, 500),
+        category: category || 'referencia',
+        tags: tags ?? ['importado', 'url'],
+        weight: 'medium',
+        use_in_ai: true,
+        source_url: url,
+        notes: extracted.content.slice(0, 3000),
+        created_by: (request.user as any).email,
+        status: 'pending',
+      });
+
+      await enqueueJob(tenantId, 'process_library_item', { library_item_id: item.id });
+
+      return reply.code(201).send({ ok: true, library_item_id: item.id });
     }
   );
 

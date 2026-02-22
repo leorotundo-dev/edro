@@ -4,6 +4,8 @@ import type { ClientProfile, Objective, Platform, YearMonth } from '../types';
 import { createMonthlyCalendar, createFlowRun, findMonthlyCalendar, listClientProfilesForTenant } from '../repos/calendarRepo';
 import { createPostAssetsFromCalendar } from '../repos/governanceRepo';
 import { isEnabled } from '../flags/flags';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 function nextYearMonth(from: Date, offset = 1): YearMonth {
   const year = from.getUTCFullYear();
@@ -66,6 +68,22 @@ export async function runAutopilotJob(params: { tenantId: string; month?: string
     const client = buildProfile(row);
     const { platform, objective, postsPerWeek } = resolveAutopilotSettings(client);
 
+    // ── Injetar tendências web no client (não-bloqueante) ──────
+    let webTrends: string | null = null;
+    if (isTavilyConfigured() && client.segment_primary) {
+      try {
+        const trendQ = `${client.segment_primary} tendências conteúdo marketing ${month}`;
+        const t0 = Date.now();
+        const trendRes = await tavilySearch(trendQ, { maxResults: 3, searchDepth: 'basic' });
+        logTavilyUsage({ tenant_id: params.tenantId, operation: 'search-basic', unit_count: 1, feature: 'autopilot_research', duration_ms: Date.now() - t0, metadata: { client_id: client.id } });
+        const snippets = trendRes.results.slice(0, 2).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 150)}`).join('\n');
+        if (snippets.length > 50) webTrends = snippets;
+      } catch { /* non-blocking */ }
+    }
+    const clientWithTrends = webTrends
+      ? ({ ...client, web_trends: webTrends } as ClientProfile & { web_trends?: string })
+      : client;
+
     const exists = await findMonthlyCalendar({
       tenantId: params.tenantId,
       clientId: client.id,
@@ -79,7 +97,7 @@ export async function runAutopilotJob(params: { tenantId: string; month?: string
       platform,
       objective,
       postsPerWeek,
-      client,
+      client: clientWithTrends,
       toggles: {
         use_calendar_total: true,
         use_local_events: true,

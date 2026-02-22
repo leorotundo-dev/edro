@@ -14,6 +14,8 @@ import { OpenAIService } from '../services/ai/openaiService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 import { GeminiService } from '../services/ai/geminiService';
 import { ClaudeService } from '../services/ai/claudeService';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -288,11 +290,29 @@ async function runMonthlyPovJob() {
       const marketValue = Math.round(estimatedHours * 150);
       const completionRate = totalBriefings > 0 ? Math.round(completedBriefings / totalBriefings * 100) : 0;
 
+      // Contexto setorial via Tavily (não-bloqueante)
+      let sectorContext = '';
+      if (isTavilyConfigured()) {
+        try {
+          const secRow = (await query<{ segment_primary: string }>(
+            `SELECT segment_primary FROM clients WHERE LOWER(name)=LOWER($1) AND tenant_id=$2 LIMIT 1`,
+            [client.name, tenant.tenant_id]
+          )).rows[0];
+          if (secRow?.segment_primary) {
+            const t0 = Date.now();
+            const tRes = await tavilySearch(`${secRow.segment_primary} marketing digital resultados ${monthLabel}`, { maxResults: 2, searchDepth: 'basic' });
+            logTavilyUsage({ tenant_id: tenant.tenant_id, operation: 'search-basic', unit_count: 1, feature: 'daily_alerts_pov', duration_ms: Date.now() - t0 });
+            const top = tRes.results[0];
+            if (top?.snippet) sectorContext = ` Contexto setorial: ${top.snippet.slice(0, 200)}`;
+          }
+        } catch { /* non-blocking */ }
+      }
+
       // Generate narrative with AI
       let narrative = `No mês de ${monthLabel}, entregamos ${totalBriefings} briefings (${completionRate}% de conclusão) e produzimos ${totalCopies} peças criativas, representando aproximadamente ${Math.round(estimatedHours)}h de trabalho.`;
       try {
         const aiNarrative = await runAi('openai',
-          `Escreva 3 frases executivas sobre os resultados da agência Edro Studio para ${client.name} em ${monthLabel}: ${totalBriefings} briefings (${completionRate}% conclusão), ${totalCopies} peças produzidas, ~${Math.round(estimatedHours)}h de trabalho. Tom profissional e orientado a valor. Máximo 120 palavras.`,
+          `Escreva 3 frases executivas sobre os resultados da agência Edro Studio para ${client.name} em ${monthLabel}: ${totalBriefings} briefings (${completionRate}% conclusão), ${totalCopies} peças produzidas, ~${Math.round(estimatedHours)}h de trabalho.${sectorContext} Tom profissional e orientado a valor. Máximo 120 palavras.`,
           200
         );
         if (aiNarrative.length > 20) narrative = aiNarrative;

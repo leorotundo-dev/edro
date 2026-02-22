@@ -1,4 +1,6 @@
 import { fetchDue, markProcessing, markPublished, markFailed } from '../repos/publishRepo';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 async function publishToGateway(job: any): Promise<'gateway' | 'local'> {
   const endpoint = process.env.PUBLISHER_GATEWAY_URL;
@@ -37,6 +39,21 @@ export async function runPublishWorkerOnce() {
   for (const job of due) {
     try {
       await markProcessing(job.id);
+
+      // ── Soft topic validation (never blocks publish) ──────────
+      if (isTavilyConfigured() && typeof job.payload?.content === 'string') {
+        const contentPreview = (job.payload.content as string).slice(0, 150);
+        setImmediate(async () => {
+          try {
+            const t0 = Date.now();
+            const checkRes = await tavilySearch(`${contentPreview} polêmica crise marca`, { maxResults: 2, searchDepth: 'basic' });
+            logTavilyUsage({ tenant_id: job.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'publish_validation', duration_ms: Date.now() - t0, metadata: { job_id: job.id } });
+            const hit = checkRes.results.find((r: any) => /polêmica|crise|boicote|escândalo/i.test(r.snippet || ''));
+            if (hit) console.warn(`[publishWorker] SOFT ALERT: job=${job.id} tema_sensivel="${hit.title.slice(0, 80)}"`);
+          } catch { /* never blocks */ }
+        });
+      }
+
       const mode = await publishToGateway(job);
       if (mode === 'local') {
         await markPublished(job.id);
