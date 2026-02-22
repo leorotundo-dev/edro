@@ -923,6 +923,35 @@ export default async function edroRoutes(app: FastifyInstance) {
     const copies = await listCopyVersions(briefing.id);
     const tasks = await listTasks(briefing.id);
 
+    // ── Client context (keywords, pillars, brand voice, knowledge base) ──────
+    let client_context: any = null;
+    const clientId = (briefing as any).client_id as string | null;
+    if (clientId) {
+      try {
+        const tenantId = (request.user as any)?.tenant_id ?? null;
+        const clientRow = await getClientById(tenantId ?? '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5', clientId);
+        if (clientRow) {
+          const profile = (clientRow as any).profile || {};
+          const kb = (clientRow as any).knowledge_base || profile.knowledge_base || {};
+          client_context = {
+            id: clientRow.id,
+            name: clientRow.name,
+            segment_primary: (clientRow as any).segment_primary || null,
+            keywords: profile.keywords || [],
+            pillars: profile.pillars || [],
+            tone: profile.tone_description || profile.tone_profile || null,
+            audience: kb.audience || profile.target_audience || null,
+            brand_promise: kb.brand_promise || null,
+            must_mentions: kb.must_mentions || [],
+            forbidden_claims: kb.forbidden_claims || [],
+            competitors: profile.competitors || [],
+            website: kb.website || null,
+            social_profiles: kb.social_profiles || {},
+          };
+        }
+      } catch { /* non-blocking — page still loads without context */ }
+    }
+
     return reply.send({
       success: true,
       data: {
@@ -930,8 +959,55 @@ export default async function edroRoutes(app: FastifyInstance) {
         stages,
         copies,
         tasks,
+        client_context,
       },
     });
+  });
+
+  // POST /edro/briefings/:id/research — trigger Tavily web search and save refs to payload
+  app.post('/edro/briefings/:id/research', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const briefing = await getBriefingById(id);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
+
+    const tenantId = (request.user as any)?.tenant_id ?? 'system';
+    let segment = '';
+    if ((briefing as any).client_id) {
+      try {
+        const cr = await getClientById(tenantId, (briefing as any).client_id);
+        segment = (cr as any)?.segment_primary || '';
+      } catch { /* best-effort */ }
+    }
+
+    const kwQuery = `${briefing.title} ${segment} conteúdo referência`.trim();
+    try {
+      const t0 = Date.now();
+      const res = await tavilySearch(kwQuery, { maxResults: 4, searchDepth: 'basic' });
+      logTavilyUsage({
+        tenant_id: tenantId,
+        operation: 'search-basic',
+        unit_count: 1,
+        feature: 'briefing_research_manual',
+        duration_ms: Date.now() - t0,
+        metadata: { briefing_id: id },
+      });
+      const refs = res.results.slice(0, 3).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 250) ?? ''}`).join('\n');
+      const articles = res.results.slice(0, 3).map((r: any) => ({
+        title: r.title,
+        snippet: r.snippet?.slice(0, 300) ?? null,
+        url: r.url,
+      }));
+      if (refs.length > 20) {
+        await query(
+          `UPDATE edro_briefings SET payload = COALESCE(payload,'{}') || $1::jsonb WHERE id = $2`,
+          [JSON.stringify({ web_research_refs: refs, web_research_articles: articles }), id]
+        );
+      }
+      return reply.send({ success: true, web_research_refs: refs, articles });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message || 'search_failed' });
+    }
   });
 
   // DELETE /edro/briefings/:id - Delete a briefing permanently

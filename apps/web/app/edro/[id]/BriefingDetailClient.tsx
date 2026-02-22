@@ -28,6 +28,7 @@ import {
   IconMessageCircle,
   IconPhoto,
   IconPlayerPlay,
+  IconRefresh,
   IconRobot,
   IconSparkles,
   IconTarget,
@@ -40,11 +41,29 @@ import {
   IconHash,
   IconVolume,
   IconLayoutKanban,
+  IconLink,
   IconTrophy,
 } from '@tabler/icons-react';
 
+type ClientContext = {
+  id: string;
+  name: string;
+  segment_primary: string | null;
+  keywords: string[];
+  pillars: string[];
+  tone: string | null;
+  audience: string | null;
+  brand_promise: string | null;
+  must_mentions: string[];
+  forbidden_claims: string[];
+  competitors: string[];
+  website: string | null;
+  social_profiles: Record<string, string>;
+};
+
 type Briefing = {
   id: string;
+  client_id: string | null;
   client_name: string | null;
   title: string;
   status: string;
@@ -191,10 +210,12 @@ const PAYLOAD_ICONS: Record<string, React.ReactNode> = {
   web_research_refs: <IconSparkles size={15} />,
 };
 
-/* Fields to skip entirely in the detail view */
+/* Fields to skip entirely in the detail view (shown elsewhere or internal) */
 const PAYLOAD_SKIP = new Set([
   'id', 'created_at', 'updated_at', 'allow_auto_stage', 'source', 'origin',
   'client_id', 'clientId', 'tenant_id', 'briefing_id',
+  'web_research_refs', 'web_research_articles', // shown in sidebar "Referências Web"
+  'client_ref',  // internal tracking
 ]);
 
 /* Render a single payload value */
@@ -273,6 +294,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [abCreating, setAbCreating] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [clientContext, setClientContext] = useState<ClientContext | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [researchArticles, setResearchArticles] = useState<{ title: string; snippet: string | null; url: string }[]>([]);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -280,7 +305,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     try {
       const response = await apiGet<{
         success: boolean;
-        data: { briefing: Briefing; stages: Stage[]; copies: Copy[]; tasks: Task[] };
+        data: { briefing: Briefing; stages: Stage[]; copies: Copy[]; tasks: Task[]; client_context: ClientContext | null };
       }>(`/edro/briefings/${briefingId}`);
 
       if (response?.data) {
@@ -288,6 +313,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
         setStages(response.data.stages);
         setCopies(response.data.copies);
         setTasks(response.data.tasks);
+        setClientContext(response.data.client_context ?? null);
+        // Load pre-saved articles from payload if available
+        const arts = response.data.briefing.payload?.web_research_articles;
+        if (Array.isArray(arts)) setResearchArticles(arts);
       }
 
       apiGet<{ data: TimelineEvent[] }>(`/edro/briefings/${briefingId}/timeline`)
@@ -302,6 +331,26 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       setLoading(false);
     }
   }, [briefingId]);
+
+  const handleResearch = async () => {
+    setSearching(true);
+    setSearchError('');
+    try {
+      const res = await apiPost<{ success: boolean; articles: { title: string; snippet: string | null; url: string }[]; error?: string }>(
+        `/edro/briefings/${briefingId}/research`, {}
+      );
+      if (res?.articles) {
+        setResearchArticles(res.articles);
+        await loadBriefing();
+      } else if (res?.error === 'tavily_not_configured') {
+        setSearchError('TAVILY_API_KEY não configurada no servidor.');
+      }
+    } catch (err: any) {
+      setSearchError(err?.message || 'Falha ao buscar referências.');
+    } finally {
+      setSearching(false);
+    }
+  };
 
   useEffect(() => { loadBriefing(); }, [loadBriefing]);
 
@@ -890,8 +939,208 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
             )}
           </Grid>
 
-          {/* RIGHT — Sidebar: Tasks + Timeline */}
+          {/* RIGHT — Sidebar: Client Context + Research + Tasks + Timeline */}
           <Grid size={{ xs: 12, lg: 4 }}>
+
+            {/* Referências Web (Tavily) */}
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconWorld size={16} color="#6366f1" />
+                    <Typography variant="subtitle1" fontWeight={600}>Referências Web</Typography>
+                  </Stack>
+                  <Button
+                    size="small"
+                    variant={researchArticles.length === 0 ? 'contained' : 'outlined'}
+                    startIcon={searching ? <CircularProgress size={13} color="inherit" /> : <IconRefresh size={14} />}
+                    onClick={handleResearch}
+                    disabled={searching}
+                    sx={{ fontSize: 11 }}
+                  >
+                    {searching ? 'Buscando...' : researchArticles.length === 0 ? 'Buscar via Tavily' : 'Atualizar'}
+                  </Button>
+                </Stack>
+
+                {searchError && (
+                  <Alert severity="warning" sx={{ mb: 1.5, fontSize: 12 }}>{searchError}</Alert>
+                )}
+
+                {researchArticles.length === 0 && !searchError ? (
+                  <Box sx={{ py: 2, textAlign: 'center' }}>
+                    <IconWorld size={28} color="#e2e8f0" />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                      Clique em "Buscar via Tavily" para coletar referências da web sobre este briefing.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Stack spacing={1.5}>
+                    {researchArticles.map((art, i) => (
+                      <Box key={i} sx={{ p: 1.25, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.5}>
+                          <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.3, flex: 1 }}>
+                            {art.title}
+                          </Typography>
+                          <Box
+                            component="a"
+                            href={art.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ color: '#6366f1', flexShrink: 0, mt: '1px' }}
+                          >
+                            <IconExternalLink size={13} />
+                          </Box>
+                        </Stack>
+                        {art.snippet && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', lineHeight: 1.4 }}>
+                            {art.snippet}
+                          </Typography>
+                        )}
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Contexto do Cliente */}
+            {clientContext && (
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                    <IconBuilding size={16} color="#3b82f6" />
+                    <Typography variant="subtitle1" fontWeight={600}>Contexto do Cliente</Typography>
+                    {clientContext.segment_primary && (
+                      <Chip label={clientContext.segment_primary} size="small" variant="outlined" sx={{ fontSize: 10, ml: 'auto !important' }} />
+                    )}
+                  </Stack>
+
+                  <Stack spacing={1.5}>
+                    {clientContext.keywords.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Keywords
+                        </Typography>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                          {clientContext.keywords.map((k, i) => (
+                            <Chip key={i} label={k} size="small" color="primary" variant="outlined" sx={{ fontSize: 11 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {clientContext.pillars.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Pilares de Conteúdo
+                        </Typography>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                          {clientContext.pillars.map((p, i) => (
+                            <Chip key={i} label={p} size="small" color="secondary" variant="outlined" sx={{ fontSize: 11 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {clientContext.tone && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
+                          Tom de Voz
+                        </Typography>
+                        <Typography variant="body2">{clientContext.tone}</Typography>
+                      </Box>
+                    )}
+
+                    {clientContext.audience && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
+                          Público-alvo
+                        </Typography>
+                        <Typography variant="body2">{clientContext.audience}</Typography>
+                      </Box>
+                    )}
+
+                    {clientContext.brand_promise && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
+                          Promessa da Marca
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{clientContext.brand_promise}</Typography>
+                      </Box>
+                    )}
+
+                    {clientContext.must_mentions.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Menções Obrigatórias
+                        </Typography>
+                        <Stack spacing={0.25}>
+                          {clientContext.must_mentions.map((m, i) => (
+                            <Typography key={i} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <IconCheck size={11} color="#16a34a" />{m}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {clientContext.forbidden_claims.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Proibições / Restrições
+                        </Typography>
+                        <Stack spacing={0.25}>
+                          {clientContext.forbidden_claims.map((f, i) => (
+                            <Typography key={i} variant="caption" color="error.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box component="span" sx={{ fontWeight: 700 }}>✕</Box> {f}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {clientContext.competitors.length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Concorrentes
+                        </Typography>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                          {clientContext.competitors.map((c, i) => (
+                            <Chip key={i} label={c} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {clientContext.website && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
+                          Website
+                        </Typography>
+                        <Box component="a" href={clientContext.website} target="_blank" rel="noopener noreferrer" sx={{ fontSize: 12, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <IconLink size={12} />{clientContext.website}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {Object.keys(clientContext.social_profiles).filter(k => clientContext.social_profiles[k]).length > 0 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          Redes Sociais
+                        </Typography>
+                        <Stack spacing={0.25}>
+                          {Object.entries(clientContext.social_profiles).filter(([, v]) => v).map(([network, handle]) => (
+                            <Typography key={network} variant="caption" sx={{ textTransform: 'capitalize' }}>
+                              <Box component="span" sx={{ color: 'text.secondary', mr: 0.5 }}>{network}:</Box>{handle}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Tasks */}
             {tasks.length > 0 && (
