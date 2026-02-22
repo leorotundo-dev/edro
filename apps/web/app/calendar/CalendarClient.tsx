@@ -893,7 +893,9 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setError('');
     setNotice('');
     try {
+      // custom_priority é 1–10; backend retorna priority*10 como score final (sem boosts adicionais)
       const customPriority = Math.max(1, Math.min(10, Math.round(score / 10) || 1));
+      const effectiveScore = customPriority * 10; // score real que vai aparecer após reload
       await apiPost(`/clients/${targetClientId}/calendar/overrides`, {
         calendar_event_id: selectedEvent.id,
         force_include: true,
@@ -901,19 +903,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
         custom_priority: customPriority,
         notes: `manual_relevance:${score}`,
       });
-      const tier: 'A' | 'B' | 'C' = score >= 80 ? 'A' : score >= 55 ? 'B' : 'C';
+      const tier: 'A' | 'B' | 'C' = effectiveScore >= 80 ? 'A' : effectiveScore >= 55 ? 'B' : 'C';
 
       setSelectedEvent((prev) =>
         prev
           ? {
               ...prev,
-              score,
+              score: effectiveScore,
               tier,
               why: prev.why ? `${prev.why} | override:priority:${customPriority}` : `override:priority:${customPriority}`,
             }
           : prev
       );
-      setManualRelevance(String(score));
+      setManualRelevance(String(effectiveScore));
       await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
       setNotice('Relevância atualizada com sucesso.');
     } catch (err: any) {

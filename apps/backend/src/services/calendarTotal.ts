@@ -1524,15 +1524,20 @@ export function scoreEventRelevance(
     return { score: 0, tier: 'C', why: 'override:exclude' };
   }
 
+  // Quando o usuário define uma prioridade manual, retorna direto — sem boosts/penalidades.
+  // Isso garante que o score exibido seja exatamente o que foi configurado (priority * 10).
+  if (override?.custom_priority != null) {
+    const score = Math.max(10, Math.min(100, override.custom_priority * 10));
+    const tier = computeTier(score, rules);
+    return { score, tier, why: `override:custom_priority:${override.custom_priority}` };
+  }
+
   const allowed = categoryAllowed(ev, client);
   if (!allowed.allowed && !override?.force_include) {
     return { score: 0, tier: 'C', why: allowed.reason };
   }
 
-  const baseRelevance =
-    override?.custom_priority != null
-      ? Math.max(1, Math.min(10, override.custom_priority)) * 10
-      : ev.base_relevance;
+  const baseRelevance = ev.base_relevance;
 
   const segBase = segmentBoost(ev, client);
   const tagMatch = getStrategicTagMatches(ev, client);
