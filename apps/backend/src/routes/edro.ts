@@ -41,6 +41,8 @@ import {
   archiveBriefing,
   listEdroClients,
   getBriefingTimeline,
+  setMainClientId,
+  linkBriefingsByClientName,
 } from '../repositories/edroBriefingRepository';
 import { dispatchNotification } from '../services/notificationService';
 import { buildStageChangeEmail } from '../services/stageNotificationTemplates';
@@ -334,13 +336,15 @@ function parseDate(value?: string | null): Date | null {
   return parsed;
 }
 
-function resolveClientIdFromPayload(payload: Record<string, any> | null | undefined) {
+function resolveClientIdFromPayload(payload: Record<string, any> | null | undefined): string | null {
   if (!payload) return null;
+  // client_ref pode ser objeto {id, name} ou string legada
+  const ref = payload.client_ref ?? payload.clientRef;
+  const refId = typeof ref === 'object' && ref !== null ? ref.id : ref;
   return (
     payload.client_id ||
     payload.clientId ||
-    payload.client_ref ||
-    payload.clientRef ||
+    (typeof refId === 'string' ? refId : null) ||
     null
   );
 }
@@ -402,28 +406,45 @@ async function syncExamplesToProfile(tenantId: string, clientId: string) {
 
 async function loadClientKnowledge(
   tenantId: string | null | undefined,
-  briefing: { payload?: Record<string, any>; client_name?: string | null; client_id?: string | null }
+  briefing: { id?: string; payload?: Record<string, any>; client_name?: string | null; client_id?: string | null; main_client_id?: string | null }
 ): Promise<ClientKnowledge | null> {
-  // 1. Prioridade: client_id direto da coluna do briefing (mais confiável)
-  // 2. Fallback: client_id dentro do payload JSON
-  // 3. Último recurso: busca por nome do cliente
-  const clientId =
-    (briefing as any).client_id ||
-    resolveClientIdFromPayload(briefing.payload || {});
   if (!tenantId) return null;
+
+  const briefingId = (briefing as any).id as string | undefined;
+
+  // Função auxiliar: ao achar um cliente, salva o vínculo para consultas futuras
+  const foundClient = async (row: any): Promise<ClientKnowledge> => {
+    if (briefingId && row.id && !(briefing as any).main_client_id) {
+      setMainClientId(briefingId, row.id).catch(() => {});
+    }
+    return buildClientKnowledgeFromRow(row);
+  };
+
   try {
-    if (clientId) {
-      const row = await getClientById(tenantId, String(clientId));
+    // 1. MELHOR: main_client_id — FK direta para clients (fonte única de verdade)
+    const mainClientId = (briefing as any).main_client_id as string | null;
+    if (mainClientId) {
+      const row = await getClientById(tenantId, mainClientId);
       if (row) return buildClientKnowledgeFromRow(row);
     }
+
+    // 2. Payload legado: client_ref.id (clients.id TEXT, não UUID)
+    const payloadClientId = resolveClientIdFromPayload(briefing.payload || {});
+    if (payloadClientId && !isUuid(payloadClientId)) {
+      const row = await getClientById(tenantId, payloadClientId);
+      if (row) return foundClient(row);
+    }
+
+    // 3. Fallback por nome — garante compatibilidade com briefings antigos
     if (briefing.client_name) {
       const { rows } = await query<any>(
         `SELECT * FROM clients WHERE tenant_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
         [tenantId, briefing.client_name]
       );
       const row = rows[0];
-      if (row) return buildClientKnowledgeFromRow(row);
+      if (row) return foundClient(row);
     }
+
     return null;
   } catch {
     return null;
@@ -862,21 +883,34 @@ export default async function edroRoutes(app: FastifyInstance) {
     let clientTimezone = body.client_timezone ?? null;
     const payload = { ...(body.payload ?? {}) } as Record<string, any>;
 
+    // main_client_id: FK para clients (fonte única de verdade do perfil)
+    let mainClientId: string | null = null;
+
     if (clientId && !isUuid(clientId)) {
+      // clientId é um clients.id TEXT — este já é o main_client_id
+      mainClientId = clientId;
       if (tenantId) {
         const coreClient = await getClientById(tenantId, clientId);
         if (coreClient) {
           clientName = coreClient.name;
-          clientSegment = clientSegment ?? coreClient.segment_primary ?? null;
-          clientTimezone = clientTimezone ?? coreClient.timezone ?? null;
+          clientSegment = clientSegment ?? (coreClient as any).segment_primary ?? null;
+          clientTimezone = clientTimezone ?? (coreClient as any).timezone ?? null;
         }
       }
       if (!clientName) clientName = clientId;
-      payload.client_ref = {
-        id: clientId,
-        name: clientName ?? null,
-      };
+      payload.client_ref = { id: clientId, name: clientName ?? null };
       clientId = null;
+    }
+
+    // Buscar na tabela clients pelo nome para obter main_client_id
+    if (!mainClientId && clientName && tenantId) {
+      try {
+        const { rows: cRows } = await query<any>(
+          `SELECT id FROM clients WHERE tenant_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
+          [tenantId, clientName]
+        );
+        if (cRows[0]?.id) mainClientId = cRows[0].id;
+      } catch { /* non-blocking */ }
     }
 
     if (!clientId && clientName) {
@@ -890,6 +924,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const briefing = await createBriefing({
       clientId,
+      mainClientId,
       title: body.title,
       status: 'briefing',
       payload,
@@ -899,6 +934,11 @@ export default async function edroRoutes(app: FastifyInstance) {
       dueAt: dueAt ?? null,
       source: body.source ?? 'manual',
     });
+
+    // Vincular retroativamente outros briefings do mesmo cliente que ainda não têm main_client_id
+    if (mainClientId && clientName) {
+      linkBriefingsByClientName(clientName, mainClientId).catch(() => {});
+    }
 
     const stages = await createBriefingStages(briefing.id, user.email);
 
@@ -990,11 +1030,15 @@ export default async function edroRoutes(app: FastifyInstance) {
     // ── Client context (keywords, pillars, brand voice, knowledge base) ──────
     let client_context: any = null;
     let client_knowledge: any = null;
-    const clientId = (briefing as any).client_id as string | null;
-    if (clientId) {
+    // Prioridade: main_client_id (FK para clients) > client_ref.id no payload
+    const resolvedClientId =
+      (briefing as any).main_client_id ||
+      resolveClientIdFromPayload((briefing.payload as any) || {}) ||
+      null;
+    if (resolvedClientId) {
       try {
         const tenantId = (request.user as any)?.tenant_id ?? null;
-        const clientRow = await getClientById(tenantId ?? '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5', clientId);
+        const clientRow = await getClientById(tenantId, resolvedClientId);
         if (clientRow) {
           const profile = (clientRow as any).profile || {};
           const kb = (clientRow as any).knowledge_base || profile.knowledge_base || {};
@@ -1046,6 +1090,32 @@ export default async function edroRoutes(app: FastifyInstance) {
     });
   });
 
+  // PATCH /edro/briefings/:id/link-client — vincula o briefing a um cliente da tabela clients
+  app.patch('/edro/briefings/:id/link-client', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({ client_id: z.string().min(1) }).parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+
+    const briefing = await getBriefingById(id);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
+
+    // Validar que o client_id pertence a este tenant
+    const clientRow = await getClientById(tenantId ?? '', body.client_id).catch(() => null);
+    if (!clientRow) return reply.status(404).send({ success: false, error: 'cliente_nao_encontrado' });
+
+    await setMainClientId(id, body.client_id);
+
+    // Vincular retroativamente outros briefings do mesmo cliente
+    if (briefing.client_name) {
+      linkBriefingsByClientName(briefing.client_name, body.client_id).catch(() => {});
+    }
+
+    return reply.send({
+      success: true,
+      data: { briefing_id: id, main_client_id: body.client_id, client_name: (clientRow as any).name },
+    });
+  });
+
   // POST /edro/briefings/:id/research — trigger Tavily web search and save refs to payload
   app.post('/edro/briefings/:id/research', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
@@ -1055,9 +1125,12 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const tenantId = (request.user as any)?.tenant_id ?? 'system';
     let segment = '';
-    if ((briefing as any).client_id) {
+    const researchClientId =
+      (briefing as any).main_client_id ||
+      resolveClientIdFromPayload((briefing.payload as any) || {});
+    if (researchClientId) {
       try {
-        const cr = await getClientById(tenantId, (briefing as any).client_id);
+        const cr = await getClientById(tenantId, researchClientId);
         segment = (cr as any)?.segment_primary || '';
       } catch { /* best-effort */ }
     }
@@ -1390,6 +1463,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     });
 
     const body = bodySchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
     const results: { briefingId: string; ok: boolean; copies?: number; error?: string }[] = [];
 
     for (const briefingId of body.briefingIds) {
@@ -1400,8 +1474,11 @@ export default async function edroRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const clientRow = briefing.client_id
-          ? await getClientById('81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5', briefing.client_id)
+        const batchClientId =
+          (briefing as any).main_client_id ||
+          resolveClientIdFromPayload((briefing.payload as any) || {});
+        const clientRow = batchClientId
+          ? await getClientById(tenantId ?? '', batchClientId).catch(() => null)
           : null;
         const knowledge = buildClientKnowledgeFromRow(clientRow);
         const knowledgeBlock = buildClientKnowledgeBlock(knowledge);
@@ -1492,12 +1569,13 @@ export default async function edroRoutes(app: FastifyInstance) {
         : typeof (briefing.payload as any)?.format === 'string'
           ? (briefing.payload as any).format
           : null;
+    // Prioridade: main_client_id (FK para clients) sobre client_id (edro_clients UUID)
     const selectedClientId =
       typeof metadata.client_id === 'string'
         ? metadata.client_id
-        : typeof (briefing as any)?.client_id === 'string'
-          ? (briefing as any).client_id
-          : null;
+        : (briefing as any).main_client_id ||
+          resolveClientIdFromPayload((briefing.payload as any) || {}) ||
+          null;
     // Extrair campos de persona/AMD do payload do briefing
     const briefingPayload = (briefing?.payload as Record<string, any>) ?? {};
     const payloadPersonaId = briefingPayload.persona_id ?? null;

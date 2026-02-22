@@ -75,6 +75,7 @@ type AnalysisResult = {
 
 const CLIENT_TABS = [
   { label: 'Overview', path: '' },
+  { label: 'Briefings', path: '/briefings' },
   { label: 'Calendar', path: '/calendar' },
   { label: 'Planning', path: '/planning' },
   { label: 'Perfil', path: '/perfil' },

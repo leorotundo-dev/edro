@@ -13,6 +13,8 @@ export interface EdroClient {
 export interface EdroBriefing {
   id: string;
   client_id: string | null;
+  /** FK direto para clients.id — fonte única de verdade do perfil do cliente */
+  main_client_id: string | null;
   title: string;
   status: string;
   payload: Record<string, any>;
@@ -117,6 +119,8 @@ export async function getOrCreateClientByName(params: {
 
 export async function createBriefing(input: {
   clientId?: string | null;
+  /** ID da tabela clients (TEXT) — fonte única de verdade do perfil */
+  mainClientId?: string | null;
   title: string;
   status?: string;
   payload: Record<string, any>;
@@ -130,6 +134,7 @@ export async function createBriefing(input: {
     `
       INSERT INTO edro_briefings (
         client_id,
+        main_client_id,
         title,
         status,
         payload,
@@ -139,11 +144,12 @@ export async function createBriefing(input: {
         due_at,
         source
       )
-      VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
       RETURNING *
     `,
     [
       input.clientId ?? null,
+      input.mainClientId ?? null,
       input.title,
       input.status ?? 'briefing',
       input.payload ?? {},
@@ -155,6 +161,31 @@ export async function createBriefing(input: {
     ]
   );
   return rows[0];
+}
+
+/** Define o main_client_id (FK para clients) em um briefing existente */
+export async function setMainClientId(briefingId: string, clientId: string): Promise<void> {
+  await query(
+    `UPDATE edro_briefings SET main_client_id = $2, updated_at = now() WHERE id = $1`,
+    [briefingId, clientId]
+  );
+}
+
+/** Vincula todos os briefings de um nome de cliente ao seu clients.id */
+export async function linkBriefingsByClientName(clientName: string, clientId: string): Promise<number> {
+  const { rows } = await query<{ count: string }>(
+    `
+      UPDATE edro_briefings b
+      SET main_client_id = $2, updated_at = now()
+      FROM edro_clients ec
+      WHERE ec.id = b.client_id
+        AND LOWER(ec.name) = LOWER($1)
+        AND b.main_client_id IS NULL
+      RETURNING b.id
+    `,
+    [clientName, clientId]
+  );
+  return rows.length;
 }
 
 export async function listBriefings(params?: {
@@ -174,7 +205,8 @@ export async function listBriefings(params?: {
 
   if (params?.clientId) {
     values.push(params.clientId);
-    filters.push(`b.client_id = $${values.length}`);
+    // Busca por main_client_id (clients.id) OU client_id (edro_clients.id)
+    filters.push(`(b.main_client_id = $${values.length} OR b.client_id::text = $${values.length})`);
   }
 
   if (params?.search) {

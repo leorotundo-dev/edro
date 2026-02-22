@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
@@ -49,12 +49,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function NewBriefingClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // client_id = clients.id (TEXT) — vem da aba de briefings do workspace do cliente
+  const prefillClientId = searchParams.get('client_id') || '';
+  const prefillClientName = searchParams.get('client_name') || '';
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [templates, setTemplates] = useState<BriefingTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [formData, setFormData] = useState<BriefingFormData>({
-    client_name: '',
+    client_name: prefillClientName,
     title: '',
     objective: '',
     target_audience: '',
@@ -94,8 +99,10 @@ export default function NewBriefingClient() {
     setError('');
 
     try {
-      const payload = {
-        client_name: formData.client_name,
+      const payload: Record<string, any> = {
+        // Se veio da aba do cliente (client_id é o clients.id TEXT),
+        // o backend usará como main_client_id (fonte única de verdade do perfil)
+        ...(prefillClientId ? { client_id: prefillClientId } : { client_name: formData.client_name }),
         title: formData.title,
         payload: {
           objective: formData.objective,
