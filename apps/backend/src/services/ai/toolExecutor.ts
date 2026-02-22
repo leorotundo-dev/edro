@@ -15,6 +15,7 @@ import { getClientById } from '../../repos/clientsRepo';
 import { generateCopy } from './copyService';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../tavilyService';
+import { logTavilyUsage } from './aiUsageLogger';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -836,7 +837,7 @@ async function toolGetClientInsights(args: any, ctx: ToolContext): Promise<ToolR
 
 // ── Web Search (Tavily) ─────────────────────────────────────────
 
-async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> {
+async function toolWebSearch(args: any, ctx: ToolContext): Promise<ToolResult> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     return {
@@ -851,6 +852,7 @@ async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> 
   const contextNote = args.context ? ` (contexto: ${args.context})` : '';
   const fullQuery = contextNote ? `${query} ${contextNote}` : query;
 
+  const t0 = Date.now();
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
@@ -881,6 +883,15 @@ async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> 
       snippet: (r.content || '').slice(0, 600),
     }));
 
+    logTavilyUsage({
+      tenant_id: ctx.tenantId,
+      operation: 'search-basic',
+      unit_count: 1,
+      feature: 'web_search',
+      duration_ms: Date.now() - t0,
+      metadata: { query: fullQuery, result_count: results.length },
+    });
+
     return {
       success: true,
       data: {
@@ -897,7 +908,7 @@ async function toolWebSearch(args: any, _ctx: ToolContext): Promise<ToolResult> 
 
 // ── Web Extract ─────────────────────────────────────────────────
 
-async function toolWebExtract(args: any, _ctx: ToolContext): Promise<ToolResult> {
+async function toolWebExtract(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!isTavilyConfigured()) {
     return { success: false, error: 'Web extract nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
   }
@@ -908,8 +919,19 @@ async function toolWebExtract(args: any, _ctx: ToolContext): Promise<ToolResult>
   }
   const urls = rawUrls.slice(0, 3).map((u: any) => String(u));
 
+  const t0 = Date.now();
   try {
     const result = await tavilyExtract(urls, { timeoutMs: 14000 });
+
+    logTavilyUsage({
+      tenant_id: ctx.tenantId,
+      operation: 'extract',
+      unit_count: urls.length,
+      feature: 'web_extract',
+      duration_ms: Date.now() - t0,
+      metadata: { urls, result_count: result.results.length },
+    });
+
     return {
       success: true,
       data: {
@@ -925,7 +947,7 @@ async function toolWebExtract(args: any, _ctx: ToolContext): Promise<ToolResult>
 
 // ── Web Research (deep) ─────────────────────────────────────────
 
-async function toolWebResearch(args: any, _ctx: ToolContext): Promise<ToolResult> {
+async function toolWebResearch(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!isTavilyConfigured()) {
     return { success: false, error: 'Web research nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
   }
@@ -935,11 +957,22 @@ async function toolWebResearch(args: any, _ctx: ToolContext): Promise<ToolResult
 
   const focusHint = args.focus ? ` [foco: ${args.focus}]` : '';
 
+  const t0 = Date.now();
   try {
     const result = await tavilySearch(
       query + focusHint,
       { searchDepth: 'advanced', maxResults: 8, includeAnswer: true, timeoutMs: 14000 }
     );
+
+    logTavilyUsage({
+      tenant_id: ctx.tenantId,
+      operation: 'search-advanced',
+      unit_count: 1,
+      feature: 'web_research',
+      duration_ms: Date.now() - t0,
+      metadata: { query, focus: args.focus || null, result_count: result.results.length },
+    });
+
     return {
       success: true,
       data: {

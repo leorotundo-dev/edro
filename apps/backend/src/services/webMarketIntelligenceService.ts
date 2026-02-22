@@ -15,6 +15,7 @@ import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from './tavilyService';
 import { generateCompletion } from './ai/openaiService';
+import { logTavilyUsage } from './ai/aiUsageLogger';
 import { env } from '../env';
 
 export type MarketIntelligenceResult = {
@@ -68,7 +69,9 @@ export async function runMarketIntelligenceForClient(params: {
   // ── 1. Extract client website ───────────────────────────────
   if (website) {
     try {
+      const t0 = Date.now();
       const extracted = await tavilyExtract([website], { timeoutMs: 12000 });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'extract', unit_count: 1, feature: 'web_intelligence', duration_ms: Date.now() - t0, metadata: { client_id: clientId, trigger } });
       for (const item of extracted.results) {
         if (!item.content || item.content.length < 100) continue;
         const id = await saveLibraryItem({
@@ -95,7 +98,9 @@ export async function runMarketIntelligenceForClient(params: {
       ? `${sector} tendências conteúdo digital marketing 2026`
       : `${keywords.slice(0, 2).join(' ')} tendências marketing digital 2026`;
     try {
+      const t1 = Date.now();
       const trendResult = await tavilySearch(trendQuery, { maxResults: 5, searchDepth: 'basic', includeAnswer: false });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'web_intelligence', duration_ms: Date.now() - t1, metadata: { client_id: clientId, query: trendQuery } });
       const top = trendResult.results.slice(0, 3);
       for (const r of top) {
         if (!r.snippet || r.snippet.length < 50) continue;
@@ -123,7 +128,9 @@ export async function runMarketIntelligenceForClient(params: {
   if (competitors.length > 0) {
     const compQuery = `${competitors.slice(0, 2).join(' OR ')} estratégia conteúdo marketing`;
     try {
+      const t2 = Date.now();
       const compResult = await tavilySearch(compQuery, { maxResults: 4, searchDepth: 'basic' });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'web_intelligence', duration_ms: Date.now() - t2, metadata: { client_id: clientId, query: compQuery } });
       for (const r of compResult.results.slice(0, 2)) {
         if (!r.snippet || r.snippet.length < 50) continue;
         const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'concorrente');
@@ -150,7 +157,9 @@ export async function runMarketIntelligenceForClient(params: {
   if (keywords.length >= 2) {
     const kwQuery = `${keywords.slice(0, 3).join(' ')} conteúdo viral tendência`;
     try {
+      const t3 = Date.now();
       const kwResult = await tavilySearch(kwQuery, { maxResults: 3, searchDepth: 'basic' });
+      logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'web_intelligence', duration_ms: Date.now() - t3, metadata: { client_id: clientId, query: kwQuery } });
       for (const r of kwResult.results.slice(0, 2)) {
         if (!r.snippet || r.snippet.length < 50) continue;
         const score = await scoreContentRelevance(client, { title: r.title, snippet: r.snippet }, 'referencia');

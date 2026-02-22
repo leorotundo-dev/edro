@@ -90,3 +90,43 @@ export async function logAiUsage(entry: AiUsageEntry): Promise<void> {
 export function estimateTokens(text: string): number {
   return Math.ceil((text || '').length / 4);
 }
+
+// ── Tavily Usage Logger ─────────────────────────────────────────
+// Tavily is billed per API call, not per token.
+
+const TAVILY_PRICING_USD: Record<string, number> = {
+  'search-basic': 0.008,
+  'search-advanced': 0.015,
+  'extract': 0.008, // per URL extracted
+};
+
+export type TavilyOperation = 'search-basic' | 'search-advanced' | 'extract';
+
+export async function logTavilyUsage(params: {
+  tenant_id: string;
+  operation: TavilyOperation;
+  unit_count: number;
+  feature?: string;
+  duration_ms?: number;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  const { tenant_id, operation, unit_count, feature, duration_ms, metadata } = params;
+  const pricePerUnit = TAVILY_PRICING_USD[operation] ?? 0.008;
+  const costUsd = pricePerUnit * unit_count;
+  const costBrl = costUsd * USD_TO_BRL;
+
+  await query(
+    `INSERT INTO ai_usage_log
+      (tenant_id, provider, model, feature, input_tokens, output_tokens, cost_usd, cost_brl, duration_ms, metadata)
+     VALUES ($1, 'tavily', $2, $3, 0, 0, $4, $5, $6, $7)`,
+    [
+      tenant_id,
+      operation,
+      feature || 'web_intelligence',
+      costUsd,
+      costBrl,
+      duration_ms || null,
+      JSON.stringify({ ...metadata, unit_count }),
+    ]
+  ).catch(() => {}); // best-effort — never block on logging
+}

@@ -22,6 +22,7 @@ import TableRow from '@mui/material/TableRow';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
+import LinearProgress from '@mui/material/LinearProgress';
 import {
   IconRefresh,
   IconCoin,
@@ -30,6 +31,7 @@ import {
   IconChartBar,
   IconArrowUp,
   IconArrowDown,
+  IconWorld,
 } from '@tabler/icons-react';
 
 type Totals = {
@@ -91,6 +93,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   openai: '#10A37F',
   claude: '#D97706',
   perplexity: '#20B2AA',
+  tavily: '#0EA5E9',
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -98,7 +101,10 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
   claude: 'Claude',
   perplexity: 'Perplexity',
+  tavily: 'Tavily',
 };
+
+const TAVILY_FREE_TIER = 1000; // credits/month on free plan
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -151,6 +157,15 @@ export default function AiCostsPage() {
   const dailyChart = buildDailyChart(data?.by_day || []);
   const donutChart = buildDonutChart(data?.by_provider || []);
   const featureChart = buildFeatureChart(data?.by_feature || []);
+
+  // Tavily summary derived from by_provider data
+  const tavilyRows = (data?.by_provider || []).filter((r) => r.provider === 'tavily');
+  const tavilySearches = tavilyRows.filter((r) => r.model.startsWith('search')).reduce((s, r) => s + Number(r.calls), 0);
+  const tavilyExtracts = tavilyRows.filter((r) => r.model === 'extract').reduce((s, r) => s + Number(r.calls), 0);
+  const tavilyTotalCalls = tavilyRows.reduce((s, r) => s + Number(r.calls), 0);
+  const tavilyCostUsd = tavilyRows.reduce((s, r) => s + Number(r.cost_usd), 0);
+  const tavilyCostBrl = tavilyRows.reduce((s, r) => s + Number(r.cost_brl), 0);
+  const tavilyFreeTierPct = Math.min(100, Math.round((tavilyTotalCalls / TAVILY_FREE_TIER) * 100));
 
   const statCards = [
     {
@@ -331,6 +346,59 @@ export default function AiCostsPage() {
                 </DashboardCard>
               </Grid>
             </Grid>
+
+            {/* Tavily Web Search summary */}
+            <DashboardCard title="Tavily — Uso de Busca Web" sx={{ mb: 3 }}>
+              <Grid container spacing={2} alignItems="stretch">
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <IconWorld size={24} color="#0EA5E9" />
+                    <Typography variant="h5" fontWeight={700}>{tavilyTotalCalls}</Typography>
+                    <Typography variant="caption" color="text.secondary">Total de chamadas</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700} color="#0EA5E9">{tavilySearches}</Typography>
+                    <Typography variant="caption" color="text.secondary">Buscas</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700} color="#0EA5E9">{tavilyExtracts}</Typography>
+                    <Typography variant="caption" color="text.secondary">Extrações</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700}>{formatBrl(tavilyCostBrl)}</Typography>
+                    <Typography variant="caption" color="text.secondary">Custo BRL</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                  <Stack spacing={0.5}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary">Free tier ({days}d)</Typography>
+                      <Typography variant="caption" fontWeight={600}>{tavilyTotalCalls}/{TAVILY_FREE_TIER}</Typography>
+                    </Stack>
+                    <LinearProgress
+                      variant="determinate"
+                      value={tavilyFreeTierPct}
+                      sx={{
+                        height: 8,
+                        borderRadius: 4,
+                        bgcolor: 'rgba(14,165,233,0.12)',
+                        '& .MuiLinearProgress-bar': {
+                          bgcolor: tavilyFreeTierPct >= 90 ? '#FA896B' : tavilyFreeTierPct >= 70 ? '#FFAE1F' : '#0EA5E9',
+                          borderRadius: 4,
+                        },
+                      }}
+                    />
+                    <Typography variant="caption" color="text.secondary">{tavilyFreeTierPct}% do plano gratuito</Typography>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </DashboardCard>
 
             {/* Recent calls */}
             <DashboardCard title="Chamadas Recentes" noPadding>
