@@ -1381,7 +1381,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (tenantId && copyRow?.briefing_id) {
       try {
         const briefing = await getBriefingById(copyRow.briefing_id);
-        const clientId = briefing?.client_id || null;
+        const clientId = (briefing as any)?.main_client_id || briefing?.client_id || null;
         if (clientId) {
           const payload = copyRow.payload || {};
           const briefingPl = (briefing?.payload as Record<string, any>) ?? {};
