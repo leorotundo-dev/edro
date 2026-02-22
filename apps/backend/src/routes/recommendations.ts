@@ -5,6 +5,8 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { getClientById } from '../repos/clientsRepo';
 import { EnxovalRecommendationService } from '../recommendation/EnxovalRecommendationService';
 import { getRecommendationCatalogStats, loadRecommendationCatalog } from '../recommendation/catalogAdapter';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
+import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
 const ENXOVAL_TIMEOUT_MS = Number(process.env.ENXOVAL_TIMEOUT_MS || 15000);
 
@@ -34,6 +36,7 @@ const requestSchema = z.object({
   deadline: z.string().optional(),
   client_id: z.string().optional(),
   client_name: z.string().optional(),
+  include_cases: z.boolean().optional(),
 });
 
 const objectiveMap: Record<string, 'awareness' | 'consideration' | 'conversion' | 'retention'> = {
@@ -163,8 +166,37 @@ export default async function recommendationRoutes(app: FastifyInstance) {
         }
       }
 
+      // ── Tavily: cases de sucesso em paralelo ──────────────────────────
+      let reference_cases: { title: string; snippet: string | null; url: string }[] = [];
+      if (body.include_cases && isTavilyConfigured()) {
+        try {
+          const sector = client?.segment_primary || body.client_name || '';
+          const obj = body.objective || '';
+          const briefingSnippet = body.briefing_text.slice(0, 150);
+          const t0 = Date.now();
+          const casesRes = await tavilySearch(
+            `cases sucesso campanha marketing ${sector} ${obj} resultados ROI exemplos reais`.trim(),
+            { maxResults: 5, searchDepth: 'basic' }
+          );
+          logTavilyUsage({
+            tenant_id: tenantId ?? 'system',
+            operation: 'search-basic',
+            unit_count: 1,
+            feature: 'campaign_cases',
+            duration_ms: Date.now() - t0,
+            metadata: { sector, objective: obj, briefing_snippet: briefingSnippet },
+          });
+          reference_cases = casesRes.results.slice(0, 4).map((r) => ({
+            title: r.title,
+            snippet: r.snippet?.slice(0, 300) ?? null,
+            url: r.url,
+          }));
+        } catch { /* non-blocking */ }
+      }
+
       return reply.send({
         ...recommendation,
+        reference_cases,
         client: client
           ? {
               id: client.id,

@@ -30,6 +30,7 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import {
   IconPlus,
   IconChartBar,
@@ -44,6 +45,11 @@ import {
   IconBrain,
   IconTrendingUp,
   IconCheck,
+  IconSparkles,
+  IconArrowLeft,
+  IconArrowRight,
+  IconExternalLink,
+  IconStarFilled,
 } from '@tabler/icons-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -108,6 +114,22 @@ type FormatRow = {
   format_name: string;
   platform: string;
   production_type: string;
+};
+
+type RecoFormat = {
+  format_id?: string;
+  format_name: string;
+  platform: string;
+  production_type: string;
+  recommendation_score: number;
+  recommendation_reasons?: string[];
+  estimated_hours_total?: number;
+};
+
+type RecoCase = {
+  title: string;
+  snippet: string | null;
+  url: string;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -635,6 +657,7 @@ function CreateCampaignDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [dialogStep, setDialogStep] = useState<0 | 1>(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -647,12 +670,48 @@ function CreateCampaignDialog({
   });
   const [formats, setFormats] = useState<FormatRow[]>([{ format_name: '', platform: 'Instagram', production_type: '' }]);
 
-  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // IA state
+  const [briefingText, setBriefingText] = useState('');
+  const [recommending, setRecommending] = useState(false);
+  const [recoFormats, setRecoFormats] = useState<RecoFormat[]>([]);
+  const [recoCases, setRecoCases] = useState<RecoCase[]>([]);
+  const [usedRecos, setUsedRecos] = useState<Set<string>>(new Set());
 
+  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const addFormat = () => setFormats((f) => [...f, { format_name: '', platform: 'Instagram', production_type: '' }]);
   const removeFormat = (i: number) => setFormats((f) => f.filter((_, idx) => idx !== i));
   const setFormatField = (i: number, k: keyof FormatRow, v: string) =>
     setFormats((f) => f.map((row, idx) => (idx === i ? { ...row, [k]: v } : row)));
+
+  const handleRecommend = async () => {
+    setRecommending(true);
+    setRecoFormats([]);
+    setRecoCases([]);
+    try {
+      const res = await apiPost<{ recommended_formats: RecoFormat[]; reference_cases: RecoCase[] }>(
+        '/recommendations/enxoval',
+        {
+          briefing_text: briefingText || form.name || 'campanha de marketing',
+          objective: form.objective,
+          budget_total: form.budget_brl ? Number(form.budget_brl) : undefined,
+          client_id: clientId,
+          include_cases: true,
+        }
+      );
+      setRecoFormats(res?.recommended_formats?.slice(0, 6) || []);
+      setRecoCases(res?.reference_cases || []);
+    } catch { /* silent */ }
+    finally { setRecommending(false); }
+  };
+
+  const handleUseFormat = (fmt: RecoFormat) => {
+    const key = `${fmt.format_name}::${fmt.platform}`;
+    setUsedRecos((prev) => new Set([...prev, key]));
+    setFormats((prev) => {
+      const clean = prev.filter((f) => f.format_name.trim());
+      return [...clean, { format_name: fmt.format_name, platform: fmt.platform, production_type: fmt.production_type }];
+    });
+  };
 
   const handleCreate = async () => {
     setError('');
@@ -674,8 +733,14 @@ function CreateCampaignDialog({
       });
       onCreated();
       onClose();
+      // Reset
+      setDialogStep(0);
       setForm({ name: '', objective: 'performance', budget_brl: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', status: 'active' });
       setFormats([{ format_name: '', platform: 'Instagram', production_type: '' }]);
+      setBriefingText('');
+      setRecoFormats([]);
+      setRecoCases([]);
+      setUsedRecos(new Set());
     } catch (e: any) {
       setError(e?.message || 'Erro ao criar campanha.');
     } finally {
@@ -683,117 +748,315 @@ function CreateCampaignDialog({
     }
   };
 
+  const handleClose = () => {
+    onClose();
+    setDialogStep(0);
+    setError('');
+    setRecoFormats([]);
+    setRecoCases([]);
+    setUsedRecos(new Set());
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ pb: 1 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">Nova Campanha</Typography>
-          <IconButton size="small" onClick={onClose}><IconX size={18} /></IconButton>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Typography variant="h6">Nova Campanha</Typography>
+            {/* Step indicator */}
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              {[0, 1].map((s) => (
+                <Box
+                  key={s}
+                  sx={{
+                    width: s === dialogStep ? 20 : 8,
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: s === dialogStep ? '#ff6600' : s < dialogStep ? '#13DEB9' : 'grey.300',
+                    transition: 'all 0.2s',
+                  }}
+                />
+              ))}
+              <Typography variant="caption" color="text.secondary">
+                {dialogStep === 0 ? 'Dados básicos' : 'Formatos + IA'}
+              </Typography>
+            </Stack>
+          </Stack>
+          <IconButton size="small" onClick={handleClose}><IconX size={18} /></IconButton>
         </Stack>
       </DialogTitle>
-      <DialogContent>
-        <Stack spacing={2.5} sx={{ mt: 1 }}>
-          {/* Campaign fields */}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField label="Nome da campanha *" size="small" fullWidth value={form.name} onChange={(e) => setF('name', e.target.value)} />
+
+      <DialogContent dividers>
+        {/* ── STEP 0: Dados básicos ─────────────────────────────────────── */}
+        {dialogStep === 0 && (
+          <Stack spacing={2.5} sx={{ mt: 0.5 }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField label="Nome da campanha *" size="small" fullWidth value={form.name} onChange={(e) => setF('name', e.target.value)} />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Objetivo</InputLabel>
+                  <Select label="Objetivo" value={form.objective} onChange={(e) => setF('objective', e.target.value)}>
+                    {OBJECTIVES.map((o) => <MenuItem key={o} value={o}>{objectiveLabel(o)}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  label="Budget (R$)" size="small" type="number" fullWidth value={form.budget_brl}
+                  onChange={(e) => setF('budget_brl', e.target.value)}
+                  InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField label="Início *" size="small" type="date" fullWidth value={form.start_date}
+                  onChange={(e) => setF('start_date', e.target.value)} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField label="Fim" size="small" type="date" fullWidth value={form.end_date}
+                  onChange={(e) => setF('end_date', e.target.value)} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select label="Status" value={form.status} onChange={(e) => setF('status', e.target.value)}>
+                    {STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl size="small" fullWidth>
-                <InputLabel>Objetivo</InputLabel>
-                <Select label="Objetivo" value={form.objective} onChange={(e) => setF('objective', e.target.value)}>
-                  {OBJECTIVES.map((o) => <MenuItem key={o} value={o}>{objectiveLabel(o)}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+          </Stack>
+        )}
+
+        {/* ── STEP 1: Formatos + IA ─────────────────────────────────────── */}
+        {dialogStep === 1 && (
+          <Stack spacing={2.5} sx={{ mt: 0.5 }}>
+
+            {/* AI Assistant Card */}
+            <Box sx={{ border: '1px dashed rgba(255,102,0,0.4)', borderRadius: 2, p: 2, bgcolor: 'rgba(255,102,0,0.025)' }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                <IconSparkles size={18} color="#ff6600" />
+                <Typography variant="subtitle2" fontWeight={700} color="#ff6600">
+                  Assistente IA — Recomendação de Formatos
+                </Typography>
+              </Stack>
               <TextField
-                label="Budget (R$)"
-                size="small"
-                type="number"
+                multiline
+                rows={2}
                 fullWidth
-                value={form.budget_brl}
-                onChange={(e) => setF('budget_brl', e.target.value)}
-                InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+                size="small"
+                placeholder="Descreva o briefing da campanha... Ex: quero gerar leads qualificados para o produto X, público 30-50 anos, presença forte no Instagram e LinkedIn"
+                value={briefingText}
+                onChange={(e) => setBriefingText(e.target.value)}
+                sx={{ mb: 1.5 }}
               />
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField label="Início *" size="small" type="date" fullWidth value={form.start_date} onChange={(e) => setF('start_date', e.target.value)} InputLabelProps={{ shrink: true }} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField label="Fim" size="small" type="date" fullWidth value={form.end_date} onChange={(e) => setF('end_date', e.target.value)} InputLabelProps={{ shrink: true }} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl size="small" fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select label="Status" value={form.status} onChange={(e) => setF('status', e.target.value)}>
-                  {STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={recommending ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <IconSparkles size={15} />}
+                onClick={handleRecommend}
+                disabled={recommending}
+                sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+              >
+                {recommending ? 'Analisando...' : 'Sugerir formatos com IA'}
+              </Button>
 
-          <Divider />
+              {/* Recommended formats */}
+              {recoFormats.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Formatos recomendados para esta campanha
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    {recoFormats.map((fmt, idx) => {
+                      const key = `${fmt.format_name}::${fmt.platform}`;
+                      const used = usedRecos.has(key);
+                      return (
+                        <Grid key={idx} size={{ xs: 12, sm: 6 }}>
+                          <Card variant="outlined" sx={{ opacity: used ? 0.5 : 1, transition: 'opacity 0.2s', borderColor: used ? 'success.light' : 'divider' }}>
+                            <CardContent sx={{ p: '10px !important' }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography variant="caption" fontWeight={700} noWrap sx={{ display: 'block' }}>
+                                    {fmt.format_name}
+                                  </Typography>
+                                  <Stack direction="row" spacing={0.5} sx={{ mt: 0.25 }}>
+                                    <Chip label={fmt.platform} size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
+                                    {fmt.production_type && (
+                                      <Chip label={fmt.production_type} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.6rem' }} />
+                                    )}
+                                  </Stack>
+                                </Box>
+                                <Stack alignItems="center" spacing={0.5} sx={{ ml: 1 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                    <IconStarFilled size={11} color={scoreColor(fmt.recommendation_score)} />
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: scoreColor(fmt.recommendation_score), lineHeight: 1 }}>
+                                      {fmt.recommendation_score}
+                                    </Typography>
+                                  </Box>
+                                  <Button
+                                    size="small"
+                                    variant={used ? 'outlined' : 'contained'}
+                                    onClick={() => !used && handleUseFormat(fmt)}
+                                    disabled={used}
+                                    startIcon={used ? <IconCheck size={12} /> : <IconPlus size={12} />}
+                                    sx={{
+                                      fontSize: '0.65rem', py: 0.25, px: 0.75, minWidth: 0,
+                                      bgcolor: used ? 'transparent' : '#5D87FF',
+                                      '&:hover': { bgcolor: used ? 'transparent' : '#4570EA' },
+                                    }}
+                                  >
+                                    {used ? 'Adicionado' : 'Usar'}
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                              {fmt.recommendation_reasons && fmt.recommendation_reasons.length > 0 && (
+                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block', lineHeight: 1.3, fontSize: '0.62rem' }}>
+                                  {fmt.recommendation_reasons[0]}
+                                </Typography>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                </Box>
+              )}
 
-          {/* Formats */}
-          <Box>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Formatos de produção</Typography>
-              <Button size="small" startIcon={<IconPlus size={14} />} onClick={addFormat}>Adicionar formato</Button>
-            </Stack>
-            <Stack spacing={1.5}>
-              {formats.map((fmt, i) => (
-                <Grid container spacing={1.5} key={i} alignItems="center">
-                  <Grid size={{ xs: 12, md: 5 }}>
-                    <TextField
-                      label="Nome do formato *"
-                      size="small"
-                      fullWidth
-                      placeholder="ex: Carrossel educativo, Reels trending..."
-                      value={fmt.format_name}
-                      onChange={(e) => setFormatField(i, 'format_name', e.target.value)}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 6, md: 3 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Plataforma</InputLabel>
-                      <Select label="Plataforma" value={fmt.platform} onChange={(e) => setFormatField(i, 'platform', e.target.value)}>
-                        {PLATFORMS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 5, md: 3 }}>
-                    <TextField
-                      label="Tipo de produção"
-                      size="small"
-                      fullWidth
-                      placeholder="ex: vídeo, imagem"
-                      value={fmt.production_type}
-                      onChange={(e) => setFormatField(i, 'production_type', e.target.value)}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 1 }}>
-                    {formats.length > 1 && (
-                      <IconButton size="small" onClick={() => removeFormat(i)} color="error">
-                        <IconTrash size={15} />
-                      </IconButton>
-                    )}
-                  </Grid>
-                </Grid>
-              ))}
-            </Stack>
-          </Box>
+              {/* Tavily cases */}
+              {recoCases.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Cases de inspiração (buscados na web)
+                  </Typography>
+                  <Stack spacing={1}>
+                    {recoCases.map((c, i) => (
+                      <Box
+                        key={i}
+                        component="a"
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          display: 'block', p: 1.25, borderRadius: 1.5,
+                          border: '1px solid', borderColor: 'divider',
+                          bgcolor: 'background.paper',
+                          textDecoration: 'none', color: 'inherit',
+                          '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.03)' },
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="caption" fontWeight={700} sx={{ display: 'block', lineHeight: 1.3 }}>
+                              {c.title}
+                            </Typography>
+                            {c.snippet && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3, mt: 0.25 }}>
+                                {c.snippet}
+                              </Typography>
+                            )}
+                          </Box>
+                          <IconExternalLink size={13} color="#999" style={{ marginLeft: 8, flexShrink: 0, marginTop: 2 }} />
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </Box>
 
-          {error && (
-            <Typography variant="caption" color="error">{error}</Typography>
-          )}
-        </Stack>
+            <Divider>
+              <Typography variant="caption" color="text.secondary">Formatos da campanha</Typography>
+            </Divider>
+
+            {/* Manual formats */}
+            <Box>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  {formats.filter(f => f.format_name.trim()).length} formato{formats.filter(f => f.format_name.trim()).length !== 1 ? 's' : ''} adicionado{formats.filter(f => f.format_name.trim()).length !== 1 ? 's' : ''}
+                </Typography>
+                <Button size="small" startIcon={<IconPlus size={14} />} onClick={addFormat}>Adicionar manualmente</Button>
+              </Stack>
+              <Stack spacing={1.5}>
+                {formats.map((fmt, i) => (
+                  <Grid container spacing={1.5} key={i} alignItems="center">
+                    <Grid size={{ xs: 12, md: 5 }}>
+                      <TextField
+                        label="Nome do formato *" size="small" fullWidth
+                        placeholder="ex: Carrossel educativo, Reels trending..."
+                        value={fmt.format_name}
+                        onChange={(e) => setFormatField(i, 'format_name', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 6, md: 3 }}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Plataforma</InputLabel>
+                        <Select label="Plataforma" value={fmt.platform} onChange={(e) => setFormatField(i, 'platform', e.target.value)}>
+                          {PLATFORMS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid size={{ xs: 5, md: 3 }}>
+                      <TextField
+                        label="Tipo produção" size="small" fullWidth
+                        placeholder="ex: vídeo, imagem"
+                        value={fmt.production_type}
+                        onChange={(e) => setFormatField(i, 'production_type', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 1 }}>
+                      {formats.length > 1 && (
+                        <IconButton size="small" onClick={() => removeFormat(i)} color="error">
+                          <IconTrash size={15} />
+                        </IconButton>
+                      )}
+                    </Grid>
+                  </Grid>
+                ))}
+              </Stack>
+            </Box>
+
+            {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
+          </Stack>
+        )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button variant="contained" onClick={handleCreate} disabled={saving} startIcon={saving ? <CircularProgress size={14} /> : <IconCheck size={16} />}>
-          Criar campanha
-        </Button>
+
+      <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+        {dialogStep === 0 ? (
+          <>
+            <Button onClick={handleClose} color="inherit">Cancelar</Button>
+            <Button
+              variant="contained"
+              endIcon={<IconArrowRight size={16} />}
+              onClick={() => {
+                if (!form.name.trim()) { setError('Informe o nome da campanha.'); return; }
+                setError('');
+                setDialogStep(1);
+              }}
+              sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+            >
+              Próximo: Formatos
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button startIcon={<IconArrowLeft size={16} />} onClick={() => { setDialogStep(0); setError(''); }} color="inherit">
+              Voltar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleCreate}
+              disabled={saving}
+              startIcon={saving ? <CircularProgress size={14} /> : <IconCheck size={16} />}
+              sx={{ bgcolor: '#13DEB9', color: '#000', fontWeight: 700, '&:hover': { bgcolor: '#0fc9a8' } }}
+            >
+              {saving ? 'Criando...' : 'Criar Campanha'}
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );
