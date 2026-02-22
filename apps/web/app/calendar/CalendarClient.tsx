@@ -917,7 +917,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       );
       setManualRelevance(String(effectiveScore));
       await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
-      setNotice('Relevância atualizada com sucesso.');
+      // Se global view, recarrega relevâncias por cliente para atualizar "Clientes possíveis"
+      if (!selectedClient && selectedEvent?.id) {
+        loadEventRelevance(selectedEvent.id);
+      }
+      const clientLabel = manualRelevanceTargetClient?.name || selectedClient?.name || 'cliente';
+      setNotice(`Score de ${clientLabel} atualizado para ${effectiveScore}%`);
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar relevância.');
     } finally {
