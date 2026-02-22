@@ -81,6 +81,7 @@ type CalendarEventItem = {
   descricao_ai?: string | null;
   origem_ai?: string | null;
   curiosidade_ai?: string | null;
+  base_relevance?: number | null;
 };
 
 type CalendarRbcEvent = {
