@@ -182,7 +182,7 @@ async function runBatch() {
       processed++;
     } else {
       errors++;
-      console.warn(`[calendarEnrichment] failed event="${event.name}" error="${result.error}"`);
+      console.log(`[calendarEnrichment] skip event="${event.name}" reason="${result.error}"`);
     }
 
     // 3s between events to respect rate limits

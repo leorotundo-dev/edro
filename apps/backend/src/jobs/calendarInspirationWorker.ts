@@ -127,7 +127,7 @@ export async function scrapeInspirations(event: EventRow): Promise<InspirationRe
         if ((rowCount ?? 0) > 0) added++;
       }
     } catch (err: any) {
-      console.warn(`[calendarInspiration] search failed for "${event.name}" (${lang}): ${err?.message}`);
+      console.log(`[calendarInspiration] search skip "${event.name}" (${lang}): ${err?.message}`);
     }
 
     // Respect Tavily rate limits

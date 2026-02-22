@@ -237,16 +237,40 @@ export class BriefingAnalyzer {
       .trim()
       .replace(/```json/gi, '```')
       .replace(/```/g, '');
+
+    // Attempt 1: direct parse
     try {
       return JSON.parse(trimmed) as ExtractedParameters;
-    } catch {
-      const start = trimmed.indexOf('{');
-      const end = trimmed.lastIndexOf('}');
-      if (start >= 0 && end > start) {
+    } catch { /* continue */ }
+
+    // Attempt 2: extract between first { and last }
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
         return JSON.parse(trimmed.slice(start, end + 1)) as ExtractedParameters;
-      }
-      throw new Error('Invalid JSON from LLM');
+      } catch { /* continue */ }
     }
+
+    // Attempt 3: repair truncated JSON by closing open brackets
+    if (start >= 0) {
+      try {
+        let partial = trimmed.slice(start);
+        // Remove trailing comma before attempting close
+        partial = partial.replace(/,\s*$/, '');
+        // Count open braces/brackets and close them
+        const opens: string[] = [];
+        for (const ch of partial) {
+          if (ch === '{') opens.push('}');
+          else if (ch === '[') opens.push(']');
+          else if (ch === '}' || ch === ']') opens.pop();
+        }
+        const repaired = partial + opens.reverse().join('');
+        return JSON.parse(repaired) as ExtractedParameters;
+      } catch { /* fall through */ }
+    }
+
+    throw new Error('Invalid JSON from LLM');
   }
 
   /**
