@@ -58,10 +58,18 @@ type StoredClient = {
   pillars?: string[];
 };
 
+function formatDateBR(iso?: string) {
+  if (!iso) return '';
+  const [year, month, day] = iso.split('-');
+  if (!year || !month || !day) return iso;
+  return `${day}/${month}/${year}`;
+}
+
 export default function StudioLayout({ children }: StudioLayoutProps) {
   const pathname = usePathname();
   const currentStep = getCurrentStep(pathname);
   const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
+  const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -79,21 +87,26 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
           : fallback;
         if (!found) {
           setActiveClient(null);
-          return;
+        } else {
+          setActiveClient({
+            ...found,
+            tone: context?.tone || found.tone || null,
+            pillars: Array.isArray(context?.pillars)
+              ? context.pillars
+              : String(context?.pillars || '')
+                  .split(/[,;\n]/)
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .slice(0, 2),
+          });
         }
-        setActiveClient({
-          ...found,
-          tone: context?.tone || found.tone || null,
-          pillars: Array.isArray(context?.pillars)
-            ? context.pillars
-            : String(context?.pillars || '')
-                .split(/[,;\n]/)
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .slice(0, 2),
-        });
+        // Evento + data do contexto
+        const ev = context?.event || '';
+        const dt = context?.date || '';
+        setStudioEvent(ev ? { event: ev, date: dt } : null);
       } catch {
         setActiveClient(null);
+        setStudioEvent(null);
       }
     };
 
@@ -314,6 +327,31 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                 >
                   <IconExternalLink size={12} />
                 </IconButton>
+              </Stack>
+            ) : null}
+            {studioEvent ? (
+              <Stack
+                direction="row"
+                spacing={0.75}
+                alignItems="center"
+                sx={{
+                  px: 1.25,
+                  py: 0.6,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(93,135,255,0.04)',
+                  border: '1px solid rgba(93,135,255,0.15)',
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {studioEvent.event.length > 32 ? studioEvent.event.slice(0, 32) + '…' : studioEvent.event}
+                </Typography>
+                {studioEvent.date ? (
+                  <Chip
+                    size="small"
+                    label={formatDateBR(studioEvent.date)}
+                    sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'rgba(93,135,255,0.1)', color: 'primary.main' }}
+                  />
+                ) : null}
               </Stack>
             ) : null}
           </Stack>
