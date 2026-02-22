@@ -1429,9 +1429,11 @@ export default async function edroRoutes(app: FastifyInstance) {
     // Fire-and-forget: rebuild preferences if score was provided
     if (body.score && copyRow?.briefing_id) {
       if (tenantId) {
-        getBriefingById(copyRow.briefing_id).then((briefing) => {
-          if (briefing?.client_id) {
-            rebuildClientPreferences({ tenant_id: tenantId, client_id: briefing.client_id }).catch(() => {});
+        getBriefingById(copyRow.briefing_id).then((b) => {
+          // Usa main_client_id (clients.id TEXT) se disponível, fallback para edro_clients.id (UUID)
+          const prefClientId = (b as any)?.main_client_id || b?.client_id;
+          if (prefClientId) {
+            rebuildClientPreferences({ tenant_id: tenantId, client_id: prefClientId }).catch(() => {});
           }
         }).catch(() => {});
       }
@@ -1569,12 +1571,22 @@ export default async function edroRoutes(app: FastifyInstance) {
         : typeof (briefing.payload as any)?.format === 'string'
           ? (briefing.payload as any).format
           : null;
-    // Prioridade: main_client_id (FK para clients) sobre client_id (edro_clients UUID)
+    // selectedClientId: para learned_insights e fetchPerformanceHint — usa clients.id (TEXT)
     const selectedClientId =
       typeof metadata.client_id === 'string'
         ? metadata.client_id
         : (briefing as any).main_client_id ||
           resolveClientIdFromPayload((briefing.payload as any) || {}) ||
+          null;
+
+    // learningClientId: para preference_feedback e copy_performance_preferences —
+    // essas tabelas armazenam por edro_clients.id (UUID), então manter retrocompatibilidade.
+    // Usa main_client_id se disponível (futuro), fallback para client_id legado (UUID).
+    const learningClientId =
+      typeof metadata.client_id === 'string'
+        ? metadata.client_id
+        : (briefing as any).main_client_id ||
+          (briefing as any).client_id ||
           null;
     // Extrair campos de persona/AMD do payload do briefing
     const briefingPayload = (briefing?.payload as Record<string, any>) ?? {};
@@ -1663,10 +1675,10 @@ export default async function edroRoutes(app: FastifyInstance) {
         // não contamina a geração de posts do LinkedIn e vice-versa.
         let preferenceBlock = '';
         let learnedBlock = '';
-        if (selectedClientId && tenantId) {
+        if (learningClientId && tenantId) {
           try {
             const prefCtx = await getClientPreferenceContext(
-              selectedClientId,
+              learningClientId,
               tenantId,
               selectedPlatform ? { platform: selectedPlatform } : undefined
             );
@@ -1675,7 +1687,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
           // Injetar directives de performance histórica (learned preferences)
           try {
-            const learnedPrefs = await getClientPreferences({ tenant_id: tenantId, client_id: selectedClientId });
+            const learnedPrefs = await getClientPreferences({ tenant_id: tenantId, client_id: learningClientId });
             if (learnedPrefs?.directives) {
               const boostLines = (learnedPrefs.directives.boost || []).slice(0, 4);
               const avoidLines = (learnedPrefs.directives.avoid || []).slice(0, 3);
