@@ -198,12 +198,12 @@ async function runBottleneckAlertsJob() {
         title: string; current_stage: string; hours_stuck: number;
       }>(
         `SELECT b.title, s.stage AS current_stage,
-           EXTRACT(EPOCH FROM (NOW() - s.entered_at)) / 3600 AS hours_stuck
+           EXTRACT(EPOCH FROM (NOW() - s.updated_at)) / 3600 AS hours_stuck
          FROM edro_briefings b
-         JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.exited_at IS NULL
+         JOIN edro_briefing_stages s ON s.briefing_id = b.id AND s.status NOT IN ('done', 'skipped')
          WHERE b.client_id = $1
            AND b.status NOT IN ('done', 'cancelled')
-           AND EXTRACT(EPOCH FROM (NOW() - s.entered_at)) / 3600 > 24
+           AND EXTRACT(EPOCH FROM (NOW() - s.updated_at)) / 3600 > 24
          ORDER BY hours_stuck DESC`,
         [client.id]
       );

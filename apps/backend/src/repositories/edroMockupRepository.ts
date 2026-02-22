@@ -85,7 +85,8 @@ export async function listMockups(params: {
     filters.push(`briefing_id=$${idx++}`);
     values.push(params.briefingId);
   }
-  if (params.clientId) {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (params.clientId && UUID_RE.test(params.clientId)) {
     filters.push(`client_id=$${idx++}`);
     values.push(params.clientId);
   }
