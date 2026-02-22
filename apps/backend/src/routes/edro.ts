@@ -1460,21 +1460,51 @@ export default async function edroRoutes(app: FastifyInstance) {
         // AMD sobrepõe taskType na seleção do gatilho dominante quando presente
         const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined, payloadAmd);
 
-        // ── Web research (não-bloqueante, timeout 8s) ─────────────────────────
-        // Busca referências reais antes de gerar — enriquece o prompt com contexto de mercado
+        // ── Web research (3 buscas paralelas, timeout 10s) ───────────────────
+        // CS1: contexto + dados/stats + ganchos da plataforma
+        // CS2: reutiliza refs já salvas no briefing (custo zero)
+        // CS4: benchmark de plataforma incluso no bloco de hooks
         let webResearchBlock = '';
         try {
-          const researchTimeout = new Promise<null>((_, r) => setTimeout(() => r(null), 8000));
-          let researchResult: string | null = null;
+          const savedRefs = (briefingPayload.web_research_refs as string | undefined) || null;
+          const researchParts: string[] = [];
+          const platform = selectedPlatform || 'redes sociais';
+          const currentYear = new Date().getFullYear();
+
+          // CS2: adicionar refs já salvas no briefing gratuitamente
+          if (savedRefs) researchParts.push(`Referências do briefing:\n${savedRefs}`);
+
           if (isTavilyConfigured()) {
-            const res = await Promise.race([
-              tavilySearch(`${briefing.title} ${selectedPlatform || ''} conteúdo referência tendência`, { maxResults: 3 }),
-              researchTimeout,
+            const timeout = new Promise<null>((r) => setTimeout(() => r(null), 10000));
+            const t0 = Date.now();
+
+            // CS1 + CS4: 3 buscas em paralelo
+            const [ctxRes, statsRes, hooksRes] = await Promise.all([
+              // 1. Contexto geral do tema + plataforma
+              Promise.race([tavilySearch(`${briefing.title} ${platform} conteúdo referência tendência`, { maxResults: 3, searchDepth: 'basic' }), timeout]),
+              // 2. Dados e estatísticas (social proof)
+              Promise.race([tavilySearch(`${briefing.title} dados estatísticas resultados ${currentYear}`, { maxResults: 2, searchDepth: 'basic' }), timeout]),
+              // 3. CS4: ganchos virais + benchmark da plataforma
+              Promise.race([tavilySearch(`${platform} ganchos virais formatos engajamento ${currentYear} Brasil`, { maxResults: 2, searchDepth: 'basic' }), timeout]),
             ]);
-            researchResult = res?.results?.map((r: any) => `- ${r.title}: ${r.snippet}`).join('\n') ?? null;
+
+            const callCount = [ctxRes, statsRes, hooksRes].filter(Boolean).length;
+            if (callCount > 0) {
+              logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: callCount, feature: 'copy_studio_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id, pipeline } });
+            }
+
+            const ctxLines = ctxRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 200)}`).join('\n');
+            if (ctxLines) researchParts.push(`Contexto do tema:\n${ctxLines}`);
+
+            const statsLines = statsRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 150)}`).join('\n');
+            if (statsLines) researchParts.push(`Dados e referências:\n${statsLines}`);
+
+            const hooksLines = hooksRes?.results?.slice(0, 1).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 150)}`).join('\n');
+            if (hooksLines) researchParts.push(`Tendências de ${platform}:\n${hooksLines}`);
           }
-          if (researchResult) {
-            webResearchBlock = `\n\nReferências de mercado pesquisadas para este tema:\n${researchResult}`;
+
+          if (researchParts.length > 0) {
+            webResearchBlock = `\n\nReferências de mercado para este conteúdo:\n${researchParts.join('\n\n')}`;
           }
         } catch {
           // Não-bloqueante — falha silenciosa
