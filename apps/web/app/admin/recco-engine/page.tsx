@@ -249,7 +249,7 @@ function FormatCard({ fmt, index }: { fmt: RecommendedFormat; index: number }) {
         <Collapse in={expanded}>
           <Divider sx={{ my: 1.5 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
                 RAZÕES DA RECOMENDAÇÃO
               </Typography>
@@ -259,7 +259,7 @@ function FormatCard({ fmt, index }: { fmt: RecommendedFormat; index: number }) {
                 ))}
               </Stack>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
                 BREAKDOWN DO SCORE
               </Typography>
@@ -343,7 +343,7 @@ export default function ReccoEnginePage() {
 
         <Grid container spacing={3}>
           {/* ── Left: Form ── */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card variant="outlined" sx={{ borderRadius: 3, position: 'sticky', top: 80 }}>
               <CardContent>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Parâmetros do briefing</Typography>
@@ -442,7 +442,7 @@ export default function ReccoEnginePage() {
           </Grid>
 
           {/* ── Right: Results ── */}
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             {!result && !loading && (
               <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
                 <IconLayoutGrid size={48} stroke={1} color="#cbd5e1" />
@@ -471,7 +471,7 @@ export default function ReccoEnginePage() {
                     { label: 'Custo total est.', value: fmtBrl(summary?.total_estimated_cost), icon: <IconCoin size={18} />, color: '#d97706' },
                     { label: 'Horas totais', value: `${fmtNum(summary?.total_estimated_hours)}h`, icon: <IconClock size={18} />, color: '#2563eb' },
                   ].map(({ label, value, icon, color }) => (
-                    <Grid item xs={6} md={3} key={label}>
+                    <Grid size={{ xs: 6, md: 3 }} key={label}>
                       <Card variant="outlined" sx={{ borderRadius: 3 }}>
                         <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                           <Stack direction="row" alignItems="center" spacing={1.25}>
@@ -492,17 +492,17 @@ export default function ReccoEnginePage() {
                   <Card variant="outlined" sx={{ borderRadius: 3 }}>
                     <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Grid container spacing={3} alignItems="center">
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>SCORES MÉDIOS DO ENXOVAL</Typography>
                         </Grid>
-                        <Grid item xs={6} md={4}>
+                        <Grid size={{ xs: 6, md: 4 }}>
                           <Typography variant="caption" color="text.secondary">ML Performance</Typography>
                           <Stack direction="row" alignItems="center" spacing={1}>
                             <LinearProgress variant="determinate" value={summary?.avg_ml_performance_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColor(summary?.avg_ml_performance_score ?? 0), borderRadius: 3 } }} />
                             <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 28 }}>{fmtNum(summary?.avg_ml_performance_score, 0)}</Typography>
                           </Stack>
                         </Grid>
-                        <Grid item xs={6} md={4}>
+                        <Grid size={{ xs: 6, md: 4 }}>
                           <Typography variant="caption" color="text.secondary">Mensurabilidade</Typography>
                           <Stack direction="row" alignItems="center" spacing={1}>
                             <LinearProgress variant="determinate" value={summary?.avg_measurability_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColor(summary?.avg_measurability_score ?? 0), borderRadius: 3 } }} />
