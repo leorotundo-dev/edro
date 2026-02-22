@@ -73,6 +73,7 @@ import { buildIndustryBenchmarks, getIndustryBenchmarks, compareClientToIndustry
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
+import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -1592,6 +1593,48 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Decision Stack Audit + Self-Correction Loop ───────────────────────────
+    let decisionStackAudit: ReturnType<typeof auditDecisionStack> | null = null;
+    try {
+      const rawText = extractText(output);
+      if (rawText && rawText.length > 30) {
+        decisionStackAudit = auditDecisionStack(rawText);
+
+        if (!decisionStackAudit.passed) {
+          const dsCorrection = buildDecisionStackCorrectionPrompt(decisionStackAudit);
+          if (dsCorrection) {
+            try {
+              const { generateCopy: gcDs } = await import('../services/ai/copyOrchestrator');
+              const corrected = await gcDs({
+                provider: body.force_provider || 'openai',
+                model: 'gpt-4o-mini',
+                prompt: `${dsCorrection}\n\n${rawText}`,
+                count: 1,
+                temperature: 0.4,
+                usageContext: { tenant_id: tenantId || 'system', feature: 'decision_stack_correction' },
+              });
+              if (corrected?.output) {
+                output = corrected.output;
+                const correctedText = extractText(corrected.output);
+                if (correctedText.length > 30) {
+                  decisionStackAudit = auditDecisionStack(correctedText);
+                }
+                request.log?.info(
+                  { vp_before: decisionStackAudit?.vp, critical: decisionStackAudit?.critical_violations },
+                  'decision_stack_corrected'
+                );
+              }
+            } catch {
+              /* correction is best-effort — never blocks delivery */
+            }
+          }
+        }
+      }
+    } catch {
+      /* audit is non-blocking */
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const basePayload =
       payload && typeof payload === 'object' && !Array.isArray(payload)
         ? payload
@@ -1607,6 +1650,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
     if (cognitiveLoad) {
       edroPayload.cognitive_load = cognitiveLoad;
+    }
+    if (decisionStackAudit) {
+      edroPayload.decision_stack = decisionStackAudit;
     }
     const hasEdroPayload = Object.keys(edroPayload).length > 0;
     const hasBasePayload = Object.keys(basePayload).length > 0;
