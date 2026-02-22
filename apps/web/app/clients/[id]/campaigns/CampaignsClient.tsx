@@ -882,7 +882,7 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
       {/* Main layout: list + detail */}
       <Grid container spacing={2}>
         {/* Left: campaign list */}
-        <Grid size={{ xs: 12 }} md={selected ? 4 : 12}>
+        <Grid size={{ xs: 12, md: selected ? 4 : 12 }}>
           {/* Filter */}
           <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap">
             {['all', ...STATUSES].map((s) => (
