@@ -80,6 +80,7 @@ const CLIENT_TABS = [
   { label: 'Perfil', path: '/perfil' },
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas', path: '/metricas' },
+  { label: 'Campanhas', path: '/campaigns' },
 ];
 
 function formatMarkdown(text: string): string {
