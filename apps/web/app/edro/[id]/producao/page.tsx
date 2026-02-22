@@ -1,9 +1,10 @@
 import ProducaoClient from './ProducaoClient';
 
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: Props) {
-  return <ProducaoClient briefingId={params.id} />;
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <ProducaoClient briefingId={id} />;
 }

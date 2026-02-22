@@ -1,9 +1,10 @@
 import RecomendacoesClient from './RecomendacoesClient';
 
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: Props) {
-  return <RecomendacoesClient briefingId={params.id} />;
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <RecomendacoesClient briefingId={id} />;
 }

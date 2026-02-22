@@ -2,14 +2,15 @@ import ClippingDetailClient from '@/app/clipping/ClippingDetailClient';
 import { redirect } from 'next/navigation';
 
 type RadarDetailPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function RadarDetailPage({ params }: RadarDetailPageProps) {
+export default async function RadarDetailPage({ params }: RadarDetailPageProps) {
+  const { id } = await params;
   // Backwards compatible alias:
   // - /radar/<uuid>  -> clipping item detail
   // - /radar/<clientId> -> client-scoped radar listing
-  const raw = String(params.id || '').trim();
+  const raw = String(id || '').trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
 
   if (isUuid) {
@@ -24,5 +25,5 @@ export default function RadarDetailPage({ params }: RadarDetailPageProps) {
   redirect(`/clipping?clientId=${encodeURIComponent(raw)}`);
 
   // Unreachable; keeps TS happy if redirect is ever stubbed.
-  return <ClippingDetailClient itemId={params.id} />;
+  return <ClippingDetailClient itemId={id} />;
 }

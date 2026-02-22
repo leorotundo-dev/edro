@@ -1,9 +1,10 @@
 import AprovacaoClient from './AprovacaoClient';
 
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: Props) {
-  return <AprovacaoClient briefingId={params.id} />;
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <AprovacaoClient briefingId={id} />;
 }
