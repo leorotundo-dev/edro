@@ -7,6 +7,7 @@ import { runDailyAlertsWorkerOnce } from './dailyAlertsWorker';
 import { runClientEnrichmentWorkerOnce } from './clientEnrichmentWorker';
 import { runWebIntelligenceWorkerOnce } from './webIntelligenceWorker';
 import { runTrendRadarWorkerOnce } from './trendRadarWorker';
+import { runCalendarEnrichmentWorkerOnce } from './calendarEnrichmentWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -57,4 +58,6 @@ export function startJobsRunner() {
   startWorkerLoop('webIntelligence', runWebIntelligenceWorkerOnce, 3500);
   // Trend radar — runs every Monday at 08h, saves sector trends to library
   startWorkerLoop('trendRadar', runTrendRadarWorkerOnce, 4000);
+  // Calendar enrichment — validates dates + fills descricao/hashtags/angulo for events (20/hour)
+  startWorkerLoop('calendarEnrichment', runCalendarEnrichmentWorkerOnce, 4500);
 }

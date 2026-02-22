@@ -17,6 +17,7 @@ import { listOverridesForClient, upsertOverride } from '../repos/calendarOverrid
 import { upsertRelevance } from '../repos/calendarRelevanceRepo';
 import { query } from '../db';
 import { generateEventDescription } from '../services/calendarDescriptionService';
+import { enrichCalendarEvent } from '../jobs/calendarEnrichmentWorker';
 import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
 import { matchesWordBoundary } from '../clipping/scoring';
 
@@ -1585,6 +1586,99 @@ export default async function calendarRoutes(app: FastifyInstance) {
           bySimilarName: results.duplicatesBySimilarName.length,
           totalIdsToRemove: allIdsToRemove.length,
         },
+      });
+    }
+  );
+
+  // ── Enrichment status ──────────────────────────────────────────────────────
+
+  app.get(
+    '/calendar/admin/enrichment-status',
+    { preHandler: [requirePerm('admin')] },
+    async (_request, reply) => {
+      const { rows } = await query<{
+        total: string;
+        enriched: string;
+        date_validated: string;
+        last_enriched_at: string | null;
+      }>(`
+        SELECT
+          COUNT(*) FILTER (WHERE date IS NOT NULL) AS total,
+          COUNT(*) FILTER (WHERE date IS NOT NULL AND payload->>'descricao_ai' IS NOT NULL AND payload->>'descricao_ai' != '') AS enriched,
+          COUNT(*) FILTER (WHERE date IS NOT NULL AND payload->>'date_confirmed' IS NOT NULL) AS date_validated,
+          MAX((payload->>'enriched_at')) AS last_enriched_at
+        FROM events
+      `);
+
+      const row = rows[0];
+      const total = parseInt(row.total, 10);
+      const enriched = parseInt(row.enriched, 10);
+      const dateValidated = parseInt(row.date_validated, 10);
+
+      return reply.send({
+        total,
+        enriched,
+        pending: total - enriched,
+        date_validated: dateValidated,
+        last_batch_at: row.last_enriched_at ?? null,
+        progress_pct: total > 0 ? Math.round((enriched / total) * 100) : 0,
+      });
+    }
+  );
+
+  // ── Manual enrich batch ────────────────────────────────────────────────────
+
+  app.post(
+    '/calendar/admin/enrich-batch',
+    { preHandler: [requirePerm('admin')] },
+    async (request: any, reply) => {
+      const body = z
+        .object({ limit: z.number().int().min(1).max(50).optional().default(20) })
+        .parse(request.body || {});
+
+      const { rows: events } = await query<{
+        id: string;
+        name: string;
+        date: string;
+        date_type: string | null;
+      }>(
+        `SELECT id, name, date, date_type FROM events
+         WHERE date IS NOT NULL
+           AND (
+             payload IS NULL
+             OR payload->>'descricao_ai' IS NULL
+             OR payload->>'descricao_ai' = ''
+           )
+         ORDER BY base_relevance DESC NULLS LAST
+         LIMIT $1`,
+        [body.limit]
+      );
+
+      if (events.length === 0) {
+        return reply.send({ processed: 0, errors: 0, items: [], message: 'Todos os eventos já estão enriquecidos' });
+      }
+
+      const items = [];
+      let processed = 0;
+      let errors = 0;
+
+      for (const event of events) {
+        const result = await enrichCalendarEvent(event);
+        items.push(result);
+        if (result.ok) processed++;
+        else errors++;
+
+        // Pequena pausa entre eventos (respeitar rate limits)
+        if (events.indexOf(event) < events.length - 1) {
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+
+      return reply.send({
+        processed,
+        errors,
+        items,
+        message: `${processed} eventos enriquecidos, ${errors} erros`,
       });
     }
   );
