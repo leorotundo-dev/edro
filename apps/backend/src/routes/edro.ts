@@ -402,9 +402,14 @@ async function syncExamplesToProfile(tenantId: string, clientId: string) {
 
 async function loadClientKnowledge(
   tenantId: string | null | undefined,
-  briefing: { payload?: Record<string, any>; client_name?: string | null }
+  briefing: { payload?: Record<string, any>; client_name?: string | null; client_id?: string | null }
 ): Promise<ClientKnowledge | null> {
-  const clientId = resolveClientIdFromPayload(briefing.payload || {});
+  // 1. Prioridade: client_id direto da coluna do briefing (mais confiável)
+  // 2. Fallback: client_id dentro do payload JSON
+  // 3. Último recurso: busca por nome do cliente
+  const clientId =
+    (briefing as any).client_id ||
+    resolveClientIdFromPayload(briefing.payload || {});
   if (!tenantId) return null;
   try {
     if (clientId) {
@@ -426,12 +431,43 @@ async function loadClientKnowledge(
 }
 
 function briefingPayloadToLines(payload: Record<string, any>): string[] {
-  const skip = new Set(['id', 'created_at', 'updated_at', 'allow_auto_stage', 'source', 'origin']);
+  const skip = new Set([
+    'id', 'created_at', 'updated_at', 'allow_auto_stage', 'source', 'origin',
+    'client_id', 'clientId', 'tenant_id', 'briefing_id', 'client_ref', 'clientRef',
+    'web_research_refs', 'web_research_articles', // Tavily refs shown separately as context
+    'platform', // duplicates channels
+  ]);
+  const FIELD_LABELS: Record<string, string> = {
+    objective: 'Objetivo',
+    target_audience: 'Público-alvo',
+    channels: 'Canais / Plataformas',
+    key_message: 'Mensagem-chave',
+    tone: 'Tom de voz',
+    tone_of_voice: 'Tom de voz',
+    format: 'Formato',
+    formats: 'Formatos',
+    budget: 'Orçamento',
+    deadline: 'Prazo',
+    hashtags: 'Hashtags',
+    notes: 'Notas',
+    description: 'Descrição',
+    campaign_name: 'Nome da campanha',
+    campaign_objective: 'Objetivo da campanha',
+    platforms: 'Plataformas',
+    production_type: 'Tipo de produção',
+    context: 'Contexto adicional',
+    insights: 'Insights',
+    restrictions: 'Restrições',
+    cta: 'CTA',
+    landing_page: 'Landing page',
+    key_dates: 'Datas chave',
+    references: 'Referências',
+  };
   return Object.entries(payload)
     .filter(([k, v]) => !skip.has(k) && v !== null && v !== undefined && v !== '')
     .map(([k, v]) => {
-      const label = k.replace(/_/g, ' ');
-      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      const label = FIELD_LABELS[k] || k.replace(/_/g, ' ');
+      const val = Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : String(v);
       return `${label}: ${val}`;
     });
 }
@@ -447,10 +483,36 @@ function buildCopyPrompt(params: {
   instructions?: string | null;
   clientKnowledge?: ClientKnowledge | null;
   reporteiHint?: string | null;
+  referenceContext?: string | null;
+  referenceTitle?: string | null;
+  referenceUrl?: string | null;
 }): string {
   const languageLabel = params.language === 'es' ? 'espanhol' : 'portugues';
   const payloadLines = briefingPayloadToLines(params.briefing.payload || {});
   const knowledgeBlock = buildClientKnowledgeBlock(params.clientKnowledge);
+
+  // Referência específica passada manualmente (botão "Adaptar ideia")
+  const referenceBlock = params.referenceContext
+    ? [
+        'REFERENCIA CRIATIVA PARA INSPIRACAO:',
+        params.referenceTitle ? `Titulo: ${params.referenceTitle}` : '',
+        `Contexto: ${params.referenceContext}`,
+        params.referenceUrl ? `Fonte: ${params.referenceUrl}` : '',
+        'Use esta referencia como inspiracao criativa. Adapte o conceito ao contexto do cliente, sem copiar literalmente.',
+      ].filter(Boolean).join('\n')
+    : '';
+
+  // Referências Tavily salvas no payload do briefing (buscas gerais)
+  const savedArticles: { title: string; snippet?: string | null }[] =
+    Array.isArray(params.briefing.payload?.web_research_articles)
+      ? (params.briefing.payload.web_research_articles as any[]).slice(0, 3)
+      : [];
+  const tavilyRefsBlock = !referenceBlock && savedArticles.length > 0
+    ? [
+        'REFERENCIAS WEB COLETADAS SOBRE O TEMA (use como contexto, nao como fonte literal):',
+        ...savedArticles.map((a, i) => `${i + 1}. ${a.title}${a.snippet ? ` — ${a.snippet.slice(0, 200)}` : ''}`),
+      ].join('\n')
+    : '';
 
   return [
     'Voce e um redator para agencia de publicidade.',
@@ -475,8 +537,10 @@ function buildCopyPrompt(params: {
     '- Legenda e o texto que sera publicado abaixo da imagem no Instagram/Facebook/LinkedIn',
     '',
     `Cliente: ${params.briefing.client_name || 'nao informado'}`,
-    knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
+    knowledgeBlock ? `BASE DE CONHECIMENTO DO CLIENTE:\n${knowledgeBlock}` : '',
     params.reporteiHint || '',
+    referenceBlock,
+    tavilyRefsBlock,
     `Briefing: ${params.briefing.title}`,
     '',
     'DETALHES DO BRIEFING:',
@@ -925,6 +989,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     // ── Client context (keywords, pillars, brand voice, knowledge base) ──────
     let client_context: any = null;
+    let client_knowledge: any = null;
     const clientId = (briefing as any).client_id as string | null;
     if (clientId) {
       try {
@@ -948,6 +1013,22 @@ export default async function edroRoutes(app: FastifyInstance) {
             website: kb.website || null,
             social_profiles: kb.social_profiles || {},
           };
+          // Full compiled client knowledge — mirrors exactly what goes into the copy prompt
+          const ck = buildClientKnowledgeFromRow(clientRow);
+          client_knowledge = {
+            tone: ck.tone?.description || null,
+            notes: ck.notes || [],
+            tags: ck.tags || [],
+            must_mentions: ck.must_mentions || [],
+            approved_terms: ck.approved_terms || [],
+            hashtags: ck.hashtags || [],
+            forbidden_claims: ck.compliance?.forbidden_claims || [],
+            website: ck.website || null,
+            audience: ck.audience || null,
+            brand_promise: ck.brand_promise || null,
+            differentiators: ck.differentiators || null,
+            description: ck.description || null,
+          };
         }
       } catch { /* non-blocking — page still loads without context */ }
     }
@@ -960,6 +1041,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         copies,
         tasks,
         client_context,
+        client_knowledge,
       },
     });
   });
@@ -1381,6 +1463,9 @@ export default async function edroRoutes(app: FastifyInstance) {
       notify_traffic: z.boolean().optional(),
       traffic_channels: z.array(z.string()).optional(),
       traffic_recipient: z.string().optional(),
+      reference_context: z.string().max(2000).optional(),
+      reference_title: z.string().max(500).optional(),
+      reference_url: z.string().max(1000).optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -1469,6 +1554,9 @@ export default async function edroRoutes(app: FastifyInstance) {
           instructions: body.instructions ?? null,
           clientKnowledge,
           reporteiHint: reporteiContext?.promptBlock || null,
+          referenceContext: body.reference_context ?? null,
+          referenceTitle: body.reference_title ?? null,
+          referenceUrl: body.reference_url ?? null,
         });
 
       try {

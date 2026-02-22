@@ -61,6 +61,21 @@ type ClientContext = {
   social_profiles: Record<string, string>;
 };
 
+type ClientKnowledgeData = {
+  tone: string | null;
+  notes: string[];
+  tags: string[];
+  must_mentions: string[];
+  approved_terms: string[];
+  hashtags: string[];
+  forbidden_claims: string[];
+  website: string | null;
+  audience: string | null;
+  brand_promise: string | null;
+  differentiators: string | null;
+  description: string | null;
+};
+
 type Briefing = {
   id: string;
   client_id: string | null;
@@ -216,6 +231,7 @@ const PAYLOAD_SKIP = new Set([
   'client_id', 'clientId', 'tenant_id', 'briefing_id',
   'web_research_refs', 'web_research_articles', // shown in sidebar "Referências Web"
   'client_ref',  // internal tracking
+  'platform',    // duplica "channels" — ignorar
 ]);
 
 /* Render a single payload value */
@@ -298,6 +314,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [researchArticles, setResearchArticles] = useState<{ title: string; snippet: string | null; url: string }[]>([]);
+  const [adaptingIdx, setAdaptingIdx] = useState<number | null>(null);
+  const [adaptSuccess, setAdaptSuccess] = useState('');
+  const [clientKnowledge, setClientKnowledge] = useState<ClientKnowledgeData | null>(null);
+  const [showComposition, setShowComposition] = useState(false);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -305,7 +325,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     try {
       const response = await apiGet<{
         success: boolean;
-        data: { briefing: Briefing; stages: Stage[]; copies: Copy[]; tasks: Task[]; client_context: ClientContext | null };
+        data: { briefing: Briefing; stages: Stage[]; copies: Copy[]; tasks: Task[]; client_context: ClientContext | null; client_knowledge: ClientKnowledgeData | null };
       }>(`/edro/briefings/${briefingId}`);
 
       if (response?.data) {
@@ -314,6 +334,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
         setCopies(response.data.copies);
         setTasks(response.data.tasks);
         setClientContext(response.data.client_context ?? null);
+        setClientKnowledge(response.data.client_knowledge ?? null);
         // Load pre-saved articles from payload if available
         const arts = response.data.briefing.payload?.web_research_articles;
         if (Array.isArray(arts)) setResearchArticles(arts);
@@ -356,6 +377,28 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       }
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleAdaptIdeia = async (art: { title: string; snippet: string | null; url: string }, idx: number) => {
+    setAdaptingIdx(idx);
+    setAdaptSuccess('');
+    try {
+      await apiPost(`/edro/briefings/${briefingId}/copy`, {
+        language: 'pt',
+        count: 3,
+        reference_title: art.title,
+        reference_context: art.snippet || art.title,
+        reference_url: art.url,
+        metadata: { allow_auto_stage: true, source: 'adapt_idea' },
+      });
+      await loadBriefing();
+      setAdaptSuccess(`3 copies geradas com inspiração em "${art.title.slice(0, 60)}${art.title.length > 60 ? '...' : ''}"`);
+      setTimeout(() => setAdaptSuccess(''), 6000);
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao adaptar ideia. Tente novamente.');
+    } finally {
+      setAdaptingIdx(null);
     }
   };
 
@@ -567,6 +610,11 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
             Copies geradas com sucesso!
           </Alert>
         )}
+        {adaptSuccess && (
+          <Alert severity="success" onClose={() => setAdaptSuccess('')} sx={{ mb: 2 }}>
+            {adaptSuccess}
+          </Alert>
+        )}
 
         {/* ── WORKFLOW PROGRESS BAR ── */}
         <Card variant="outlined" sx={{ mb: 3 }}>
@@ -727,13 +775,15 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
           <Grid size={{ xs: 12, lg: 8 }}>
 
             {/* Briefing Data */}
-            {payloadEntries.length > 0 && (
-              <Card variant="outlined" sx={{ mb: 3 }}>
-                <CardContent>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                    <IconSparkles size={18} color="#6366f1" />
-                    <Typography variant="h6" fontWeight={600}>Dados do Briefing</Typography>
-                  </Stack>
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <IconSparkles size={18} color="#6366f1" />
+                  <Typography variant="h6" fontWeight={600}>Dados do Briefing</Typography>
+                </Stack>
+
+                {/* ── Campos do briefing ── */}
+                {payloadEntries.length > 0 && (
                   <Stack spacing={0}>
                     {payloadEntries.map(([key, value], idx) => {
                       const label = PAYLOAD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -769,9 +819,254 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                       );
                     })}
                   </Stack>
-                </CardContent>
-              </Card>
-            )}
+                )}
+
+                {/* ── Contexto do cliente injetado no briefing ── */}
+                {clientContext && (() => {
+                  const ctxItems: { label: string; value: any; icon?: React.ReactNode }[] = [];
+                  if (clientContext.keywords.length > 0) ctxItems.push({ label: 'Keywords do Cliente', value: clientContext.keywords, icon: <IconHash size={15} /> });
+                  if (clientContext.pillars.length > 0) ctxItems.push({ label: 'Pilares de Conteúdo', value: clientContext.pillars, icon: <IconTarget size={15} /> });
+                  if (clientContext.tone) ctxItems.push({ label: 'Tom de Voz', value: clientContext.tone, icon: <IconVolume size={15} /> });
+                  if (clientContext.audience) ctxItems.push({ label: 'Público-alvo', value: clientContext.audience, icon: <IconUsers size={15} /> });
+                  if (clientContext.brand_promise) ctxItems.push({ label: 'Promessa da Marca', value: clientContext.brand_promise, icon: <IconBulb size={15} /> });
+                  if (clientContext.must_mentions.length > 0) ctxItems.push({ label: 'Menções Obrigatórias', value: clientContext.must_mentions });
+                  if (clientContext.forbidden_claims.length > 0) ctxItems.push({ label: 'Restrições / Proibições', value: clientContext.forbidden_claims });
+                  if (clientContext.competitors.length > 0) ctxItems.push({ label: 'Concorrentes', value: clientContext.competitors });
+                  if (clientContext.segment_primary) ctxItems.push({ label: 'Segmento', value: clientContext.segment_primary });
+                  if (ctxItems.length === 0) return null;
+                  return (
+                    <>
+                      <Divider sx={{ my: 2 }}>
+                        <Chip
+                          label={`Contexto do Cliente — ${clientContext.name}`}
+                          size="small"
+                          icon={<IconBuilding size={13} />}
+                          sx={{ fontSize: 11, bgcolor: '#f1f5f9', fontWeight: 600 }}
+                        />
+                      </Divider>
+                      <Stack spacing={0}>
+                        {ctxItems.map((item, idx) => (
+                          <Box key={item.label}>
+                            {idx > 0 && <Divider sx={{ my: 1.5 }} />}
+                            <Stack direction="row" spacing={1} alignItems="flex-start">
+                              {item.icon && (
+                                <Box sx={{ mt: 0.2, color: 'text.disabled', flexShrink: 0 }}>{item.icon}</Box>
+                              )}
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
+                                  {item.label}
+                                </Typography>
+                                <PayloadValue value={item.value} />
+                              </Box>
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* ── COMPOSIÇÃO DO PROMPT IA ── */}
+            {(() => {
+              const briefingFieldCount = payloadEntries.length;
+              const knowledgeNoteCount = clientKnowledge?.notes.length ?? 0;
+              const tagCount = clientKnowledge?.tags.length ?? 0;
+              const mustCount = clientKnowledge?.must_mentions.length ?? 0;
+              const forbiddenCount = clientKnowledge?.forbidden_claims.length ?? 0;
+              const hashtagCount = clientKnowledge?.hashtags.length ?? 0;
+              const approvedCount = clientKnowledge?.approved_terms.length ?? 0;
+              const tavilyCount = researchArticles.length;
+              const totalInputs = briefingFieldCount + knowledgeNoteCount + tagCount + mustCount + forbiddenCount + hashtagCount + approvedCount + tavilyCount;
+              const hasTone = Boolean(clientKnowledge?.tone);
+
+              const sections = [
+                {
+                  num: 1,
+                  label: 'Briefing',
+                  sublabel: `${briefingFieldCount} campo${briefingFieldCount !== 1 ? 's' : ''}`,
+                  ok: briefingFieldCount > 0,
+                  color: '#6366f1',
+                  items: payloadEntries.map(([k, v]) => ({
+                    key: PAYLOAD_LABELS[k] || k.replace(/_/g, ' '),
+                    value: Array.isArray(v) ? v.join(', ') : String(v).slice(0, 80),
+                  })),
+                },
+                {
+                  num: 2,
+                  label: 'Tom de Voz',
+                  sublabel: hasTone ? 'definido' : 'não preenchido',
+                  ok: hasTone,
+                  color: '#f59e0b',
+                  items: hasTone ? [{ key: 'Tom', value: clientKnowledge!.tone!.slice(0, 120) }] : [],
+                },
+                {
+                  num: 3,
+                  label: 'Base de Conhecimento',
+                  sublabel: `${knowledgeNoteCount} item${knowledgeNoteCount !== 1 ? 'ns' : ''}`,
+                  ok: knowledgeNoteCount > 0,
+                  color: '#3b82f6',
+                  items: (clientKnowledge?.notes ?? []).slice(0, 6).map((n) => {
+                    const sep = n.indexOf(':');
+                    return sep > 0
+                      ? { key: n.slice(0, sep).trim(), value: n.slice(sep + 1).trim().slice(0, 100) }
+                      : { key: '', value: n.slice(0, 100) };
+                  }),
+                  extra: knowledgeNoteCount > 6 ? `+ ${knowledgeNoteCount - 6} itens adicionais` : '',
+                },
+                {
+                  num: 4,
+                  label: 'Tags / Keywords',
+                  sublabel: `${tagCount} tag${tagCount !== 1 ? 's' : ''}`,
+                  ok: tagCount > 0,
+                  color: '#8b5cf6',
+                  chips: (clientKnowledge?.tags ?? []).slice(0, 12),
+                  extra: tagCount > 12 ? `+ ${tagCount - 12} mais` : '',
+                },
+                {
+                  num: 5,
+                  label: 'Compliance',
+                  sublabel: `${mustCount} menção obrigatória${mustCount !== 1 ? 's' : ''} · ${forbiddenCount} proibição${forbiddenCount !== 1 ? 'ões' : ''}`,
+                  ok: mustCount > 0 || forbiddenCount > 0,
+                  color: '#ef4444',
+                  groups: [
+                    { label: 'Menções obrigatórias', items: clientKnowledge?.must_mentions ?? [], color: '#16a34a', prefix: '✓' },
+                    { label: 'Proibições', items: clientKnowledge?.forbidden_claims ?? [], color: '#dc2626', prefix: '✕' },
+                    { label: 'Termos aprovados', items: clientKnowledge?.approved_terms ?? [], color: '#6366f1', prefix: '✓' },
+                    { label: 'Hashtags oficiais', items: clientKnowledge?.hashtags ?? [], color: '#64748b', prefix: '#' },
+                  ].filter((g) => g.items.length > 0),
+                },
+                {
+                  num: 6,
+                  label: 'Referências Web (Tavily)',
+                  sublabel: tavilyCount > 0 ? `${tavilyCount} artigo${tavilyCount !== 1 ? 's' : ''} coletado${tavilyCount !== 1 ? 's' : ''}` : 'nenhum coletado',
+                  ok: tavilyCount > 0,
+                  color: '#0ea5e9',
+                  items: researchArticles.map((a) => ({ key: '', value: a.title.slice(0, 90) })),
+                },
+              ];
+
+              return (
+                <Card variant="outlined" sx={{ mb: 3, border: '1px solid', borderColor: 'primary.light', bgcolor: '#fafafe' }}>
+                  <CardContent sx={{ pb: '12px !important' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" onClick={() => setShowComposition(!showComposition)} sx={{ cursor: 'pointer', mb: showComposition ? 2 : 0 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <IconRobot size={18} color="#6366f1" />
+                        <Typography variant="h6" fontWeight={700} color="primary.main">Composição do Prompt IA</Typography>
+                        <Chip label={`${totalInputs} inputs`} size="small" color="primary" sx={{ fontSize: 11, fontWeight: 700 }} />
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        {sections.map((s) => (
+                          <Tooltip key={s.num} title={`${s.label}: ${s.sublabel}`} arrow>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: s.ok ? s.color : '#e2e8f0' }} />
+                          </Tooltip>
+                        ))}
+                        <Typography variant="caption" color="primary.main" sx={{ ml: 0.5, fontWeight: 600 }}>
+                          {showComposition ? 'Ocultar ▲' : 'Ver inputs ▼'}
+                        </Typography>
+                      </Stack>
+                    </Stack>
+
+                    {showComposition && (
+                      <Stack spacing={1.5}>
+                        {sections.map((section) => (
+                          <Box
+                            key={section.num}
+                            sx={{
+                              borderRadius: 1.5,
+                              border: '1px solid',
+                              borderColor: section.ok ? `${section.color}40` : 'divider',
+                              bgcolor: section.ok ? `${section.color}08` : 'grey.50',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {/* Section header */}
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 1, borderBottom: section.ok ? '1px solid' : 'none', borderColor: `${section.color}20` }}>
+                              <Box
+                                sx={{
+                                  width: 22, height: 22, borderRadius: '50%',
+                                  bgcolor: section.ok ? section.color : 'grey.300',
+                                  color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 11, fontWeight: 700, flexShrink: 0,
+                                }}
+                              >
+                                {section.num}
+                              </Box>
+                              <Typography variant="body2" fontWeight={700} sx={{ color: section.ok ? section.color : 'text.disabled' }}>
+                                {section.label}
+                              </Typography>
+                              <Chip
+                                label={section.sublabel}
+                                size="small"
+                                sx={{
+                                  fontSize: 10, height: 18,
+                                  bgcolor: section.ok ? `${section.color}18` : 'grey.100',
+                                  color: section.ok ? section.color : 'text.disabled',
+                                  fontWeight: 600,
+                                }}
+                              />
+                              {!section.ok && (
+                                <Chip label="vazio" size="small" sx={{ fontSize: 10, height: 18, bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600 }} />
+                              )}
+                            </Stack>
+
+                            {/* Section content */}
+                            {section.ok && (
+                              <Box sx={{ px: 1.5, py: 1 }}>
+                                {'chips' in section && section.chips && (
+                                  <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                                    {section.chips.map((tag, i) => (
+                                      <Chip key={i} label={tag} size="small" sx={{ fontSize: 10, height: 20, bgcolor: `${section.color}15`, color: section.color }} />
+                                    ))}
+                                    {section.extra && <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center', fontSize: 10 }}>{section.extra}</Typography>}
+                                  </Stack>
+                                )}
+                                {'groups' in section && section.groups && (
+                                  <Stack spacing={0.75}>
+                                    {section.groups.map((g) => (
+                                      <Box key={g.label}>
+                                        <Typography variant="caption" sx={{ fontWeight: 700, color: g.color, display: 'block', mb: 0.25, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                          {g.label}
+                                        </Typography>
+                                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                                          {g.items.map((item, i) => (
+                                            <Typography key={i} variant="caption" sx={{ color: g.color, fontSize: 11 }}>
+                                              {g.prefix} {item}
+                                            </Typography>
+                                          ))}
+                                        </Stack>
+                                      </Box>
+                                    ))}
+                                  </Stack>
+                                )}
+                                {'items' in section && !('chips' in section) && !('groups' in section) && section.items && (
+                                  <Stack spacing={0.25}>
+                                    {section.items.map((item, i) => (
+                                      <Stack key={i} direction="row" spacing={0.75} alignItems="baseline">
+                                        {item.key && (
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                            {item.key}:
+                                          </Typography>
+                                        )}
+                                        <Typography variant="caption" sx={{ color: 'text.primary', fontSize: 11, lineHeight: 1.4 }}>
+                                          {item.value}
+                                        </Typography>
+                                      </Stack>
+                                    ))}
+                                    {section.extra && <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, fontStyle: 'italic' }}>{section.extra}</Typography>}
+                                  </Stack>
+                                )}
+                              </Box>
+                            )}
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* Copies */}
             <Card variant="outlined" sx={{ mb: 3 }}>
@@ -983,7 +1278,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                 ) : (
                   <Stack spacing={1.5}>
                     {researchArticles.map((art, i) => (
-                      <Box key={i} sx={{ p: 1.25, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                      <Box key={i} sx={{ p: 1.25, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: adaptingIdx === i ? 'primary.main' : 'divider', transition: 'border-color 0.2s' }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.5}>
                           <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.3, flex: 1 }}>
                             {art.title}
@@ -1003,6 +1298,18 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                             {art.snippet}
                           </Typography>
                         )}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="secondary"
+                          startIcon={adaptingIdx === i ? <CircularProgress size={11} color="inherit" /> : <IconSparkles size={12} />}
+                          onClick={() => handleAdaptIdeia(art, i)}
+                          disabled={adaptingIdx !== null}
+                          sx={{ mt: 1, fontSize: 11, py: 0.25, px: 1, textTransform: 'none' }}
+                          fullWidth
+                        >
+                          {adaptingIdx === i ? 'Gerando copies...' : 'Adaptar essa ideia'}
+                        </Button>
                       </Box>
                     ))}
                   </Stack>
@@ -1010,140 +1317,27 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
               </CardContent>
             </Card>
 
-            {/* Contexto do Cliente */}
-            {clientContext && (
+            {/* Links do Cliente */}
+            {clientContext && (clientContext.website || Object.values(clientContext.social_profiles).some(Boolean)) && (
               <Card variant="outlined" sx={{ mb: 3 }}>
-                <CardContent>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                    <IconBuilding size={16} color="#3b82f6" />
-                    <Typography variant="subtitle1" fontWeight={600}>Contexto do Cliente</Typography>
-                    {clientContext.segment_primary && (
-                      <Chip label={clientContext.segment_primary} size="small" variant="outlined" sx={{ fontSize: 10, ml: 'auto !important' }} />
-                    )}
+                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <IconBuilding size={14} color="#64748b" />
+                    <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {clientContext.name}
+                    </Typography>
                   </Stack>
-
-                  <Stack spacing={1.5}>
-                    {clientContext.keywords.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Keywords
-                        </Typography>
-                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                          {clientContext.keywords.map((k, i) => (
-                            <Chip key={i} label={k} size="small" color="primary" variant="outlined" sx={{ fontSize: 11 }} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {clientContext.pillars.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Pilares de Conteúdo
-                        </Typography>
-                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                          {clientContext.pillars.map((p, i) => (
-                            <Chip key={i} label={p} size="small" color="secondary" variant="outlined" sx={{ fontSize: 11 }} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {clientContext.tone && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
-                          Tom de Voz
-                        </Typography>
-                        <Typography variant="body2">{clientContext.tone}</Typography>
-                      </Box>
-                    )}
-
-                    {clientContext.audience && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
-                          Público-alvo
-                        </Typography>
-                        <Typography variant="body2">{clientContext.audience}</Typography>
-                      </Box>
-                    )}
-
-                    {clientContext.brand_promise && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
-                          Promessa da Marca
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{clientContext.brand_promise}</Typography>
-                      </Box>
-                    )}
-
-                    {clientContext.must_mentions.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Menções Obrigatórias
-                        </Typography>
-                        <Stack spacing={0.25}>
-                          {clientContext.must_mentions.map((m, i) => (
-                            <Typography key={i} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <IconCheck size={11} color="#16a34a" />{m}
-                            </Typography>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {clientContext.forbidden_claims.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Proibições / Restrições
-                        </Typography>
-                        <Stack spacing={0.25}>
-                          {clientContext.forbidden_claims.map((f, i) => (
-                            <Typography key={i} variant="caption" color="error.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box component="span" sx={{ fontWeight: 700 }}>✕</Box> {f}
-                            </Typography>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {clientContext.competitors.length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Concorrentes
-                        </Typography>
-                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                          {clientContext.competitors.map((c, i) => (
-                            <Chip key={i} label={c} size="small" variant="outlined" sx={{ fontSize: 11 }} />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
+                  <Stack spacing={0.5}>
                     {clientContext.website && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.25 }}>
-                          Website
-                        </Typography>
-                        <Box component="a" href={clientContext.website} target="_blank" rel="noopener noreferrer" sx={{ fontSize: 12, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <IconLink size={12} />{clientContext.website}
-                        </Box>
+                      <Box component="a" href={clientContext.website} target="_blank" rel="noopener noreferrer" sx={{ fontSize: 12, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <IconLink size={12} />{clientContext.website}
                       </Box>
                     )}
-
-                    {Object.keys(clientContext.social_profiles).filter(k => clientContext.social_profiles[k]).length > 0 && (
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                          Redes Sociais
-                        </Typography>
-                        <Stack spacing={0.25}>
-                          {Object.entries(clientContext.social_profiles).filter(([, v]) => v).map(([network, handle]) => (
-                            <Typography key={network} variant="caption" sx={{ textTransform: 'capitalize' }}>
-                              <Box component="span" sx={{ color: 'text.secondary', mr: 0.5 }}>{network}:</Box>{handle}
-                            </Typography>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
+                    {Object.entries(clientContext.social_profiles).filter(([, v]) => v).map(([network, handle]) => (
+                      <Typography key={network} variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                        {network}: <Box component="span" sx={{ color: 'text.primary' }}>{handle}</Box>
+                      </Typography>
+                    ))}
                   </Stack>
                 </CardContent>
               </Card>
