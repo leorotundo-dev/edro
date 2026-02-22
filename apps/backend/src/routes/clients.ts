@@ -306,6 +306,42 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Create Client ─────────────────────────────────────────────────────────
+  app.post(
+    '/clients',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const bodySchema = z.object({
+        name: z.string().min(2),
+        segment_primary: z.string().min(1),
+        city: z.string().optional(),
+        uf: z.string().optional(),
+        risk_tolerance: z.string().optional(),
+        tone_profile: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+        pillars: z.array(z.string()).optional(),
+        knowledge_base: z.record(z.any()).optional(),
+      });
+      const body = bodySchema.parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await createClient({ tenantId, payload: body });
+
+      setImmediate(async () => {
+        try {
+          await enqueueJob(tenantId, 'client.enrich', {
+            tenant_id: tenantId,
+            client_id: client.id,
+            sections: ['identity', 'voice', 'strategy', 'competitors', 'calendar'],
+            trigger: 'created',
+          });
+        } catch { /* non-blocking */ }
+      });
+
+      return reply.status(201).send(client);
+    }
+  );
+
   app.get(
     '/clients/:id/suggestions',
     { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
@@ -1094,6 +1130,7 @@ Responda SOMENTE com JSON válido (array com exatamente 3 personas):
         return reply.send({ ok: true, data: {} });
       }
 
+      const SEGMENT_OPTIONS = ['Varejo', 'Saúde', 'Educação', 'Tecnologia', 'Imobiliário', 'Alimentação', 'Moda & Beleza', 'Financeiro', 'Jurídico', 'Indústria', 'Logística', 'Transporte', 'Turismo', 'Serviços', 'Terceiro Setor', 'Outro'];
       const systemPrompt = `Você é um especialista em pesquisa de mercado. Extraia informações estruturadas sobre empresas a partir de resultados de busca.`;
       const prompt = `Baseado nos resultados de busca sobre a empresa "${name}", extraia as informações no formato JSON abaixo.
 
@@ -1101,7 +1138,7 @@ ${snippets.join('\n\n---\n\n')}
 
 Responda SOMENTE com JSON válido (sem markdown, sem explicações):
 {
-  "segment_primary": "segmento principal (ex: Saúde, Tecnologia, Varejo, Alimentação, Moda & Beleza, Jurídico, Imobiliário, Educação, Financeiro, Serviços...)",
+  "segment_primary": "OBRIGATÓRIO: escolha EXATAMENTE uma opção da lista: ${SEGMENT_OPTIONS.join(', ')}",
   "city": "cidade sede da empresa",
   "uf": "sigla do estado com 2 letras maiúsculas",
   "website": "URL do site oficial sem https://",
@@ -1112,7 +1149,7 @@ Responda SOMENTE com JSON válido (sem markdown, sem explicações):
   "linkedin": "URL do LinkedIn da empresa",
   "facebook": "URL da página do Facebook"
 }
-Omita campos que não encontrou informação confiável.`;
+Omita campos que não encontrou informação confiável. Para segment_primary, sempre escolha a opção mais próxima da lista acima.`;
 
       try {
         const raw = await OpenAIService.generateCompletion({

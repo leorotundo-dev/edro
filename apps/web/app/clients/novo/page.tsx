@@ -56,7 +56,8 @@ type WizardData = {
 const SEGMENTS = [
   'Varejo', 'Saúde', 'Educação', 'Tecnologia', 'Imobiliário',
   'Alimentação', 'Moda & Beleza', 'Financeiro', 'Jurídico',
-  'Indústria', 'Turismo', 'Serviços', 'Terceiro Setor', 'Outro',
+  'Indústria', 'Logística', 'Transporte', 'Turismo', 'Serviços',
+  'Terceiro Setor', 'Outro',
 ];
 
 const TONES = [
@@ -188,23 +189,21 @@ export default function NewClientWizardPage() {
         segment_primary: data.segment_primary,
         city: data.city || undefined,
         uf: data.uf || undefined,
-        risk_tolerance: data.risk_tolerance,
+        risk_tolerance: data.risk_tolerance || undefined,
+        tone_profile: data.tone_profile || undefined,
         keywords: data.keywords,
-        content_pillars: data.content_pillars,
-        profile: {
-          knowledge_base: {
-            website: data.website || undefined,
-            brand_promise: data.brand_promise || undefined,
-            audience: data.audience || undefined,
-            must_mentions: data.must_mentions ? data.must_mentions.split(',').map((s) => s.trim()).filter(Boolean) : [],
-            forbidden_claims: data.forbidden_claims ? data.forbidden_claims.split(',').map((s) => s.trim()).filter(Boolean) : [],
-            social_profiles: {
-              instagram: data.instagram || undefined,
-              linkedin: data.linkedin || undefined,
-              facebook: data.facebook || undefined,
-            },
+        pillars: data.content_pillars,
+        knowledge_base: {
+          website: data.website || undefined,
+          brand_promise: data.brand_promise || undefined,
+          audience: data.audience || undefined,
+          must_mentions: data.must_mentions ? data.must_mentions.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          forbidden_claims: data.forbidden_claims ? data.forbidden_claims.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          social_profiles: {
+            instagram: data.instagram || undefined,
+            linkedin: data.linkedin || undefined,
+            facebook: data.facebook || undefined,
           },
-          tone_profile: data.tone_profile,
         },
       };
 
