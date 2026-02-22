@@ -70,14 +70,6 @@ import {
 } from '../services/abTestService';
 import { buildPredictiveInsights, predictEngagement } from '../services/predictiveService';
 import { buildIndustryBenchmarks, getIndustryBenchmarks, compareClientToIndustry } from '../services/benchmarkService';
-import {
-  searchPerplexity,
-  searchTrendingTopics,
-  enrichClippingItem,
-  researchCompetitorActivity,
-  researchForCopy,
-  isPerplexityConfigured,
-} from '../services/perplexityService';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
@@ -1474,22 +1466,12 @@ export default async function edroRoutes(app: FastifyInstance) {
         try {
           const researchTimeout = new Promise<null>((_, r) => setTimeout(() => r(null), 8000));
           let researchResult: string | null = null;
-          if (isPerplexityConfigured()) {
-            const res = await Promise.race([
-              researchForCopy({
-                topic: briefing.title,
-                platform: selectedPlatform || 'social media',
-                objective: (briefingPayload as any)?.objective || 'engajamento',
-              }),
-              researchTimeout,
-            ]);
-            researchResult = res?.content?.slice(0, 1000) ?? null;
-          } else if (isTavilyConfigured()) {
+          if (isTavilyConfigured()) {
             const res = await Promise.race([
               tavilySearch(`${briefing.title} ${selectedPlatform || ''} conteúdo referência tendência`, { maxResults: 3 }),
               researchTimeout,
             ]);
-            researchResult = res?.results?.map((r) => `- ${r.title}: ${r.snippet}`).join('\n') ?? null;
+            researchResult = res?.results?.map((r: any) => `- ${r.title}: ${r.snippet}`).join('\n') ?? null;
           }
           if (researchResult) {
             webResearchBlock = `\n\nReferências de mercado pesquisadas para este tema:\n${researchResult}`;
@@ -2872,175 +2854,74 @@ export default async function edroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: comparison });
   });
 
-  // ── Perplexity AI Search Endpoints (Tavily fallback when Perplexity unavailable) ──
-
-  // Helper: adapt Tavily results to PerplexityResponse shape so frontend keeps working
-  function tavilyToPerplexityShape(tvRes: any, fallbackContent?: string): any {
-    const content = tvRes.answer?.slice(0, 1500)
-      || tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n')
-      || fallbackContent
-      || '';
-    return {
-      content,
-      citations: tvRes.results.map((r: any) => r.url).filter(Boolean),
-      search_results: tvRes.results.map((r: any) => ({
-        title: r.title || '',
-        url: r.url || '',
-        snippet: r.snippet || '',
-      })),
-      model: 'tavily-search-basic',
-      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-      _provider: 'tavily',
-    };
-  }
+  // ── Web Search Endpoints (powered by Tavily) ──────────────────────
 
   app.get('/edro/perplexity/status', async (_request, reply) => {
     return reply.send({
       success: true,
-      data: {
-        configured: isPerplexityConfigured(),
-        tavily_configured: isTavilyConfigured(),
-        active_provider: isPerplexityConfigured() ? 'perplexity' : isTavilyConfigured() ? 'tavily' : 'none',
-      },
+      data: { configured: isTavilyConfigured(), active_provider: isTavilyConfigured() ? 'tavily' : 'none' },
     });
   });
 
   app.post('/edro/perplexity/search', async (request, reply) => {
-    const body = z.object({
-      query: z.string().min(3).max(1000),
-      model: z.enum(['sonar', 'sonar-pro', 'sonar-reasoning-pro']).optional(),
-      search_recency_filter: z.enum(['hour', 'day', 'week', 'month', 'year']).optional(),
-      search_domain_filter: z.array(z.string()).optional(),
-      max_tokens: z.number().int().min(100).max(4096).optional(),
-    }).parse(request.body);
-
-    if (isPerplexityConfigured()) {
-      try {
-        const result = await searchPerplexity(body);
-        return reply.send({ success: true, data: result });
-      } catch { /* fall through to Tavily */ }
-    }
-
-    if (!isTavilyConfigured()) {
-      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
-    }
+    const body = z.object({ query: z.string().min(3).max(1000) }).parse(request.body);
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
     const t0 = Date.now();
     const tvRes = await tavilySearch(body.query, { maxResults: 5, searchDepth: 'basic' });
-    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_search_fallback', duration_ms: Date.now() - t0, metadata: { query: body.query.slice(0, 100) } });
-    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'web_search', duration_ms: Date.now() - t0, metadata: { query: body.query.slice(0, 100) } });
+    return reply.send({ success: true, data: { content: tvRes.answer || tvRes.results.slice(0, 2).map((r: any) => `${r.title}: ${r.snippet}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
   });
 
   app.post('/edro/clients/:clientId/perplexity/trending', async (request, reply) => {
     const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
     const tenantId = (request.user as any)?.tenant_id;
     if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
 
-    // Fetch client keywords for trending search
-    const { rows: clients } = await query(
-      `SELECT name, profile FROM clients WHERE id = $1 AND tenant_id = $2`,
-      [clientId, tenantId],
-    );
-    const client = clients[0] as any;
+    const { rows: clientRows } = await query(`SELECT name, profile FROM clients WHERE id = $1 AND tenant_id = $2`, [clientId, tenantId]);
+    const client = clientRows[0] as any;
     if (!client) return reply.status(404).send({ success: false, error: 'Client not found' });
 
     const profile = typeof client.profile === 'string' ? JSON.parse(client.profile) : client.profile || {};
-    const keywords = Array.isArray(profile.keywords) ? profile.keywords : [];
-
-    if (isPerplexityConfigured()) {
-      try {
-        const result = await searchTrendingTopics({
-          client_name: client.name,
-          keywords: keywords.length ? keywords : [client.name],
-          segment: profile.segment || undefined,
-        });
-        return reply.send({ success: true, data: result });
-      } catch { /* fall through to Tavily */ }
-    }
-
-    if (!isTavilyConfigured()) {
-      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
-    }
+    const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
     const segment = profile.segment || profile.segment_primary || '';
     const kwList = (keywords.length ? keywords : [client.name]).slice(0, 4).join(' ');
-    const trendQuery = `${kwList} ${segment} tendências notícias marketing ${new Date().getFullYear()} Brasil`;
+    const trendQuery = `${kwList} ${segment} tendências notícias marketing ${new Date().getFullYear()} Brasil`.trim();
     const t0 = Date.now();
     const tvRes = await tavilySearch(trendQuery, { maxResults: 5, searchDepth: 'basic' });
-    logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'perplexity_trending_fallback', duration_ms: Date.now() - t0, metadata: { client_id: clientId } });
-    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
+    logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'trending_search', duration_ms: Date.now() - t0, metadata: { client_id: clientId } });
+    return reply.send({ success: true, data: { content: tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
   });
 
   app.post('/edro/perplexity/enrich-clipping', async (request, reply) => {
-    const body = z.object({
-      title: z.string(),
-      snippet: z.string().optional().default(''),
-      url: z.string(),
-      client_keywords: z.array(z.string()).optional(),
-    }).parse(request.body);
-
-    if (isPerplexityConfigured()) {
-      try {
-        const result = await enrichClippingItem(body);
-        return reply.send({ success: true, data: result });
-      } catch { /* fall through to Tavily */ }
-    }
-
-    if (!isTavilyConfigured()) {
-      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
-    }
+    const body = z.object({ title: z.string(), snippet: z.string().optional().default(''), url: z.string(), client_keywords: z.array(z.string()).optional() }).parse(request.body);
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
     const kws = body.client_keywords?.slice(0, 3).join(', ') || '';
     const enrichQuery = `${body.title} ${kws} impacto mercado marketing`.trim();
     const t0 = Date.now();
     const tvRes = await tavilySearch(enrichQuery, { maxResults: 4, searchDepth: 'basic' });
-    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_enrich_clipping_fallback', duration_ms: Date.now() - t0 });
-    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'enrich_clipping', duration_ms: Date.now() - t0 });
+    return reply.send({ success: true, data: { content: tvRes.results.slice(0, 2).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
   });
 
   app.post('/edro/perplexity/research-competitor', async (request, reply) => {
-    const body = z.object({
-      client_name: z.string(),
-      segment: z.string(),
-      platforms: z.array(z.string()).optional(),
-    }).parse(request.body);
-
-    if (isPerplexityConfigured()) {
-      try {
-        const result = await researchCompetitorActivity(body);
-        return reply.send({ success: true, data: result });
-      } catch { /* fall through to Tavily */ }
-    }
-
-    if (!isTavilyConfigured()) {
-      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
-    }
+    const body = z.object({ client_name: z.string(), segment: z.string(), platforms: z.array(z.string()).optional() }).parse(request.body);
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
     const platformList = body.platforms?.join(' ') || 'Instagram LinkedIn';
     const compQuery = `${body.segment} estratégia conteúdo marketing ${platformList} ${new Date().getFullYear()} Brasil tendências`;
     const t0 = Date.now();
     const tvRes = await tavilySearch(compQuery, { maxResults: 5, searchDepth: 'basic' });
-    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_competitor_fallback', duration_ms: Date.now() - t0, metadata: { segment: body.segment } });
-    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'competitor_research', duration_ms: Date.now() - t0, metadata: { segment: body.segment } });
+    return reply.send({ success: true, data: { content: tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
   });
 
   app.post('/edro/perplexity/research-for-copy', async (request, reply) => {
-    const body = z.object({
-      topic: z.string(),
-      platform: z.string(),
-      objective: z.string(),
-    }).parse(request.body);
-
-    if (isPerplexityConfigured()) {
-      try {
-        const result = await researchForCopy(body);
-        return reply.send({ success: true, data: result });
-      } catch { /* fall through to Tavily */ }
-    }
-
-    if (!isTavilyConfigured()) {
-      return reply.status(503).send({ success: false, error: 'no_search_provider_configured' });
-    }
+    const body = z.object({ topic: z.string(), platform: z.string(), objective: z.string() }).parse(request.body);
+    if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
     const copyQuery = `${body.topic} ${body.objective} ${body.platform} dados estatísticas exemplos conteúdo Brasil ${new Date().getFullYear()}`;
     const t0 = Date.now();
     const tvRes = await tavilySearch(copyQuery, { maxResults: 5, searchDepth: 'basic' });
-    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'perplexity_research_copy_fallback', duration_ms: Date.now() - t0, metadata: { topic: body.topic.slice(0, 80) } });
-    return reply.send({ success: true, data: tavilyToPerplexityShape(tvRes) });
+    logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'research_for_copy', duration_ms: Date.now() - t0, metadata: { topic: body.topic.slice(0, 80) } });
+    return reply.send({ success: true, data: { content: tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
   });
 }

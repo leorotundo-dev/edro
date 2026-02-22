@@ -5,8 +5,8 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { GeminiService } from '../services/ai/geminiService';
 import { OpenAIService } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
-import { searchPerplexity, isPerplexityConfigured } from '../services/perplexityService';
-import { logAiUsage } from '../services/ai/aiUsageLogger';
+import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -642,7 +642,7 @@ Retorne JSON com exatamente esta estrutura:
 
   // ────────────────────────────────────────────────────────────────────────────
   // 6. CONTENT GAP DETECTOR
-  // Uses Perplexity to find content opportunities not yet in calendar
+  // Uses Tavily to find content opportunities not yet in calendar
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/content-gap', {
     preHandler: [authGuard, tenantGuard()],
@@ -652,6 +652,10 @@ Retorne JSON com exatamente esta estrutura:
 
     const client = await resolveEdroClient(tenantId, clientId);
     if (!client || !client.edro_id) return reply.status(404).send({ error: 'Client not found' });
+
+    if (!isTavilyConfigured()) {
+      return reply.status(422).send({ error: 'Tavily não configurado. Adicione TAVILY_API_KEY.' });
+    }
 
     // Get client keywords from social listening
     const { rows: keywordRows } = await query<{ keyword: string }>(
@@ -675,22 +679,18 @@ Retorne JSON com exatamente esta estrutura:
 
     const existingTopics = calendarRows.map((e) => e.title).join(', ');
 
-    if (!isPerplexityConfigured()) {
-      return reply.status(422).send({ error: 'Perplexity não configurado. Adicione PERPLEXITY_API_KEY.' });
-    }
-
     const t0 = Date.now();
-    const perplexityResult = await searchPerplexity({
-      query: `Quais são as tendências e oportunidades de conteúdo mais relevantes para o segmento "${segment}" no Brasil em ${new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}? ${keywords.length > 0 ? `Palavras-chave: ${keywords.slice(0, 8).join(', ')}.` : ''} Liste os 10 tópicos com maior potencial de engajamento que ainda não são amplamente explorados.`,
-      system_prompt: `Você é um estrategista de conteúdo digital. Identifique lacunas e oportunidades de conteúdo para ${segment}. Seja específico, prático e orientado a resultados.`,
-      search_recency_filter: 'week',
-      max_tokens: 1500,
-    });
+    const trendQuery = `${segment} tendências oportunidades conteúdo marketing Brasil ${new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} ${keywords.slice(0, 5).join(' ')}`.trim();
+    const tvRes = await tavilySearch(trendQuery, { maxResults: 6, searchDepth: 'basic' });
+    const duration_ms = Date.now() - t0;
+    logTavilyUsage({ tenant_id: tenantId, operation: 'search-basic', unit_count: 1, feature: 'content_gap_detector', duration_ms, metadata: { client_id: clientId } });
+
+    const marketContext = tvRes.results.slice(0, 4).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n');
 
     // AI to structure the gaps
     const structurePrompt = `Com base nesta pesquisa de tendências para ${client.name}:
 
-${perplexityResult.content}
+${marketContext}
 
 Tópicos já cobertos pelo cliente: ${existingTopics || 'nenhum mapeado'}
 Pilares de conteúdo: ${pillars.length > 0 ? pillars.join(', ') : 'não definidos'}
@@ -717,25 +717,14 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
       const match = structureResult.text.match(/\[[\s\S]*\]/);
       if (match) gaps = JSON.parse(match[0]);
     } catch {
-      gaps = [{ gap: 'Análise disponível', opportunity: perplexityResult.content.slice(0, 500), format: 'Variado', urgency: 'média', suggested_topics: [] }];
+      gaps = [{ gap: 'Análise disponível', opportunity: marketContext.slice(0, 500), format: 'Variado', urgency: 'média', suggested_topics: [] }];
     }
-
-    logAiUsage({
-      tenant_id: tenantId,
-      provider: 'perplexity',
-      model: perplexityResult.model,
-      feature: 'content_gap_detector',
-      input_tokens: perplexityResult.usage.prompt_tokens,
-      output_tokens: perplexityResult.usage.completion_tokens,
-      duration_ms: Date.now() - t0,
-      metadata: { client_id: clientId },
-    }).catch(() => {});
 
     return {
       client_name: client.name,
       gaps,
-      market_context: perplexityResult.content,
-      citations: perplexityResult.citations.slice(0, 5),
+      market_context: marketContext,
+      citations: tvRes.results.map((r: any) => r.url).slice(0, 5),
       keywords_used: keywords.slice(0, 8),
       duration_ms: Date.now() - t0,
     };

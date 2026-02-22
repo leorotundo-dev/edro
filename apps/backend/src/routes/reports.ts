@@ -6,7 +6,6 @@ import { sendEmail } from '../services/emailService';
 import { GeminiService } from '../services/ai/geminiService';
 import { OpenAIService } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
-import { searchPerplexity, isPerplexityConfigured } from '../services/perplexityService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
@@ -726,24 +725,9 @@ ${dataSnapshot}`,
       structuredAnalysis = `{"kpis":[],"bottlenecks":[],"highlights":["Dados brutos: ${summary?.total || 0} briefings, ${summary?.completed || 0} concluidos, ${copies?.total_copies || 0} copies"],"risk_alerts":[]}`;
     }
 
-    // ── 3. Perplexity — Market Context (optional) ──
+    // ── 3. Tavily — Market Context (optional) ──
     let marketContext = '';
-    if (isPerplexityConfigured()) {
-      try {
-        const t2 = Date.now();
-        const pxResult = await searchPerplexity({
-          query: `Quais os benchmarks atuais de produtividade e performance para agencias de marketing digital no segmento "${segment}" no Brasil em 2026? Inclua metricas de entrega, prazos e volume de producao de conteudo.`,
-          system_prompt: 'Voce e um analista de mercado. Forneca dados e benchmarks reais do setor de agencias de marketing digital brasileiras. Seja conciso e objetivo.',
-          search_recency_filter: 'month',
-          max_tokens: 800,
-        });
-        marketContext = pxResult.content;
-        providerStages.push({ provider: 'perplexity', role: 'researcher', model: pxResult.model, duration_ms: Date.now() - t2 });
-      } catch {
-        marketContext = '';
-      }
-    } else if (isTavilyConfigured()) {
-      // Tavily fallback quando Perplexity não está configurado
+    if (isTavilyConfigured()) {
       try {
         const t2 = Date.now();
         const tvRes = await tavilySearch(

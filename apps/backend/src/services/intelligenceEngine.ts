@@ -3,7 +3,7 @@ import { buildContextPack } from '../library/contextPack';
 import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { getClientPreferences, type LearnedPreferences } from './learningLoopService';
 import { formatTimeSlot } from './predictiveService';
-import { searchTrendingTopics, isPerplexityConfigured, type PerplexityResponse } from './perplexityService';
+import { tavilySearch, isTavilyConfigured } from './tavilyService';
 
 export type IntelligenceContext = {
   client: {
@@ -71,7 +71,7 @@ export type IntelligenceContext = {
     best_times: { platform: string; day_of_week: number; hour: number; engagement: number }[];
     content_mix: { format: string; recommended_pct: number; current_pct: number }[];
   } | null;
-  perplexity_trends: {
+  web_trends: {
     content: string;
     citations: string[];
   } | null;
@@ -104,7 +104,6 @@ export async function buildIntelligenceContext(params: {
     clientInsightData,
     learnedPrefsData,
     predictiveTimesData,
-    perplexityData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -240,8 +239,6 @@ export async function buildIntelligenceContext(params: {
       LIMIT 10
     `, [params.tenant_id, params.client_id]),
 
-    // Perplexity placeholder — fetched separately after client data resolves
-    Promise.resolve(null as PerplexityResponse | null),
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -265,22 +262,27 @@ export async function buildIntelligenceContext(params: {
   const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
   const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
 
-  // Perplexity trending: fetch now that we have client keywords (fire-and-forget with timeout)
-  let perplexityTrends: PerplexityResponse | null = null;
-  if (isPerplexityConfigured() && client) {
+  // Tavily trending: fetch now that we have client keywords (fire-and-forget with timeout)
+  let webTrends: { content: string; citations: string[] } | null = null;
+  if (isTavilyConfigured() && client) {
     const profile = typeof client.profile === 'string' ? JSON.parse(client.profile) : client.profile || {};
     const keywords: string[] = Array.isArray(profile.keywords) ? profile.keywords : [];
     try {
-      perplexityTrends = await Promise.race([
-        searchTrendingTopics({
-          client_name: client.name || 'Cliente',
-          keywords: keywords.length ? keywords : [client.name || 'marketing digital'],
-          segment: client.segment_primary || profile.segment || undefined,
-        }),
+      const kwList = (keywords.length ? keywords : [client.name || 'marketing digital']).slice(0, 4).join(' ');
+      const segment = client.segment_primary || profile.segment || '';
+      const trendQuery = `${kwList} ${segment} tendências notícias marketing ${new Date().getFullYear()} Brasil`.trim();
+      const tvRes = await Promise.race([
+        tavilySearch(trendQuery, { maxResults: 4, searchDepth: 'basic' }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
       ]);
+      if (tvRes) {
+        webTrends = {
+          content: tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'),
+          citations: tvRes.results.map((r: any) => r.url).filter(Boolean),
+        };
+      }
     } catch {
-      // Perplexity failed — graceful degradation
+      // Tavily failed — graceful degradation
     }
   }
 
@@ -377,10 +379,7 @@ export async function buildIntelligenceContext(params: {
       })),
       content_mix: [],
     } : null,
-    perplexity_trends: perplexityTrends ? {
-      content: perplexityTrends.content.slice(0, 1500),
-      citations: perplexityTrends.citations.slice(0, 10),
-    } : null,
+    web_trends: webTrends,
   };
 
   // Token validation: estimate tokens and truncate if needed
@@ -506,12 +505,12 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
     });
   }
 
-  // Perplexity AI — Real-time Trends
-  if (context.perplexity_trends) {
-    sections.push(`\n# TENDENCIAS EM TEMPO REAL (via Perplexity AI)`);
-    sections.push(context.perplexity_trends.content);
-    if (context.perplexity_trends.citations.length) {
-      sections.push(`Fontes: ${context.perplexity_trends.citations.slice(0, 5).join(', ')}`);
+  // Tavily — Real-time Trends
+  if (context.web_trends) {
+    sections.push(`\n# TENDENCIAS EM TEMPO REAL (via Tavily)`);
+    sections.push(context.web_trends.content);
+    if (context.web_trends.citations.length) {
+      sections.push(`Fontes: ${context.web_trends.citations.slice(0, 5).join(', ')}`);
     }
   }
 
