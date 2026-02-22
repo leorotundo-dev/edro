@@ -18,7 +18,7 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconPlus, IconTrash, IconUsers } from '@tabler/icons-react';
+import { IconCheck, IconPlus, IconSparkles, IconTrash, IconUsers, IconX } from '@tabler/icons-react';
 
 type Persona = {
   id: string;
@@ -45,6 +45,9 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{ name: string; description: string; momento: 'problema' | 'solucao' | 'decisao'; demographics: string; pain_points_raw: string }>(EMPTY_FORM);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [suggested, setSuggested] = useState<Omit<Persona, 'id'>[]>([]);
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -84,6 +87,30 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
     finally { setDeletingId(null); }
   };
 
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setSuggested([]);
+    try {
+      const res = await apiPost<{ ok: boolean; personas: Omit<Persona, 'id'>[] }>(`/clients/${clientId}/personas/generate`, {});
+      if (res?.ok && res.personas?.length) setSuggested(res.personas);
+    } catch { /* silent */ }
+    finally { setGenerating(false); }
+  };
+
+  const handleAcceptSuggested = async (idx: number) => {
+    const p = suggested[idx];
+    setSavingIdx(idx);
+    try {
+      const res = await apiPost<{ persona: Persona }>(`/clients/${clientId}/personas`, {
+        name: p.name, description: p.description, momento: p.momento,
+        demographics: p.demographics, pain_points: p.pain_points,
+      });
+      if (res?.persona) setPersonas(prev => [...prev, res.persona]);
+      setSuggested(prev => prev.filter((_, i) => i !== idx));
+    } catch { /* silent */ }
+    finally { setSavingIdx(null); }
+  };
+
   return (
     <Card variant="outlined" sx={{ borderColor: 'rgba(93,135,255,0.3)' }}>
       <CardContent>
@@ -97,14 +124,77 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
               </Typography>
             </Box>
           </Stack>
-          <Button
-            size="small" variant="outlined" startIcon={<IconPlus size={16} />}
-            onClick={() => setOpen(true)}
-            sx={{ borderColor: '#5D87FF', color: '#5D87FF' }}
-          >
-            Adicionar
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small" variant="outlined"
+              startIcon={generating ? <CircularProgress size={13} /> : <IconSparkles size={15} />}
+              onClick={handleGenerate}
+              disabled={generating}
+              sx={{ borderColor: '#ff6600', color: '#ff6600', '&:hover': { borderColor: '#e65c00', bgcolor: 'rgba(255,102,0,0.05)' } }}
+            >
+              {generating ? 'Gerando...' : 'Gerar com IA'}
+            </Button>
+            <Button
+              size="small" variant="outlined" startIcon={<IconPlus size={16} />}
+              onClick={() => setOpen(true)}
+              sx={{ borderColor: '#5D87FF', color: '#5D87FF' }}
+            >
+              Adicionar
+            </Button>
+          </Stack>
         </Stack>
+
+        {suggested.length > 0 && (
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(255,102,0,0.04)', borderRadius: 2, border: '1px dashed rgba(255,102,0,0.3)' }}>
+            <Typography variant="caption" fontWeight={700} color="#ff6600" sx={{ display: 'block', mb: 1.5 }}>
+              Sugestões da IA — revise e adicione as que fizer sentido
+            </Typography>
+            <Grid container spacing={1.5}>
+              {suggested.map((p, idx) => {
+                const cfg = MOMENTO_CONFIG[p.momento as keyof typeof MOMENTO_CONFIG] ?? MOMENTO_CONFIG.problema;
+                return (
+                  <Grid key={idx} size={{ xs: 12, sm: 6, md: 4 }}>
+                    <Card variant="outlined" sx={{ borderTop: `3px solid ${cfg.color}`, opacity: savingIdx === idx ? 0.6 : 1 }}>
+                      <CardContent sx={{ pb: '10px !important' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 0.75 }}>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle2" fontWeight={700} noWrap>{p.name}</Typography>
+                            <Chip label={cfg.label} size="small" sx={{ bgcolor: `${cfg.color}20`, color: cfg.color, fontWeight: 600, height: 18, fontSize: '0.65rem', mt: 0.25 }} />
+                          </Box>
+                          <IconButton size="small" onClick={() => setSuggested(prev => prev.filter((_, i) => i !== idx))} sx={{ color: 'text.disabled' }}>
+                            <IconX size={14} />
+                          </IconButton>
+                        </Stack>
+                        {p.demographics && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontStyle: 'italic' }}>{p.demographics}</Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
+                          {p.description}
+                        </Typography>
+                        {p.pain_points && p.pain_points.length > 0 && (
+                          <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.75 }}>
+                            {p.pain_points.slice(0, 3).map((pt, i) => (
+                              <Chip key={i} label={pt} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.6rem' }} />
+                            ))}
+                          </Stack>
+                        )}
+                        <Button
+                          size="small" fullWidth variant="contained"
+                          startIcon={savingIdx === idx ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : <IconCheck size={14} />}
+                          onClick={() => handleAcceptSuggested(idx)}
+                          disabled={savingIdx !== null}
+                          sx={{ mt: 1.25, bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4570EA' }, fontSize: '0.72rem', py: 0.4 }}
+                        >
+                          Adicionar persona
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          </Box>
+        )}
 
         {loading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', my: 2 }} />}
 

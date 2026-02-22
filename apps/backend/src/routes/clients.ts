@@ -898,6 +898,81 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Personas: geração via IA ──────────────────────────────────────────────
+
+  app.post(
+    '/clients/:id/personas/generate',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const { rows } = await query<{ name: string; segment_primary: string; city: string; uf: string; keywords: string[]; profile: any }>(
+        `SELECT name, segment_primary, city, uf, keywords, profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+        [tenantId, id]
+      );
+      if (!rows.length) return reply.status(404).send({ error: 'client_not_found' });
+
+      const client = rows[0];
+      const kb = client.profile?.knowledge_base || {};
+      const parts: string[] = [
+        `Cliente: ${client.name}`,
+        `Segmento: ${client.segment_primary || 'não informado'}`,
+        client.city ? `Localização: ${[client.city, client.uf].filter(Boolean).join(', ')}` : '',
+        kb.description ? `Descrição: ${kb.description}` : '',
+        kb.audience ? `Público-alvo: ${kb.audience}` : '',
+        kb.brand_promise ? `Promessa da marca: ${kb.brand_promise}` : '',
+        kb.differentiators ? `Diferenciais: ${kb.differentiators}` : '',
+        client.keywords?.length ? `Keywords: ${client.keywords.join(', ')}` : '',
+      ].filter(Boolean);
+
+      const systemPrompt = `Você é um especialista em marketing e construção de personas de público-alvo. Crie personas detalhadas e realistas baseadas no perfil do cliente fornecido.`;
+
+      const prompt = `${parts.join('\n')}
+
+Crie 3 personas distintas e realistas para este cliente, cobrindo os 3 momentos de consciência:
+- "problema": a pessoa está descobrindo que tem um problema que o cliente resolve
+- "solucao": a pessoa está avaliando soluções e comparando opções
+- "decisao": a pessoa está pronta para contratar/comprar
+
+Responda SOMENTE com JSON válido (array com exatamente 3 personas):
+[
+  {
+    "name": "Nome completo da persona com cargo (ex: Carla, Gerente de Marketing)",
+    "description": "Descrição de quem é, o que faz, o que busca e por que se interessa pelo produto/serviço (2-4 frases diretas)",
+    "momento": "problema",
+    "demographics": "Faixa etária, cargo/contexto, tamanho da empresa ou contexto de vida",
+    "pain_points": ["dor principal 1", "dor principal 2", "dor principal 3"]
+  }
+]`;
+
+      try {
+        const raw = await OpenAIService.generateCompletion({
+          prompt,
+          systemPrompt,
+          temperature: 0.7,
+          maxTokens: 1200,
+        });
+        const text = (raw?.text || '').trim();
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) return reply.send({ ok: true, personas: [] });
+        const personas = JSON.parse(jsonMatch[0]);
+        if (!Array.isArray(personas)) return reply.send({ ok: true, personas: [] });
+        // Sanitize output
+        const safe = personas.slice(0, 3).map((p: any) => ({
+          name: String(p.name || '').slice(0, 120),
+          description: String(p.description || '').slice(0, 1000),
+          momento: ['problema', 'solucao', 'decisao'].includes(p.momento) ? p.momento : 'problema',
+          demographics: p.demographics ? String(p.demographics).slice(0, 500) : undefined,
+          pain_points: Array.isArray(p.pain_points) ? p.pain_points.slice(0, 5).map((x: any) => String(x).slice(0, 200)) : [],
+        }));
+        return reply.send({ ok: true, personas: safe });
+      } catch {
+        return reply.status(500).send({ ok: false, error: 'generation_failed' });
+      }
+    }
+  );
+
   // ── Web Market Intelligence — manual trigger ───────────────────────────────
 
   app.post(
