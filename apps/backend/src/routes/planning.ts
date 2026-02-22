@@ -429,14 +429,21 @@ export default async function planningRoutes(app: FastifyInstance) {
     if (attachmentIds?.length) {
       try {
         const { rows: attachments } = await query(
-          `SELECT title, extracted_text, file_type FROM library_items WHERE id = ANY($1::uuid[]) AND client_id = $2 LIMIT 5`,
+          `SELECT li.id, li.title, li.type, li.notes, li.description, li.file_mime,
+                  ld.text AS extracted_text
+           FROM library_items li
+           LEFT JOIN library_docs ld ON ld.library_item_id = li.id
+           WHERE li.id = ANY($1::uuid[]) AND li.client_id = $2
+           LIMIT 5`,
           [attachmentIds, clientId],
         );
         if (attachments.length > 0) {
           const parts = attachments.map((a: any) => {
-            const text = a.extracted_text || '';
-            const preview = text.length > 4000 ? text.slice(0, 4000) + '...(truncated)' : text;
-            return `[Arquivo: ${a.title} (${a.file_type || 'unknown'})]\n${preview}`;
+            // Prefer extracted text (from file/URL), fall back to notes (for note-type items)
+            const text = a.extracted_text || a.notes || a.description || '';
+            const preview = text.length > 4000 ? text.slice(0, 4000) + '...(truncado)' : text;
+            const typeLabel = a.file_mime ? a.file_mime.split('/').pop() : a.type || 'documento';
+            return `[Arquivo: ${a.title} (${typeLabel})]\n${preview || '(conteúdo não disponível — item ainda sendo processado)'}`;
           });
           attachmentContext = '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + parts.join('\n\n');
         }
