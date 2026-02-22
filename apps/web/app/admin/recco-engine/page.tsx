@@ -324,7 +324,7 @@ export default function ReccoEnginePage() {
   const totalMs = result?.processing_log?.reduce((s, p) => s + p.duration_ms, 0) ?? 0;
 
   return (
-    <AppShell>
+    <AppShell title="Recco Engine">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         <AdminSubmenu value="recco-engine" />
 
