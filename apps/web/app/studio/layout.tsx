@@ -271,6 +271,9 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   borderRadius: 1.5,
                   bgcolor: 'rgba(255,102,0,0.04)',
                   border: '1px solid rgba(255,102,0,0.12)',
+                  overflow: 'hidden',
+                  maxWidth: 480,
+                  flexShrink: 1,
                 }}
               >
                 <Avatar sx={{ width: 22, height: 22, bgcolor: '#ff6600', fontSize: '0.7rem' }}>
@@ -280,16 +283,23 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   {activeClient.name}
                 </Typography>
                 {activeClient.tone ? (
-                  <Chip size="small" label={activeClient.tone} sx={{ height: 18, fontSize: '0.62rem' }} />
+                  <Chip
+                    size="small"
+                    label={activeClient.tone.length > 28 ? activeClient.tone.slice(0, 28) + '…' : activeClient.tone}
+                    title={activeClient.tone}
+                    sx={{ height: 18, fontSize: '0.62rem', maxWidth: 160 }}
+                  />
                 ) : null}
                 {(activeClient.pillars || []).slice(0, 2).map((pillar) => (
                   <Chip
                     key={pillar}
                     size="small"
-                    label={pillar}
+                    label={pillar.length > 20 ? pillar.slice(0, 20) + '…' : pillar}
+                    title={pillar}
                     sx={{
                       height: 18,
                       fontSize: '0.62rem',
+                      maxWidth: 130,
                       bgcolor: 'rgba(255,102,0,0.08)',
                       color: '#ff6600',
                     }}
