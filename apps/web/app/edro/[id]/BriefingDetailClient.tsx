@@ -346,7 +346,14 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
         setSearchError('TAVILY_API_KEY não configurada no servidor.');
       }
     } catch (err: any) {
-      setSearchError(err?.message || 'Falha ao buscar referências.');
+      const msg: string = err?.message || '';
+      if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('invalid api key')) {
+        setSearchError('Chave Tavily inválida ou expirada. Verifique TAVILY_API_KEY no Railway e aguarde o redeploy do backend.');
+      } else if (msg.includes('503')) {
+        setSearchError('TAVILY_API_KEY não configurada no servidor. Adicione a variável no Railway.');
+      } else {
+        setSearchError('Falha ao buscar referências. Tente novamente em alguns instantes.');
+      }
     } finally {
       setSearching(false);
     }
