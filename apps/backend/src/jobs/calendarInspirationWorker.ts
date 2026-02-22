@@ -14,10 +14,10 @@ import { query } from '../db';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 
-const MIN_RELEVANCE = Number(process.env.CALENDAR_INSPIRATION_MIN_RELEVANCE || 80);
+const MIN_RELEVANCE = Number(process.env.CALENDAR_INSPIRATION_MIN_RELEVANCE || 50);
 const MAX_EVENTS_PER_RUN = Number(process.env.CALENDAR_INSPIRATION_MAX_EVENTS || 5);
 const MIN_INSPIRATIONS = Number(process.env.CALENDAR_INSPIRATION_MIN_ITEMS || 8);
-const WINDOW_DAYS_MIN = 7;
+const WINDOW_DAYS_MIN = 0;
 const WINDOW_DAYS_MAX = 42;
 
 let lastRunDate = '';

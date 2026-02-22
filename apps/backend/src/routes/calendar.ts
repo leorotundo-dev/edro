@@ -1628,6 +1628,48 @@ export default async function calendarRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Inspiration status ────────────────────────────────────────────────────
+
+  app.get(
+    '/calendar/admin/inspiration-status',
+    { preHandler: [requirePerm('admin')] },
+    async (_request, reply) => {
+      const { rows } = await query<{
+        total: string;
+        high_relevance: string;
+        scraped: string;
+        total_inspirations: string;
+        max_relevance: string;
+        min_relevance: string;
+        avg_relevance: string;
+      }>(`
+        SELECT
+          COUNT(*)                                                       AS total,
+          COUNT(*) FILTER (WHERE base_relevance >= 50)                  AS high_relevance,
+          COUNT(DISTINCT i.event_id)                                     AS scraped,
+          COUNT(i.id)                                                    AS total_inspirations,
+          MAX(base_relevance)                                            AS max_relevance,
+          MIN(base_relevance)                                            AS min_relevance,
+          ROUND(AVG(base_relevance))                                     AS avg_relevance
+        FROM events e
+        LEFT JOIN event_inspirations i ON i.event_id = e.id
+        WHERE e.date IS NOT NULL
+      `);
+      const r = rows[0];
+      return reply.send({
+        total_events: parseInt(r.total, 10),
+        eligible_events: parseInt(r.high_relevance, 10),
+        scraped_events: parseInt(r.scraped, 10),
+        total_inspirations: parseInt(r.total_inspirations, 10),
+        relevance_stats: {
+          max: parseInt(r.max_relevance || '0', 10),
+          min: parseInt(r.min_relevance || '0', 10),
+          avg: parseInt(r.avg_relevance || '0', 10),
+        },
+      });
+    }
+  );
+
   // ── Manual enrich batch ────────────────────────────────────────────────────
 
   app.post(
