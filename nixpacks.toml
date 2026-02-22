@@ -12,5 +12,10 @@ cmds = [
   'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm --filter @edro/web run build; else pnpm --filter @edro/backend run build; fi'
 ]
 
+[phases.deploy]
+cmds = [
+  'if [ "$RAILWAY_SERVICE_NAME" != "edro-web" ]; then cd apps/backend && pnpm run db:migrate; fi'
+]
+
 [start]
 cmd = 'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm --filter @edro/web run start; else pnpm --filter @edro/backend run start; fi'
