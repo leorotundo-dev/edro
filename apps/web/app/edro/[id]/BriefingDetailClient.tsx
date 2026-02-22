@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
-import { WORKFLOW_STAGES_UI, STAGE_COLORS } from '@edro/shared/workflow';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -16,20 +15,31 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
+import Tooltip from '@mui/material/Tooltip';
 import {
   IconArchive,
   IconBuilding,
+  IconCalendar,
   IconCheck,
   IconChevronRight,
   IconClock,
+  IconExternalLink,
   IconMail,
   IconMessageCircle,
   IconPhoto,
   IconPlayerPlay,
   IconRobot,
+  IconSparkles,
+  IconTarget,
   IconTrash,
   IconUser,
+  IconUsers,
   IconAB2,
+  IconBulb,
+  IconWorld,
+  IconHash,
+  IconVolume,
+  IconLayoutKanban,
   IconTrophy,
 } from '@tabler/icons-react';
 
@@ -81,25 +91,44 @@ type TimelineEvent = {
   timestamp: string;
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  briefing: 'Briefing',
-  iclips_in: 'iClips Entrada',
-  alinhamento: 'Alinhamento',
-  copy_ia: 'Copy IA',
-  aprovacao: 'Aprovação',
-  producao: 'Produção',
-  revisao: 'Revisão',
-  entrega: 'Entrega',
-  iclips_out: 'iClips Saída',
+const WORKFLOW_STAGES = [
+  { key: 'briefing', label: 'Briefing' },
+  { key: 'iclips_in', label: 'iClips In' },
+  { key: 'alinhamento', label: 'Alinhamento' },
+  { key: 'copy_ia', label: 'Copy IA' },
+  { key: 'aprovacao', label: 'Aprovação' },
+  { key: 'producao', label: 'Produção' },
+  { key: 'revisao', label: 'Revisão' },
+  { key: 'entrega', label: 'Entrega' },
+  { key: 'iclips_out', label: 'iClips Out' },
+];
+
+const STATUS_COLORS: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
+  active: 'success',
+  draft: 'default',
+  archived: 'warning',
+  done: 'success',
+  cancelled: 'error',
 };
+
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    active: 'Ativo',
+    draft: 'Rascunho',
+    archived: 'Arquivado',
+    done: 'Concluído',
+    cancelled: 'Cancelado',
+  };
+  return map[s] || s;
+}
 
 function timelineIcon(type: string) {
   switch (type) {
-    case 'stage_change': return <IconPlayerPlay size={16} />;
-    case 'copy_generated': return <IconRobot size={16} />;
-    case 'notification': return <IconMail size={16} />;
-    case 'task': return <IconMessageCircle size={16} />;
-    default: return <IconClock size={16} />;
+    case 'stage_change': return <IconPlayerPlay size={14} />;
+    case 'copy_generated': return <IconRobot size={14} />;
+    case 'notification': return <IconMail size={14} />;
+    case 'task': return <IconMessageCircle size={14} />;
+    default: return <IconClock size={14} />;
   }
 }
 
@@ -113,19 +142,121 @@ function timelineColor(type: string) {
   }
 }
 
-function timelineDescription(event: TimelineEvent) {
-  switch (event.type) {
-    case 'stage_change':
-      return `Etapa "${STAGE_LABELS[event.label] || event.label}" marcada como ${event.detail === 'done' ? 'concluída' : event.detail === 'in_progress' ? 'em andamento' : event.detail}`;
-    case 'copy_generated':
-      return `Copy gerada via ${event.label} (${event.detail})`;
-    case 'notification':
-      return `Notificação ${event.label} — ${event.detail === 'sent' ? 'enviada' : event.detail}`;
-    case 'task':
-      return `Tarefa "${event.label}" — ${event.detail}`;
-    default:
-      return event.label;
+function formatDate(iso?: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(iso?: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+/* Friendly label for payload keys */
+const PAYLOAD_LABELS: Record<string, string> = {
+  objective: 'Objetivo',
+  target_audience: 'Público-alvo',
+  channels: 'Canais / Plataformas',
+  key_message: 'Mensagem-Chave',
+  tone: 'Tom de Voz',
+  tone_of_voice: 'Tom de Voz',
+  format: 'Formato',
+  formats: 'Formatos',
+  budget: 'Orçamento',
+  deadline: 'Prazo interno',
+  hashtags: 'Hashtags',
+  notes: 'Notas',
+  description: 'Descrição',
+  campaign_name: 'Nome da Campanha',
+  campaign_objective: 'Objetivo da Campanha',
+  platforms: 'Plataformas',
+  production_type: 'Tipo de Produção',
+  web_research_refs: 'Referências Web (IA)',
+  context: 'Contexto',
+  insights: 'Insights',
+  restrictions: 'Restrições',
+  cta: 'CTA',
+  landing_page: 'Landing Page',
+};
+
+const PAYLOAD_ICONS: Record<string, React.ReactNode> = {
+  objective: <IconTarget size={15} />,
+  target_audience: <IconUsers size={15} />,
+  channels: <IconWorld size={15} />,
+  platforms: <IconWorld size={15} />,
+  key_message: <IconBulb size={15} />,
+  tone: <IconVolume size={15} />,
+  tone_of_voice: <IconVolume size={15} />,
+  hashtags: <IconHash size={15} />,
+  web_research_refs: <IconSparkles size={15} />,
+};
+
+/* Fields to skip entirely in the detail view */
+const PAYLOAD_SKIP = new Set([
+  'id', 'created_at', 'updated_at', 'allow_auto_stage', 'source', 'origin',
+  'client_id', 'clientId', 'tenant_id', 'briefing_id',
+]);
+
+/* Render a single payload value */
+function PayloadValue({ value }: { value: any }) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return <Typography variant="body2">{value ? 'Sim' : 'Não'}</Typography>;
+  if (typeof value === 'number') return <Typography variant="body2">{value}</Typography>;
+  if (typeof value === 'string') {
+    if (value.startsWith('http')) {
+      return (
+        <Box component="a" href={value} target="_blank" rel="noopener noreferrer" sx={{ fontSize: 13, color: '#6366f1', wordBreak: 'break-all' }}>
+          {value}
+        </Box>
+      );
+    }
+    return <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{value}</Typography>;
   }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+    if (typeof value[0] === 'string') {
+      return (
+        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+          {value.map((v: string, i: number) => (
+            <Chip key={i} label={v} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+          ))}
+        </Stack>
+      );
+    }
+    return <Typography variant="body2" color="text.secondary">{JSON.stringify(value)}</Typography>;
+  }
+  if (typeof value === 'object') {
+    return (
+      <Stack spacing={0.5}>
+        {Object.entries(value).map(([k, v]) => (
+          v !== null && v !== undefined && v !== '' ? (
+            <Typography key={k} variant="body2">
+              <Box component="span" sx={{ color: '#64748b', mr: '4px' }}>{k}:</Box>
+              {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+            </Typography>
+          ) : null
+        ))}
+      </Stack>
+    );
+  }
+  return <Typography variant="body2">{String(value)}</Typography>;
+}
+
+/* ── Priority fields shown first ── */
+const PRIORITY_KEYS = ['objective', 'campaign_objective', 'target_audience', 'key_message', 'channels', 'platforms', 'tone', 'tone_of_voice', 'format', 'formats', 'budget', 'deadline', 'hashtags', 'cta', 'landing_page', 'notes', 'web_research_refs'];
+
+function sortedPayloadEntries(payload: Record<string, any>) {
+  const entries = Object.entries(payload).filter(
+    ([k, v]) => !PAYLOAD_SKIP.has(k) && v !== null && v !== undefined && v !== ''
+  );
+  const priority: [string, any][] = [];
+  const rest: [string, any][] = [];
+  for (const entry of entries) {
+    if (PRIORITY_KEYS.includes(entry[0])) priority.push(entry);
+    else rest.push(entry);
+  }
+  priority.sort((a, b) => PRIORITY_KEYS.indexOf(a[0]) - PRIORITY_KEYS.indexOf(b[0]));
+  return [...priority, ...rest];
 }
 
 export default function BriefingDetailClient({ briefingId }: { briefingId: string }) {
@@ -140,6 +271,8 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [abTests, setAbTests] = useState<any[]>([]);
   const [abCreating, setAbCreating] = useState(false);
+  const [showKanban, setShowKanban] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -147,12 +280,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     try {
       const response = await apiGet<{
         success: boolean;
-        data: {
-          briefing: Briefing;
-          stages: Stage[];
-          copies: Copy[];
-          tasks: Task[];
-        };
+        data: { briefing: Briefing; stages: Stage[]; copies: Copy[]; tasks: Task[] };
       }>(`/edro/briefings/${briefingId}`);
 
       if (response?.data) {
@@ -175,9 +303,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     }
   }, [briefingId]);
 
-  useEffect(() => {
-    loadBriefing();
-  }, [loadBriefing]);
+  useEffect(() => { loadBriefing(); }, [loadBriefing]);
 
   const handleStageAction = async (stageKey: string, action: 'start' | 'complete') => {
     setActionLoading(stageKey);
@@ -185,77 +311,50 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       const status = action === 'start' ? 'in_progress' : 'done';
       await apiPatch(`/edro/briefings/${briefingId}/stages/${stageKey}`, { status });
       await loadBriefing();
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao atualizar etapa.');
-    } finally {
-      setActionLoading(null);
-    }
+    } catch (err: any) { alert(err?.message || 'Erro ao atualizar etapa.'); }
+    finally { setActionLoading(null); }
   };
 
   const handleGenerateCopy = async () => {
     setActionLoading('copy_ia');
+    setCopySuccess(false);
     try {
-      await apiPost(`/edro/briefings/${briefingId}/copy`, {
-        language: 'pt',
-        count: 10,
-      });
+      await apiPost(`/edro/briefings/${briefingId}/copy`, { language: 'pt', count: 10 });
       await loadBriefing();
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao gerar copies.');
-    } finally {
-      setActionLoading(null);
-    }
+      setCopySuccess(true);
+    } catch (err: any) { alert(err?.message || 'Erro ao gerar copies.'); }
+    finally { setActionLoading(null); }
   };
 
   const handleGenerateCreative = async (copyId: string) => {
-    const confirmed = confirm('Deseja gerar um criativo visual para esta copy? (Requer API Ad Creative configurada)');
-    if (!confirmed) return;
-
+    if (!confirm('Deseja gerar um criativo visual para esta copy?')) return;
     setActionLoading('creative');
     try {
-      const result = await apiPost<{
-        success: boolean;
-        data: { image_url: string; format: string };
-      }>(`/edro/briefings/${briefingId}/generate-creative`, {
-        copy_version_id: copyId,
-        format: 'instagram-feed',
-        style: 'modern',
-      });
-
-      if (result?.data?.image_url) {
-        alert('Criativo gerado com sucesso! URL: ' + result.data.image_url);
-        window.open(result.data.image_url, '_blank');
-      }
+      const result = await apiPost<{ success: boolean; data: { image_url: string; format: string } }>(
+        `/edro/briefings/${briefingId}/generate-creative`,
+        { copy_version_id: copyId, format: 'instagram-feed', style: 'modern' }
+      );
+      if (result?.data?.image_url) window.open(result.data.image_url, '_blank');
       await loadBriefing();
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao gerar criativo visual.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleBack = () => {
-    router.push('/edro');
+    } catch (err: any) { alert(err?.message || 'Erro ao gerar criativo.'); }
+    finally { setActionLoading(null); }
   };
 
   const handleArchive = async () => {
     if (!briefing) return;
+    if (!confirm('Arquivar este briefing?')) return;
     try {
       await apiPatch(`/edro/briefings/${briefingId}/archive`);
       setBriefing({ ...briefing, status: 'archived' });
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao arquivar briefing.');
-    }
+    } catch (err: any) { alert(err?.message || 'Erro ao arquivar briefing.'); }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
+    if (!confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
     try {
       await apiDelete(`/edro/briefings/${briefingId}`);
       router.push('/edro');
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao excluir briefing.');
-    }
+    } catch (err: any) { alert(err?.message || 'Erro ao excluir briefing.'); }
   };
 
   if (loading) {
@@ -276,22 +375,23 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
           <Typography variant="h2">&#x26A0;&#xFE0F;</Typography>
           <Typography variant="h6">Erro</Typography>
           <Typography variant="body2" color="text.secondary">{error || 'Briefing não encontrado.'}</Typography>
-          <Button variant="contained" onClick={handleBack}>Voltar</Button>
+          <Button variant="contained" onClick={() => router.push('/edro')}>Voltar</Button>
         </Stack>
       </Box>
     );
   }
 
-  const getStageStatus = (stageKey: string): Stage | undefined => {
-    return stages.find((s) => s.stage === stageKey);
-  };
+  const stageMap = Object.fromEntries(stages.map((s) => [s.stage, s]));
+  const doneCount = stages.filter((s) => s.status === 'done').length;
+  const progressPct = Math.round((doneCount / WORKFLOW_STAGES.length) * 100);
+  const payloadEntries = sortedPayloadEntries(briefing.payload || {});
 
   return (
     <AppShell
       title={briefing.title}
       topbarLeft={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button size="small" onClick={handleBack} sx={{ color: 'text.secondary', textTransform: 'none' }}>
+          <Button size="small" onClick={() => router.push('/edro')} sx={{ color: 'text.secondary', textTransform: 'none', minWidth: 0, p: '2px 6px' }}>
             Edro
           </Button>
           <IconChevronRight size={14} />
@@ -301,427 +401,589 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
         </Stack>
       }
     >
-      <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-        {/* Header */}
+      <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1280, mx: 'auto' }}>
+
+        {/* ── HEADER ── */}
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'flex-start' }} spacing={2} sx={{ mb: 3 }}>
+          <Box sx={{ flex: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+              <Chip
+                label={statusLabel(briefing.status)}
+                color={STATUS_COLORS[briefing.status] || 'default'}
+                size="small"
+              />
+              {copies.length > 0 && (
+                <Chip label={`${copies.length} cop${copies.length === 1 ? 'y' : 'ies'}`} size="small" color="secondary" variant="outlined" />
+              )}
+              {abTests.length > 0 && (
+                <Chip label={`${abTests.length} A/B`} size="small" variant="outlined" />
+              )}
+            </Stack>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 0.5, lineHeight: 1.25 }}>
+              {briefing.title}
+            </Typography>
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              {briefing.client_name && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <IconBuilding size={14} color="#94a3b8" />
+                  <Typography variant="body2" color="text.secondary">{briefing.client_name}</Typography>
+                </Stack>
+              )}
+              {briefing.traffic_owner && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <IconUser size={14} color="#94a3b8" />
+                  <Typography variant="body2" color="text.secondary">{briefing.traffic_owner}</Typography>
+                </Stack>
+              )}
+              {briefing.created_at && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <IconClock size={14} color="#94a3b8" />
+                  <Typography variant="body2" color="text.secondary">Criado em {formatDate(briefing.created_at)}</Typography>
+                </Stack>
+              )}
+              {briefing.due_at && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <IconCalendar size={14} color="#94a3b8" />
+                  <Typography variant="body2" color="text.secondary">Prazo: {formatDate(briefing.due_at)}</Typography>
+                </Stack>
+              )}
+            </Stack>
+          </Box>
+
+          {/* Action buttons */}
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ flexShrink: 0 }}>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={actionLoading === 'copy_ia' ? <CircularProgress size={14} color="inherit" /> : <IconRobot size={16} />}
+              onClick={handleGenerateCopy}
+              disabled={!!actionLoading}
+              sx={{ fontWeight: 600 }}
+            >
+              {actionLoading === 'copy_ia' ? 'Gerando...' : 'Gerar Copy IA'}
+            </Button>
+            {copies.length >= 2 && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<IconAB2 size={16} />}
+                onClick={async () => {
+                  setAbCreating(true);
+                  try {
+                    await apiPost(`/edro/briefings/${briefingId}/ab-test`, {
+                      variant_a_id: copies[0].id, variant_b_id: copies[1].id, metric: 'engagement',
+                    });
+                    const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
+                    setAbTests(res?.data ?? []);
+                  } catch { /* ignore */ }
+                  setAbCreating(false);
+                }}
+                disabled={abCreating}
+              >
+                {abCreating ? 'Criando...' : 'Novo Teste A/B'}
+              </Button>
+            )}
+            {briefing.status !== 'archived' && (
+              <Button
+                variant="outlined"
+                size="small"
+                color="warning"
+                startIcon={<IconArchive size={16} />}
+                onClick={handleArchive}
+              >
+                Arquivar
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              startIcon={<IconTrash size={16} />}
+              onClick={handleDelete}
+            >
+              Excluir
+            </Button>
+          </Stack>
+        </Stack>
+
+        {copySuccess && (
+          <Alert severity="success" onClose={() => setCopySuccess(false)} sx={{ mb: 2 }}>
+            Copies geradas com sucesso!
+          </Alert>
+        )}
+
+        {/* ── WORKFLOW PROGRESS BAR ── */}
         <Card variant="outlined" sx={{ mb: 3 }}>
-          <CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-              <Box>
-                <Typography variant="h4" sx={{ mb: 1 }}>{briefing.title}</Typography>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  {briefing.client_name && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconBuilding size={16} />
-                      <Typography variant="body2" color="text.secondary">{briefing.client_name}</Typography>
-                    </Stack>
-                  )}
-                  {briefing.traffic_owner && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconUser size={16} />
-                      <Typography variant="body2" color="text.secondary">{briefing.traffic_owner}</Typography>
-                    </Stack>
-                  )}
-                </Stack>
-              </Box>
-              <Stack alignItems="flex-end" spacing={1}>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="body2" color="text.secondary">Status Atual</Typography>
-                  <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>
-                    {briefing.status.replace('_', ' ')}
-                  </Typography>
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  {briefing.status !== 'archived' && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      startIcon={<IconArchive size={16} />}
-                      onClick={handleArchive}
-                    >
-                      Arquivar
-                    </Button>
-                  )}
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    startIcon={<IconTrash size={16} />}
-                    onClick={handleDelete}
-                  >
-                    Excluir
-                  </Button>
-                </Stack>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <IconLayoutKanban size={16} color="#6366f1" />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Fluxo de Produção — {doneCount}/{WORKFLOW_STAGES.length} etapas concluídas ({progressPct}%)
+                </Typography>
               </Stack>
+              <Button
+                size="small"
+                variant="text"
+                sx={{ fontSize: 12, textTransform: 'none', color: 'text.secondary' }}
+                onClick={() => setShowKanban(!showKanban)}
+              >
+                {showKanban ? 'Ocultar detalhes' : 'Gerenciar etapas'}
+              </Button>
             </Stack>
 
-            {briefing.payload && (
-              <Grid container spacing={2} sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                {briefing.payload.objective && (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="body2" color="text.secondary">Objetivo</Typography>
-                    <Typography variant="body2" fontWeight={500}>{briefing.payload.objective}</Typography>
-                  </Grid>
-                )}
-                {briefing.payload.target_audience && (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="body2" color="text.secondary">Público-Alvo</Typography>
-                    <Typography variant="body2">{briefing.payload.target_audience}</Typography>
-                  </Grid>
-                )}
-                {briefing.payload.channels && (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="body2" color="text.secondary">Canais</Typography>
-                    <Typography variant="body2">{briefing.payload.channels}</Typography>
-                  </Grid>
-                )}
-              </Grid>
+            {/* Progress dots */}
+            <Stack direction="row" spacing={0} alignItems="center" sx={{ overflowX: 'auto', pb: 0.5 }}>
+              {WORKFLOW_STAGES.map((ws, idx) => {
+                const s = stageMap[ws.key];
+                const status = s?.status || 'pending';
+                const isDone = status === 'done';
+                const isInProgress = status === 'in_progress';
+                return (
+                  <Stack key={ws.key} direction="row" alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
+                    <Tooltip title={ws.label} arrow placement="top">
+                      <Stack alignItems="center" spacing={0.25} sx={{ cursor: 'default', minWidth: 0, flex: 1 }}>
+                        <Box
+                          sx={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            bgcolor: isDone ? 'success.main' : isInProgress ? 'primary.main' : 'grey.200',
+                            color: isDone || isInProgress ? 'white' : 'text.disabled',
+                            fontSize: 11, fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isDone ? <IconCheck size={14} /> : idx + 1}
+                        </Box>
+                        <Typography
+                          variant="caption"
+                          noWrap
+                          sx={{
+                            fontSize: 9.5,
+                            color: isDone ? 'success.main' : isInProgress ? 'primary.main' : 'text.disabled',
+                            fontWeight: isInProgress ? 700 : 400,
+                            maxWidth: 64,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {ws.label}
+                        </Typography>
+                      </Stack>
+                    </Tooltip>
+                    {idx < WORKFLOW_STAGES.length - 1 && (
+                      <Box sx={{ height: 2, flex: 1, minWidth: 8, bgcolor: isDone ? 'success.light' : 'grey.200', mx: 0.25 }} />
+                    )}
+                  </Stack>
+                );
+              })}
+            </Stack>
+
+            {/* Expandable Kanban actions */}
+            {showKanban && (
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                <Grid container spacing={1.5}>
+                  {WORKFLOW_STAGES.map((ws) => {
+                    const s = stageMap[ws.key];
+                    const status = s?.status || 'pending';
+                    const isPending = status === 'pending';
+                    const isInProgress = status === 'in_progress';
+                    const isDone = status === 'done';
+                    return (
+                      <Grid key={ws.key} size={{ xs: 6, sm: 4, md: 2 }}>
+                        <Box
+                          sx={{
+                            p: 1.5, borderRadius: 1.5, border: '1px solid',
+                            borderColor: isDone ? 'success.light' : isInProgress ? 'primary.light' : 'divider',
+                            bgcolor: isDone ? '#f0fdf4' : isInProgress ? '#eef2ff' : 'background.paper',
+                          }}
+                        >
+                          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
+                            <Box
+                              sx={{
+                                width: 18, height: 18, borderRadius: '50%',
+                                bgcolor: isDone ? 'success.main' : isInProgress ? 'primary.main' : 'grey.300',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isDone && <IconCheck size={11} color="white" />}
+                            </Box>
+                            <Typography variant="caption" fontWeight={600} noWrap>{ws.label}</Typography>
+                          </Stack>
+                          {isPending && (
+                            <Button fullWidth size="small" variant="contained" sx={{ fontSize: 11, py: 0.25 }}
+                              onClick={() => handleStageAction(ws.key, 'start')}
+                              disabled={actionLoading === ws.key}
+                            >
+                              {actionLoading === ws.key ? '...' : 'Iniciar'}
+                            </Button>
+                          )}
+                          {isInProgress && (
+                            <Stack spacing={0.75}>
+                              {ws.key === 'copy_ia' && copies.length === 0 && (
+                                <Button fullWidth size="small" variant="contained" color="info" sx={{ fontSize: 11, py: 0.25 }}
+                                  onClick={handleGenerateCopy} disabled={actionLoading === 'copy_ia'}
+                                >
+                                  Gerar Copies
+                                </Button>
+                              )}
+                              {ws.key === 'aprovacao' && copies.length > 0 && (
+                                <Button fullWidth size="small" variant="contained" color="warning" sx={{ fontSize: 11, py: 0.25 }}
+                                  onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
+                                >
+                                  Aprovar
+                                </Button>
+                              )}
+                              {ws.key === 'producao' && (
+                                <Button fullWidth size="small" variant="contained" sx={{ fontSize: 11, py: 0.25, bgcolor: 'secondary.main' }}
+                                  onClick={() => router.push(`/edro/${briefingId}/producao`)}
+                                >
+                                  Designer
+                                </Button>
+                              )}
+                              <Button fullWidth size="small" variant="contained" color="success" sx={{ fontSize: 11, py: 0.25 }}
+                                onClick={() => handleStageAction(ws.key, 'complete')}
+                                disabled={actionLoading === ws.key}
+                              >
+                                {actionLoading === ws.key ? '...' : 'Concluir'}
+                              </Button>
+                            </Stack>
+                          )}
+                          {isDone && s?.updated_at && (
+                            <Typography variant="caption" color="success.main" sx={{ fontSize: 9.5 }}>
+                              {formatDateTime(s.updated_at)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Box>
             )}
           </CardContent>
         </Card>
 
-        {/* Kanban Board */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {WORKFLOW_STAGES_UI.map((workflowStage) => {
-            const stageData = getStageStatus(workflowStage.key);
-            const status = stageData?.status || 'pending';
+        {/* ── MAIN CONTENT: 2/3 + 1/3 ── */}
+        <Grid container spacing={3}>
 
-            const isPending = status === 'pending';
-            const isInProgress = status === 'in_progress';
-            const isDone = status === 'done';
+          {/* LEFT — Briefing Document + Copies + A/B */}
+          <Grid size={{ xs: 12, lg: 8 }}>
 
-            return (
-              <Grid key={workflowStage.key} size={{ xs: 12, sm: 6, md: 3 }}>
-                <Card
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    height: '100%',
-                    borderWidth: 2,
-                    borderColor: isDone
-                      ? 'success.light'
-                      : isInProgress
-                        ? 'primary.light'
-                        : 'divider',
-                    bgcolor: isDone
-                      ? 'success.50'
-                      : isInProgress
-                        ? 'primary.50'
-                        : 'background.paper',
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                    {isDone ? (
-                      <IconCheck size={24} color="green" />
-                    ) : (
-                      <Typography variant="h6" sx={{ color: isInProgress ? 'primary.main' : 'text.disabled' }}>
-                        {workflowStage.icon}
-                      </Typography>
-                    )}
-                    <Box>
-                      <Typography variant="subtitle2">{workflowStage.label}</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                        {status}
-                      </Typography>
-                    </Box>
+            {/* Briefing Data */}
+            {payloadEntries.length > 0 && (
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <IconSparkles size={18} color="#6366f1" />
+                    <Typography variant="h6" fontWeight={600}>Dados do Briefing</Typography>
                   </Stack>
+                  <Stack spacing={0}>
+                    {payloadEntries.map(([key, value], idx) => {
+                      const label = PAYLOAD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                      const icon = PAYLOAD_ICONS[key] || null;
+                      const isWeb = key === 'web_research_refs';
+                      return (
+                        <Box key={key}>
+                          {idx > 0 && <Divider sx={{ my: 1.5 }} />}
+                          <Stack direction="row" spacing={1} alignItems="flex-start">
+                            {icon && (
+                              <Box sx={{ mt: 0.2, color: isWeb ? 'secondary.main' : 'text.disabled', flexShrink: 0 }}>
+                                {icon}
+                              </Box>
+                            )}
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  fontWeight: 600,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: 0.5,
+                                  color: isWeb ? 'secondary.main' : 'text.secondary',
+                                  display: 'block',
+                                  mb: 0.25,
+                                }}
+                              >
+                                {label}
+                              </Typography>
+                              <PayloadValue value={value} />
+                            </Box>
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
-                  {isPending && (
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="small"
-                      onClick={() => handleStageAction(workflowStage.key, 'start')}
-                      disabled={actionLoading === workflowStage.key}
-                    >
-                      {actionLoading === workflowStage.key ? 'Iniciando...' : 'Iniciar'}
-                    </Button>
-                  )}
-
-                  {isInProgress && (
-                    <Stack spacing={1}>
-                      {workflowStage.key === 'copy_ia' && copies.length === 0 && (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          color="info"
-                          onClick={handleGenerateCopy}
-                          disabled={actionLoading === 'copy_ia'}
-                        >
-                          {actionLoading === 'copy_ia' ? 'Gerando...' : 'Gerar Copies'}
-                        </Button>
-                      )}
-                      {workflowStage.key === 'aprovacao' && copies.length > 0 && (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          color="warning"
-                          onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
-                        >
-                          Aprovar Copies
-                        </Button>
-                      )}
-                      {workflowStage.key === 'producao' && (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          sx={{ bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark' } }}
-                          onClick={() => router.push(`/edro/${briefingId}/producao`)}
-                        >
-                          Atribuir Designer
-                        </Button>
-                      )}
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        size="small"
-                        color="success"
-                        onClick={() => handleStageAction(workflowStage.key, 'complete')}
-                        disabled={actionLoading === workflowStage.key}
-                      >
-                        {actionLoading === workflowStage.key ? 'Concluindo...' : 'Concluir'}
-                      </Button>
-                    </Stack>
-                  )}
-
-                  {isDone && stageData?.updated_at && (
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(stageData.updated_at).toLocaleString('pt-BR')}
+            {/* Copies */}
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconRobot size={18} color="#8b5cf6" />
+                    <Typography variant="h6" fontWeight={600}>
+                      Copies Geradas{copies.length > 0 ? ` (${copies.length})` : ''}
                     </Typography>
-                  )}
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+                  </Stack>
+                  <Button
+                    variant={copies.length === 0 ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={actionLoading === 'copy_ia' ? <CircularProgress size={13} color="inherit" /> : <IconRobot size={14} />}
+                    onClick={handleGenerateCopy}
+                    disabled={!!actionLoading}
+                  >
+                    {actionLoading === 'copy_ia' ? 'Gerando...' : copies.length === 0 ? 'Gerar agora' : 'Regenerar'}
+                  </Button>
+                </Stack>
 
-        {/* Copies Section */}
-        {copies.length > 0 && (
-          <Card variant="outlined" sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Copies Geradas ({copies.length})
-              </Typography>
-              <Stack spacing={2}>
-                {copies.map((copy, index) => (
-                  <Card key={copy.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2">Versão {index + 1}</Typography>
-                        <Stack direction="row" spacing={1} alignItems="center">
+                {copies.length === 0 ? (
+                  <Box sx={{ py: 3, textAlign: 'center' }}>
+                    <IconRobot size={36} color="#e2e8f0" />
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Nenhuma copy gerada ainda. Clique em "Gerar Copy IA" para começar.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Stack spacing={2}>
+                    {copies.map((copy, index) => (
+                      <Box key={copy.id}>
+                        {index > 0 && <Divider sx={{ mb: 2 }} />}
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip label={`Versão ${index + 1}`} size="small" color="secondary" variant="outlined" />
+                            <Typography variant="caption" color="text.secondary">
+                              {formatDateTime(copy.created_at)}
+                            </Typography>
+                          </Stack>
                           <Button
                             size="small"
-                            variant="contained"
-                            color="secondary"
-                            startIcon={<IconPhoto size={14} />}
+                            variant="outlined"
+                            startIcon={<IconPhoto size={13} />}
                             onClick={() => handleGenerateCreative(copy.id)}
                             disabled={actionLoading === 'creative'}
+                            sx={{ fontSize: 12 }}
                           >
-                            {actionLoading === 'creative' ? 'Gerando...' : 'Gerar Criativo'}
+                            Gerar Criativo
                           </Button>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(copy.created_at).toLocaleString('pt-BR')}
-                          </Typography>
                         </Stack>
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {copy.output}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* A/B Testing Section */}
-        {copies.length >= 2 && (
-          <Card variant="outlined" sx={{ mb: 3 }}>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h6">
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <IconAB2 size={20} />
-                    <span>Testes A/B ({abTests.length})</span>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.7,
+                            bgcolor: 'grey.50',
+                            p: 1.5,
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                        >
+                          {copy.output}
+                        </Typography>
+                      </Box>
+                    ))}
                   </Stack>
-                </Typography>
-                {copies.length >= 2 && !abCreating && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={async () => {
-                      if (copies.length < 2) return;
-                      setAbCreating(true);
-                      try {
-                        await apiPost(`/edro/briefings/${briefingId}/ab-test`, {
-                          variant_a_id: copies[0].id,
-                          variant_b_id: copies[1].id,
-                          metric: 'engagement',
-                        });
-                        const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
-                        setAbTests(res?.data ?? []);
-                      } catch { /* ignore */ }
-                      setAbCreating(false);
-                    }}
-                  >
-                    {abCreating ? 'Criando...' : 'Novo Teste A/B'}
-                  </Button>
                 )}
-              </Stack>
+              </CardContent>
+            </Card>
 
-              {abTests.length === 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  Nenhum teste A/B criado. Crie um para comparar duas versoes de copy.
-                </Typography>
-              )}
+            {/* A/B Tests */}
+            {(copies.length >= 2 || abTests.length > 0) && (
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconAB2 size={18} color="#6366f1" />
+                      <Typography variant="h6" fontWeight={600}>
+                        Testes A/B{abTests.length > 0 ? ` (${abTests.length})` : ''}
+                      </Typography>
+                    </Stack>
+                    {copies.length >= 2 && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<IconAB2 size={14} />}
+                        onClick={async () => {
+                          setAbCreating(true);
+                          try {
+                            await apiPost(`/edro/briefings/${briefingId}/ab-test`, {
+                              variant_a_id: copies[0].id, variant_b_id: copies[1].id, metric: 'engagement',
+                            });
+                            const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
+                            setAbTests(res?.data ?? []);
+                          } catch { /* ignore */ }
+                          setAbCreating(false);
+                        }}
+                        disabled={abCreating}
+                      >
+                        {abCreating ? 'Criando...' : 'Novo Teste'}
+                      </Button>
+                    )}
+                  </Stack>
 
-              <Stack spacing={2}>
-                {abTests.map((test) => {
-                  const varA = copies.find((c) => c.id === test.variant_a_id);
-                  const varB = copies.find((c) => c.id === test.variant_b_id);
-                  return (
-                    <Card key={test.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
-                      <CardContent>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                          <Chip
-                            label={test.status}
-                            size="small"
-                            color={test.status === 'completed' ? 'success' : test.status === 'running' ? 'primary' : 'default'}
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            Metrica: {test.metric}
+                  {abTests.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Nenhum teste A/B criado. Gere pelo menos 2 copies e clique em "Novo Teste".
+                    </Typography>
+                  ) : (
+                    <Stack spacing={2}>
+                      {abTests.map((test) => {
+                        const varA = copies.find((c) => c.id === test.variant_a_id);
+                        const varB = copies.find((c) => c.id === test.variant_b_id);
+                        return (
+                          <Box key={test.id}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                              <Chip
+                                label={test.status === 'completed' ? 'Concluído' : test.status === 'running' ? 'Em andamento' : test.status}
+                                size="small"
+                                color={test.status === 'completed' ? 'success' : test.status === 'running' ? 'primary' : 'default'}
+                              />
+                              <Typography variant="caption" color="text.secondary">Métrica: {test.metric}</Typography>
+                            </Stack>
+                            <Grid container spacing={1.5}>
+                              {[
+                                { label: 'Variante A', copy: varA, id: test.variant_a_id },
+                                { label: 'Variante B', copy: varB, id: test.variant_b_id },
+                              ].map(({ label, copy: c, id }) => (
+                                <Grid key={id} size={{ xs: 12, md: 6 }}>
+                                  <Box sx={{
+                                    p: 1.5, borderRadius: 1, border: '1px solid',
+                                    borderColor: test.winner_id === id ? 'success.main' : 'divider',
+                                    bgcolor: test.winner_id === id ? '#f0fdf4' : 'grey.50',
+                                  }}>
+                                    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+                                      <Typography variant="caption" fontWeight={700}>{label}</Typography>
+                                      {test.winner_id === id && <IconTrophy size={14} color="#16a34a" />}
+                                    </Stack>
+                                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                      {c?.output?.slice(0, 200) || 'Copy removida'}...
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                              ))}
+                            </Grid>
+                            {test.status === 'running' && (
+                              <Button
+                                size="small" variant="contained" color="success"
+                                startIcon={<IconTrophy size={14} />}
+                                sx={{ mt: 1.5 }}
+                                onClick={async () => {
+                                  try {
+                                    await apiPost(`/edro/ab-tests/${test.id}/declare-winner`, {});
+                                    const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
+                                    setAbTests(res?.data ?? []);
+                                  } catch { /* ignore */ }
+                                }}
+                              >
+                                Declarar Vencedor
+                              </Button>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </Grid>
+
+          {/* RIGHT — Sidebar: Tasks + Timeline */}
+          <Grid size={{ xs: 12, lg: 4 }}>
+
+            {/* Tasks */}
+            {tasks.length > 0 && (
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                    <IconCheck size={16} color="#3b82f6" />
+                    <Typography variant="subtitle1" fontWeight={600}>Tarefas ({tasks.length})</Typography>
+                  </Stack>
+                  <Stack spacing={1}>
+                    {tasks.map((task) => (
+                      <Stack key={task.id} direction="row" justifyContent="space-between" alignItems="center">
+                        <Box>
+                          <Typography variant="body2" fontWeight={500} sx={{ textTransform: 'capitalize' }}>
+                            {task.type.replace(/_/g, ' ')}
                           </Typography>
-                        </Stack>
+                          <Typography variant="caption" color="text.secondary">{task.assigned_to}</Typography>
+                        </Box>
+                        <Chip
+                          label={task.status}
+                          size="small"
+                          color={task.status === 'done' ? 'success' : task.status === 'in_progress' ? 'primary' : 'default'}
+                          sx={{ fontSize: 11, textTransform: 'capitalize' }}
+                        />
+                      </Stack>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
-                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                          <Box sx={{ flex: 1, p: 1.5, border: '1px solid', borderColor: test.winner_id === test.variant_a_id ? 'success.main' : 'grey.300', borderRadius: 1, bgcolor: test.winner_id === test.variant_a_id ? '#f0fdf4' : 'white' }}>
-                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                              <Typography variant="subtitle2" fontWeight={700}>Variante A</Typography>
-                              {test.winner_id === test.variant_a_id && <IconTrophy size={16} color="#16a34a" />}
-                            </Stack>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
-                              {varA?.output?.slice(0, 150) || 'Copy removida'}...
-                            </Typography>
-                          </Box>
-                          <Box sx={{ flex: 1, p: 1.5, border: '1px solid', borderColor: test.winner_id === test.variant_b_id ? 'success.main' : 'grey.300', borderRadius: 1, bgcolor: test.winner_id === test.variant_b_id ? '#f0fdf4' : 'white' }}>
-                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                              <Typography variant="subtitle2" fontWeight={700}>Variante B</Typography>
-                              {test.winner_id === test.variant_b_id && <IconTrophy size={16} color="#16a34a" />}
-                            </Stack>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
-                              {varB?.output?.slice(0, 150) || 'Copy removida'}...
-                            </Typography>
-                          </Box>
-                        </Stack>
+            {/* Activity Timeline */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <IconClock size={16} color="#94a3b8" />
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Histórico{timeline.length > 0 ? ` (${timeline.length})` : ''}
+                  </Typography>
+                </Stack>
 
-                        {test.status === 'running' && (
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            startIcon={<IconTrophy size={14} />}
-                            sx={{ mt: 1.5 }}
-                            onClick={async () => {
-                              try {
-                                await apiPost(`/edro/ab-tests/${test.id}/declare-winner`, {});
-                                const res = await apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`);
-                                setAbTests(res?.data ?? []);
-                              } catch { /* ignore */ }
+                {timeline.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">Nenhum evento registrado.</Typography>
+                ) : (
+                  <Stack spacing={0}>
+                    {timeline.slice(0, 20).map((event, index) => (
+                      <Box key={event.id + index}>
+                        <Stack direction="row" spacing={1.5} sx={{ py: 1.25 }}>
+                          <Box
+                            sx={{
+                              width: 26, height: 26, borderRadius: '50%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              bgcolor: `${timelineColor(event.type)}18`,
+                              color: timelineColor(event.type),
+                              flexShrink: 0, mt: 0.1,
                             }}
                           >
-                            Declarar Vencedor
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tasks Section */}
-        {tasks.length > 0 && (
-          <Card variant="outlined" sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Tarefas ({tasks.length})
-              </Typography>
-              <Stack spacing={1.5}>
-                {tasks.map((task) => (
-                  <Card key={task.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
-                            {task.type}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Atribuído: {task.assigned_to}
-                          </Typography>
-                        </Box>
-                        <Chip size="small" label={task.status} sx={{ textTransform: 'capitalize' }} />
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Activity Timeline */}
-        {timeline.length > 0 && (
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Histórico de Atividades ({timeline.length})
-              </Typography>
-              <Stack spacing={0}>
-                {timeline.map((event, index) => (
-                  <Box key={event.id + index}>
-                    <Stack direction="row" spacing={2} sx={{ py: 1.5 }}>
-                      <Box
-                        sx={{
-                          width: 32, height: 32, borderRadius: '50%',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: `${timelineColor(event.type)}18`,
-                          color: timelineColor(event.type),
-                          flexShrink: 0, mt: 0.25,
-                        }}
-                      >
-                        {timelineIcon(event.type)}
-                      </Box>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight={500}>
-                          {timelineDescription(event)}
-                        </Typography>
-                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.25 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(event.timestamp).toLocaleString('pt-BR')}
-                          </Typography>
-                          {event.actor && (
-                            <Typography variant="caption" color="text.secondary">
-                              por {event.actor}
+                            {timelineIcon(event.type)}
+                          </Box>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="caption" fontWeight={500} sx={{ display: 'block', lineHeight: 1.4 }}>
+                              {event.label}
+                              {event.detail && event.detail !== event.label && (
+                                <Box component="span" sx={{ color: 'text.disabled', ml: '4px' }}>· {event.detail}</Box>
+                              )}
                             </Typography>
-                          )}
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10.5 }}>
+                                {formatDateTime(event.timestamp)}
+                              </Typography>
+                              {event.actor && (
+                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10.5 }}>
+                                  por {event.actor}
+                                </Typography>
+                              )}
+                            </Stack>
+                          </Box>
                         </Stack>
+                        {index < Math.min(timeline.length, 20) - 1 && <Divider sx={{ ml: 4.5 }} />}
                       </Box>
-                    </Stack>
-                    {index < timeline.length - 1 && (
-                      <Divider sx={{ ml: 6 }} />
+                    ))}
+                    {timeline.length > 20 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ pt: 1, display: 'block', textAlign: 'center' }}>
+                        + {timeline.length - 20} eventos anteriores
+                      </Typography>
                     )}
-                  </Box>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Box>
     </AppShell>
   );
