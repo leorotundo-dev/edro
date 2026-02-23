@@ -1731,32 +1731,49 @@ export default async function edroRoutes(app: FastifyInstance) {
           if (savedRefs) researchParts.push(`Referências do briefing:\n${savedRefs}`);
 
           if (isTavilyConfigured()) {
-            const timeout = new Promise<null>((r) => setTimeout(() => r(null), 10000));
+            const timeout = new Promise<null>((r) => setTimeout(() => r(null), 12000));
             const t0 = Date.now();
 
-            // CS1 + CS4: 3 buscas em paralelo
-            const [ctxRes, statsRes, hooksRes] = await Promise.all([
-              // 1. Contexto geral do tema + plataforma
-              Promise.race([tavilySearch(`${briefing.title} ${platform} conteúdo referência tendência`, { maxResults: 3, searchDepth: 'basic' }), timeout]),
-              // 2. Dados e estatísticas (social proof)
-              Promise.race([tavilySearch(`${briefing.title} dados estatísticas resultados ${currentYear}`, { maxResults: 2, searchDepth: 'basic' }), timeout]),
-              // 3. CS4: ganchos virais + benchmark da plataforma
-              Promise.race([tavilySearch(`${platform} ganchos virais formatos engajamento ${currentYear} Brasil`, { maxResults: 2, searchDepth: 'basic' }), timeout]),
+            // Obter segmento do cliente para buscas mais específicas ao nicho
+            let clientSegment = '';
+            if (selectedClientId && tenantId) {
+              try {
+                const segRow = await getClientById(tenantId, selectedClientId);
+                clientSegment = (segRow as any)?.segment_primary || '';
+              } catch { /* non-blocking */ }
+            }
+            const segCtx = clientSegment ? ` ${clientSegment}` : '';
+
+            // 4 buscas em paralelo: contexto + dados + ganchos do nicho + exemplos criativos
+            const [ctxRes, statsRes, hooksRes, examplesRes] = await Promise.all([
+              // 1. Contexto geral do tema com nicho do cliente
+              Promise.race([tavilySearch(`${briefing.title}${segCtx} ${platform} conteúdo referência tendência`, { maxResults: 3, searchDepth: 'basic' }), timeout]),
+              // 2. Dados e estatísticas com contexto do setor (social proof)
+              Promise.race([tavilySearch(`${briefing.title}${segCtx} dados pesquisa estatísticas mercado ${currentYear}`, { maxResults: 2, searchDepth: 'basic' }), timeout]),
+              // 3. Ganchos virais específicos ao NICHO + plataforma (não mais genérico)
+              Promise.race([tavilySearch(`${clientSegment || 'marketing'} ${platform} ganchos virais exemplos engajamento ${currentYear} Brasil`, { maxResults: 3, searchDepth: 'basic' }), timeout]),
+              // 4. Exemplos criativos reais do setor para inspiração do AI
+              clientSegment
+                ? Promise.race([tavilySearch(`${clientSegment} ${platform} campanha criativa exemplos melhores ${currentYear}`, { maxResults: 2, searchDepth: 'basic' }), timeout])
+                : Promise.resolve(null),
             ]);
 
-            const callCount = [ctxRes, statsRes, hooksRes].filter(Boolean).length;
+            const callCount = [ctxRes, statsRes, hooksRes, examplesRes].filter(Boolean).length;
             if (callCount > 0) {
-              logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: callCount, feature: 'copy_studio_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id, pipeline } });
+              logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: callCount, feature: 'copy_studio_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id, pipeline, segment: clientSegment || undefined } });
             }
 
-            const ctxLines = ctxRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 200)}`).join('\n');
+            const ctxLines = ctxRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n');
             if (ctxLines) researchParts.push(`Contexto do tema:\n${ctxLines}`);
 
-            const statsLines = statsRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 150)}`).join('\n');
+            const statsLines = statsRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n');
             if (statsLines) researchParts.push(`Dados e referências:\n${statsLines}`);
 
-            const hooksLines = hooksRes?.results?.slice(0, 1).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 150)}`).join('\n');
-            if (hooksLines) researchParts.push(`Tendências de ${platform}:\n${hooksLines}`);
+            const hooksLines = hooksRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 200)}`).join('\n');
+            if (hooksLines) researchParts.push(`Ganchos de ${platform}${clientSegment ? ` para ${clientSegment}` : ''}:\n${hooksLines}`);
+
+            const examplesLines = (examplesRes as any)?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 250)}`).join('\n');
+            if (examplesLines) researchParts.push(`Exemplos criativos do setor (${clientSegment}):\n${examplesLines}`);
           }
 
           if (researchParts.length > 0) {
