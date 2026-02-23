@@ -38,6 +38,7 @@ type AvailableProvider = {
   name: string;
   description: string;
   icon: string;
+  oauthProvider?: boolean;
   configFields: {
     key: string;
     label: string;
@@ -63,10 +64,18 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     ],
   },
   {
+    id: 'meta',
+    name: 'Meta (Instagram & Facebook)',
+    description: 'Social Listening — posts, comentários e menções das páginas do cliente',
+    icon: '\uD83D\uDCD8',
+    oauthProvider: true,
+    configFields: [],
+  },
+  {
     id: 'meta_ads',
     name: 'Meta Ads',
     description: 'Integração com Facebook/Instagram Ads Manager',
-    icon: '\uD83D\uDCD8',
+    icon: '\uD83D\uDCB0',
     configFields: [
       { key: 'access_token', label: 'Access Token', type: 'password', required: true },
       { key: 'ad_account_id', label: 'Ad Account ID', type: 'text', required: true },
@@ -129,6 +138,7 @@ export default function ClientConnectorsPage() {
   const [saveStatus, setSaveStatus] = useState<string>('');
   const [testing, setTesting] = useState<string | null>(null); // provider being tested
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
 
   useEffect(() => {
     loadConnectors();
@@ -169,6 +179,35 @@ export default function ClientConnectorsPage() {
     } finally {
       setTesting(null);
     }
+  };
+
+  const handleMetaOAuth = (providerId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
+    const popup = window.open(
+      `${apiBase}/auth/meta/start?clientId=${clientId}`,
+      'meta_oauth',
+      'width=600,height=700,left=200,top=100'
+    );
+    if (!popup) return; // blocked by browser
+    setOauthLoading(providerId);
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'meta_connected') {
+        window.removeEventListener('message', onMessage);
+        setOauthLoading(null);
+        loadConnectors();
+      }
+    };
+    window.addEventListener('message', onMessage);
+
+    // Cleanup if popup is closed without completing
+    const pollClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(pollClosed);
+        window.removeEventListener('message', onMessage);
+        setOauthLoading(null);
+      }
+    }, 500);
   };
 
   const openConfigModal = async (provider: string) => {
@@ -358,15 +397,40 @@ export default function ClientConnectorsPage() {
                       </Typography>
                     )}
 
+                    {/* Page name for Meta OAuth connector */}
+                    {isConnected && provider.oauthProvider && status?.payload?.page_name && (
+                      <Typography variant="caption" color="text.secondary">
+                        Página: {status.payload.page_name as string}
+                        {status.payload.instagram_business_id ? ' · Instagram vinculado' : ''}
+                      </Typography>
+                    )}
+
                     <Stack direction="row" spacing={1}>
-                      <Button
-                        variant={isConnected ? 'outlined' : 'contained'}
-                        onClick={() => openConfigModal(provider.id)}
-                        size="small"
-                        sx={{ flex: 1 }}
-                      >
-                        {isConnected ? 'Gerenciar' : 'Configurar'}
-                      </Button>
+                      {provider.oauthProvider ? (
+                        <Button
+                          variant={isConnected ? 'outlined' : 'contained'}
+                          size="small"
+                          sx={{ flex: 1 }}
+                          disabled={oauthLoading === provider.id}
+                          startIcon={oauthLoading === provider.id ? <CircularProgress size={12} color="inherit" /> : undefined}
+                          onClick={() => handleMetaOAuth(provider.id)}
+                        >
+                          {oauthLoading === provider.id
+                            ? 'Aguardando...'
+                            : isConnected
+                            ? 'Reconectar com Meta'
+                            : 'Conectar com Meta'}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant={isConnected ? 'outlined' : 'contained'}
+                          onClick={() => openConfigModal(provider.id)}
+                          size="small"
+                          sx={{ flex: 1 }}
+                        >
+                          {isConnected ? 'Gerenciar' : 'Configurar'}
+                        </Button>
+                      )}
                       {isConnected && (
                         <Button
                           variant="outlined"

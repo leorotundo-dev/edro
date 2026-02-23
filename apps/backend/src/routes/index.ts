@@ -33,6 +33,7 @@ import analyticsRoutes from './analytics';
 import integrationDataRoutes from './integrationData';
 import pautaInboxRoutes from './pautaInbox';
 import tempPgVectorCheck from './_temp_pgvector_check';
+import metaOAuthRoutes from './metaOAuth';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -40,6 +41,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.register(authRoutes, { prefix: '/api' });
   app.register(ssoRoutes, { prefix: '/api' });
+  app.register(metaOAuthRoutes, { prefix: '/api' });
   app.register(edroRoutes, { prefix: '/api' });
   app.register(calendarRoutes, { prefix: '/api' });
   app.register(connectorsRoutes, { prefix: '/api' });
