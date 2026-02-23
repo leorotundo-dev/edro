@@ -2932,10 +2932,13 @@ export default async function edroRoutes(app: FastifyInstance) {
       copy_version_id: z.string().uuid(),
       format: z.string().default('instagram-feed'),
       style: z.string().optional(),
+      brand_color: z.string().optional(),
+      client_id: z.string().optional(),
     });
 
     const params = paramsSchema.parse(request.params);
     const body = bodySchema.parse(request.body);
+    const tenantId = (request as any).user?.tenant_id as string | undefined;
 
     const briefing = await getBriefingById(params.id);
     if (!briefing) {
@@ -2949,11 +2952,23 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'Copy não encontrada' });
     }
 
+    // Enriquecer com segmento do cliente para prompt mais específico
+    let clientSegment = '';
+    const resolvedClientId = body.client_id || (briefing as any).main_client_id || resolveClientIdFromPayload((briefing.payload as any) || {});
+    if (resolvedClientId && tenantId) {
+      try {
+        const clientRow = await getClientById(tenantId, resolvedClientId);
+        clientSegment = (clientRow as any)?.segment_primary || '';
+      } catch { /* non-blocking */ }
+    }
+
     try {
       const result = await generateAdCreative({
         copy: selectedCopy.output,
         format: body.format,
         brand: briefing.client_name || undefined,
+        colors: body.brand_color ? [body.brand_color] : undefined,
+        segment: clientSegment || undefined,
         style: body.style,
       });
 

@@ -143,7 +143,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
 
       {/* ── Post Image ── */}
       <div className="w-full relative" style={{ aspectRatio: postAspectRatio, background: '#efefef' }}>
-        {currentImage && !currentImage.startsWith('data:') ? (
+        {currentImage && (!currentImage.startsWith('data:') || currentImage.startsWith('data:image/png') || currentImage.startsWith('data:image/jpeg') || currentImage.startsWith('data:image/webp')) ? (
           <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
         ) : resolvedHeadline ? (
           <div

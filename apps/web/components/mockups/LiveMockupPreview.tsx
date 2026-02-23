@@ -37,6 +37,7 @@ type LiveMockupPreviewProps = {
   maxChars?: Record<string, number> | null;
   brandName?: string | null;
   brandColor?: string;
+  arteImageUrl?: string | null;
   align?: 'left' | 'center';
   className?: string;
   showHeader?: boolean;
@@ -261,6 +262,7 @@ export default function LiveMockupPreview({
   maxChars,
   brandName,
   brandColor,
+  arteImageUrl,
   align = 'center',
   className,
   showHeader = true,
@@ -579,15 +581,17 @@ export default function LiveMockupPreview({
       );
     }
     if (isFeedLike || componentName === 'InstagramFeedMockup') {
+      const feedPostImage = arteImageUrl || slideImages[0];
+      const feedSlides = arteImageUrl ? [arteImageUrl] : slideImages;
       return (
         <InstagramFeedMockup
           username={displayName}
           profileImage={avatar}
-          postImage={slideImages[0]}
-          slides={slideImages}
-          isCarousel={isCarouselFormat && slideImages.length > 1}
-          arteHeadline={displayHeadline}
-          arteBody={displayBody}
+          postImage={feedPostImage}
+          slides={feedSlides}
+          isCarousel={!arteImageUrl && isCarouselFormat && slideImages.length > 1}
+          arteHeadline={arteImageUrl ? undefined : displayHeadline}
+          arteBody={arteImageUrl ? undefined : displayBody}
           arteBgColor={accentColor}
           likes={1280}
           caption={feedCaption || captionText}

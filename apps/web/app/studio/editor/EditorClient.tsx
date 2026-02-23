@@ -410,6 +410,8 @@ export default function EditorClient() {
   const [videoScript, setVideoScript] = useState<{ hook: string; corpo: string; cta: string }>({ hook: '', corpo: '', cta: '' });
   const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
   const [amdResults, setAmdResults] = useState<Record<string, string>>({});
+  const [arteImageUrl, setArteImageUrl] = useState<string | null>(null);
+  const [generatingArte, setGeneratingArte] = useState(false);
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1013,6 +1015,33 @@ export default function EditorClient() {
     return window.localStorage.getItem('edro_copy_version_id') || '';
   };
 
+  const handleGenerateArte = async () => {
+    const copyVersionId = resolveActiveCopyId();
+    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (!briefingId || !copyVersionId) return;
+    setGeneratingArte(true);
+    try {
+      const res = await apiPost<{ success: boolean; image_url?: string; error?: string }>(
+        `/edro/briefings/${briefingId}/generate-creative`,
+        {
+          copy_version_id: copyVersionId,
+          format: activeFormat?.format || 'instagram-feed',
+          brand_color: clientBrandColor || undefined,
+          client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+        }
+      );
+      if (res.success && res.image_url) {
+        setArteImageUrl(res.image_url);
+      } else {
+        setError(res.error || 'Erro ao gerar arte com IA');
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao gerar arte com IA');
+    } finally {
+      setGeneratingArte(false);
+    }
+  };
+
   const optionToText = (option: ParsedOption | null) => {
     if (!option) return output || '';
     const parts = [
@@ -1175,11 +1204,28 @@ export default function EditorClient() {
                     maxChars={catalogItem?.max_chars}
                     brandName={briefing?.client_name}
                     brandColor={clientBrandColor || undefined}
+                    arteImageUrl={arteImageUrl}
                     align="left"
                     showHeader={false}
                   />
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleGenerateArte}
+                      disabled={generatingArte || !output}
+                      startIcon={generatingArte ? <CircularProgress size={12} /> : undefined}
+                    >
+                      {generatingArte ? 'Gerando arte...' : 'Gerar Arte com IA'}
+                    </Button>
+                    {arteImageUrl && (
+                      <Button size="small" variant="text" onClick={() => setArteImageUrl(null)}>
+                        Remover arte
+                      </Button>
+                    )}
+                  </Stack>
                   {copyWarnings.length > 0 && (
-                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                    <Stack spacing={0.5} sx={{ mt: 1 }}>
                       {copyWarnings.map((w, i) => (
                         <Alert key={i} severity="warning" sx={{ py: 0.5, fontSize: 12 }}>
                           {w.message}

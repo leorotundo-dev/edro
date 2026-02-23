@@ -167,7 +167,70 @@ export async function generateWithTools(params: GeminiToolsParams): Promise<Gemi
   };
 }
 
+// ── Image Generation (Gemini 2.0 Flash Image) ───────────────────────────────
+//
+// Usa o mesmo GEMINI_API_KEY com um modelo dedicado à geração de imagens.
+// Modelo padrão: gemini-2.0-flash-preview-image-generation
+// Response: parts[].inlineData.{ data (base64), mimeType }
+
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-preview-image-generation';
+
+export type GeminiImageResult = {
+  base64: string;
+  mimeType: string;
+};
+
+export async function generateImage(params: { prompt: string }): Promise<GeminiImageResult> {
+  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY_NOT_SET');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${BASE_URL}/models/${IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: params.prompt }] }],
+          generationConfig: {
+            responseModalities: ['IMAGE'],
+            temperature: 1.0,
+          },
+        }),
+        signal: controller.signal,
+      }
+    );
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('Gemini image generation timed out after 60s');
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gemini image error: ${response.status} ${text}`);
+  }
+
+  const data = await response.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const imagePart = parts.find((p: any) => p.inlineData?.data);
+
+  if (!imagePart?.inlineData?.data) {
+    throw new Error('Gemini did not return an image in the response');
+  }
+
+  return {
+    base64: imagePart.inlineData.data as string,
+    mimeType: (imagePart.inlineData.mimeType as string) || 'image/png',
+  };
+}
+
 export const GeminiService = {
   generateCompletion,
   generateWithTools,
+  generateImage,
 };
