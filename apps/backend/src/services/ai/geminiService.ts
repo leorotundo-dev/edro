@@ -265,8 +265,8 @@ export async function generateImage(params: {
   }
 
   const data = await response.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const imagePart = parts.find((p: any) => p.inlineData?.data);
+  const responseParts = data.candidates?.[0]?.content?.parts || [];
+  const imagePart = responseParts.find((p: any) => p.inlineData?.data);
 
   if (!imagePart?.inlineData?.data) {
     throw new Error('Gemini did not return an image in the response');
