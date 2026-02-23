@@ -19,6 +19,10 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
@@ -411,7 +415,10 @@ export default function EditorClient() {
   const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
   const [amdResults, setAmdResults] = useState<Record<string, string>>({});
   const [arteImageUrl, setArteImageUrl] = useState<string | null>(null);
-  const [generatingArte, setGeneratingArte] = useState(false);
+  const [arteStep, setArteStep] = useState<null | 'loading_prompt' | 'editing' | 'generating'>(null);
+  const [artePrompt, setArtePrompt] = useState('');
+  const [arteRefsCount, setArteRefsCount] = useState(0);
+  const [arteModalOpen, setArteModalOpen] = useState(false);
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1015,30 +1022,69 @@ export default function EditorClient() {
     return window.localStorage.getItem('edro_copy_version_id') || '';
   };
 
+  // Fase 1: busca as referências visuais e monta o prompt sem gerar a imagem
   const handleGenerateArte = async () => {
     const copyVersionId = resolveActiveCopyId();
     const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
     if (!briefingId || !copyVersionId) return;
-    setGeneratingArte(true);
+
+    setArteStep('loading_prompt');
     try {
-      const res = await apiPost<{ success: boolean; image_url?: string; error?: string }>(
+      const res = await apiPost<{ success: boolean; prompt?: string; visual_refs_count?: number; error?: string }>(
         `/edro/briefings/${briefingId}/generate-creative`,
         {
           copy_version_id: copyVersionId,
           format: activeFormat?.format || 'instagram-feed',
           brand_color: clientBrandColor || undefined,
           client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+          prompt_only: true,
         }
       );
-      if (res.success && res.image_url) {
-        setArteImageUrl(res.image_url);
+      if (res.success && res.prompt) {
+        setArtePrompt(res.prompt);
+        setArteRefsCount(res.visual_refs_count || 0);
+        setArteModalOpen(true);
+        setArteStep('editing');
+      } else {
+        setError(res.error || 'Erro ao montar prompt de arte');
+        setArteStep(null);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao buscar referências visuais');
+      setArteStep(null);
+    }
+  };
+
+  // Fase 2: gera a imagem com o prompt (possivelmente editado pelo usuário)
+  const handleGenerateArteWithPrompt = async () => {
+    const copyVersionId = resolveActiveCopyId();
+    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (!briefingId || !copyVersionId) return;
+
+    setArteStep('generating');
+    try {
+      const res = await apiPost<{ success: boolean; image_url?: string; data?: { image_url?: string }; error?: string }>(
+        `/edro/briefings/${briefingId}/generate-creative`,
+        {
+          copy_version_id: copyVersionId,
+          format: activeFormat?.format || 'instagram-feed',
+          brand_color: clientBrandColor || undefined,
+          client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+          custom_prompt: artePrompt,
+        }
+      );
+      const imageUrl = res.image_url || res.data?.image_url;
+      if (res.success && imageUrl) {
+        setArteImageUrl(imageUrl);
+        setArteModalOpen(false);
+        setArteStep(null);
       } else {
         setError(res.error || 'Erro ao gerar arte com IA');
+        setArteStep('editing');
       }
     } catch (e: any) {
       setError(e?.message || 'Erro ao gerar arte com IA');
-    } finally {
-      setGeneratingArte(false);
+      setArteStep('editing');
     }
   };
 
@@ -1213,10 +1259,10 @@ export default function EditorClient() {
                       size="small"
                       variant="outlined"
                       onClick={handleGenerateArte}
-                      disabled={generatingArte || !output}
-                      startIcon={generatingArte ? <CircularProgress size={12} /> : undefined}
+                      disabled={arteStep !== null || !output}
+                      startIcon={arteStep === 'loading_prompt' ? <CircularProgress size={12} /> : undefined}
                     >
-                      {generatingArte ? 'Gerando arte...' : 'Gerar Arte com IA'}
+                      {arteStep === 'loading_prompt' ? 'Buscando referências...' : 'Gerar Arte com IA'}
                     </Button>
                     {arteImageUrl && (
                       <Button size="small" variant="text" onClick={() => setArteImageUrl(null)}>
@@ -1702,6 +1748,59 @@ export default function EditorClient() {
         onClose={() => setRejectOpen(false)}
         onSubmit={handleRejectOption}
       />
+
+      {/* ── Modal de edição do prompt de arte ── */}
+      <Dialog
+        open={arteModalOpen}
+        onClose={() => { if (arteStep !== 'generating') { setArteModalOpen(false); setArteStep(null); } }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <span>Configurar Arte IA</span>
+            {arteRefsCount > 0 && (
+              <Chip
+                size="small"
+                label={`${arteRefsCount} referência${arteRefsCount > 1 ? 's' : ''} visual encontrada${arteRefsCount > 1 ? 's' : ''}`}
+                color="primary"
+                variant="outlined"
+                sx={{ fontSize: 11 }}
+              />
+            )}
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Prompt montado automaticamente com base no copy, segmento e referências visuais do cliente. Edite livremente antes de gerar.
+          </Typography>
+          <TextField
+            multiline
+            rows={10}
+            fullWidth
+            value={artePrompt}
+            onChange={(e) => setArtePrompt(e.target.value)}
+            disabled={arteStep === 'generating'}
+            inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => { setArteModalOpen(false); setArteStep(null); }}
+            disabled={arteStep === 'generating'}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleGenerateArteWithPrompt}
+            disabled={arteStep === 'generating' || !artePrompt.trim()}
+            startIcon={arteStep === 'generating' ? <CircularProgress size={14} color="inherit" /> : undefined}
+          >
+            {arteStep === 'generating' ? 'Gerando...' : 'Gerar Imagem →'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

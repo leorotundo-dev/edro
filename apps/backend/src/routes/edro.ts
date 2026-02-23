@@ -12,7 +12,7 @@ import {
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
-import { generateAdCreative } from '../services/adCreativeService';
+import { buildCreativePrompt, generateAdCreative } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
@@ -2934,6 +2934,10 @@ export default async function edroRoutes(app: FastifyInstance) {
       style: z.string().optional(),
       brand_color: z.string().optional(),
       client_id: z.string().optional(),
+      /** Retorna apenas o prompt montado, sem chamar o Gemini */
+      prompt_only: z.boolean().optional(),
+      /** Prompt editado pelo usuário — substitui o auto-gerado na geração real */
+      custom_prompt: z.string().optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -2952,16 +2956,90 @@ export default async function edroRoutes(app: FastifyInstance) {
       return reply.status(404).send({ success: false, error: 'Copy não encontrada' });
     }
 
-    // Enriquecer com segmento do cliente para prompt mais específico
+    // ── Enriquecer com dados do cliente ─────────────────────────────────
     let clientSegment = '';
+    let clientRow: any = null;
     const resolvedClientId = body.client_id || (briefing as any).main_client_id || resolveClientIdFromPayload((briefing.payload as any) || {});
     if (resolvedClientId && tenantId) {
       try {
-        const clientRow = await getClientById(tenantId, resolvedClientId);
-        clientSegment = (clientRow as any)?.segment_primary || '';
+        clientRow = await getClientById(tenantId, resolvedClientId);
+        clientSegment = clientRow?.segment_primary || '';
       } catch { /* non-blocking */ }
     }
 
+    // ── Montar contexto visual do cliente ───────────────────────────────
+    let visualContext = '';
+    let visualRefsCount = 0;
+
+    if (resolvedClientId) {
+      try {
+        const contextParts: string[] = [];
+
+        // 1. Cores e diretrizes do perfil
+        const profile = clientRow?.profile || {};
+        const brandColors: string[] = Array.isArray(profile.brand_colors)
+          ? profile.brand_colors.slice(0, 3)
+          : [];
+        const visualGuidelines: string = profile.knowledge_base?.visual_guidelines || '';
+        if (brandColors.length) contextParts.push(`Brand colors: ${brandColors.join(', ')}.`);
+        if (visualGuidelines) contextParts.push(`Visual guidelines: ${visualGuidelines.slice(0, 200)}`);
+
+        // 2. Itens da biblioteca marcados como referência visual
+        const { rows: libItems } = await query<{ title: string; description: string | null }>(
+          `SELECT title, description FROM library_items
+           WHERE client_id=$1 AND use_in_ai=true AND status='ready'
+           AND (category ILIKE '%brand%' OR category ILIKE '%visual%' OR category ILIKE '%refer%')
+           ORDER BY weight DESC, created_at DESC LIMIT 4`,
+          [resolvedClientId]
+        );
+        if (libItems.length) {
+          const libText = libItems
+            .map((i) => i.description || i.title)
+            .filter(Boolean)
+            .join('; ');
+          if (libText) contextParts.push(`Brand references: ${libText.slice(0, 300)}`);
+        }
+
+        // 3. Captions de posts sociais recentes (infere estética pelo texto)
+        const { rows: recentPosts } = await query<{ content_text: string }>(
+          `SELECT content_text FROM client_documents
+           WHERE client_id=$1 AND source_type='social' AND content_text IS NOT NULL
+           ORDER BY published_at DESC LIMIT 5`,
+          [resolvedClientId]
+        ).catch(() => ({ rows: [] as { content_text: string }[] }));
+        if (recentPosts.length) {
+          const postCaptions = recentPosts
+            .map((p) => p.content_text?.slice(0, 80))
+            .filter(Boolean)
+            .join(' | ');
+          if (postCaptions)
+            contextParts.push(`Recent post aesthetic (captions): ${postCaptions.slice(0, 300)}`);
+        }
+
+        visualContext = contextParts.join('\n');
+        visualRefsCount = contextParts.length;
+      } catch { /* non-blocking — never fails the endpoint */ }
+    }
+
+    // ── Modo prompt_only: retorna o prompt sem chamar o Gemini ──────────
+    if (body.prompt_only) {
+      const previewPrompt = buildCreativePrompt({
+        copy: selectedCopy.output,
+        format: body.format,
+        brand: briefing.client_name || undefined,
+        colors: body.brand_color ? [body.brand_color] : undefined,
+        segment: clientSegment || undefined,
+        style: body.style,
+        visualContext: visualContext || undefined,
+      });
+      return reply.send({
+        success: true,
+        prompt: previewPrompt,
+        visual_refs_count: visualRefsCount,
+      });
+    }
+
+    // ── Modo geração: chama Gemini ──────────────────────────────────────
     try {
       const result = await generateAdCreative({
         copy: selectedCopy.output,
@@ -2970,6 +3048,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         colors: body.brand_color ? [body.brand_color] : undefined,
         segment: clientSegment || undefined,
         style: body.style,
+        visualContext: visualContext || undefined,
+        customPrompt: body.custom_prompt || undefined,
       });
 
       if (!result.success) {
@@ -2979,7 +3059,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         });
       }
 
-      // Store creative in task or attachment table
+      // Registra o criativo gerado
       const user = resolveUser(request);
       await createTask({
         briefingId: briefing.id,
@@ -2991,11 +3071,14 @@ export default async function edroRoutes(app: FastifyInstance) {
           imageUrl: result.image_url,
           format: body.format,
           style: body.style,
+          usedCustomPrompt: Boolean(body.custom_prompt),
+          visualRefsCount,
         },
       });
 
       return reply.send({
         success: true,
+        image_url: result.image_url,
         data: {
           image_url: result.image_url,
           format: body.format,
