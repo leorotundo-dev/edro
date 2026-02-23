@@ -838,11 +838,27 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const handleCreatePost = (event: CalendarEventItem, dateISO: string) => {
     if (!selectedClientIds.length) {
-      setError('Selecione ao menos um cliente para criar o post.');
+      setError('Selecione ao menos um cliente para criar o briefing.');
       return;
     }
+    const primaryClient = selectedClients[0];
+    const params = new URLSearchParams();
+    if (primaryClient?.id) params.set('client_id', primaryClient.id);
+    if (primaryClient?.name) params.set('client_name', primaryClient.name);
+    // Pre-fill briefing title with event + date
+    const dateLabel = dateISO
+      ? new Date(dateISO + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      : '';
+    const titleSuggestion = event?.name
+      ? `${event.name}${dateLabel ? ` — ${dateLabel}` : ''}`
+      : '';
+    if (titleSuggestion) params.set('title', titleSuggestion);
+    if (dateISO) params.set('date', dateISO);
+    if (event?.name) params.set('event', event.name);
+    if (event?.why) params.set('event_why', event.why);
+    if (event?.categories?.length) params.set('event_categories', event.categories.join(', '));
     persistStudioContext(event, dateISO);
-    router.push(buildStudioUrl(event, dateISO));
+    router.push(`/edro/novo?${params.toString()}`);
   };
 
   const handleOpenAddEvent = () => {
@@ -1563,7 +1579,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         fullWidth
                         onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}
                       >
-                        Create post
+                        Criar Briefing
                       </Button>
                     </Stack>
                   ) : (

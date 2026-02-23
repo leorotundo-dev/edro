@@ -53,6 +53,17 @@ export default function NewBriefingClient() {
   // client_id = clients.id (TEXT) — vem da aba de briefings do workspace do cliente
   const prefillClientId = searchParams.get('client_id') || '';
   const prefillClientName = searchParams.get('client_name') || '';
+  // Parâmetros vindos do calendário (quando o usuário clica numa data/evento)
+  const prefillTitle = searchParams.get('title') || '';
+  const prefillDate = searchParams.get('date') || '';
+  const prefillEventWhy = searchParams.get('event_why') || '';
+  const prefillEventCategories = searchParams.get('event_categories') || '';
+
+  // Monta notas adicionais com contexto do evento do calendário
+  const calendarNotes = [
+    prefillEventWhy ? `Contexto do evento: ${prefillEventWhy}` : '',
+    prefillEventCategories ? `Categorias: ${prefillEventCategories}` : '',
+  ].filter(Boolean).join('\n');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -60,13 +71,13 @@ export default function NewBriefingClient() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [formData, setFormData] = useState<BriefingFormData>({
     client_name: prefillClientName,
-    title: '',
+    title: prefillTitle,
     objective: '',
     target_audience: '',
     channels: '',
-    due_at: '',
+    due_at: prefillDate,
     traffic_owner: '',
-    additional_notes: '',
+    additional_notes: calendarNotes,
   });
 
   useEffect(() => {
