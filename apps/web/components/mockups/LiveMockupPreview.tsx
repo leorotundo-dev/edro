@@ -151,29 +151,49 @@ const wrapText = (text: string, maxChars = 24, maxLines = 5) => {
 
 const createSvgDataUri = (text: string, width: number, height: number, accent = '#ff5c00') => {
   const safeText = text || 'Preview';
-  const lines = wrapText(safeText, 26, 6);
-  const lineHeight = Math.round(height / 8);
-  const startY = Math.round(height / 2 - (lines.length * lineHeight) / 2);
-  const textNodes = lines
-    .map(
-      (line, index) =>
-        `<tspan x="50%" y="${startY + index * lineHeight}" text-anchor="middle">${line}</tspan>`
-    )
+  const parts = safeText.split('\n').filter(Boolean);
+  const headline = parts[0] || '';
+  const body = parts.slice(1).join(' ');
+
+  const titleSize = Math.round(width / 13);
+  const bodySize = Math.round(width / 22);
+  const titleLineH = Math.round(titleSize * 1.35);
+  const bodyLineH = Math.round(bodySize * 1.45);
+
+  const titleLines = wrapText(headline, 20, 3);
+  const bodyLines = body ? wrapText(body, 28, 3) : [];
+
+  const gap = body ? Math.round(height * 0.025) : 0;
+  const totalH = titleLines.length * titleLineH + gap + bodyLines.length * bodyLineH;
+  const startY = Math.round(height / 2 - totalH / 2 + titleLineH * 0.7);
+
+  const titleNodes = titleLines
+    .map((line, i) => `<tspan x="50%" dy="${i === 0 ? 0 : titleLineH}" text-anchor="middle">${line}</tspan>`)
     .join('');
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#111827"/>
-          <stop offset="100%" stop-color="${accent}"/>
-        </linearGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#bg)" />
-      <text x="50%" y="50%" font-size="${Math.round(width / 18)}" fill="#ffffff" font-family="Inter, sans-serif">
-        ${textNodes}
-      </text>
-    </svg>
-  `;
+
+  const bodyStartY = startY + titleLines.length * titleLineH + gap;
+  const bodyNodes = bodyLines
+    .map((line, i) => `<tspan x="50%" dy="${i === 0 ? 0 : bodyLineH}" text-anchor="middle">${line}</tspan>`)
+    .join('');
+
+  // accent bar above title
+  const barW = Math.round(width * 0.18);
+  const barH = Math.max(3, Math.round(height * 0.007));
+  const barX = Math.round((width - barW) / 2);
+  const barY = Math.round(startY - titleLineH * 0.85);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#0f172a"/>
+        <stop offset="100%" stop-color="${accent}44"/>
+      </linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#bg)"/>
+    <rect x="${barX}" y="${barY}" width="${barW}" height="${barH}" fill="${accent}" rx="${Math.round(barH / 2)}"/>
+    <text y="${startY}" font-family="Inter,-apple-system,sans-serif" font-size="${titleSize}" font-weight="700" fill="#ffffff" letter-spacing="-0.5">${titleNodes}</text>
+    ${body ? `<text y="${bodyStartY}" font-family="Inter,-apple-system,sans-serif" font-size="${bodySize}" font-weight="400" fill="rgba(255,255,255,0.72)">${bodyNodes}</text>` : ''}
+  </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
@@ -280,14 +300,16 @@ export default function LiveMockupPreview({
       .join(' ');
 
   const displayName = (brandName || platform || 'edro').trim() || 'edro';
-  const avatar = createSvgDataUri(displayName, 400, 400, '#ff8a4c');
+  const accentColor = brandColor || '#ff5c00';
+  const avatar = createSvgDataUri(displayName, 400, 400, accentColor);
   const squareImage = createSvgDataUri(
     [displayHeadline, displayBody, displayCta].filter(Boolean).join('\n'),
     1080,
-    1080
+    1080,
+    accentColor
   );
-  const wideImage = createSvgDataUri(displayHeadline || displayName, 1280, 720);
-  const tallImage = createSvgDataUri(displayHeadline || displayName, 1080, 1920);
+  const wideImage = createSvgDataUri(displayHeadline || displayName, 1280, 720, accentColor);
+  const tallImage = createSvgDataUri(displayHeadline || displayName, 1080, 1920, accentColor);
 
   const formatLower = normalizeWhitespace(format || '').toLowerCase();
   const platformLower = normalizeWhitespace(platform || '').toLowerCase();
@@ -531,7 +553,7 @@ export default function LiveMockupPreview({
             { title: 'Bastidores', image: squareImage },
           ]}
           gridImages={Array.from({ length: 9 }).map((_, idx) =>
-            createSvgDataUri(`${displayHeadline || displayName} ${idx + 1}`, 400, 400, '#f97316')
+            createSvgDataUri(`${displayHeadline || displayName} ${idx + 1}`, 400, 400, accentColor)
           )}
         />
       );
@@ -551,7 +573,7 @@ export default function LiveMockupPreview({
         <InstagramGridMockup
           username={displayName}
           gridImages={Array.from({ length: 9 }).map((_, idx) =>
-            createSvgDataUri(`${displayHeadline || displayName} ${idx + 1}`, 400, 400, '#0ea5e9')
+            createSvgDataUri(`${displayHeadline || displayName} ${idx + 1}`, 400, 400, accentColor)
           )}
         />
       );
@@ -564,8 +586,9 @@ export default function LiveMockupPreview({
           postImage={slideImages[0]}
           slides={slideImages}
           isCarousel={isCarouselFormat && slideImages.length > 1}
-          arteText={[displayHeadline, displayBody].filter(Boolean).join('\n\n')}
-          arteBgColor={brandColor}
+          arteHeadline={displayHeadline}
+          arteBody={displayBody}
+          arteBgColor={accentColor}
           likes={1280}
           caption={feedCaption || captionText}
           comments={instagramComments}

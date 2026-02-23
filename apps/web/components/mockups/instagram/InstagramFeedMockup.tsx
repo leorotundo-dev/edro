@@ -6,7 +6,10 @@ interface InstagramFeedMockupProps {
   postImage?: string;
   slides?: string[];
   isCarousel?: boolean;
+  /** @deprecated use arteHeadline + arteBody */
   arteText?: string;
+  arteHeadline?: string;
+  arteBody?: string;
   arteBgColor?: string;
   likes?: number;
   caption?: string;
@@ -59,6 +62,8 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   slides,
   isCarousel = false,
   arteText,
+  arteHeadline,
+  arteBody,
   arteBgColor,
   likes = 3452,
   caption = 'Enhance your Instagram with our UI Mockup Download for your instagram creativity. @instagram #templates #bold #fun #aesthetic #newpost',
@@ -67,6 +72,9 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   dateLabel = 'HÁ 2 HORAS',
   postAspectRatio = '4/5',
 }) => {
+  // Resolve headline/body from new props or legacy arteText
+  const resolvedHeadline = arteHeadline || (arteText ? arteText.split('\n\n')[0] : undefined);
+  const resolvedBody = arteBody || (arteText ? arteText.split('\n\n').slice(1).join('\n\n') : undefined);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const allSlides = isCarousel && slides && slides.length > 0 ? slides : [postImage];
@@ -137,19 +145,48 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
       <div className="w-full relative" style={{ aspectRatio: postAspectRatio, background: '#efefef' }}>
         {currentImage && !currentImage.startsWith('data:') ? (
           <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
-        ) : arteText ? (
+        ) : resolvedHeadline ? (
           <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: arteBgColor || '#d35400' }}
+            className="w-full h-full relative flex flex-col items-center justify-center overflow-hidden"
+            style={{ background: `linear-gradient(145deg, #0f172a 0%, ${arteBgColor || '#d35400'}55 100%)` }}
           >
-            <div className="w-full h-full px-8 py-12 flex items-center justify-center">
+            {/* Accent bar */}
+            <div style={{
+              width: 48, height: 3, borderRadius: 2,
+              background: arteBgColor || '#d35400',
+              marginBottom: 14, opacity: 0.9,
+            }} />
+            {/* Headline */}
+            <p
+              className="text-white text-center font-bold leading-tight tracking-tight"
+              style={{
+                fontSize: 22, padding: '0 28px',
+                textShadow: '0 2px 8px rgba(0,0,0,0.45)',
+              }}
+            >
+              {resolvedHeadline}
+            </p>
+            {/* Body */}
+            {resolvedBody ? (
               <p
-                className="text-white font-bold text-center text-[24px] leading-relaxed tracking-wide whitespace-pre-wrap"
-                style={{ textShadow: '0px 2px 4px rgba(0,0,0,0.35)' }}
+                className="text-center mt-3"
+                style={{
+                  fontSize: 13, padding: '0 28px',
+                  color: 'rgba(255,255,255,0.72)',
+                  lineHeight: 1.5,
+                }}
               >
-                {arteText}
+                {resolvedBody}
               </p>
-            </div>
+            ) : null}
+            {/* Subtle corner accent */}
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 56, height: 56,
+              background: arteBgColor || '#d35400',
+              opacity: 0.15,
+              borderTopLeftRadius: '100%',
+            }} />
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
