@@ -173,9 +173,9 @@ export async function generateWithTools(params: GeminiToolsParams): Promise<Gemi
 // Modelo padrão: gemini-2.0-flash-preview-image-generation
 // Response: parts[].inlineData.{ data (base64), mimeType }
 
-const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
-// Image generation uses v1 (not v1beta) — the preview model is only available on v1
-const IMAGE_BASE_URL = 'https://generativelanguage.googleapis.com/v1';
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp-image-generation';
+// Image generation uses v1beta (same as other Gemini calls)
+const IMAGE_BASE_URL = BASE_URL;
 
 export type GeminiImageResult = {
   base64: string;
