@@ -27,6 +27,10 @@ type Connector = {
   payload?: Record<string, any> | null;
   secrets_meta?: Record<string, any> | null;
   updated_at?: string | null;
+  last_sync_ok?: boolean | null;
+  last_sync_at?: string | null;
+  last_error?: string | null;
+  last_error_at?: string | null;
 };
 
 type AvailableProvider = {
@@ -123,6 +127,8 @@ export default function ClientConnectorsPage() {
   const [configForm, setConfigForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [testing, setTesting] = useState<string | null>(null); // provider being tested
+  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; message: string }>>({});
 
   useEffect(() => {
     loadConnectors();
@@ -138,6 +144,25 @@ export default function ClientConnectorsPage() {
       console.error('Failed to load connectors:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const testConnector = async (provider: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTesting(provider);
+    try {
+      const res = await apiPost<any>(`/clients/${clientId}/connectors/${provider}/test`, {});
+      const ok = res?.ok === true;
+      const message = ok
+        ? (res?.message || `Conexão OK${res?.account?.name ? ` · ${res.account.name}` : ''}`)
+        : (res?.error || 'Falha na conexão');
+      setTestResult((prev) => ({ ...prev, [provider]: { ok, message } }));
+      // Reload to get updated last_sync_ok from backend
+      await loadConnectors();
+    } catch (err: any) {
+      setTestResult((prev) => ({ ...prev, [provider]: { ok: false, message: err?.message || 'Erro ao testar' } }));
+    } finally {
+      setTesting(null);
     }
   };
 
@@ -278,7 +303,17 @@ export default function ClientConnectorsPage() {
                         </Typography>
                       </Box>
                       {isConnected ? (
-                        <Chip size="small" color="success" label="Conectado" />
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          {status?.last_sync_ok === true && (
+                            <Chip size="small" color="success" label="✓ OK" />
+                          )}
+                          {status?.last_sync_ok === false && (
+                            <Chip size="small" color="error" label="✗ Erro" />
+                          )}
+                          {status?.last_sync_ok == null && (
+                            <Chip size="small" color="success" label="Conectado" />
+                          )}
+                        </Stack>
                       ) : (
                         <Chip size="small" variant="outlined" label="Novo" />
                       )}
@@ -286,22 +321,60 @@ export default function ClientConnectorsPage() {
 
                     <Typography variant="h4">{provider.icon}</Typography>
 
-                    {status?.updated_at ? (
-                      <Typography variant="caption" color="text.secondary">
-                        Atualizado em {new Date(status.updated_at).toLocaleString('pt-BR')}
+                    {/* Health info */}
+                    {isConnected && status?.last_sync_ok === true && status?.last_sync_at && (
+                      <Typography variant="caption" color="success.main">
+                        Testado em {new Date(status.last_sync_at).toLocaleString('pt-BR')}
                       </Typography>
-                    ) : (
+                    )}
+                    {isConnected && status?.last_sync_ok === false && status?.last_error && (
+                      <Typography variant="caption" color="error.main" sx={{ wordBreak: 'break-word' }}>
+                        Erro: {status.last_error.slice(0, 80)}
+                      </Typography>
+                    )}
+                    {/* Test result (local, before reload) */}
+                    {testResult[provider.id] && !testing && (
+                      <Typography
+                        variant="caption"
+                        color={testResult[provider.id].ok ? 'success.main' : 'error.main'}
+                      >
+                        {testResult[provider.id].message}
+                      </Typography>
+                    )}
+
+                    {status?.updated_at && !status?.last_sync_at && (
+                      <Typography variant="caption" color="text.secondary">
+                        Configurado em {new Date(status.updated_at).toLocaleString('pt-BR')}
+                      </Typography>
+                    )}
+                    {!isConnected && (
                       <Typography variant="caption" color="text.secondary">
                         Sem sincronizacao recente.
                       </Typography>
                     )}
 
-                    <Button
-                      variant={isConnected ? 'outlined' : 'contained'}
-                      onClick={() => openConfigModal(provider.id)}
-                    >
-                      {isConnected ? 'Gerenciar' : 'Configurar'}
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant={isConnected ? 'outlined' : 'contained'}
+                        onClick={() => openConfigModal(provider.id)}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      >
+                        {isConnected ? 'Gerenciar' : 'Configurar'}
+                      </Button>
+                      {isConnected && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={(e) => testConnector(provider.id, e)}
+                          disabled={testing === provider.id}
+                          startIcon={testing === provider.id ? <CircularProgress size={12} /> : undefined}
+                          sx={{ minWidth: 80 }}
+                        >
+                          {testing === provider.id ? '...' : 'Testar'}
+                        </Button>
+                      )}
+                    </Stack>
                   </Stack>
                 </CardContent>
               </Card>

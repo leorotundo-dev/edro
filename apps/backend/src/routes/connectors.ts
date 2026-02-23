@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db';
-import { encryptJSON } from '../security/secrets';
+import { encryptJSON, decryptJSON } from '../security/secrets';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
@@ -56,6 +56,20 @@ async function ensureConnectorsTable() {
       await query(`ALTER TABLE connectors ADD COLUMN IF NOT EXISTS secrets_meta JSONB NOT NULL DEFAULT '{}'::jsonb`);
     } catch (err: any) {
       console.error('[connectors] Failed to add secrets columns:', err.message);
+    }
+  }
+
+  // Ensure health columns exist (added in 0204_connector_health.sql)
+  try {
+    await query(`SELECT last_sync_ok FROM connectors LIMIT 0`);
+  } catch {
+    try {
+      await query(`ALTER TABLE connectors ADD COLUMN IF NOT EXISTS last_sync_ok BOOLEAN`);
+      await query(`ALTER TABLE connectors ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ`);
+      await query(`ALTER TABLE connectors ADD COLUMN IF NOT EXISTS last_error TEXT`);
+      await query(`ALTER TABLE connectors ADD COLUMN IF NOT EXISTS last_error_at TIMESTAMPTZ`);
+    } catch (err: any) {
+      console.error('[connectors] Failed to add health columns:', err.message);
     }
   }
 
@@ -180,7 +194,8 @@ export default async function connectorsRoutes(app: FastifyInstance) {
       await ensureConnectorsTable();
       try {
         const { rows } = await query<any>(
-          `SELECT provider, payload, secrets_meta, updated_at
+          `SELECT provider, payload, secrets_meta, updated_at,
+                  last_sync_ok, last_sync_at, last_error, last_error_at
            FROM connectors
            WHERE tenant_id=$1 AND client_id=$2
            ORDER BY provider ASC`,
@@ -227,6 +242,118 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         if (!rows[0]) return null;
         return rows[0];
       }
+    }
+  );
+
+  // ── Testa se as credenciais do connector estão funcionando ──────────
+  app.post(
+    '/clients/:clientId/connectors/:provider/test',
+    { preHandler: [tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply: any) => {
+      const params = z.object({ clientId: z.string(), provider: z.string() }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id as string;
+
+      await ensureConnectorsTable();
+
+      const { rows } = await query<any>(
+        `SELECT payload, secrets_enc FROM connectors WHERE tenant_id=$1 AND client_id=$2 AND provider=$3 LIMIT 1`,
+        [tenantId, params.clientId, params.provider]
+      );
+
+      if (!rows[0]) {
+        return reply.status(404).send({ ok: false, error: 'connector_not_found' });
+      }
+
+      const connPayload = rows[0].payload || {};
+      let secrets: any = {};
+      if (rows[0].secrets_enc) {
+        try { secrets = await decryptJSON(rows[0].secrets_enc); } catch { /* ignore */ }
+      }
+
+      // ── Helpers para salvar resultado do teste ──────────────────────────
+      const saveHealth = async (ok: boolean, errorMsg?: string) => {
+        try {
+          if (ok) {
+            await query(
+              `UPDATE connectors SET last_sync_ok=true, last_sync_at=NOW(), last_error=NULL, last_error_at=NULL
+               WHERE tenant_id=$1 AND client_id=$2 AND provider=$3`,
+              [tenantId, params.clientId, params.provider]
+            );
+          } else {
+            await query(
+              `UPDATE connectors SET last_sync_ok=false, last_error=$4, last_error_at=NOW()
+               WHERE tenant_id=$1 AND client_id=$2 AND provider=$3`,
+              [tenantId, params.clientId, params.provider, (errorMsg || 'unknown').slice(0, 500)]
+            );
+          }
+        } catch { /* best-effort */ }
+      };
+
+      // ── Teste por provider ──────────────────────────────────────────────
+      const provider = params.provider;
+
+      // Meta (social listening — token de página)
+      if (provider === 'meta') {
+        const token = secrets.access_token || connPayload.access_token || secrets.token || connPayload.token;
+        if (!token) {
+          return reply.send({ ok: false, error: 'token_not_configured' });
+        }
+        try {
+          const res = await fetch(
+            `https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`,
+            { signal: AbortSignal.timeout(10000) }
+          );
+          const data: any = await res.json();
+          if (data?.error) {
+            const msg = data.error.message || 'token_invalid';
+            await saveHealth(false, msg);
+            return reply.send({ ok: false, error: msg, code: data.error.code });
+          }
+          await saveHealth(true);
+          return reply.send({ ok: true, account: { id: data.id, name: data.name } });
+        } catch (err: any) {
+          const msg = err?.message || 'network_error';
+          await saveHealth(false, msg);
+          return reply.send({ ok: false, error: msg });
+        }
+      }
+
+      // Meta Ads
+      if (provider === 'meta_ads') {
+        const token = secrets.access_token || connPayload.access_token || secrets.token;
+        if (!token) return reply.send({ ok: false, error: 'token_not_configured' });
+        try {
+          const res = await fetch(
+            `https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`,
+            { signal: AbortSignal.timeout(10000) }
+          );
+          const data: any = await res.json();
+          if (data?.error) {
+            const msg = data.error.message || 'token_invalid';
+            await saveHealth(false, msg);
+            return reply.send({ ok: false, error: msg, code: data.error.code });
+          }
+          await saveHealth(true);
+          return reply.send({ ok: true, account: { id: data.id, name: data.name } });
+        } catch (err: any) {
+          const msg = err?.message || 'network_error';
+          await saveHealth(false, msg);
+          return reply.send({ ok: false, error: msg });
+        }
+      }
+
+      // Reportei — verifica se dashboard_url ou reportei_account_id estão preenchidos
+      if (provider === 'reportei') {
+        const hasId = connPayload.reportei_account_id || connPayload.reportei_company_id;
+        if (!hasId) return reply.send({ ok: false, error: 'account_id_not_configured' });
+        // Sem API pública testável — consideramos configurado se ID presente
+        await saveHealth(true);
+        return reply.send({ ok: true, message: 'credentials_saved', account_id: hasId });
+      }
+
+      // Outros providers — sem endpoint de teste padronizado
+      await saveHealth(true);
+      return reply.send({ ok: true, message: 'credentials_saved_not_testable' });
     }
   );
 
