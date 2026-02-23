@@ -132,6 +132,21 @@ const clampText = (value: string, max?: number | null) => {
   return `${normalized.slice(0, max - 1)}…`;
 };
 
+/**
+ * Cleans text for the arte overlay — removes lines that are only hashtags
+ * and strips trailing hashtag blocks from mixed lines.
+ * Keeps clean body copy free of # symbols in the image area.
+ */
+const HASHTAG_LINE_RE = /^(#[\w\u00C0-\u017F]+\s*)+$/;
+const cleanArteText = (text: string) =>
+  (text || '')
+    .split('\n')
+    .filter((line) => !HASHTAG_LINE_RE.test(line.trim()))
+    .map((line) => line.replace(/\s+(#[\w\u00C0-\u017F]+\s*)+$/, '').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
 const wrapText = (text: string, maxChars = 24, maxLines = 5) => {
   const words = text.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
@@ -292,6 +307,16 @@ export default function LiveMockupPreview({
   const displayHeadline = clampText(rawHeadline, headlineLimit ?? 80);
   const displayBody = clampText(rawBody, bodyLimit ?? 220);
   const displayCta = clampText(rawCta, ctaLimit ?? 40);
+
+  // Arte overlay — use option fields directly when available so hashtags (stored
+  // in option.hashtags) never leak into the image area.
+  const arteOverlayHeadline = option?.title
+    ? clampText(option.title, headlineLimit ?? 80)
+    : clampText(cleanArteText(rawHeadline), headlineLimit ?? 80);
+  const arteOverlayBody = option?.body
+    ? clampText(cleanArteText(option.body), bodyLimit ?? 220)
+    : clampText(cleanArteText(rawBody), bodyLimit ?? 220);
+
   const captionText = displayBody || displayHeadline || mergedCopy;
   // Use the full social media caption (legenda) when available; fall back to arte copy
   const resolvedLegenda = legenda?.trim() || '';
@@ -305,13 +330,13 @@ export default function LiveMockupPreview({
   const accentColor = brandColor || '#ff5c00';
   const avatar = createSvgDataUri(displayName, 400, 400, accentColor);
   const squareImage = createSvgDataUri(
-    [displayHeadline, displayBody, displayCta].filter(Boolean).join('\n'),
+    [arteOverlayHeadline, arteOverlayBody, displayCta].filter(Boolean).join('\n'),
     1080,
     1080,
     accentColor
   );
-  const wideImage = createSvgDataUri(displayHeadline || displayName, 1280, 720, accentColor);
-  const tallImage = createSvgDataUri(displayHeadline || displayName, 1080, 1920, accentColor);
+  const wideImage = createSvgDataUri(arteOverlayHeadline || displayName, 1280, 720, accentColor);
+  const tallImage = createSvgDataUri(arteOverlayHeadline || displayName, 1080, 1920, accentColor);
 
   const formatLower = normalizeWhitespace(format || '').toLowerCase();
   const platformLower = normalizeWhitespace(platform || '').toLowerCase();
@@ -590,8 +615,8 @@ export default function LiveMockupPreview({
           postImage={feedPostImage}
           slides={feedSlides}
           isCarousel={!arteImageUrl && isCarouselFormat && slideImages.length > 1}
-          arteHeadline={arteImageUrl ? undefined : displayHeadline}
-          arteBody={arteImageUrl ? undefined : displayBody}
+          arteHeadline={arteImageUrl ? undefined : arteOverlayHeadline}
+          arteBody={arteImageUrl ? undefined : arteOverlayBody}
           arteBgColor={accentColor}
           likes={1280}
           caption={feedCaption || captionText}
