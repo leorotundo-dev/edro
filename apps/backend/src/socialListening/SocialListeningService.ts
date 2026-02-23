@@ -366,7 +366,7 @@ export class SocialListeningService {
         const keywordList = Array.from(new Set([keyword, ...(mention.keywords || [])].filter(Boolean)));
 
         rowsSql.push(
-          `($${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++}::jsonb,$${idx++},$${idx++},$${idx++},$${idx++})`
+          `($${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++}::jsonb,$${idx++},$${idx++},$${idx++},$${idx++},$${idx++})`
         );
 
         values.push(
@@ -389,7 +389,8 @@ export class SocialListeningService {
           mention.url ?? null,
           mention.language ?? null,
           mention.country ?? null,
-          mention.publishedAt ?? new Date()
+          mention.publishedAt ?? new Date(),
+          mention.mediaUrl ?? null
         );
       }
 
@@ -398,7 +399,7 @@ export class SocialListeningService {
         INSERT INTO social_listening_mentions
           (tenant_id, client_id, keyword, platform, external_id, content, author, author_followers,
            author_verified, engagement_likes, engagement_comments, engagement_shares, engagement_views,
-           sentiment, sentiment_score, keywords, url, language, country, published_at)
+           sentiment, sentiment_score, keywords, url, language, country, published_at, media_url)
         VALUES
           ${rowsSql.join(',\n')}
         ON CONFLICT (tenant_id, platform, external_id)
@@ -418,6 +419,7 @@ export class SocialListeningService {
           language=EXCLUDED.language,
           country=EXCLUDED.country,
           published_at=EXCLUDED.published_at,
+          media_url=EXCLUDED.media_url,
           collected_at=NOW()
         `,
         values

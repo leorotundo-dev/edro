@@ -12,6 +12,8 @@ type AdCreativeRequest = {
   visualContext?: string;
   /** Prompt editado pelo usuário — substitui o prompt auto-gerado quando fornecido */
   customPrompt?: string;
+  /** URLs de imagens reais do cliente usadas como referência de estética pelo Gemini multimodal */
+  referenceImageUrls?: string[];
 };
 
 type AdCreativeResponse = {
@@ -67,7 +69,10 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
     // Se o usuário forneceu um prompt editado, usa diretamente
     const finalPrompt = params.customPrompt || buildCreativePrompt(params);
 
-    const result = await generateImage({ prompt: finalPrompt });
+    const result = await generateImage({
+      prompt: finalPrompt,
+      referenceImageUrls: params.referenceImageUrls,
+    });
 
     return {
       success: true,

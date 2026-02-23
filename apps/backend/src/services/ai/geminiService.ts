@@ -180,11 +180,58 @@ export type GeminiImageResult = {
   mimeType: string;
 };
 
-export async function generateImage(params: { prompt: string }): Promise<GeminiImageResult> {
+/**
+ * Fetches a public image URL and returns it as a base64-encoded inlineData part
+ * suitable for the Gemini multimodal API.
+ * Returns null if fetch fails (best-effort, never throws).
+ */
+async function fetchImageAsInlineData(url: string): Promise<{ inlineData: { data: string; mimeType: string } } | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const mimeType = contentType.split(';')[0].trim();
+    if (!mimeType.startsWith('image/')) return null;
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    return { inlineData: { data: base64, mimeType } };
+  } catch {
+    return null;
+  }
+}
+
+export async function generateImage(params: {
+  prompt: string;
+  /** URLs of reference images to include as visual style context (best-effort) */
+  referenceImageUrls?: string[];
+}): Promise<GeminiImageResult> {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY_NOT_SET');
 
+  // Build multimodal parts: text prompt + optional reference images
+  const textPart = { text: params.prompt };
+  const imageParts: Array<{ inlineData: { data: string; mimeType: string } }> = [];
+
+  if (params.referenceImageUrls?.length) {
+    const fetched = await Promise.all(
+      params.referenceImageUrls.slice(0, 3).map(url => fetchImageAsInlineData(url))
+    );
+    for (const part of fetched) {
+      if (part) imageParts.push(part);
+    }
+  }
+
+  // When reference images are present, prepend a style-context instruction
+  const parts: any[] = imageParts.length > 0
+    ? [
+        { text: `Use the following images as visual style references for the brand aesthetic. Capture their color palette, mood, and visual language:\n` },
+        ...imageParts,
+        { text: `\nNow generate the image described below, maintaining that brand aesthetic:\n` },
+        textPart,
+      ]
+    : [textPart];
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   let response: Response;
   try {
@@ -194,7 +241,7 @@ export async function generateImage(params: { prompt: string }): Promise<GeminiI
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: params.prompt }] }],
+          contents: [{ role: 'user', parts }],
           generationConfig: {
             responseModalities: ['IMAGE'],
             temperature: 1.0,
@@ -204,7 +251,7 @@ export async function generateImage(params: { prompt: string }): Promise<GeminiI
       }
     );
   } catch (err: any) {
-    if (err?.name === 'AbortError') throw new Error('Gemini image generation timed out after 60s');
+    if (err?.name === 'AbortError') throw new Error('Gemini image generation timed out after 90s');
     throw err;
   } finally {
     clearTimeout(timeoutId);

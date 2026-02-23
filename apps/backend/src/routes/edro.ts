@@ -3021,6 +3021,21 @@ export default async function edroRoutes(app: FastifyInstance) {
       } catch { /* non-blocking — never fails the endpoint */ }
     }
 
+    // ── Imagens reais do Instagram do cliente (referência multimodal para Gemini) ──
+    let referenceImageUrls: string[] | undefined;
+    if (resolvedClientId) {
+      const { rows: igImages } = await query<{ media_url: string }>(
+        `SELECT media_url FROM social_listening_mentions
+         WHERE client_id=$1 AND platform='instagram' AND media_url IS NOT NULL
+         ORDER BY published_at DESC NULLS LAST LIMIT 3`,
+        [resolvedClientId]
+      ).catch(() => ({ rows: [] as { media_url: string }[] }));
+      if (igImages.length > 0) {
+        referenceImageUrls = igImages.map((r) => r.media_url);
+        visualRefsCount += igImages.length;
+      }
+    }
+
     // ── Modo prompt_only: retorna o prompt sem chamar o Gemini ──────────
     if (body.prompt_only) {
       const previewPrompt = buildCreativePrompt({
@@ -3050,6 +3065,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         style: body.style,
         visualContext: visualContext || undefined,
         customPrompt: body.custom_prompt || undefined,
+        referenceImageUrls,
       });
 
       if (!result.success) {

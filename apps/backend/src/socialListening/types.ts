@@ -14,6 +14,8 @@ export type RawMention = {
   engagementShares?: number;
   engagementViews?: number;
   url?: string;
+  /** URL da imagem do post (Instagram media_url, etc.) */
+  mediaUrl?: string;
   language?: string;
   country?: string;
   publishedAt?: Date;

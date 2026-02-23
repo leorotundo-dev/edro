@@ -96,6 +96,7 @@ export class MetaInstagramCollector extends BaseCollector {
       engagementLikes: data.like_count || 0,
       engagementComments: data.comments_count || 0,
       url: data.permalink,
+      mediaUrl: data.media_url || undefined,
       language: 'pt',
       publishedAt: data.timestamp ? new Date(data.timestamp) : new Date(),
     };
