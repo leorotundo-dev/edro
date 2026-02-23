@@ -27,26 +27,21 @@ type AdCreativeResponse = {
 // Garante consistência fotográfica/cinematográfica em todas as imagens geradas.
 // O usuário edita apenas a parte descritiva (ação/conceito); a base permanece intacta.
 const VISUAL_DNA_BASE = `\
-PHOTOGRAPHY & VISUAL STYLE:
-Ultra-realistic cinematic advertising photography, full-frame look, natural HDR dynamic range, high micro-texture detail, physically accurate materials, real skin texture, controlled reflections, professional color science, shallow depth of field with environmental bokeh, volumetric spatial depth, subtle motion realism when needed.
+CRITICAL RULE — READ FIRST: This is a PURE BACKGROUND IMAGE. Do NOT include any text, words, letters, numbers, titles, captions, labels, overlays, watermarks, typography, or written content of any kind anywhere in the image. The image must be completely text-free. Any text in the image is a failure.
 
-CAMERA:
-Hero perspective, slightly low angle when presence is required, cinematic wide framing, strong subject–environment relationship, natural lens compression, no optical distortion, precise focal plane on the main subject. Fast prime lens look (35mm range), f/2.8 depth behavior, low ISO, high shutter clarity, commercial sharpness.
+Generate an ultra-realistic cinematic advertising photograph. Full-frame composition, natural HDR dynamic range, high micro-texture detail, physically accurate materials, controlled reflections, professional color science, shallow depth of field with environmental bokeh, volumetric spatial depth.
 
-LIGHTING:
-Soft directional key light + real practical ambient light. Warm cinematic highlights, controlled contrast, natural shadow falloff, poetic realism. No plastic or CGI lighting.
+Use hero perspective with slightly low angle when presence is required, cinematic wide framing with strong subject–environment relationship. Natural lens compression, no optical distortion, precise focal plane on the main subject. Fast prime lens look (35mm range), f/2.8 depth behavior, commercial sharpness.
 
-COLOR & GRADING:
+Soft directional key light combined with real practical ambient light. Warm cinematic highlights, controlled contrast, natural shadow falloff. No plastic or CGI lighting.
+
 Commercial color grading, balanced contrast, realistic color response, warm highlight roll-off, preserved skin tones, high clarity without oversharpen.
 
-CASTING:
-Brazilian workforce presence, real people look, natural beauty, authentic skin tones and facial features, human dignity, confidence and technical intelligence.
+Authentic Brazilian workforce presence when people are shown. Real people, natural beauty, authentic skin tones, human dignity, confidence, and technical competence.
 
-NEGATIVE PROMPT:
-No AI artifacts, no distorted anatomy, no fake skin, no melted materials, no warped geometry, no incorrect perspective, no extreme lens distortion, no random logos, no text artifacts, no oversaturated colors, no CGI plastic look, no text, no words, no logos anywhere in the image.
+ABSOLUTE PROHIBITIONS: No text. No words. No letters. No numbers. No logos. No watermarks. No titles. No captions. No labels. No overlays. No typography of any kind. No AI artifacts, no distorted anatomy, no fake skin, no melted materials, no warped geometry, no extreme lens distortion, no CGI plastic look.
 
----
-CREATIVE BRIEF:`;
+SCENE:`;
 
 /**
  * Monta a parte descritiva (ação/conceito) do prompt com base nos parâmetros.
@@ -61,10 +56,10 @@ export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPromp
   const copySnippet = params.copy.slice(0, 140);
 
   const actionBlock = [
-    `Social media advertising visual for ${params.format} format.`,
-    `Concept: "${copySnippet}".`,
-    params.brand ? `Brand: ${params.brand}.` : '',
-    params.segment ? `Industry sector: ${params.segment}.` : '',
+    `Social media advertising background image for ${params.format} format. No text anywhere.`,
+    `Visual concept inspired by this idea (do NOT render any of this as text in the image): ${copySnippet}.`,
+    params.brand ? `Brand aesthetic: ${params.brand}.` : '',
+    params.segment ? `Industry sector visual context: ${params.segment}.` : '',
     colorHint,
     params.visualContext
       ? `Client brand aesthetic reference:\n${params.visualContext}`
@@ -72,7 +67,7 @@ export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPromp
     params.style && params.style !== 'modern'
       ? `Visual tone: ${params.style}.`
       : '',
-    'Create a visually compelling full-bleed background suitable for overlay text.',
+    'Produce a visually compelling full-bleed background image — no text, no words, no letters anywhere. Only pure visual imagery suitable for text overlay by the designer.',
   ]
     .filter(Boolean)
     .join(' ');
