@@ -20,8 +20,9 @@ export function startJobsRunner() {
 
   // Run each worker in its own non-overlapping loop.
   // This prevents one stuck/slow worker from blocking all others (e.g. clipping).
-  function startWorkerLoop(name: string, fn: () => Promise<any>, startDelayMs: number) {
+  function startWorkerLoop(name: string, fn: () => Promise<any>, startDelayMs: number, customWarnMs?: number) {
     let running = false;
+    const effectiveWarnMs = customWarnMs ?? warnMs;
 
     const tick = async () => {
       if (running) return;
@@ -34,7 +35,7 @@ export function startJobsRunner() {
         console.error(`[jobs] worker ${name} failed:`, error?.message || error);
       } finally {
         const elapsed = Date.now() - startedAt;
-        if (elapsed > warnMs) {
+        if (elapsed > effectiveWarnMs) {
           console.warn(`[jobs] worker ${name} slow: ${elapsed}ms`);
         }
         running = false;
@@ -52,7 +53,8 @@ export function startJobsRunner() {
   startWorkerLoop('clipping', runClippingWorkerOnce, 500);
   startWorkerLoop('socialListening', runSocialListeningWorkerOnce, 1000);
   startWorkerLoop('clientIntelligence', runClientIntelligenceWorkerOnce, 1500);
-  startWorkerLoop('calendarRelevance', runCalendarRelevanceWorkerOnce, 2000);
+  // 2 min threshold — runs every ~2h, processes calendar relevance scoring
+  startWorkerLoop('calendarRelevance', runCalendarRelevanceWorkerOnce, 2000, 120_000);
   startWorkerLoop('clientEnrichment', runClientEnrichmentWorkerOnce, 2500);
   // Daily alerts (bottleneck + PoV) — ticks every 60s, runs at 09h
   startWorkerLoop('dailyAlerts', runDailyAlertsWorkerOnce, 3000);
@@ -60,10 +62,10 @@ export function startJobsRunner() {
   startWorkerLoop('webIntelligence', runWebIntelligenceWorkerOnce, 3500);
   // Trend radar — runs every Monday at 08h, saves sector trends to library
   startWorkerLoop('trendRadar', runTrendRadarWorkerOnce, 4000);
-  // Calendar enrichment — validates dates + fills descricao/hashtags/angulo for events (20/hour)
-  startWorkerLoop('calendarEnrichment', runCalendarEnrichmentWorkerOnce, 4500);
+  // Calendar enrichment — Tavily + OpenAI batch of 20 events/hour, 3-5 min is normal
+  startWorkerLoop('calendarEnrichment', runCalendarEnrichmentWorkerOnce, 4500, 600_000);
   // Clipping Tavily supplement — injects Tavily search results as TREND clipping items (every 6h)
   startWorkerLoop('clippingTavily', runClippingTavilyWorkerOnce, 5000);
-  // Calendar inspiration — scrapes creative campaigns for high-relevance dates (1×/day, up to 5 events)
-  startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500);
+  // Calendar inspiration — Tavily scrape for high-relevance dates (1×/day), 2 min threshold
+  startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500, 120_000);
 }
