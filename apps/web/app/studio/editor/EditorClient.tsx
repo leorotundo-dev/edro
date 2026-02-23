@@ -419,6 +419,7 @@ export default function EditorClient() {
   const [artePrompt, setArtePrompt] = useState('');
   const [arteRefsCount, setArteRefsCount] = useState(0);
   const [arteModalOpen, setArteModalOpen] = useState(false);
+  const [arteModalError, setArteModalError] = useState('');
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1043,6 +1044,7 @@ export default function EditorClient() {
       if (res.success && res.prompt) {
         setArtePrompt(res.prompt);
         setArteRefsCount(res.visual_refs_count || 0);
+        setArteModalError('');
         setArteModalOpen(true);
         setArteStep('editing');
       } else {
@@ -1059,8 +1061,12 @@ export default function EditorClient() {
   const handleGenerateArteWithPrompt = async () => {
     const copyVersionId = resolveActiveCopyId();
     const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-    if (!briefingId || !copyVersionId) return;
+    if (!briefingId || !copyVersionId) {
+      setArteModalError(`Dados insuficientes para gerar — briefingId: ${briefingId ? 'ok' : 'ausente'}, copyVersionId: ${copyVersionId || 'ausente'}`);
+      return;
+    }
 
+    setArteModalError('');
     setArteStep('generating');
     try {
       const res = await apiPost<{ success: boolean; image_url?: string; data?: { image_url?: string }; error?: string }>(
@@ -1078,12 +1084,17 @@ export default function EditorClient() {
         setArteImageUrl(imageUrl);
         setArteModalOpen(false);
         setArteStep(null);
+        setArteModalError('');
       } else {
-        setError(res.error || 'Erro ao gerar arte com IA');
+        const msg = res.error || 'Gemini não retornou imagem. Tente novamente.';
+        console.error('[arteIA] generate-creative error:', msg, res);
+        setArteModalError(msg);
         setArteStep('editing');
       }
     } catch (e: any) {
-      setError(e?.message || 'Erro ao gerar arte com IA');
+      const msg = e?.message || 'Erro de rede ao gerar arte com IA';
+      console.error('[arteIA] generate-creative exception:', msg);
+      setArteModalError(msg);
       setArteStep('editing');
     }
   };
@@ -1774,6 +1785,11 @@ export default function EditorClient() {
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
             Prompt montado automaticamente com base no copy, segmento e referências visuais do cliente. Edite livremente antes de gerar.
           </Typography>
+          {arteModalError && (
+            <Typography variant="body2" color="error" sx={{ mb: 1.5, p: 1.5, bgcolor: 'error.50', borderRadius: 1, border: '1px solid', borderColor: 'error.200' }}>
+              Erro: {arteModalError}
+            </Typography>
+          )}
           <TextField
             multiline
             rows={10}
