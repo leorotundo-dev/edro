@@ -8,11 +8,11 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
-export async function query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<{ rows: T[] }> {
+export async function query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<{ rows: T[]; rowCount: number | null }> {
   const client = await pool.connect();
   try {
     const res = await client.query<T>(text, params);
-    return { rows: res.rows };
+    return { rows: res.rows, rowCount: res.rowCount };
   } finally {
     client.release();
   }

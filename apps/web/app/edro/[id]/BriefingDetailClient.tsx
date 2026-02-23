@@ -414,29 +414,14 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
     finally { setActionLoading(null); }
   };
 
-  const handleGenerateCopy = async () => {
-    setActionLoading('copy_ia');
-    setCopySuccess(false);
-    try {
-      await apiPost(`/edro/briefings/${briefingId}/copy`, { language: 'pt', count: 10 });
-      await loadBriefing();
-      setCopySuccess(true);
-    } catch (err: any) { alert(err?.message || 'Erro ao gerar copies.'); }
-    finally { setActionLoading(null); }
-  };
-
-  const handleGenerateCreative = async (copyId: string) => {
-    if (!confirm('Deseja gerar um criativo visual para esta copy?')) return;
-    setActionLoading('creative');
-    try {
-      const result = await apiPost<{ success: boolean; data: { image_url: string; format: string } }>(
-        `/edro/briefings/${briefingId}/generate-creative`,
-        { copy_version_id: copyId, format: 'instagram-feed', style: 'modern' }
-      );
-      if (result?.data?.image_url) window.open(result.data.image_url, '_blank');
-      await loadBriefing();
-    } catch (err: any) { alert(err?.message || 'Erro ao gerar criativo.'); }
-    finally { setActionLoading(null); }
+  const handleGoToStudio = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('edro_briefing_id', briefingId);
+      if (briefing?.client_id) {
+        window.localStorage.setItem('edro_active_client_id', briefing.client_id);
+      }
+    }
+    router.push('/studio/editor');
   };
 
   const handleArchive = async () => {
@@ -554,12 +539,11 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
             <Button
               variant="contained"
               size="small"
-              startIcon={actionLoading === 'copy_ia' ? <CircularProgress size={14} color="inherit" /> : <IconRobot size={16} />}
-              onClick={handleGenerateCopy}
-              disabled={!!actionLoading}
+              startIcon={<IconRobot size={16} />}
+              onClick={handleGoToStudio}
               sx={{ fontWeight: 600 }}
             >
-              {actionLoading === 'copy_ia' ? 'Gerando...' : 'Gerar Copy IA'}
+              Criar no Studio
             </Button>
             {copies.length >= 2 && (
               <Button
@@ -726,9 +710,9 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                             <Stack spacing={0.75}>
                               {ws.key === 'copy_ia' && copies.length === 0 && (
                                 <Button fullWidth size="small" variant="contained" color="info" sx={{ fontSize: 11, py: 0.25 }}
-                                  onClick={handleGenerateCopy} disabled={actionLoading === 'copy_ia'}
+                                  onClick={handleGoToStudio}
                                 >
-                                  Gerar Copies
+                                  Criar no Studio
                                 </Button>
                               )}
                               {ws.key === 'aprovacao' && copies.length > 0 && (
@@ -1081,11 +1065,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                   <Button
                     variant={copies.length === 0 ? 'contained' : 'outlined'}
                     size="small"
-                    startIcon={actionLoading === 'copy_ia' ? <CircularProgress size={13} color="inherit" /> : <IconRobot size={14} />}
-                    onClick={handleGenerateCopy}
-                    disabled={!!actionLoading}
+                    startIcon={<IconRobot size={14} />}
+                    onClick={handleGoToStudio}
                   >
-                    {actionLoading === 'copy_ia' ? 'Gerando...' : copies.length === 0 ? 'Gerar agora' : 'Regenerar'}
+                    {copies.length === 0 ? 'Criar no Studio' : 'Abrir Studio'}
                   </Button>
                 </Stack>
 
@@ -1093,7 +1076,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                   <Box sx={{ py: 3, textAlign: 'center' }}>
                     <IconRobot size={36} color="#e2e8f0" />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Nenhuma copy gerada ainda. Clique em "Gerar Copy IA" para começar.
+                      Nenhuma copy gerada ainda. Clique em "Criar no Studio" para ir ao Creative Studio.
                     </Typography>
                   </Box>
                 ) : (
@@ -1112,11 +1095,10 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                             size="small"
                             variant="outlined"
                             startIcon={<IconPhoto size={13} />}
-                            onClick={() => handleGenerateCreative(copy.id)}
-                            disabled={actionLoading === 'creative'}
+                            onClick={handleGoToStudio}
                             sx={{ fontSize: 12 }}
                           >
-                            Gerar Criativo
+                            Editar no Studio
                           </Button>
                         </Stack>
                         <Typography
