@@ -152,9 +152,14 @@ export default function ClientConnectorsPage() {
     setTesting(provider);
     try {
       const res = await apiPost<any>(`/clients/${clientId}/connectors/${provider}/test`, {});
+      if (res?.testable === false) {
+        // Provider doesn't support automated testing — don't show as error or success
+        setTestResult((prev) => ({ ...prev, [provider]: { ok: true, message: 'Sem validação automática para este provider' } }));
+        return;
+      }
       const ok = res?.ok === true;
       const message = ok
-        ? (res?.message || `Conexão OK${res?.account?.name ? ` · ${res.account.name}` : ''}`)
+        ? `Conexão OK${res?.account?.name ? ` · ${res.account.name}` : ''}`
         : (res?.error || 'Falha na conexão');
       setTestResult((prev) => ({ ...prev, [provider]: { ok, message } }));
       // Reload to get updated last_sync_ok from backend

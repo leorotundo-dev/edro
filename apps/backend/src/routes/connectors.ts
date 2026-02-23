@@ -351,9 +351,8 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         return reply.send({ ok: true, message: 'credentials_saved', account_id: hasId });
       }
 
-      // Outros providers — sem endpoint de teste padronizado
-      await saveHealth(true);
-      return reply.send({ ok: true, message: 'credentials_saved_not_testable' });
+      // Outros providers — sem endpoint de teste padronizado; não altera last_sync_ok
+      return reply.send({ ok: true, testable: false });
     }
   );
 
