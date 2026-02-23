@@ -420,6 +420,10 @@ export default function EditorClient() {
   const [arteRefsCount, setArteRefsCount] = useState(0);
   const [arteModalOpen, setArteModalOpen] = useState(false);
   const [arteModalError, setArteModalError] = useState('');
+  // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
+  const [arteGeneratedPrompt, setArteGeneratedPrompt] = useState('');
+  const [arteDiscardOpen, setArteDiscardOpen] = useState(false);
+  const [arteDiscardTags, setArteDiscardTags] = useState<string[]>([]);
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1082,6 +1086,8 @@ export default function EditorClient() {
       const imageUrl = res.image_url || res.data?.image_url;
       if (res.success && imageUrl) {
         setArteImageUrl(imageUrl);
+        setArteGeneratedPrompt(artePrompt); // salva para feedback posterior
+        setArteDiscardTags([]);
         setArteModalOpen(false);
         setArteStep(null);
         setArteModalError('');
@@ -1097,6 +1103,42 @@ export default function EditorClient() {
       setArteModalError(msg);
       setArteStep('editing');
     }
+  };
+
+  // ── Feedback de criativo — loop de aprendizado ──────────────────────
+  const sendCreativeFeedback = async (
+    action: 'approved' | 'discarded',
+    tags?: string[],
+    reason?: string
+  ) => {
+    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (!briefingId || !arteGeneratedPrompt) return;
+    const copyVersionId = resolveActiveCopyId();
+    const clientId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined;
+    try {
+      await apiPost(`/edro/briefings/${briefingId}/creative-feedback`, {
+        action,
+        prompt: arteGeneratedPrompt,
+        format: activeFormat?.format || 'instagram-feed',
+        client_id: clientId,
+        copy_version_id: copyVersionId || undefined,
+        rejection_tags: tags?.length ? tags : undefined,
+        rejection_reason: reason || undefined,
+      });
+    } catch { /* best-effort — feedback nunca bloqueia */ }
+  };
+
+  const handleApproveCreative = () => {
+    sendCreativeFeedback('approved');
+    // mantém a imagem na tela — usuário continua trabalhando
+  };
+
+  const handleDiscardCreative = async (tags: string[], reason?: string) => {
+    await sendCreativeFeedback('discarded', tags, reason);
+    setArteImageUrl(null);
+    setArteGeneratedPrompt('');
+    setArteDiscardOpen(false);
+    setArteDiscardTags([]);
   };
 
   const optionToText = (option: ParsedOption | null) => {
@@ -1276,9 +1318,17 @@ export default function EditorClient() {
                       {arteStep === 'loading_prompt' ? 'Buscando referências...' : 'Gerar Arte com IA'}
                     </Button>
                     {arteImageUrl && (
-                      <Button size="small" variant="text" onClick={() => setArteImageUrl(null)}>
-                        Remover arte
-                      </Button>
+                      <>
+                        <Button size="small" variant="text" color="success" onClick={handleApproveCreative} sx={{ minWidth: 'auto' }}>
+                          ✓ Usar
+                        </Button>
+                        <Button size="small" variant="text" onClick={handleGenerateArte} disabled={arteStep !== null} sx={{ minWidth: 'auto' }}>
+                          ↺ Regenerar
+                        </Button>
+                        <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} sx={{ minWidth: 'auto' }}>
+                          ✗ Descartar
+                        </Button>
+                      </>
                     )}
                   </Stack>
                   {copyWarnings.length > 0 && (
@@ -1829,6 +1879,50 @@ export default function EditorClient() {
             startIcon={arteStep === 'generating' ? <CircularProgress size={14} color="inherit" /> : undefined}
           >
             {arteStep === 'generating' ? 'Gerando...' : 'Gerar Imagem →'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de descarte de arte — coleta tags de feedback para loop de aprendizado */}
+      <Dialog
+        open={arteDiscardOpen}
+        onClose={() => { setArteDiscardOpen(false); setArteDiscardTags([]); }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>Por que descartar esta imagem?</DialogTitle>
+        <DialogContent>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Selecione os motivos — isso melhora as próximas gerações para este cliente.
+          </Typography>
+          <Stack spacing={0.75}>
+            {['Texto na imagem', 'Fora do estilo da marca', 'Cores incorretas', 'Assunto errado', 'Qualidade baixa'].map((tag) => (
+              <Button
+                key={tag}
+                size="small"
+                variant={arteDiscardTags.includes(tag) ? 'contained' : 'outlined'}
+                onClick={() =>
+                  setArteDiscardTags((prev) =>
+                    prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                  )
+                }
+                sx={{ justifyContent: 'flex-start', textTransform: 'none', fontSize: 13 }}
+              >
+                {tag}
+              </Button>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button onClick={() => { setArteDiscardOpen(false); setArteDiscardTags([]); }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => handleDiscardCreative(arteDiscardTags)}
+          >
+            Descartar
           </Button>
         </DialogActions>
       </Dialog>

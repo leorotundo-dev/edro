@@ -58,7 +58,7 @@ import { env } from '../env';
 import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
-import { recordPreferenceFeedback } from '../services/preferenceEngine';
+import { recordPreferenceFeedback, syncCreativeFeedbackToProfile } from '../services/preferenceEngine';
 import { buildPlatformRulesBlock } from '../services/platformRules';
 import { buildPromptDNABlock } from '../services/promptDNA';
 import { buildPersonaBlock, buildAMDBlock } from '../services/personaPrompt';
@@ -2967,6 +2967,21 @@ export default async function edroRoutes(app: FastifyInstance) {
       } catch { /* non-blocking */ }
     }
 
+    // ── Histórico de aprendizado de criativos (loop de feedback) ─────────
+    let approvedExamples: string[] = [];
+    let avoidPatterns: string[] = [];
+    if (resolvedClientId) {
+      try {
+        const profile = clientRow?.profile || {};
+        approvedExamples = Array.isArray(profile.good_creative_prompts)
+          ? profile.good_creative_prompts.slice(0, 2)
+          : [];
+        avoidPatterns = Array.isArray(profile.creative_avoid_patterns)
+          ? profile.creative_avoid_patterns.slice(0, 4)
+          : [];
+      } catch { /* non-blocking */ }
+    }
+
     // ── Montar contexto visual do cliente ───────────────────────────────
     let visualContext = '';
     let visualRefsCount = 0;
@@ -3046,6 +3061,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         segment: clientSegment || undefined,
         style: body.style,
         visualContext: visualContext || undefined,
+        approvedExamples: approvedExamples.length ? approvedExamples : undefined,
+        avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
       });
       return reply.send({
         success: true,
@@ -3066,6 +3083,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         visualContext: visualContext || undefined,
         customPrompt: body.custom_prompt || undefined,
         referenceImageUrls,
+        approvedExamples: approvedExamples.length ? approvedExamples : undefined,
+        avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
       });
 
       if (!result.success) {
@@ -3106,6 +3125,82 @@ export default async function edroRoutes(app: FastifyInstance) {
         success: false,
         error: 'Erro ao gerar criativo visual.',
       });
+    }
+  });
+
+  // ── Feedback de criativo (imagem IA) — loop de aprendizado ──────────
+  app.post('/edro/briefings/:id/creative-feedback', async (request, reply) => {
+    const { id: briefingId } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const bodySchema = z.object({
+      action: z.enum(['approved', 'discarded']),
+      prompt: z.string().min(1).max(8000),
+      format: z.string().optional(),
+      style: z.string().optional(),
+      used_custom_prompt: z.boolean().optional(),
+      rejection_tags: z.array(z.string()).optional(),
+      rejection_reason: z.string().max(500).optional(),
+      copy_version_id: z.string().optional(),
+      client_id: z.string().optional(),
+    });
+
+    let body: z.infer<typeof bodySchema>;
+    try {
+      body = bodySchema.parse(request.body);
+    } catch (err) {
+      return reply.status(400).send({ ok: false, error: 'invalid_body' });
+    }
+
+    const user = resolveUser(request);
+    const tenantId = user.tenant_id;
+    if (!tenantId) return reply.status(401).send({ ok: false, error: 'unauthorized' });
+
+    // Resolve client_id — do body, do briefing ou do payload
+    let clientId: string | null = body.client_id || null;
+    if (!clientId) {
+      try {
+        const { rows } = await query<{ main_client_id: string | null; payload: any }>(
+          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+          [briefingId, tenantId]
+        );
+        const bRow = rows[0];
+        clientId =
+          bRow?.main_client_id ||
+          resolveClientIdFromPayload(bRow?.payload || {}) ||
+          null;
+      } catch { /* non-blocking */ }
+    }
+
+    if (!clientId) {
+      return reply.status(422).send({ ok: false, error: 'client_id_not_resolved' });
+    }
+
+    try {
+      await recordPreferenceFeedback({
+        tenantId,
+        clientId,
+        payload: {
+          feedback_type: 'creative',
+          action: body.action === 'approved' ? 'approved' : 'rejected',
+          rejection_tags: body.rejection_tags,
+          rejection_reason: body.rejection_reason,
+          creative_briefing_id: briefingId,
+          creative_prompt: body.prompt,
+          creative_format: body.format,
+          creative_style: body.style,
+          creative_used_custom_prompt: body.used_custom_prompt,
+          created_by: user.email || user.id || null,
+        },
+      });
+
+      // Sync assíncrono — não bloqueia a resposta
+      setImmediate(() => {
+        syncCreativeFeedbackToProfile(tenantId, clientId as string).catch(() => {});
+      });
+
+      return reply.send({ ok: true });
+    } catch (err: any) {
+      request.log?.error({ err }, 'creative_feedback_failed');
+      return reply.status(500).send({ ok: false, error: 'feedback_save_failed' });
     }
   });
 

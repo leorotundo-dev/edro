@@ -25,8 +25,8 @@ export type PreferenceContext = {
 };
 
 type FeedbackPayload = {
-  feedback_type: 'pauta' | 'copy';
-  action: 'approved' | 'rejected' | 'approved_after_edit';
+  feedback_type: 'pauta' | 'copy' | 'creative';
+  action: 'approved' | 'rejected' | 'approved_after_edit' | 'discarded';
   rejection_tags?: string[];
   rejection_reason?: string;
   regeneration_instruction?: string;
@@ -47,6 +47,12 @@ type FeedbackPayload = {
   copy_pipeline?: string;
   copy_task_type?: string;
   copy_tone?: string;
+  // creative-specific
+  creative_briefing_id?: string;
+  creative_prompt?: string;
+  creative_format?: string;
+  creative_style?: string;
+  creative_used_custom_prompt?: boolean;
   created_by?: string;
   persona_id?: string | null;
   momento_consciencia?: string | null;
@@ -89,7 +95,8 @@ export async function recordPreferenceFeedback(params: {
       pauta_id, pauta_source_type, pauta_source_domain, pauta_topic_category, pauta_approach, pauta_platforms, pauta_timing_days, pauta_ai_score,
       copy_briefing_id, copy_rejected_text, copy_approved_text, copy_platform, copy_format, copy_pipeline, copy_task_type, copy_tone,
       created_by,
-      persona_id, momento_consciencia, amd, amd_achieved
+      persona_id, momento_consciencia, amd, amd_achieved,
+      creative_briefing_id, creative_prompt, creative_format, creative_style, creative_used_custom_prompt
     )
     VALUES (
       $1,$2,$3,$4,
@@ -97,7 +104,8 @@ export async function recordPreferenceFeedback(params: {
       $9,$10,$11,$12,$13,$14,$15,$16,
       $17,$18,$19,$20,$21,$22,$23,$24,
       $25,
-      $26,$27,$28,$29
+      $26,$27,$28,$29,
+      $30,$31,$32,$33,$34
     )
     RETURNING *
     `,
@@ -131,6 +139,11 @@ export async function recordPreferenceFeedback(params: {
       p.momento_consciencia ?? null,
       p.amd ?? null,
       p.amd_achieved ?? null,
+      p.creative_briefing_id ?? null,
+      p.creative_prompt ?? null,
+      p.creative_format ?? null,
+      p.creative_style ?? null,
+      p.creative_used_custom_prompt ?? null,
     ]
   );
   return rows[0] ?? null;
@@ -505,5 +518,79 @@ export function buildPreferencePromptBlock(context: PreferenceContext): string {
 
   parts.push(`MATURIDADE DE APRENDIZADO: ${context.learning_maturity}`);
   return parts.length ? `\n\nPreferencias editoriais do cliente:\n${parts.join('\n')}` : '';
+}
+
+/**
+ * Sincroniza o histórico de feedback de criativos (imagens) no perfil do cliente.
+ * Espelha syncExamplesToProfile do copy.
+ * Atualiza clients.profile com:
+ *   - good_creative_prompts: últimos 3 prompts aprovados (snippet 120 chars)
+ *   - creative_avoid_patterns: tags de rejeição/descarte mais frequentes
+ */
+export async function syncCreativeFeedbackToProfile(
+  tenantId: string,
+  clientId: string
+): Promise<void> {
+  try {
+    // Últimos 3 prompts aprovados
+    const { rows: approvedRows } = await query<{ creative_prompt: string | null }>(
+      `SELECT creative_prompt
+       FROM preference_feedback
+       WHERE tenant_id=$1 AND client_id=$2
+         AND feedback_type='creative'
+         AND action='approved'
+         AND creative_prompt IS NOT NULL
+       ORDER BY created_at DESC LIMIT 3`,
+      [tenantId, clientId]
+    );
+
+    // Tags de rejeição/descarte mais frequentes (últimos 20 eventos)
+    const { rows: tagRows } = await query<{ tag: string }>(
+      `SELECT UNNEST(rejection_tags) as tag
+       FROM preference_feedback
+       WHERE tenant_id=$1 AND client_id=$2
+         AND feedback_type='creative'
+         AND action IN ('rejected', 'discarded')
+         AND rejection_tags IS NOT NULL
+         AND array_length(rejection_tags, 1) > 0
+         AND created_at > NOW() - INTERVAL '90 days'
+       ORDER BY created_at DESC LIMIT 20`,
+      [tenantId, clientId]
+    );
+
+    const goodPrompts = approvedRows
+      .map((r) => (r.creative_prompt || '').slice(0, 120).trim())
+      .filter(Boolean);
+
+    // Conta frequência das tags e retorna as top 4
+    const tagCount: Record<string, number> = {};
+    for (const { tag } of tagRows) {
+      if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
+    }
+    const avoidPatterns = Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([tag]) => tag);
+
+    // Busca perfil atual
+    const { rows: clientRows } = await query<{ profile: any }>(
+      `SELECT profile FROM clients WHERE tenant_id=$1 AND id=$2 LIMIT 1`,
+      [tenantId, clientId]
+    );
+    const existing = clientRows[0]?.profile || {};
+
+    const nextProfile = {
+      ...existing,
+      good_creative_prompts: goodPrompts,
+      creative_avoid_patterns: avoidPatterns,
+    };
+
+    await query(
+      `UPDATE clients SET profile=$1::jsonb, updated_at=NOW() WHERE tenant_id=$2 AND id=$3`,
+      [JSON.stringify(nextProfile), tenantId, clientId]
+    );
+  } catch (err: any) {
+    console.error('[syncCreativeFeedbackToProfile] error:', err?.message);
+  }
 }
 

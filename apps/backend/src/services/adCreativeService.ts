@@ -14,6 +14,10 @@ type AdCreativeRequest = {
   customPrompt?: string;
   /** URLs de imagens reais do cliente usadas como referência de estética pelo Gemini multimodal */
   referenceImageUrls?: string[];
+  /** Snippets de prompts aprovados anteriormente para este cliente (loop de aprendizado) */
+  approvedExamples?: string[];
+  /** Tags de rejeição frequentes — o prompt avisa o Gemini para evitar esses padrões */
+  avoidPatterns?: string[];
 };
 
 type AdCreativeResponse = {
@@ -66,6 +70,12 @@ export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPromp
       : '',
     params.style && params.style !== 'modern'
       ? `Visual tone: ${params.style}.`
+      : '',
+    params.approvedExamples?.length
+      ? `Aesthetic style reference from previous approved generations: ${params.approvedExamples.slice(0, 2).join(' | ')}.`
+      : '',
+    params.avoidPatterns?.length
+      ? `Previously rejected for these reasons — avoid: ${params.avoidPatterns.join(', ')}.`
       : '',
     'Produce a visually compelling full-bleed background image — no text, no words, no letters anywhere. Only pure visual imagery suitable for text overlay by the designer.',
   ]
