@@ -173,7 +173,9 @@ export async function generateWithTools(params: GeminiToolsParams): Promise<Gemi
 // Modelo padrão: gemini-2.0-flash-preview-image-generation
 // Response: parts[].inlineData.{ data (base64), mimeType }
 
-const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-preview-image-generation';
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
+// Image generation uses v1 (not v1beta) — the preview model is only available on v1
+const IMAGE_BASE_URL = 'https://generativelanguage.googleapis.com/v1';
 
 export type GeminiImageResult = {
   base64: string;
@@ -236,14 +238,14 @@ export async function generateImage(params: {
   let response: Response;
   try {
     response = await fetch(
-      `${BASE_URL}/models/${IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+      `${IMAGE_BASE_URL}/models/${IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
           generationConfig: {
-            responseModalities: ['IMAGE'],
+            responseModalities: ['IMAGE', 'TEXT'],
             temperature: 1.0,
           },
         }),
