@@ -100,6 +100,9 @@ type ConnectorRow = {
   payload?: Record<string, unknown> | null;
   secrets_meta?: Record<string, unknown> | null;
   updated_at?: string | null;
+  last_sync_ok?: boolean | null;
+  last_sync_at?: string | null;
+  last_error?: string | null;
 };
 
 type SuggestionsPayload = {
@@ -739,35 +742,26 @@ export default function PerfilPage() {
             </Stack>
             <Stack spacing={1}>
               {[
-                { label: 'Reportei', ok: reporteiConfigured, updatedAt: reporteiConnector?.updated_at || null },
-                { label: 'Meta', ok: metaConfigured, updatedAt: metaConnector?.updated_at || null },
-                { label: `Fontes social (${platforms.length})`, ok: platforms.length > 0, updatedAt: sourcesConnector?.updated_at || null },
-              ].map((item) => (
+                { label: 'Reportei', ok: reporteiConfigured, updatedAt: reporteiConnector?.updated_at || null, syncOk: reporteiConnector?.last_sync_ok, syncAt: reporteiConnector?.last_sync_at, syncError: reporteiConnector?.last_error },
+                { label: 'Meta', ok: metaConfigured, updatedAt: metaConnector?.updated_at || null, syncOk: metaConnector?.last_sync_ok, syncAt: metaConnector?.last_sync_at, syncError: metaConnector?.last_error },
+                { label: `Fontes social (${platforms.length})`, ok: platforms.length > 0, updatedAt: sourcesConnector?.updated_at || null, syncOk: null, syncAt: null, syncError: null },
+              ].map((item) => {
+                const hasError = item.ok && item.syncOk === false;
+                const dotColor = hasError ? '#dc2626' : item.ok ? '#059669' : '#e2e8f0';
+                const dotShadow = hasError ? '0 0 6px rgba(220,38,38,0.35)' : item.ok ? '0 0 6px rgba(5,150,105,0.35)' : 'none';
+                const chipLabel = !item.ok ? 'Configurar' : hasError ? 'Erro' : 'OK';
+                const chipBg = !item.ok ? '#f8fafc' : hasError ? '#fef2f2' : '#ecfdf5';
+                const chipColor = !item.ok ? '#64748b' : hasError ? '#dc2626' : '#059669';
+                const timeLabel = item.syncAt ? `Testado: ${formatDate(item.syncAt)}` : item.updatedAt ? `Atualizado: ${formatDate(item.updatedAt)}` : '--';
+                return (
                 <Stack key={item.label} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.75 }}>
-                  <Box
-                    sx={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      bgcolor: item.ok ? '#059669' : '#e2e8f0',
-                      boxShadow: item.ok ? '0 0 6px rgba(5,150,105,0.35)' : 'none',
-                    }}
-                  />
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: dotColor, boxShadow: dotShadow }} />
                   <Typography variant="body2" sx={{ flex: 1 }}>{item.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.updatedAt ? `Atualizado: ${formatDate(item.updatedAt)}` : '--'}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label={item.ok ? 'OK' : 'Configurar'}
-                    sx={{
-                      bgcolor: item.ok ? '#ecfdf5' : '#f8fafc',
-                      color: item.ok ? '#059669' : '#64748b',
-                      fontWeight: 700,
-                    }}
-                  />
+                  <Typography variant="caption" color="text.secondary">{timeLabel}</Typography>
+                  <Chip size="small" label={chipLabel} sx={{ bgcolor: chipBg, color: chipColor, fontWeight: 700 }} />
                 </Stack>
-              ))}
+                );
+              })}
             </Stack>
             <Button
               variant="outlined"
