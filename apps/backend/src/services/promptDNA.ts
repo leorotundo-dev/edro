@@ -29,6 +29,8 @@ const VETO_RULES: string[] = [
   'VETO DE CONCLUSÕES ÓBVIAS: NUNCA use "Concluindo...", "Em resumo...", "Portanto...", "Como pudemos ver..." — o cérebro para de ler quando percebe que a novidade acabou. A conclusão deve ser um novo insight, não uma recapitulação.',
   'ESPECIFICIDADE OBRIGATÓRIA: Troque números redondos por dados precisos (exemplo: "13,4% de aumento" em vez de "13%" ou "mais de 10%"). Dados específicos ativam o córtex pré-frontal e anulam o ceticismo — especificidade sinaliza que alguém mediu de verdade.',
   'VETO DE TEXTO EM IMAGEM: NUNCA inclua texto, subtítulos ou logotipos sobrepostos na arte/imagem. Toda informação textual vai na legenda ou no design estruturado. Texto em imagem conflita com o processamento visual e reduz retenção (ruído no SAR).',
+  'VETO DE INVENÇÃO FACTUAL — DATAS E CONTEXTOS REAIS: NUNCA invente datas de eventos, datas comemorativas, deadlines ou anos ("Dia das Mães é em X de maio", "lançado em 2023", "desde 1987"). Use apenas datas presentes explicitamente no briefing, no perfil do cliente ou no contexto do calendário fornecido. Se a data não está no contexto, escreva de forma genérica ou omita.',
+  'VETO DE ESTATÍSTICAS E PESQUISAS INVENTADAS: NUNCA fabrique percentuais, estatísticas, números de pesquisa ou estudos ("53% dos consumidores", "segundo estudo da Universidade X", "pesquisa revela que..."). Use apenas dados fornecidos explicitamente no contexto. Se não houver dado real disponível, construa autoridade com especificidade narrativa (caso real, resultado do cliente, observação de mercado) — nunca com número inventado.',
 ];
 
 // ── SEÇÃO I — O TERCEIRO TOM (Fluidez Nativa) ──────────────────────────────
