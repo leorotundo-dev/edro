@@ -3,16 +3,27 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import { apiGet, apiPost, getApiBase, getBackendBase } from '@/lib/api';
+
+const FEATURES = [
+  'Briefing com IA',
+  'Copy generativa',
+  'Arte IA',
+  'Calendário editorial',
+  'Social Listening',
+  'Analytics',
+];
+
+const PROVIDERS = [
+  { name: 'Claude',  sub: 'Anthropic', dot: 'bg-[#cc785c]' },
+  { name: 'Gemini',  sub: 'Google',    dot: 'bg-[#4285f4]' },
+  { name: 'GPT-4o',  sub: 'OpenAI',    dot: 'bg-[#10a37f]' },
+  { name: 'Tavily',  sub: 'Search',    dot: 'bg-[#7c3aed]' },
+];
 
 function resolveNextPath() {
   if (typeof window === 'undefined') return '/';
@@ -69,9 +80,7 @@ export default function LoginPage() {
     };
 
     void bootstrapSession();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   const handleRequest = async () => {
@@ -100,16 +109,10 @@ export default function LoginPage() {
       setLoading(true);
       const response = await apiPost('/auth/verify', { email, code });
       const token = response?.accessToken || response?.token;
-      if (!token) {
-        throw new Error('Token nao retornado.');
-      }
+      if (!token) throw new Error('Token nao retornado.');
       localStorage.setItem('edro_token', token);
-      if (response?.refreshToken) {
-        localStorage.setItem('edro_refresh', response.refreshToken);
-      }
-      if (response?.user) {
-        localStorage.setItem('edro_user', JSON.stringify(response.user));
-      }
+      if (response?.refreshToken) localStorage.setItem('edro_refresh', response.refreshToken);
+      if (response?.user) localStorage.setItem('edro_user', JSON.stringify(response.user));
       router.replace(resolveNextPath());
     } catch (err: any) {
       setError(err?.message || 'Falha ao validar codigo.');
@@ -120,103 +123,197 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (step === 'request') {
-      await handleRequest();
-    } else {
-      await handleVerify();
-    }
+    if (step === 'request') await handleRequest();
+    else await handleVerify();
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
-        backgroundImage: 'url(/modernize/images/backgrounds/login-bg.svg)',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'right top',
-        backgroundSize: { xs: 'cover', md: 'contain' },
-        px: { xs: 2, md: 6 },
-        py: { xs: 6, md: 10 },
-      }}
-    >
-      <Grid container spacing={6} alignItems="center" sx={{ maxWidth: 1100 }}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box component="img" src="/modernize/images/logos/logoIcon.svg" alt="Edro" sx={{ width: 36, height: 36 }} />
-              <Typography variant="h5" fontWeight={700}>
-                edro studio
-              </Typography>
-            </Stack>
-            <Typography variant="h3" fontWeight={700}>
-              Acesse sua operação criativa
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Centralize briefings, calendário e inteligência editorial em um só lugar.
-            </Typography>
+    <div className="min-h-screen bg-[#0a0f1e] flex">
+
+      {/* ── Left: Hero ── */}
+      <div className="hidden lg:flex flex-col justify-between flex-1 px-16 py-12 relative overflow-hidden">
+
+        {/* Glow */}
+        <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-[radial-gradient(ellipse,rgba(255,102,0,0.10)_0%,transparent_70%)] pointer-events-none" />
+
+        {/* Logo */}
+        <div>
+          <span className="font-serif text-2xl text-white tracking-tight">
+            edro<span className="text-orange-500">.</span>
+          </span>
+        </div>
+
+        {/* Main copy */}
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 rounded-full px-4 py-1.5 mb-8">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+            <span className="text-[11px] font-semibold text-orange-400 tracking-[0.05em] uppercase">
+              Plataforma de IA para agências
+            </span>
+          </div>
+
+          <h1 className="font-serif font-normal text-white leading-[1.05] tracking-[-0.02em] mb-6 text-[clamp(36px,3.8vw,60px)]">
+            A inteligência que<br />
+            <em className="text-orange-500 italic">move</em> sua agência.
+          </h1>
+
+          <p className="text-slate-400 text-[15px] leading-relaxed max-w-[440px] mb-10">
+            De briefings a publicação — copy, arte IA, calendário editorial e métricas em um único sistema.
+          </p>
+
+          {/* Feature pills */}
+          <div className="flex flex-wrap gap-2 mb-10">
+            {FEATURES.map((f) => (
+              <span key={f} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-white/[0.09] text-slate-400 bg-white/[0.03]">
+                <span className="text-orange-500 text-[8px]">✦</span>
+                {f}
+              </span>
+            ))}
+          </div>
+
+          {/* Powered by */}
+          <div>
+            <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-3">
+              Powered by
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PROVIDERS.map((p) => (
+                <div key={p.name} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.025]">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
+                  <span className="text-[12px] font-bold text-slate-200">{p.name}</span>
+                  <span className="text-[10px] text-slate-500">{p.sub}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-[12px] text-slate-700">© 2026 Edro.Digital</p>
+      </div>
+
+      {/* ── Right: Login form ── */}
+      <div className="flex items-center justify-center w-full lg:w-[460px] shrink-0 px-6 py-12 bg-[#060b17] lg:border-l border-white/[0.06]">
+        <div className="w-full max-w-[380px]">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden mb-8">
+            <span className="font-serif text-2xl text-white tracking-tight">
+              edro<span className="text-orange-500">.</span>
+            </span>
+          </div>
+
+          <h2 className="text-white text-xl font-bold mb-1">
+            {step === 'verify' ? 'Verificar código' : 'Acessar plataforma'}
+          </h2>
+          <p className="text-slate-400 text-sm mb-6">
+            {step === 'verify'
+              ? 'Insira o código enviado para seu email.'
+              : 'Digite seu email corporativo para continuar.'}
+          </p>
+
+          {error && <Alert severity="error" sx={{ mb: 2, fontSize: 13 }}>{error}</Alert>}
+          {message && <Alert severity="success" sx={{ mb: 2, fontSize: 13 }}>{message}</Alert>}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <TextField
+              label="Email"
+              placeholder="name@edro.digital"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              fullWidth
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgba(255,255,255,0.04)',
+                  color: '#e2e8f0',
+                  '& fieldset': { borderColor: 'rgba(255,255,255,0.12)' },
+                  '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
+                  '&.Mui-focused fieldset': { borderColor: '#ff6600' },
+                },
+                '& .MuiInputLabel-root': { color: '#64748b' },
+                '& .MuiInputLabel-root.Mui-focused': { color: '#ff6600' },
+              }}
+            />
+
+            {step === 'verify' && (
+              <TextField
+                label="Código"
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                fullWidth
+                size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                    color: '#e2e8f0',
+                    '& fieldset': { borderColor: 'rgba(255,255,255,0.12)' },
+                    '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
+                    '&.Mui-focused fieldset': { borderColor: '#ff6600' },
+                  },
+                  '& .MuiInputLabel-root': { color: '#64748b' },
+                  '& .MuiInputLabel-root.Mui-focused': { color: '#ff6600' },
+                }}
+              />
+            )}
+
             <Button
-              variant="outlined"
-              href={ssoUrl}
-              sx={{ alignSelf: 'flex-start' }}
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              fullWidth
+              sx={{
+                mt: 0.5,
+                bgcolor: '#ff6600',
+                fontWeight: 700,
+                py: 1.25,
+                '&:hover': { bgcolor: '#e55c00' },
+                '&:disabled': { bgcolor: 'rgba(255,102,0,0.4)' },
+              }}
             >
-              Entrar com SSO
+              {loading
+                ? <CircularProgress size={18} sx={{ color: 'rgba(255,255,255,0.7)' }} />
+                : step === 'verify' ? 'Entrar' : 'Enviar código'}
             </Button>
-          </Stack>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ maxWidth: 420, mx: { xs: 'auto', md: 0 } }}>
-            <CardContent sx={{ p: 4 }}>
-              <Stack spacing={2}>
-                <Typography variant="h5" fontWeight={700}>
-                  {step === 'verify' ? 'Validar codigo' : 'Entrar'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {step === 'verify'
-                    ? 'Insira o codigo enviado para seu email corporativo.'
-                    : 'Digite seu email corporativo para receber o codigo de acesso.'}
-                </Typography>
-                {error && <Alert severity="error">{error}</Alert>}
-                {message && <Alert severity="success">{message}</Alert>}
-                <form onSubmit={handleSubmit}>
-                  <Stack spacing={2}>
-                    <TextField
-                      label="Email"
-                      placeholder="name@edro.digital"
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      required
-                      fullWidth
-                    />
-                    {step === 'verify' && (
-                      <TextField
-                        label="Codigo"
-                        placeholder="Digite o codigo"
-                        value={code}
-                        onChange={(event) => setCode(event.target.value)}
-                        required
-                        fullWidth
-                      />
-                    )}
-                    <Button type="submit" variant="contained" disabled={loading} fullWidth>
-                      {step === 'verify' ? 'Entrar' : 'Enviar codigo'}
-                    </Button>
-                    {step === 'verify' && (
-                      <Button type="button" variant="text" onClick={handleRequest} disabled={loading}>
-                        Reenviar codigo
-                      </Button>
-                    )}
-                  </Stack>
-                </form>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+
+            {step === 'verify' && (
+              <Button
+                type="button"
+                variant="text"
+                onClick={handleRequest}
+                disabled={loading}
+                sx={{ color: '#64748b', fontSize: 13, '&:hover': { color: '#94a3b8' } }}
+              >
+                Reenviar código
+              </Button>
+            )}
+          </form>
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-white/[0.08]" />
+            <span className="text-[11px] text-slate-600 uppercase tracking-wider">ou</span>
+            <div className="flex-1 h-px bg-white/[0.08]" />
+          </div>
+
+          <Button
+            variant="outlined"
+            href={ssoUrl}
+            fullWidth
+            sx={{
+              borderColor: 'rgba(255,255,255,0.12)',
+              color: '#94a3b8',
+              fontWeight: 600,
+              '&:hover': { borderColor: 'rgba(255,255,255,0.25)', bgcolor: 'rgba(255,255,255,0.04)' },
+            }}
+          >
+            Entrar com SSO
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
