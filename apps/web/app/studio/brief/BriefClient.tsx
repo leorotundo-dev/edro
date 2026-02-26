@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -14,8 +14,11 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
+import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
+import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -31,6 +34,7 @@ import {
   IconClock,
   IconDna,
   IconFileText,
+  IconFlag,
   IconLink,
   IconMessage,
   IconNews,
@@ -92,6 +96,9 @@ type BriefForm = {
   persona_id: string;
   momento_consciencia: 'problema' | 'solucao' | 'decisao' | '';
   amd: 'salvar' | 'compartilhar' | 'clicar' | 'responder' | 'marcar_alguem' | 'pedir_proposta' | '';
+  campaign_id: string;
+  campaign_phase_id: string;
+  behavior_intent_id: string;
 };
 
 type DraftRecovery = {
@@ -231,6 +238,11 @@ export default function BriefClient() {
   const queryRef = searchParams.get('ref') || '';
   const queryRefId = searchParams.get('refId') || searchParams.get('sourceId') || '';
   const queryFresh = searchParams.get('fresh') === '1' || searchParams.get('fresh') === 'true';
+  const queryBehaviorIntentId = searchParams.get('behavior_intent_id') || '';
+  const queryBehavioralCopyId = searchParams.get('behavioral_copy_id') || '';
+  const queryTitle = searchParams.get('title') || '';
+  const queryCampaignId = searchParams.get('campaign_id') || '';
+  const queryCampaignPhaseId = searchParams.get('campaign_phase_id') || '';
 
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [activeClientId, setActiveClientId] = useState('');
@@ -245,6 +257,7 @@ export default function BriefClient() {
   const [sourceContext, setSourceContext] = useState<SourceContext | null>(null);
   const [clientDnaTone, setClientDnaTone] = useState('');
   const [clientPersonas, setClientPersonas] = useState<Array<{ id: string; name: string; momento: string }>>([]);
+  const [clientCampaigns, setClientCampaigns] = useState<Array<{ id: string; name: string; phases: Array<{ id: string; name: string; order: number }>; behavior_intents: Array<{ id: string; amd: string; momento: string; triggers: string[]; target_behavior: string; phase_id: string }> }>>([]);
   const [deadlineSuggestion, setDeadlineSuggestion] = useState<{ value: string; label: string } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -256,7 +269,7 @@ export default function BriefClient() {
   const [selectedDay, setSelectedDay] = useState('');
   const [manualEventName, setManualEventName] = useState('');
   const [form, setForm] = useState<BriefForm>({
-    title: queryEvent ? `Briefing: ${queryEvent}` : '',
+    title: queryTitle || (queryEvent ? `Briefing: ${queryEvent}` : ''),
     objective: queryObjective,
     message: queryMessage,
     tone: queryTone,
@@ -271,6 +284,9 @@ export default function BriefClient() {
     persona_id: '',
     momento_consciencia: '',
     amd: '',
+    campaign_id: queryCampaignId,
+    campaign_phase_id: queryCampaignPhaseId,
+    behavior_intent_id: queryBehaviorIntentId,
   });
 
   const suggestDeadline = (eventDateStr: string) => {
@@ -565,6 +581,20 @@ export default function BriefClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.persona_id, clientPersonas]);
 
+  // Auto-fill amd + momento from linked behavior intent (when opened from CampaignsClient)
+  useEffect(() => {
+    if (!queryBehaviorIntentId || !queryCampaignId) return;
+    const campaign = clientCampaigns.find(c => c.id === queryCampaignId);
+    const intent = campaign?.behavior_intents.find(bi => bi.id === queryBehaviorIntentId);
+    if (intent) {
+      updateForm({
+        amd: intent.amd as BriefForm['amd'],
+        momento_consciencia: intent.momento as BriefForm['momento_consciencia'],
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientCampaigns, queryBehaviorIntentId, queryCampaignId]);
+
   const selectedClient = useMemo(
     () => {
       if (activeClientId) {
@@ -592,6 +622,8 @@ export default function BriefClient() {
   const handleSelectClient = (client: ClientRow) => {
     setActiveClientId(client.id);
     setSelectedClientsCount(1);
+    // Reset campaign selection when client changes
+    updateForm({ campaign_id: '', campaign_phase_id: '', behavior_intent_id: '' });
     // Load personas for the selected client
     if (client.profile?.personas?.length) {
       setClientPersonas(client.profile.personas.map((p) => ({ id: p.id, name: p.name, momento: p.momento })));
@@ -600,6 +632,10 @@ export default function BriefClient() {
         .then((res) => setClientPersonas((res?.personas ?? []).map((p: any) => ({ id: p.id, name: p.name, momento: p.momento }))))
         .catch(() => {});
     }
+    // Load active campaigns for the selected client
+    apiGet<{ success: boolean; data: any[] }>(`/campaigns?client_id=${client.id}&status=active`)
+      .then((res) => setClientCampaigns((res?.data ?? []).map((c: any) => ({ id: c.id, name: c.name, phases: Array.isArray(c.phases) ? c.phases : [], behavior_intents: Array.isArray(c.behavior_intents) ? c.behavior_intents : [] }))))
+      .catch(() => setClientCampaigns([]));
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('edro_active_client_id', client.id);
       window.localStorage.setItem(
@@ -745,11 +781,21 @@ export default function BriefClient() {
         payload,
         source: form.source || 'manual',
         due_at: form.dueAt || undefined,
+        ...(form.campaign_id ? { campaign_id: form.campaign_id } : {}),
+        ...(form.campaign_phase_id ? { campaign_phase_id: form.campaign_phase_id } : {}),
+        ...(form.behavior_intent_id ? { behavior_intent_id: form.behavior_intent_id } : {}),
       });
 
       const briefingId = response?.data?.briefing?.id;
       if (!briefingId) {
         throw new Error('Briefing criado, mas sem ID.');
+      }
+
+      // Non-blocking: link the briefing back to the saved behavioral copy row
+      if (queryBehavioralCopyId) {
+        apiPatch(`/campaigns/behavioral-copies/${queryBehavioralCopyId}/briefing`, {
+          briefing_id: briefingId,
+        }).catch(() => {});
       }
 
       if (typeof window !== 'undefined') {
@@ -1057,6 +1103,54 @@ export default function BriefClient() {
         </Card>
       )}
 
+      {clientCampaigns.length > 0 && (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+              <IconFlag size={16} color="#6366f1" />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Vincular à campanha</Typography>
+              <Typography variant="caption" color="text.secondary">(opcional)</Typography>
+            </Stack>
+            <Stack spacing={1.5}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Campanha</InputLabel>
+                <Select
+                  value={form.campaign_id}
+                  label="Campanha"
+                  onChange={(e) => updateForm({ campaign_id: e.target.value, campaign_phase_id: '', behavior_intent_id: '' })}
+                >
+                  <MenuItem value=""><em>Nenhuma campanha</em></MenuItem>
+                  {clientCampaigns.map((c) => (
+                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {form.campaign_id && (() => {
+                const selectedCampaign = clientCampaigns.find(c => c.id === form.campaign_id);
+                const phases = selectedCampaign?.phases?.length
+                  ? [...selectedCampaign.phases].sort((a, b) => a.order - b.order)
+                  : [{ id: 'historia', name: 'História', order: 1 }, { id: 'prova', name: 'Prova', order: 2 }, { id: 'convite', name: 'Convite', order: 3 }];
+                return (
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Fase da campanha</InputLabel>
+                    <Select
+                      value={form.campaign_phase_id}
+                      label="Fase da campanha"
+                      onChange={(e) => updateForm({ campaign_phase_id: e.target.value })}
+                    >
+                      <MenuItem value=""><em>Sem fase específica</em></MenuItem>
+                      {phases.map((p) => (
+                        <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                );
+              })()}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
       {!context?.event && !context?.date ? (
         <Card variant="outlined">
           <CardContent>
@@ -1174,6 +1268,39 @@ export default function BriefClient() {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Behavioral intent context banner — shown when brief was created from a behavioral copy */}
+      {queryBehaviorIntentId && (() => {
+        const campaign = clientCampaigns.find(c => c.id === queryCampaignId);
+        const intent = campaign?.behavior_intents.find(bi => bi.id === queryBehaviorIntentId);
+        if (!intent) return null;
+        const AMD_COLORS: Record<string, string> = {
+          salvar: '#7c3aed', compartilhar: '#2563eb', clicar: '#ea580c',
+          responder: '#16a34a', marcar_alguem: '#0891b2', pedir_proposta: '#dc2626',
+        };
+        const amdColor = AMD_COLORS[intent.amd] ?? '#64748b';
+        return (
+          <Card variant="outlined" sx={{ borderLeft: `3px solid ${amdColor}`, bgcolor: `${amdColor}08`, mb: 0 }}>
+            <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <Chip size="small" label="Intent" sx={{ height: 16, fontSize: '0.58rem', bgcolor: amdColor, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }} />
+                <Chip size="small" label={intent.amd} sx={{ height: 16, fontSize: '0.62rem', bgcolor: `${amdColor}22`, color: amdColor, fontWeight: 700 }} />
+                <Chip size="small" label={intent.momento} sx={{ height: 16, fontSize: '0.62rem' }} />
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                  {intent.target_behavior}
+                </Typography>
+              </Stack>
+              {intent.triggers.length > 0 && (
+                <Stack direction="row" spacing={0.5} sx={{ mt: 0.75 }} flexWrap="wrap">
+                  {intent.triggers.map((t) => (
+                    <Chip key={t} size="small" label={t} sx={{ height: 14, fontSize: '0.58rem', bgcolor: 'action.hover' }} />
+                  ))}
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Dados principais */}
       <Card sx={{ opacity: hasTopContext ? 1 : 0.5, pointerEvents: hasTopContext ? 'auto' : 'none' }}>

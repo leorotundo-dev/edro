@@ -23,6 +23,7 @@ import {
   IconBulb,
   IconAlertTriangle,
   IconArrowRight,
+  IconSparkles,
   IconBrandInstagram,
   IconBrandFacebook,
   IconBrandLinkedin,
@@ -351,13 +352,18 @@ export default function PlatformClient() {
 
       const formats = response?.recommended_formats || [];
       setRecommendation(response);
-      setSelectedIds(
-        new Set(
-          formats.map((format) =>
-            buildSelectionId(format.platform, format.format_name, format.production_type)
-          )
-        )
-      );
+      if (formats.length > 0) {
+        setViewMode('ai_recommendation');
+        // Auto-select top 3 by score
+        const top3Ids = [...formats]
+          .sort((a, b) => b.recommendation_score - a.recommendation_score)
+          .slice(0, 3)
+          .map((f) => buildSelectionId(f.platform, f.format_name, f.production_type));
+        setSelectedIds(new Set(top3Ids));
+      } else {
+        setViewMode('manual');
+        setSelectedIds(new Set());
+      }
     } catch (err: any) {
       setError(err?.message || 'Falha ao gerar recomendacao.');
     } finally {
@@ -492,6 +498,7 @@ export default function PlatformClient() {
     return map;
   }, [formats]);
 
+  const [viewMode, setViewMode] = useState<'loading' | 'ai_recommendation' | 'manual'>('loading');
   const [flowStep, setFlowStep] = useState<1 | 2 | 3>(1);
   const [activeArea, setActiveArea] = useState<string>('all');
   const [activePlatform, setActivePlatform] = useState<string>('all');
@@ -752,8 +759,101 @@ export default function PlatformClient() {
         <Alert severity="warning">Selecione evento e clientes no topo para continuar.</Alert>
       ) : null}
 
+      {/* AI-First Recommendation View */}
+      {viewMode === 'ai_recommendation' && recommendation ? (
+        <Card sx={{ border: 2, borderColor: 'rgba(255,102,0,0.3)', bgcolor: 'rgba(255,102,0,0.02)' }}>
+          <CardContent>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+              <IconSparkles size={18} color="#ff6600" />
+              <Typography variant="subtitle1" fontWeight={700}>Recomendação da IA</Typography>
+              <Chip size="small" label={`${recommendation.recommended_formats.length} formatos`}
+                sx={{ bgcolor: 'rgba(255,102,0,0.1)', color: '#ff6600' }} />
+            </Stack>
+            {recommendation.summary && (
+              <Stack direction="row" spacing={3} sx={{ mb: 2, p: 1.5, bgcolor: 'background.default', borderRadius: 2 }}>
+                {recommendation.summary.total_estimated_cost ? (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Custo estimado</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      R$ {recommendation.summary.total_estimated_cost.toLocaleString('pt-BR')}
+                    </Typography>
+                  </Box>
+                ) : null}
+                {recommendation.summary.total_estimated_days ? (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Prazo estimado</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {recommendation.summary.total_estimated_days} dias úteis
+                    </Typography>
+                  </Box>
+                ) : null}
+                {recommendation.summary.avg_recommendation_score ? (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Score médio</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {recommendation.summary.avg_recommendation_score.toFixed(1)}/10
+                    </Typography>
+                  </Box>
+                ) : null}
+              </Stack>
+            )}
+            <Stack spacing={1} sx={{ mb: 2 }}>
+              {[...recommendation.recommended_formats]
+                .sort((a, b) => b.recommendation_score - a.recommendation_score)
+                .map((fmt) => {
+                  const fmtId = buildSelectionId(fmt.platform, fmt.format_name, fmt.production_type);
+                  const isChecked = selectedIds.has(fmtId);
+                  return (
+                    <Card key={fmtId} variant="outlined" sx={{
+                      cursor: 'pointer',
+                      borderColor: isChecked ? '#ff6600' : 'divider',
+                      borderWidth: isChecked ? 1.5 : 1,
+                      transition: 'all 0.15s',
+                      '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.02)' },
+                    }} onClick={() => toggleFormat(fmtId)}>
+                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack direction="row" alignItems="center" spacing={2}>
+                          <Checkbox checked={isChecked} size="small" sx={{ p: 0, color: '#ff6600', '&.Mui-checked': { color: '#ff6600' } }} onChange={() => toggleFormat(fmtId)} onClick={(e) => e.stopPropagation()} />
+                          <Box sx={{ flex: 1 }}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                              <Typography variant="subtitle2" fontWeight={700}>{fmt.format_name}</Typography>
+                              <Chip size="small" label={fmt.platform} sx={{ height: 18, fontSize: '0.65rem' }} />
+                              <Chip size="small"
+                                label={`Score ${fmt.recommendation_score.toFixed(1)}`}
+                                sx={{
+                                  height: 18, fontSize: '0.65rem', fontWeight: 700,
+                                  bgcolor: fmt.recommendation_score >= 8.5 ? '#dcfce7' : '#fef9c3',
+                                  color: fmt.recommendation_score >= 8.5 ? '#16a34a' : '#854d0e',
+                                }} />
+                            </Stack>
+                            {fmt.recommendation_reasons?.[0] ? (
+                              <Typography variant="caption" color="text.secondary">
+                                {fmt.recommendation_reasons[0]}
+                              </Typography>
+                            ) : null}
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+            </Stack>
+            <Button fullWidth variant="contained" size="large"
+              onClick={handleContinue}
+              disabled={selectedIds.size === 0 || saving}
+              sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none', mb: 1 }}>
+              {saving ? 'Salvando...' : `Usar ${selectedIds.size} formato${selectedIds.size !== 1 ? 's' : ''} selecionado${selectedIds.size !== 1 ? 's' : ''}`}
+            </Button>
+            <Button fullWidth variant="text" onClick={() => setViewMode('manual')}
+              sx={{ textTransform: 'none', color: 'text.secondary' }}>
+              Personalizar manualmente
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Recommendation Insights */}
-      {recommendationInsights ? (
+      {viewMode === 'manual' && recommendationInsights ? (
         <Card sx={{ bgcolor: 'primary.lighter', border: 1, borderColor: 'primary.light' }}>
           <CardContent>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
@@ -793,15 +893,17 @@ export default function PlatformClient() {
         </Card>
       ) : null}
 
-      {/* Flow stepper */}
-      <Stepper activeStep={flowStep - 1} alternativeLabel>
-        <Step completed={flowStep > 1}><StepLabel>Area</StepLabel></Step>
-        <Step completed={flowStep > 2}><StepLabel>Plataforma</StepLabel></Step>
-        <Step completed={flowStep > 3}><StepLabel>Formatos</StepLabel></Step>
-      </Stepper>
+      {/* Manual Flow stepper */}
+      {viewMode === 'manual' ? (
+        <Stepper activeStep={flowStep - 1} alternativeLabel>
+          <Step completed={flowStep > 1}><StepLabel>Area</StepLabel></Step>
+          <Step completed={flowStep > 2}><StepLabel>Plataforma</StepLabel></Step>
+          <Step completed={flowStep > 3}><StepLabel>Formatos</StepLabel></Step>
+        </Stepper>
+      ) : null}
 
       {/* Step 1 - Area */}
-      {flowStep === 1 ? (
+      {viewMode === 'manual' && flowStep === 1 ? (
         <Card>
           <CardContent>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -838,7 +940,7 @@ export default function PlatformClient() {
       ) : null}
 
       {/* Step 2 - Platform */}
-      {flowStep === 2 ? (
+      {viewMode === 'manual' && flowStep === 2 ? (
         <Card>
           <CardContent>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -913,7 +1015,7 @@ export default function PlatformClient() {
       ) : null}
 
       {/* Step 3 - Formats */}
-      {flowStep === 3 ? (
+      {viewMode === 'manual' && flowStep === 3 ? (
         <Card>
           <CardContent>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2} sx={{ mb: 2 }}>
@@ -1036,15 +1138,17 @@ export default function PlatformClient() {
         </Card>
       ) : null}
 
-      {/* Footer actions */}
-      <Stack direction="row" justifyContent="flex-end" spacing={2}>
-        <Button variant="outlined" onClick={() => router.back()}>
-          Voltar
-        </Button>
-        <Button variant="contained" onClick={handleContinue} disabled={saving}>
-          {saving ? 'Salvando...' : 'Continuar para Copy'}
-        </Button>
-      </Stack>
+      {/* Footer actions — only shown in manual mode */}
+      {viewMode === 'manual' ? (
+        <Stack direction="row" justifyContent="flex-end" spacing={2}>
+          <Button variant="outlined" onClick={() => router.back()}>
+            Voltar
+          </Button>
+          <Button variant="contained" onClick={handleContinue} disabled={saving}>
+            {saving ? 'Salvando...' : 'Continuar para Copy'}
+          </Button>
+        </Stack>
+      ) : null}
     </Stack>
   );
 }

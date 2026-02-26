@@ -1,5 +1,5 @@
 import { env } from '../../env';
-import { CopyOrchestrator, TaskType, CopyProvider, UsageContext } from './copyOrchestrator';
+import { CopyOrchestrator, TaskType, CopyProvider, UsageContext, VariationQualityScore, generateWithProvider } from './copyOrchestrator';
 
 export { CopyProvider, TaskType };
 
@@ -415,5 +415,344 @@ export function getOrchestratorInfo() {
   return {
     providers: CopyOrchestrator.getAvailableProvidersInfo(),
     routing: CopyOrchestrator.getRoutingInfo(),
+  };
+}
+
+// ── Helpers para TAREFA 11 ──────────────────────────────────────────────────
+
+function extractChecklistFromAnalysis(analysisOutput: string): string {
+  try {
+    const start = analysisOutput.indexOf('{');
+    const end = analysisOutput.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      const parsed = JSON.parse(analysisOutput.slice(start, end + 1));
+      if (Array.isArray(parsed?.approval_checklist)) {
+        return parsed.approval_checklist
+          .map((item: any) => `- [${item.weight?.toUpperCase() ?? 'HIGH'}] ${item.rule}`)
+          .join('\n');
+      }
+    }
+  } catch { /* ignore */ }
+  return '- Tom alinhado ao DNA da marca\n- CTA específico e acionável\n- Sem abertura clichê\n- Limite de caracteres respeitado';
+}
+
+const buildReviewPromptWithScores = (analysisOutput: string, creativeOutput: string) => `
+Você é o editor-chefe de uma agência de comunicação de alto nível.
+Avalie cada variação de copy abaixo com rigor editorial.
+
+APPROVAL CHECKLIST (extraído da análise estratégica):
+${extractChecklistFromAnalysis(analysisOutput)}
+
+Para CADA variação, retorne um JSON com esta estrutura exata:
+{
+  "quality_scores": [
+    {
+      "variation_index": 0,
+      "scores": {
+        "brand_dna_match": 8.5,
+        "platform_fit": 9.0,
+        "cta_clarity": 7.0,
+        "message_clarity": 8.5,
+        "originality": 8.0
+      },
+      "overall": 8.2,
+      "pass": true,
+      "issues": []
+    }
+  ],
+  "best_variation_index": 0,
+  "needs_revision": false,
+  "revision_instructions": null
+}
+
+Critério de aprovação (pass=true): overall >= 7.5 E nenhuma dimensão < 6.0.
+Se needs_revision=true, inclua "issues" com lista de ações específicas para corrigir.
+
+VARIAÇÕES GERADAS:
+${creativeOutput}
+
+DIREÇÃO ESTRATÉGICA:
+${analysisOutput}
+`;
+
+const buildRevisionPrompt = (bestVariation: string, issues: string[]) => `
+Você é um redator criativo revisando sua própria copy com base em feedback específico do editor.
+Reescreva a copy abaixo corrigindo TODOS os problemas listados. Mantenha o que está bom.
+
+COPY ATUAL:
+${bestVariation}
+
+PROBLEMAS A CORRIGIR (obrigatório resolver todos):
+${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
+
+Retorne APENAS a copy revisada no mesmo formato (Arte - Titulo / Arte - Corpo / Legenda / CTA).
+Não adicione explicações.
+`;
+
+const buildFinalReviewPrompt = (revisedVariation: string, previousScore: VariationQualityScore) => `
+Você é o editor-chefe avaliando uma copy revisada que anteriormente teve score ${previousScore.overall.toFixed(1)}/10.
+
+Os problemas identificados anteriormente eram:
+${previousScore.issues.map((i) => `- ${i}`).join('\n') || '- Nenhum problema específico identificado'}
+
+Avalie se a versão revisada resolveu os problemas. Retorne JSON:
+{
+  "quality_scores": [{
+    "variation_index": 0,
+    "scores": { "brand_dna_match": 0, "platform_fit": 0, "cta_clarity": 0, "message_clarity": 0, "originality": 0 },
+    "overall": 0,
+    "pass": false,
+    "issues": []
+  }],
+  "best_variation_index": 0,
+  "needs_revision": false,
+  "revision_instructions": null
+}
+
+COPY REVISADA:
+${revisedVariation}
+`;
+
+/**
+ * Pipeline colaborativo com loop de qualidade (TAREFA 11).
+ * Gemini analisa → GPT-4 cria → Claude avalia com scores por variação.
+ * Se score < 7.5, GPT-4 faz revisão cirúrgica → Claude aprova/reprova.
+ * Loop máximo: 2 ciclos.
+ */
+export async function generateCollaborativeCopyWithLoop(params: {
+  prompt: string;
+  count: number;
+  knowledgeBlock?: string;
+  reporteiHint?: string;
+  clientName?: string;
+  instructions?: string;
+  maxLoops?: number;
+  usageContext?: UsageContext;
+}): Promise<CopyPipelineResult> {
+  // Reuse the analysis and creative prompts from generateCollaborativeCopy
+  // but use the new review/revision prompts
+  const analysisPrompt = [
+    'Voce e o Estrategista-Chefe de uma agencia de publicidade de alta performance.',
+    'Analise o briefing e o perfil do cliente. Declare a estrategia psicologica que guiara o copy.',
+    '',
+    'Retorne APENAS um JSON valido:',
+    '{',
+    '  "psychological_strategy": "...",',
+    '  "dominant_trigger": "loss_aversion | specificity | curiosity",',
+    '  "tone_approach": "...",',
+    '  "target_audience": "...",',
+    '  "ideal_tone": "...",',
+    '  "key_hooks": ["..."],',
+    '  "cultural_references": ["..."],',
+    '  "mandatory_elements": ["..."],',
+    '  "restrictions": ["..."],',
+    '  "platform_best_practices": "...",',
+    '  "creative_direction": "...",',
+    '  "approval_checklist": [',
+    '    { "id": "tone_check", "rule": "Tom alinhado ao DNA do cliente", "weight": "critical" },',
+    '    { "id": "cta_required", "rule": "Copy deve ter CTA específico e acionável", "weight": "high" },',
+    '    { "id": "no_cliche", "rule": "Sem abertura clichê ou adjetivo qualitativo sem dado", "weight": "high" },',
+    '    { "id": "char_limit", "rule": "Respeitar limite de caracteres do formato", "weight": "medium" }',
+    '  ]',
+    '}',
+    '',
+    params.clientName ? `Cliente: ${params.clientName}` : '',
+    params.knowledgeBlock ? `\nBASE DO CLIENTE:\n${params.knowledgeBlock}` : '',
+    params.reporteiHint || '',
+    '',
+    'BRIEFING:',
+    params.prompt,
+  ].filter(Boolean).join('\n');
+
+  const buildCreativePrompt = (analysisOutput: string) => [
+    'Voce e um redator criativo de agencia de publicidade premiada.',
+    `Crie ${params.count} variacoes de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
+    '',
+    'FORMATO OBRIGATORIO — use EXATAMENTE este modelo:',
+    'OPCAO 1:',
+    'Arte - Titulo: [headline curto e impactante, ate 8 palavras]',
+    'Arte - Corpo: [texto curto do criativo, 1 a 2 frases]',
+    'Legenda: [caption completo com hashtags, 3 a 5 paragrafos]',
+    'CTA: [chamada para acao]',
+    '',
+    'OPCAO 2:',
+    '(mesmo formato acima)',
+    '',
+    'NAO use JSON, NAO use markdown.',
+    '',
+    'DIRETRIZES DO ESTRATEGISTA:',
+    analysisOutput,
+    '',
+    'BRIEFING ORIGINAL:',
+    params.prompt,
+    params.instructions ? `\nINSTRUCOES EXTRAS: ${params.instructions}` : '',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const result = await CopyOrchestrator.runCollaborativePipelineWithLoop({
+      analysisPrompt,
+      creativePrompt: buildCreativePrompt,
+      reviewPrompt: buildReviewPromptWithScores,
+      revisionPrompt: buildRevisionPrompt,
+      finalReviewPrompt: buildFinalReviewPrompt,
+      maxLoops: params.maxLoops ?? 2,
+      usageContext: params.usageContext,
+    });
+
+    return {
+      output: result.output,
+      model: result.model,
+      payload: {
+        pipeline: 'collaborative_loop',
+        stages: result.stages,
+        analysis_json: result.analysis_json,
+        creative_raw: result.creative_raw,
+        total_duration_ms: result.total_duration_ms,
+        quality_score: result.quality_score ?? null,
+        quality_scores: result.quality_scores,
+        best_variation_index: result.best_variation_index,
+        revision_count: result.revision_count,
+        revision_history: result.revision_history,
+        approval_checklist: result.approval_checklist,
+        cycle_count: result.cycle_count ?? 0,
+        _pipeline: 'collaborative_loop',
+      },
+    };
+  } catch (error: any) {
+    // Fallback to standard collaborative pipeline
+    return generateCollaborativeCopy({
+      prompt: params.prompt,
+      count: params.count,
+      knowledgeBlock: params.knowledgeBlock,
+      reporteiHint: params.reporteiHint,
+      clientName: params.clientName,
+      instructions: params.instructions,
+      usageContext: params.usageContext,
+    });
+  }
+}
+
+// ── 11.3 Adversarial Mode ─────────────────────────────────────────────────
+
+export type AdversarialCopyResult = {
+  synthesis: string;
+  versions: { gemini: string; openai: string; claude: string };
+  contributions: { gemini: string; openai: string; claude: string };
+  payload: {
+    pipeline: 'adversarial';
+    synthesis: string;
+    versions: { gemini: string; openai: string; claude: string };
+    contributions: { gemini: string; openai: string; claude: string };
+  };
+};
+
+function parseAdversarialSynthesis(text: string): { synthesis: string; contributions: { gemini: string; openai: string; claude: string } } {
+  const fallback = { synthesis: text.trim(), contributions: { gemini: '—', openai: '—', claude: '—' } };
+  try {
+    const trimmed = text.trim();
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) return fallback;
+    const parsed = JSON.parse(trimmed.slice(start, end + 1));
+    return {
+      synthesis: String(parsed.synthesis || '').trim() || fallback.synthesis,
+      contributions: {
+        gemini: String(parsed.contributions?.gemini || '—'),
+        openai: String(parsed.contributions?.openai || '—'),
+        claude: String(parsed.contributions?.claude || '—'),
+      },
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export async function generateAdversarialCopy(params: {
+  prompt: string;
+  knowledgeBlock?: string;
+  usageContext?: UsageContext;
+}): Promise<AdversarialCopyResult> {
+  const knowledgeSection = params.knowledgeBlock ? `\n\nBASE DO CLIENTE:\n${params.knowledgeBlock}` : '';
+
+  const [geminiOutput, openaiOutput, claudeOutput] = await Promise.all([
+    generateWithProvider('gemini', {
+      prompt: `Você é um estrategista de comunicação orientado a dados e tendências culturais.
+Crie 1 versão de copy fortemente embasada em dados, tendências atuais e contexto cultural do momento.
+Formato: título / corpo / CTA / hashtags.
+
+BRIEFING:
+${params.prompt}${knowledgeSection}`,
+      temperature: 0.5,
+      maxTokens: 600,
+    }),
+    generateWithProvider('openai', {
+      prompt: `Você é um diretor criativo premiado que pensa fora do óbvio.
+Crie 1 versão de copy surpreendente, ousada e memorável — quebrando o padrão esperado do segmento.
+Formato: título / corpo / CTA / hashtags.
+
+BRIEFING:
+${params.prompt}${knowledgeSection}`,
+      temperature: 0.85,
+      maxTokens: 600,
+    }),
+    generateWithProvider('claude', {
+      prompt: `Você é o guardião da marca de um cliente exigente.
+Crie 1 versão de copy 100% alinhada ao DNA da marca, segura, precisa e sem riscos.
+Formato: título / corpo / CTA / hashtags.
+
+BRIEFING:
+${params.prompt}${knowledgeSection}`,
+      temperature: 0.35,
+      maxTokens: 600,
+    }),
+  ]);
+
+  const synthesisOutput = await generateWithProvider('claude', {
+    prompt: `Você é o editor-chefe recebendo 3 versões de copy criadas por estrategistas diferentes.
+Analise as 3 versões e crie uma SÍNTESE que combine os melhores elementos de cada uma.
+Explique brevemente (1 frase por versão) o que foi aproveitado de cada perspectiva.
+
+VERSÃO ESTRATEGISTA (dados e tendências):
+${geminiOutput.output}
+
+VERSÃO DIRETOR CRIATIVO (bold e inesperado):
+${openaiOutput.output}
+
+VERSÃO GUARDIÃO DA MARCA (alinhamento DNA):
+${claudeOutput.output}
+
+Retorne JSON:
+{
+  "synthesis": "copy final sintetizada (título / corpo / CTA / hashtags)",
+  "contributions": {
+    "gemini": "o que foi aproveitado desta perspectiva",
+    "openai": "o que foi aproveitado desta perspectiva",
+    "claude": "o que foi aproveitado desta perspectiva"
+  }
+}`,
+    temperature: 0.3,
+    maxTokens: 900,
+  });
+
+  const parsed = parseAdversarialSynthesis(synthesisOutput.output);
+
+  return {
+    synthesis: parsed.synthesis,
+    versions: {
+      gemini: geminiOutput.output,
+      openai: openaiOutput.output,
+      claude: claudeOutput.output,
+    },
+    contributions: parsed.contributions,
+    payload: {
+      pipeline: 'adversarial',
+      synthesis: parsed.synthesis,
+      versions: {
+        gemini: geminiOutput.output,
+        openai: openaiOutput.output,
+        claude: claudeOutput.output,
+      },
+      contributions: parsed.contributions,
+    },
   };
 }

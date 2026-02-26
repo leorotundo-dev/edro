@@ -5,6 +5,7 @@ import { encryptJSON, decryptJSON } from '../security/secrets';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
+import { syncInstagramMetrics } from '../services/integrations/instagramSyncService';
 
 let connectorsReady = false;
 
@@ -367,6 +368,29 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         [(request.user as any).tenant_id, params.clientId, params.provider]
       );
       return { ok: true };
+    }
+  );
+
+  // ── Instagram Metrics Sync ───────────────────────────────────────────────
+  app.post(
+    '/clients/:clientId/connectors/meta/sync',
+    { preHandler: [tenantGuard(), requirePerm('integrations:write'), requireClientPerm('publish')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+
+      try {
+        const result = await syncInstagramMetrics(tenantId, clientId);
+        return reply.send({ success: true, data: result });
+      } catch (err: any) {
+        const known: Record<string, number> = {
+          meta_connector_not_found: 404,
+          meta_token_missing: 422,
+          instagram_business_id_missing: 422,
+        };
+        const status = known[err.message] ?? 500;
+        return reply.status(status).send({ success: false, error: err.message });
+      }
     }
   );
 }

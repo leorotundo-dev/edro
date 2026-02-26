@@ -208,7 +208,6 @@ export class BriefingAnalyzer {
         generateCopy({
           prompt,
           taskType: 'briefing_analysis',
-          tier: 'fast',
           maxTokens: 2000,
         }),
         BRIEFING_LLM_TIMEOUT_MS,

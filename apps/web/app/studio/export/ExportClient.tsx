@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -11,8 +11,10 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import { IconMail, IconSparkles } from '@tabler/icons-react';
 
 type BriefingPayload = {
   id: string;
@@ -46,6 +48,8 @@ export default function ExportClient() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null);
+  const [generatingEmail, setGeneratingEmail] = useState(false);
 
   const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
 
@@ -148,6 +152,24 @@ export default function ExportClient() {
       router.push('/clients');
     } catch (err: any) {
       setError(err?.message || 'Falha ao finalizar entrega.');
+    }
+  };
+
+  const handleGenerateEmailDraft = async () => {
+    setGeneratingEmail(true);
+    try {
+      const formatList = mockups.slice(0, 10).map((m) => `${m.platform} — ${m.format}`).filter(Boolean);
+      const res = await apiPost<{ success: boolean; data: { subject: string; body: string } }>('/ai/email-draft', {
+        briefing_id: briefingId || undefined,
+        client_name: briefing?.client_name || undefined,
+        title: briefing?.title || undefined,
+        format_list: formatList,
+      });
+      if (res?.data) setEmailDraft(res.data);
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingEmail(false);
     }
   };
 
@@ -278,6 +300,51 @@ export default function ExportClient() {
                     Limpar
                   </Button>
                 </Stack>
+              </CardContent>
+            </Card>
+
+            {/* Email de Aprovação */}
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <IconMail size={18} color="#ff6600" />
+                  <Typography variant="subtitle2" fontWeight={700}>Enviar para aprovação</Typography>
+                </Stack>
+                {!emailDraft ? (
+                  <Button variant="outlined" fullWidth onClick={handleGenerateEmailDraft}
+                    disabled={generatingEmail}
+                    startIcon={generatingEmail ? <CircularProgress size={14} /> : <IconSparkles size={14} />}
+                    sx={{ borderColor: '#ff6600', color: '#ff6600', textTransform: 'none' }}>
+                    {generatingEmail ? 'Gerando...' : 'Gerar email de aprovação'}
+                  </Button>
+                ) : (
+                  <Box>
+                    <TextField fullWidth size="small" label="Assunto" value={emailDraft.subject}
+                      onChange={(e) => setEmailDraft((d) => d ? { ...d, subject: e.target.value } : d)}
+                      sx={{ mb: 1.5 }} />
+                    <TextField fullWidth multiline rows={6} size="small" label="Corpo do email"
+                      value={emailDraft.body}
+                      onChange={(e) => setEmailDraft((d) => d ? { ...d, body: e.target.value } : d)}
+                      sx={{ mb: 1.5 }} />
+                    <Stack direction="row" spacing={1}>
+                      <Button variant="contained" size="small"
+                        onClick={() => briefing?.id && apiPost(`/edro/briefings/${briefing.id}/send-email`, emailDraft).catch(() => {})}
+                        sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}>
+                        Enviar email
+                      </Button>
+                      <Button variant="text" size="small"
+                        onClick={() => navigator.clipboard?.writeText(emailDraft.body).catch(() => {})}
+                        sx={{ textTransform: 'none', color: 'text.secondary' }}>
+                        Copiar texto
+                      </Button>
+                      <Button variant="text" size="small"
+                        onClick={() => setEmailDraft(null)}
+                        sx={{ textTransform: 'none', color: 'text.secondary' }}>
+                        Resetar
+                      </Button>
+                    </Stack>
+                  </Box>
+                )}
               </CardContent>
             </Card>
 

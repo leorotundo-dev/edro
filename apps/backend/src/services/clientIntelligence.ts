@@ -869,7 +869,7 @@ strategic_notes (array), summary_text (string).
     normalizedSummary.forbidden_claims = normalizeFieldList(normalizedSummary.forbidden_claims);
     normalizedSummary.strategic_notes = normalizeFieldList(normalizedSummary.strategic_notes);
 
-    const summary = {
+    const summary: Record<string, any> = {
       ...normalizedSummary,
       sources: docs.length,
       updated_at: new Date().toISOString(),

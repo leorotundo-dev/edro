@@ -1,23 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { getOidcClient } from '../auth/oidc';
+import * as oidcClient from 'openid-client';
 import { findUserByEmail, upsertUser } from '../repositories/edroUserRepository';
 import { ensureTenantForDomain, ensureTenantMembership, mapRoleToTenantRole } from '../repos/tenantRepo';
 
 export default async function ssoRoutes(app: FastifyInstance) {
   app.get('/auth/sso/start', async (_request, reply) => {
-    const client = await getOidcClient();
-    const url = client.authorizationUrl({
+    const config = await getOidcClient();
+    const url = oidcClient.buildAuthorizationUrl(config, {
       scope: 'openid email profile',
       prompt: 'select_account',
     });
-    return reply.redirect(url);
+    return reply.redirect(url.toString());
   });
 
   app.get('/auth/sso/callback', async (request: any, reply: any) => {
-    const client = await getOidcClient();
-    const params = client.callbackParams(request.raw);
-    const tokenSet = await client.callback(process.env.OIDC_REDIRECT_URI!, params, {});
-    const claims = tokenSet.claims();
+    const config = await getOidcClient();
+    const reqUrl = new URL(request.url, `http://${request.headers.host}`);
+    const tokenSet = await oidcClient.authorizationCodeGrant(config, reqUrl);
+    const claims = (tokenSet.claims() ?? {}) as Record<string, any>;
 
     const email = String(claims.email || '');
     const name = String(claims.name || claims.given_name || email || '');

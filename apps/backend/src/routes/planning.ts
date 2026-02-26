@@ -178,15 +178,15 @@ async function resolveBriefingFromCommand(params: {
   }
 
   const briefings = await listBriefings({ clientId: params.clientId, limit: 20 });
-  if (!briefings.length) return null;
+  if (!briefings.rows.length) return null;
 
   const title = (params.briefingTitle || '').trim().toLowerCase();
   if (title && title !== 'latest') {
-    const match = briefings.find((b) => (b.title || '').toLowerCase().includes(title));
+    const match = briefings.rows.find((b) => (b.title || '').toLowerCase().includes(title));
     if (match) return match;
   }
 
-  return briefings[0] || null;
+  return briefings.rows[0] || null;
 }
 
 async function buildClientContext(tenantId: string, clientId: string): Promise<string> {

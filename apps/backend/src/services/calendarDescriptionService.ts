@@ -67,10 +67,10 @@ Forneça uma descrição informativa sobre esta data.`;
 
     // Tentar parsear JSON
     try {
-      const parsed = JSON.parse(response);
+      const parsed = JSON.parse(response.text || '');
       return {
         evento,
-        descricao: parsed.descricao || response,
+        descricao: parsed.descricao || response.text,
         origem: parsed.origem,
         curiosidade: parsed.curiosidade,
       };
@@ -78,7 +78,7 @@ Forneça uma descrição informativa sobre esta data.`;
       // Se não for JSON válido, retornar como descrição simples
       return {
         evento,
-        descricao: response,
+        descricao: response.text,
       };
     }
   } catch (error) {

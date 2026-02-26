@@ -5,6 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import { createBriefing, createBriefingStages } from '../repositories/edroBriefingRepository';
 import { recordPreferenceFeedback } from '../services/preferenceEngine';
+import { generatePautaSuggestions } from '../services/pautaSuggestionService';
 
 const approveSchema = z.object({
   approach: z.enum(['A', 'B']).default('A'),
@@ -44,61 +45,52 @@ export default async function pautaInboxRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const body = generateSchema.parse(request.body || {});
-      const now = new Date().toISOString().slice(0, 10);
 
-      const approachA =
-        body.approach_a ||
-        {
-          title: `${body.title} · visao institucional`,
-          angle: body.source_text || body.title,
-          message: `Enfoque institucional com dados, contexto e impacto no negocio.`,
-          tone: 'Profissional',
-          platforms: body.platforms || ['LinkedIn Post', 'Instagram Feed'],
-        };
+      // If caller provides both approaches (pre-computed), save directly
+      if (body.approach_a && body.approach_b) {
+        const now = new Date().toISOString().slice(0, 10);
+        const { rows } = await query<any>(
+          `
+          INSERT INTO pauta_suggestions (
+            tenant_id, client_id, title,
+            approach_a, approach_b,
+            source_type, source_id, source_domain, source_text,
+            ai_score, topic_category, suggested_deadline, platforms
+          ) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13)
+          RETURNING *
+          `,
+          [
+            tenantId, body.client_id, body.title,
+            JSON.stringify(body.approach_a), JSON.stringify(body.approach_b),
+            body.source_type || 'manual', body.source_id || null,
+            body.source_domain || null, body.source_text || null,
+            body.ai_score ?? null, body.topic_category || null,
+            body.suggested_deadline || now, body.platforms || null,
+          ]
+        );
+        return reply.send({ ok: true, item: rows[0] });
+      }
 
-      const approachB =
-        body.approach_b ||
-        {
-          title: `${body.title} · visao oportunidade`,
-          angle: body.source_text || body.title,
-          message: `Enfoque de oportunidade com CTA e aplicacao pratica.`,
-          tone: 'Inspirador',
-          platforms: body.platforms || ['Instagram Story', 'Instagram Feed'],
-        };
+      // Otherwise: trigger AI generation via pautaSuggestionService (async, respond immediately)
+      reply.send({ ok: true, queued: true });
 
-      const { rows } = await query<any>(
-        `
-        INSERT INTO pauta_suggestions (
-          tenant_id, client_id, title,
-          approach_a, approach_b,
-          source_type, source_id, source_domain, source_text,
-          ai_score, topic_category, suggested_deadline, platforms
-        ) VALUES (
-          $1,$2,$3,
-          $4::jsonb,$5::jsonb,
-          $6,$7,$8,$9,
-          $10,$11,$12,$13
-        )
-        RETURNING *
-        `,
-        [
-          tenantId,
-          body.client_id,
-          body.title,
-          JSON.stringify(approachA),
-          JSON.stringify(approachB),
-          body.source_type || 'manual',
-          body.source_id || null,
-          body.source_domain || null,
-          body.source_text || null,
-          body.ai_score ?? null,
-          body.topic_category || null,
-          body.suggested_deadline || now,
-          body.platforms || null,
-        ]
-      );
-
-      return reply.send({ ok: true, item: rows[0] });
+      // Fire-and-forget AI generation
+      setImmediate(() => {
+        generatePautaSuggestions({
+          client_id: body.client_id,
+          tenant_id: tenantId,
+          sources: [{
+            type: body.source_type || 'manual',
+            id: body.source_id || `manual_${Date.now()}`,
+            title: body.title,
+            summary: body.source_text || body.title,
+            domain: body.source_domain || undefined,
+            score: body.ai_score,
+          }],
+        }).catch((err: any) => {
+          console.error('[pautaInbox/generate] AI generation failed:', err?.message);
+        });
+      });
     }
   );
 

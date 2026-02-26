@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, apiPost } from '@/lib/api';
 import { InstagramFeedMockup } from '@/components/mockups/instagram/InstagramFeedMockup';
 import { InstagramStoryMockup } from '@/components/mockups/instagram/InstagramStoryMockup';
 import { InstagramProfileMockup } from '@/components/mockups/instagram/InstagramProfileMockup';
@@ -19,6 +19,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
@@ -35,6 +36,8 @@ import {
   IconX,
   IconPhoto,
   IconLink,
+  IconSparkles,
+  IconCopy,
 } from '@tabler/icons-react';
 
 type InventoryItem = {
@@ -629,6 +632,8 @@ export default function Page() {
   const [syncing, setSyncing] = useState<boolean>(false);
   const [creativeImageUrl, setCreativeImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [showCopyEditor, setShowCopyEditor] = useState(false);
   const [editedCopy, setEditedCopy] = useState<{ headline: string; body: string; cta: string }>({
     headline: '',
@@ -1226,6 +1231,39 @@ export default function Page() {
     }
   };
 
+  const handleGenerateImagePrompt = async () => {
+    setGeneratingPrompt(true);
+    try {
+      const briefingId = safeGet('edro_briefing_id');
+      const clientId = safeGet('edro_active_client_id') || undefined;
+      const contextRaw = safeGet('edro_studio_context');
+      let brief = '';
+      let briefEvent = '';
+      try {
+        const ctx = JSON.parse(contextRaw || '{}');
+        brief = ctx.title || ctx.event || '';
+        briefEvent = ctx.event || '';
+      } catch { /* ignore */ }
+
+      const activeMockup = displayMockups[0];
+      const platform = activeMockup?.platform || safeGet('edro_active_platform') || '';
+      const format = activeMockup?.format || '';
+
+      const res = await apiPost<{ success: boolean; prompt: string }>('/ai/image-prompt', {
+        client_id: clientId,
+        brief,
+        platform,
+        format,
+        event: briefEvent,
+      });
+      if (res?.prompt) setImagePrompt(res.prompt);
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingPrompt(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
@@ -1776,6 +1814,32 @@ export default function Page() {
                   }}
                   InputProps={{ sx: { fontSize: 12 } }}
                 />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleGenerateImagePrompt}
+                  disabled={generatingPrompt}
+                  startIcon={generatingPrompt ? <CircularProgress size={12} /> : <IconSparkles size={14} />}
+                  sx={{ borderColor: '#ff6600', color: '#ff6600', fontSize: '0.72rem', textTransform: 'none' }}
+                >
+                  {generatingPrompt ? 'Gerando prompt...' : 'Gerar prompt Midjourney/DALL-E'}
+                </Button>
+                {imagePrompt && (
+                  <Box sx={{ p: 1, bgcolor: 'rgba(93,135,255,0.06)', borderRadius: 1, border: '1px solid rgba(93,135,255,0.2)' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 0.5 }}>
+                      <Typography variant="caption" fontWeight={700} color="#5D87FF" sx={{ fontSize: '0.62rem' }}>
+                        PROMPT GERADO
+                      </Typography>
+                      <IconButton size="small" onClick={() => { navigator.clipboard?.writeText(imagePrompt).catch(() => {}); }}
+                        sx={{ p: 0.25 }}>
+                        <IconCopy size={12} />
+                      </IconButton>
+                    </Stack>
+                    <Typography variant="caption" sx={{ fontSize: '0.72rem', fontFamily: 'monospace', lineHeight: 1.5, display: 'block' }}>
+                      {imagePrompt}
+                    </Typography>
+                  </Box>
+                )}
               </Stack>
             )}
           </CardContent>

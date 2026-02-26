@@ -151,7 +151,7 @@ export type CognitiveLoadAnalysis = {
   lc: number;
   components: CognitiveLoadComponents;
   platform: string;
-  threshold: { min: number; max: number; label: string };
+  threshold: PlatformThreshold;
   passed: boolean;
   status: 'ok' | 'too_high' | 'too_low';
   diagnosis: string[];
@@ -189,7 +189,7 @@ export function analyzeCognitiveLoad(
     lc,
     components: { ws, ds, sigma, phi },
     platform: threshold.label,
-    threshold: { min: threshold.min, max: threshold.max, label: threshold.label },
+    threshold,
     passed,
     status,
     diagnosis,

@@ -59,7 +59,6 @@ SAIDA (JSON):
       const result = await generateCopy({
         prompt,
         taskType: 'validation',
-        tier: 'fast',
         temperature: 0.2,
         maxTokens: 1500,
       });

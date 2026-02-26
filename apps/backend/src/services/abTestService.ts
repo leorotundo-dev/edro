@@ -1,5 +1,7 @@
 import { query } from '../db';
 import { rebuildClientPreferences } from './learningLoopService';
+import { recomputeClientLearningRules } from './learningEngine';
+import { recomputeClientBehaviorProfiles } from './behaviorClusteringService';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -156,6 +158,8 @@ export async function declareWinner(params: {
         [winnerId],
       );
       rebuildClientPreferences({ tenant_id: params.tenant_id, client_id: clientId }).catch(() => {});
+      recomputeClientLearningRules(params.tenant_id, clientId).catch(() => {});
+      recomputeClientBehaviorProfiles(params.tenant_id, clientId).catch(() => {});
     }
   }
 

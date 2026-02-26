@@ -50,9 +50,46 @@ import {
   IconArrowRight,
   IconExternalLink,
   IconStarFilled,
+  IconFlag,
+  IconBulb,
+  IconFileText,
+  IconBrandInstagram,
+  IconLink,
+  IconLinkOff,
+  IconUsersGroup,
 } from '@tabler/icons-react';
+import { apiDelete } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+type Phase = {
+  id: string;
+  name: string;
+  order: number;
+  objective?: string;
+};
+
+type CreativeConcept = {
+  id: string;
+  campaign_id: string;
+  phase_id: string | null;
+  name: string;
+  insight: string | null;
+  triggers: string[];
+  example_copy: string | null;
+  hero_piece: string | null;
+  status: string;
+  created_at: string;
+};
+
+type LinkedBriefing = {
+  id: string;
+  title: string;
+  status: string;
+  campaign_phase_id: string | null;
+  behavior_intent_id: string | null;
+  created_at: string;
+};
 
 type Campaign = {
   id: string;
@@ -64,6 +101,9 @@ type Campaign = {
   end_date: string | null;
   status: string;
   created_at: string;
+  phases: Phase[];
+  audiences: Record<string, any>[];
+  behavior_intents: Record<string, any>[];
 };
 
 type CampaignFormat = {
@@ -91,6 +131,9 @@ type CampaignFormat = {
   launched_at: string | null;
   is_locked: boolean;
   locked_at: string | null;
+  instagram_post_url: string | null;
+  instagram_media_id: string | null;
+  last_metrics_synced_at: string | null;
 };
 
 type FormatSummary = {
@@ -114,6 +157,53 @@ type FormatRow = {
   format_name: string;
   platform: string;
   production_type: string;
+};
+
+type BehavioralCopyResult = {
+  id?: string | null;  // persisted row id in campaign_behavioral_copies
+  draft: {
+    hook_text: string;
+    content_text: string;
+    cta_text: string;
+    media_type: string;
+    behavioral_rationale: string;
+  };
+  audit: {
+    approval_status: 'approved' | 'needs_revision' | 'blocked';
+    approved_text: string;
+    revision_notes: string[];
+    fogg_score: { motivation: number; ability: number; prompt: number };
+    behavior_tags: { emotional_tone: string; micro_behavior: string; triggers: string[] };
+    policy_flags: string[];
+  };
+  phase?: string;
+  persona_used?: string;
+};
+
+type BehaviorCluster = {
+  cluster_type: 'salvadores' | 'clicadores' | 'leitores_silenciosos' | 'convertidos';
+  cluster_label: string;
+  avg_save_rate: number;
+  avg_click_rate: number;
+  avg_like_rate: number;
+  avg_engagement_rate: number;
+  preferred_format: string | null;
+  preferred_amd: string | null;
+  preferred_triggers: string[];
+  sample_size: number;
+  confidence_score: number;
+  top_formats: Array<{ format_id: string; format_name: string; platform: string; rate: number; metric: string }>;
+};
+
+type LearningRule = {
+  rule_name: string;
+  segment_definition: Record<string, any>;
+  effective_pattern: string;
+  uplift_metric: string;
+  uplift_value: number;
+  confidence_score: number;
+  sample_size: number;
+  is_active: boolean;
 };
 
 type RecoFormat = {
@@ -332,6 +422,103 @@ function MetricsDialog({
 
 // ── Campaign Detail Panel ─────────────────────────────────────────────────────
 
+const DEFAULT_PHASES: Phase[] = [
+  { id: 'historia', name: 'História', order: 1, objective: 'Awareness e contexto emocional' },
+  { id: 'prova', name: 'Prova', order: 2, objective: 'Social proof e evidências' },
+  { id: 'convite', name: 'Convite', order: 3, objective: 'CTA e conversão' },
+];
+
+const PHASE_COLORS: Record<string, string> = {
+  historia: '#6366f1',
+  prova: '#0ea5e9',
+  convite: '#f59e0b',
+};
+
+const AMD_LABELS: Record<string, string> = {
+  salvar: 'Salvar',
+  compartilhar: 'Compartilhar',
+  clicar: 'Clicar',
+  responder: 'Responder',
+  marcar_alguem: 'Marcar alguém',
+  pedir_proposta: 'Pedir proposta',
+};
+
+function phaseColor(phaseId: string | null | undefined): string {
+  if (!phaseId) return '#94a3b8';
+  return PHASE_COLORS[phaseId] || '#6366f1';
+}
+
+function ConceptDialog({
+  open,
+  campaignId,
+  phases,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  campaignId: string;
+  phases: Phase[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ phase_id: '', name: '', insight: '', triggers: '', example_copy: '', hero_piece: '' });
+  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const triggers = form.triggers.split(',').map((t) => t.trim()).filter(Boolean);
+      await apiPost(`/campaigns/${campaignId}/creative-concepts`, {
+        phase_id: form.phase_id || null,
+        name: form.name.trim(),
+        insight: form.insight.trim() || null,
+        triggers,
+        example_copy: form.example_copy.trim() || null,
+        hero_piece: form.hero_piece.trim() || null,
+      });
+      setForm({ phase_id: '', name: '', insight: '', triggers: '', example_copy: '', hero_piece: '' });
+      onCreated();
+      onClose();
+    } catch { /* silent */ } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="h6">Novo Território Criativo</Typography>
+          <IconButton size="small" onClick={onClose}><IconX size={18} /></IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Fase</InputLabel>
+            <Select value={form.phase_id} label="Fase" onChange={(e) => setF('phase_id', e.target.value)}>
+              <MenuItem value=""><em>Todas as fases</em></MenuItem>
+              {phases.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label="Nome do território *" size="small" fullWidth value={form.name} onChange={(e) => setF('name', e.target.value)} />
+          <TextField label="Insight humano" size="small" fullWidth multiline rows={2} value={form.insight} onChange={(e) => setF('insight', e.target.value)} placeholder="O que move o público a agir?" />
+          <TextField label="Gatilhos (vírgula)" size="small" fullWidth value={form.triggers} onChange={(e) => setF('triggers', e.target.value)} placeholder="curiosidade, autoridade, pertencimento" />
+          <TextField label="Exemplo de copy / linha" size="small" fullWidth multiline rows={2} value={form.example_copy} onChange={(e) => setF('example_copy', e.target.value)} />
+          <TextField label="Peça hero (descrição)" size="small" fullWidth value={form.hero_piece} onChange={(e) => setF('hero_piece', e.target.value)} />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} color="inherit">Cancelar</Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim()}>
+          {saving ? <CircularProgress size={14} sx={{ mr: 1 }} /> : null}
+          Criar território
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function CampaignDetail({
   campaign,
   clientId,
@@ -342,26 +529,100 @@ function CampaignDetail({
   onRefresh: () => void;
 }) {
   const [formats, setFormats] = useState<CampaignFormat[]>([]);
+  const [concepts, setConcepts] = useState<CreativeConcept[]>([]);
+  const [briefings, setBriefings] = useState<LinkedBriefing[]>([]);
   const [summaries, setSummaries] = useState<Record<string, FormatSummary>>({});
   const [loading, setLoading] = useState(true);
   const [metricsFormat, setMetricsFormat] = useState<CampaignFormat | null>(null);
   const [recalcLoading, setRecalcLoading] = useState<string | null>(null);
   const [lockLoading, setLockLoading] = useState<string | null>(null);
+  const [conceptDialogOpen, setConceptDialogOpen] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [linkingPost, setLinkingPost] = useState<{ formatId: string; url: string } | null>(null);
+  const [behaviorProfiles, setBehaviorProfiles] = useState<BehaviorCluster[]>([]);
+  const [computingProfiles, setComputingProfiles] = useState(false);
+  const [learningRules, setLearningRules] = useState<LearningRule[]>([]);
+  const [computingRules, setComputingRules] = useState(false);
+  const [generatingCopyFor, setGeneratingCopyFor] = useState<string | null>(null);
+  const [behavioralCopyMap, setBehavioralCopyMap] = useState<Record<string, BehavioralCopyResult>>({});
+  const [biPlatform, setBiPlatform] = useState<Record<string, string>>({});
+  const [expandedBiCopy, setExpandedBiCopy] = useState<string | null>(null);
+
+  const phases: Phase[] = (campaign.phases && campaign.phases.length > 0)
+    ? [...campaign.phases].sort((a, b) => a.order - b.order)
+    : DEFAULT_PHASES;
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ success: boolean; data: { campaign: Campaign; formats: CampaignFormat[] } }>(
-        `/campaigns/${campaign.id}`
-      );
-      const fmts = res?.data?.formats || [];
-      setFormats(fmts);
+      const [res, profilesRes, rulesRes, copiesRes] = await Promise.all([
+        apiGet<{
+          success: boolean;
+          data: {
+            campaign: Campaign;
+            formats: CampaignFormat[];
+            briefings: LinkedBriefing[];
+            concepts: CreativeConcept[];
+          };
+        }>(`/campaigns/${campaign.id}`),
+        apiGet<{ success: boolean; data: BehaviorCluster[] }>(
+          `/clients/${clientId}/behavior-profiles`
+        ).catch(() => ({ success: false, data: [] as BehaviorCluster[] })),
+        apiGet<{ success: boolean; data: LearningRule[] }>(
+          `/clients/${clientId}/learning-rules`
+        ).catch(() => ({ success: false, data: [] as LearningRule[] })),
+        apiGet<{ success: boolean; data: any[] }>(
+          `/campaigns/${campaign.id}/behavioral-copies?limit=50`
+        ).catch(() => ({ success: false, data: [] as any[] })),
+      ]);
+      setFormats(res?.data?.formats || []);
+      setBriefings(res?.data?.briefings || []);
+      setConcepts(res?.data?.concepts || []);
+      setBehaviorProfiles(profilesRes?.data || []);
+      setLearningRules(rulesRes?.data || []);
+
+      // Reconstruct behavioralCopyMap from persisted results (most recent per behavior_intent_id)
+      const storedCopies: any[] = copiesRes?.data || [];
+      if (storedCopies.length > 0) {
+        const copyMap: Record<string, BehavioralCopyResult> = {};
+        // storedCopies is ordered DESC by created_at — first occurrence per bi_id wins
+        for (const row of storedCopies) {
+          const biId: string = row.behavior_intent_id;
+          if (copyMap[biId]) continue; // already have the most recent
+          copyMap[biId] = {
+            id: row.id,
+            draft: {
+              hook_text: row.hook_text ?? '',
+              content_text: row.content_text ?? '',
+              cta_text: row.cta_text ?? '',
+              media_type: row.media_type ?? '',
+              behavioral_rationale: row.behavioral_rationale ?? '',
+            },
+            audit: {
+              approval_status: row.approval_status ?? 'approved',
+              approved_text: row.approved_text ?? '',
+              revision_notes: row.revision_notes ?? [],
+              fogg_score: (row.fogg_motivation != null)
+                ? { motivation: Number(row.fogg_motivation), ability: Number(row.fogg_ability), prompt: Number(row.fogg_prompt) }
+                : { motivation: 0, ability: 0, prompt: 0 },
+              behavior_tags: row.behavioral_tags
+                ? { emotional_tone: row.emotional_tone ?? '', micro_behavior: '', triggers: [] }
+                : { emotional_tone: row.emotional_tone ?? '', micro_behavior: '', triggers: [] },
+              policy_flags: row.policy_flags ?? [],
+            },
+          };
+        }
+        setBehavioralCopyMap((prev) => ({ ...copyMap, ...prev })); // prefer session results over persisted
+      }
     } catch {
       //
     } finally {
       setLoading(false);
     }
-  }, [campaign.id]);
+  }, [campaign.id, clientId]);
 
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
@@ -391,6 +652,101 @@ function CampaignDetail({
       //
     } finally {
       setRecalcLoading(null);
+    }
+  };
+
+  const handleApproveConcept = async (concept: CreativeConcept) => {
+    setApproving(concept.id);
+    try {
+      await apiPatch(`/creative-concepts/${concept.id}`, { status: 'approved' });
+      await loadDetail();
+    } catch { /* silent */ } finally { setApproving(null); }
+  };
+
+  const handleDeleteConcept = async (concept: CreativeConcept) => {
+    if (!window.confirm(`Excluir território "${concept.name}"?`)) return;
+    try {
+      await apiDelete(`/creative-concepts/${concept.id}`);
+      await loadDetail();
+    } catch { /* silent */ }
+  };
+
+  const handleGenerateStrategy = async () => {
+    setGenerating(true);
+    try {
+      const res = await apiPost<{ success: boolean; data: { concepts: CreativeConcept[] } }>(
+        `/campaigns/${campaign.id}/generate-strategy`,
+        {}
+      );
+      if (res?.data?.concepts?.length) {
+        setConcepts(res.data.concepts);
+      }
+      onRefresh();
+    } catch {
+      // silent — parent will reload on next interaction
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleGenerateBehavioralCopy = async (biId: string, platform: string) => {
+    if (!platform) return;
+    setGeneratingCopyFor(biId);
+    try {
+      const res = await apiPost<{ success: boolean; data: BehavioralCopyResult }>(
+        `/campaigns/${campaign.id}/behavioral-copy`,
+        { behavior_intent_id: biId, platform }
+      );
+      if (res?.data) {
+        setBehavioralCopyMap((prev) => ({ ...prev, [biId]: res.data }));
+        setExpandedBiCopy(biId);
+      }
+    } catch { /* silent */ } finally {
+      setGeneratingCopyFor(null);
+    }
+  };
+
+  const handleSyncMetrics = async () => {
+    setSyncing(true);
+    try {
+      await apiPost(`/clients/${clientId}/connectors/meta/sync`, {});
+      await loadDetail();
+    } catch { /* silent */ } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleLinkPost = async (formatId: string, url: string) => {
+    try {
+      await apiPost(`/campaign-formats/${formatId}/link-post`, { instagram_post_url: url || null });
+      setLinkingPost(null);
+      await loadDetail();
+    } catch { /* silent */ }
+  };
+
+  const handleComputeRules = async () => {
+    setComputingRules(true);
+    try {
+      const res = await apiPost<{ success: boolean; data: LearningRule[] }>(
+        `/clients/${clientId}/learning-rules/compute`,
+        {}
+      );
+      setLearningRules(res?.data || []);
+    } catch { /* silent */ } finally {
+      setComputingRules(false);
+    }
+  };
+
+  const handleComputeProfiles = async () => {
+    setComputingProfiles(true);
+    try {
+      const res = await apiPost<{ success: boolean; data: BehaviorCluster[] }>(
+        `/clients/${clientId}/behavior-profiles/compute`,
+        {}
+      );
+      setBehaviorProfiles(res?.data || []);
+    } catch { /* silent */ } finally {
+      setComputingProfiles(false);
     }
   };
 
@@ -436,10 +792,555 @@ function CampaignDetail({
         </CardContent>
       </Card>
 
+      {/* ── Phases Timeline ───────────────────────────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconFlag size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Fases
+          </Typography>
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={generating ? <CircularProgress size={12} /> : <IconSparkles size={13} />}
+              onClick={handleGenerateStrategy}
+              disabled={generating}
+              sx={{ fontSize: '0.7rem', height: 24, px: 1 }}
+            >
+              {generating ? 'Gerando…' : (campaign.phases?.length ? 'Regenerar' : 'Gerar estratégia')}
+            </Button>
+            {phases.map((p) => (
+              <Chip
+                key={p.id}
+                size="small"
+                label={p.name}
+                onClick={() => setSelectedPhase(selectedPhase === p.id ? null : p.id)}
+                variant={selectedPhase === p.id ? 'filled' : 'outlined'}
+                sx={{
+                  height: 22,
+                  fontSize: '0.68rem',
+                  cursor: 'pointer',
+                  bgcolor: selectedPhase === p.id ? phaseColor(p.id) : 'transparent',
+                  color: selectedPhase === p.id ? '#fff' : 'text.secondary',
+                  borderColor: phaseColor(p.id),
+                }}
+              />
+            ))}
+          </Stack>
+        </Stack>
+        <Stack direction="row" spacing={1}>
+          {phases.map((p, idx) => {
+            const phaseBriefings = briefings.filter((b) => b.campaign_phase_id === p.id);
+            const phaseConcepts = concepts.filter((c) => c.phase_id === p.id);
+            const color = phaseColor(p.id);
+            return (
+              <Card
+                key={p.id}
+                variant="outlined"
+                sx={{
+                  flex: 1,
+                  borderRadius: 2,
+                  borderColor: selectedPhase === p.id ? color : 'divider',
+                  borderTopWidth: 3,
+                  borderTopColor: color,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  '&:hover': { borderColor: color },
+                }}
+                onClick={() => setSelectedPhase(selectedPhase === p.id ? null : p.id)}
+              >
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color }}>{p.name}</Typography>
+                  {p.objective && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.6rem', mt: 0.25 }}>
+                      {p.objective}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }}>
+                    <Chip size="small" label={`${phaseBriefings.length} brief`} sx={{ height: 16, fontSize: '0.58rem' }} />
+                    <Chip size="small" label={`${phaseConcepts.length} território${phaseConcepts.length !== 1 ? 's' : ''}`} sx={{ height: 16, fontSize: '0.58rem' }} />
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      {/* ── Mapa de Intenções Comportamentais ───────────────────────────── */}
+      {(campaign.behavior_intents?.length > 0 || generating) && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconBrain size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Mapa de Intenções ({campaign.behavior_intents?.filter((bi: any) => !selectedPhase || bi.phase_id === selectedPhase).length ?? 0})
+          </Typography>
+          {generating ? (
+            <Stack alignItems="center" sx={{ py: 2 }}>
+              <CircularProgress size={20} />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Gerando estratégia comportamental…</Typography>
+            </Stack>
+          ) : (
+            <Stack spacing={0.75}>
+              {(campaign.behavior_intents as any[])
+                .filter((bi) => !selectedPhase || bi.phase_id === selectedPhase)
+                .map((bi: any, idx: number) => {
+                  const amdColors: Record<string, string> = {
+                    salvar: '#7c3aed',
+                    compartilhar: '#2563eb',
+                    clicar: '#ea580c',
+                    responder: '#16a34a',
+                    marcar_alguem: '#0891b2',
+                    pedir_proposta: '#dc2626',
+                  };
+                  const amdColor = amdColors[bi.amd] ?? '#6b7280';
+                  const biPhase = phases.find(p => p.id === bi.phase_id);
+                  const biAudience = (campaign.audiences as any[])?.find((a: any) => a.id === bi.audience_id);
+                  return (
+                    <Card key={bi.id ?? idx} variant="outlined" sx={{ borderRadius: 2, borderLeft: `3px solid ${amdColor}` }}>
+                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                        <Stack direction="row" alignItems="flex-start" spacing={1} flexWrap="wrap">
+                          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ flex: 1, minWidth: 0 }}>
+                            {biPhase && (
+                              <Chip size="small" label={biPhase.name} sx={{ height: 16, fontSize: '0.58rem', bgcolor: phaseColor(bi.phase_id), color: '#fff' }} />
+                            )}
+                            {biAudience && (
+                              <Chip size="small" label={biAudience.persona_name || biAudience.persona_id} variant="outlined" sx={{ height: 16, fontSize: '0.58rem' }} />
+                            )}
+                            <Chip size="small" label={bi.amd} sx={{ height: 16, fontSize: '0.58rem', bgcolor: amdColor, color: '#fff' }} />
+                            <Chip size="small" label={bi.momento} variant="outlined" sx={{ height: 16, fontSize: '0.58rem' }} />
+                          </Stack>
+                        </Stack>
+                        {bi.target_behavior && (
+                          <Typography variant="caption" color="text.primary" sx={{ display: 'block', mt: 0.5, fontSize: '0.72rem' }}>
+                            {bi.target_behavior}
+                          </Typography>
+                        )}
+                        {bi.triggers?.length > 0 && (
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }} flexWrap="wrap">
+                            {(bi.triggers as string[]).map((t) => (
+                              <Chip key={t} size="small" label={t} variant="outlined" sx={{ height: 14, fontSize: '0.56rem' }} />
+                            ))}
+                          </Stack>
+                        )}
+                        {/* ── Copy generation row ── */}
+                        {bi.id && (
+                          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }} flexWrap="wrap">
+                            <Select
+                              size="small"
+                              displayEmpty
+                              value={biPlatform[bi.id] || ''}
+                              onChange={(e) => setBiPlatform((prev) => ({ ...prev, [bi.id]: e.target.value }))}
+                              sx={{ fontSize: '0.7rem', height: 24, minWidth: 110, '& .MuiSelect-select': { py: '2px', px: '8px' } }}
+                            >
+                              <MenuItem value="" disabled sx={{ fontSize: '0.7rem' }}>Canal…</MenuItem>
+                              {['LinkedIn', 'Instagram', 'Instagram Story', 'Email', 'TikTok'].map((p) => (
+                                <MenuItem key={p} value={p} sx={{ fontSize: '0.7rem' }}>{p}</MenuItem>
+                              ))}
+                            </Select>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={generatingCopyFor === bi.id ? <CircularProgress size={11} /> : <IconSparkles size={12} />}
+                              onClick={() => handleGenerateBehavioralCopy(bi.id, biPlatform[bi.id] || '')}
+                              disabled={generatingCopyFor !== null || !biPlatform[bi.id]}
+                              sx={{ fontSize: '0.65rem', height: 24, px: 1, borderColor: amdColor, color: amdColor, '&:hover': { borderColor: amdColor, bgcolor: `${amdColor}10` } }}
+                            >
+                              {generatingCopyFor === bi.id ? 'Gerando…' : behavioralCopyMap[bi.id] ? 'Regenerar' : 'Gerar Copy'}
+                            </Button>
+                            {behavioralCopyMap[bi.id] && (
+                              <Button
+                                size="small"
+                                variant="text"
+                                onClick={() => setExpandedBiCopy(expandedBiCopy === bi.id ? null : bi.id)}
+                                sx={{ fontSize: '0.65rem', height: 24, color: 'text.secondary', textTransform: 'none' }}
+                              >
+                                {expandedBiCopy === bi.id ? 'Ocultar' : 'Ver copy'}
+                              </Button>
+                            )}
+                          </Stack>
+                        )}
+                        {/* ── Copy result ── */}
+                        {bi.id && expandedBiCopy === bi.id && behavioralCopyMap[bi.id] && (() => {
+                          const result = behavioralCopyMap[bi.id];
+                          const statusColor = result.audit.approval_status === 'approved' ? '#16a34a' : result.audit.approval_status === 'blocked' ? '#dc2626' : '#d97706';
+                          return (
+                            <Box sx={{ mt: 1, p: 1.25, bgcolor: 'action.hover', borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
+                              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
+                                <Chip size="small" label={result.audit.approval_status} sx={{ height: 16, fontSize: '0.58rem', bgcolor: statusColor, color: '#fff', fontWeight: 700 }} />
+                                {result.persona_used && <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>para {result.persona_used}</Typography>}
+                                {result.phase && <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>· fase {result.phase}</Typography>}
+                              </Stack>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 0.25, fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase' }}>Hook</Typography>
+                              <Typography variant="body2" sx={{ fontSize: '0.78rem', mb: 1, fontStyle: 'italic' }}>{result.draft.hook_text}</Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 0.25, fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase' }}>Copy</Typography>
+                              <Typography variant="body2" sx={{ fontSize: '0.78rem', mb: 1, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{result.audit.approved_text}</Typography>
+                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 0.25, fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase' }}>CTA</Typography>
+                              <Typography variant="body2" sx={{ fontSize: '0.78rem', mb: 1, color: amdColor, fontWeight: 600 }}>{result.draft.cta_text}</Typography>
+                              {/* Fogg scores */}
+                              <Stack spacing={0.5} sx={{ mb: 0.75 }}>
+                                {([['Motivação', result.audit.fogg_score.motivation], ['Habilidade', result.audit.fogg_score.ability], ['Prompt/CTA', result.audit.fogg_score.prompt]] as [string, number][]).map(([label, val]) => (
+                                  <Stack key={label} direction="row" alignItems="center" spacing={1}>
+                                    <Typography variant="caption" sx={{ minWidth: 64, fontSize: '0.6rem', color: 'text.secondary' }}>{label}</Typography>
+                                    <LinearProgress variant="determinate" value={(val / 10) * 100} sx={{ flex: 1, height: 3, borderRadius: 2, '& .MuiLinearProgress-bar': { bgcolor: val >= 8 ? '#13DEB9' : val >= 6 ? '#FFAE1F' : '#FA896B' } }} />
+                                    <Typography variant="caption" sx={{ fontSize: '0.6rem', minWidth: 18, textAlign: 'right' }}>{val}</Typography>
+                                  </Stack>
+                                ))}
+                              </Stack>
+                              {result.audit.revision_notes.length > 0 && (
+                                <Box sx={{ mt: 0.75 }}>
+                                  {result.audit.revision_notes.map((note, i) => (
+                                    <Typography key={i} variant="caption" sx={{ display: 'block', fontSize: '0.62rem', color: '#d97706' }}>⚠ {note}</Typography>
+                                  ))}
+                                </Box>
+                              )}
+                              {/* ── Briefing CTA ── */}
+                              {(() => {
+                                const linkedBriefing = briefings.find(b => b.behavior_intent_id === bi.id);
+                                return (
+                                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1.25 }}>
+                                    {linkedBriefing ? (
+                                      <Chip
+                                        size="small"
+                                        icon={<IconFileText size={11} />}
+                                        label={linkedBriefing.title || 'Briefing vinculado'}
+                                        component="a"
+                                        href={`/studio/brief/${linkedBriefing.id}`}
+                                        clickable
+                                        sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(255,102,0,0.08)', color: '#ff6600', border: '1px solid rgba(255,102,0,0.3)', maxWidth: 180, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                                      />
+                                    ) : (
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        component="a"
+                                        href={`/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(result.draft.hook_text)}&message=${encodeURIComponent(result.audit.approved_text)}&source=behavioral_copy&campaign_id=${encodeURIComponent(campaign.id)}&campaign_phase_id=${encodeURIComponent(bi.phase_id ?? '')}&behavior_intent_id=${encodeURIComponent(bi.id ?? '')}${result.id ? `&behavioral_copy_id=${encodeURIComponent(result.id)}` : ''}`}
+                                        sx={{ fontSize: '0.65rem', height: 24, px: 1.25, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
+                                      >
+                                        Criar Briefing
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="small"
+                                      variant="text"
+                                      onClick={() => navigator.clipboard?.writeText(result.audit.approved_text).catch(() => {})}
+                                      sx={{ fontSize: '0.65rem', height: 24, color: 'text.secondary', textTransform: 'none' }}
+                                    >
+                                      Copiar texto
+                                    </Button>
+                                  </Stack>
+                                );
+                              })()}
+                            </Box>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+            </Stack>
+          )}
+        </Box>
+      )}
+
+      {/* ── Perfis de Audiência (Behavior Clusters) ─────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconUsersGroup size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Perfis de Audiência ({behaviorProfiles.length})
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={computingProfiles ? <CircularProgress size={12} /> : <IconRefresh size={13} />}
+            onClick={handleComputeProfiles}
+            disabled={computingProfiles}
+            sx={{ fontSize: '0.7rem', height: 24, px: 1 }}
+          >
+            {computingProfiles ? 'Computando…' : 'Computar perfis'}
+          </Button>
+        </Stack>
+
+        {behaviorProfiles.length === 0 ? (
+          <Typography variant="caption" color="text.secondary">
+            Nenhum perfil computado. Vincule posts do Instagram e sincronize métricas para derivar os clusters de audiência.
+          </Typography>
+        ) : (
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {behaviorProfiles.map((profile) => {
+              const clusterColors: Record<string, { bg: string; border: string; text: string }> = {
+                salvadores:          { bg: '#f3e8ff', border: '#7c3aed', text: '#5b21b6' },
+                clicadores:          { bg: '#fff7ed', border: '#ea580c', text: '#9a3412' },
+                leitores_silenciosos: { bg: '#f0f9ff', border: '#0284c7', text: '#075985' },
+                convertidos:         { bg: '#f0fdf4', border: '#16a34a', text: '#14532d' },
+              };
+              const colors = clusterColors[profile.cluster_type] ?? { bg: '#f8fafc', border: '#94a3b8', text: '#475569' };
+              return (
+                <Card
+                  key={profile.cluster_type}
+                  variant="outlined"
+                  sx={{
+                    minWidth: 200, maxWidth: 260, flex: '1 1 200px',
+                    borderColor: colors.border,
+                    borderTopWidth: 3,
+                    borderRadius: 2,
+                    bgcolor: colors.bg,
+                  }}
+                >
+                  <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <Stack spacing={0.75}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: colors.text, fontSize: '0.72rem' }}>
+                        {profile.cluster_label}
+                      </Typography>
+                      {profile.preferred_format && (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                          {profile.preferred_format}
+                        </Typography>
+                      )}
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                        {profile.preferred_amd && (
+                          <Chip size="small" label={profile.preferred_amd} sx={{ height: 14, fontSize: '0.58rem', bgcolor: colors.border, color: '#fff' }} />
+                        )}
+                        {profile.preferred_triggers.slice(0, 3).map((t) => (
+                          <Chip key={t} size="small" label={t} variant="outlined" sx={{ height: 14, fontSize: '0.56rem', borderColor: colors.border, color: colors.text }} />
+                        ))}
+                      </Stack>
+                      <Stack direction="row" spacing={1}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                          save {(profile.avg_save_rate * 100).toFixed(2)}%
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                          click {(profile.avg_click_rate * 100).toFixed(2)}%
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                          n={profile.sample_size}
+                        </Typography>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+
+      {/* ── Regras de Aprendizado ───────────────────────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconTrendingUp size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Regras de Aprendizado ({learningRules.length})
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={computingRules ? <CircularProgress size={12} /> : <IconRefresh size={13} />}
+            onClick={handleComputeRules}
+            disabled={computingRules}
+            sx={{ fontSize: '0.7rem', height: 24, px: 1 }}
+          >
+            {computingRules ? 'Computando…' : 'Computar regras'}
+          </Button>
+        </Stack>
+
+        {learningRules.length === 0 ? (
+          <Typography variant="caption" color="text.secondary">
+            Nenhuma regra derivada. Registre métricas de performance e compute para identificar padrões com uplift comprovado.
+          </Typography>
+        ) : (
+          <Stack spacing={0.5}>
+            {learningRules.slice(0, 10).map((rule) => {
+              const segType = rule.segment_definition?.type ?? 'unknown';
+              const segTypeColors: Record<string, { border: string; bg: string; chip: string }> = {
+                amd:      { border: '#7c3aed', bg: '#faf5ff', chip: '#7c3aed' },
+                trigger:  { border: '#0284c7', bg: '#f0f9ff', chip: '#0284c7' },
+                platform: { border: '#059669', bg: '#f0fdf4', chip: '#059669' },
+              };
+              const colors = segTypeColors[segType] ?? { border: '#94a3b8', bg: '#f8fafc', chip: '#64748b' };
+              const upliftLabel = `+${rule.uplift_value.toFixed(1)}%`;
+              const metricLabel = rule.uplift_metric.replace(/_/g, ' ');
+              const confidencePct = Math.round(rule.confidence_score * 100);
+              return (
+                <Card
+                  key={rule.rule_name}
+                  variant="outlined"
+                  sx={{ borderRadius: 2, borderLeft: `3px solid ${colors.border}`, bgcolor: colors.bg }}
+                >
+                  <CardContent sx={{ py: 0.75, '&:last-child': { pb: 0.75 } }}>
+                    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                      <Chip
+                        size="small"
+                        label={segType}
+                        sx={{ height: 15, fontSize: '0.56rem', bgcolor: colors.chip, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                      />
+                      <Typography variant="caption" sx={{ flex: 1, minWidth: 0, fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {rule.effective_pattern}
+                      </Typography>
+                      <Tooltip title={`Uplift em ${metricLabel} · confiança ${confidencePct}% · n=${rule.sample_size}`}>
+                        <Chip
+                          size="small"
+                          label={upliftLabel}
+                          sx={{ height: 16, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#dcfce7', color: '#15803d', flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {learningRules.length > 10 && (
+              <Typography variant="caption" color="text.secondary" sx={{ pl: 0.5 }}>
+                +{learningRules.length - 10} regras adicionais
+              </Typography>
+            )}
+          </Stack>
+        )}
+      </Box>
+
+      {/* ── Creative Concepts ────────────────────────────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconBulb size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Territórios Criativos ({concepts.filter(c => !selectedPhase || c.phase_id === selectedPhase).length})
+          </Typography>
+          <Button
+            size="small"
+            startIcon={<IconPlus size={13} />}
+            onClick={() => setConceptDialogOpen(true)}
+            sx={{ fontSize: '0.72rem', height: 26 }}
+          >
+            Novo território
+          </Button>
+        </Stack>
+
+        {concepts.filter(c => !selectedPhase || c.phase_id === selectedPhase).length === 0 && (
+          <Typography variant="caption" color="text.secondary">
+            Nenhum território criativo{selectedPhase ? ' nesta fase' : ''}. Crie o primeiro para guiar a criação.
+          </Typography>
+        )}
+
+        <Stack spacing={1}>
+          {concepts
+            .filter(c => !selectedPhase || c.phase_id === selectedPhase)
+            .map((concept) => {
+              const cPhase = phases.find(p => p.id === concept.phase_id);
+              return (
+                <Card key={concept.id} variant="outlined" sx={{ borderRadius: 2, borderColor: concept.status === 'approved' ? 'success.light' : 'divider' }}>
+                  <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" alignItems="center" spacing={0.75} flexWrap="wrap">
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.82rem' }}>{concept.name}</Typography>
+                          <Chip
+                            size="small"
+                            label={concept.status === 'approved' ? 'Aprovado' : concept.status === 'rejected' ? 'Rejeitado' : 'Rascunho'}
+                            color={concept.status === 'approved' ? 'success' : concept.status === 'rejected' ? 'error' : 'default'}
+                            sx={{ height: 16, fontSize: '0.58rem' }}
+                          />
+                          {cPhase && (
+                            <Chip size="small" label={cPhase.name} sx={{ height: 16, fontSize: '0.58rem', bgcolor: phaseColor(concept.phase_id), color: '#fff' }} />
+                          )}
+                        </Stack>
+                        {concept.insight && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                            {concept.insight.slice(0, 120)}{concept.insight.length > 120 ? '…' : ''}
+                          </Typography>
+                        )}
+                        {concept.triggers.length > 0 && (
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }} flexWrap="wrap">
+                            {concept.triggers.map((t) => (
+                              <Chip key={t} size="small" label={t} variant="outlined" sx={{ height: 16, fontSize: '0.58rem' }} />
+                            ))}
+                          </Stack>
+                        )}
+                        {concept.example_copy && (
+                          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic', color: 'text.secondary', borderLeft: '2px solid', borderColor: 'divider', pl: 1 }}>
+                            "{concept.example_copy.slice(0, 100)}{concept.example_copy.length > 100 ? '…' : ''}"
+                          </Typography>
+                        )}
+                      </Box>
+                      <Stack direction="row" spacing={0.25} sx={{ ml: 1, flexShrink: 0 }}>
+                        {concept.status === 'draft' && (
+                          <Tooltip title="Aprovar território">
+                            <span>
+                              <IconButton size="small" color="success" onClick={() => handleApproveConcept(concept)} disabled={approving === concept.id}>
+                                {approving === concept.id ? <CircularProgress size={12} /> : <IconCheck size={14} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Excluir">
+                          <IconButton size="small" color="error" onClick={() => handleDeleteConcept(concept)}>
+                            <IconTrash size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+        </Stack>
+      </Box>
+
+      {/* ── Briefings Vinculados ─────────────────────────────────────────── */}
+      {briefings.filter(b => !selectedPhase || b.campaign_phase_id === selectedPhase).length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            <IconFileText size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Briefings ({briefings.filter(b => !selectedPhase || b.campaign_phase_id === selectedPhase).length})
+          </Typography>
+          <Stack spacing={0.75}>
+            {briefings
+              .filter(b => !selectedPhase || b.campaign_phase_id === selectedPhase)
+              .map((b) => {
+                const bPhase = phases.find(p => p.id === b.campaign_phase_id);
+                return (
+                  <Card key={b.id} variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ py: 1, '&:last-child': { pb: 1 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {b.title}
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.25 }}>
+                          <Chip size="small" label={b.status} sx={{ height: 15, fontSize: '0.58rem' }} />
+                          {bPhase && (
+                            <Chip size="small" label={bPhase.name} sx={{ height: 15, fontSize: '0.58rem', bgcolor: phaseColor(b.campaign_phase_id), color: '#fff' }} />
+                          )}
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.58rem', alignSelf: 'center' }}>
+                            {fmtDate(b.created_at)}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </Stack>
+        </Box>
+      )}
+
       {/* Formats */}
-      <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
-        Formatos ({formats.length})
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+          Formatos ({formats.length})
+        </Typography>
+        {formats.some(f => f.instagram_post_url) && (
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={syncing ? <CircularProgress size={12} /> : <IconBrandInstagram size={13} />}
+            onClick={handleSyncMetrics}
+            disabled={syncing}
+            sx={{ fontSize: '0.7rem', height: 24, px: 1 }}
+          >
+            {syncing ? 'Sincronizando…' : 'Sincronizar métricas'}
+          </Button>
+        )}
+      </Stack>
 
       {formats.length === 0 && (
         <Typography variant="body2" color="text.secondary">Nenhum formato nesta campanha.</Typography>
@@ -490,6 +1391,62 @@ function CampaignDetail({
                     )}
                   </Stack>
                 </Stack>
+
+                {/* Instagram Post Link */}
+                <Box sx={{ mb: 1.5 }}>
+                  {linkingPost?.formatId === fmt.id ? (
+                    <Stack direction="row" spacing={0.75} alignItems="center">
+                      <TextField
+                        size="small"
+                        placeholder="https://www.instagram.com/p/..."
+                        value={linkingPost.url}
+                        onChange={(e) => setLinkingPost({ formatId: fmt.id, url: e.target.value })}
+                        sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: '0.72rem', py: 0.5 } }}
+                        autoFocus
+                      />
+                      <Button size="small" variant="contained" sx={{ fontSize: '0.68rem', height: 28, px: 1 }}
+                        onClick={() => handleLinkPost(fmt.id, linkingPost.url)}>
+                        Salvar
+                      </Button>
+                      <IconButton size="small" onClick={() => setLinkingPost(null)}><IconX size={14} /></IconButton>
+                    </Stack>
+                  ) : (
+                    <Stack direction="row" alignItems="center" spacing={0.75}>
+                      {fmt.instagram_post_url ? (
+                        <>
+                          <IconBrandInstagram size={13} color="#e1306c" />
+                          <Typography
+                            component="a" href={fmt.instagram_post_url} target="_blank" rel="noopener"
+                            variant="caption" sx={{ color: '#e1306c', fontSize: '0.68rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {fmt.instagram_post_url}
+                          </Typography>
+                          {fmt.last_metrics_synced_at && (
+                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', flexShrink: 0 }}>
+                              sync {fmtDate(fmt.last_metrics_synced_at)}
+                            </Typography>
+                          )}
+                          <Tooltip title="Desvincular">
+                            <IconButton size="small" onClick={() => handleLinkPost(fmt.id, '')} sx={{ p: 0.25 }}>
+                              <IconLinkOff size={12} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Editar URL">
+                            <IconButton size="small" onClick={() => setLinkingPost({ formatId: fmt.id, url: fmt.instagram_post_url ?? '' })} sx={{ p: 0.25 }}>
+                              <IconLink size={12} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <Button size="small" variant="text" startIcon={<IconBrandInstagram size={12} />}
+                          onClick={() => setLinkingPost({ formatId: fmt.id, url: '' })}
+                          sx={{ fontSize: '0.68rem', color: 'text.disabled', height: 22, px: 0.5 }}>
+                          Vincular post do Instagram
+                        </Button>
+                      )}
+                    </Stack>
+                  )}
+                </Box>
 
                 {/* Predicted Scores */}
                 <Grid container spacing={2}>
@@ -639,6 +1596,14 @@ function CampaignDetail({
         clientId={clientId}
         onClose={() => setMetricsFormat(null)}
         onSuccess={loadDetail}
+      />
+
+      <ConceptDialog
+        open={conceptDialogOpen}
+        campaignId={campaign.id}
+        phases={phases}
+        onClose={() => setConceptDialogOpen(false)}
+        onCreated={loadDetail}
       />
     </Box>
   );

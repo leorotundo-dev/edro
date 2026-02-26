@@ -323,7 +323,7 @@ export default function ClientsListClient() {
                       startIcon={<IconSparkles size={16} />}
                       onClick={(event) => {
                         event.stopPropagation();
-                        router.push(`/studio?clientId=${client.id}`);
+                        router.push(`/studio/brief?clientId=${client.id}`);
                       }}
                     >
                       Criar

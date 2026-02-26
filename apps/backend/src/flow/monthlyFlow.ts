@@ -194,7 +194,7 @@ export async function runMonthlyFlow(
 
   // (B) Local events
   const localEvents = toggles.use_local_events
-    ? await localEventsProvider.getLocalEvents({ year, locality, tenant_id: req.client.tenant_id ?? null })
+    ? await localEventsProvider.getLocalEvents({ year, locality, tenant_id: req.client.tenant_id ?? null } as any)
     : [];
 
   // (C) Merge + expand for month

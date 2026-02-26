@@ -130,7 +130,7 @@ export default async function eventsRoutes(app: FastifyInstance) {
     const defaults = {
       country: body.defaults?.country ?? 'BR',
       scope: body.defaults?.scope ?? 'BR',
-      category: body.defaults?.category ?? null,
+      category: (body.defaults?.category ?? null) as any,
     };
 
     const { events, errors } = parseCalendarCsv(csvText, {

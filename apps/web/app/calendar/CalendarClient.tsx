@@ -783,7 +783,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       if (event?.why) params.set('why', event.why);
       if (event?.source) params.set('source', event.source);
       const query = params.toString();
-      return query ? `/studio?${query}` : '/studio';
+      return query ? `/studio/brief?${query}` : '/studio/brief';
     },
     [selectedClients]
   );

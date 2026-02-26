@@ -90,7 +90,6 @@ Com base nesses trechos, responda APENAS com este JSON:
           prompt,
           temperature: 0.2,
           maxTokens: 600,
-          model: 'gpt-4o-mini',
         });
 
         const text = llmRes.text.trim();

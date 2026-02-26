@@ -60,7 +60,6 @@ SAIDA: JSON array no formato:
       const result = await generateCopy({
         prompt,
         taskType: 'variations',
-        tier: 'creative',
         temperature: 0.8,
         maxTokens: 1500,
       });

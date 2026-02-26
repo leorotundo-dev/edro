@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -15,6 +15,8 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip';
+import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle } from '@tabler/icons-react';
 
 type CopyVersion = {
   id: string;
@@ -40,6 +42,37 @@ type MockupItem = {
   created_at?: string | null;
 };
 
+function EthicsBadge({ copy }: { copy: CopyVersion }) {
+  const policyCheck = copy.payload?._edro?.policy_check as
+    | { status: 'approved' | 'flagged' | 'blocked'; policies_triggered?: string[]; rationale?: string }
+    | undefined;
+
+  if (!policyCheck) return null;
+
+  const cfg = {
+    approved: { icon: <IconShieldCheck size={13} />, color: 'success' as const, label: 'Aprovado' },
+    flagged:  { icon: <IconShieldExclamation size={13} />, color: 'warning' as const, label: 'Sinalizado' },
+    blocked:  { icon: <IconShieldX size={13} />, color: 'error' as const, label: 'Bloqueado' },
+  }[policyCheck.status] ?? { icon: <IconShieldCheck size={13} />, color: 'default' as const, label: policyCheck.status };
+
+  const tooltip = policyCheck.rationale
+    ? `${policyCheck.rationale}${policyCheck.policies_triggered?.length ? `\n\nPolíticas: ${policyCheck.policies_triggered.join(', ')}` : ''}`
+    : cfg.label;
+
+  return (
+    <Tooltip title={<span style={{ whiteSpace: 'pre-line', fontSize: '0.72rem' }}>{tooltip}</span>} arrow>
+      <Chip
+        size="small"
+        icon={cfg.icon}
+        label={cfg.label}
+        color={cfg.color}
+        variant="outlined"
+        sx={{ height: 20, fontSize: '0.65rem', cursor: 'help' }}
+      />
+    </Tooltip>
+  );
+}
+
 const resolveProviderLabel = (copy: CopyVersion) => {
   const meta = copy.payload || {};
   const provider = meta?.provider || meta?._edro?.provider || '';
@@ -61,6 +94,7 @@ export default function ReviewClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [aiReview, setAiReview] = useState<{ overall_score: number; summary: string; warnings: string[] } | null>(null);
 
   const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
 
@@ -102,6 +136,23 @@ export default function ReviewClient() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Auto-load AI review summary once copies/mockups are loaded
+  useEffect(() => {
+    if (!briefing || (!copies.length && !mockups.length)) return;
+    const copyTexts = copies.slice(0, 3).map((c) => c.output).filter(Boolean);
+    const mockupTexts = mockups.slice(0, 3)
+      .map((m) => m.metadata?.copy || m.metadata?.shortText || '')
+      .filter(Boolean);
+    const allTexts = [...copyTexts, ...mockupTexts].slice(0, 5);
+    if (!allTexts.length) return;
+    apiPost<{ success: boolean; data: { overall_score: number; summary: string; warnings: string[] } }>('/ai/review-summary', {
+      briefing_id: briefing.id,
+      copies: allTexts,
+    }).then((res) => {
+      if (res?.data) setAiReview(res.data);
+    }).catch(() => {});
+  }, [briefing, copies, mockups]);
 
   const toggleMockup = (id: string) => {
     setSelectedMockups((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -180,6 +231,29 @@ export default function ReviewClient() {
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {success ? <Alert severity="success">{success}</Alert> : null}
+
+      {/* AI Review Summary */}
+      {aiReview && (
+        <Card sx={{ bgcolor: 'rgba(19,222,185,0.04)', border: '1px solid rgba(19,222,185,0.2)' }}>
+          <CardContent>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+              <IconSparkles size={16} color="#13DEB9" />
+              <Typography variant="subtitle2" fontWeight={700}>Análise da IA</Typography>
+              <Chip size="small" label={`${aiReview.overall_score}/10`}
+                sx={{ bgcolor: '#13DEB9', color: 'white', fontWeight: 700, fontSize: '0.7rem' }} />
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: aiReview.warnings?.length ? 1 : 0 }}>
+              {aiReview.summary}
+            </Typography>
+            {aiReview.warnings?.map((w, i) => (
+              <Stack key={i} direction="row" spacing={0.5} alignItems="flex-start" sx={{ mb: 0.5 }}>
+                <IconAlertTriangle size={14} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
+                <Typography variant="caption" color="text.secondary">{w}</Typography>
+              </Stack>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Grid container spacing={3}>
         {/* Main Panel */}
@@ -279,9 +353,12 @@ export default function ReviewClient() {
                   </Typography>
                 )}
                 {selectedCopy ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical' }}>
-                    {selectedCopy.output}
-                  </Typography>
+                  <Stack spacing={0.75} sx={{ mt: 1.5 }}>
+                    <EthicsBadge copy={selectedCopy} />
+                    <Typography variant="caption" color="text.secondary" sx={{ display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical' }}>
+                      {selectedCopy.output}
+                    </Typography>
+                  </Stack>
                 ) : null}
               </CardContent>
             </Card>

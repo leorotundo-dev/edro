@@ -82,6 +82,7 @@ const CLIENT_TABS = [
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas', path: '/metricas' },
   { label: 'Campanhas', path: '/campaigns' },
+  { label: 'Dark Funnel', path: '/dark-funnel' },
 ];
 
 function formatMarkdown(text: string): string {
@@ -300,7 +301,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 variant="contained"
                 startIcon={<IconPlus size={16} />}
                 component={Link}
-                href={`/studio?clientId=${clientId}`}
+                href={`/studio/brief?clientId=${clientId}`}
                 sx={{
                   textTransform: 'none',
                   bgcolor: '#ff6600',

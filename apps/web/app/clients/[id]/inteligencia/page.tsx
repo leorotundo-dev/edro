@@ -5,23 +5,26 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBulb, IconClipboard, IconSearch, IconTrendingUp } from '@tabler/icons-react';
+import { IconBrain, IconBulb, IconClipboard, IconSearch, IconTrendingUp } from '@tabler/icons-react';
 import ClientClippingClient from '../clipping/ClientClippingClient';
 import ClientInsightsClient from '../insights/ClientInsightsClient';
+import ClientLearningClient from './ClientLearningClient';
 
-type SubTabValue = 'clipping' | 'social' | 'perplexity' | 'insights';
+type SubTabValue = 'clipping' | 'social' | 'perplexity' | 'insights' | 'aprendizado';
 
 const SUB_TABS = [
-  { value: 'clipping' as const, label: 'Clipping', icon: <IconClipboard size={16} /> },
-  { value: 'social' as const, label: 'Social Listening', icon: <IconTrendingUp size={16} /> },
-  { value: 'perplexity' as const, label: 'Perplexity AI', icon: <IconSearch size={16} /> },
-  { value: 'insights' as const, label: 'Insights', icon: <IconBulb size={16} /> },
+  { value: 'clipping' as const,    label: 'Clipping',        icon: <IconClipboard size={16} /> },
+  { value: 'social' as const,      label: 'Social Listening', icon: <IconTrendingUp size={16} /> },
+  { value: 'perplexity' as const,  label: 'Perplexity AI',   icon: <IconSearch size={16} /> },
+  { value: 'insights' as const,    label: 'Insights',        icon: <IconBulb size={16} /> },
+  { value: 'aprendizado' as const, label: 'Aprendizado',     icon: <IconBrain size={16} /> },
 ];
 
 function parseSubTab(value: string | null): SubTabValue {
   if (value === 'social') return 'social';
   if (value === 'perplexity') return 'perplexity';
   if (value === 'insights') return 'insights';
+  if (value === 'aprendizado') return 'aprendizado';
   return 'clipping';
 }
 
@@ -67,7 +70,10 @@ export default function InteligenciaPage() {
           <Tab key={t.value} value={t.value} label={t.label} icon={t.icon} iconPosition="start" sx={{ fontSize: '0.85rem' }} />
         ))}
       </Tabs>
-      {tab === 'insights' ? (
+
+      {tab === 'aprendizado' ? (
+        <ClientLearningClient clientId={clientId} />
+      ) : tab === 'insights' ? (
         <ClientInsightsClient clientId={clientId} />
       ) : (
         <ClientClippingClient clientId={clientId} forceTab={clippingTab} />

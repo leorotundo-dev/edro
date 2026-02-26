@@ -92,7 +92,7 @@ export default async function integrationRoutes(app: FastifyInstance) {
       }
 
       const enricher = new TrendEnricher(request.user.tenant_id);
-      const enriched = await enricher.enrichBriefing(body, { clientId: body.clientId });
+      const enriched = await enricher.enrichBriefing(body as any, { clientId: body.clientId });
       return reply.send(enriched);
     }
   );
@@ -108,7 +108,7 @@ export default async function integrationRoutes(app: FastifyInstance) {
       }
 
       const scorer = new PerformanceScorer(request.user.tenant_id);
-      const scored = await scorer.scoreFormats(body.candidates, body.keywords, { clientId: body.clientId });
+      const scored = await scorer.scoreFormats(body.candidates as any, body.keywords, { clientId: body.clientId });
       return reply.send({ scored });
     }
   );
@@ -125,8 +125,8 @@ export default async function integrationRoutes(app: FastifyInstance) {
 
       const recommender = new ContextualRecommender(request.user.tenant_id);
       const recommendations = await recommender.generateRecommendations(
-        body.scoredFormats,
-        body.enrichedBriefing,
+        body.scoredFormats as any,
+        body.enrichedBriefing as any,
         { clientId: body.clientId }
       );
       return reply.send({ recommendations });

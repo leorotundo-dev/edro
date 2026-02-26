@@ -1755,7 +1755,6 @@ async function chatgptGenerateCopy(ctx: CopyContext): Promise<CopyPack> {
     const result = await generateCopy({
       prompt,
       taskType: 'social_post',
-      tier: 'creative',
       temperature: 0.6,
       maxTokens: 700,
     });
@@ -1824,7 +1823,6 @@ async function geminiValidateAndFormatCopy(
     const result = await generateCopy({
       prompt,
       taskType: 'validation',
-      tier: 'fast',
       temperature: 0.2,
       maxTokens: 600,
     });

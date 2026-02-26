@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
+import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
@@ -125,6 +126,7 @@ const PIPELINE_LABELS: Record<string, string> = {
   standard: 'Padrao',
   premium: 'Premium',
   collaborative: 'Colaborativo (Gemini -> OpenAI -> Claude)',
+  adversarial: 'Adversarial (3 IAs independentes)',
 };
 
 const TONE_OPTIONS = ['Profissional', 'Inspirador', 'Casual', 'Persuasivo'];
@@ -393,7 +395,7 @@ export default function EditorClient() {
   const [output, setOutput] = useState('');
   const [options, setOptions] = useState<ParsedOption[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
-  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium' | 'collaborative'>('collaborative');
+  const [pipeline, setPipeline] = useState<'simple' | 'standard' | 'premium' | 'collaborative' | 'adversarial'>('collaborative');
   const [collabStep, setCollabStep] = useState(0);
   const [taskType, setTaskType] = useState('social_post');
   const [forceProvider, setForceProvider] = useState('');
@@ -413,6 +415,13 @@ export default function EditorClient() {
   const [regenerationCount, setRegenerationCount] = useState(0);
   const [videoScript, setVideoScript] = useState<{ hook: string; corpo: string; cta: string }>({ hook: '', corpo: '', cta: '' });
   const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
+  const [qualityScores, setQualityScores] = useState<Array<{ variation_index: number; scores: { brand_dna_match: number; platform_fit: number; cta_clarity: number }; overall: number; pass: boolean; issues: string[] }>>([]);
+  const [revisionCount, setRevisionCount] = useState(0);
+  const [revisionHistory, setRevisionHistory] = useState<Array<{ loop: number; issues_raised: string[]; score_before: number; score_after: number }>>([]);
+  const [collabAnalysis, setCollabAnalysis] = useState('');
+  const [analysisJson, setAnalysisJson] = useState<Record<string, any> | null>(null);
+  const [adversarialContributions, setAdversarialContributions] = useState<{ gemini: string; openai: string; claude: string } | null>(null);
+  const [adversarialVersions, setAdversarialVersions] = useState<{ gemini: string; openai: string; claude: string } | null>(null);
   const [amdResults, setAmdResults] = useState<Record<string, string>>({});
   const [arteImageUrl, setArteImageUrl] = useState<string | null>(null);
   const [arteStep, setArteStep] = useState<null | 'loading_prompt' | 'editing' | 'generating'>(null);
@@ -899,6 +908,14 @@ export default function EditorClient() {
         }
         const qs = primaryCopy.payload?.quality_score ?? null;
         setQualityScore(qs ? { overall: qs.overall, brand_dna_match: qs.brand_dna_match, platform_fit: qs.platform_fit, cta_clarity: qs.cta_clarity, needs_revision: qs.needs_revision } : null);
+        const qsArr = primaryCopy.payload?.quality_scores;
+        setQualityScores(Array.isArray(qsArr) ? qsArr : []);
+        setRevisionCount(primaryCopy.payload?.revision_count ?? 0);
+        setRevisionHistory(Array.isArray(primaryCopy.payload?.revision_history) ? primaryCopy.payload.revision_history : []);
+        setCollabAnalysis(primaryCopy.payload?.gemini_analysis ?? '');
+        setAnalysisJson(primaryCopy.payload?.analysis_json ?? null);
+        setAdversarialContributions(primaryCopy.payload?.contributions ?? null);
+        setAdversarialVersions(primaryCopy.payload?.versions ?? null);
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('edro_copy_version_id', primaryCopy.id);
         }
@@ -923,6 +940,16 @@ export default function EditorClient() {
     setOptions(parsed);
     setSelectedOption(0);
     setActiveCopyMeta(extractCopyMeta(copy));
+    const qsArr2 = copy.payload?.quality_scores;
+    setQualityScores(Array.isArray(qsArr2) ? qsArr2 : []);
+    setRevisionCount(copy.payload?.revision_count ?? 0);
+    setRevisionHistory(Array.isArray(copy.payload?.revision_history) ? copy.payload.revision_history : []);
+    setCollabAnalysis(copy.payload?.gemini_analysis ?? '');
+    setAnalysisJson(copy.payload?.analysis_json ?? null);
+    setAdversarialContributions(copy.payload?.contributions ?? null);
+    setAdversarialVersions(copy.payload?.versions ?? null);
+    const qs2 = copy.payload?.quality_score ?? null;
+    setQualityScore(qs2 ? { overall: qs2.overall, brand_dna_match: qs2.brand_dna_match, platform_fit: qs2.platform_fit, cta_clarity: qs2.cta_clarity, needs_revision: qs2.needs_revision } : null);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('edro_copy_version_id', copy.id);
       if (activeFormat?.platform && activeFormat?.format) {
@@ -1293,6 +1320,7 @@ export default function EditorClient() {
               <Grid container spacing={3}>
                 {/* Mockup */}
                 <Grid size={{ xs: 12, xl: 4 }}>
+                  <CollaborativeInsights analysisJson={analysisJson} />
                   <LiveMockupPreview
                     platform={activeFormat?.platform}
                     format={activeFormat?.format}
@@ -1392,6 +1420,98 @@ export default function EditorClient() {
                       {reporteiKpisLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiKpisLine}</Typography> : null}
                       {reporteiInsightsLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiInsightsLine}</Typography> : null}
 
+                      {!generating && pipeline === 'collaborative' && options.length > 0 && (
+                        <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" sx={{ mt: 1.5 }}>
+                          {['Gemini', 'GPT-4', 'Claude'].map((stage) => (
+                            <Chip key={stage} size="small" label={`✓ ${stage}`}
+                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} />
+                          ))}
+                          {revisionCount > 0 && (
+                            <Chip size="small" label={`↺ ${revisionCount} revisão${revisionCount > 1 ? 'ões' : ''}`}
+                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }} />
+                          )}
+                        </Stack>
+                      )}
+
+                      {!generating && pipeline === 'adversarial' && options.length > 0 && (
+                        <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" sx={{ mt: 1.5 }}>
+                          {[{ label: 'Gemini', color: '#fef9c3', border: '#fde68a' }, { label: 'GPT-4', color: '#dbeafe', border: '#93c5fd' }, { label: 'Claude', color: '#f0fdf4', border: '#bbf7d0' }].map((s) => (
+                            <Chip key={s.label} size="small" label={`✓ ${s.label}`}
+                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: s.color, border: `1px solid ${s.border}` }} />
+                          ))}
+                          <Chip size="small" label="→ Síntese Claude"
+                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} />
+                        </Stack>
+                      )}
+
+                      {!generating && pipeline === 'collaborative' && collabAnalysis && (
+                        <Box sx={{ mt: 1, p: 1, bgcolor: 'rgba(19,222,185,0.04)', borderRadius: 1, border: '1px solid rgba(19,222,185,0.2)' }}>
+                          <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mb: 0.25, color: '#13DEB9' }}>
+                            Análise Gemini
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                            {collabAnalysis}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {!generating && pipeline === 'adversarial' && adversarialContributions && (
+                        <Box sx={{ mt: 1, p: 1, bgcolor: 'rgba(93,135,255,0.04)', borderRadius: 1, border: '1px solid rgba(93,135,255,0.2)' }}>
+                          <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mb: 0.75, color: '#5d87ff' }}>
+                            Contribuições por perspectiva
+                          </Typography>
+                          <Stack spacing={0.5}>
+                            {([
+                              { key: 'gemini', label: 'Gemini (dados)', color: '#d97706' },
+                              { key: 'openai', label: 'GPT-4 (criativo)', color: '#2563eb' },
+                              { key: 'claude', label: 'Claude (DNA)', color: '#16a34a' },
+                            ] as { key: 'gemini' | 'openai' | 'claude'; label: string; color: string }[]).map(({ key, label, color }) => (
+                              <Stack key={key} direction="row" spacing={0.75} alignItems="flex-start">
+                                <Chip size="small" label={label}
+                                  sx={{ height: 18, fontSize: '0.58rem', flexShrink: 0, color, bgcolor: `${color}14`, border: `1px solid ${color}33` }} />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem', lineHeight: 1.4 }}>
+                                  {adversarialContributions[key]}
+                                </Typography>
+                              </Stack>
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+
+                      {generating && pipeline === 'adversarial' && (
+                        <Card variant="outlined" sx={{ mt: 2, bgcolor: 'grey.50' }}>
+                          <CardContent sx={{ py: 2 }}>
+                            <Stepper activeStep={collabStep} alternativeLabel>
+                              <Step completed={collabStep > 0}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 0 ? 700 : 400}>Gemini</Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">Perspectiva dados</Typography>
+                                </StepLabel>
+                              </Step>
+                              <Step completed={collabStep > 1}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 1 ? 700 : 400}>GPT-4</Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">Perspectiva criativa</Typography>
+                                </StepLabel>
+                              </Step>
+                              <Step completed={collabStep > 2}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep === 2 ? 700 : 400}>Claude</Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">Perspectiva DNA</Typography>
+                                </StepLabel>
+                              </Step>
+                              <Step completed={!generating}>
+                                <StepLabel>
+                                  <Typography variant="caption" fontWeight={collabStep >= 3 ? 700 : 400}>Síntese</Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">Claude edita</Typography>
+                                </StepLabel>
+                              </Step>
+                            </Stepper>
+                            <LinearProgress color={collabStep >= 3 ? 'secondary' : 'primary'} sx={{ mt: 2, borderRadius: 2 }} />
+                          </CardContent>
+                        </Card>
+                      )}
+
                       {generating && pipeline === 'collaborative' && (
                         <Card variant="outlined" sx={{ mt: 2, bgcolor: 'grey.50' }}>
                           <CardContent sx={{ py: 2 }}>
@@ -1426,6 +1546,18 @@ export default function EditorClient() {
                                   </Typography>
                                 </StepLabel>
                               </Step>
+                              {revisionCount > 0 && (
+                                <Step completed>
+                                  <StepLabel>
+                                    <Typography variant="caption" fontWeight={400}>
+                                      Revisão
+                                    </Typography>
+                                    <Typography variant="caption" display="block" color="text.secondary">
+                                      {revisionCount}x
+                                    </Typography>
+                                  </StepLabel>
+                                </Step>
+                              )}
                             </Stepper>
                             {collabStep === 0 && <LinearProgress sx={{ mt: 2, borderRadius: 2 }} />}
                             {collabStep === 1 && <LinearProgress color="warning" sx={{ mt: 2, borderRadius: 2 }} />}
@@ -1561,6 +1693,52 @@ export default function EditorClient() {
                                         </Box>
                                       )}
 
+                                      {qualityScores[idx] && (
+                                        <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
+                                            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.6rem' }}>Score IA</Typography>
+                                            <Chip
+                                              size="small"
+                                              label={`${qualityScores[idx].overall.toFixed(1)}/10`}
+                                              sx={{
+                                                height: 18, fontSize: '0.6rem',
+                                                bgcolor: qualityScores[idx].overall >= 8.5 ? '#dcfce7' : qualityScores[idx].overall >= 7 ? '#fef9c3' : '#fee2e2',
+                                                color: qualityScores[idx].overall >= 8.5 ? '#15803d' : qualityScores[idx].overall >= 7 ? '#a16207' : '#b91c1c',
+                                              }}
+                                            />
+                                          </Stack>
+                                          <Stack spacing={0.4}>
+                                            {([
+                                              { label: 'DNA', value: qualityScores[idx].scores.brand_dna_match },
+                                              { label: 'Plat', value: qualityScores[idx].scores.platform_fit },
+                                              { label: 'CTA', value: qualityScores[idx].scores.cta_clarity },
+                                            ] as { label: string; value: number }[]).map(({ label, value }) => (
+                                              <Stack key={label} direction="row" alignItems="center" spacing={0.5}>
+                                                <Typography variant="caption" color="text.disabled" sx={{ minWidth: 26, fontSize: '0.58rem' }}>{label}</Typography>
+                                                <LinearProgress
+                                                  variant="determinate"
+                                                  value={value * 10}
+                                                  sx={{
+                                                    flex: 1, height: 3, borderRadius: 2, bgcolor: 'action.hover',
+                                                    '& .MuiLinearProgress-bar': {
+                                                      bgcolor: value >= 8.5 ? '#16a34a' : value >= 7 ? '#d97706' : '#dc2626',
+                                                    },
+                                                  }}
+                                                />
+                                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.58rem', minWidth: 18, textAlign: 'right' }}>
+                                                  {value.toFixed(1)}
+                                                </Typography>
+                                              </Stack>
+                                            ))}
+                                          </Stack>
+                                          {qualityScores[idx].issues?.length > 0 && (
+                                            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5, fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                              {qualityScores[idx].issues[0]}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                      )}
+
                                       <Box sx={{ mt: 'auto', pt: 1 }}>
                                         <Button
                                           fullWidth
@@ -1594,6 +1772,25 @@ export default function EditorClient() {
                             <Alert severity="info" sx={{ mt: 1.5, fontSize: '0.8rem' }}>
                               Após várias regenerações, considere revisar o briefing para dar mais contexto à IA.
                             </Alert>
+                          )}
+
+                          {revisionHistory.length > 0 && (
+                            <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
+                              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                                Loop de qualidade — {revisionHistory.length} ciclo{revisionHistory.length > 1 ? 's' : ''}
+                              </Typography>
+                              <Stack spacing={0.5}>
+                                {revisionHistory.map((rev, i) => (
+                                  <Stack key={i} direction="row" spacing={1} alignItems="center">
+                                    <Chip size="small" label={`Loop ${rev.loop}`} sx={{ height: 16, fontSize: '0.58rem' }} />
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                                      {rev.score_before.toFixed(1)} → {rev.score_after.toFixed(1)}
+                                      {rev.issues_raised?.length ? ` · ${rev.issues_raised[0]}` : ''}
+                                    </Typography>
+                                  </Stack>
+                                ))}
+                              </Stack>
+                            </Box>
                           )}
                         </Box>
                       ) : (

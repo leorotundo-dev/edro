@@ -805,7 +805,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       typeof (request.query as any)?.country === 'string' ? (request.query as any).country : 'BR';
     const year = Number(params.month.split('-')[0]);
     const sourceEvents = await buildGlobalEvents({ tenantId, year, country });
-    const hits = expandEventsForMonth(sourceEvents, params.month);
+    const hits = expandEventsForMonth(sourceEvents, params.month as any);
     const { rows: clientRows } = await query<any>(
       `SELECT * FROM clients WHERE tenant_id=$1 ORDER BY name ASC`,
       [tenantId]
@@ -944,7 +944,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const client = buildClientProfile(clients[0]);
       const year = Number(params.month.split('-')[0]);
       const sourceEvents = await buildSourceEvents({ tenantId, client, year });
-      const hits = expandEventsForMonth(sourceEvents, params.month);
+      const hits = expandEventsForMonth(sourceEvents, params.month as any);
       const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
       const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
 
@@ -1023,13 +1023,13 @@ export default async function calendarRoutes(app: FastifyInstance) {
       }
 
       const sourceEvents = await buildSourceEvents({ tenantId, client, year: date.getFullYear() });
-      const hits = expandEventsForMonth(sourceEvents, toMonthKey(date));
+      const hits = expandEventsForMonth(sourceEvents, toMonthKey(date) as any);
       const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
       const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
 
       const items: any[] = [];
       for (const hit of hits) {
-        if (!hit.hitDates.includes(dateISO)) continue;
+        if (!hit.hitDates.includes(dateISO as any)) continue;
         const override = overrideMap.get(hit.event.id);
         const eligibility = checkCalendarEventEligibility(hit.event, client, override);
         if (!eligibility.ok) continue;
@@ -1071,13 +1071,13 @@ export default async function calendarRoutes(app: FastifyInstance) {
 
       const client = buildClientProfile(clients[0]);
       const sourceEvents = await buildSourceEvents({ tenantId, client, year: today.getFullYear() });
-      const hits = expandEventsForMonth(sourceEvents, toMonthKey(today));
+      const hits = expandEventsForMonth(sourceEvents, toMonthKey(today) as any);
       const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
       const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
 
       const items: any[] = [];
       for (const hit of hits) {
-        if (!hit.hitDates.includes(dateISO)) continue;
+        if (!hit.hitDates.includes(dateISO as any)) continue;
         const override = overrideMap.get(hit.event.id);
         const eligibility = checkCalendarEventEligibility(hit.event, client, override);
         if (!eligibility.ok) continue;
@@ -1133,7 +1133,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       for (const month of months) {
         const year = Number(month.split('-')[0]);
         const sourceEvents = await buildSourceEvents({ tenantId, client, year });
-        const hits = expandEventsForMonth(sourceEvents, month);
+        const hits = expandEventsForMonth(sourceEvents, month as any);
         for (const hit of hits) {
           for (const dateISO of hit.hitDates) {
             if (!isIsoInRange(dateISO, fromISO, toISO)) continue;
@@ -1239,7 +1239,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       for (const month of months) {
         const year = Number(month.split('-')[0]);
         const sourceEvents = await buildSourceEvents({ tenantId, client, year });
-        const hits = expandEventsForMonth(sourceEvents, month);
+        const hits = expandEventsForMonth(sourceEvents, month as any);
         for (const hit of hits) {
           for (const dateISO of hit.hitDates) {
             if (!isIsoInRange(dateISO, fromISO, toISO)) continue;
@@ -1276,7 +1276,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
     const posts = await generateMonthlyCalendar({
       client,
       platform: body.platform,
-      month: body.month,
+      month: body.month as any,
       objective: body.objective,
       postsPerWeek: body.postsPerWeek,
     });

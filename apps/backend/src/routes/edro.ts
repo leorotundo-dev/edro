@@ -7,8 +7,10 @@ import { z } from 'zod';
 import {
   generateCopy,
   generateCollaborativeCopy,
+  generateCollaborativeCopyWithLoop,
   generateCopyWithValidation,
   generatePremiumCopy,
+  generateAdversarialCopy,
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
@@ -53,7 +55,7 @@ import {
   getNextStage,
   getStageIndex,
   isWorkflowStage,
-} from '@edro/shared/workflow';
+} from '../utils/workflow';
 import { env } from '../env';
 import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
@@ -61,7 +63,9 @@ import { getClientPreferences, rebuildClientPreferences } from '../services/lear
 import { recordPreferenceFeedback, syncCreativeFeedbackToProfile } from '../services/preferenceEngine';
 import { buildPlatformRulesBlock } from '../services/platformRules';
 import { buildPromptDNABlock } from '../services/promptDNA';
-import { buildPersonaBlock, buildAMDBlock } from '../services/personaPrompt';
+import { buildPersonaBlock, buildAMDBlock, buildBehaviorIntentBlock } from '../services/personaPrompt';
+import { tagCopy } from '../services/ai/agentTagger';
+import { runPolicyCheck } from '../services/ai/policyChecker';
 import {
   createABTest,
   listABTests,
@@ -862,6 +866,9 @@ export default async function edroRoutes(app: FastifyInstance) {
         notify_traffic: z.boolean().optional(),
         traffic_channels: z.array(z.string()).optional(),
         traffic_recipient: z.string().optional(),
+        campaign_id: z.string().uuid().optional(),
+        campaign_phase_id: z.string().optional(),
+        behavior_intent_id: z.string().optional(),
       })
       .refine((data) => data.client_id || data.client_name, {
         message: 'client_id or client_name is required',
@@ -933,6 +940,9 @@ export default async function edroRoutes(app: FastifyInstance) {
       meetingUrl: body.meeting_url ?? null,
       dueAt: dueAt ?? null,
       source: body.source ?? 'manual',
+      campaignId: body.campaign_id ?? null,
+      campaignPhaseId: body.campaign_phase_id ?? null,
+      behaviorIntentId: body.behavior_intent_id ?? null,
     });
 
     // Vincular retroativamente outros briefings do mesmo cliente que ainda não têm main_client_id
@@ -949,7 +959,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           const kwQuery = `${body.title} ${clientSegment || ''} conteúdo referência`.trim();
           const t0 = Date.now();
           const res = await tavilySearch(kwQuery, { maxResults: 3, searchDepth: 'basic' });
-          logTavilyUsage({ tenant_id: user.tenant_id, operation: 'search-basic', unit_count: 1, feature: 'briefing_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id } });
+          logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: 1, feature: 'briefing_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id } });
           const refs = res.results.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 200)}`).join('\n');
           if (refs.length > 50) {
             await query(
@@ -1488,31 +1498,29 @@ export default async function edroRoutes(app: FastifyInstance) {
         const payload = briefing.payload || {};
         const platforms = String(payload.channels || 'instagram').split(',').map((c: string) => c.trim());
         const platform = platforms[0] || 'instagram';
-        const platformProfile = getPlatformProfile(platform);
+        const platformProfile = getPlatformProfile(platform as any);
 
+        const platformRules = platformProfile ? `\nPlataforma: ${platform}\n${JSON.stringify(platformProfile)}` : '';
+        const knowledgeSection = knowledgeBlock ? `\n\nCONHECIMENTO DO CLIENTE:\n${knowledgeBlock}` : '';
+        const bulkPrompt = `Gere ${body.count || 1} opção(ões) de copy para a seguinte campanha:\n\nCampanha: ${briefing.title}\nObjetivo: ${payload.objective || 'engajamento'}\nPúblico: ${payload.target_audience || 'público geral'}\nObservações: ${payload.additional_notes || ''}${platformRules}${knowledgeSection}`;
         const generated = await generateCopy({
-          brief: `Campanha: ${briefing.title}\nObjetivo: ${payload.objective || 'engajamento'}\nPúblico: ${payload.target_audience || 'público geral'}\nObservações: ${payload.additional_notes || ''}`,
-          platform,
-          language: body.language,
-          count: body.count,
-          customKnowledge: knowledgeBlock || undefined,
-          platformProfile: platformProfile || undefined,
+          prompt: bulkPrompt,
+          taskType: 'social_post',
+          usageContext: { tenant_id: tenantId ?? 'system', feature: 'bulk_generate' },
         });
 
         let copyCount = 0;
-        if (generated?.copies) {
-          for (const copy of generated.copies) {
-            await createCopyVersion({
-              briefingId,
-              language: body.language,
-              model: generated.model || null,
-              prompt: null,
-              output: copy.text || copy.output || String(copy),
-              payload: { bulk: true, platform },
-              createdBy: (request as any).user?.email || null,
-            });
-            copyCount++;
-          }
+        if (generated?.output) {
+          await createCopyVersion({
+            briefingId,
+            language: body.language,
+            model: generated.model || null,
+            prompt: null,
+            output: generated.output,
+            payload: { bulk: true, platform },
+            createdBy: (request as any).user?.email || null,
+          });
+          copyCount++;
         }
 
         results.push({ briefingId, ok: true, copies: copyCount });
@@ -1535,7 +1543,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       model: z.string().optional(),
       task_type: z.string().optional(),
       tier: z.string().optional(),
-      pipeline: z.enum(['simple', 'standard', 'premium', 'collaborative']).optional(),
+      pipeline: z.enum(['simple', 'standard', 'premium', 'collaborative', 'adversarial']).optional(),
       force_provider: z.enum(['openai', 'gemini', 'claude']).optional(),
       metadata: z.record(z.any()).optional(),
       created_by: z.string().optional(),
@@ -1615,7 +1623,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     if (!unlock.ok) {
       if (allowAutoStage || unlock.missing.length) {
-        for (const stage of unlock.missing) {
+        for (const stage of unlock.missing as WorkflowStage[]) {
           await updateBriefingStageStatus({
             briefingId: briefing.id,
             stage,
@@ -1712,6 +1720,44 @@ export default async function edroRoutes(app: FastifyInstance) {
         const personaBlock = buildPersonaBlock(resolvedPersona, payloadMomento);
         const amdBlock     = buildAMDBlock(payloadAmd, payloadMomento);
 
+        // BehaviorIntent — contexto comportamental da campanha (se briefing vinculado)
+        let behaviorIntentBlock = '';
+        if (briefing.campaign_id && briefing.campaign_phase_id) {
+          try {
+            const { rows: campRows } = await query(
+              `SELECT phases, audiences, behavior_intents FROM campaigns WHERE id=$1 LIMIT 1`,
+              [briefing.campaign_id]
+            );
+            const camp = campRows[0];
+            if (camp) {
+              const phaseId = briefing.campaign_phase_id;
+              const campPhases: any[] = Array.isArray(camp.phases) ? camp.phases : [];
+              const campAudiences: any[] = Array.isArray(camp.audiences) ? camp.audiences : [];
+              const campIntents: any[] = Array.isArray(camp.behavior_intents) ? camp.behavior_intents : [];
+              const phase = campPhases.find((p: any) => p.id === phaseId);
+              // Prefer exact behavior_intent_id match; fallback to phase + AMD; then phase-only
+              const intent =
+                (briefing.behavior_intent_id
+                  ? campIntents.find((bi: any) => bi.id === briefing.behavior_intent_id)
+                  : null) ??
+                campIntents.find((bi: any) => bi.phase_id === phaseId && (!payloadAmd || bi.amd === payloadAmd)) ??
+                campIntents.find((bi: any) => bi.phase_id === phaseId);
+              if (intent) {
+                const audience = campAudiences.find((a: any) => a.id === intent.audience_id);
+                behaviorIntentBlock = buildBehaviorIntentBlock({
+                  phase_name: phase?.name,
+                  phase_objective: phase?.objective,
+                  audience_persona_name: audience?.persona_name,
+                  amd: intent.amd,
+                  momento: intent.momento,
+                  triggers: intent.triggers,
+                  target_behavior: intent.target_behavior,
+                });
+              }
+            }
+          } catch { /* non-blocking — geração continua sem o bloco */ }
+        }
+
         // Camada universal de engenharia de decisão (neurociência, PNL, heurísticas, vetos)
         // AMD sobrepõe taskType na seleção do gatilho dominante quando presente
         const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined, payloadAmd);
@@ -1783,19 +1829,31 @@ export default async function edroRoutes(app: FastifyInstance) {
           // Não-bloqueante — falha silenciosa
         }
 
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, platformBlock, temporalBlock, promptDNABlock, webResearchBlock].filter(Boolean).join('\n');
+        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, behaviorIntentBlock, platformBlock, temporalBlock, promptDNABlock, webResearchBlock].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
+        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
 
         let result;
-        if (pipeline === 'collaborative') {
-          result = await generateCollaborativeCopy({
+        if (pipeline === 'adversarial') {
+          const adversarialResult = await generateAdversarialCopy({
+            prompt: prompt!,
+            knowledgeBlock: enrichedKnowledgeBlock || undefined,
+            usageContext: usageCtx,
+          });
+          result = {
+            output: adversarialResult.synthesis,
+            model: 'adversarial',
+            payload: adversarialResult.payload,
+          };
+        } else if (pipeline === 'collaborative') {
+          result = await generateCollaborativeCopyWithLoop({
             prompt: prompt!,
             count,
             knowledgeBlock: enrichedKnowledgeBlock || undefined,
             reporteiHint: reporteiContext?.promptBlock || undefined,
             clientName: briefing.client_name || metadata.client_name || undefined,
             instructions: body.instructions || undefined,
+            maxLoops: 2,
             usageContext: usageCtx,
           });
         } else if (pipeline === 'simple') {
@@ -1835,12 +1893,9 @@ export default async function edroRoutes(app: FastifyInstance) {
           if (correctionPrompt) {
             const correctionInstruction = `${correctionPrompt}\n\n${rawText}`;
             try {
-              const { generateCopy: gcSimple } = await import('../services/ai/copyOrchestrator');
-              const corrected = await gcSimple({
-                provider: body.force_provider || 'openai',
-                model: 'gpt-4o-mini',
+              const corrected = await generateCopy({
+                forceProvider: (body.force_provider || 'openai') as any,
                 prompt: correctionInstruction,
-                count: 1,
                 temperature: 0.3,
                 usageContext: { tenant_id: tenantId || 'system', feature: 'cognitive_load_correction' },
               });
@@ -1875,12 +1930,9 @@ export default async function edroRoutes(app: FastifyInstance) {
           const dsCorrection = buildDecisionStackCorrectionPrompt(decisionStackAudit);
           if (dsCorrection) {
             try {
-              const { generateCopy: gcDs } = await import('../services/ai/copyOrchestrator');
-              const corrected = await gcDs({
-                provider: body.force_provider || 'openai',
-                model: 'gpt-4o-mini',
+              const corrected = await generateCopy({
+                forceProvider: (body.force_provider || 'openai') as any,
                 prompt: `${dsCorrection}\n\n${rawText}`,
-                count: 1,
                 temperature: 0.4,
                 usageContext: { tenant_id: tenantId || 'system', feature: 'decision_stack_correction' },
               });
@@ -1904,6 +1956,28 @@ export default async function edroRoutes(app: FastifyInstance) {
     } catch {
       /* audit is non-blocking */
     }
+
+    // AgentTagger — classifica a copy com metadata comportamental (Gemini Flash, não-bloqueante)
+    let behavioralTags: Awaited<ReturnType<typeof tagCopy>> | null = null;
+    try {
+      const rawText = typeof output === 'string' ? output : JSON.stringify(output);
+      if (rawText && rawText.length > 30) {
+        behavioralTags = await tagCopy(rawText, selectedPlatform);
+      }
+    } catch {
+      /* tagger é não-bloqueante — falha silenciosa */
+    }
+
+    // PolicyChecker — Fase 4: Governança Ética (não-bloqueante)
+    let policyResult: Awaited<ReturnType<typeof runPolicyCheck>> | null = null;
+    try {
+      const rawText = typeof output === 'string' ? output : JSON.stringify(output);
+      if (rawText && rawText.length > 30) {
+        policyResult = await runPolicyCheck(rawText);
+      }
+    } catch {
+      /* policy checker é não-bloqueante — falha silenciosa */
+    }
     // ─────────────────────────────────────────────────────────────────────────
 
     const basePayload =
@@ -1925,6 +1999,16 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (decisionStackAudit) {
       edroPayload.decision_stack = decisionStackAudit;
     }
+    if (behavioralTags) {
+      edroPayload.behavioral_tags = behavioralTags;
+    }
+    if (policyResult) {
+      edroPayload.policy_check = {
+        status:              policyResult.status,
+        policies_triggered:  policyResult.policies_triggered,
+        rationale:           policyResult.rationale,
+      };
+    }
     const hasEdroPayload = Object.keys(edroPayload).length > 0;
     const hasBasePayload = Object.keys(basePayload).length > 0;
     let enrichedPayload = payload ?? null;
@@ -1944,6 +2028,31 @@ export default async function edroRoutes(app: FastifyInstance) {
       payload: enrichedPayload,
       createdBy: body.created_by ?? user.email,
     });
+
+    // Persist ethics log — non-blocking
+    if (policyResult) {
+      query(
+        `INSERT INTO copy_ethics_log
+           (tenant_id, client_id, briefing_id, copy_version_id,
+            emotional_valence, arousal_level, sensitive_topics,
+            status, policies_evaluated, policies_triggered, rationale)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::text[],$8,$9::text[],$10::text[],$11)
+         ON CONFLICT DO NOTHING`,
+        [
+          tenantId,
+          briefing.client_id,
+          briefing.id,
+          copy.id,
+          policyResult.emotion.emotional_valence,
+          policyResult.emotion.arousal_level,
+          policyResult.emotion.sensitive_topics,
+          policyResult.status,
+          policyResult.policies_evaluated,
+          policyResult.policies_triggered,
+          policyResult.rationale,
+        ]
+      ).catch(() => { /* ethics log failure is non-blocking */ });
+    }
 
     await updateBriefingStageStatus({
       briefingId: briefing.id,
@@ -2179,7 +2288,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     const defaultMix = profile?.defaultMix || {};
-    const sorted = Object.entries(defaultMix).sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(defaultMix).sort((a, b) => (b[1] as number) - (a[1] as number));
 
     const objectiveLower = objective.toLowerCase();
     const isConversion =
@@ -2796,7 +2905,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       `INSERT INTO edro_publish_schedule (briefing_id, copy_id, channel, scheduled_for, payload, created_by)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6)
        RETURNING id`,
-      [id, body.copyId, body.channel, body.scheduledFor, JSON.stringify(body.payload || {}), user.email || user.sub]
+      [id, body.copyId, body.channel, body.scheduledFor, JSON.stringify(body.payload || {}), user.email]
     );
 
     return reply.send({ success: true, data: { scheduleId: rows[0]?.id } });
@@ -3151,7 +3260,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     const user = resolveUser(request);
-    const tenantId = user.tenant_id;
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id;
     if (!tenantId) return reply.status(401).send({ ok: false, error: 'unauthorized' });
 
     // Resolve client_id — do body, do briefing ou do payload
@@ -3356,7 +3465,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       metric: z.enum(['engagement', 'clicks', 'conversions', 'score']).default('engagement'),
     }).parse(request.body);
 
-    const test = await createABTest({ briefing_id: id, ...body });
+    const test = await createABTest({ briefing_id: id, variant_a_id: body.variant_a_id, variant_b_id: body.variant_b_id, metric: body.metric });
     return reply.send({ success: true, data: test });
   });
 
@@ -3385,7 +3494,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       score: z.number().min(0).max(100).optional(),
     }).parse(request.body);
 
-    const result = await recordABResult({ test_id: testId, ...body });
+    const result = await recordABResult({ test_id: testId, variant_id: body.variant_id, impressions: body.impressions, clicks: body.clicks, engagement: body.engagement, conversions: body.conversions, score: body.score });
     return reply.send({ success: true, data: result });
   });
 
@@ -3430,7 +3539,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       hour: z.number().int().min(0).max(23).optional(),
     }).parse(request.body);
 
-    const prediction = await predictEngagement({ client_id: clientId, ...body });
+    const prediction = await predictEngagement({ client_id: clientId, platform: body.platform, format: body.format, day_of_week: body.day_of_week, hour: body.hour });
     return reply.send({ success: true, data: { predicted_engagement: prediction } });
   });
 
@@ -3544,5 +3653,243 @@ export default async function edroRoutes(app: FastifyInstance) {
     const tvRes = await tavilySearch(copyQuery, { maxResults: 5, searchDepth: 'basic' });
     logTavilyUsage({ tenant_id: (request.user as any)?.tenant_id || 'system', operation: 'search-basic', unit_count: 1, feature: 'research_for_copy', duration_ms: Date.now() - t0, metadata: { topic: body.topic.slice(0, 80) } });
     return reply.send({ success: true, data: { content: tvRes.results.slice(0, 3).map((r: any) => `${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n\n'), citations: tvRes.results.map((r: any) => r.url), search_results: tvRes.results, _provider: 'tavily' } });
+  });
+
+  // ── POST /ai/image-prompt ──────────────────────────────────────────────────
+  // Gera prompt profissional para Midjourney/DALL-E com base no contexto do briefing.
+
+  app.post('/ai/image-prompt', async (request, reply) => {
+    const body = z.object({
+      client_id: z.string().optional(),
+      brief: z.string().optional(),
+      platform: z.string().optional(),
+      format: z.string().optional(),
+      event: z.string().optional(),
+      brand_colors: z.array(z.string()).optional(),
+    }).parse(request.body);
+
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id || 'system';
+
+    // Load client profile for brand context
+    let brandContext = '';
+    if (body.client_id && body.client_id !== 'system') {
+      try {
+        const clientRow = await getClientById(tenantId, body.client_id);
+        if (clientRow) {
+          const knowledge = buildClientKnowledgeFromRow(clientRow);
+          brandContext = buildClientKnowledgeBlock(knowledge as ClientKnowledge);
+        }
+      } catch {
+        // continue without brand context
+      }
+    }
+
+    const platformStr = body.platform || 'Instagram';
+    const formatStr = body.format || 'Feed';
+    const aspectRatio = platformStr.toLowerCase().includes('story') || formatStr.toLowerCase().includes('story')
+      ? '--ar 9:16'
+      : platformStr.toLowerCase().includes('linkedin') ? '--ar 1.91:1'
+      : '--ar 1:1';
+
+    const prompt = `Você é um diretor de arte digital especialista em criação de prompts para IAs de imagem (Midjourney, DALL-E 3, Stable Diffusion).
+
+Gere um prompt profissional e detalhado em inglês para criar uma imagem publicitária.
+
+CONTEXTO:
+- Plataforma: ${platformStr}
+- Formato: ${formatStr}
+- Evento/Tema: ${body.event || 'Campanha de marca'}
+- Brief: ${body.brief || ''}
+${body.brand_colors?.length ? `- Cores da marca: ${body.brand_colors.join(', ')}` : ''}
+${brandContext ? `\nPERFIL DO CLIENTE:\n${brandContext}` : ''}
+
+Retorne APENAS o prompt em inglês, sem explicações. O prompt deve:
+1. Descrever o subject principal (não incluir pessoas reais ou marcas)
+2. Especificar estilo visual (fotografia, ilustração, 3D, etc.)
+3. Incluir iluminação e composição
+4. Mencionar mood/atmosfera alinhada ao evento
+5. Incluir ao final: ${aspectRatio} --v 6 --style raw
+
+Exemplo de formato:
+"[descrição do subject], [estilo], [iluminação], [composição], [cores], [mood], ${aspectRatio} --v 6 --style raw"`;
+
+    try {
+      const result = await generateCopy({
+        prompt,
+        taskType: 'institutional_copy',
+        temperature: 0.6,
+        maxTokens: 400,
+        usageContext: { tenant_id: tenantId, feature: 'image_prompt' },
+      });
+
+      // Clean the output — remove any markdown or quotes
+      const cleaned = result.output
+        .replace(/^["'`]|["'`]$/g, '')
+        .replace(/^```[a-z]*\n?/m, '')
+        .replace(/```$/m, '')
+        .trim();
+
+      return reply.send({ success: true, prompt: cleaned });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message ?? 'image_prompt_failed' });
+    }
+  });
+
+  // ── POST /ai/review-summary ────────────────────────────────────────────────
+  // Gera sumário analítico de qualidade das copies geradas vs DNA do cliente.
+
+  app.post('/ai/review-summary', async (request, reply) => {
+    const body = z.object({
+      briefing_id: z.string().optional(),
+      client_id: z.string().optional(),
+      copies: z.array(z.string().nullable()).optional(),
+    }).parse(request.body);
+
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id || 'system';
+
+    // Load briefing + client for context
+    let briefingContext = '';
+    let brandContext = '';
+    try {
+      if (body.briefing_id) {
+        const bRes = await getBriefingById(body.briefing_id);
+        if (bRes) {
+          briefingContext = `Título: ${bRes.title || ''}\nObjetivo: ${JSON.stringify(bRes.payload?.objective || '')}`;
+        }
+      }
+      if (body.client_id && body.client_id !== 'system') {
+        const clientRow = await getClientById(tenantId, body.client_id);
+        if (clientRow) {
+          const knowledge = buildClientKnowledgeFromRow(clientRow);
+          brandContext = buildClientKnowledgeBlock(knowledge as ClientKnowledge);
+        }
+      }
+    } catch {
+      // continue without context
+    }
+
+    const copies = (body.copies || []).filter(Boolean).slice(0, 5);
+    if (!copies.length) {
+      return reply.send({ success: true, data: { overall_score: 0, summary: 'Nenhuma copy para analisar.', warnings: [] } });
+    }
+
+    const prompt = `Você é o editor-chefe de uma agência de comunicação premium.
+Analise as copies abaixo e avalie a qualidade geral em relação ao briefing e DNA do cliente.
+
+${briefingContext ? `BRIEFING:\n${briefingContext}\n` : ''}
+${brandContext ? `DNA DO CLIENTE:\n${brandContext}\n` : ''}
+
+COPIES PARA REVISÃO:
+${copies.map((c, i) => `--- Copy ${i + 1} ---\n${c}`).join('\n\n')}
+
+Retorne APENAS JSON válido:
+{
+  "overall_score": <número 0-10>,
+  "summary": "<resumo em 2-3 frases sobre qualidade geral, pontos fortes e fracos>",
+  "warnings": ["<ponto de atenção 1>", "<ponto de atenção 2>"]
+}
+
+Critério: overall_score >= 8 = excelente, 6-7.9 = bom, < 6 = requer revisão.`;
+
+    try {
+      const result = await generateCopy({
+        prompt,
+        taskType: 'final_review',
+        temperature: 0.3,
+        maxTokens: 600,
+        usageContext: { tenant_id: tenantId, feature: 'review_summary' },
+      });
+
+      let parsed: any = { overall_score: 7, summary: result.output, warnings: [] };
+      try {
+        const start = result.output.indexOf('{');
+        const end = result.output.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          parsed = JSON.parse(result.output.slice(start, end + 1));
+        }
+      } catch {
+        // use raw output as summary
+      }
+
+      return reply.send({ success: true, data: parsed });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message ?? 'review_summary_failed' });
+    }
+  });
+
+  // ── POST /ai/email-draft ───────────────────────────────────────────────────
+  // Gera rascunho de email de aprovação com base no contexto do briefing.
+
+  app.post('/ai/email-draft', async (request, reply) => {
+    const body = z.object({
+      briefing_id: z.string().optional(),
+      client_name: z.string().optional(),
+      title: z.string().optional(),
+      due_date: z.string().optional(),
+      format_list: z.array(z.string()).optional(),
+    }).parse(request.body);
+
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id || 'system';
+
+    // Load briefing details if available
+    let briefingTitle = body.title || 'Campanha';
+    let clientName = body.client_name || 'Cliente';
+    let dueDateStr = body.due_date || '';
+    try {
+      if (body.briefing_id) {
+        const bRes = await getBriefingById(body.briefing_id);
+        if (bRes) {
+          briefingTitle = bRes.title || briefingTitle;
+          clientName = bRes.client_name || clientName;
+          dueDateStr = bRes.payload?.dueAt || dueDateStr;
+        }
+      }
+    } catch {
+      // continue with provided values
+    }
+
+    const formatsStr = body.format_list?.length
+      ? body.format_list.slice(0, 5).join(', ')
+      : 'materiais da campanha';
+
+    const prompt = `Você é um assistente de comunicação de agência.
+Escreva um email profissional e conciso para enviar ao cliente solicitando aprovação dos materiais.
+
+CONTEXTO:
+- Cliente: ${clientName}
+- Campanha/Pauta: ${briefingTitle}
+- Materiais produzidos: ${formatsStr}
+${dueDateStr ? `- Prazo de aprovação sugerido: ${dueDateStr}` : ''}
+
+Retorne APENAS JSON válido:
+{
+  "subject": "<assunto do email, ex: [Para aprovação] Materiais de Campanha — ClienteX>",
+  "body": "<corpo do email em português, profissional, 3-4 parágrafos. Inclua: saudação, descrição dos materiais, pedido de aprovação até data, contato para dúvidas. Não inclua assinatura.>"
+}`;
+
+    try {
+      const result = await generateCopy({
+        prompt,
+        taskType: 'institutional_copy',
+        temperature: 0.5,
+        maxTokens: 700,
+        usageContext: { tenant_id: tenantId, feature: 'email_draft' },
+      });
+
+      let parsed: any = { subject: `[Para aprovação] ${briefingTitle}`, body: result.output };
+      try {
+        const start = result.output.indexOf('{');
+        const end = result.output.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          parsed = JSON.parse(result.output.slice(start, end + 1));
+        }
+      } catch {
+        // use output as body
+      }
+
+      return reply.send({ success: true, data: parsed });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message ?? 'email_draft_failed' });
+    }
   });
 }

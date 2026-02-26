@@ -700,7 +700,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       return {
         title: 'Oportunidade prioritária',
         text: first.description || first.title,
-        href: `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(first.title || 'Nova pauta')}`,
+        href: `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(first.title || 'Nova pauta')}`,
         action: 'Criar pauta',
       };
     }
@@ -1123,7 +1123,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 {clippingItems.length ? (
                   clippingItems.slice(0, 3).map((item) => {
                     const score = Number(item.client_score ?? item.score ?? 0);
-                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`;
+                    const createHref = `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`;
                     return (
                       <Box key={item.id} sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' }, transition: 'background 0.2s' }}>
                         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
@@ -1194,7 +1194,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   socialMentions.slice(0, 4).map((m) => {
                     const socialTitle = (m.keyword && m.keyword.trim()) ? `Social: ${m.keyword}` : 'Oportunidade social';
                     const socialDraft = String(m.content || '').slice(0, 180);
-                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(m.id)}&draft=${encodeURIComponent(socialDraft)}`;
+                    const createHref = `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(m.id)}&draft=${encodeURIComponent(socialDraft)}`;
                     return (
                     <Box key={m.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -1319,7 +1319,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               <Stack spacing={1}>
                 {topOpportunities.length ? (
                   topOpportunities.map((opp) => {
-                    const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(opp.title || 'Nova pauta')}&source=opportunity&sourceId=${encodeURIComponent(opp.id)}`;
+                    const createHref = `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(opp.title || 'Nova pauta')}&source=opportunity&sourceId=${encodeURIComponent(opp.id)}`;
                     return (
                     <Box key={opp.id} sx={{ p: 1, borderRadius: 2, bgcolor: '#fafafa' }}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -1528,7 +1528,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 </Typography>
                 <Stack spacing={1.5}>
                   <Button fullWidth variant="contained" startIcon={<IconSparkles size={16} />}
-                    component={Link} href={`/studio?clientId=${clientId}`}
+                    component={Link} href={`/studio/brief?clientId=${clientId}`}
                     sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 2, backdropFilter: 'blur(4px)', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}>
                     Criar pauta
                   </Button>

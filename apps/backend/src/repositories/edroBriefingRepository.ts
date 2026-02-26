@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { WORKFLOW_STAGES, WorkflowStage } from '@edro/shared/workflow';
+import { WORKFLOW_STAGES, WorkflowStage } from '../utils/workflow';
 
 export interface EdroClient {
   id: string;
@@ -15,6 +15,12 @@ export interface EdroBriefing {
   client_id: string | null;
   /** FK direto para clients.id — fonte única de verdade do perfil do cliente */
   main_client_id: string | null;
+  /** FK para campaigns.id — qual campanha este briefing serve */
+  campaign_id?: string | null;
+  /** Fase da campanha que este briefing serve (e.g. "historia", "prova", "convite") */
+  campaign_phase_id?: string | null;
+  /** ID do behavior_intent (campaigns.behavior_intents[].id) que originou este briefing */
+  behavior_intent_id?: string | null;
   title: string;
   status: string;
   payload: Record<string, any>;
@@ -121,6 +127,12 @@ export async function createBriefing(input: {
   clientId?: string | null;
   /** ID da tabela clients (TEXT) — fonte única de verdade do perfil */
   mainClientId?: string | null;
+  /** ID da campanha à qual este briefing pertence */
+  campaignId?: string | null;
+  /** Fase da campanha (e.g. "historia", "prova", "convite") */
+  campaignPhaseId?: string | null;
+  /** ID do BehaviorIntent que originou este briefing (para LearningEngine loop) */
+  behaviorIntentId?: string | null;
   title: string;
   status?: string;
   payload: Record<string, any>;
@@ -142,9 +154,12 @@ export async function createBriefing(input: {
         traffic_owner,
         meeting_url,
         due_at,
-        source
+        source,
+        campaign_id,
+        campaign_phase_id,
+        behavior_intent_id
       )
-      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `,
     [
@@ -158,6 +173,9 @@ export async function createBriefing(input: {
       input.meetingUrl ?? null,
       input.dueAt ?? null,
       input.source ?? 'manual',
+      input.campaignId ?? null,
+      input.campaignPhaseId ?? null,
+      input.behaviorIntentId ?? null,
     ]
   );
   return rows[0];

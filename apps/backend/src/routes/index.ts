@@ -34,6 +34,9 @@ import integrationDataRoutes from './integrationData';
 import pautaInboxRoutes from './pautaInbox';
 import tempPgVectorCheck from './_temp_pgvector_check';
 import metaOAuthRoutes from './metaOAuth';
+import darkFunnelRoutes from './darkFunnel';
+import behaviorProfilesRoutes from './behaviorProfiles';
+import learningRulesRoutes from './learningRules';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -72,4 +75,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(analyticsRoutes, { prefix: '/api' });
   app.register(integrationDataRoutes, { prefix: '/api' });
   app.register(pautaInboxRoutes, { prefix: '/api' });
+  app.register(darkFunnelRoutes, { prefix: '/api' });
+  app.register(behaviorProfilesRoutes, { prefix: '/api' });
+  app.register(learningRulesRoutes, { prefix: '/api' });
 }

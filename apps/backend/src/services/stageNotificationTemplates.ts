@@ -1,5 +1,5 @@
-import type { WorkflowStage } from '@edro/shared/workflow';
-import { getStageUI } from '@edro/shared/workflow';
+import type { WorkflowStage, WorkflowStageUI } from '../utils/workflow';
+import { getStageUI } from '../utils/workflow';
 
 type StageChangeEmailParams = {
   briefingTitle: string;

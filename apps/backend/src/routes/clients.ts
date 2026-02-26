@@ -132,7 +132,7 @@ Quando não encontrar um valor, use null ou lista vazia.`;
     maxTokens: 1200,
   });
 
-  const parsed = safeJsonParse(raw) || {};
+  const parsed = safeJsonParse(raw?.text || '') || {};
 
   return {
     name: normalizeString(parsed.name),
@@ -325,7 +325,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const body = bodySchema.parse(request.body || {});
       const tenantId = (request.user as any).tenant_id;
 
-      const client = await createClient({ tenantId, payload: body });
+      const client = await createClient({ tenantId, payload: body as any });
 
       setImmediate(async () => {
         try {

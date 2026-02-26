@@ -801,7 +801,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                                     if (!targetClientId) return;
                                     const title = encodeURIComponent(item.title || 'Pauta');
                                     router.push(
-                                      `/studio?clientId=${encodeURIComponent(targetClientId)}&title=${title}&source=clipping&sourceId=${encodeURIComponent(item.id)}`,
+                                      `/studio/brief?clientId=${encodeURIComponent(targetClientId)}&title=${title}&source=clipping&sourceId=${encodeURIComponent(item.id)}`,
                                     );
                                   }}
                                   sx={{

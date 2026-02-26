@@ -71,3 +71,40 @@ export function buildAMDBlock(amd: string | null, _momento: string | null): stri
   if (!guidance) return '';
   return `\n\n${guidance}`;
 }
+
+type BehaviorIntentShape = {
+  phase_name?: string;
+  phase_objective?: string;
+  audience_persona_name?: string;
+  amd?: string;
+  momento?: string;
+  triggers?: string[];
+  target_behavior?: string;
+};
+
+/**
+ * Constrói o bloco de intenção comportamental da campanha.
+ * Injeta o contexto estratégico (fase, público, gatilhos, comportamento-alvo)
+ * para que a IA saiba qual resultado comportamental esta peça está servindo.
+ * Retorna string vazia se intent for null.
+ */
+export function buildBehaviorIntentBlock(intent: BehaviorIntentShape | null): string {
+  if (!intent) return '';
+  const lines: string[] = ['INTENÇÃO COMPORTAMENTAL DA CAMPANHA:'];
+  if (intent.phase_name) {
+    lines.push(`Fase: ${intent.phase_name}${intent.phase_objective ? ` — ${intent.phase_objective}` : ''}`);
+  }
+  if (intent.audience_persona_name) {
+    lines.push(`Público estratégico: ${intent.audience_persona_name}`);
+  }
+  if (intent.amd) lines.push(`Acao minima desejada: ${intent.amd}`);
+  if (intent.momento) lines.push(`Momento de consciencia: ${intent.momento}`);
+  if (intent.triggers?.length) {
+    lines.push(`Gatilhos estrategicos: ${intent.triggers.join(', ')}`);
+  }
+  if (intent.target_behavior) {
+    lines.push(`Comportamento-alvo: ${intent.target_behavior}`);
+  }
+  lines.push('INSTRUCAO: Esta peca esta dentro de uma campanha planejada. Respeite os gatilhos estrategicos definidos acima. O comportamento-alvo e o criterio de sucesso desta peca — nao o engajamento generico.');
+  return `\n\n${lines.join('\n')}`;
+}

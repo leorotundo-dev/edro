@@ -1121,8 +1121,16 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
     });
 
     const linked = linkedResults.filter((r) => r.meta_ad !== null);
-    const totalSpend = metaData.reduce((sum, ad) => sum + parseFloat(ad.spend || '0'), 0);
-    const totalClicks = metaData.reduce((sum, ad) => sum + parseInt(ad.clicks || '0'), 0);
+    let totalSpend = 0;
+    let totalClicks = 0;
+    let totalCtr = 0;
+    for (const ad of metaData) {
+      totalSpend += parseFloat(ad.spend || '0');
+      totalClicks += parseInt(ad.clicks || '0');
+      if (parseInt(ad.impressions || '0') > 0) {
+        totalCtr += parseInt(ad.clicks || '0') / parseInt(ad.impressions || '0');
+      }
+    }
 
     return {
       client_name: client.name,
@@ -1135,7 +1143,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
         total_spend: Math.round(totalSpend * 100) / 100,
         total_clicks: totalClicks,
         avg_ctr: totalClicks > 0 && metaData.length > 0
-          ? (metaData.reduce((sum, ad) => sum + (parseInt(ad.impressions || '0') > 0 ? parseInt(ad.clicks || '0') / parseInt(ad.impressions || '0') : 0), 0) / metaData.length * 100).toFixed(2)
+          ? (totalCtr / metaData.length * 100).toFixed(2)
           : null,
       },
       meta_available: metaData.length > 0,
@@ -1243,7 +1251,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
         return {
           id: client.id, name: client.name, segment: client.segment,
           score, status, statusColor, briefings: current,
-          bottlenecks: parseInt(bots.rows[0]?.count || '0'),
+          bottlenecks: parseInt(bots[0]?.count || '0'),
         };
       } catch {
         return { id: client.id, name: client.name, segment: client.segment, score: null, status: 'error', statusColor: '#94a3b8' };

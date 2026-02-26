@@ -183,7 +183,7 @@ export default async function libraryRoutes(app: FastifyInstance) {
         client_id: request.params.clientId,
         ...body,
         created_by: (request.user as any).email,
-      });
+      } as any);
 
       await audit({
         actor_user_id: (request.user as any).sub,
@@ -261,7 +261,6 @@ export default async function libraryRoutes(app: FastifyInstance) {
         source_url: url,
         notes: extracted.content.slice(0, 3000),
         created_by: (request.user as any).email,
-        status: 'pending',
       });
 
       await enqueueJob(tenantId, 'process_library_item', { library_item_id: item.id });

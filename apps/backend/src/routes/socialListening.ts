@@ -221,29 +221,29 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         clientId: z.string().optional(),
         limit: z.string().optional(),
       });
-      const query = querySchema.parse(request.query);
+      const qs = querySchema.parse(request.query);
 
-      if (query.clientId) {
-        const allowed = await assertClientAccess(request, query.clientId, 'read');
+      if (qs.clientId) {
+        const allowed = await assertClientAccess(request, qs.clientId, 'read');
         if (!allowed) return reply.status(403).send({ error: 'client_forbidden' });
       }
 
       const service = new SocialListeningService(request.user.tenant_id);
       const trends = await service.getTrends({
-        platform: query.platform,
-        keyword: query.keyword,
-        clientId: query.clientId,
-        limit: query.limit ? Number(query.limit) : undefined,
+        platform: qs.platform,
+        keyword: qs.keyword,
+        clientId: qs.clientId,
+        limit: qs.limit ? Number(qs.limit) : undefined,
       });
 
       // Tavily fallback: if no stored trends and clientId provided, enrich with web data
-      if (trends.length === 0 && query.clientId && isTavilyConfigured()) {
+      if (trends.length === 0 && qs.clientId && isTavilyConfigured()) {
         try {
           const tenantId = request.user.tenant_id;
           const { rows: kws } = await query<{ keyword: string }>(
             `SELECT keyword FROM social_listening_keywords
              WHERE tenant_id=$1 AND client_id=$2 AND is_active=true LIMIT 3`,
-            [tenantId, query.clientId]
+            [tenantId, qs.clientId]
           );
           const webTrends: any[] = [];
           for (const { keyword } of kws) {

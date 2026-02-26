@@ -1241,7 +1241,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
               const chip = sentimentChip(mention.sentiment);
               const socialTitle = mention.keyword?.trim() ? `Social: ${mention.keyword}` : 'Oportunidade social';
               const socialDraft = String(mention.content || '').slice(0, 180);
-              const createHref = `/studio?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(mention.id)}&draft=${encodeURIComponent(socialDraft)}`;
+              const createHref = `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(socialTitle)}&source=social&sourceId=${encodeURIComponent(mention.id)}&draft=${encodeURIComponent(socialDraft)}`;
               return (
                 <Card
                   key={mention.id}
