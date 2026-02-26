@@ -1,6 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import * as cheerio from 'cheerio';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 
 export type ScrapedContent = {
@@ -192,7 +192,9 @@ export class UrlScraper {
     url: string
   ): { textContent: string; content: string } | null {
     try {
-      const dom = new JSDOM(html, { url });
+      const virtualConsole = new VirtualConsole();
+      virtualConsole.on('error', () => { /* suppress jsdom CSS parse errors */ });
+      const dom = new JSDOM(html, { url, virtualConsole });
       const reader = new Readability(dom.window.document);
       const article = reader.parse();
 
