@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Stepper from '@mui/material/Stepper';
@@ -728,12 +732,20 @@ export default function PlatformClient() {
 
   if (loading && !recommendation) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-          Gerando recomendacoes...
-        </Typography>
-      </Box>
+      <Stack spacing={3}>
+        <Stack spacing={0.5}>
+          <Skeleton width={220} height={28} />
+          <Skeleton width={320} height={18} />
+        </Stack>
+        <Grid container spacing={2}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Skeleton variant="rounded" height={140} sx={{ borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rounded" height={56} sx={{ borderRadius: 2 }} />
+      </Stack>
     );
   }
 
@@ -758,6 +770,20 @@ export default function PlatformClient() {
       {!hasTopContext ? (
         <Alert severity="warning">Selecione evento e clientes no topo para continuar.</Alert>
       ) : null}
+
+      {/* View mode tabs — only shown once loading is done */}
+      {viewMode !== 'loading' && recommendation && (
+        <Tabs
+          value={viewMode === 'ai_recommendation' ? 0 : 1}
+          onChange={(_, v) => setViewMode(v === 0 ? 'ai_recommendation' : 'manual')}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Recomendação da IA" icon={<IconSparkles size={14} />} iconPosition="start"
+            sx={{ minHeight: 40, py: 0.5 }} />
+          <Tab label="Personalizar manual" iconPosition="start"
+            sx={{ minHeight: 40, py: 0.5 }} />
+        </Tabs>
+      )}
 
       {/* AI-First Recommendation View */}
       {viewMode === 'ai_recommendation' && recommendation ? (
@@ -838,16 +864,12 @@ export default function PlatformClient() {
                   );
                 })}
             </Stack>
-            <Button fullWidth variant="contained" size="large"
+            <LoadingButton fullWidth variant="contained" size="large"
               onClick={handleContinue}
-              disabled={selectedIds.size === 0 || saving}
-              sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', mb: 1 }}>
-              {saving ? 'Salvando...' : `Usar ${selectedIds.size} formato${selectedIds.size !== 1 ? 's' : ''} selecionado${selectedIds.size !== 1 ? 's' : ''}`}
-            </Button>
-            <Button fullWidth variant="text" onClick={() => setViewMode('manual')}
-              sx={{ textTransform: 'none', color: 'text.secondary' }}>
-              Personalizar manualmente
-            </Button>
+              loading={saving}
+              disabled={selectedIds.size === 0}>
+              {`Usar ${selectedIds.size} formato${selectedIds.size !== 1 ? 's' : ''} selecionado${selectedIds.size !== 1 ? 's' : ''}`}
+            </LoadingButton>
           </CardContent>
         </Card>
       ) : null}
@@ -1144,9 +1166,9 @@ export default function PlatformClient() {
           <Button variant="outlined" onClick={() => router.back()}>
             Voltar
           </Button>
-          <Button variant="contained" onClick={handleContinue} disabled={saving}>
-            {saving ? 'Salvando...' : 'Continuar para Copy'}
-          </Button>
+          <LoadingButton variant="contained" onClick={handleContinue} loading={saving}>
+            Continuar para Copy
+          </LoadingButton>
         </Stack>
       ) : null}
     </Stack>

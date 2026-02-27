@@ -10,6 +10,12 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
+import {
+  IconCheck,
+  IconRefresh,
+  IconX,
+} from '@tabler/icons-react';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -1336,25 +1342,25 @@ export default function EditorClient() {
                     showHeader={false}
                   />
                   <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
-                    <Button
+                    <LoadingButton
                       size="small"
                       variant="outlined"
                       onClick={handleGenerateArte}
+                      loading={arteStep === 'loading_prompt'}
                       disabled={arteStep !== null || !output}
-                      startIcon={arteStep === 'loading_prompt' ? <CircularProgress size={12} /> : undefined}
                     >
-                      {arteStep === 'loading_prompt' ? 'Buscando referências...' : 'Gerar Arte com IA'}
-                    </Button>
+                      Gerar Arte com IA
+                    </LoadingButton>
                     {arteImageUrl && (
                       <>
-                        <Button size="small" variant="text" color="success" onClick={handleApproveCreative} sx={{ minWidth: 'auto' }}>
-                          ✓ Usar
+                        <Button size="small" variant="text" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />} sx={{ minWidth: 'auto' }}>
+                          Usar
                         </Button>
-                        <Button size="small" variant="text" onClick={handleGenerateArte} disabled={arteStep !== null} sx={{ minWidth: 'auto' }}>
-                          ↺ Regenerar
+                        <Button size="small" variant="text" onClick={handleGenerateArte} disabled={arteStep !== null} startIcon={<IconRefresh size={14} />} sx={{ minWidth: 'auto' }}>
+                          Regenerar
                         </Button>
-                        <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} sx={{ minWidth: 'auto' }}>
-                          ✗ Descartar
+                        <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />} sx={{ minWidth: 'auto' }}>
+                          Descartar
                         </Button>
                       </>
                     )}
@@ -2069,14 +2075,14 @@ export default function EditorClient() {
           >
             Cancelar
           </Button>
-          <Button
+          <LoadingButton
             variant="contained"
             onClick={handleGenerateArteWithPrompt}
-            disabled={arteStep === 'generating' || !artePrompt.trim()}
-            startIcon={arteStep === 'generating' ? <CircularProgress size={14} color="inherit" /> : undefined}
+            loading={arteStep === 'generating'}
+            disabled={!artePrompt.trim()}
           >
-            {arteStep === 'generating' ? 'Gerando...' : 'Gerar Imagem →'}
-          </Button>
+            Gerar Imagem →
+          </LoadingButton>
         </DialogActions>
       </Dialog>
 

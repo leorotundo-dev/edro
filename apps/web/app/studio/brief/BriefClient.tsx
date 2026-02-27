@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -22,6 +23,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
@@ -1120,24 +1123,22 @@ export default function BriefClient() {
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75, display: 'block' }}>
                   AMD — Ação Mínima Desejada
                 </Typography>
-                <Stack direction="row" flexWrap="wrap" gap={1}>
+                <ToggleButtonGroup
+                  value={form.amd}
+                  exclusive
+                  onChange={(_, v) => { if (v !== null) updateForm({ amd: v as BriefForm['amd'] }); }}
+                  size="small"
+                  sx={{ flexWrap: 'wrap', gap: '4px' }}
+                >
                   {AMD_OPTIONS.map((opt) => (
-                    <Chip
-                      key={opt.value}
-                      icon={opt.icon}
-                      label={opt.label}
-                      onClick={() => updateForm({ amd: opt.value as BriefForm['amd'] })}
-                      sx={{
-                        cursor: 'pointer',
-                        bgcolor: form.amd === opt.value ? '#E85219' : 'transparent',
-                        color: form.amd === opt.value ? '#fff' : 'text.secondary',
-                        border: '1px solid',
-                        borderColor: form.amd === opt.value ? '#E85219' : 'divider',
-                        fontWeight: form.amd === opt.value ? 700 : 400,
-                      }}
-                    />
+                    <ToggleButton key={opt.value} value={opt.value}>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        {opt.icon}
+                        <span>{opt.label}</span>
+                      </Stack>
+                    </ToggleButton>
                   ))}
-                </Stack>
+                </ToggleButtonGroup>
               </Box>
             </Stack>
           </CardContent>
@@ -1564,9 +1565,9 @@ export default function BriefClient() {
         <Button variant="outlined" onClick={() => router.back()}>
           Voltar
         </Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={!canSubmit}>
-          {saving ? 'Criando...' : 'Criar briefing e avancar'}
-        </Button>
+        <LoadingButton variant="contained" onClick={handleSubmit} loading={saving} disabled={!isContextReady}>
+          Criar briefing e avancar
+        </LoadingButton>
       </Stack>
 
       {/* Calendar Dialog */}

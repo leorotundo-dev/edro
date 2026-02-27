@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -180,12 +182,23 @@ export default function ExportClient() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-          Carregando exportação...
-        </Typography>
-      </Box>
+      <Stack spacing={3}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Skeleton width={200} height={28} />
+          <Skeleton width={100} height={36} sx={{ borderRadius: 2 }} />
+        </Stack>
+        <Grid container spacing={2}>
+          {[1, 2, 3, 4].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 3 }}>
+              <Skeleton variant="rounded" height={160} sx={{ borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <Skeleton variant="rounded" height={120} sx={{ flex: 1, borderRadius: 2 }} />
+          <Skeleton variant="rounded" height={120} sx={{ width: 220, borderRadius: 2 }} />
+        </Stack>
+      </Stack>
     );
   }
 
@@ -311,12 +324,12 @@ export default function ExportClient() {
                   <Typography variant="subtitle2" fontWeight={700}>Enviar para aprovação</Typography>
                 </Stack>
                 {!emailDraft ? (
-                  <Button variant="outlined" fullWidth onClick={handleGenerateEmailDraft}
-                    disabled={generatingEmail}
-                    startIcon={generatingEmail ? <CircularProgress size={14} /> : <IconSparkles size={14} />}
-                    sx={{ borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}>
-                    {generatingEmail ? 'Gerando...' : 'Gerar email de aprovação'}
-                  </Button>
+                  <LoadingButton variant="outlined" fullWidth onClick={handleGenerateEmailDraft}
+                    loading={generatingEmail}
+                    startIcon={<IconSparkles size={14} />}
+                    color="primary">
+                    Gerar email de aprovação
+                  </LoadingButton>
                 ) : (
                   <Box>
                     <TextField fullWidth size="small" label="Assunto" value={emailDraft.subject}
@@ -327,9 +340,8 @@ export default function ExportClient() {
                       onChange={(e) => setEmailDraft((d) => d ? { ...d, body: e.target.value } : d)}
                       sx={{ mb: 1.5 }} />
                     <Stack direction="row" spacing={1}>
-                      <Button variant="contained" size="small"
-                        onClick={() => briefing?.id && apiPost(`/edro/briefings/${briefing.id}/send-email`, emailDraft).catch(() => {})}
-                        sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none' }}>
+                      <Button variant="contained" size="small" color="primary"
+                        onClick={() => briefing?.id && apiPost(`/edro/briefings/${briefing.id}/send-email`, emailDraft).catch(() => {})}>
                         Enviar email
                       </Button>
                       <Button variant="text" size="small"
@@ -355,12 +367,12 @@ export default function ExportClient() {
                   <Typography variant="caption" color="text.secondary">Arquivos</Typography>
                 </Stack>
                 <Stack spacing={1}>
-                  <Button variant="contained" fullWidth onClick={() => exportZip('html')} disabled={exporting}>
+                  <LoadingButton variant="contained" fullWidth onClick={() => exportZip('html')} loading={exporting}>
                     Exportar HTML
-                  </Button>
-                  <Button variant="outlined" fullWidth onClick={() => exportZip('json')} disabled={exporting}>
+                  </LoadingButton>
+                  <LoadingButton variant="outlined" fullWidth onClick={() => exportZip('json')} loading={exporting}>
                     Exportar JSON
-                  </Button>
+                  </LoadingButton>
                   <Button variant="outlined" fullWidth onClick={finishDelivery}>
                     Finalizar entrega
                   </Button>

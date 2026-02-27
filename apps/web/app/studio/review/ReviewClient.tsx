@@ -9,6 +9,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
@@ -204,12 +205,24 @@ export default function ReviewClient() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-          Carregando revisao...
-        </Typography>
-      </Box>
+      <Stack spacing={3}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack spacing={0.5}>
+            <Skeleton width={180} height={28} />
+            <Skeleton width={260} height={18} />
+          </Stack>
+          <Skeleton width={120} height={36} sx={{ borderRadius: 2 }} />
+        </Stack>
+        <Grid container spacing={2}>
+          {[1, 2, 3].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Skeleton variant="rounded" height={200} sx={{ borderRadius: 2 }} />
+              <Skeleton width="60%" height={20} sx={{ mt: 1 }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rounded" height={80} sx={{ borderRadius: 2 }} />
+      </Stack>
     );
   }
 

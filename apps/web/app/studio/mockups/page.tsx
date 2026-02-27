@@ -17,6 +17,7 @@ import {
 import { buildCatalogKey, mockupCatalogMap } from '@/components/mockups/mockupCatalogMap';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -1794,15 +1795,15 @@ export default function Page() {
                   style={{ display: 'none' }}
                   onChange={handleCreativeImageUpload}
                 />
-                <Button
+                <LoadingButton
                   size="small"
                   variant="outlined"
-                  startIcon={uploadingImage ? undefined : <IconUpload size={14} />}
+                  startIcon={<IconUpload size={14} />}
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
+                  loading={uploadingImage}
                 >
-                  {uploadingImage ? 'Enviando...' : 'Upload Imagem'}
-                </Button>
+                  Upload Imagem
+                </LoadingButton>
                 <TextField
                   size="small"
                   placeholder="Ou cole a URL da imagem"
@@ -1814,16 +1815,17 @@ export default function Page() {
                   }}
                   InputProps={{ sx: { fontSize: 12 } }}
                 />
-                <Button
+                <LoadingButton
                   size="small"
                   variant="outlined"
                   onClick={handleGenerateImagePrompt}
-                  disabled={generatingPrompt}
-                  startIcon={generatingPrompt ? <CircularProgress size={12} /> : <IconSparkles size={14} />}
-                  sx={{ borderColor: '#E85219', color: '#E85219', fontSize: '0.72rem', textTransform: 'none' }}
+                  loading={generatingPrompt}
+                  startIcon={<IconSparkles size={14} />}
+                  color="primary"
+                  sx={{ fontSize: '0.72rem' }}
                 >
-                  {generatingPrompt ? 'Gerando prompt...' : 'Gerar prompt Midjourney/DALL-E'}
-                </Button>
+                  Gerar prompt Midjourney/DALL-E
+                </LoadingButton>
                 {imagePrompt && (
                   <Box sx={{ p: 1, bgcolor: 'rgba(232,82,25,0.06)', borderRadius: 1, border: '1px solid rgba(232,82,25,0.2)' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 0.5 }}>
