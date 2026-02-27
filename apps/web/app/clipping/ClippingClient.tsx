@@ -126,6 +126,12 @@ const RECENCY_OPTIONS = [
   { value: '30d', label: '30 dias' },
 ];
 
+const TYPE_GRADIENTS: Record<string, string> = {
+  NEWS:   'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+  TREND:  'linear-gradient(135deg, #431407 0%, #c2410c 100%)',
+  SOCIAL: 'linear-gradient(135deg, #3b0764 0%, #7c3aed 100%)',
+};
+
 const STAT_CARDS = [
   { key: 'total_items', label: 'Total', icon: IconNews, color: '#E85219' },
   { key: 'new_items', label: 'Novos', icon: IconStar, color: '#FFAE1F' },
@@ -718,140 +724,150 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
               </Stack>
             }
           >
-            <Stack spacing={1}>
-              {items.length ? (
-                items.map((item) => {
-                  const badge = statusChip(item.status);
-                  return (
-                    <Card
-                      key={item.id}
-                      variant="outlined"
-                      sx={{
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': { borderColor: 'primary.main', boxShadow: '0 2px 12px rgba(232,82,25,0.15)' },
+            {items.length ? (() => {
+              const goDetail = (item: ClippingItem) => {
+                if (!item?.id) return;
+                const href = embedded && lockedClientId
+                  ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(item.id)}`
+                  : `/clipping/${item.id}`;
+                router.push(href);
+              };
+              const itemActions = (item: ClippingItem, light = false) => (
+                <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
+                  {(selectedClient?.id || lockedClientId) && (
+                    <Button
+                      size="small"
+                      variant={light ? 'contained' : 'outlined'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cid = selectedClient?.id || lockedClientId;
+                        if (!cid) return;
+                        router.push(`/studio/brief?clientId=${encodeURIComponent(cid)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`);
                       }}
-                      onClick={() => {
-                        if (!item?.id) return;
-                        const detailHref =
-                          embedded && lockedClientId
-                            ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(item.id)}`
-                            : `/clipping/${item.id}`;
-                        router.push(detailHref);
-                      }}
+                      sx={light ? { fontSize: '0.7rem', py: 0.25, px: 1, bgcolor: '#E85219', '&:hover': { bgcolor: '#c94315' } } : { fontSize: '0.7rem', py: 0.25, px: 1, borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}
                     >
-                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack direction="row" spacing={2}>
-                          <Box
-                            onClick={(event) => event.stopPropagation()}
-                            sx={{ display: 'flex', alignItems: 'flex-start', pt: 0.2 }}
+                      Criar Pauta
+                    </Button>
+                  )}
+                  {item.url && (
+                    <Tooltip title="Abrir original">
+                      <IconButton size="small" sx={light ? { color: 'rgba(255,255,255,0.8)' } : {}} onClick={(e) => { e.stopPropagation(); window.open(item.url!, '_blank', 'noopener'); }}>
+                        <IconExternalLink size={15} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <Tooltip title="Rejeitar">
+                    <IconButton size="small" sx={light ? { color: 'rgba(255,100,100,0.85)' } : { color: 'error.main' }} onClick={(e) => { e.stopPropagation(); handleRejectItem(item.id); }}>
+                      <IconThumbDown size={15} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              );
+
+              const featured = items.slice(0, 2);
+              const rest = items.slice(2);
+
+              return (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* ── Featured cards (first 2) ── */}
+                  <Grid container spacing={2}>
+                    {featured.map((item) => {
+                      const badge = statusChip(item.status);
+                      const bg = TYPE_GRADIENTS[item.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS;
+                      return (
+                        <Grid key={item.id} size={{ xs: 12, sm: 6 }}>
+                          <Card
+                            sx={{
+                              position: 'relative',
+                              height: 260,
+                              cursor: 'pointer',
+                              overflow: 'hidden',
+                              borderRadius: 3,
+                              ...(item.image_url
+                                ? { backgroundImage: `url(${item.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                                : { background: bg }),
+                              '&:hover .card-overlay': { opacity: 1 },
+                            }}
+                            onClick={() => goDetail(item)}
                           >
-                            <Checkbox
-                              size="small"
-                              checked={selectedItemIds.includes(item.id)}
-                              onChange={(event) =>
-                                toggleItemSelection(item.id, event.target.checked)
-                              }
-                            />
-                          </Box>
+                            {/* dark overlay */}
+                            <Box sx={{ position: 'absolute', inset: 0, background: item.image_url ? 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0.1) 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }} />
+                            {/* hover tint */}
+                            <Box className="card-overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(232,82,25,0.1)', opacity: 0, transition: 'opacity 0.2s' }} />
 
-                          {/* Text content — takes most space */}
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                              {item.title}
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              sx={{
-                                display: '-webkit-box',
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                                lineHeight: 1.5,
-                                mb: 0.75,
-                              }}
+                            {/* top row */}
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 12, left: 12, right: 12 }} onClick={(e) => e.stopPropagation()}>
+                              <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.7)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
+                              <Stack direction="row" spacing={0.5}>
+                                <Chip size="small" label={item.type || 'NEWS'} sx={{ bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: '0.6rem', height: 20, backdropFilter: 'blur(4px)' }} />
+                                <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.6rem', height: 20 }} />
+                              </Stack>
+                            </Stack>
+
+                            {/* bottom content */}
+                            <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2 }}>
+                              <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#fff', mb: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                                {item.title}
+                              </Typography>
+                              <Stack direction="row" alignItems="center">
+                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.source_name || 'Fonte'} · {item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '--'}
+                                </Typography>
+                                <Chip size="small" label={item.client_score != null ? formatNumber(item.client_score) : formatNumber(item.score)} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.6rem', height: 20, ml: 1 }} />
+                              </Stack>
+                              <Box sx={{ mt: 1 }}>{itemActions(item, true)}</Box>
+                            </Box>
+                          </Card>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+
+                  {/* ── Regular grid (remaining items) ── */}
+                  {rest.length > 0 && (
+                    <Grid container spacing={2}>
+                      {rest.map((item) => {
+                        const badge = statusChip(item.status);
+                        const bg = TYPE_GRADIENTS[item.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS;
+                        return (
+                          <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                            <Card
+                              variant="outlined"
+                              sx={{ cursor: 'pointer', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', transition: 'border-color 0.2s, box-shadow 0.2s', '&:hover': { borderColor: 'primary.main', boxShadow: '0 4px 16px rgba(232,82,25,0.12)' } }}
+                              onClick={() => goDetail(item)}
                             >
-                              {item.snippet || 'Sem resumo.'}
-                            </Typography>
-                            <Typography variant="caption" color="text.disabled">
-                              {formatSource(item.source_name, item.source_url)} -- {formatDate(item.published_at)}
-                            </Typography>
-                          </Box>
+                              {/* thumbnail */}
+                              <Box sx={{ height: 130, position: 'relative', flexShrink: 0, ...(item.image_url ? { backgroundImage: `url(${item.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: bg }) }}>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 8, left: 8, right: 8 }} onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.75)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
+                                  <Chip size="small" label={item.type || 'NEWS'} sx={{ bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: '0.6rem', height: 20, backdropFilter: 'blur(4px)' }} />
+                                </Stack>
+                              </Box>
 
-                          {/* Right side — compact info + actions */}
-                          <Stack spacing={1} alignItems="flex-end" flexShrink={0} sx={{ minWidth: 120 }}>
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end" useFlexGap>
-                              <Chip size="small" label={item.type || 'NEWS'} variant="outlined" sx={{ fontSize: '0.65rem', height: 22 }} />
-                              <Chip
-                                size="small"
-                                label={item.client_score != null ? `${formatNumber(item.client_score)}` : `${formatNumber(item.score)}`}
-                                color={item.client_score != null && item.client_score >= 0.7 ? 'success' : 'primary'}
-                                variant="outlined"
-                                sx={{ fontSize: '0.65rem', height: 22 }}
-                              />
-                              <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.65rem', height: 22 }} />
-                            </Stack>
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              {(selectedClient?.id || lockedClientId) ? (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    const targetClientId = selectedClient?.id || lockedClientId;
-                                    if (!targetClientId) return;
-                                    const title = encodeURIComponent(item.title || 'Pauta');
-                                    router.push(
-                                      `/studio/brief?clientId=${encodeURIComponent(targetClientId)}&title=${title}&source=clipping&sourceId=${encodeURIComponent(item.id)}`,
-                                    );
-                                  }}
-                                  sx={{
-                                    fontSize: '0.7rem',
-                                    py: 0.25,
-                                    px: 1,
-                                    borderColor: '#E85219',
-                                    color: '#E85219',
-                                    textTransform: 'none',
-                                    '&:hover': { bgcolor: 'rgba(232,82,25,0.05)', borderColor: '#E85219' },
-                                  }}
-                                >
-                                  Criar Pauta
-                                </Button>
-                              ) : null}
-                              {item.url ? (
-                                <Tooltip title="Abrir original">
-                                  <IconButton
-                                    size="small"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      window.open(item.url!, '_blank', 'noopener');
-                                    }}
-                                  >
-                                    <IconExternalLink size={16} />
-                                  </IconButton>
-                                </Tooltip>
-                              ) : null}
-                              <Tooltip title="Rejeitar">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleRejectItem(item.id);
-                                  }}
-                                >
-                                  <IconThumbDown size={16} />
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              ) : (
+                              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: '12px !important' }}>
+                                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35 }}>
+                                  {item.title}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5, mb: 1 }}>
+                                  {item.snippet || ''}
+                                </Typography>
+                                <Stack direction="row" alignItems="center">
+                                  <Typography variant="caption" color="text.disabled" sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {item.source_name || 'Fonte'} · {item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '--'}
+                                  </Typography>
+                                  <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.6rem', height: 20 }} />
+                                </Stack>
+                                <Box sx={{ mt: 1 }}>{itemActions(item)}</Box>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  )}
+                </Box>
+              );
+            })() : (
                 <Stack alignItems="center" spacing={1.5} sx={{ py: 6 }}>
                   <IconNews size={36} color="#bdbdbd" />
                   <Typography variant="body2" color="text.secondary" fontWeight={500}>
@@ -864,8 +880,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     Recarregar
                   </Button>
                 </Stack>
-              )}
-            </Stack>
+            )}
           </DashboardCard>
         </Grid>
 
