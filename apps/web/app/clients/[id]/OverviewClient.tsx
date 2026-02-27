@@ -631,6 +631,16 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       briefings: 'Briefings',
     };
 
+    const hrefs: Record<string, string> = {
+      social: `/clients/${clientId}/inteligencia?sub=social`,
+      clipping: `/clients/${clientId}/inteligencia`,
+      library: `/clients/${clientId}/inteligencia?sub=insights`,
+      calendar: `/clients/${clientId}/calendar`,
+      opportunities: `/clients/${clientId}/planning`,
+      antiRepetition: `/clients/${clientId}/planning`,
+      briefings: `/clients/${clientId}/briefings`,
+    };
+
     const sources = planningHealth?.sources || {};
     return Object.entries(sources)
       .map(([key, value]) => ({
@@ -638,11 +648,12 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
         label: labels[key] || key,
         status: value.status,
         message: value.message,
+        href: hrefs[key] || `/clients/${clientId}/planning`,
       }))
       .filter((row) => row.status === 'warning' || row.status === 'error')
       .sort((a, b) => (a.status === b.status ? 0 : a.status === 'error' ? -1 : 1))
       .slice(0, 4);
-  }, [planningHealth]);
+  }, [planningHealth, clientId]);
 
   const recentLibrary = useMemo(() => (Array.isArray(libraryItems) ? libraryItems.slice(0, 3) : []), [libraryItems]);
   const recentBriefings = useMemo(() => (Array.isArray(briefings) ? briefings.slice(0, 3) : []), [briefings]);
@@ -869,13 +880,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       {/* Alertas críticos */}
       {(planningAlerts.length > 0 || opportunitiesUrgentCount > 0) && (
         <Card
-          component={Link}
-          href={`/clients/${clientId}/planning`}
           sx={{
             borderRadius: 2, border: '1px solid #fecaca', bgcolor: '#fff1f2',
-            textDecoration: 'none', display: 'block',
-            cursor: 'pointer', transition: 'box-shadow 0.15s',
-            '&:hover': { boxShadow: 3, borderColor: '#f87171' },
           }}
         >
           <CardContent sx={{ py: 1.5, px: 2 }}>
@@ -888,24 +894,41 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 <Chip
                   key={alert.key}
                   size="small"
+                  component={Link}
+                  href={alert.href}
+                  clickable
                   label={`${alert.label}: ${alert.message}`}
                   sx={{
                     bgcolor: alert.status === 'error' ? '#fef2f2' : '#fffbeb',
                     color: alert.status === 'error' ? '#dc2626' : '#d97706',
                     fontWeight: 600,
+                    textDecoration: 'none',
+                    '&:hover': { opacity: 0.85, boxShadow: 1 },
                   }}
                 />
               ))}
               {opportunitiesUrgentCount > 0 && (
                 <Chip
                   size="small"
+                  component={Link}
+                  href={`/clients/${clientId}/planning`}
+                  clickable
                   label={`${opportunitiesUrgentCount} oportunidade(s) urgente(s)`}
-                  sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 700 }}
+                  sx={{
+                    bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 700,
+                    textDecoration: 'none',
+                    '&:hover': { opacity: 0.85, boxShadow: 1 },
+                  }}
                 />
               )}
-              <Typography variant="caption" color="error.main" sx={{ ml: 'auto', fontWeight: 600 }}>
+              <Button
+                size="small"
+                component={Link}
+                href={`/clients/${clientId}/planning`}
+                sx={{ ml: 'auto', color: '#dc2626', fontWeight: 600, minWidth: 0 }}
+              >
                 Ver planning →
-              </Typography>
+              </Button>
             </Stack>
           </CardContent>
         </Card>
