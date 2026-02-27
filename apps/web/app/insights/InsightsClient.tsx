@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -118,6 +120,7 @@ function isSocialPlatform(value: any): value is SocialPlatform {
 export default function InsightsClient({ clientId, noShell, embedded }: InsightsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isDark } = useThemeMode();
   const lockedClientId = clientId || searchParams.get('clientId') || '';
   const isLocked = Boolean(lockedClientId);
 
@@ -346,10 +349,11 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   }
 
   const sentimentChartOptions: ApexCharts.ApexOptions = {
-    chart: { type: 'donut' },
+    ...baseChartOptions(isDark),
+    chart: { ...baseChartOptions(isDark).chart, type: 'donut' as const },
     labels: ['Positivas', 'Neutras', 'Negativas'],
     colors: ['#4caf50', '#ff9800', '#f44336'],
-    legend: { position: 'bottom' },
+    legend: { ...baseChartOptions(isDark).legend, position: 'bottom' as const },
   };
   const sentimentChartSeries = [
     Number(summary.positive || 0),
@@ -359,16 +363,18 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const hasSentimentData = sentimentChartSeries.some((v) => v > 0);
 
   const keywordChartOptions: ApexCharts.ApexOptions = {
-    chart: { type: 'bar' },
-    xaxis: { categories: topKeywords.map((kw) => kw.keyword) },
+    ...baseChartOptions(isDark),
+    chart: { ...baseChartOptions(isDark).chart, type: 'bar' as const },
+    xaxis: { ...baseChartOptions(isDark).xaxis, categories: topKeywords.map((kw) => kw.keyword) },
     colors: ['#E85219'],
     plotOptions: { bar: { borderRadius: 4 } },
   };
   const keywordChartSeries = [{ name: 'Mencoes', data: topKeywords.map((kw) => kw.total) }];
 
   const platformChartOptions: ApexCharts.ApexOptions = {
-    chart: { type: 'bar' },
-    xaxis: { categories: platforms.map((p) => p.platform) },
+    ...baseChartOptions(isDark),
+    chart: { ...baseChartOptions(isDark).chart, type: 'bar' as const },
+    xaxis: { ...baseChartOptions(isDark).xaxis, categories: platforms.map((p) => p.platform) },
     colors: ['#49beff'],
     plotOptions: { bar: { borderRadius: 4, horizontal: true } },
   };

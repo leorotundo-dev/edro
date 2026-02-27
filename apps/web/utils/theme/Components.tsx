@@ -253,8 +253,12 @@ const Components: Components<Theme> = {
   MuiTableRow: {
     styleOverrides: {
       root: ({ theme }) => ({
+        transition: 'background-color 0.15s ease',
         '&:hover': {
           backgroundColor: theme.palette.action.hover,
+        },
+        '&:last-child .MuiTableCell-root': {
+          borderBottom: 'none',
         },
       }),
     },
@@ -265,6 +269,53 @@ const Components: Components<Theme> = {
         padding: '12px 16px',
         borderBottom: `1px solid ${theme.palette.divider}`,
         fontSize: '0.875rem',
+      }),
+    },
+  },
+  MuiPaper: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        backgroundImage: 'none',
+        ...(theme.palette.mode === 'dark' && {
+          backgroundColor: theme.palette.background.paper,
+        }),
+      }),
+      rounded: {
+        borderRadius: '12px',
+      },
+    },
+  },
+  MuiMenu: {
+    styleOverrides: {
+      paper: ({ theme }) => ({
+        borderRadius: '12px',
+        border: `1px solid ${theme.palette.divider}`,
+        boxShadow: theme.palette.mode === 'dark'
+          ? '0 8px 32px rgba(0,0,0,0.5)'
+          : '0 8px 32px rgba(0,0,0,0.12)',
+        padding: '4px',
+      }),
+      list: {
+        padding: '4px 0',
+      },
+    },
+  },
+  MuiMenuItem: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        borderRadius: '8px',
+        fontSize: '0.875rem',
+        padding: '8px 12px',
+        transition: 'background-color 0.15s ease',
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+        '&.Mui-selected': {
+          backgroundColor: `${theme.palette.primary.main}12`,
+          '&:hover': {
+            backgroundColor: `${theme.palette.primary.main}20`,
+          },
+        },
       }),
     },
   },

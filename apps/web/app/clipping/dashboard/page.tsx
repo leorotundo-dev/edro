@@ -6,6 +6,8 @@ import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
 import { apiGet } from '@/lib/api';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -90,6 +92,7 @@ const STAT_CARDS = [
 
 export default function ClippingDashboardPage() {
   const router = useRouter();
+  const { isDark } = useThemeMode();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<ClippingDashboard | null>(null);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('week');
@@ -144,10 +147,11 @@ export default function ClippingDashboardPage() {
     ? [dashboard.by_score.high, dashboard.by_score.medium, dashboard.by_score.low]
     : [];
   const scoreDonutOptions: ApexCharts.ApexOptions = {
+    ...baseChartOptions(isDark),
     labels: ['Alto (>= 70)', 'Medio (40-69)', 'Baixo (< 40)'],
     colors: ['#13DEB9', '#FFAE1F', '#FA896B'],
-    legend: { position: 'bottom', fontSize: '12px' },
-    dataLabels: { enabled: true },
+    legend: { ...baseChartOptions(isDark).legend, position: 'bottom' as const, fontSize: '12px' },
+    dataLabels: { ...baseChartOptions(isDark).dataLabels, enabled: true },
     plotOptions: { pie: { donut: { size: '60%', labels: { show: true, total: { show: true, label: 'Total', fontSize: '14px' } } } } },
     stroke: { width: 0 },
   };
@@ -156,24 +160,22 @@ export default function ClippingDashboardPage() {
     ? [{ name: 'Itens', data: dashboard.by_source.slice(0, 8).map((s) => s.item_count) }]
     : [];
   const sourceBarOptions: ApexCharts.ApexOptions = {
-    chart: { toolbar: { show: false } },
-    xaxis: { categories: (dashboard?.by_source || []).slice(0, 8).map((s) => s.source_name.length > 18 ? s.source_name.slice(0, 18) + '...' : s.source_name) },
+    ...baseChartOptions(isDark),
+    xaxis: { ...baseChartOptions(isDark).xaxis, categories: (dashboard?.by_source || []).slice(0, 8).map((s) => s.source_name.length > 18 ? s.source_name.slice(0, 18) + '...' : s.source_name) },
     colors: ['#E85219'],
     plotOptions: { bar: { borderRadius: 4, horizontal: true } },
     dataLabels: { enabled: true },
-    grid: { borderColor: '#f0f0f0' },
   };
 
   const trendBarSeries = dashboard?.trends?.length
     ? [{ name: 'Mencoes', data: dashboard.trends.slice(0, 10).map((t) => t.count) }]
     : [];
   const trendBarOptions: ApexCharts.ApexOptions = {
-    chart: { toolbar: { show: false } },
-    xaxis: { categories: (dashboard?.trends || []).slice(0, 10).map((t) => t.keyword) },
+    ...baseChartOptions(isDark),
+    xaxis: { ...baseChartOptions(isDark).xaxis, categories: (dashboard?.trends || []).slice(0, 10).map((t) => t.keyword) },
     colors: ['#7C3AED'],
     plotOptions: { bar: { borderRadius: 4, columnWidth: '50%' } },
     dataLabels: { enabled: false },
-    grid: { borderColor: '#f0f0f0' },
   };
 
   if (loading) {

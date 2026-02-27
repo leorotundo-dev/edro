@@ -6,6 +6,8 @@ import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
 import { apiGet } from '@/lib/api';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
@@ -131,6 +133,7 @@ function formatDate(iso: string): string {
 }
 
 export default function AiCostsPage() {
+  const { isDark } = useThemeMode();
   const [days, setDays] = useState(30);
   const [data, setData] = useState<CostsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -154,9 +157,9 @@ export default function AiCostsPage() {
   const totals = data?.totals;
 
   // Build daily chart data
-  const dailyChart = buildDailyChart(data?.by_day || []);
-  const donutChart = buildDonutChart(data?.by_provider || []);
-  const featureChart = buildFeatureChart(data?.by_feature || []);
+  const dailyChart = buildDailyChart(data?.by_day || [], isDark);
+  const donutChart = buildDonutChart(data?.by_provider || [], isDark);
+  const featureChart = buildFeatureChart(data?.by_feature || [], isDark);
 
   // Tavily summary derived from by_provider data
   const tavilyRows = (data?.by_provider || []).filter((r) => r.provider === 'tavily');
@@ -468,9 +471,10 @@ export default function AiCostsPage() {
 
 // ── Chart builders ─────────────────────────────────────────────
 
-function buildDailyChart(byDay: DayRow[]) {
+function buildDailyChart(byDay: DayRow[], isDark: boolean) {
   const providers = Array.from(new Set(byDay.map((r) => r.provider)));
   const days = Array.from(new Set(byDay.map((r) => r.day))).sort();
+  const base = baseChartOptions(isDark);
 
   const series = providers.map((p) => ({
     name: PROVIDER_LABELS[p] || p,
@@ -483,9 +487,11 @@ function buildDailyChart(byDay: DayRow[]) {
   return {
     series,
     options: {
-      chart: { type: 'area' as const, toolbar: { show: false }, stacked: true },
+      ...base,
+      chart: { ...base.chart, type: 'area' as const, stacked: true },
       colors: providers.map((p) => PROVIDER_COLORS[p] || '#999'),
       xaxis: {
+        ...base.xaxis,
         categories: days.map((d) => {
           const dt = new Date(d + 'T12:00:00');
           return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -497,19 +503,18 @@ function buildDailyChart(byDay: DayRow[]) {
       dataLabels: { enabled: false },
       stroke: { curve: 'smooth' as const, width: 2 },
       fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.1 } },
-      tooltip: {
-        y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` },
-      },
-      legend: { position: 'top' as const },
+      tooltip: { ...base.tooltip, y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` } },
+      legend: { ...base.legend, position: 'top' as const },
     },
   };
 }
 
-function buildDonutChart(byProvider: ProviderRow[]) {
+function buildDonutChart(byProvider: ProviderRow[], isDark: boolean) {
   const grouped: Record<string, number> = {};
   for (const row of byProvider) {
     grouped[row.provider] = (grouped[row.provider] || 0) + Number(row.cost_brl);
   }
+  const base = baseChartOptions(isDark);
 
   const providers = Object.keys(grouped);
   const series = providers.map((p) => Number(grouped[p].toFixed(4)));
@@ -517,21 +522,22 @@ function buildDonutChart(byProvider: ProviderRow[]) {
   return {
     series,
     options: {
-      chart: { type: 'donut' as const },
+      ...base,
+      chart: { ...base.chart, type: 'donut' as const },
       labels: providers.map((p) => PROVIDER_LABELS[p] || p),
       colors: providers.map((p) => PROVIDER_COLORS[p] || '#999'),
-      legend: { position: 'bottom' as const },
+      legend: { ...base.legend, position: 'bottom' as const },
       dataLabels: {
+        ...base.dataLabels,
         formatter: (val: number) => `${val.toFixed(1)}%`,
       },
-      tooltip: {
-        y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` },
-      },
+      tooltip: { ...base.tooltip, y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` } },
     },
   };
 }
 
-function buildFeatureChart(byFeature: FeatureRow[]) {
+function buildFeatureChart(byFeature: FeatureRow[], isDark: boolean) {
+  const base = baseChartOptions(isDark);
   return {
     series: [
       {
@@ -540,17 +546,17 @@ function buildFeatureChart(byFeature: FeatureRow[]) {
       },
     ],
     options: {
-      chart: { type: 'bar' as const, toolbar: { show: false } },
+      ...base,
+      chart: { ...base.chart, type: 'bar' as const },
       plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
       colors: ['#E85219'],
       xaxis: {
+        ...base.xaxis,
         categories: byFeature.map((r) => r.feature),
         labels: { formatter: (v: string) => `R$${Number(v).toFixed(2)}` },
       },
       dataLabels: { enabled: false },
-      tooltip: {
-        y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` },
-      },
+      tooltip: { ...base.tooltip, y: { formatter: (v: number) => `R$ ${v.toFixed(4)}` } },
     },
   };
 }

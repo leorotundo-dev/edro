@@ -21,6 +21,8 @@ import Chip from '@mui/material/Chip';
 import { IconBrandMeta, IconBrandGoogle, IconRefresh } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 type MetaData = {
   campaigns: {
@@ -57,6 +59,7 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 export default function ClientIntegrationsPage() {
   const params = useParams();
   const clientId = params.id as string;
+  const { isDark } = useThemeMode();
   const [tab, setTab] = useState(0);
   const [metaData, setMetaData] = useState<MetaData | null>(null);
   const [gaData, setGAData] = useState<GAData | null>(null);
@@ -152,16 +155,14 @@ export default function ClientIntegrationsPage() {
                         { name: 'Cliques', data: metaData.campaigns.map((c) => parseInt(c.insights?.clicks || '0', 10)) },
                       ]}
                       options={{
-                        chart: { toolbar: { show: false }, stacked: false },
+                        ...baseChartOptions(isDark),
+                        chart: { ...baseChartOptions(isDark).chart, stacked: false },
                         plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
-                        xaxis: { categories: metaData.campaigns.map((c) => c.name.length > 25 ? c.name.slice(0, 25) + '...' : c.name) },
+                        xaxis: { ...baseChartOptions(isDark).xaxis, categories: metaData.campaigns.map((c) => c.name.length > 25 ? c.name.slice(0, 25) + '...' : c.name) },
                         colors: ['#E85219', '#E85219'],
                         dataLabels: { enabled: false },
-                        grid: { borderColor: '#f0f0f0' },
-                        legend: { position: 'top' as const },
-                        tooltip: {
-                          y: { formatter: (v: number, opts: any) => opts.seriesIndex === 0 ? `R$ ${v.toFixed(2)}` : v.toLocaleString('pt-BR') },
-                        },
+                        legend: { ...baseChartOptions(isDark).legend, position: 'top' as const },
+                        tooltip: { ...baseChartOptions(isDark).tooltip, y: { formatter: (v: number, opts: any) => opts.seriesIndex === 0 ? `R$ ${v.toFixed(2)}` : v.toLocaleString('pt-BR') } },
                       }}
                     />
                   </CardContent>
@@ -254,9 +255,11 @@ export default function ClientIntegrationsPage() {
                           { name: 'Pageviews', data: gaData.rows.map((r) => r.pageviews) },
                         ]}
                         options={{
-                          chart: { type: 'area' as const, toolbar: { show: false }, stacked: false },
+                          ...baseChartOptions(isDark),
+                          chart: { ...baseChartOptions(isDark).chart, type: 'area' as const, stacked: false },
                           colors: ['#E85219', '#13DEB9'],
                           xaxis: {
+                            ...baseChartOptions(isDark).xaxis,
                             categories: gaData.rows.map((r) =>
                               r.dimension.length === 8
                                 ? `${r.dimension.slice(6, 8)}/${r.dimension.slice(4, 6)}`
@@ -266,9 +269,8 @@ export default function ClientIntegrationsPage() {
                           dataLabels: { enabled: false },
                           stroke: { curve: 'smooth' as const, width: 2 },
                           fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
-                          tooltip: { y: { formatter: (v: number) => v.toLocaleString('pt-BR') } },
-                          legend: { position: 'top' as const },
-                          grid: { borderColor: '#f0f0f0' },
+                          tooltip: { ...baseChartOptions(isDark).tooltip, y: { formatter: (v: number) => v.toLocaleString('pt-BR') } },
+                          legend: { ...baseChartOptions(isDark).legend, position: 'top' as const },
                         }}
                       />
                     </CardContent>

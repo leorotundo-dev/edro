@@ -10,6 +10,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -805,11 +806,69 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
   if (coreLoading && !client) {
     return (
-      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
-        <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando...
-        </Typography>
+      <Stack spacing={3}>
+        {/* Header skeleton */}
+        <Card>
+          <CardContent>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+              <Skeleton variant="circular" width={64} height={64} />
+              <Stack flex={1} spacing={1}>
+                <Skeleton variant="text" width={200} height={28} />
+                <Skeleton variant="text" width={140} height={18} />
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                  <Skeleton variant="rounded" width={72} height={24} sx={{ borderRadius: '99px' }} />
+                  <Skeleton variant="rounded" width={60} height={24} sx={{ borderRadius: '99px' }} />
+                </Stack>
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Skeleton variant="rounded" width={100} height={36} />
+                <Skeleton variant="rounded" width={100} height={36} />
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* Stat row */}
+        <Grid container spacing={2}>
+          {[1, 2, 3, 4].map((i) => (
+            <Grid key={i} size={{ xs: 6, md: 3 }}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Skeleton variant="text" width={60} height={36} sx={{ mx: 'auto' }} />
+                  <Skeleton variant="text" width={80} height={16} sx={{ mx: 'auto' }} />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Two-col body */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 8 }}>
+            <Card>
+              <CardContent>
+                <Skeleton variant="text" width={160} height={24} sx={{ mb: 2 }} />
+                <Skeleton variant="rounded" height={200} />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Skeleton variant="text" width={120} height={24} sx={{ mb: 2 }} />
+                {[1, 2, 3, 4].map((i) => (
+                  <Stack key={i} direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Stack flex={1}>
+                      <Skeleton variant="text" width="60%" height={16} />
+                      <Skeleton variant="text" width="40%" height={14} />
+                    </Stack>
+                  </Stack>
+                ))}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Stack>
     );
   }

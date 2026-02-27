@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api';
+import EmptyState from '@/components/ui/EmptyState';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -144,14 +145,12 @@ export default function ClientBriefingsClient({ clientId }: { clientId: string }
 
       {/* Lista vazia */}
       {!loading && !error && briefings.length === 0 && (
-        <Stack alignItems="center" sx={{ py: 8, gap: 2 }}>
-          <Typography color="text.secondary" variant="body2">
-            Nenhum briefing encontrado para este cliente.
-          </Typography>
-          <Button variant="outlined" startIcon={<IconPlus size={16} />} onClick={handleNovoBriefing}>
-            Criar primeiro briefing
-          </Button>
-        </Stack>
+        <EmptyState
+          icon={<IconPlus size={26} />}
+          title="Nenhum briefing encontrado"
+          description="Crie o primeiro briefing para este cliente."
+          action={{ label: 'Criar briefing', onClick: handleNovoBriefing, icon: <IconPlus size={16} /> }}
+        />
       )}
 
       {/* Tabela de briefings */}

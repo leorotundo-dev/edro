@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -109,6 +111,7 @@ function formatNumber(value?: number | null) {
 export default function PerformanceClient({ clientId, noShell, embedded }: PerformanceClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isDark } = useThemeMode();
   const lockedClientId = clientId || searchParams.get('clientId') || '';
   const isLocked = Boolean(lockedClientId);
 
@@ -254,8 +257,9 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
 
   // Chart data for formats
   const formatChartOptions: ApexCharts.ApexOptions = {
-    chart: { type: 'bar' },
-    xaxis: { categories: formats.map((f) => f.format_name) },
+    ...baseChartOptions(isDark),
+    chart: { ...baseChartOptions(isDark).chart, type: 'bar' as const },
+    xaxis: { ...baseChartOptions(isDark).xaxis, categories: formats.map((f) => f.format_name) },
     colors: ['#E85219', '#49beff'],
     plotOptions: { bar: { borderRadius: 4 } },
   };

@@ -70,6 +70,11 @@ export default function AppShell({
             display: 'flex',
             flexDirection: 'column',
             gap: 3,
+            animation: 'edroFadeIn 0.22s ease-out',
+            '@keyframes edroFadeIn': {
+              from: { opacity: 0, transform: 'translateY(6px)' },
+              to:   { opacity: 1, transform: 'translateY(0)' },
+            },
           }}
         >
           {children}

@@ -11,6 +11,8 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -171,25 +173,50 @@ export default function ClientsListClient() {
       </Card>
 
       {loading ? (
-        <Stack alignItems="center" spacing={1} sx={{ py: 4 }}>
-          <CircularProgress size={28} />
-          <Typography variant="body2" color="text.secondary">
-            Carregando clientes...
-          </Typography>
-        </Stack>
+        <Grid container spacing={2}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Grid key={i} size={{ xs: 12, md: 6, lg: 4 }}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Skeleton variant="circular" width={44} height={44} />
+                      <Stack spacing={0.5}>
+                        <Skeleton variant="text" width={120} height={20} />
+                        <Skeleton variant="text" width={80} height={14} />
+                      </Stack>
+                    </Stack>
+                    <Skeleton variant="circular" width={28} height={28} />
+                  </Stack>
+                  <Stack direction="row" spacing={1}>
+                    <Skeleton variant="rounded" width={70} height={22} sx={{ borderRadius: '99px' }} />
+                    <Skeleton variant="rounded" width={50} height={22} sx={{ borderRadius: '99px' }} />
+                  </Stack>
+                  <Stack spacing={0.5}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Skeleton variant="text" width={80} height={14} />
+                      <Skeleton variant="text" width={30} height={14} />
+                    </Stack>
+                    <Skeleton variant="rounded" height={6} sx={{ borderRadius: 4 }} />
+                  </Stack>
+                  <Stack direction="row" spacing={2}>
+                    <Skeleton variant="text" width={60} height={14} />
+                    <Skeleton variant="text" width={60} height={14} />
+                    <Skeleton variant="text" width={60} height={14} />
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       ) : filteredClients.length === 0 ? (
         <Card variant="outlined">
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
-            <Typography variant="h6" gutterBottom>
-              Nenhum cliente encontrado
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Comece criando o primeiro cliente da sua operação.
-            </Typography>
-            <Button variant="contained" startIcon={<IconBriefcase size={16} />} onClick={() => router.push('/clients/novo')}>
-              Criar cliente
-            </Button>
-          </CardContent>
+          <EmptyState
+            icon={<IconBriefcase size={26} />}
+            title="Nenhum cliente encontrado"
+            description="Comece criando o primeiro cliente da sua operação."
+            action={{ label: 'Criar cliente', onClick: () => router.push('/clients/novo'), icon: <IconPlus size={16} /> }}
+          />
         </Card>
       ) : (
         <>

@@ -13,6 +13,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -283,12 +284,88 @@ export default function DashboardClient() {
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Stack alignItems="center" spacing={2}>
-          <CircularProgress />
-          <Typography variant="body2" color="text.secondary">Carregando dashboard...</Typography>
+      <AppShell title="Dashboard">
+        <Stack spacing={3}>
+          {/* Hero skeleton */}
+          <Card>
+            <CardContent>
+              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="flex-end" spacing={3}>
+                <Stack spacing={1}>
+                  <Skeleton variant="text" width={180} height={48} />
+                  <Skeleton variant="text" width={280} height={20} />
+                </Stack>
+                <Stack direction="row" spacing={2}>
+                  <Skeleton variant="rounded" width={140} height={36} />
+                  <Skeleton variant="rounded" width={120} height={36} />
+                </Stack>
+              </Stack>
+            </CardContent>
+            <Divider />
+            <CardContent>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, lg: 8 }}>
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} variant="rounded" height={56} sx={{ mb: 1.5 }} />
+                  ))}
+                </Grid>
+                <Grid size={{ xs: 12, lg: 4 }}>
+                  <Stack spacing={1}>
+                    {[1, 2, 3, 4].map((i) => (
+                      <Stack key={i} direction="row" justifyContent="space-between">
+                        <Skeleton variant="text" width={100} />
+                        <Skeleton variant="text" width={40} />
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Stat cards row */}
+          <Grid container spacing={2}>
+            {[1, 2, 3, 4].map((i) => (
+              <Grid key={i} size={{ xs: 6, md: 3 }}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Skeleton variant="circular" width={36} height={36} sx={{ mx: 'auto', mb: 1 }} />
+                    <Skeleton variant="text" width={60} height={32} sx={{ mx: 'auto' }} />
+                    <Skeleton variant="text" width={80} height={16} sx={{ mx: 'auto' }} />
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Chart + list row */}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Card>
+                <CardContent>
+                  <Skeleton variant="text" width={200} height={28} sx={{ mb: 2 }} />
+                  <Skeleton variant="rounded" height={240} />
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Skeleton variant="text" width={160} height={28} sx={{ mb: 2 }} />
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Stack key={i} direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                      <Skeleton variant="circular" width={32} height={32} />
+                      <Stack flex={1}>
+                        <Skeleton variant="text" width="70%" height={16} />
+                        <Skeleton variant="text" width="50%" height={14} />
+                      </Stack>
+                    </Stack>
+                  ))}
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </Stack>
-      </Box>
+      </AppShell>
     );
   }
 

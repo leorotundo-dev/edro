@@ -24,6 +24,8 @@ import Divider from '@mui/material/Divider';
 import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
+import { baseChartOptions } from '@/utils/chartTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 type ReportData = {
   period: { from: string; to: string };
@@ -85,6 +87,7 @@ export default function ClientReportsPage() {
   const params = useParams();
   const clientId = params.id as string;
   const reportRef = useRef<HTMLDivElement>(null);
+  const { isDark } = useThemeMode();
 
   const [template, setTemplate] = useState<TemplateKey>('completo');
   const [from, setFrom] = useState(() => {
@@ -316,13 +319,12 @@ export default function ClientReportsPage() {
                         height={280}
                         series={[{ name: 'Horas', data: report.stageTimeline.map((s) => Number(s.avg_hours)) }]}
                         options={{
-                          chart: { toolbar: { show: false } },
+                          ...baseChartOptions(isDark),
                           plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
-                          xaxis: { categories: report.stageTimeline.map((s) => s.stage) },
+                          xaxis: { ...baseChartOptions(isDark).xaxis, categories: report.stageTimeline.map((s) => s.stage) },
                           colors: report.stageTimeline.map((s) => STAGE_COLORS[s.stage] || '#E85219'),
-                          dataLabels: { enabled: true, formatter: (v: number) => `${v}h` },
-                          tooltip: { y: { formatter: (v: number) => `${v} horas` } },
-                          grid: { borderColor: '#f0f0f0' },
+                          dataLabels: { ...baseChartOptions(isDark).dataLabels, enabled: true, formatter: (v: number) => `${v}h` },
+                          tooltip: { ...baseChartOptions(isDark).tooltip, y: { formatter: (v: number) => `${v} horas` } },
                         }}
                       />
                     </CardContent>
