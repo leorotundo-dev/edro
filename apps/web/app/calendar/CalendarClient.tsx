@@ -35,6 +35,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
@@ -353,6 +355,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [selectedDayISO, setSelectedDayISO] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
   const [selectedEventDateISO, setSelectedEventDateISO] = useState<string | null>(null);
+  const [dayPanelTab, setDayPanelTab] = useState<0 | 1 | 2>(0);
   const [relevanceByClientId, setRelevanceByClientId] = useState<Record<string, EventRelevanceItem>>({});
   const [relevanceLoading, setRelevanceLoading] = useState(false);
   const [showAllClients, setShowAllClients] = useState(false);
@@ -809,6 +812,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setSelectedDayISO(dateISO);
     setSelectedEvent(event);
     setSelectedEventDateISO(dateISO);
+    setDayPanelTab(2);
     if (!selectedClient?.id) {
       setSelectedClientIds([]);
       setShowAllClients(false);
@@ -1330,20 +1334,44 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       setSelectedDayISO(null);
                       setSelectedEvent(null);
                       setSelectedEventDateISO(null);
+                      setDayPanelTab(0);
                     }}
                   >
                     <IconX size={18} />
                   </IconButton>
                 </Stack>
 
-                <Divider />
+                {/* ── Tab navigation ── */}
+                <Tabs
+                  value={dayPanelTab}
+                  onChange={(_, v) => setDayPanelTab(v as 0 | 1 | 2)}
+                  variant="fullWidth"
+                  sx={{ borderBottom: 1, borderColor: 'divider', mx: -2, px: 0 }}
+                >
+                  <Tab
+                    label={selectedDayEvents.length ? `Eventos (${selectedDayEvents.length})` : 'Eventos'}
+                    value={0}
+                    sx={{ minHeight: 40, fontSize: '0.72rem', textTransform: 'none' }}
+                  />
+                  <Tab
+                    label={selectedDayPosts.length ? `Posts (${selectedDayPosts.length})` : 'Posts'}
+                    value={1}
+                    sx={{ minHeight: 40, fontSize: '0.72rem', textTransform: 'none' }}
+                  />
+                  <Tab
+                    label={selectedEvent
+                      ? (selectedEvent.name.length > 13 ? selectedEvent.name.slice(0, 13) + '…' : selectedEvent.name)
+                      : 'Detalhes'}
+                    value={2}
+                    disabled={!selectedEvent}
+                    sx={{ minHeight: 40, fontSize: '0.72rem', textTransform: 'none' }}
+                  />
+                </Tabs>
 
-                {/* Daily events */}
+                {/* ── Tab 0: Daily events ── */}
+                {dayPanelTab === 0 && (
                 <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
-                    <Chip size="small" label="Daily events" />
-                    <Chip size="small" label={`${selectedDayEvents.length} tasks`} variant="outlined" />
-                    <Box sx={{ flex: 1 }} />
+                  <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 1, mt: 0.5 }}>
                     <Button
                       size="small"
                       variant="outlined"
@@ -1442,356 +1470,266 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                     <Typography variant="body2" color="text.secondary">No events for this day.</Typography>
                   )}
                 </Box>
+                )}
 
-                <Divider />
+                {/* ── Tab 1: Scheduled posts ── */}
+                {dayPanelTab === 1 && (
+                  <Box sx={{ mt: 0.5 }}>
+                    {selectedDayPosts.length ? (
+                      <List dense disablePadding>
+                        {selectedDayPosts.map((post, idx) => (
+                          <ListItemButton
+                            key={`${post.id || idx}-${post.calendarId}`}
+                            onClick={() => router.push(`/calendar/${post.calendarId}`)}
+                            sx={{ borderRadius: 1, mb: 0.5 }}
+                          >
+                            <ListItemText
+                              primary={`${post.platform} - ${post.copy?.headline || post.theme || 'Post'}`}
+                            />
+                          </ListItemButton>
+                        ))}
+                      </List>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">No posts for this day.</Typography>
+                    )}
+                  </Box>
+                )}
 
-                {/* Scheduled posts */}
-                <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                    <Chip size="small" label="Scheduled posts" />
-                    <Chip size="small" label={`${selectedDayPosts.length} posts`} variant="outlined" />
-                  </Stack>
-                  {selectedDayPosts.length ? (
-                    <List dense disablePadding>
-                      {selectedDayPosts.map((post, idx) => (
-                        <ListItemButton
-                          key={`${post.id || idx}-${post.calendarId}`}
-                          onClick={() => router.push(`/calendar/${post.calendarId}`)}
-                          sx={{ borderRadius: 1, mb: 0.5 }}
-                        >
-                          <ListItemText
-                            primary={`${post.platform} - ${post.copy?.headline || post.theme || 'Post'}`}
-                          />
-                        </ListItemButton>
-                      ))}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No posts for this day.</Typography>
-                  )}
-                </Box>
-
-                <Divider />
-
-                {/* Event details */}
-                <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                    <Chip size="small" label="Event details" />
-                    {selectedEvent ? (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setSelectedEvent(null);
-                          setSelectedEventDateISO(null);
-                        }}
-                      >
-                        <IconX size={16} />
-                      </IconButton>
-                    ) : null}
-                  </Stack>
-                  {selectedEvent ? (
-                    <Stack spacing={2}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                {/* ── Tab 2: Event details ── */}
+                {dayPanelTab === 2 && selectedEvent && (
+                  <Stack spacing={2} sx={{ mt: 0.5 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                      <Box>
                         <Typography variant="subtitle1" fontWeight={600}>{selectedEvent.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{selectedEventDateLabel || eventDetailDateISO}</Typography>
+                      </Box>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
                         <StatusChip status={selectedEvent.tier === 'A' ? 'high' : selectedEvent.tier === 'B' ? 'medium' : 'low'} label={`Tier ${selectedEvent.tier}`} />
+                        <IconButton size="small" onClick={() => { setSelectedEvent(null); setSelectedEventDateISO(null); setDayPanelTab(0); }}>
+                          <IconX size={16} />
+                        </IconButton>
                       </Stack>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Date</Typography>
-                        <Typography variant="body2">{selectedEventDateLabel || eventDetailDateISO}</Typography>
-                        <Typography variant="caption" color="text.secondary">{selectedClient ? 'Relevance' : 'Base relevance'}</Typography>
-                        <Typography variant="body2">{selectedEvent.score}</Typography>
-                        <Typography variant="caption" color="text.secondary">Client</Typography>
-                        <Typography variant="body2">{selectedClient?.name || 'Global calendar'}</Typography>
-                        {!selectedClient && selectedEvent.possible_clients?.length ? (
-                          <>
-                            <Typography variant="caption" color="text.secondary">Clientes possíveis</Typography>
-                            <Typography variant="body2">
-                              {selectedEvent.possible_clients
-                                .slice(0, 5)
-                                .map((client) => `${client.name} (${Math.round(client.score)}%)`)
-                                .join(' • ')}
-                            </Typography>
-                          </>
+                    </Stack>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                      <Typography variant="caption" color="text.secondary">{selectedClient ? 'Relevance' : 'Base relevance'}</Typography>
+                      <Typography variant="body2">{selectedEvent.score}</Typography>
+                      <Typography variant="caption" color="text.secondary">Client</Typography>
+                      <Typography variant="body2">{selectedClient?.name || 'Global calendar'}</Typography>
+                      {!selectedClient && selectedEvent.possible_clients?.length ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Clientes possíveis</Typography>
+                          <Typography variant="body2">
+                            {selectedEvent.possible_clients.slice(0, 5).map((client) => `${client.name} (${Math.round(client.score)}%)`).join(' • ')}
+                          </Typography>
+                        </>
+                      ) : null}
+                      {!selectedClient && selectedEvent.is_relevant === false ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Match</Typography>
+                          <Typography variant="body2">Sem cliente relevante para este evento</Typography>
+                        </>
+                      ) : null}
+                      {selectedClient?.segment_primary ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Segment</Typography>
+                          <Typography variant="body2">{selectedClient.segment_primary}</Typography>
+                        </>
+                      ) : null}
+                      {[selectedClient?.city, selectedClient?.uf].filter(Boolean).length ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Location</Typography>
+                          <Typography variant="body2">{[selectedClient?.city, selectedClient?.uf].filter(Boolean).join(' / ')}</Typography>
+                        </>
+                      ) : null}
+                      {selectedEvent.source ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Source</Typography>
+                          <Typography variant="body2">{selectedEvent.source}</Typography>
+                        </>
+                      ) : null}
+                    </Box>
+                    <Box>
+                      <Typography variant="overline" color="text.secondary">Ajuste de relevância</Typography>
+                      {selectedClient || relevanceClientOptions.length ? (
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-end' }}>
+                          {!selectedClient ? (
+                            <TextField
+                              select
+                              size="small"
+                              label="Cliente alvo"
+                              value={manualRelevanceClientId}
+                              onChange={(event) => setManualRelevanceClientId(event.target.value)}
+                              sx={{ minWidth: 180 }}
+                            >
+                              <MenuItem value="">Selecione</MenuItem>
+                              {relevanceClientOptions.map((client) => (
+                                <MenuItem key={client.id} value={client.id}>{client.name}</MenuItem>
+                              ))}
+                            </TextField>
+                          ) : null}
+                          <TextField
+                            type="number"
+                            size="small"
+                            label="Relevância (%)"
+                            value={manualRelevance}
+                            onChange={(event) => setManualRelevance(event.target.value)}
+                            inputProps={{ min: 0, max: 100 }}
+                            sx={{ width: 140 }}
+                          />
+                          <Button size="small" variant="contained" onClick={handleSaveEventRelevance} disabled={saveRelevanceLoading}>
+                            {saveRelevanceLoading ? 'Salvando...' : 'Salvar'}
+                          </Button>
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Nenhum cliente disponível para ajuste de relevância neste evento.
+                        </Typography>
+                      )}
+                      {!selectedClient && manualRelevanceTargetClient ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                          Ajuste será aplicado para: {manualRelevanceTargetClient.name}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                    {selectedEvent.why ? (
+                      <Typography variant="body2" color="text.secondary">{formatEventWhy(selectedEvent.why)}</Typography>
+                    ) : null}
+                    {selectedEvent.descricao_ai ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Sobre esta data</Typography>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{selectedEvent.descricao_ai}</Typography>
+                        {selectedEvent.origem_ai ? (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            <strong>Origem:</strong> {selectedEvent.origem_ai}
+                          </Typography>
                         ) : null}
-                        {!selectedClient && selectedEvent.is_relevant === false ? (
-                          <>
-                            <Typography variant="caption" color="text.secondary">Match</Typography>
-                            <Typography variant="body2">Sem cliente relevante para este evento</Typography>
-                          </>
-                        ) : null}
-                        {selectedClient?.segment_primary ? (
-                          <>
-                            <Typography variant="caption" color="text.secondary">Segment</Typography>
-                            <Typography variant="body2">{selectedClient.segment_primary}</Typography>
-                          </>
-                        ) : null}
-                        {[selectedClient?.city, selectedClient?.uf].filter(Boolean).length ? (
-                          <>
-                            <Typography variant="caption" color="text.secondary">Location</Typography>
-                            <Typography variant="body2">{[selectedClient?.city, selectedClient?.uf].filter(Boolean).join(' / ')}</Typography>
-                          </>
-                        ) : null}
-                        {selectedEvent.source ? (
-                          <>
-                            <Typography variant="caption" color="text.secondary">Source</Typography>
-                            <Typography variant="body2">{selectedEvent.source}</Typography>
-                          </>
+                        {selectedEvent.curiosidade_ai ? (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                            <strong>Curiosidade:</strong> {selectedEvent.curiosidade_ai}
+                          </Typography>
                         ) : null}
                       </Box>
+                    ) : null}
+                    {/* ── Creative Inspirations Panel ───────────────── */}
+                    {(selectedEvent.base_relevance ?? 0) >= 50 && (
                       <Box>
-                        <Typography variant="overline" color="text.secondary">Ajuste de relevância</Typography>
-                        {selectedClient || relevanceClientOptions.length ? (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-end' }}>
-                            {!selectedClient ? (
-                              <TextField
-                                select
-                                size="small"
-                                label="Cliente alvo"
-                                value={manualRelevanceClientId}
-                                onChange={(event) => setManualRelevanceClientId(event.target.value)}
-                                sx={{ minWidth: 180 }}
-                              >
-                                <MenuItem value="">Selecione</MenuItem>
-                                {relevanceClientOptions.map((client) => (
-                                  <MenuItem key={client.id} value={client.id}>
-                                    {client.name}
-                                  </MenuItem>
-                                ))}
-                              </TextField>
-                            ) : null}
-                            <TextField
-                              type="number"
-                              size="small"
-                              label="Relevância (%)"
-                              value={manualRelevance}
-                              onChange={(event) => setManualRelevance(event.target.value)}
-                              inputProps={{ min: 0, max: 100 }}
-                              sx={{ width: 140 }}
-                            />
-                            <Button
-                              size="small"
-                              variant="contained"
-                              onClick={handleSaveEventRelevance}
-                              disabled={saveRelevanceLoading}
-                            >
-                              {saveRelevanceLoading ? 'Salvando...' : 'Salvar'}
-                            </Button>
+                        <Typography variant="overline" color="text.secondary">Inspirações Criativas</Typography>
+                        {inspirationsLoading && (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                            <CircularProgress size={14} />
+                            <Typography variant="caption" color="text.secondary">Buscando referências...</Typography>
                           </Stack>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Nenhum cliente disponível para ajuste de relevância neste evento.
+                        )}
+                        {!inspirationsLoading && inspirations.length === 0 && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                            Ainda coletando inspirações para esta data...
                           </Typography>
                         )}
-                        {!selectedClient && manualRelevanceTargetClient ? (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                            Ajuste será aplicado para: {manualRelevanceTargetClient.name}
-                          </Typography>
-                        ) : null}
-                      </Box>
-                      {selectedEvent.why ? (
-                        <Typography variant="body2" color="text.secondary">{formatEventWhy(selectedEvent.why)}</Typography>
-                      ) : null}
-                      {selectedEvent.descricao_ai ? (
-                        <Box>
-                          <Typography variant="overline" color="text.secondary">Sobre esta data</Typography>
-                          <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{selectedEvent.descricao_ai}</Typography>
-                          {selectedEvent.origem_ai ? (
-                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                              <strong>Origem:</strong> {selectedEvent.origem_ai}
-                            </Typography>
-                          ) : null}
-                          {selectedEvent.curiosidade_ai ? (
-                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                              <strong>Curiosidade:</strong> {selectedEvent.curiosidade_ai}
-                            </Typography>
-                          ) : null}
-                        </Box>
-                      ) : null}
-                      {/* ── Creative Inspirations Panel ───────────────── */}
-                      {(selectedEvent.base_relevance ?? 0) >= 50 && (
-                        <Box>
-                          <Typography variant="overline" color="text.secondary">
-                            Inspirações Criativas
-                          </Typography>
-                          {inspirationsLoading && (
-                            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-                              <CircularProgress size={14} />
-                              <Typography variant="caption" color="text.secondary">Buscando referências...</Typography>
-                            </Stack>
-                          )}
-                          {!inspirationsLoading && inspirations.length === 0 && (
-                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                              Ainda coletando inspirações para esta data...
-                            </Typography>
-                          )}
-                          {!inspirationsLoading && inspirations.length > 0 && (
-                            <Stack spacing={1} sx={{ mt: 1 }}>
-                              {inspirations.slice(0, 6).map((ins) => (
-                                <Box
-                                  key={ins.id}
-                                  sx={{
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 2,
-                                    p: 1.25,
-                                    bgcolor: 'background.paper',
-                                  }}
-                                >
-                                  <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                      <Typography
-                                        variant="caption"
-                                        sx={{ fontWeight: 600, display: 'block', lineHeight: 1.3 }}
-                                        noWrap
-                                      >
-                                        {ins.title}
+                        {!inspirationsLoading && inspirations.length > 0 && (
+                          <Stack spacing={1} sx={{ mt: 1 }}>
+                            {inspirations.slice(0, 6).map((ins) => (
+                              <Box key={ins.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.25, bgcolor: 'background.paper' }}>
+                                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.3 }} noWrap>
+                                      {ins.title}
+                                    </Typography>
+                                    {ins.snippet && (
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                        {ins.snippet.slice(0, 150)}{ins.snippet.length > 150 ? '…' : ''}
                                       </Typography>
-                                      {ins.snippet && (
-                                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                                          {ins.snippet.slice(0, 150)}{ins.snippet.length > 150 ? '…' : ''}
-                                        </Typography>
-                                      )}
-                                      <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center">
-                                        <Chip
-                                          label={ins.source_lang === 'en' ? 'EN' : 'PT'}
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{ height: 18, fontSize: '0.65rem' }}
-                                        />
-                                        <Typography
-                                          component="a"
-                                          href={ins.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          variant="caption"
-                                          color="primary"
-                                          sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
-                                        >
-                                          Ver fonte
-                                        </Typography>
-                                      </Stack>
-                                    </Box>
-                                    {selectedClient && (
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{ minWidth: 'unset', px: 1, py: 0.5, fontSize: '0.7rem', flexShrink: 0 }}
-                                        disabled={adaptingId === ins.id}
-                                        onClick={() => handleAdaptInspiration(ins.id)}
-                                      >
-                                        {adaptingId === ins.id ? <CircularProgress size={12} /> : 'Adaptar'}
-                                      </Button>
                                     )}
-                                  </Stack>
-                                  {/* Adaptation result */}
-                                  {adaptResult?.inspirationId === ins.id && (
-                                    <Box
-                                      sx={{
-                                        mt: 1,
-                                        p: 1,
-                                        bgcolor: 'action.hover',
-                                        borderRadius: 1,
-                                        borderLeft: '3px solid',
-                                        borderColor: 'primary.main',
-                                      }}
-                                    >
-                                      <Typography variant="caption" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                                        {adaptResult.text}
+                                    <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center">
+                                      <Chip label={ins.source_lang === 'en' ? 'EN' : 'PT'} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                      <Typography component="a" href={ins.url} target="_blank" rel="noopener noreferrer" variant="caption" color="primary" sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                                        Ver fonte
                                       </Typography>
-                                    </Box>
+                                    </Stack>
+                                  </Box>
+                                  {selectedClient && (
+                                    <Button size="small" variant="outlined" sx={{ minWidth: 'unset', px: 1, py: 0.5, fontSize: '0.7rem', flexShrink: 0 }} disabled={adaptingId === ins.id} onClick={() => handleAdaptInspiration(ins.id)}>
+                                      {adaptingId === ins.id ? <CircularProgress size={12} /> : 'Adaptar'}
+                                    </Button>
                                   )}
-                                </Box>
+                                </Stack>
+                                {adaptResult?.inspirationId === ins.id && (
+                                  <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'primary.main' }}>
+                                    <Typography variant="caption" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{adaptResult.text}</Typography>
+                                  </Box>
+                                )}
+                              </Box>
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+                    )}
+                    {selectedEvent.categories?.length ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Categories</Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {selectedEvent.categories.map((category) => (
+                            <Chip key={category} label={category} size="small" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : null}
+                    {selectedEvent.tags?.length ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Tags</Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {selectedEvent.tags.map((tag) => (
+                            <Chip key={tag} label={tag} size="small" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : null}
+                    <Box>
+                      <Typography variant="overline" color="text.secondary">Clientes do job</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Relevantes: {recommendedClientIds.length} de {clients.length}
+                      </Typography>
+                      {isFilteredToClient && selectedClient ? (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                          <Chip label={selectedClient.name} size="small" color="primary" />
+                        </Stack>
+                      ) : (
+                        <>
+                          {relevanceLoading ? (
+                            <Typography variant="body2" color="text.secondary">Calculando relevancia...</Typography>
+                          ) : null}
+                          {!relevanceLoading && !visibleClients.length ? (
+                            <Typography variant="body2" color="text.secondary">Nenhum cliente relevante para este evento.</Typography>
+                          ) : (
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                              {visibleClients.map((client) => (
+                                <Chip
+                                  key={client.id}
+                                  label={client.name}
+                                  size="small"
+                                  color={selectedClientIds.includes(client.id) ? 'primary' : 'default'}
+                                  variant={selectedClientIds.includes(client.id) ? 'filled' : 'outlined'}
+                                  onClick={() => handleToggleClient(client.id)}
+                                />
                               ))}
                             </Stack>
                           )}
-                        </Box>
-                      )}
-                      {/* ─────────────────────────────────────────────── */}
-
-                      {selectedEvent.categories?.length ? (
-                        <Box>
-                          <Typography variant="overline" color="text.secondary">Categories</Typography>
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                            {selectedEvent.categories.map((category) => (
-                              <Chip key={category} label={category} size="small" variant="outlined" />
-                            ))}
-                          </Stack>
-                        </Box>
-                      ) : null}
-                      {selectedEvent.tags?.length ? (
-                        <Box>
-                          <Typography variant="overline" color="text.secondary">Tags</Typography>
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                            {selectedEvent.tags.map((tag) => (
-                              <Chip key={tag} label={tag} size="small" variant="outlined" />
-                            ))}
-                          </Stack>
-                        </Box>
-                      ) : null}
-                      <Box>
-                        <Typography variant="overline" color="text.secondary">Clientes do job</Typography>
-                        {selectedEvent ? (
-                          <Typography variant="body2" color="text.secondary">
-                            Relevantes: {recommendedClientIds.length} de {clients.length}
-                          </Typography>
-                        ) : null}
-                        {isFilteredToClient && selectedClient ? (
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                            <Chip label={selectedClient.name} size="small" color="primary" />
-                          </Stack>
-                        ) : (
-                          <>
-                            {relevanceLoading ? (
-                              <Typography variant="body2" color="text.secondary">Calculando relevancia...</Typography>
-                            ) : null}
-                            {!relevanceLoading && !visibleClients.length ? (
-                              <Typography variant="body2" color="text.secondary">Nenhum cliente relevante para este evento.</Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                            <Button size="small" variant="text" onClick={handleSelectAllClients}>Selecionar todos</Button>
+                            <Button size="small" variant="text" onClick={handleClearClients}>Limpar</Button>
+                            {!showAllClients ? (
+                              <Button size="small" variant="text" onClick={() => setShowAllClients(true)}>Mostrar todos</Button>
                             ) : (
-                              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                                {visibleClients.map((client) => (
-                                  <Chip
-                                    key={client.id}
-                                    label={client.name}
-                                    size="small"
-                                    color={selectedClientIds.includes(client.id) ? 'primary' : 'default'}
-                                    variant={selectedClientIds.includes(client.id) ? 'filled' : 'outlined'}
-                                    onClick={() => handleToggleClient(client.id)}
-                                  />
-                                ))}
-                              </Stack>
+                              <Button size="small" variant="text" onClick={() => setShowAllClients(false)}>Mostrar apenas relevantes</Button>
                             )}
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                              <Button size="small" variant="text" onClick={handleSelectAllClients}>
-                                Selecionar todos
-                              </Button>
-                              <Button size="small" variant="text" onClick={handleClearClients}>
-                                Limpar
-                              </Button>
-                              {selectedEvent && !showAllClients ? (
-                                <Button size="small" variant="text" onClick={() => setShowAllClients(true)}>
-                                  Mostrar todos
-                                </Button>
-                              ) : null}
-                              {selectedEvent && showAllClients ? (
-                                <Button size="small" variant="text" onClick={() => setShowAllClients(false)}>
-                                  Mostrar apenas relevantes
-                                </Button>
-                              ) : null}
-                            </Stack>
-                          </>
-                        )}
-                      </Box>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}
-                      >
-                        Criar Briefing
-                      </Button>
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">Select an event to see details.</Typography>
-                  )}
-                </Box>
+                          </Stack>
+                        </>
+                      )}
+                    </Box>
+                    <Button variant="contained" fullWidth onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}>
+                      Criar Briefing
+                    </Button>
+                  </Stack>
+                )}
               </Stack>
             </CardContent>
           </Card>
