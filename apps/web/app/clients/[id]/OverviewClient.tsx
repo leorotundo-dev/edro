@@ -696,7 +696,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     }
 
     return [
-      { key: 'briefing', label: 'Briefing', count: counters.briefing, color: '#5D87FF' },
+      { key: 'briefing', label: 'Briefing', count: counters.briefing, color: '#E85219' },
       { key: 'copy-ia', label: 'Copy IA', count: counters.copyIa, color: '#64748b' },
       { key: 'aprovacao', label: 'Aprovação', count: counters.aprovacao, color: '#FFAE1F' },
       { key: 'producao', label: 'Produção', count: counters.producao, color: '#FA896B' },

@@ -1868,7 +1868,7 @@ function CreateCampaignDialog({
                                     startIcon={used ? <IconCheck size={12} /> : <IconPlus size={12} />}
                                     sx={{
                                       fontSize: '0.65rem', py: 0.25, px: 0.75, minWidth: 0,
-                                      bgcolor: used ? 'transparent' : '#5D87FF',
+                                      bgcolor: used ? 'transparent' : '#E85219',
                                       '&:hover': { bgcolor: used ? 'transparent' : '#4570EA' },
                                     }}
                                   >

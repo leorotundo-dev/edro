@@ -155,7 +155,7 @@ export default function ClientIntegrationsPage() {
                         chart: { toolbar: { show: false }, stacked: false },
                         plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
                         xaxis: { categories: metaData.campaigns.map((c) => c.name.length > 25 ? c.name.slice(0, 25) + '...' : c.name) },
-                        colors: ['#E85219', '#5D87FF'],
+                        colors: ['#E85219', '#E85219'],
                         dataLabels: { enabled: false },
                         grid: { borderColor: '#f0f0f0' },
                         legend: { position: 'top' as const },
@@ -255,7 +255,7 @@ export default function ClientIntegrationsPage() {
                         ]}
                         options={{
                           chart: { type: 'area' as const, toolbar: { show: false }, stacked: false },
-                          colors: ['#5D87FF', '#13DEB9'],
+                          colors: ['#E85219', '#13DEB9'],
                           xaxis: {
                             categories: gaData.rows.map((r) =>
                               r.dimension.length === 8

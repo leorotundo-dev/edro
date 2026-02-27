@@ -312,7 +312,7 @@ const TIER_COLORS: Record<string, string> = {
 function getEventMeta(name: string, categories?: string[], tags?: string[]) {
   const text = `${name} ${(categories ?? []).join(' ')} ${(tags ?? []).join(' ')}`.toLowerCase();
   if (/livro|leitura|bibliote|escola|educa|estudant|alfabetiz|literatu/.test(text))
-    return { Icon: IconBook2, color: '#5D87FF' };
+    return { Icon: IconBook2, color: '#E85219' };
   if (/ecolog|animal|urso|baleia|fauna|natureza|planta|floresta|ambient|conserv|biodiversi|pand[ao]|leão|lobo|peixe|mar|ocean/.test(text))
     return { Icon: IconLeaf, color: '#13DEB9' };
   if (/fiscal|receita|imposto|tribut|contab|finanç|econom|previdên|pensão|aposentad/.test(text))
@@ -326,11 +326,11 @@ function getEventMeta(name: string, categories?: string[], tags?: string[]) {
   if (/saúde|médico|enfermei|hospital|nutricion|farmac|diabetes|câncer|doença|psicolog|quiroprax/.test(text))
     return { Icon: IconHeart, color: '#FA896B' };
   if (/trabalho|trabalhador|profissional|emprego|operári|engenhei|arquitet|advogad|dentist|veterinár/.test(text))
-    return { Icon: IconBriefcase, color: '#5D87FF' };
+    return { Icon: IconBriefcase, color: '#E85219' };
   if (/brasil|república|independên|pátria|bandeira|nacional|municip|estado|governo|cidadan/.test(text))
     return { Icon: IconFlag, color: '#13DEB9' };
   if (/internacion|mundial|global|mundo|onu|unicef|solidariedade/.test(text))
-    return { Icon: IconGlobe, color: '#5D87FF' };
+    return { Icon: IconGlobe, color: '#E85219' };
   if (/família|mãe|pai|avó|avô|criança|infantil|juventude|idoso|mulher|homem|amizade/.test(text))
     return { Icon: IconUsersGroup, color: '#FFAE1F' };
   return { Icon: IconCalendarEvent, color: '#7c8fac' };

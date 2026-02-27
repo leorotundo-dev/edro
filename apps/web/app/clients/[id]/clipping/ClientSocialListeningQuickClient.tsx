@@ -1134,7 +1134,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
         <Grid size={{ xs: 6, md: 3 }}>
           <DashboardCard>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Avatar sx={{ bgcolor: '#5d87ff22', color: '#5d87ff', width: 44, height: 44 }}>
+              <Avatar sx={{ bgcolor: '#E8521922', color: '#E85219', width: 44, height: 44 }}>
                 <IconMessageCircle size={22} />
               </Avatar>
               <Box>

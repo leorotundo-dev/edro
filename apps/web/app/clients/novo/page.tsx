@@ -367,7 +367,7 @@ export default function NewClientWizardPage() {
           {step === 1 && (
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
-                <IconPalette size={22} color="#5D87FF" />
+                <IconPalette size={22} color="#E85219" />
                 <Typography variant="h6" fontWeight={700}>Comunicação e Tom de Voz</Typography>
               </Stack>
               <Stack spacing={3}>
@@ -381,13 +381,13 @@ export default function NewClientWizardPage() {
                           onClick={() => set('tone_profile', t.value)}
                           sx={{
                             cursor: 'pointer', p: 1.5,
-                            borderColor: data.tone_profile === t.value ? '#5D87FF' : 'divider',
+                            borderColor: data.tone_profile === t.value ? '#E85219' : 'divider',
                             borderWidth: data.tone_profile === t.value ? 2 : 1,
-                            bgcolor: data.tone_profile === t.value ? 'rgba(93,135,255,0.05)' : 'transparent',
+                            bgcolor: data.tone_profile === t.value ? 'rgba(232,82,25,0.05)' : 'transparent',
                           }}
                         >
                           <Stack direction="row" spacing={1} alignItems="center">
-                            <Radio checked={data.tone_profile === t.value} size="small" sx={{ p: 0, color: '#5D87FF', '&.Mui-checked': { color: '#5D87FF' } }} />
+                            <Radio checked={data.tone_profile === t.value} size="small" sx={{ p: 0, color: '#E85219', '&.Mui-checked': { color: '#E85219' } }} />
                             <Box>
                               <Typography variant="subtitle2" fontWeight={700}>{t.label}</Typography>
                               <Typography variant="caption" color="text.secondary">{t.desc}</Typography>
@@ -419,7 +419,7 @@ export default function NewClientWizardPage() {
                         key={p} label={p} clickable
                         onClick={() => togglePillar(p)}
                         sx={{
-                          bgcolor: data.content_pillars.includes(p) ? '#5D87FF' : undefined,
+                          bgcolor: data.content_pillars.includes(p) ? '#E85219' : undefined,
                           color: data.content_pillars.includes(p) ? '#fff' : undefined,
                         }}
                       />

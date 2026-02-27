@@ -207,7 +207,7 @@ const positionLabel: Record<string, string> = {
   top_quartile: 'Top 25%', above_average: 'Acima da média', average: 'Na média', below_average: 'Abaixo da média',
 };
 const positionColor: Record<string, string> = {
-  top_quartile: '#13DEB9', above_average: '#5D87FF', average: '#FFAE1F', below_average: '#FA896B',
+  top_quartile: '#13DEB9', above_average: '#E85219', average: '#FFAE1F', below_average: '#FA896B',
 };
 
 function toFriendlyErrorMessage(err: any) {
@@ -669,7 +669,7 @@ export default function ClientAnalyticsCore({
         <Box>
           <Button variant="contained" startIcon={brandVoiceLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconDna size={18} />}
             onClick={loadBrandVoice} disabled={brandVoiceLoading}
-            sx={{ mb: brandVoiceLoading ? 0 : 3, bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4d77ef' } }}>
+            sx={{ mb: brandVoiceLoading ? 0 : 3, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             {brandVoiceLoading ? 'Analisando copies...' : 'Extrair DNA de Marca'}
           </Button>
 
@@ -688,7 +688,7 @@ export default function ClientAnalyticsCore({
                     <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Tom de Voz</Typography>
                     <Stack direction="row" flexWrap="wrap" gap={1}>
                       {(brandVoice.dna.tone || []).map((t, i) => (
-                        <Chip key={i} label={t} size="small" sx={{ bgcolor: '#5D87FF', color: '#fff' }} />
+                        <Chip key={i} label={t} size="small" sx={{ bgcolor: '#E85219', color: '#fff' }} />
                       ))}
                     </Stack>
                   </CardContent>
@@ -766,8 +766,8 @@ export default function ClientAnalyticsCore({
                     onClick={handleSaveDna}
                     disabled={savingDna || dnaSaved}
                     sx={{
-                      bgcolor: dnaSaved ? '#13DEB9' : '#5D87FF',
-                      '&:hover': { bgcolor: dnaSaved ? '#0fc9a8' : '#4d77ef' },
+                      bgcolor: dnaSaved ? '#13DEB9' : '#E85219',
+                      '&:hover': { bgcolor: dnaSaved ? '#0fc9a8' : '#c43e10' },
                       '&.Mui-disabled': dnaSaved ? { bgcolor: '#13DEB9', color: '#fff', opacity: 1 } : undefined,
                     }}
                   >
@@ -858,7 +858,7 @@ export default function ClientAnalyticsCore({
                         <Stack direction="row" spacing={1}>
                           <Chip label={g.format} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
                           <Chip label={g.urgency} size="small" sx={{
-                            bgcolor: g.urgency === 'alta' ? '#FA896B' : g.urgency === 'média' ? '#FFAE1F' : '#5D87FF',
+                            bgcolor: g.urgency === 'alta' ? '#FA896B' : g.urgency === 'média' ? '#FFAE1F' : '#E85219',
                             color: '#fff', fontSize: '0.7rem',
                           }} />
                         </Stack>
@@ -1046,7 +1046,7 @@ export default function ClientAnalyticsCore({
                     <CardContent>
                       <Stack direction="row" flexWrap="wrap" gap={0.5} justifyContent="center">
                         {calendar.best_posting_days.map((d, i) => (
-                          <Chip key={i} label={d} size="small" sx={{ bgcolor: '#5D87FF', color: '#fff' }} />
+                          <Chip key={i} label={d} size="small" sx={{ bgcolor: '#E85219', color: '#fff' }} />
                         ))}
                       </Stack>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>Melhores dias para briefing</Typography>
@@ -1057,7 +1057,7 @@ export default function ClientAnalyticsCore({
 
               <Stack spacing={2}>
                 {calendar.suggestions.map((s, i) => (
-                  <Card key={i} variant="outlined" sx={{ borderLeft: `4px solid ${s.status === 'urgent' ? '#FA896B' : '#5D87FF'}` }}>
+                  <Card key={i} variant="outlined" sx={{ borderLeft: `4px solid ${s.status === 'urgent' ? '#FA896B' : '#E85219'}` }}>
                     <CardContent sx={{ py: 1.5 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
@@ -1159,7 +1159,7 @@ export default function ClientAnalyticsCore({
                           </Box>
                           <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center">
                             <Chip size="small" label={AMD_LABELS[row.amd] ?? row.amd}
-                              sx={{ bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF', fontWeight: 600, fontSize: '0.65rem' }} />
+                              sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219', fontWeight: 600, fontSize: '0.65rem' }} />
                             {row.persona_name && (
                               <Chip size="small" label={row.persona_name}
                                 sx={{ bgcolor: 'rgba(19,222,185,0.1)', color: '#13DEB9', fontWeight: 600, fontSize: '0.65rem' }} />

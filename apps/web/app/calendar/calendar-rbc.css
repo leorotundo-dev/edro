@@ -37,8 +37,8 @@
 
 /* --- TODAY highlight --- */
 .rbc-today {
-  background: rgba(93, 135, 255, 0.10);
-  box-shadow: inset 0 0 0 2px rgba(93, 135, 255, 0.30);
+  background: rgba(232, 82, 25, 0.10);
+  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.30);
 }
 
 .rbc-today.rbc-day-bg {
@@ -54,7 +54,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #5D87FF;
+  background: #E85219;
   color: #ffffff !important;
   font-weight: 700;
   line-height: 1;
@@ -115,7 +115,7 @@
 .rbc-show-more {
   font-size: 11px;
   font-weight: 600;
-  color: #5D87FF;
+  color: #E85219;
 }
 
 .rbc-time-content > * + * > * {

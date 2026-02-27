@@ -16,7 +16,7 @@ type ReportData = {
 };
 
 const STAGE_COLORS: Record<string, string> = {
-  briefing: '#5D87FF', copy_ia: '#94a3b8', aprovacao: '#FFAE1F',
+  briefing: '#E85219', copy_ia: '#94a3b8', aprovacao: '#FFAE1F',
   producao: '#FA896B', revisao: '#E85219', entrega: '#13DEB9', done: '#13DEB9',
 };
 
@@ -122,7 +122,7 @@ export default function ReportPrintPage() {
             { value: report.summary.total, label: isCliente ? 'Demandas' : 'Briefings', color: '#E85219' },
             { value: report.summary.completed, label: isCliente ? 'Entregues' : 'Concluidos', color: '#13DEB9' },
             { value: report.summary.overdue, label: isCliente ? 'Pendentes' : 'Atrasados', color: '#FA896B' },
-            { value: report.copies.total_copies, label: isCliente ? 'Pecas Criadas' : 'Copies', color: '#5D87FF' },
+            { value: report.copies.total_copies, label: isCliente ? 'Pecas Criadas' : 'Copies', color: '#E85219' },
           ].map((s) => (
             <div key={s.label} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -161,7 +161,7 @@ export default function ReportPrintPage() {
                   <div style={{
                     height: '100%', borderRadius: 4,
                     width: `${Math.min(100, (Number(s.avg_hours) / 48) * 100)}%`,
-                    background: STAGE_COLORS[s.stage] || '#5D87FF',
+                    background: STAGE_COLORS[s.stage] || '#E85219',
                     display: 'flex', alignItems: 'center', paddingLeft: 6,
                   }}>
                     <span style={{ fontSize: 10, color: '#fff', fontWeight: 600 }}>{s.avg_hours}h</span>

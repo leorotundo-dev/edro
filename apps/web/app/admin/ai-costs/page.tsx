@@ -172,7 +172,7 @@ export default function AiCostsPage() {
       label: 'Total Chamadas',
       value: formatNumber(totals?.total_calls || 0),
       icon: <IconChartBar size={22} />,
-      color: '#5D87FF',
+      color: '#E85219',
     },
     {
       label: 'Custo BRL',
@@ -542,7 +542,7 @@ function buildFeatureChart(byFeature: FeatureRow[]) {
     options: {
       chart: { type: 'bar' as const, toolbar: { show: false } },
       plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
-      colors: ['#5D87FF'],
+      colors: ['#E85219'],
       xaxis: {
         categories: byFeature.map((r) => r.feature),
         labels: { formatter: (v: string) => `R$${Number(v).toFixed(2)}` },

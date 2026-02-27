@@ -195,7 +195,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     label: 'Lancamento',
     description: 'Produto, servico ou iniciativa nova.',
     icon: <IconRocket size={22} />,
-    color: '#5D87FF',
+    color: '#E85219',
     defaults: {
       objective: 'Conversao',
       tone: 'Persuasivo',
@@ -616,7 +616,7 @@ export default function BriefClient() {
     return '#94a3b8';                   // cinza
   };
 
-  const CLIENT_COLORS = ['#E85219', '#5D87FF', '#7c3aed', '#dc2626', '#059669', '#d97706'];
+  const CLIENT_COLORS = ['#E85219', '#E85219', '#7c3aed', '#dc2626', '#059669', '#d97706'];
   const getClientColor = (name: string) => CLIENT_COLORS[name.charCodeAt(0) % CLIENT_COLORS.length];
 
   const handleSelectClient = (client: ClientRow) => {
@@ -1035,7 +1035,7 @@ export default function BriefClient() {
 
       {/* ── Seção AMD + Persona (visível apenas com cliente selecionado) ─────────── */}
       {(activeClientId || queryClientId) && (
-        <Card variant="outlined" sx={{ borderColor: 'rgba(93,135,255,0.35)', bgcolor: 'rgba(93,135,255,0.02)' }}>
+        <Card variant="outlined" sx={{ borderColor: 'rgba(232,82,25,0.35)', bgcolor: 'rgba(232,82,25,0.02)' }}>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 0.25 }}>Público e Objetivo Comportamental</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1088,10 +1088,10 @@ export default function BriefClient() {
                       onClick={() => updateForm({ amd: opt.value as BriefForm['amd'] })}
                       sx={{
                         cursor: 'pointer',
-                        bgcolor: form.amd === opt.value ? '#5D87FF' : 'transparent',
+                        bgcolor: form.amd === opt.value ? '#E85219' : 'transparent',
                         color: form.amd === opt.value ? '#fff' : 'text.secondary',
                         border: '1px solid',
-                        borderColor: form.amd === opt.value ? '#5D87FF' : 'divider',
+                        borderColor: form.amd === opt.value ? '#E85219' : 'divider',
                         fontWeight: form.amd === opt.value ? 700 : 400,
                       }}
                     />

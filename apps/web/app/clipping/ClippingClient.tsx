@@ -126,7 +126,7 @@ const RECENCY_OPTIONS = [
 ];
 
 const STAT_CARDS = [
-  { key: 'total_items', label: 'Total', icon: IconNews, color: '#5D87FF' },
+  { key: 'total_items', label: 'Total', icon: IconNews, color: '#E85219' },
   { key: 'new_items', label: 'Novos', icon: IconStar, color: '#FFAE1F' },
   { key: 'triaged_items', label: 'Triados', icon: IconChecks, color: '#13DEB9' },
   { key: 'items_last_7_days', label: 'Ultimos 7 dias', icon: IconCalendarWeek, color: '#FA896B' },
@@ -727,7 +727,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                       sx={{
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        '&:hover': { borderColor: 'primary.main', boxShadow: '0 2px 12px rgba(93,135,255,0.15)' },
+                        '&:hover': { borderColor: 'primary.main', boxShadow: '0 2px 12px rgba(232,82,25,0.15)' },
                       }}
                       onClick={() => {
                         if (!item?.id) return;

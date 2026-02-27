@@ -1825,9 +1825,9 @@ export default function Page() {
                   {generatingPrompt ? 'Gerando prompt...' : 'Gerar prompt Midjourney/DALL-E'}
                 </Button>
                 {imagePrompt && (
-                  <Box sx={{ p: 1, bgcolor: 'rgba(93,135,255,0.06)', borderRadius: 1, border: '1px solid rgba(93,135,255,0.2)' }}>
+                  <Box sx={{ p: 1, bgcolor: 'rgba(232,82,25,0.06)', borderRadius: 1, border: '1px solid rgba(232,82,25,0.2)' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 0.5 }}>
-                      <Typography variant="caption" fontWeight={700} color="#5D87FF" sx={{ fontSize: '0.62rem' }}>
+                      <Typography variant="caption" fontWeight={700} color="#E85219" sx={{ fontSize: '0.62rem' }}>
                         PROMPT GERADO
                       </Typography>
                       <IconButton size="small" onClick={() => { navigator.clipboard?.writeText(imagePrompt).catch(() => {}); }}

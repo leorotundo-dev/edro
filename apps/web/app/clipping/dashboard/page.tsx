@@ -81,7 +81,7 @@ function formatNumber(value?: number | null) {
 }
 
 const STAT_CARDS = [
-  { key: 'total_sources', label: 'Total fontes', icon: IconRss, color: '#5D87FF' },
+  { key: 'total_sources', label: 'Total fontes', icon: IconRss, color: '#E85219' },
   { key: 'total_items', label: 'Total itens', icon: IconNews, color: '#13DEB9' },
   { key: 'items_this_week', label: 'Esta semana', icon: IconCalendar, color: '#FFAE1F' },
   { key: 'by_score_high', label: 'Score alto', icon: IconStarFilled, color: '#FA896B' },
@@ -158,7 +158,7 @@ export default function ClippingDashboardPage() {
   const sourceBarOptions: ApexCharts.ApexOptions = {
     chart: { toolbar: { show: false } },
     xaxis: { categories: (dashboard?.by_source || []).slice(0, 8).map((s) => s.source_name.length > 18 ? s.source_name.slice(0, 18) + '...' : s.source_name) },
-    colors: ['#5D87FF'],
+    colors: ['#E85219'],
     plotOptions: { bar: { borderRadius: 4, horizontal: true } },
     dataLabels: { enabled: true },
     grid: { borderColor: '#f0f0f0' },

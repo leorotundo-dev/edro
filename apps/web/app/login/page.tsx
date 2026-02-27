@@ -138,9 +138,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div>
-          <span className="font-serif text-2xl text-white tracking-tight">
-            edro<span className="text-orange-500">.</span>
-          </span>
+          <img src="/brand/logo-studio.png" alt="edro.studio" className="h-7 w-auto" />
         </div>
 
         {/* Main copy */}
@@ -198,9 +196,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden mb-8">
-            <span className="font-serif text-2xl text-white tracking-tight">
-              edro<span className="text-orange-500">.</span>
-            </span>
+            <img src="/brand/logo-studio.png" alt="edro.studio" className="h-6 w-auto" />
           </div>
 
           <h2 className="text-white text-xl font-bold mb-1">

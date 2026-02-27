@@ -1282,7 +1282,7 @@ export default function EditorClient() {
           const activeCopyId = resolveActiveCopyId();
           if (!activeCopyId) return null;
           return (
-            <Box sx={{ p: 1.5, bgcolor: 'rgba(93,135,255,0.05)', borderRadius: 1, border: '1px dashed rgba(93,135,255,0.3)' }}>
+            <Box sx={{ p: 1.5, bgcolor: 'rgba(232,82,25,0.05)', borderRadius: 1, border: '1px dashed rgba(232,82,25,0.3)' }}>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                 <Typography variant="caption" color="text.secondary">
                   AMD: {AMD_LABELS[briefingAmd] ?? briefingAmd} — Atingida?
@@ -1456,8 +1456,8 @@ export default function EditorClient() {
                       )}
 
                       {!generating && pipeline === 'adversarial' && adversarialContributions && (
-                        <Box sx={{ mt: 1, p: 1, bgcolor: 'rgba(93,135,255,0.04)', borderRadius: 1, border: '1px solid rgba(93,135,255,0.2)' }}>
-                          <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mb: 0.75, color: '#5d87ff' }}>
+                        <Box sx={{ mt: 1, p: 1, bgcolor: 'rgba(232,82,25,0.04)', borderRadius: 1, border: '1px solid rgba(232,82,25,0.2)' }}>
+                          <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mb: 0.75, color: '#E85219' }}>
                             Contribuições por perspectiva
                           </Typography>
                           <Stack spacing={0.5}>

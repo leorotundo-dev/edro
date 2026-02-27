@@ -86,7 +86,7 @@ export default function PautaComparisonCard({
 
         <Grid container spacing={1.5}>
           <Grid size={{ xs: 12, md: 6 }}>
-            <Card variant="outlined" sx={{ height: '100%', bgcolor: 'rgba(93,135,255,0.03)' }}>
+            <Card variant="outlined" sx={{ height: '100%', bgcolor: 'rgba(232,82,25,0.03)' }}>
               <CardContent>
                 <Typography variant="overline" color="text.secondary">
                   Abordagem A

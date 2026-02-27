@@ -112,11 +112,11 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
   };
 
   return (
-    <Card variant="outlined" sx={{ borderColor: 'rgba(93,135,255,0.3)' }}>
+    <Card variant="outlined" sx={{ borderColor: 'rgba(232,82,25,0.3)' }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <IconUsers size={20} color="#5D87FF" />
+            <IconUsers size={20} color="#E85219" />
             <Box>
               <Typography variant="h6" fontWeight={700}>Personas</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -137,7 +137,7 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
             <Button
               size="small" variant="outlined" startIcon={<IconPlus size={16} />}
               onClick={() => setOpen(true)}
-              sx={{ borderColor: '#5D87FF', color: '#5D87FF' }}
+              sx={{ borderColor: '#E85219', color: '#E85219' }}
             >
               Adicionar
             </Button>
@@ -183,7 +183,7 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
                           startIcon={savingIdx === idx ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : <IconCheck size={14} />}
                           onClick={() => handleAcceptSuggested(idx)}
                           disabled={savingIdx !== null}
-                          sx={{ mt: 1.25, bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4570EA' }, fontSize: '0.72rem', py: 0.4 }}
+                          sx={{ mt: 1.25, bgcolor: '#E85219', '&:hover': { bgcolor: '#4570EA' }, fontSize: '0.72rem', py: 0.4 }}
                         >
                           Adicionar persona
                         </Button>
@@ -313,7 +313,7 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
           <Button
             variant="contained" onClick={handleSave} disabled={saving || !form.name.trim() || !form.description.trim()}
             startIcon={saving ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : undefined}
-            sx={{ bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4570EA' } }}
+            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#4570EA' } }}
           >
             {saving ? 'Salvando...' : 'Salvar persona'}
           </Button>

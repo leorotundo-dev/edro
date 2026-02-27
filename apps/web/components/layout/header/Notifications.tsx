@@ -36,10 +36,10 @@ const EVENT_ICONS: Record<string, { icon: any; color: string; bgColor: string }>
   briefing_deadline: { icon: IconCalendarEvent, color: '#FFAE1F', bgColor: '#FEF5E5' },
   task_assigned: { icon: IconMessage2, color: '#ff6600', bgColor: '#fff1e6' },
   copy_approved: { icon: IconCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
-  weekly_digest: { icon: IconClipboardCheck, color: '#5D87FF', bgColor: '#ECF2FF' },
+  weekly_digest: { icon: IconClipboardCheck, color: '#E85219', bgColor: '#ECF2FF' },
 };
 
-const DEFAULT_ICON = { icon: IconAlertCircle, color: '#5D87FF', bgColor: '#ECF2FF' };
+const DEFAULT_ICON = { icon: IconAlertCircle, color: '#E85219', bgColor: '#ECF2FF' };
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();

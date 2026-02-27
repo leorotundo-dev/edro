@@ -332,7 +332,7 @@ export default function ReccoEnginePage() {
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 3 }}>
           <Box>
             <Stack direction="row" alignItems="center" spacing={1.5}>
-              <IconBrain size={24} color="#5D87FF" />
+              <IconBrain size={24} color="#E85219" />
               <Typography variant="h5" sx={{ fontWeight: 700 }}>Motor de Recomendação</Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>

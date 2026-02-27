@@ -399,8 +399,8 @@ export default function PerfilPage() {
             <CardContent sx={{ p: 2.5 }}>
               <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5}>
                 <Stack direction="row" alignItems="center" spacing={1.5}>
-                  <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: 'rgba(93,135,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <IconWorld size={18} color="#5d87ff" />
+                  <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: 'rgba(232,82,25,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconWorld size={18} color="#E85219" />
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" fontWeight={600}>Inteligência de Mercado via Web</Typography>
@@ -431,7 +431,7 @@ export default function PerfilPage() {
                     onClick={handleWebEnrich}
                     disabled={webIntelLoading || webIntelQueued}
                     startIcon={webIntelLoading ? <CircularProgress size={13} /> : <IconWorld size={14} />}
-                    sx={{ borderRadius: 1.5, fontSize: 12, textTransform: 'none', borderColor: 'rgba(93,135,255,0.4)', color: '#5d87ff', '&:hover': { borderColor: '#5d87ff', bgcolor: 'rgba(93,135,255,0.05)' } }}
+                    sx={{ borderRadius: 1.5, fontSize: 12, textTransform: 'none', borderColor: 'rgba(232,82,25,0.4)', color: '#E85219', '&:hover': { borderColor: '#E85219', bgcolor: 'rgba(232,82,25,0.05)' } }}
                   >
                     {webIntelLoading ? 'Agendando...' : 'Atualizar pesquisa'}
                   </Button>

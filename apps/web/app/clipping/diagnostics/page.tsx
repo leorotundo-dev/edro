@@ -359,7 +359,7 @@ export default function ClippingDiagnosticsPage() {
                 </>
               ) : (
                 <>
-                  <IconBug size={48} color="#5D87FF" />
+                  <IconBug size={48} color="#E85219" />
                   <Typography variant="h6">Clique em &quot;Executar Diagnostico&quot; para verificar o status do Radar</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Vai checar migrations, colunas, fila de jobs, fontes e items recentes.

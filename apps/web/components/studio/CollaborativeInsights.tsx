@@ -34,7 +34,7 @@ export default function CollaborativeInsights({ analysisJson }: Props) {
   if (!hasContent) return null;
 
   return (
-    <Card variant="outlined" sx={{ mb: 2, bgcolor: 'rgba(93,135,255,0.03)', borderColor: 'rgba(93,135,255,0.15)' }}>
+    <Card variant="outlined" sx={{ mb: 2, bgcolor: 'rgba(232,82,25,0.03)', borderColor: 'rgba(232,82,25,0.15)' }}>
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
         <Stack
           direction="row"
@@ -44,8 +44,8 @@ export default function CollaborativeInsights({ analysisJson }: Props) {
           sx={{ cursor: 'pointer' }}
         >
           <Stack direction="row" spacing={1} alignItems="center">
-            <IconBrain size={16} color="#5D87FF" />
-            <Typography variant="caption" fontWeight={700} color="#5D87FF">
+            <IconBrain size={16} color="#E85219" />
+            <Typography variant="caption" fontWeight={700} color="#E85219">
               Análise do Gemini
             </Typography>
           </Stack>
@@ -73,7 +73,7 @@ export default function CollaborativeInsights({ analysisJson }: Props) {
                   Tom ideal
                 </Typography>
                 <Chip size="small" label={analysisJson.ideal_tone}
-                  sx={{ fontSize: '0.65rem', height: 20, bgcolor: 'rgba(93,135,255,0.08)', color: '#5D87FF' }} />
+                  sx={{ fontSize: '0.65rem', height: 20, bgcolor: 'rgba(232,82,25,0.08)', color: '#E85219' }} />
               </Box>
             )}
 
@@ -85,7 +85,7 @@ export default function CollaborativeInsights({ analysisJson }: Props) {
                 <Stack direction="row" flexWrap="wrap" spacing={0.5} useFlexGap>
                   {analysisJson.key_hooks!.map((hook, i) => (
                     <Chip key={i} size="small" label={hook}
-                      sx={{ fontSize: '0.65rem', height: 20, bgcolor: 'rgba(93,135,255,0.08)' }} />
+                      sx={{ fontSize: '0.65rem', height: 20, bgcolor: 'rgba(232,82,25,0.08)' }} />
                   ))}
                 </Stack>
               </Box>

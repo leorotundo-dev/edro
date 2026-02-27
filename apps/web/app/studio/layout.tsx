@@ -338,8 +338,8 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   px: 1.25,
                   py: 0.6,
                   borderRadius: 1.5,
-                  bgcolor: 'rgba(93,135,255,0.04)',
-                  border: '1px solid rgba(93,135,255,0.15)',
+                  bgcolor: 'rgba(232,82,25,0.04)',
+                  border: '1px solid rgba(232,82,25,0.15)',
                 }}
               >
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
@@ -349,7 +349,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   <Chip
                     size="small"
                     label={formatDateBR(studioEvent.date)}
-                    sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'rgba(93,135,255,0.1)', color: 'primary.main' }}
+                    sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'rgba(232,82,25,0.1)', color: 'primary.main' }}
                   />
                 ) : null}
               </Stack>

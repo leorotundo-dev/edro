@@ -361,7 +361,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const keywordChartOptions: ApexCharts.ApexOptions = {
     chart: { type: 'bar' },
     xaxis: { categories: topKeywords.map((kw) => kw.keyword) },
-    colors: ['#5d87ff'],
+    colors: ['#E85219'],
     plotOptions: { bar: { borderRadius: 4 } },
   };
   const keywordChartSeries = [{ name: 'Mencoes', data: topKeywords.map((kw) => kw.total) }];

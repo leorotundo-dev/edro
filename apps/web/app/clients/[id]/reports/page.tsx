@@ -55,7 +55,7 @@ const TEMPLATES: { key: TemplateKey; label: string; description: string; icon: R
 ];
 
 const STAGE_COLORS: Record<string, string> = {
-  briefing: '#5D87FF',
+  briefing: '#E85219',
   copy_ia: '#94a3b8',
   aprovacao: '#FFAE1F',
   producao: '#FA896B',
@@ -319,7 +319,7 @@ export default function ClientReportsPage() {
                           chart: { toolbar: { show: false } },
                           plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
                           xaxis: { categories: report.stageTimeline.map((s) => s.stage) },
-                          colors: report.stageTimeline.map((s) => STAGE_COLORS[s.stage] || '#5D87FF'),
+                          colors: report.stageTimeline.map((s) => STAGE_COLORS[s.stage] || '#E85219'),
                           dataLabels: { enabled: true, formatter: (v: number) => `${v}h` },
                           tooltip: { y: { formatter: (v: number) => `${v} horas` } },
                           grid: { borderColor: '#f0f0f0' },

@@ -256,7 +256,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
   const formatChartOptions: ApexCharts.ApexOptions = {
     chart: { type: 'bar' },
     xaxis: { categories: formats.map((f) => f.format_name) },
-    colors: ['#5d87ff', '#49beff'],
+    colors: ['#E85219', '#49beff'],
     plotOptions: { bar: { borderRadius: 4 } },
   };
   const formatChartSeries = [
