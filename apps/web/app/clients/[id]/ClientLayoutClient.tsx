@@ -76,13 +76,16 @@ type AnalysisResult = {
 const CLIENT_TABS = [
   { label: 'Overview', path: '' },
   { label: 'Briefings', path: '/briefings' },
-  { label: 'Calendar', path: '/calendar' },
+  { label: 'Campanhas', path: '/campaigns' },
+  { label: 'Calendário', path: '/calendar' },
   { label: 'Planning', path: '/planning' },
-  { label: 'Perfil', path: '/perfil' },
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas', path: '/metricas' },
-  { label: 'Campanhas', path: '/campaigns' },
+  { label: 'Analytics', path: '/analytics' },
+  { label: 'Library', path: '/library' },
   { label: 'Dark Funnel', path: '/dark-funnel' },
+  { label: 'Conectores', path: '/connectors' },
+  { label: 'Perfil', path: '/perfil' },
 ];
 
 function formatMarkdown(text: string): string {
