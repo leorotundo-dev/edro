@@ -22,6 +22,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
@@ -37,6 +38,7 @@ import {
   IconChecklist,
   IconPencil,
   IconTrash,
+  IconDotsVertical,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -310,7 +312,9 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [showNonRelevant, setShowNonRelevant] = useState(false);
   const [notice, setNotice] = useState('');
   const [addEventLoading, setAddEventLoading] = useState(false);
-  const [eventActionLoading, setEventActionLoading] = useState<string | null>(null); // eventId being edited/deleted
+  const [eventActionLoading, setEventActionLoading] = useState<string | null>(null);
+  const [eventMenuAnchor, setEventMenuAnchor] = useState<null | HTMLElement>(null);
+  const [eventMenuId, setEventMenuId] = useState<string | null>(null);
   const [manualRelevance, setManualRelevance] = useState('');
   const [manualRelevanceClientId, setManualRelevanceClientId] = useState('');
   const [saveRelevanceLoading, setSaveRelevanceLoading] = useState(false);
@@ -896,10 +900,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     })();
   };
 
+  const handleEventMenuOpen = (e: React.MouseEvent<HTMLElement>, eventId: string) => {
+    e.stopPropagation();
+    setEventMenuAnchor(e.currentTarget);
+    setEventMenuId(eventId);
+  };
+
+  const handleEventMenuClose = () => {
+    setEventMenuAnchor(null);
+    setEventMenuId(null);
+  };
+
   const handleEditEvent = (event: CalendarEventItem) => {
+    handleEventMenuClose();
     if (typeof window === 'undefined') return;
     const newName = window.prompt('Nome do evento:', event.name);
-    if (newName === null) return; // cancelled
+    if (newName === null) return;
     const scoreInput = window.prompt('Relevância (0–100):', String(Math.round(event.score)));
     if (scoreInput === null) return;
     const newScore = Math.max(0, Math.min(100, Number(scoreInput) || Math.round(event.score)));
@@ -909,7 +925,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setNotice('');
     (async () => {
       try {
-        await apiPatch(`/calendar/events/${event.id}/manual`, {
+        await apiPatch(`/calendar/events/${event.id}/edit`, {
           name: newName.trim() || event.name,
           relevance_score: newScore,
         });
@@ -924,13 +940,14 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   };
 
   const handleDeleteEvent = (event: CalendarEventItem) => {
+    handleEventMenuClose();
     if (!window.confirm(`Excluir "${event.name}"? Esta ação não pode ser desfeita.`)) return;
     setEventActionLoading(event.id);
     setError('');
     setNotice('');
     (async () => {
       try {
-        await apiDelete(`/calendar/events/${event.id}/manual`);
+        await apiDelete(`/calendar/events/${event.id}/edit`);
         await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
         if (selectedEvent?.id === event.id) setSelectedEvent(null);
         setNotice('Evento excluído.');
@@ -1255,67 +1272,73 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                     </Button>
                   </Stack>
                   {selectedDayEvents.length ? (
-                    <List dense disablePadding>
-                      {selectedDayEvents.map((event) => {
-                        const isManual = String(event.source || '').startsWith('manual:');
-                        const isActioning = eventActionLoading === event.id;
-                        return (
-                          <ListItemButton
-                            key={event.id}
-                            selected={selectedEvent?.id === event.id}
-                            onClick={() => handleSelectEvent(event, selectedDayISO || activeDateISO)}
-                            sx={{
-                              borderRadius: 1, mb: 0.5,
-                              '&:hover .event-actions': { opacity: 1 },
-                            }}
-                          >
-                            <ListItemText
-                              primary={event.name}
-                              secondary={`${Math.round(event.score)}%${
-                                !selectedClient && (event.possible_clients?.length || 0)
-                                  ? ` • ${event.possible_clients?.length} clientes possíveis`
-                                  : !selectedClient && event.is_relevant === false
-                                    ? ' • não relevante'
-                                  : ''
-                              }`}
-                            />
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              {isManual && (
-                                <Stack
-                                  direction="row"
-                                  className="event-actions"
-                                  sx={{ opacity: 0, transition: 'opacity 0.15s' }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <IconButton
-                                    size="small"
-                                    disabled={isActioning}
-                                    onClick={() => handleEditEvent(event)}
-                                    title="Editar evento"
-                                  >
-                                    {isActioning ? <CircularProgress size={12} /> : <IconPencil size={14} />}
-                                  </IconButton>
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    disabled={isActioning}
-                                    onClick={() => handleDeleteEvent(event)}
-                                    title="Excluir evento"
-                                  >
-                                    <IconTrash size={14} />
-                                  </IconButton>
-                                </Stack>
-                              )}
-                              <Chip
-                                size="small"
-                                label={`Tier ${event.tier}`}
-                                color={(TIER_COLORS[event.tier] || 'default') as any}
+                    <>
+                      <List dense disablePadding>
+                        {selectedDayEvents.map((event) => {
+                          const isActioning = eventActionLoading === event.id;
+                          return (
+                            <ListItemButton
+                              key={event.id}
+                              selected={selectedEvent?.id === event.id}
+                              onClick={() => handleSelectEvent(event, selectedDayISO || activeDateISO)}
+                              sx={{ borderRadius: 1, mb: 0.5 }}
+                            >
+                              <ListItemText
+                                primary={event.name}
+                                secondary={`${Math.round(event.score)}%${
+                                  !selectedClient && (event.possible_clients?.length || 0)
+                                    ? ` • ${event.possible_clients?.length} clientes possíveis`
+                                    : !selectedClient && event.is_relevant === false
+                                      ? ' • não relevante'
+                                    : ''
+                                }`}
                               />
-                            </Stack>
-                          </ListItemButton>
-                        );
-                      })}
-                    </List>
+                              <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
+                                {isActioning ? (
+                                  <CircularProgress size={14} />
+                                ) : (
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => handleEventMenuOpen(e, event.id)}
+                                    sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                  >
+                                    <IconDotsVertical size={14} />
+                                  </IconButton>
+                                )}
+                                <Chip
+                                  size="small"
+                                  label={`Tier ${event.tier}`}
+                                  color={(TIER_COLORS[event.tier] || 'default') as any}
+                                />
+                              </Stack>
+                            </ListItemButton>
+                          );
+                        })}
+                      </List>
+
+                      {/* Menu de ações do evento */}
+                      <Menu
+                        anchorEl={eventMenuAnchor}
+                        open={Boolean(eventMenuAnchor) && Boolean(eventMenuId)}
+                        onClose={handleEventMenuClose}
+                        slotProps={{ paper: { sx: { minWidth: 140 } } }}
+                      >
+                        {(() => {
+                          const ev = selectedDayEvents.find((e) => e.id === eventMenuId);
+                          if (!ev) return null;
+                          return [
+                            <MenuItem key="edit" onClick={() => handleEditEvent(ev)}>
+                              <IconPencil size={15} style={{ marginRight: 8 }} />
+                              Editar
+                            </MenuItem>,
+                            <MenuItem key="delete" onClick={() => handleDeleteEvent(ev)} sx={{ color: 'error.main' }}>
+                              <IconTrash size={15} style={{ marginRight: 8 }} />
+                              Excluir
+                            </MenuItem>,
+                          ];
+                        })()}
+                      </Menu>
+                    </>
                   ) : (
                     <Typography variant="body2" color="text.secondary">No events for this day.</Typography>
                   )}
