@@ -1,0 +1,344 @@
+TURBO_AGENTS_PLAYBOOK.txt
+Edro / MemoDrops — Receita Turbo Unificada (Codex + Claude)
+
+0. MISSÃO
+   Padronizar o comportamento dos agentes de código para entregar:
+
+* foco em causa raiz
+* escopo estrito
+* validação objetiva
+* ciclo fechado até deploy (quando solicitado)
+* sem desvio estético/funcional não pedido
+
+1. CONTEXTO TÉCNICO DO PROJETO
+
+* Runtime: Node.js 20
+* Linguagem: TypeScript
+* Monorepo: sim (pnpm workspace)
+* Backend: Fastify (apps/backend)
+* Frontend: Next.js App Router + React + MUI (apps/web)
+* Shared: packages/shared
+* Infra local: Docker / docker-compose
+* Deploy: Railway (Nixpacks + nixpacks.toml na raiz)
+
+2. PRINCÍPIOS INEGOCIÁVEIS
+
+1) Trabalhar somente no escopo solicitado.
+2) Não alterar estética/UI sem pedido explícito.
+3) Não adicionar feature fora do business pedido.
+4) Priorizar correção de causa raiz (evitar paliativos).
+5) Evitar breaking changes.
+6) Se API pública evoluir, manter fallback/compatibilidade.
+7) Nunca vazar segredos em logs/output.
+8) Entregar com validação reproduzível.
+
+3. LIMITES PADRÃO (MODO NORMAL)
+
+* Máx. arquivos alterados por tarefa: 8
+* Máx. linhas alteradas por tarefa: 400
+* Refatoração: limitada (só se reduzir risco/bug diretamente)
+* Renomear arquivos: só quando necessário
+* API pública: pode alterar sem breaking (ou com fallback)
+  Se estourar limite, aplicar Exceção Controlada (seção 10).
+
+4. SEGURANÇA E SEGREDOS
+   Nunca tocar / nunca expor:
+
+* .env
+* apps/**/.env
+* tokens/chaves/segredos Railway
+  Nunca logar:
+* credenciais completas
+* headers sensíveis
+* connection strings completas
+  Resposta segura:
+* mascarar segredos (***)
+* não colar conteúdo sensível
+
+5. ARQUIVOS/PASTAS IGNORADAS POR PADRÃO
+
+* node_modules/**
+* apps/web/.next/**
+* dist/**
+* **/*.tsbuildinfo
+* logs/**
+* _temp*/**
+  Lockfile só quando estritamente necessário.
+
+6. FORMATO OBRIGATÓRIO DA RESPOSTA DO AGENTE
+   Sempre nesta ordem:
+
+1) O que foi feito
+2) Arquivos alterados
+3) Como validar
+4) Status do deploy
+
+7. FLUXO RECOMENDADO DE EXECUÇÃO
+
+1) Diagnóstico curto (hipótese de causa raiz)
+2) Patch mínimo funcional
+3) Validação objetiva (comandos + resultado esperado)
+4) Deploy (se solicitado)
+5) Fechamento no formato obrigatório
+
+8. QUANDO PAUSAR E PEDIR CONFIRMAÇÃO
+   Somente se houver:
+
+* decisão de produto
+* migração/DDL/schema
+* mudança potencialmente breaking
+* exclusão em massa/destrutiva
+* alteração de pipeline/deploy com risco alto
+
+9. COMANDOS OFICIAIS DO REPO
+   Instalar:
+   pnpm install
+
+Dev:
+pnpm dev
+pnpm dev:web
+pnpm dev:backend
+
+Build:
+pnpm build
+pnpm build:web
+pnpm build:backend
+
+Lint:
+pnpm lint
+Observação: no web, next lint está quebrado no Next 16.1.6; usar ESLint direto.
+
+Typecheck (web):
+tsc -p apps/web/tsconfig.json --noEmit
+Observação: backend hoje roda em transpile-only (sem typecheck estrito confiável).
+
+Deploy Railway:
+railway up --service edro-backend
+railway up --service edro-web
+
+Ambientes:
+
+* local
+* production (Railway)
+
+10. EXCEÇÃO CONTROLADA (TAREFAS >8 ARQUIVOS / >400 LINHAS)
+    Se ultrapassar limite:
+
+1) Não executar tudo de uma vez.
+2) Quebrar em fases (F1/F2/F3), cada uma dentro do limite.
+3) Entregar primeiro o menor incremento funcional.
+4) Validar e reportar ao fim de cada fase.
+5) Só fazer big bang se tecnicamente inevitável.
+6) Big bang exige:
+
+   * confirmação explícita
+   * plano de rollback
+   * checklist de validação
+
+11. DEFINITION OF DONE (DoD)
+    A tarefa só termina quando:
+
+1) causa raiz foi corrigida
+2) escopo foi respeitado
+3) validação foi executada com comandos explícitos
+4) impacto colateral relevante foi checado
+5) status de deploy foi informado (quando aplicável)
+
+12. CONVENÇÕES DE BRANCH/COMMIT
+    Branch:
+
+* fix/<assunto>
+* chore/<assunto>
+
+Commit (Conventional Commits):
+
+* fix(radar): recover stalled queue after worker timeout
+* chore(web): switch lint command to eslint
+
+13. ANTI-PADRÕES PROIBIDOS
+
+* mudar estética sem pedir
+* adicionar feature fora do pedido
+* refatorar por refatorar
+* finalizar sem validar
+* resposta vaga sem comando reproduzível
+* tocar/expor segredos
+
+14. PROMPT DE SESSÃO (TURBO PADRÃO)
+    Ative modo Edro Turbo: foco em causa raiz, escopo estrito, sem mudanças estéticas e sem feature extra.
+    Siga o formato: o que foi feito + arquivos + como validar + status do deploy.
+    Respeite limites: até 8 arquivos e 400 linhas.
+    Se exceder, use exceção controlada por fases.
+    Só pause para produto/migração/risco alto.
+
+15. PROMPT PARA TAREFA GRANDE (EXCEÇÃO)
+    Esta tarefa pode exceder 8 arquivos/400 linhas.
+    Use exceção controlada: quebre em fases, cada fase dentro do limite, entregue primeiro o menor incremento funcional e valide fase a fase.
+    Só use big bang se for tecnicamente inevitável; nesse caso, inclua rollback e checklist completo.
+
+16. PROMPT DE HOTFIX
+    Hotfix mode: menor impacto possível, sem mudança de arquitetura, sem breaking, patch curto e validável.
+    Entregar com: o que foi feito + arquivos + como validar + status do deploy.
+
+17. BLOCO PRONTO DE AGENTS.MD (CODEX)
+    (cole como AGENTS.md na raiz)
+
+AGENTS.md — Edro / MemoDrops Monorepo
+
+Contexto do projeto
+
+* Monorepo pnpm workspace
+* Node.js 20 + TypeScript
+* Backend: Fastify (apps/backend)
+* Frontend: Next.js App Router + React + MUI (apps/web)
+* Shared: packages/shared
+
+Objetivo operacional
+Entregar correções e evoluções com foco em causa raiz, sem desvio de escopo, mantendo qualidade técnica e velocidade de execução.
+
+Regras mandatórias
+
+1. Trabalhar apenas no escopo solicitado.
+2. Não alterar estética/UI sem pedido explícito.
+3. Não adicionar features fora da necessidade de negócio.
+4. Priorizar correção de causa raiz.
+5. Não vazar/mostrar segredos em logs/output.
+6. Não tocar em .env, apps/**/.env, tokens, keys.
+7. Evitar breaking changes; se inevitável, implementar fallback compatível.
+
+Limites padrão da tarefa
+
+* Máximo de arquivos alterados: 8
+* Máximo de linhas alteradas: 400
+* Refatoração: limitada
+* Renomear arquivos: apenas quando necessário
+* API pública: sem breaking (ou com fallback)
+
+Exceção de escopo (acima de 8 arquivos / 400 linhas)
+
+1. Não executar tudo de uma vez.
+2. Propor plano em fases com objetivo, arquivos, estimativa, risco e rollback.
+3. Entregar primeiro menor incremento funcional.
+4. Validar e reportar ao fim de cada fase.
+5. Big bang só se tecnicamente inevitável.
+6. Big bang exige confirmação, rollback e checklist de validação.
+
+Áreas/pastas a ignorar
+
+* node_modules/**
+* apps/web/.next/**
+* dist/**
+* **/*.tsbuildinfo
+* logs/**
+* _temp*/**
+
+Fluxo obrigatório de execução
+
+1. O que foi feito
+2. Arquivos alterados
+3. Como validar
+4. Status do deploy
+
+Quando pausar e pedir confirmação
+Somente para produto, migração/DDL, breaking, exclusão em massa, risco alto de deploy.
+
+Comandos oficiais
+
+* pnpm install
+* pnpm dev | pnpm dev:web | pnpm dev:backend
+* pnpm build | pnpm build:web | pnpm build:backend
+* pnpm lint
+* tsc -p apps/web/tsconfig.json --noEmit
+  Obs: next lint está quebrado na versão atual do Next (16.1.6); preferir eslint direto no web.
+
+Deploy / Infra
+
+* railway up --service edro-backend
+* railway up --service edro-web
+* Não vazar segredos/env.
+
+DoD
+Concluir apenas com causa raiz corrigida + validação explícita + status de deploy (quando aplicável).
+
+Convenções
+
+* Branch: fix/<assunto> | chore/<assunto>
+
+Commit: Conventional Commits
+
+Anti-padrões
+Sem mudança cosmética sem pedido, sem feature creep, sem encerrar sem validar.
+
+18. BLOCO GLOBAL DO CODEX (~/.codex/AGENTS.override.md)
+
+Global Override — Leo
+
+Estilo padrão
+
+* Direto ao ponto.
+* Foco em causa raiz.
+* Sem mudanças estéticas sem pedido.
+* Sem escopo extra.
+
+Formato obrigatório
+
+1. O que foi feito
+2. Arquivos alterados
+3. Como validar
+4. Status do deploy
+
+Segurança
+Nunca exibir segredos, .env, tokens ou chaves.
+
+Execução
+Priorizar patch mínimo robusto.
+Pausar apenas para produto, migração/DDL, breaking ou exclusão em massa.
+
+19. BLOCO ESPELHADO DO CLAUDE (CLAUDE.md)
+
+CLAUDE.md — Edro / MemoDrops Monorepo
+
+Aplicar as mesmas regras operacionais do AGENTS.md deste repositório:
+
+* foco em causa raiz
+* escopo estrito
+* sem mudanças estéticas sem pedido
+* sem feature extra
+* sem vazamento de segredos
+* formato obrigatório de resposta:
+
+  1. o que foi feito
+  2. arquivos alterados
+  3. como validar
+  4. status do deploy
+
+Limites padrão:
+
+* até 8 arquivos
+* até 400 linhas
+  Se exceder, usar exceção controlada por fases.
+
+Pausar somente para:
+
+* decisão de produto
+* migração/DDL
+* mudança potencialmente breaking
+* exclusão em massa
+* risco alto de deploy
+
+20. FAQ OPERACIONAL RÁPIDO
+    “E se precisar de mais de 8 arquivos/400 linhas?”
+    Aplicar Exceção Controlada, fasear, validar fase a fase, big bang só se inevitável.
+
+“Pode mudar API?”
+Pode sem breaking; se não der, incluir fallback e pedir confirmação.
+
+“Pode mexer em estética?”
+Não, salvo pedido explícito.
+
+“Pode encerrar sem deploy?”
+Pode, se deploy não foi pedido. Sempre informar status: local ok / pendente / falhou.
+
+21. LINHA DE INÍCIO DE SESSÃO
+    Ative modo Edro Turbo e siga o playbook do repositório (AGENTS.md/CLAUDE.md).
+

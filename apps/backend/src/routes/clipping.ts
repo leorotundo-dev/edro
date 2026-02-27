@@ -513,17 +513,27 @@ export default async function clippingRoutes(app: FastifyInstance) {
           values.push(minClientScore);
 
           // Allow GLOBAL sources + this client's CLIENT sources, but require a strong match for both.
+          // Exception: TREND items with a direct match (score >= 0.3) always surface — they were
+          // fetched specifically for this client by the Tavily worker.
           where.push(
             `(
                (cs.scope='CLIENT' AND cs.client_id = $${clientIdParam})
                OR
-               (cs.scope='GLOBAL')
+               (cs.scope='GLOBAL' AND cm.score >= $${minClientScoreParam})
+               OR
+               (cs.scope='GLOBAL' AND ci.type='TREND' AND cm.score >= 0.3)
              )`
           );
-          where.push(`cm.score >= $${minClientScoreParam}`);
         } else {
-          // No profile configured: don't show GLOBAL items (there won't be matches), only the client's own sources.
-          where.push(`cs.scope='CLIENT' AND cs.client_id = $${clientIdParam}`);
+          // No keyword profile: show CLIENT-scope sources + any TREND items directly linked to this
+          // client (from the Tavily worker which creates clipping_matches with score=0.5).
+          where.push(
+            `(
+               (cs.scope='CLIENT' AND cs.client_id = $${clientIdParam})
+               OR
+               (ci.type='TREND' AND cm.client_id = $${clientIdParam} AND cm.score >= 0.3)
+             )`
+          );
         }
 
         // Geo restriction:
@@ -592,6 +602,62 @@ export default async function clippingRoutes(app: FastifyInstance) {
       );
 
       return rows;
+    }
+  );
+
+  // ── Trends feed — all Tavily TREND items with client match metadata ──
+  app.get(
+    '/clipping/trends',
+    { preHandler: [requirePerm('clipping:read')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const qs = z.object({
+        limit: z.string().optional(),
+        offset: z.string().optional(),
+        recency: z.string().optional(),
+      }).parse(request.query);
+
+      const limit = Math.min(Number(qs.limit) || 100, 500);
+      const offset = Math.max(Number(qs.offset) || 0, 0);
+
+      const recency = parseRecency(qs.recency);
+      const recencyClause = recency
+        ? `AND COALESCE(ci.published_at, ci.created_at) >= NOW() - INTERVAL '${recency}'`
+        : '';
+
+      // All TREND items for the tenant, enriched with client match data
+      const { rows } = await query<any>(
+        `
+        SELECT
+          ci.*,
+          cs.name AS source_name,
+          cs.url  AS source_url,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'client_id', cm.client_id,
+                'client_name', c.name,
+                'score', cm.score,
+                'matched_keywords', cm.matched_keywords
+              )
+            ) FILTER (WHERE cm.client_id IS NOT NULL),
+            '[]'
+          ) AS client_matches
+        FROM clipping_items ci
+        JOIN clipping_sources cs ON cs.id = ci.source_id
+        LEFT JOIN clipping_matches cm ON cm.clipping_item_id = ci.id AND cm.tenant_id = ci.tenant_id
+        LEFT JOIN clients c ON c.id = cm.client_id AND c.tenant_id = ci.tenant_id
+        WHERE ci.tenant_id = $1
+          AND ci.type = 'TREND'
+          ${recencyClause}
+        GROUP BY ci.id, cs.name, cs.url
+        ORDER BY COALESCE(ci.published_at, ci.created_at) DESC
+        LIMIT $2 OFFSET $3
+        `,
+        [tenantId, limit, offset]
+      );
+
+      return reply.send(rows);
     }
   );
 

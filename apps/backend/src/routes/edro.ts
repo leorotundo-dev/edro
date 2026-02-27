@@ -60,6 +60,7 @@ import { env } from '../env';
 import { saveFile, buildKey } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
+import { recomputeClientLearningRules } from '../services/learningEngine';
 import { recordPreferenceFeedback, syncCreativeFeedbackToProfile } from '../services/preferenceEngine';
 import { buildPlatformRulesBlock } from '../services/platformRules';
 import { buildPromptDNABlock } from '../services/promptDNA';
@@ -1430,6 +1431,8 @@ export default async function edroRoutes(app: FastifyInstance) {
           });
 
           await syncExamplesToProfile(tenantId, clientId);
+          // Non-blocking: recompute learning rules now that new preference signal exists
+          recomputeClientLearningRules(tenantId, clientId).catch(() => {});
         }
       } catch {
         // Keep feedback endpoint resilient; preference logging cannot block UX.

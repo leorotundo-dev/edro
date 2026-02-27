@@ -1,0 +1,100 @@
+    at LinkedInCollector.collect (/app/apps/backend/src/socialListening/LinkedInCollector.ts:12:42)
+Reddit collector error: Error: SOCIAL_DATA_API_NOT_CONFIGURED
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at RedditCollector.collect (/app/apps/backend/src/socialListening/RedditCollector.ts:12:45)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+Twitter collector error: Error: SOCIAL_DATA_API_NOT_CONFIGURED
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at TwitterCollector.collect (/app/apps/backend/src/socialListening/TwitterCollector.ts:12:43)
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+YouTube collector error: Error: SOCIAL_DATA_API_NOT_CONFIGURED
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at YouTubeCollector.collect (/app/apps/backend/src/socialListening/YouTubeCollector.ts:12:45)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at async Object.<anonymous> (/app/apps/backend/src/routes/socialListening.ts:164:22)
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at SocialListeningService.collectAll (/app/apps/backend/src/socialListening/SocialListeningService.ts:259:42)
+2026-02-08T06:03:16.420321617Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":44982,"url":"/api/clients/cs-portos-detalhado"} reqId="req-6" time=1770530596418
+2026-02-08T06:03:16.425395354Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-6" res={"statusCode":200} responseTime=4.578505039215088 time=1770530596423
+2026-02-08T06:03:16.563791431Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":44982,"url":"/api/social-listening/keywords?clientId=cs-portos-detalhado"} reqId="req-7" time=1770530596562
+2026-02-08T06:03:16.575398476Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-7" res={"statusCode":200} responseTime=9.412366032600405 time=1770530596572
+2026-02-08T06:03:16.623657752Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.4","remotePort":47656,"url":"/api/clients/cs-portos-detalhado/connectors"} reqId="req-8" time=1770530596619
+2026-02-08T06:03:16.623664362Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.5","remotePort":14924,"url":"/api/social-listening/stats?clientId=cs-portos-detalhado"} reqId="req-9" time=1770530596622
+2026-02-08T06:03:16.624961133Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.6","remotePort":60864,"url":"/api/social-listening/mentions?clientId=cs-portos-detalhado&limit=25"} reqId="req-a" time=1770530596624
+2026-02-08T06:03:16.631279514Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-8" res={"statusCode":200} responseTime=8.602827072143555 time=1770530596627
+2026-02-08T06:03:16.849591797Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-a" res={"statusCode":200} responseTime=38.24420702457428 time=1770530596662
+2026-02-08T06:03:16.849595967Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-9" res={"statusCode":200} responseTime=41.7045179605484 time=1770530596664
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client Banco BBC Digital (banco-bbc-digital): 2736
+2026-02-08T06:03:26.198216099Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.4","remotePort":45660,"url":"/api/clients/cs-portos-detalhado/planning/bootstrap"} reqId="req-b" time=1770530606193
+2026-02-08T06:03:26.244521552Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.7","remotePort":13554,"url":"/api/clients/cs-portos-detalhado"} reqId="req-c" time=1770530606239
+2026-02-08T06:03:26.249773208Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-c" res={"statusCode":200} responseTime=6.0800940990448 time=1770530606245
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client Ciclus Amazônia (ciclus-amazonia): 2597
+Railway rate limit of 500 logs/sec reached for replica, update your application to reduce the logging rate. Messages dropped: 312
+2026-02-08T06:03:30.027340233Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.7","remotePort":13554,"url":"/api/clients/cs-portos-detalhado/planning/context"} reqId="req-d" time=1770530610023
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client Ciclus Ambiental (Holding) (ciclus-ambiental-holding): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Frotas (cs-frotas): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Grãos do Piauí (cs-graos-piaui): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Infra (Holding) (cs-infra-holding): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Mobi Cuiabá (cs-mobi-cuiaba): 2597
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Mobi Leste SP (cs-mobi-leste-sp): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Portos (cs-portos-detalhado): 2597
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Rodovias Mercosul (cs-mobi-mercosul): 2597
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client CS Rodovias MT - Concessão de rodovia em Mato Grosso (cs-rodovias-mt): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client Mercado Municipal Miguel Sutil (mercado-miguel-sutil): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client Ponte São Borja–Santo Tomé - Concessão de ponte internacional Brasil-Argentina (ponte-sao-borja): 2736
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client REGENERA Rio (Aegea) (regenera-rio-aegea): 2614
+2026-02-08T06:04:09.701660806Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/edro/metrics"} reqId="req-e" time=1770530649698
+2026-02-08T06:04:09.712445183Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-e" res={"statusCode":200} responseTime=13.511186957359314 time=1770530649712
+2026-02-08T06:04:10.311463752Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/edro/briefings?limit=10"} reqId="req-f" time=1770530650311
+2026-02-08T06:04:10.322645344Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-f" res={"statusCode":200} responseTime=4.518005967140198 time=1770530650315
+2026-02-08T06:04:10.664826937Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/edro/tasks?status=pending"} reqId="req-g" time=1770530650658
+2026-02-08T06:04:10.664829887Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-g" res={"statusCode":200} responseTime=2.5570340156555176 time=1770530650660
+2026-02-08T06:04:11.028414077Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/calendar/events/2026-02"} reqId="req-h" time=1770530651025
+2026-02-08T06:04:11.149980221Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-h" res={"statusCode":200} responseTime=121.08199191093443 time=1770530651146
+2026-02-08T06:04:13.471155427Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/clients"} reqId="req-i" time=1770530653466
+2026-02-08T06:04:13.473537703Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-i" res={"statusCode":200} responseTime=6.482558012008667 time=1770530653473
+[calendar_recalc] Tenant 81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5 | Client VIP Leilões (vip-leiloes): 2736
+[calendar_recalc] Done. Total eventos atualizados: 40362
+[jobs] worker calendarRelevance slow: 54892ms
+2026-02-08T06:04:16.111558573Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/clients/cs-infra-holding/calendar/upcoming?limit=5"} reqId="req-j" time=1770530656110
+2026-02-08T06:04:16.156057181Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.5","remotePort":59482,"url":"/api/clients/cs-infra-holding"} reqId="req-k" time=1770530656154
+2026-02-08T06:04:16.163282499Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-k" res={"statusCode":200} responseTime=6.524288058280945 time=1770530656161
+2026-02-08T06:04:16.207670579Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-j" res={"statusCode":200} responseTime=95.9362779855728 time=1770530656206
+2026-02-08T06:04:16.504192140Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/clients/cs-infra-holding"} reqId="req-l" time=1770530656500
+2026-02-08T06:04:16.506066263Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-l" res={"statusCode":200} responseTime=4.142711043357849 time=1770530656504
+2026-02-08T06:04:19.031227943Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.3","remotePort":47762,"url":"/api/clients/cs-infra-holding/planning/bootstrap"} reqId="req-m" time=1770530658884
+2026-02-08T06:04:26.067544781Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.8","remotePort":61316,"url":"/api/clients/cs-infra-holding/planning/chat"} reqId="req-n" time=1770530666058
+2026-02-08T06:04:45.903502256Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"GET","remoteAddress":"100.64.0.8","remotePort":52246,"url":"/api/clients/cs-infra-holding"} reqId="req-o" time=1770530678424
+2026-02-08T06:04:45.903505146Z [INFO] request completed hostname="2bd52e53afb7" pid=1 reqId="req-o" res={"statusCode":200} responseTime=3.3802130222320557 time=1770530678427
+2026-02-08T06:04:45.903508496Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.9","remotePort":21466,"url":"/api/clients/cs-infra-holding/planning/bootstrap"} reqId="req-p" time=1770530678455
+2026-02-08T06:04:45.903511276Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.5","remotePort":27168,"url":"/api/clients/cs-infra-holding/planning/chat"} reqId="req-q" time=1770530682940
+2026-02-08T06:04:45.903514256Z [INFO] incoming request hostname="2bd52e53afb7" pid=1 req={"hostname":"edro-backend-production.up.railway.app","method":"POST","remoteAddress":"100.64.0.3","remotePort":12502,"url":"/api/clients/cs-infra-holding/planning/health"} reqId="req-r" time=1770530685736
+Error collecting from LinkedIn: Error: SOCIAL_DATA_API_NOT_CONFIGURED
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at LinkedInCollector.collect (/app/apps/backend/src/socialListening/LinkedInCollector.ts:12:42)
+    at ClientIntelligenceService.ingestSocialSource (/app/apps/backend/src/services/clientIntelligence.ts:696:40)
+    at ClientIntelligenceService.refreshClient (/app/apps/backend/src/services/clientIntelligence.ts:443:22)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runClientIntelligenceWorkerOnce (/app/apps/backend/src/clientIntelligence/worker.ts:30:11)
+    at async tick (/app/apps/backend/src/jobs/jobsRunner.ts:24:9)
+YouTube collector error: Error: SOCIAL_DATA_API_NOT_CONFIGURED
+    at callDataApi (/app/apps/backend/src/socialListening/dataApi.ts:27:11)
+    at YouTubeCollector.collect (/app/apps/backend/src/socialListening/YouTubeCollector.ts:12:45)
+    at ClientIntelligenceService.ingestSocialSource (/app/apps/backend/src/services/clientIntelligence.ts:696:40)
+    at ClientIntelligenceService.refreshClient (/app/apps/backend/src/services/clientIntelligence.ts:443:22)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runClientIntelligenceWorkerOnce (/app/apps/backend/src/clientIntelligence/worker.ts:30:11)
+    at async tick (/app/apps/backend/src/jobs/jobsRunner.ts:24:9)

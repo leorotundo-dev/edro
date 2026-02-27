@@ -126,8 +126,30 @@ async function runSupplementForTenant(tenantId: string) {
         );
 
         if (inserted[0]?.id) {
-          // Skip enrich (Tavily snippet is enough); go straight to auto-score
-          await enqueueJob(tenantId, 'clipping_auto_score', { item_id: inserted[0].id });
+          const itemId = inserted[0].id;
+
+          // Directly link this item to the originating client (whose keywords triggered the search).
+          // We use a fixed base score of 0.5 ("fetched specifically for this client") so the item
+          // surfaces in the client's clipping view even if the keyword scoring pass would miss it.
+          await query(
+            `INSERT INTO clipping_matches
+               (tenant_id, clipping_item_id, client_id, score, matched_keywords, suggested_actions)
+             VALUES ($1, $2, $3, 0.5, $4, '{}'::text[])
+             ON CONFLICT (tenant_id, clipping_item_id, client_id) DO NOTHING`,
+            [tenantId, itemId, client.id, keywords.slice(0, 3)]
+          );
+
+          // Also mark the client as suggested
+          await query(
+            `UPDATE clipping_items
+             SET suggested_client_ids = COALESCE(suggested_client_ids, '{}') || $3::text
+             WHERE id = $1 AND tenant_id = $2
+               AND NOT (COALESCE(suggested_client_ids, '{}') @> ARRAY[$3])`,
+            [itemId, tenantId, client.id]
+          );
+
+          // Still enqueue auto-score so other clients with matching keywords also see it
+          await enqueueJob(tenantId, 'clipping_auto_score', { item_id: itemId });
         }
       }
     } catch (err: any) {

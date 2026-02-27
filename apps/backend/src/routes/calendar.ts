@@ -559,18 +559,25 @@ export default async function calendarRoutes(app: FastifyInstance) {
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         relevance_score: z.number().min(0).max(100).optional(),
         client_id: z.string().optional().nullable(),
+        client_ids: z.array(z.string()).optional(),
       });
       const body = bodySchema.parse(request.body || {});
 
-      let clientRow: any | null = null;
-      if (body.client_id) {
+      // Resolve client list: client_ids takes priority over single client_id
+      const rawClientIds: string[] = body.client_ids?.length
+        ? body.client_ids
+        : body.client_id ? [body.client_id] : [];
+
+      let clientRows: any[] = [];
+      if (rawClientIds.length) {
         const { rows } = await query<any>(
-          `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
-          [body.client_id, tenantId]
+          `SELECT * FROM clients WHERE id = ANY($1::text[]) AND tenant_id=$2`,
+          [rawClientIds, tenantId]
         );
-        if (!rows[0]) return reply.status(404).send({ error: 'client_not_found' });
-        clientRow = rows[0];
+        clientRows = rows;
       }
+      // Keep backward-compat single clientRow reference
+      const clientRow = clientRows[0] ?? null;
 
       const eventName = body.name.trim();
       const eventSlug = slugify(eventName) || 'evento-manual';
@@ -607,7 +614,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
         is_trend_sensitive: true,
         source: 'manual:calendar-ui',
       };
-      if (clientRow?.id) payload.target_client_ids = [clientRow.id];
+      if (clientRows.length) payload.target_client_ids = clientRows.map((c) => c.id);
 
       const eventYear = Number(dateISO.slice(0, 4));
       await query(
@@ -653,28 +660,31 @@ export default async function calendarRoutes(app: FastifyInstance) {
         ]
       );
 
-      let override: any = null;
       let score = baseRelevance;
       let tier: 'A' | 'B' | 'C' = computeTierFromScore(score);
       let why = `base_relevance:${score}`;
 
-      if (clientRow?.id) {
-        override = await upsertOverride({
+      // Create override + relevance for every selected client
+      for (const cr of clientRows) {
+        const ov = await upsertOverride({
           tenantId,
-          clientId: clientRow.id,
+          clientId: cr.id,
           calendarEventId: eventId,
           forceInclude: true,
           forceExclude: false,
           customPriority: Math.max(1, Math.min(10, Math.round(baseRelevance / 10) || 1)),
           notes: 'manual:calendar-ui',
         });
-        const relevance = scoreCalendarEventForClient(payload, buildClientProfile(clientRow), override);
-        score = relevance.score;
-        tier = relevance.tier;
-        why = relevance.why;
+        const relevance = scoreCalendarEventForClient(payload, buildClientProfile(cr), ov);
+        // Use first client's score for the response
+        if (cr.id === clientRow?.id) {
+          score = relevance.score;
+          tier = relevance.tier;
+          why = relevance.why;
+        }
         await upsertRelevance({
           tenantId,
-          clientId: clientRow.id,
+          clientId: cr.id,
           calendarEventId: eventId,
           relevanceScore: relevance.score,
           isRelevant: relevance.score >= RELEVANCE_THRESHOLD,
@@ -692,9 +702,8 @@ export default async function calendarRoutes(app: FastifyInstance) {
           score,
           tier,
           why,
-          client_id: clientRow?.id ?? null,
+          client_ids: clientRows.map((c) => c.id),
         },
-        override,
       });
     }
   );
@@ -759,10 +768,11 @@ export default async function calendarRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: 'cannot_delete_another_tenants_event' });
       }
 
-      // Remove overrides e relevâncias associadas, depois o evento
+      // Soft-delete: mark status='deleted' so it survives CSV re-seeding on next deploy.
+      // Hard-delete overrides/relevance so the event stops appearing in client calendars.
       await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id=$1`, [eventId]);
       await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id=$1`, [eventId]);
-      await query(`DELETE FROM events WHERE id=$1`, [eventId]);
+      await query(`UPDATE events SET status='deleted', updated_at=NOW() WHERE id=$1`, [eventId]);
 
       return reply.send({ success: true });
     }
@@ -793,7 +803,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const eventId = String(request.params.eventId || '');
       await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id=$1`, [eventId]);
       await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id=$1`, [eventId]);
-      await query(`DELETE FROM events WHERE id=$1`, [eventId]);
+      await query(`UPDATE events SET status='deleted', updated_at=NOW() WHERE id=$1`, [eventId]);
       return reply.send({ success: true });
     }
   );

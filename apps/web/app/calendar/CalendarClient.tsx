@@ -14,13 +14,21 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormGroup from '@mui/material/FormGroup';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -39,6 +47,18 @@ import {
   IconPencil,
   IconTrash,
   IconDotsVertical,
+  IconBook2,
+  IconLeaf,
+  IconReceipt2,
+  IconMicrophone2,
+  IconStar,
+  IconMusic,
+  IconHeart,
+  IconBriefcase,
+  IconFlag,
+  IconCalendarEvent,
+  IconGlobe,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -287,6 +307,33 @@ const TIER_COLORS: Record<string, string> = {
   C: 'default',
 };
 
+function getEventMeta(name: string, categories?: string[], tags?: string[]) {
+  const text = `${name} ${(categories ?? []).join(' ')} ${(tags ?? []).join(' ')}`.toLowerCase();
+  if (/livro|leitura|bibliote|escola|educa|estudant|alfabetiz|literatu/.test(text))
+    return { Icon: IconBook2, color: '#5D87FF' };
+  if (/ecolog|animal|urso|baleia|fauna|natureza|planta|floresta|ambient|conserv|biodiversi|pand[ao]|leão|lobo|peixe|mar|ocean/.test(text))
+    return { Icon: IconLeaf, color: '#13DEB9' };
+  if (/fiscal|receita|imposto|tribut|contab|finanç|econom|previdên|pensão|aposentad/.test(text))
+    return { Icon: IconReceipt2, color: '#FA896B' };
+  if (/orador|discurso|palestra|comunicação|imprensa|jornalis|rádio|mídia|locutor|podcast/.test(text))
+    return { Icon: IconMicrophone2, color: '#7E4CC8' };
+  if (/são|santo|santa|religio|padre|pastor|cristã|evangel|catolic|espirit|bíblia|deus/.test(text))
+    return { Icon: IconStar, color: '#FFAE1F' };
+  if (/música|canção|samba|funk|rock|artista|cultura|arte|teatro|cinema|dança|carnaval|chorinho/.test(text))
+    return { Icon: IconMusic, color: '#7E4CC8' };
+  if (/saúde|médico|enfermei|hospital|nutricion|farmac|diabetes|câncer|doença|psicolog|quiroprax/.test(text))
+    return { Icon: IconHeart, color: '#FA896B' };
+  if (/trabalho|trabalhador|profissional|emprego|operári|engenhei|arquitet|advogad|dentist|veterinár/.test(text))
+    return { Icon: IconBriefcase, color: '#5D87FF' };
+  if (/brasil|república|independên|pátria|bandeira|nacional|municip|estado|governo|cidadan/.test(text))
+    return { Icon: IconFlag, color: '#13DEB9' };
+  if (/internacion|mundial|global|mundo|onu|unicef|solidariedade/.test(text))
+    return { Icon: IconGlobe, color: '#5D87FF' };
+  if (/família|mãe|pai|avó|avô|criança|infantil|juventude|idoso|mulher|homem|amizade/.test(text))
+    return { Icon: IconUsersGroup, color: '#FFAE1F' };
+  return { Icon: IconCalendarEvent, color: '#7c8fac' };
+}
+
 export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -312,6 +359,11 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [showNonRelevant, setShowNonRelevant] = useState(false);
   const [notice, setNotice] = useState('');
   const [addEventLoading, setAddEventLoading] = useState(false);
+  const [addEventDialogOpen, setAddEventDialogOpen] = useState(false);
+  const [addEventName, setAddEventName] = useState('');
+  const [addEventScore, setAddEventScore] = useState('70');
+  const [addEventClientIds, setAddEventClientIds] = useState<string[]>([]);
+  const [addEventAllClients, setAddEventAllClients] = useState(false);
   const [eventActionLoading, setEventActionLoading] = useState<string | null>(null);
   const [eventMenuAnchor, setEventMenuAnchor] = useState<null | HTMLElement>(null);
   const [eventMenuId, setEventMenuId] = useState<string | null>(null);
@@ -691,11 +743,8 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const relevanceClientOptions = useMemo(() => {
     if (selectedClient?.id) return [selectedClient];
-    if (!selectedEvent) return [];
-    const possibleClientIds = new Set((selectedEvent.possible_clients || []).map((item) => item.client_id));
-    const possibleClients = clients.filter((client) => possibleClientIds.has(client.id));
-    return possibleClients.length ? possibleClients : clients;
-  }, [clients, selectedClient, selectedEvent]);
+    return clients;
+  }, [clients, selectedClient]);
 
   const manualRelevanceTargetClient = useMemo(() => {
     if (selectedClient?.id) return selectedClient;
@@ -869,35 +918,44 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   };
 
   const handleOpenAddEvent = () => {
-    if (typeof window === 'undefined') return;
+    setAddEventName('');
+    setAddEventScore('70');
+    if (selectedClient?.id) {
+      setAddEventClientIds([selectedClient.id]);
+      setAddEventAllClients(false);
+    } else {
+      setAddEventClientIds([]);
+      setAddEventAllClients(true);
+    }
+    setAddEventDialogOpen(true);
+  };
+
+  const handleSubmitAddEvent = async () => {
+    if (!addEventName.trim()) return;
     const dateISO = selectedDayISO || activeDateISO;
-    const name = window.prompt('Nome do evento:');
-    if (!name?.trim()) return;
-    const scoreInput = window.prompt('Relevância do evento (0-100):', '70');
-    const score = clampScore(Number(scoreInput ?? 70));
+    const score = clampScore(Number(addEventScore || 70));
+    const clientIdsToSend = addEventAllClients ? clients.map((c) => c.id) : addEventClientIds;
 
     setAddEventLoading(true);
     setNotice('');
     setError('');
-    (async () => {
-      try {
+    try {
       await apiPost('/calendar/events/manual', {
-        name: name.trim(),
+        name: addEventName.trim(),
         date: dateISO,
         relevance_score: score,
-        client_id: selectedClient?.id || null,
+        client_ids: clientIdsToSend,
       });
-
       await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
       setActiveDateISO(dateISO);
       setSelectedDayISO(dateISO);
       setNotice('Evento adicionado com sucesso.');
-      } catch (err: any) {
-        setError(err?.message || 'Falha ao adicionar evento.');
-      } finally {
-        setAddEventLoading(false);
-      }
-    })();
+      setAddEventDialogOpen(false);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao adicionar evento.');
+    } finally {
+      setAddEventLoading(false);
+    }
   };
 
   const handleEventMenuOpen = (e: React.MouseEvent<HTMLElement>, eventId: string) => {
@@ -1237,10 +1295,35 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
             <CardContent>
               <Stack spacing={2}>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                  <Box>
-                    <Typography variant="overline" color="text.secondary">Selected day</Typography>
-                    <Typography variant="h6">{selectedDayLabel || 'Selected day'}</Typography>
-                  </Box>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    {/* Mini calendar-page badge */}
+                    <Box sx={{
+                      width: 48, height: 52,
+                      borderRadius: 1.5,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.07)',
+                    }}>
+                      <Box sx={{ bgcolor: 'primary.main', py: 0.4, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 }}>
+                          {selectedDayISO
+                            ? new Date(selectedDayISO + 'T12:00:00').toLocaleString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase()
+                            : ''}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center', py: 0.5 }}>
+                        <Typography sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1, color: 'text.primary' }}>
+                          {selectedDayISO ? parseInt(selectedDayISO.slice(8, 10), 10) : ''}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="overline" color="text.secondary">Selected day</Typography>
+                      <Typography variant="h6">{selectedDayLabel || 'Selected day'}</Typography>
+                    </Box>
+                  </Stack>
                   <IconButton
                     size="small"
                     onClick={() => {
@@ -1276,13 +1359,29 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       <List dense disablePadding>
                         {selectedDayEvents.map((event) => {
                           const isActioning = eventActionLoading === event.id;
+                          const { Icon: EvIcon, color: evColor } = getEventMeta(event.name, event.categories, event.tags);
                           return (
                             <ListItemButton
                               key={event.id}
                               selected={selectedEvent?.id === event.id}
                               onClick={() => handleSelectEvent(event, selectedDayISO || activeDateISO)}
-                              sx={{ borderRadius: 1, mb: 0.5 }}
+                              sx={{
+                                borderRadius: 1,
+                                mb: 0.5,
+                                ...(Math.round(event.score) >= 100 && {
+                                  bgcolor: 'rgba(19, 222, 185, 0.18)',
+                                  color: '#0f766e',
+                                  '& .MuiListItemText-secondary': { color: '#0f766e', opacity: 0.75 },
+                                  '&:hover': { bgcolor: 'rgba(19, 222, 185, 0.28)' },
+                                  '&.Mui-selected': { bgcolor: 'rgba(19, 222, 185, 0.30)' },
+                                }),
+                              }}
                             >
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <Avatar sx={{ width: 28, height: 28, bgcolor: `${evColor}22`, color: evColor }}>
+                                  <EvIcon size={15} />
+                                </Avatar>
+                              </ListItemIcon>
                               <ListItemText
                                 primary={event.name}
                                 secondary={`${Math.round(event.score)}%${
@@ -1702,13 +1801,89 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     </Stack>
   );
 
+  // ── Adicionar Evento Dialog ──────────────────────────────────────────
+  const addEventDialog = (
+    <Dialog open={addEventDialogOpen} onClose={() => setAddEventDialogOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>Adicionar Evento</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="Nome do evento"
+            value={addEventName}
+            onChange={(e) => setAddEventName(e.target.value)}
+            autoFocus
+            fullWidth
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmitAddEvent()}
+          />
+          <TextField
+            label="Relevância (0–100)"
+            type="number"
+            value={addEventScore}
+            onChange={(e) => setAddEventScore(e.target.value)}
+            inputProps={{ min: 0, max: 100 }}
+            fullWidth
+          />
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Clientes</Typography>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={addEventAllClients}
+                    onChange={(e) => {
+                      setAddEventAllClients(e.target.checked);
+                      if (e.target.checked) setAddEventClientIds([]);
+                    }}
+                  />
+                }
+                label={<Typography fontWeight={600}>Todos os clientes</Typography>}
+              />
+              {!addEventAllClients && (
+                <Box sx={{ pl: 1, maxHeight: 240, overflowY: 'auto' }}>
+                  {clients.map((client) => (
+                    <FormControlLabel
+                      key={client.id}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={addEventClientIds.includes(client.id)}
+                          onChange={(e) => {
+                            setAddEventClientIds((prev) =>
+                              e.target.checked ? [...prev, client.id] : prev.filter((id) => id !== client.id)
+                            );
+                          }}
+                        />
+                      }
+                      label={client.name}
+                    />
+                  ))}
+                </Box>
+              )}
+            </FormGroup>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setAddEventDialogOpen(false)}>Cancelar</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmitAddEvent}
+          disabled={addEventLoading || !addEventName.trim()}
+        >
+          {addEventLoading ? <CircularProgress size={16} /> : 'Adicionar'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   if (noShell) {
-    return content;
+    return <>{content}{addEventDialog}</>;
   }
 
   return (
     <AppShell title="Global Operational Calendar">
       {content}
+      {addEventDialog}
     </AppShell>
   );
 }

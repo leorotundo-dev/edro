@@ -92,8 +92,11 @@
 }
 
 .rbc-event.tier-c {
-  background: rgba(124, 143, 172, 0.2);
-  color: #475569;
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 400;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 .rbc-event-content {

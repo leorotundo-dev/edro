@@ -68,7 +68,7 @@ export async function upsertEvents(
         is_trend_sensitive=EXCLUDED.is_trend_sensitive,
         source=EXCLUDED.source,
         payload=EXCLUDED.payload,
-        status=EXCLUDED.status,
+        status=CASE WHEN events.status='deleted' THEN 'deleted' ELSE EXCLUDED.status END,
         reviewed_by=EXCLUDED.reviewed_by,
         reviewed_at=EXCLUDED.reviewed_at,
         source_url=EXCLUDED.source_url,

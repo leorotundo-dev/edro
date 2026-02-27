@@ -250,6 +250,7 @@ export default function DashboardClient() {
         const upcoming = Object.entries(calendarRes.days)
           .filter(([date]) => date > today)
           .flatMap(([date, events]) => (events as any[]).map((event: any) => ({ ...event, date })))
+          .filter((event) => (event.score ?? 0) >= 75)
           .sort((a, b) => b.score - a.score)
           .slice(0, 8);
         setUpcomingEvents(upcoming);
@@ -594,9 +595,7 @@ export default function DashboardClient() {
         {upcomingEvents.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">
-                {showNonRelevant ? 'Proximas datas' : 'Proximas datas relevantes'}
-              </Typography>
+              <Typography variant="h5">Proximas datas relevantes</Typography>
               <Button size="small" onClick={() => router.push('/calendar')}>Ver calendario</Button>
             </Stack>
             <Grid container spacing={2}>
