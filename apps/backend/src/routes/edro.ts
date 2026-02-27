@@ -2608,6 +2608,15 @@ export default async function edroRoutes(app: FastifyInstance) {
       `);
       const overdue = Number(overdueRows[0]?.count || 0);
 
+      // Auto-archived (date passed) — para banner informativo
+      const { rows: staleArchivedRows } = await query<any>(`
+        SELECT COUNT(*) as count
+        FROM edro_briefings
+        WHERE status = 'archived'
+          AND payload->>'archived_reason' = 'date_passed'
+      `);
+      const staleArchivedCount = Number(staleArchivedRows[0]?.count || 0);
+
       // Stage funnel (count per current stage)
       const { rows: funnelRows } = await query<any>(`
         SELECT
@@ -2697,6 +2706,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           }, {}),
           recentBriefings,
           overdue,
+          staleArchivedCount,
           bottlenecks: bottleneckRows.map((row: any) => ({
             stage: row.stage,
             count: Number(row.count),

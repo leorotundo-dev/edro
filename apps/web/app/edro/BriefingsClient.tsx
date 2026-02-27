@@ -107,6 +107,7 @@ type Metrics = {
   totalCopies: number;
   tasksByType: Record<string, number>;
   recentBriefings: number;
+  staleArchivedCount: number;
   bottlenecks: { stage: string; count: number }[];
 };
 
@@ -481,6 +482,26 @@ export default function BriefingsClient() {
                 ))}
               </Stack>
             </Stack>
+          </Alert>
+        )}
+
+        {metrics && metrics.staleArchivedCount > 0 && filterStatus !== 'archived' && (
+          <Alert
+            severity="info"
+            icon={<IconArchive size={18} />}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => { setFilterStatus('archived'); setPage(0); }}
+              >
+                Ver histórico
+              </Button>
+            }
+          >
+            <Typography variant="body2">
+              <strong>{metrics.staleArchivedCount}</strong> briefing{metrics.staleArchivedCount !== 1 ? 's' : ''} arquivado{metrics.staleArchivedCount !== 1 ? 's' : ''} automaticamente por data passada — o conhecimento gerado está preservado no histórico.
+            </Typography>
           </Alert>
         )}
 

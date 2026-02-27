@@ -10,6 +10,7 @@ import { runTrendRadarWorkerOnce } from './trendRadarWorker';
 import { runCalendarEnrichmentWorkerOnce } from './calendarEnrichmentWorker';
 import { runClippingTavilyWorkerOnce } from './clippingTavilyWorker';
 import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
+import { runArchiveStaleBriefingsOnce } from './archiveStaleBriefingsWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -68,4 +69,6 @@ export function startJobsRunner() {
   startWorkerLoop('clippingTavily', runClippingTavilyWorkerOnce, 5000);
   // Calendar inspiration — Tavily scrape for high-relevance dates (1×/day), 2 min threshold
   startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500, 120_000);
+  // Auto-archive stale briefings (due_at passado) — roda 1× por dia, snapshot do copy gerado
+  startWorkerLoop('archiveStale', runArchiveStaleBriefingsOnce, 6000);
 }

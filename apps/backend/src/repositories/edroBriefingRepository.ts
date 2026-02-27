@@ -219,6 +219,10 @@ export async function listBriefings(params?: {
   if (params?.status) {
     values.push(params.status);
     filters.push(`b.status = $${values.length}`);
+  } else {
+    // Por padrão, excluir arquivados do pipeline ativo.
+    // O usuário acessa arquivados via filterStatus='archived'.
+    filters.push(`b.status != 'archived'`);
   }
 
   if (params?.clientId) {
