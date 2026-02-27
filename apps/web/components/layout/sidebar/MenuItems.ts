@@ -6,6 +6,12 @@ import {
   IconLayoutKanban,
   IconPalette,
   IconShieldCheck,
+  IconScissors,
+  IconTarget,
+  IconSignal,
+  IconChartPie,
+  IconTrendingUp,
+  IconFolderOpen,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -45,13 +51,13 @@ const MenuItems: MenuGroupType[] = [
       },
       {
         id: 'clients',
-        title: 'Clients',
+        title: 'Clientes',
         icon: IconUsers,
         href: '/clients',
       },
       {
         id: 'calendar',
-        title: 'Calendar',
+        title: 'Calendário',
         icon: IconCalendar,
         href: '/calendar',
       },
@@ -64,6 +70,46 @@ const MenuItems: MenuGroupType[] = [
     ],
   },
   {
+    subheader: 'Inteligência',
+    items: [
+      {
+        id: 'clipping',
+        title: 'Clipping',
+        icon: IconScissors,
+        href: '/clipping',
+      },
+      {
+        id: 'radar',
+        title: 'Radar',
+        icon: IconTarget,
+        href: '/radar',
+      },
+      {
+        id: 'social-listening',
+        title: 'Social Listening',
+        icon: IconSignal,
+        href: '/social-listening',
+      },
+    ],
+  },
+  {
+    subheader: 'Análise',
+    items: [
+      {
+        id: 'insights',
+        title: 'Insights',
+        icon: IconChartPie,
+        href: '/insights',
+      },
+      {
+        id: 'performance',
+        title: 'Performance',
+        icon: IconTrendingUp,
+        href: '/performance',
+      },
+    ],
+  },
+  {
     subheader: 'Criativo',
     items: [
       {
@@ -71,6 +117,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Creative Studio',
         icon: IconPalette,
         href: '/studio',
+      },
+      {
+        id: 'library',
+        title: 'Biblioteca',
+        icon: IconFolderOpen,
+        href: '/library',
       },
     ],
   },
