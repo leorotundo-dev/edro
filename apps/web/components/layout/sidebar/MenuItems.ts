@@ -8,7 +8,7 @@ import {
   IconShieldCheck,
   IconScissors,
   IconTarget,
-  IconSignal,
+  IconBroadcast,
   IconChartPie,
   IconTrendingUp,
   IconFolderOpen,
@@ -87,7 +87,7 @@ const MenuItems: MenuGroupType[] = [
       {
         id: 'social-listening',
         title: 'Social Listening',
-        icon: IconSignal,
+        icon: IconBroadcast,
         href: '/social-listening',
       },
     ],
