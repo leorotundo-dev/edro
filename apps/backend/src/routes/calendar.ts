@@ -699,6 +699,71 @@ export default async function calendarRoutes(app: FastifyInstance) {
     }
   );
 
+  // PATCH /calendar/events/:eventId/manual — edita nome e/ou relevância (somente eventos manuais do tenant)
+  app.patch(
+    '/calendar/events/:eventId/manual',
+    { preHandler: [requirePerm('calendars:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const eventId = String(request.params.eventId || '');
+      const bodySchema = z.object({
+        name: z.string().min(2).max(180).optional(),
+        relevance_score: z.number().min(0).max(100).optional(),
+      });
+      const body = bodySchema.parse(request.body || {});
+
+      const { rows } = await query<any>(
+        `SELECT id, name, base_relevance, source FROM events WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [eventId, tenantId]
+      );
+      const ev = rows[0];
+      if (!ev) return reply.status(404).send({ error: 'event_not_found' });
+      if (!String(ev.source || '').startsWith('manual:')) {
+        return reply.status(403).send({ error: 'only_manual_events_can_be_edited' });
+      }
+
+      const newName = body.name?.trim() ?? ev.name;
+      const newRelevance = body.relevance_score !== undefined
+        ? Math.max(0, Math.min(100, Math.round(body.relevance_score)))
+        : ev.base_relevance;
+
+      await query(
+        `UPDATE events SET name=$1, base_relevance=$2, updated_at=NOW()
+         WHERE id=$3 AND tenant_id=$4`,
+        [newName, newRelevance, eventId, tenantId]
+      );
+
+      return reply.send({ success: true, id: eventId, name: newName, relevance_score: newRelevance });
+    }
+  );
+
+  // DELETE /calendar/events/:eventId/manual — exclui evento manual do tenant
+  app.delete(
+    '/calendar/events/:eventId/manual',
+    { preHandler: [requirePerm('calendars:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const eventId = String(request.params.eventId || '');
+
+      const { rows } = await query<any>(
+        `SELECT id, source FROM events WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [eventId, tenantId]
+      );
+      const ev = rows[0];
+      if (!ev) return reply.status(404).send({ error: 'event_not_found' });
+      if (!String(ev.source || '').startsWith('manual:')) {
+        return reply.status(403).send({ error: 'only_manual_events_can_be_deleted' });
+      }
+
+      // Remove overrides e relevâncias associadas, depois o evento
+      await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id=$1`, [eventId]);
+      await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id=$1`, [eventId]);
+      await query(`DELETE FROM events WHERE id=$1 AND tenant_id=$2`, [eventId, tenantId]);
+
+      return reply.send({ success: true });
+    }
+  );
+
   app.get(
     '/calendar/events/:eventId/relevance',
     { preHandler: [requirePerm('calendars:read')] },
