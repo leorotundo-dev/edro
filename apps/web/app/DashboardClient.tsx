@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
@@ -178,28 +181,74 @@ function useCountUp(target: number, duration = 600) {
   return displayed;
 }
 
-function StatBox({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
+function StatBox({ label, value, icon, color, sparkline }: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  sparkline?: number[];
+}) {
   const numericValue = typeof value === 'number' ? value : NaN;
   const animated = useCountUp(isFinite(numericValue) ? numericValue : 0);
   const display = typeof value === 'string' ? value : animated;
 
+  const hasSparkline = sparkline && sparkline.length > 2;
+  const trend = hasSparkline
+    ? (sparkline[sparkline.length - 1] ?? 0) - (sparkline[sparkline.length - 2] ?? 0)
+    : null;
+
+  const chartOptions: ApexCharts.ApexOptions = {
+    chart: { sparkline: { enabled: true }, animations: { enabled: true, speed: 800 }, toolbar: { show: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    fill: {
+      type: 'gradient',
+      gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.02, stops: [0, 100] },
+    },
+    colors: [color],
+    tooltip: { enabled: false },
+    grid: { show: false },
+    xaxis: { labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+    yaxis: { show: false, min: 0 },
+  };
+
   return (
-    <DashboardCard sx={{ flex: 1, minWidth: 140 }}>
-      <Stack direction="row" alignItems="center" spacing={2}>
+    <DashboardCard sx={{ flex: 1, minWidth: 140, overflow: 'hidden', pb: hasSparkline ? 0 : undefined }}>
+      <Stack direction="row" alignItems="flex-start" spacing={2} sx={{ mb: hasSparkline ? 1.5 : 0 }}>
         <Box
           sx={{
-            width: 44, height: 44, borderRadius: 2,
+            width: 44, height: 44, borderRadius: 2, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             bgcolor: `${color}18`, color,
           }}
         >
           {icon}
         </Box>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>{display}</Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Stack direction="row" alignItems="baseline" spacing={0.75}>
+            <Typography variant="h4" fontWeight={700}>{display}</Typography>
+            {trend !== null && trend !== 0 && (
+              <Typography
+                variant="caption"
+                fontWeight={700}
+                sx={{ color: trend > 0 ? '#22c55e' : '#ef4444' }}
+              >
+                {trend > 0 ? `+${trend}` : trend}
+              </Typography>
+            )}
+          </Stack>
           <Typography variant="body2" color="text.secondary">{label}</Typography>
         </Box>
       </Stack>
+      {hasSparkline && (
+        <Box sx={{ mx: -3, mb: -3 }}>
+          <Chart
+            type="area"
+            height={52}
+            series={[{ data: sparkline as number[] }]}
+            options={chartOptions}
+          />
+        </Box>
+      )}
     </DashboardCard>
   );
 }
@@ -594,16 +643,20 @@ export default function DashboardClient() {
         {/* ── KPI Stats ──────────────────────────────────────── */}
         {metrics && (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
-            {[
-              { label: 'Total Briefings', value: metrics.total, icon: <IconClipboardList size={22} />, color: '#3b82f6' },
-              { label: 'Em Andamento', value: active, icon: <IconTrendingUp size={22} />, color: '#f59e0b' },
-              { label: 'Concluidos', value: done, icon: <IconClipboardList size={22} />, color: '#22c55e' },
-              { label: 'Atrasados', value: metrics.overdue, icon: <IconAlertTriangle size={22} />, color: '#ef4444' },
-              { label: 'Copies Geradas', value: metrics.totalCopies, icon: <IconRobot size={22} />, color: '#8b5cf6' },
-            ].map((stat, i) => (
+            {(() => {
+              const wv = metrics.weeklyVelocity.slice(-8).map(w => w.count);
+              const cw = metrics.copiesWeekly.slice(-8).map(w => w.count);
+              return [
+                { label: 'Total Briefings', value: metrics.total, icon: <IconClipboardList size={22} />, color: '#3b82f6', sparkline: wv },
+                { label: 'Em Andamento', value: active, icon: <IconTrendingUp size={22} />, color: '#f59e0b', sparkline: wv },
+                { label: 'Concluidos', value: done, icon: <IconClipboardList size={22} />, color: '#22c55e', sparkline: wv },
+                { label: 'Atrasados', value: metrics.overdue, icon: <IconAlertTriangle size={22} />, color: '#ef4444', sparkline: wv },
+                { label: 'Copies Geradas', value: metrics.totalCopies, icon: <IconRobot size={22} />, color: '#8b5cf6', sparkline: cw },
+              ];
+            })().map((stat, i) => (
               <Grow key={stat.label} in timeout={300 + i * 120} style={{ transformOrigin: '0 0 0' }}>
                 <Box sx={{ flex: 1, minWidth: { xs: '100%', sm: 0 } }}>
-                  <StatBox label={stat.label} value={stat.value} icon={stat.icon} color={stat.color} />
+                  <StatBox label={stat.label} value={stat.value} icon={stat.icon} color={stat.color} sparkline={stat.sparkline} />
                 </Box>
               </Grow>
             ))}
