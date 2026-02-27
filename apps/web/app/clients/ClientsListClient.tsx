@@ -135,7 +135,7 @@ export default function ClientsListClient() {
   };
 
   return (
-    <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" spacing={2}>
         <Box>
           <Typography variant="h4">Clientes</Typography>

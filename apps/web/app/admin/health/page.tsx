@@ -89,7 +89,7 @@ export default function AdminHealthPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
         <IconHeartbeat size={28} color="#E85219" />
         <Box flex={1}>

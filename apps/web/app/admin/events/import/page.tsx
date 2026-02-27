@@ -130,7 +130,7 @@ export default function EventImportPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <AdminSubmenu value="import-events" />
 
         {/* Header */}

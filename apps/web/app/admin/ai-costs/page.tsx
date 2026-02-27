@@ -211,7 +211,7 @@ export default function AiCostsPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <AdminSubmenu value="ai-costs" />
 
         {/* Header row */}

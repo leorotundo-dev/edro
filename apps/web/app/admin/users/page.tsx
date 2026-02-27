@@ -75,7 +75,7 @@ export default function AdminUsersPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <IconUsers size={28} stroke={1.5} />
           <Box>

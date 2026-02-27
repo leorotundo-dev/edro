@@ -263,7 +263,7 @@ export default function NewClientWizardPage() {
 
   return (
     <AppShell title="Novo Cliente">
-    <Box sx={{ maxWidth: 720, mx: 'auto', px: { xs: 2, sm: 4 }, py: 3 }}>
+    <Box sx={{ maxWidth: 720, mx: 'auto' }}>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" fontWeight={700}>Novo Cliente</Typography>
         <Typography variant="body2" color="text.secondary">Configure um novo cliente em 5 passos.</Typography>

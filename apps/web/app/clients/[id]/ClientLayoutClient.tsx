@@ -249,7 +249,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
 
   return (
     <AppShell title={clientName}>
-      <Box sx={{ px: { xs: 3, sm: 'clamp(24px, 4vw, 64px)' }, py: 3.5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <Card sx={{
           background: headerBg,
           borderRadius: '12px',

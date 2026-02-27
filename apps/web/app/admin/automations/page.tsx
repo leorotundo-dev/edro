@@ -115,7 +115,7 @@ export default function AutomationsPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconRobot size={28} stroke={1.5} />

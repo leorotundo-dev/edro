@@ -521,7 +521,7 @@ export default function AdminSystemPage() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>System Administration</Typography>
           <Typography variant="body2" color="text.secondary">

@@ -161,7 +161,7 @@ export default function SettingsClient() {
 
   return (
     <AppShell title="System Admin">
-      <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
+      <Box>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>Configuracoes</Typography>
           <Typography variant="body2" color="text.secondary">
