@@ -1,6 +1,13 @@
 import type { Components, Theme } from '@mui/material/styles';
 
 const Components: Components<Theme> = {
+  MuiTypography: {
+    styleOverrides: {
+      h4: ({ theme }) => ({ color: theme.palette.primary.main }),
+      h5: ({ theme }) => ({ color: theme.palette.primary.main }),
+      h6: ({ theme }) => ({ color: theme.palette.primary.main }),
+    },
+  },
   MuiCssBaseline: {
     styleOverrides: {
       '*': {
