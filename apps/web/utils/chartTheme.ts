@@ -108,10 +108,10 @@ export function baseChartOptions(isDark: boolean): ApexCharts.ApexOptions {
     },
     states: {
       hover: {
-        filter: { type: 'lighten', value: 0.05 },
+        filter: { type: 'lighten' as const },
       },
       active: {
-        filter: { type: 'darken', value: 0.1 },
+        filter: { type: 'darken' as const },
       },
     },
   };
