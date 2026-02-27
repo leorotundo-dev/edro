@@ -594,7 +594,7 @@ export default function DashboardClient() {
         {upcomingEvents.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">Proximas datas relevantes</Typography>
+              <Typography variant="h5" color="primary.main">Proximas datas relevantes</Typography>
               <Button size="small" onClick={() => router.push('/calendar')}>Ver calendario</Button>
             </Stack>
             <Grid container spacing={2}>
@@ -629,7 +629,7 @@ export default function DashboardClient() {
         {recentBriefings.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">Proximos Deadlines</Typography>
+              <Typography variant="h5" color="primary.main">Proximos Deadlines</Typography>
               <Button size="small" onClick={() => router.push('/edro')}>Ver briefings</Button>
             </Stack>
             <Card variant="outlined">
@@ -678,7 +678,7 @@ export default function DashboardClient() {
         {/* ── Performance Semanal ─────────────────────────────── */}
         {metrics && (
           <Box>
-            <Typography variant="h5" mb={2}>Performance — Ultima Semana</Typography>
+            <Typography variant="h5" mb={2} color="primary.main">Performance — Ultima Semana</Typography>
             <Grid container spacing={2}>
               {[
                 { label: 'Briefings criados', value: metrics.recentBriefings, icon: <IconFileText size={18} />, color: 'success.main' },
@@ -707,7 +707,7 @@ export default function DashboardClient() {
         {/* ── Reportei Performance ────────────────────────────── */}
         {metrics?.reporteiPlatforms && metrics.reporteiPlatforms.length > 0 && (
           <>
-            <Typography variant="h6" fontWeight={700}>Performance Reportei</Typography>
+            <Typography variant="h6" fontWeight={700} color="primary.main">Performance Reportei</Typography>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               {metrics.reporteiPlatforms.map((plat) => {
                 const platformIcon = plat.platform.toLowerCase().includes('instagram')
@@ -779,7 +779,7 @@ export default function DashboardClient() {
         {/* ── Predictive Intelligence ─────────────────────────── */}
         {metrics?.predictiveTimes && metrics.predictiveTimes.length > 0 && (
           <>
-            <Typography variant="h6" fontWeight={700}>
+            <Typography variant="h6" fontWeight={700} color="primary.main">
               <Stack direction="row" alignItems="center" spacing={1}>
                 <IconClock size={22} />
                 <span>Inteligencia Preditiva — Melhores Horarios</span>
@@ -829,7 +829,7 @@ export default function DashboardClient() {
         {/* ── Learning Loop ───────────────────────────────────── */}
         {metrics?.learningInsights && metrics.learningInsights.length > 0 && (
           <>
-            <Typography variant="h6" fontWeight={700}>
+            <Typography variant="h6" fontWeight={700} color="primary.main">
               <Stack direction="row" alignItems="center" spacing={1}>
                 <IconBrain size={22} />
                 <span>Learning Loop — Preferencias Aprendidas</span>
@@ -888,7 +888,7 @@ export default function DashboardClient() {
         {todayTasks.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">Minhas Tasks</Typography>
+              <Typography variant="h5" color="primary.main">Minhas Tasks</Typography>
               <Button size="small" onClick={() => router.push('/edro')}>Ver tarefas</Button>
             </Stack>
             <Card variant="outlined">
