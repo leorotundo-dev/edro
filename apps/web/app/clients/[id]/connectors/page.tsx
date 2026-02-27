@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -14,13 +15,42 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconArrowLeft, IconX } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconBrandMeta,
+  IconBrandFacebook,
+  IconBrandGoogle,
+  IconChartBar,
+  IconChartLine,
+  IconDotsVertical,
+  IconPlugConnected,
+  IconSearch,
+  IconSettings,
+  IconTrash,
+  IconWebhook,
+  IconX,
+} from '@tabler/icons-react';
+
+const PROVIDER_VISUALS: Record<string, { Icon: React.ComponentType<{ size?: number; color?: string }>; color: string }> = {
+  reportei:          { Icon: IconChartBar,      color: '#E85219' },
+  meta:              { Icon: IconBrandMeta,      color: '#1877F2' },
+  meta_ads:          { Icon: IconBrandFacebook,  color: '#1877F2' },
+  google_ads:        { Icon: IconBrandGoogle,    color: '#EA4335' },
+  google_analytics:  { Icon: IconChartLine,      color: '#F9AB00' },
+  perplexity:        { Icon: IconSearch,         color: '#20B2AA' },
+  webhook:           { Icon: IconWebhook,        color: '#6366F1' },
+};
 
 type Connector = {
   provider: string;
@@ -139,6 +169,7 @@ export default function ClientConnectorsPage() {
   const [testing, setTesting] = useState<string | null>(null); // provider being tested
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+  const [dotMenuAnchor, setDotMenuAnchor] = useState<{ el: HTMLElement; provider: string } | null>(null);
 
   useEffect(() => {
     loadConnectors();
@@ -300,16 +331,12 @@ export default function ClientConnectorsPage() {
     ? AVAILABLE_PROVIDERS.find((p) => p.id === selectedProvider)
     : null;
 
-  if (loading) {
-    return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Stack alignItems="center" spacing={2}>
-          <CircularProgress size={32} />
-          <Typography variant="body2" color="text.secondary">Loading connectors...</Typography>
-        </Stack>
-      </Box>
-    );
-  }
+  const handleDotMenuOpen = (e: React.MouseEvent<HTMLElement>, providerId: string) => {
+    e.stopPropagation();
+    setDotMenuAnchor({ el: e.currentTarget, provider: providerId });
+  };
+
+  const handleDotMenuClose = () => setDotMenuAnchor(null);
 
   return (
     <Stack spacing={3}>
@@ -330,127 +357,182 @@ export default function ClientConnectorsPage() {
       </Box>
 
       <Grid container spacing={2}>
-        {AVAILABLE_PROVIDERS.map((provider) => {
-          const status = getConnectorStatus(provider.id);
-          const isConnected = Boolean(status);
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <Grid key={i} size={{ xs: 12, md: 6, lg: 4 }}>
+                <Card variant="outlined" sx={{ height: 220 }}>
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Stack direction="row" justifyContent="space-between">
+                        <Skeleton variant="rounded" width={52} height={52} />
+                        <Skeleton variant="circular" width={28} height={28} />
+                      </Stack>
+                      <Skeleton width="60%" height={22} />
+                      <Skeleton width="90%" height={16} />
+                      <Skeleton width="70%" height={16} />
+                      <Divider />
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Skeleton variant="circular" width={28} height={28} />
+                        <Skeleton width={80} height={30} sx={{ borderRadius: 1 }} />
+                        <Box sx={{ flex: 1 }} />
+                        <Skeleton width={44} height={28} sx={{ borderRadius: 2 }} />
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))
+          : AVAILABLE_PROVIDERS.map((provider) => {
+              const status = getConnectorStatus(provider.id);
+              const isConnected = Boolean(status);
+              const visual = PROVIDER_VISUALS[provider.id] ?? { Icon: IconPlugConnected, color: '#94a3b8' };
+              const ProviderIcon = visual.Icon;
 
-          return (
-            <Grid key={provider.id} size={{ xs: 12, md: 6, lg: 4 }}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Box>
-                        <Typography variant="h6">{provider.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {provider.description}
+              const statusLine = (() => {
+                if (testResult[provider.id] && !testing) return testResult[provider.id].message;
+                if (isConnected && status?.last_sync_ok === true && status?.last_sync_at)
+                  return `Testado em ${new Date(status.last_sync_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+                if (isConnected && status?.last_sync_ok === false && status?.last_error)
+                  return `Erro: ${status.last_error.slice(0, 60)}`;
+                if (isConnected && status?.updated_at)
+                  return `Configurado em ${new Date(status.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}`;
+                if (isConnected && provider.oauthProvider && status?.payload?.page_name)
+                  return `Página: ${status.payload.page_name as string}`;
+                return 'Sem sincronizacao recente.';
+              })();
+
+              const statusColor = (() => {
+                if (testResult[provider.id] && !testing)
+                  return testResult[provider.id].ok ? 'success.main' : 'error.main';
+                if (isConnected && status?.last_sync_ok === true) return 'success.main';
+                if (isConnected && status?.last_sync_ok === false) return 'error.main';
+                return 'text.secondary';
+              })();
+
+              const handleSwitch = () => {
+                if (provider.oauthProvider) {
+                  handleMetaOAuth(provider.id);
+                } else {
+                  openConfigModal(provider.id);
+                }
+              };
+
+              return (
+                <Grid key={provider.id} size={{ xs: 12, md: 6, lg: 4 }}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                      '&:hover': { borderColor: `${visual.color}60`, boxShadow: `0 4px 16px ${visual.color}18` },
+                    }}
+                  >
+                    <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {/* Header: logo + 3-dot */}
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                        <Avatar
+                          variant="rounded"
+                          sx={{ width: 52, height: 52, bgcolor: `${visual.color}14`, borderRadius: 2 }}
+                        >
+                          <ProviderIcon size={26} color={visual.color} />
+                        </Avatar>
+                        <IconButton size="small" onClick={(e) => handleDotMenuOpen(e, provider.id)}>
+                          <IconDotsVertical size={18} />
+                        </IconButton>
+                      </Stack>
+
+                      {/* Name + description */}
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" fontWeight={700}>{provider.name}</Typography>
+                        <Typography variant="body2" color={statusColor} sx={{ mt: 0.5, lineHeight: 1.4 }}>
+                          {statusLine}
                         </Typography>
                       </Box>
-                      {isConnected ? (
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          {status?.last_sync_ok === true && (
-                            <Chip size="small" color="success" label="✓ OK" />
-                          )}
-                          {status?.last_sync_ok === false && (
-                            <Chip size="small" color="error" label="✗ Erro" />
-                          )}
-                          {status?.last_sync_ok == null && (
-                            <Chip size="small" color="success" label="Conectado" />
-                          )}
-                        </Stack>
-                      ) : (
-                        <Chip size="small" variant="outlined" label="Novo" />
-                      )}
-                    </Stack>
 
-                    <Typography variant="h4">{provider.icon}</Typography>
+                      <Divider />
 
-                    {/* Health info */}
-                    {isConnected && status?.last_sync_ok === true && status?.last_sync_at && (
-                      <Typography variant="caption" color="success.main">
-                        Testado em {new Date(status.last_sync_at).toLocaleString('pt-BR')}
-                      </Typography>
-                    )}
-                    {isConnected && status?.last_sync_ok === false && status?.last_error && (
-                      <Typography variant="caption" color="error.main" sx={{ wordBreak: 'break-word' }}>
-                        Erro: {status.last_error.slice(0, 80)}
-                      </Typography>
-                    )}
-                    {/* Test result (local, before reload) */}
-                    {testResult[provider.id] && !testing && (
-                      <Typography
-                        variant="caption"
-                        color={testResult[provider.id].ok ? 'success.main' : 'error.main'}
-                      >
-                        {testResult[provider.id].message}
-                      </Typography>
-                    )}
-
-                    {status?.updated_at && !status?.last_sync_at && (
-                      <Typography variant="caption" color="text.secondary">
-                        Configurado em {new Date(status.updated_at).toLocaleString('pt-BR')}
-                      </Typography>
-                    )}
-                    {!isConnected && (
-                      <Typography variant="caption" color="text.secondary">
-                        Sem sincronizacao recente.
-                      </Typography>
-                    )}
-
-                    {/* Page name for Meta OAuth connector */}
-                    {isConnected && provider.oauthProvider && status?.payload?.page_name && (
-                      <Typography variant="caption" color="text.secondary">
-                        Página: {status.payload.page_name as string}
-                        {status.payload.instagram_business_id ? ' · Instagram vinculado' : ''}
-                      </Typography>
-                    )}
-
-                    <Stack direction="row" spacing={1}>
-                      {provider.oauthProvider ? (
+                      {/* Footer: settings + button + switch */}
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Tooltip title="Configurar">
+                          <IconButton size="small" onClick={() => openConfigModal(provider.id)}>
+                            <IconSettings size={18} />
+                          </IconButton>
+                        </Tooltip>
                         <Button
-                          variant={isConnected ? 'outlined' : 'contained'}
                           size="small"
-                          sx={{ flex: 1 }}
+                          variant="outlined"
+                          onClick={() => provider.oauthProvider ? handleMetaOAuth(provider.id) : openConfigModal(provider.id)}
                           disabled={oauthLoading === provider.id}
-                          startIcon={oauthLoading === provider.id ? <CircularProgress size={12} color="inherit" /> : undefined}
-                          onClick={() => handleMetaOAuth(provider.id)}
+                          sx={{ fontSize: '0.75rem' }}
                         >
                           {oauthLoading === provider.id
                             ? 'Aguardando...'
-                            : isConnected
-                            ? 'Reconectar com Meta'
-                            : 'Conectar com Meta'}
+                            : isConnected ? 'Gerenciar' : 'Configurar'}
                         </Button>
-                      ) : (
-                        <Button
-                          variant={isConnected ? 'outlined' : 'contained'}
-                          onClick={() => openConfigModal(provider.id)}
-                          size="small"
-                          sx={{ flex: 1 }}
-                        >
-                          {isConnected ? 'Gerenciar' : 'Configurar'}
-                        </Button>
-                      )}
-                      {isConnected && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={(e) => testConnector(provider.id, e)}
-                          disabled={testing === provider.id}
-                          startIcon={testing === provider.id ? <CircularProgress size={12} /> : undefined}
-                          sx={{ minWidth: 80 }}
-                        >
-                          {testing === provider.id ? '...' : 'Testar'}
-                        </Button>
-                      )}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          );
-        })}
+                        <Box sx={{ flex: 1 }} />
+                        <Tooltip title={isConnected ? 'Conectado' : 'Desconectado'}>
+                          <Switch
+                            checked={isConnected}
+                            size="small"
+                            onChange={handleSwitch}
+                            sx={{
+                              '& .MuiSwitch-switchBase.Mui-checked': { color: visual.color },
+                              '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: visual.color },
+                            }}
+                          />
+                        </Tooltip>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
       </Grid>
+
+      {/* 3-dot context menu */}
+      <Menu
+        anchorEl={dotMenuAnchor?.el}
+        open={Boolean(dotMenuAnchor)}
+        onClose={handleDotMenuClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (dotMenuAnchor) openConfigModal(dotMenuAnchor.provider);
+            handleDotMenuClose();
+          }}
+        >
+          <IconSettings size={16} style={{ marginRight: 8 }} /> Configurar
+        </MenuItem>
+        {dotMenuAnchor && getConnectorStatus(dotMenuAnchor.provider) && (
+          <MenuItem
+            onClick={(e) => {
+              if (dotMenuAnchor) testConnector(dotMenuAnchor.provider, e as any);
+              handleDotMenuClose();
+            }}
+          >
+            <IconPlugConnected size={16} style={{ marginRight: 8 }} /> Testar conexão
+          </MenuItem>
+        )}
+        {dotMenuAnchor && getConnectorStatus(dotMenuAnchor.provider) && (
+          <MenuItem
+            sx={{ color: 'error.main' }}
+            onClick={() => {
+              if (dotMenuAnchor) {
+                setSelectedProvider(dotMenuAnchor.provider);
+                handleDotMenuClose();
+                // Open config modal so user can disconnect from there
+                openConfigModal(dotMenuAnchor.provider);
+              }
+            }}
+          >
+            <IconTrash size={16} style={{ marginRight: 8 }} /> Desconectar
+          </MenuItem>
+        )}
+      </Menu>
 
       {/* Config Modal */}
       <Dialog
