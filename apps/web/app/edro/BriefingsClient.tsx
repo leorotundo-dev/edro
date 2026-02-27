@@ -17,17 +17,17 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
 import Checkbox from '@mui/material/Checkbox';
+import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
-import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
-import InputLabel from '@mui/material/InputLabel';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import StatusChip from '@/components/shared/StatusChip';
 import {
   IconDownload,
@@ -525,44 +525,36 @@ export default function BriefingsClient() {
             sx={{ minWidth: 280 }}
           />
           {clients.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Cliente</InputLabel>
-              <Select
-                value={clientFilter}
-                label="Cliente"
-                onChange={(e) => { setClientFilter(e.target.value); setPage(0); }}
-              >
-                <MenuItem value="">Todos</MenuItem>
-                {clients.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              options={[{ id: '', name: 'Todos os clientes' }, ...clients]}
+              getOptionLabel={(o) => o.name}
+              value={clients.find((c) => c.id === clientFilter) ?? { id: '', name: 'Todos os clientes' }}
+              onChange={(_, v) => { setClientFilter(v?.id ?? ''); setPage(0); }}
+              isOptionEqualToValue={(o, v) => o.id === v.id}
+              sx={{ minWidth: 200 }}
+              renderInput={(params) => <TextField {...params} label="Cliente" />}
+              disableClearable
+            />
           )}
           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
             {total} resultado{total !== 1 ? 's' : ''}
           </Typography>
         </Stack>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap">
-          <Button
-            variant={filterStatus === '' ? 'contained' : 'outlined'}
-            size="small"
-            onClick={() => { setFilterStatus(''); setPage(0); }}
-          >
-            Todos
-          </Button>
+        <ToggleButtonGroup
+          value={filterStatus}
+          exclusive
+          onChange={(_, v) => { if (v !== null) { setFilterStatus(v); setPage(0); } }}
+          size="small"
+          sx={{ flexWrap: 'wrap', gap: '4px' }}
+        >
+          <ToggleButton value="">Todos</ToggleButton>
           {Object.keys(STATUS_LABELS).map((status) => (
-            <Button
-              key={status}
-              variant={filterStatus === status ? 'contained' : 'outlined'}
-              size="small"
-              onClick={() => { setFilterStatus(status); setPage(0); }}
-            >
+            <ToggleButton key={status} value={status}>
               {STATUS_LABELS[status]}
-            </Button>
+            </ToggleButton>
           ))}
-        </Stack>
+        </ToggleButtonGroup>
 
         {selectedIds.size > 0 && (
           <Card

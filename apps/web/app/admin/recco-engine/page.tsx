@@ -24,6 +24,7 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import IconButton from '@mui/material/IconButton';
 import {
   IconBrain,
@@ -433,16 +434,16 @@ export default function ReccoEnginePage() {
 
                   {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
 
-                  <Button
+                  <LoadingButton
                     variant="contained"
                     fullWidth
                     onClick={handleRun}
-                    disabled={loading}
-                    startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <IconSparkles size={16} />}
+                    loading={loading}
+                    startIcon={<IconSparkles size={16} />}
                     sx={{ borderRadius: 2 }}
                   >
-                    {loading ? 'Gerando recomendação...' : 'Gerar Enxoval'}
-                  </Button>
+                    Gerar Enxoval
+                  </LoadingButton>
                 </Stack>
               </CardContent>
             </Card>

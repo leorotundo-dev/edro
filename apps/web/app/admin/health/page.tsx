@@ -15,6 +15,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import {
@@ -96,10 +97,10 @@ export default function AdminHealthPage() {
           <Typography variant="h5" fontWeight={700}>Health Score — Todos os Clientes</Typography>
           <Typography variant="body2" color="text.secondary">Visão geral da saúde de produção de cada cliente.</Typography>
         </Box>
-        <Button variant="outlined" startIcon={loading ? <CircularProgress size={16} /> : <IconRefresh size={18} />}
-          onClick={load} disabled={loading} size="small">
+        <LoadingButton variant="outlined" loading={loading} startIcon={<IconRefresh size={18} />}
+          onClick={load} size="small">
           Atualizar
-        </Button>
+        </LoadingButton>
       </Stack>
 
       <AdminSubmenu value="health" />

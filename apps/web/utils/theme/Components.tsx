@@ -1,4 +1,16 @@
+import { forwardRef } from 'react';
+import Slide from '@mui/material/Slide';
 import type { Components, Theme } from '@mui/material/styles';
+import type { TransitionProps } from '@mui/material/transitions';
+import type { ReactElement } from 'react';
+import '@mui/lab/themeAugmentation';
+
+/* Global dialog transition — all MuiDialog instances slide up by default */
+const SlideUp = forwardRef<unknown, TransitionProps & { children: ReactElement }>(
+  function SlideUp(props, ref) {
+    return <Slide direction="up" ref={ref} {...props} />;
+  },
+);
 
 const Components: Components<Theme> = {
   MuiTypography: {
@@ -93,6 +105,35 @@ const Components: Components<Theme> = {
       }),
     },
   },
+  /* LoadingButton inherits Button styles + loading indicator polish */
+  MuiLoadingButton: {
+    defaultProps: {
+      loadingPosition: 'start',
+    },
+    styleOverrides: {
+      root: {
+        borderRadius: '12px',
+        textTransform: 'none',
+        fontWeight: 600,
+        padding: '8px 20px',
+        boxShadow: 'none',
+        '&:hover': {
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+        },
+        '&.MuiLoadingButton-loading': {
+          opacity: 0.75,
+        },
+      },
+      loadingIndicator: {
+        color: 'inherit',
+      },
+      sizeSmall: {
+        padding: '4px 12px',
+        fontSize: '0.75rem',
+        borderRadius: '8px',
+      },
+    },
+  },
   MuiIconButton: {
     styleOverrides: {
       root: {
@@ -161,6 +202,79 @@ const Components: Components<Theme> = {
     styleOverrides: {
       root: {
         borderRadius: '12px',
+      },
+    },
+  },
+  /* Autocomplete: small by default, rounded paper, styled options */
+  MuiAutocomplete: {
+    defaultProps: {
+      size: 'small',
+    },
+    styleOverrides: {
+      paper: {
+        borderRadius: '12px',
+        marginTop: '4px',
+      },
+      option: ({ theme }) => ({
+        borderRadius: '6px',
+        fontSize: '0.875rem',
+        '&[aria-selected="true"]': {
+          backgroundColor: `${theme.palette.primary.main}14`,
+          color: theme.palette.primary.main,
+        },
+        '&[aria-selected="true"].Mui-focused': {
+          backgroundColor: `${theme.palette.primary.main}24`,
+        },
+      }),
+      listbox: {
+        padding: '4px',
+      },
+    },
+  },
+  /* ToggleButton: consistent sizing and active-state with app orange */
+  MuiToggleButton: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        borderRadius: '10px',
+        textTransform: 'none',
+        fontWeight: 600,
+        fontSize: '0.8125rem',
+        padding: '5px 14px',
+        border: `1px solid ${theme.palette.divider}`,
+        color: theme.palette.text.secondary,
+        transition: 'all 0.15s ease',
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+          borderColor: theme.palette.divider,
+        },
+        '&.Mui-selected': {
+          backgroundColor: `${theme.palette.primary.main}12`,
+          color: theme.palette.primary.main,
+          borderColor: `${theme.palette.primary.main}44`,
+          '&:hover': {
+            backgroundColor: `${theme.palette.primary.main}1e`,
+          },
+        },
+        '&.MuiToggleButton-sizeSmall': {
+          padding: '3px 10px',
+          fontSize: '0.75rem',
+          borderRadius: '8px',
+        },
+      }),
+    },
+  },
+  MuiToggleButtonGroup: {
+    styleOverrides: {
+      root: {
+        gap: '4px',
+        '& .MuiToggleButtonGroup-grouped': {
+          borderRadius: '10px !important',
+          border: 'inherit !important',
+          marginLeft: '0 !important',
+        },
+        '& .MuiToggleButtonGroup-grouped.MuiToggleButton-sizeSmall': {
+          borderRadius: '8px !important',
+        },
       },
     },
   },
@@ -319,11 +433,40 @@ const Components: Components<Theme> = {
       }),
     },
   },
+  /* All dialogs slide up — feels much more intentional than default fade */
   MuiDialog: {
+    defaultProps: {
+      TransitionComponent: SlideUp,
+      transitionDuration: { enter: 220, exit: 160 },
+    },
     styleOverrides: {
       paper: {
         borderRadius: '16px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.12)',
+      },
+    },
+  },
+  MuiDialogTitle: {
+    styleOverrides: {
+      root: {
+        fontSize: '1rem',
+        fontWeight: 700,
+        padding: '20px 24px 12px',
+      },
+    },
+  },
+  MuiDialogContent: {
+    styleOverrides: {
+      root: {
+        padding: '8px 24px 16px',
+      },
+    },
+  },
+  MuiDialogActions: {
+    styleOverrides: {
+      root: {
+        padding: '12px 24px 20px',
+        gap: '8px',
       },
     },
   },
@@ -351,6 +494,25 @@ const Components: Components<Theme> = {
       }),
       arrow: ({ theme }) => ({
         color: theme.palette.mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
+      }),
+    },
+  },
+  /* Skeleton: wave animation is smoother than pulse for dense layouts */
+  MuiSkeleton: {
+    defaultProps: {
+      animation: 'wave',
+    },
+    styleOverrides: {
+      root: ({ theme }) => ({
+        borderRadius: '8px',
+        backgroundColor: theme.palette.mode === 'dark'
+          ? 'rgba(255,255,255,0.07)'
+          : 'rgba(0,0,0,0.06)',
+        '&::after': {
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)'
+            : 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+        },
       }),
     },
   },

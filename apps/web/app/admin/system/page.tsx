@@ -7,6 +7,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -378,14 +379,14 @@ export default function AdminSystemPage() {
                 Processa arquivos pendentes na biblioteca de clientes (OCR, embeddings, etc.)
               </Typography>
             </Box>
-            <Button
+            <LoadingButton
               variant="contained"
               onClick={triggerLibraryJob}
-              disabled={loadingJob}
-              startIcon={loadingJob ? <CircularProgress size={16} color="inherit" /> : <IconPlayerPlay size={16} />}
+              loading={loadingJob}
+              startIcon={<IconPlayerPlay size={16} />}
             >
-              {loadingJob ? 'Processando...' : 'Executar Job'}
-            </Button>
+              Executar Job
+            </LoadingButton>
           </Stack>
 
           {jobStatus && (
@@ -405,15 +406,15 @@ export default function AdminSystemPage() {
                 Coleta metricas do Reportei e salva insights para cada cliente.
               </Typography>
             </Box>
-            <Button
+            <LoadingButton
               variant="contained"
               color="secondary"
               onClick={triggerInsightsJob}
-              disabled={loadingInsights}
-              startIcon={loadingInsights ? <CircularProgress size={16} color="inherit" /> : <IconChartBar size={16} />}
+              loading={loadingInsights}
+              startIcon={<IconChartBar size={16} />}
             >
-              {loadingInsights ? 'Processando...' : 'Rodar Reportei'}
-            </Button>
+              Rodar Reportei
+            </LoadingButton>
           </Stack>
 
           {insightsStatus && (
