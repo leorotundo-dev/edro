@@ -28,8 +28,14 @@ const Components: Components<Theme> = {
         border: `1px solid ${theme.palette.divider}`,
         boxShadow: theme.palette.mode === 'dark'
           ? '0 2px 8px rgba(0, 0, 0, 0.32)'
-          : '0 2px 8px rgba(0, 0, 0, 0.08)',
-        transition: 'all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)',
+          : '0 2px 8px rgba(0, 0, 0, 0.06)',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+        '&:hover': {
+          borderColor: `${theme.palette.primary.main}40`,
+          boxShadow: theme.palette.mode === 'dark'
+            ? `0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px ${theme.palette.primary.main}20`
+            : `0 4px 16px rgba(0,0,0,0.1), 0 0 0 1px ${theme.palette.primary.main}18`,
+        },
       }),
     },
   },
@@ -169,10 +175,13 @@ const Components: Components<Theme> = {
   MuiAppBar: {
     styleOverrides: {
       root: ({ theme }) => ({
-        backgroundColor: theme.palette.background.paper,
+        backgroundColor: theme.palette.mode === 'dark'
+          ? 'rgba(28,28,28,0.88)'
+          : 'rgba(255,255,255,0.88)',
         color: theme.palette.text.primary,
         boxShadow: `0 1px 0 0 ${theme.palette.divider}`,
-        backdropFilter: 'blur(20px)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }),
     },
   },
