@@ -190,7 +190,7 @@ export default function AIAssistant({
             Assistente de Planning
           </Typography>
           {contextLoaded && (
-            <Typography variant="caption" sx={{ color: '#16a34a', fontSize: '0.62rem', lineHeight: 1.2 }}>
+            <Typography variant="caption" sx={{ color: 'success.main', fontSize: '0.62rem', lineHeight: 1.2 }}>
               ● contexto carregado
             </Typography>
           )}
@@ -321,8 +321,9 @@ export default function AIAssistant({
                         mt: 0.75,
                         p: 1.5,
                         borderRadius: 2,
-                        bgcolor: '#f0fdf4',
-                        border: '1px solid #bbf7d0',
+                        bgcolor: 'success.light',
+                        border: '1px solid',
+                        borderColor: 'success.light',
                       }}
                     >
                       {msg.action.briefing && (
@@ -331,7 +332,7 @@ export default function AIAssistant({
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography
                               variant="caption"
-                              sx={{ fontWeight: 700, color: '#15803d', display: 'block', lineHeight: 1.2 }}
+                              sx={{ fontWeight: 700, color: 'success.dark', display: 'block', lineHeight: 1.2 }}
                             >
                               Briefing criado
                             </Typography>
@@ -352,10 +353,10 @@ export default function AIAssistant({
                               clickable
                               sx={{
                                 fontSize: '0.68rem',
-                                bgcolor: '#16a34a',
+                                bgcolor: 'success.main',
                                 color: '#fff',
                                 flexShrink: 0,
-                                '&:hover': { bgcolor: '#15803d' },
+                                '&:hover': { bgcolor: 'success.dark' },
                               }}
                             />
                           )}
@@ -389,8 +390,8 @@ export default function AIAssistant({
 
                   {/* Action card — error */}
                   {msg.action?.error && (
-                    <Box sx={{ mt: 0.75, p: 1.25, borderRadius: 2, bgcolor: '#fef2f2', border: '1px solid #fecaca' }}>
-                      <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 600 }}>
+                    <Box sx={{ mt: 0.75, p: 1.25, borderRadius: 2, bgcolor: 'error.light', border: '1px solid', borderColor: 'error.light' }}>
+                      <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
                         {msg.action.error}
                       </Typography>
                     </Box>

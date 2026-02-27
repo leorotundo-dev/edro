@@ -129,6 +129,13 @@ function scoreColor(v: number): string {
   return '#dc2626';
 }
 
+function scoreColorPath(v: number): string {
+  if (v >= 80) return 'success.main';
+  if (v >= 60) return 'info.dark';
+  if (v >= 40) return 'warning.main';
+  return 'error.main';
+}
+
 function fmtBrl(v: number | null | undefined): string {
   if (v == null) return '—';
   return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -170,7 +177,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
               {SCORE_LABELS[key] || key}
             </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.65rem', color: scoreColor(val) }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.65rem', color: scoreColorPath(val) }}>
               {Math.round(val)}
             </Typography>
           </Stack>
@@ -179,7 +186,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
             value={val}
             sx={{
               height: 3, borderRadius: 2, bgcolor: 'grey.100',
-              '& .MuiLinearProgress-bar': { borderRadius: 2, bgcolor: scoreColor(val) },
+              '& .MuiLinearProgress-bar': { borderRadius: 2, bgcolor: scoreColorPath(val) },
             }}
           />
         </Box>
@@ -467,7 +474,7 @@ export default function ReccoEnginePage() {
                 <Grid container spacing={2}>
                   {[
                     { label: 'Formatos', value: summary?.total_formats ?? 0, icon: <IconLayoutGrid size={18} />, color: '#6366f1' },
-                    { label: 'Score médio', value: fmtNum(summary?.avg_recommendation_score, 1), icon: <IconTarget size={18} />, color: scoreColor(summary?.avg_recommendation_score ?? 0) },
+                    { label: 'Score médio', value: fmtNum(summary?.avg_recommendation_score, 1), icon: <IconTarget size={18} />, color: scoreColorPath(summary?.avg_recommendation_score ?? 0) },
                     { label: 'Custo total est.', value: fmtBrl(summary?.total_estimated_cost), icon: <IconCoin size={18} />, color: '#d97706' },
                     { label: 'Horas totais', value: `${fmtNum(summary?.total_estimated_hours)}h`, icon: <IconClock size={18} />, color: '#2563eb' },
                   ].map(({ label, value, icon, color }) => (
@@ -498,14 +505,14 @@ export default function ReccoEnginePage() {
                         <Grid size={{ xs: 6, md: 4 }}>
                           <Typography variant="caption" color="text.secondary">ML Performance</Typography>
                           <Stack direction="row" alignItems="center" spacing={1}>
-                            <LinearProgress variant="determinate" value={summary?.avg_ml_performance_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColor(summary?.avg_ml_performance_score ?? 0), borderRadius: 3 } }} />
+                            <LinearProgress variant="determinate" value={summary?.avg_ml_performance_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColorPath(summary?.avg_ml_performance_score ?? 0), borderRadius: 3 } }} />
                             <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 28 }}>{fmtNum(summary?.avg_ml_performance_score, 0)}</Typography>
                           </Stack>
                         </Grid>
                         <Grid size={{ xs: 6, md: 4 }}>
                           <Typography variant="caption" color="text.secondary">Mensurabilidade</Typography>
                           <Stack direction="row" alignItems="center" spacing={1}>
-                            <LinearProgress variant="determinate" value={summary?.avg_measurability_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColor(summary?.avg_measurability_score ?? 0), borderRadius: 3 } }} />
+                            <LinearProgress variant="determinate" value={summary?.avg_measurability_score ?? 0} sx={{ flex: 1, height: 6, borderRadius: 3, '& .MuiLinearProgress-bar': { bgcolor: scoreColorPath(summary?.avg_measurability_score ?? 0), borderRadius: 3 } }} />
                             <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 28 }}>{fmtNum(summary?.avg_measurability_score, 0)}</Typography>
                           </Stack>
                         </Grid>

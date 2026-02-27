@@ -1278,7 +1278,7 @@ export default function BriefClient() {
           salvar: '#7c3aed', compartilhar: '#2563eb', clicar: '#ea580c',
           responder: '#16a34a', marcar_alguem: '#0891b2', pedir_proposta: '#dc2626',
         };
-        const amdColor = AMD_COLORS[intent.amd] ?? '#64748b';
+        const amdColor = AMD_COLORS[intent.amd] ?? '#737373';
         return (
           <Card variant="outlined" sx={{ borderLeft: `3px solid ${amdColor}`, bgcolor: `${amdColor}08`, mb: 0 }}>
             <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
@@ -1342,7 +1342,7 @@ export default function BriefClient() {
               </TextField>
               {clientDnaTone ? (
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.75 }}>
-                  <IconDna size={12} color="#64748b" />
+                  <IconDna size={12} color="#737373" />
                   <Typography variant="caption" color="text.secondary">
                     DNA de {selectedClient?.name || 'cliente'}: <b>{clientDnaTone}</b>
                   </Typography>

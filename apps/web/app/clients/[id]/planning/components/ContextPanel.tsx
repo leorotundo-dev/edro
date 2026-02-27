@@ -212,13 +212,13 @@ export default function ContextPanel({
                   <Stack key={es.key} direction="row" alignItems="center" spacing={1}
                     sx={{
                       p: 1, borderRadius: 1.5,
-                      bgcolor: s.status === 'error' ? '#fef2f2' : '#fffbeb',
+                      bgcolor: s.status === 'error' ? 'error.light' : 'warning.light',
                       border: '1px solid',
-                      borderColor: s.status === 'error' ? '#fecaca' : '#fde68a',
+                      borderColor: s.status === 'error' ? 'error.light' : 'warning.light',
                     }}
                   >
-                    <Box sx={{ display: 'flex', color: s.status === 'error' ? '#dc2626' : '#d97706' }}>{es.icon}</Box>
-                    <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, color: s.status === 'error' ? '#dc2626' : '#d97706' }}>
+                    <Box sx={{ display: 'flex', color: s.status === 'error' ? 'error.main' : 'warning.main' }}>{es.icon}</Box>
+                    <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, color: s.status === 'error' ? 'error.main' : 'warning.main' }}>
                       {es.label}
                     </Typography>
                     <Tooltip title={s.message} arrow>

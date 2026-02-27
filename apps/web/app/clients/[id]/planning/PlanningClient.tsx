@@ -281,12 +281,12 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                       borderRadius: 4,
                       bgcolor:
                         intelligenceScore >= 85
-                          ? '#16a34a'
+                          ? 'success.main'
                           : intelligenceScore >= 60
-                            ? '#2563eb'
+                            ? 'info.dark'
                             : intelligenceScore >= 30
-                              ? '#d97706'
-                              : '#dc2626',
+                              ? 'warning.main'
+                              : 'error.main',
                     },
                   }}
                 />
@@ -300,7 +300,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                     variant="caption"
                     component={Link}
                     href={`/clients/${clientId}/perfil`}
-                    sx={{ color: '#d97706', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { textDecoration: 'underline' } }}
+                    sx={{ color: 'warning.main', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { textDecoration: 'underline' } }}
                   >
                     Melhorar perfil →
                   </Typography>

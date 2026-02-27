@@ -270,12 +270,13 @@ export default function ClientsListClient() {
 
                   {client.intelligence_score != null && client.intelligence_score > 0 && (() => {
                     const score = client.intelligence_score!;
-                    const color = score >= 85 ? '#16a34a' : score >= 60 ? '#2563eb' : score >= 30 ? '#d97706' : '#dc2626';
+                    const colorHex = score >= 85 ? '#16a34a' : score >= 60 ? '#2563eb' : score >= 30 ? '#d97706' : '#dc2626';
+                    const colorPath = score >= 85 ? 'success.main' : score >= 60 ? 'info.dark' : score >= 30 ? 'warning.main' : 'error.main';
                     return (
                       <Box>
                         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                          <IconBrain size={13} color={color} />
-                          <Typography variant="caption" sx={{ color, fontWeight: 600 }}>
+                          <IconBrain size={13} color={colorHex} />
+                          <Typography variant="caption" sx={{ color: colorPath, fontWeight: 600 }}>
                             IA {score}%
                           </Typography>
                         </Stack>
@@ -283,7 +284,7 @@ export default function ClientsListClient() {
                           variant="determinate"
                           value={score}
                           sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover',
-                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 } }}
+                            '& .MuiLinearProgress-bar': { bgcolor: colorPath, borderRadius: 2 } }}
                         />
                       </Box>
                     );
