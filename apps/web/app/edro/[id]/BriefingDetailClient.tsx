@@ -682,7 +682,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                           sx={{
                             p: 1.5, borderRadius: 1.5, border: '1px solid',
                             borderColor: isDone ? 'success.light' : isInProgress ? 'primary.light' : 'divider',
-                            bgcolor: isDone ? '#f0fdf4' : isInProgress ? '#eef2ff' : 'background.paper',
+                            bgcolor: isDone ? 'success.light' : isInProgress ? 'primary.light' : 'background.paper',
                           }}
                         >
                           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
@@ -991,7 +991,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                                 }}
                               />
                               {!section.ok && (
-                                <Chip label="vazio" size="small" sx={{ fontSize: 10, height: 18, bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600 }} />
+                                <Chip label="vazio" size="small" sx={{ fontSize: 10, height: 18, bgcolor: 'warning.light', color: 'warning.dark', fontWeight: 600 }} />
                               )}
                             </Stack>
 

@@ -965,7 +965,7 @@ function CampaignDetail({
                         {/* ── Copy result ── */}
                         {bi.id && expandedBiCopy === bi.id && behavioralCopyMap[bi.id] && (() => {
                           const result = behavioralCopyMap[bi.id];
-                          const statusColor = result.audit.approval_status === 'approved' ? '#16a34a' : result.audit.approval_status === 'blocked' ? '#dc2626' : '#d97706';
+                          const statusColor = result.audit.approval_status === 'approved' ? 'success.main' : result.audit.approval_status === 'blocked' ? 'error.main' : 'warning.main';
                           return (
                             <Box sx={{ mt: 1, p: 1.25, bgcolor: 'action.hover', borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
                               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
@@ -984,7 +984,7 @@ function CampaignDetail({
                                 {([['Motivação', result.audit.fogg_score.motivation], ['Habilidade', result.audit.fogg_score.ability], ['Prompt/CTA', result.audit.fogg_score.prompt]] as [string, number][]).map(([label, val]) => (
                                   <Stack key={label} direction="row" alignItems="center" spacing={1}>
                                     <Typography variant="caption" sx={{ minWidth: 64, fontSize: '0.6rem', color: 'text.secondary' }}>{label}</Typography>
-                                    <LinearProgress variant="determinate" value={(val / 10) * 100} sx={{ flex: 1, height: 3, borderRadius: 2, '& .MuiLinearProgress-bar': { bgcolor: val >= 8 ? '#13DEB9' : val >= 6 ? '#FFAE1F' : '#FA896B' } }} />
+                                    <LinearProgress variant="determinate" value={(val / 10) * 100} sx={{ flex: 1, height: 3, borderRadius: 2, '& .MuiLinearProgress-bar': { bgcolor: val >= 8 ? 'success.main' : val >= 6 ? 'warning.main' : 'error.main' } }} />
                                     <Typography variant="caption" sx={{ fontSize: '0.6rem', minWidth: 18, textAlign: 'right' }}>{val}</Typography>
                                   </Stack>
                                 ))}
@@ -992,7 +992,7 @@ function CampaignDetail({
                               {result.audit.revision_notes.length > 0 && (
                                 <Box sx={{ mt: 0.75 }}>
                                   {result.audit.revision_notes.map((note, i) => (
-                                    <Typography key={i} variant="caption" sx={{ display: 'block', fontSize: '0.62rem', color: '#d97706' }}>⚠ {note}</Typography>
+                                    <Typography key={i} variant="caption" sx={{ display: 'block', fontSize: '0.62rem', color: 'warning.main' }}>⚠ {note}</Typography>
                                   ))}
                                 </Box>
                               )}
@@ -1184,7 +1184,7 @@ function CampaignDetail({
                         <Chip
                           size="small"
                           label={upliftLabel}
-                          sx={{ height: 16, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#dcfce7', color: '#15803d', flexShrink: 0 }}
+                          sx={{ height: 16, fontSize: '0.62rem', fontWeight: 700, bgcolor: 'success.light', color: 'success.dark', flexShrink: 0 }}
                         />
                       </Tooltip>
                     </Stack>
@@ -2088,9 +2088,9 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
             { label: 'Total', value: stats.total, icon: <IconTarget size={18} />, color: '#6366f1' },
-            { label: 'Ativas', value: stats.active, icon: <IconTrendingUp size={18} />, color: '#16a34a' },
+            { label: 'Ativas', value: stats.active, icon: <IconTrendingUp size={18} />, color: 'success.main' },
             { label: 'Concluídas', value: stats.completed, icon: <IconCheck size={18} />, color: '#2563eb' },
-            { label: 'Budget total', value: fmtBrl(stats.budget), icon: <IconCoin size={18} />, color: '#d97706' },
+            { label: 'Budget total', value: fmtBrl(stats.budget), icon: <IconCoin size={18} />, color: 'warning.main' },
           ].map(({ label, value, icon, color }) => (
             <Grid size={{ xs: 6, md: 3 }} key={label}>
               <Card variant="outlined" sx={{ borderRadius: 3 }}>

@@ -416,10 +416,10 @@ export default function DashboardClient() {
                               <IconCalendar size={18} />
                             </Avatar>
                             <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ display: 'block', fontWeight: 600, color: '#24324b', lineHeight: 1.2 }} noWrap>
+                              <Typography sx={{ display: 'block', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
                                 {name}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#5f6f8d', lineHeight: 1.2 }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.2 }}>
                                 {safeScore}%{!isRelevant ? ' • nao relevante' : ''}
                               </Typography>
                             </Box>
@@ -518,8 +518,8 @@ export default function DashboardClient() {
                         label={`${hours}h`}
                         size="small"
                         sx={{
-                          bgcolor: hours > 48 ? '#fef2f2' : hours > 24 ? '#fefce8' : '#f0fdf4',
-                          color: hours > 48 ? '#dc2626' : hours > 24 ? '#ca8a04' : '#16a34a',
+                          bgcolor: hours > 48 ? 'error.light' : hours > 24 ? 'warning.light' : 'success.light',
+                          color: hours > 48 ? 'error.main' : hours > 24 ? 'warning.main' : 'success.main',
                           fontWeight: 600,
                         }}
                       />
@@ -737,8 +737,8 @@ export default function DashboardClient() {
                                 label={`${fmt.score}/100`}
                                 size="small"
                                 sx={{
-                                  bgcolor: fmt.score >= 70 ? '#f0fdf4' : fmt.score >= 40 ? '#fefce8' : '#fef2f2',
-                                  color: fmt.score >= 70 ? '#16a34a' : fmt.score >= 40 ? '#ca8a04' : '#dc2626',
+                                  bgcolor: fmt.score >= 70 ? 'success.light' : fmt.score >= 40 ? 'warning.light' : 'error.light',
+                                  color: fmt.score >= 70 ? 'success.main' : fmt.score >= 40 ? 'warning.main' : 'error.main',
                                   fontWeight: 600,
                                 }}
                               />
@@ -792,7 +792,7 @@ export default function DashboardClient() {
                   const maxEng = Math.max(...metrics.predictiveTimes.map((t) => t.avg_engagement), 1);
                   return metrics.predictiveTimes.slice(0, 10).map((slot, idx) => (
                     <Stack key={idx} direction="row" alignItems="center" spacing={1.5}>
-                      <Chip label={slot.platform} size="small" sx={{ minWidth: 80, bgcolor: '#eff6ff', color: '#2563eb', fontWeight: 600 }} />
+                      <Chip label={slot.platform} size="small" sx={{ minWidth: 80, bgcolor: 'info.light', color: 'info.dark', fontWeight: 600 }} />
                       <Typography variant="body2" sx={{ minWidth: 80, fontWeight: 600 }}>
                         {dayNames[slot.day_of_week]} {String(slot.hour).padStart(2, '0')}:00
                       </Typography>
@@ -852,7 +852,7 @@ export default function DashboardClient() {
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                       {li.boost.map((b, idx) => (
                         <Chip key={idx} label={b} size="small" icon={<IconArrowUp size={14} />}
-                          sx={{ bgcolor: '#f0fdf4', color: '#16a34a', fontWeight: 500, mb: 0.5 }} />
+                          sx={{ bgcolor: 'success.light', color: 'success.main', fontWeight: 500, mb: 0.5 }} />
                       ))}
                     </Stack>
                   </Box>
@@ -863,7 +863,7 @@ export default function DashboardClient() {
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                       {li.avoid.map((a, idx) => (
                         <Chip key={idx} label={a} size="small" icon={<IconArrowDown size={14} />}
-                          sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 500, mb: 0.5 }} />
+                          sx={{ bgcolor: 'error.light', color: 'error.main', fontWeight: 500, mb: 0.5 }} />
                       ))}
                     </Stack>
                   </Box>
@@ -874,7 +874,7 @@ export default function DashboardClient() {
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       {li.preferred_formats.map((f) => (
                         <Chip key={f.format} label={`${f.format} (${f.avg_score}/5)`} size="small"
-                          sx={{ bgcolor: '#eff6ff', color: '#2563eb', fontWeight: 600 }} />
+                          sx={{ bgcolor: 'info.light', color: 'info.dark', fontWeight: 600 }} />
                       ))}
                     </Stack>
                   </Box>

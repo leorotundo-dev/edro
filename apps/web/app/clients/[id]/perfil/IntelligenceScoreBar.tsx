@@ -23,10 +23,10 @@ type Props = {
 };
 
 const SCORE_LEVELS = [
-  { min: 0, max: 30, label: 'IA com informacao minima', color: '#dc2626', bg: '#fef2f2' },
-  { min: 30, max: 60, label: 'IA parcialmente contextualizada', color: '#d97706', bg: '#fffbeb' },
-  { min: 60, max: 85, label: 'IA bem contextualizada', color: '#2563eb', bg: '#eff6ff' },
-  { min: 85, max: 101, label: 'IA totalmente alinhada', color: '#16a34a', bg: '#f0fdf4' },
+  { min: 0,  max: 30,  label: 'IA com informacao minima',          color: 'error.main',   colorHex: '#dc2626', bg: 'error.light' },
+  { min: 30, max: 60,  label: 'IA parcialmente contextualizada',   color: 'warning.main', colorHex: '#d97706', bg: 'warning.light' },
+  { min: 60, max: 85,  label: 'IA bem contextualizada',            color: 'info.dark',    colorHex: '#475569', bg: 'info.light' },
+  { min: 85, max: 101, label: 'IA totalmente alinhada',            color: 'success.main', colorHex: '#16a34a', bg: 'success.light' },
 ];
 
 function formatRelativeTime(value?: string | null) {
@@ -79,7 +79,7 @@ export default function IntelligenceScoreBar({
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
           <Box sx={{ flex: 1 }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-              <IconBrain size={18} color={level.color} />
+              <IconBrain size={18} color={level.colorHex} />
               <Typography variant="subtitle2" fontWeight={700} color={level.color}>
                 Nivel de Inteligencia: {score}%
               </Typography>

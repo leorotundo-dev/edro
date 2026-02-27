@@ -78,9 +78,9 @@ type BehaviorCluster = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function scoreColor(score: number): string {
-  if (score >= 4) return '#16a34a';
-  if (score >= 3) return '#d97706';
-  return '#dc2626';
+  if (score >= 4) return 'success.main';
+  if (score >= 3) return 'warning.main';
+  return 'error.main';
 }
 
 function fmtDate(iso: string) {
@@ -247,11 +247,11 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
 
             {/* Directives boost */}
             {prefs.directives.boost.length > 0 && (
-              <Card variant="outlined" sx={{ borderRadius: 2, borderLeft: '3px solid #16a34a' }}>
+              <Card variant="outlined" sx={{ borderRadius: 2, borderLeft: '3px solid', borderLeftColor: 'success.main' }}>
                 <CardContent sx={{ pb: '12px !important' }}>
                   <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
                     <IconArrowUp size={14} color="#16a34a" />
-                    <Typography variant="caption" fontWeight={700} color="#16a34a" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <Typography variant="caption" fontWeight={700} color="success.main" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Impulsar
                     </Typography>
                   </Stack>
@@ -268,11 +268,11 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
 
             {/* Directives avoid */}
             {prefs.directives.avoid.length > 0 && (
-              <Card variant="outlined" sx={{ borderRadius: 2, borderLeft: '3px solid #dc2626' }}>
+              <Card variant="outlined" sx={{ borderRadius: 2, borderLeft: '3px solid', borderLeftColor: 'error.main' }}>
                 <CardContent sx={{ pb: '12px !important' }}>
                   <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
                     <IconArrowDown size={14} color="#dc2626" />
-                    <Typography variant="caption" fontWeight={700} color="#dc2626" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <Typography variant="caption" fontWeight={700} color="error.main" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Evitar
                     </Typography>
                   </Stack>
@@ -300,7 +300,7 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
                     key={f.format}
                     label={`${f.format} ${f.avg_score}/5`}
                     size="small"
-                    sx={{ bgcolor: '#eff6ff', color: '#2563eb', fontWeight: 600, fontSize: '0.72rem' }}
+                    sx={{ bgcolor: 'info.light', color: 'info.dark', fontWeight: 600, fontSize: '0.72rem' }}
                   />
                 ))}
               </Stack>
@@ -353,7 +353,7 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
                     label={`${p.pattern} (${p.avg_score}/5)`}
                     size="small"
                     icon={<IconArrowDown size={12} />}
-                    sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontSize: '0.7rem' }}
+                    sx={{ bgcolor: 'error.light', color: 'error.main', fontSize: '0.7rem' }}
                   />
                 ))}
               </Stack>
@@ -372,7 +372,7 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
               <Stack spacing={0.75}>
                 {prefs.amd_performance.map((row, i) => {
                   const ratePct = Number(row.rate);
-                  const barColor = ratePct >= 70 ? '#16a34a' : ratePct >= 40 ? '#d97706' : '#dc2626';
+                  const barColor = ratePct >= 70 ? 'success.main' : ratePct >= 40 ? 'warning.main' : 'error.main';
                   return (
                     <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
                       <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>

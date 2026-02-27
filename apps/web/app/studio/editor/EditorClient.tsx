@@ -1299,11 +1299,11 @@ export default function EditorClient() {
                     sx={{
                       cursor: 'pointer',
                       bgcolor: amdResults[activeCopyId] === val
-                        ? (val === 'sim' ? '#13DEB9' : val === 'parcial' ? '#FFAE1F' : '#FA896B')
+                        ? (val === 'sim' ? 'success.main' : val === 'parcial' ? 'warning.main' : 'error.main')
                         : 'transparent',
                       color: amdResults[activeCopyId] === val ? '#fff' : 'text.secondary',
                       border: '1px solid',
-                      borderColor: val === 'sim' ? '#13DEB9' : val === 'parcial' ? '#FFAE1F' : '#FA896B',
+                      borderColor: val === 'sim' ? 'success.main' : val === 'parcial' ? 'warning.main' : 'error.main',
                     }}
                   />
                 ))}
@@ -1424,11 +1424,11 @@ export default function EditorClient() {
                         <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" sx={{ mt: 1.5 }}>
                           {['Gemini', 'GPT-4', 'Claude'].map((stage) => (
                             <Chip key={stage} size="small" label={`✓ ${stage}`}
-                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} />
+                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'success.light', color: 'success.main', border: '1px solid', borderColor: 'success.main' }} />
                           ))}
                           {revisionCount > 0 && (
                             <Chip size="small" label={`↺ ${revisionCount} revisão${revisionCount > 1 ? 'ões' : ''}`}
-                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }} />
+                              sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'warning.light', color: 'warning.main', border: '1px solid', borderColor: 'warning.main' }} />
                           )}
                         </Stack>
                       )}
@@ -1440,7 +1440,7 @@ export default function EditorClient() {
                               sx={{ height: 20, fontSize: '0.62rem', bgcolor: s.color, border: `1px solid ${s.border}` }} />
                           ))}
                           <Chip size="small" label="→ Síntese Claude"
-                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} />
+                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'success.light', color: 'success.main', border: '1px solid', borderColor: 'success.main' }} />
                         </Stack>
                       )}
 
@@ -1581,8 +1581,8 @@ export default function EditorClient() {
                                   sx={{
                                     fontSize: '0.65rem',
                                     height: 20,
-                                    bgcolor: qualityScore.overall >= 8 ? '#e8f5e9' : qualityScore.overall >= 7 ? '#fff8e1' : '#ffebee',
-                                    color: qualityScore.overall >= 8 ? '#2e7d32' : qualityScore.overall >= 7 ? '#f57c00' : '#c62828',
+                                    bgcolor: qualityScore.overall >= 8 ? 'success.light' : qualityScore.overall >= 7 ? 'warning.light' : 'error.light',
+                                    color: qualityScore.overall >= 8 ? 'success.dark' : qualityScore.overall >= 7 ? 'warning.dark' : 'error.dark',
                                   }}
                                 />
                                 <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
@@ -1702,8 +1702,8 @@ export default function EditorClient() {
                                               label={`${qualityScores[idx].overall.toFixed(1)}/10`}
                                               sx={{
                                                 height: 18, fontSize: '0.6rem',
-                                                bgcolor: qualityScores[idx].overall >= 8.5 ? '#dcfce7' : qualityScores[idx].overall >= 7 ? '#fef9c3' : '#fee2e2',
-                                                color: qualityScores[idx].overall >= 8.5 ? '#15803d' : qualityScores[idx].overall >= 7 ? '#a16207' : '#b91c1c',
+                                                bgcolor: qualityScores[idx].overall >= 8.5 ? 'success.light' : qualityScores[idx].overall >= 7 ? 'warning.light' : 'error.light',
+                                                color: qualityScores[idx].overall >= 8.5 ? 'success.dark' : qualityScores[idx].overall >= 7 ? 'warning.dark' : 'error.dark',
                                               }}
                                             />
                                           </Stack>
@@ -1721,7 +1721,7 @@ export default function EditorClient() {
                                                   sx={{
                                                     flex: 1, height: 3, borderRadius: 2, bgcolor: 'action.hover',
                                                     '& .MuiLinearProgress-bar': {
-                                                      bgcolor: value >= 8.5 ? '#16a34a' : value >= 7 ? '#d97706' : '#dc2626',
+                                                      bgcolor: value >= 8.5 ? 'success.main' : value >= 7 ? 'warning.main' : 'error.main',
                                                     },
                                                   }}
                                                 />
@@ -1881,7 +1881,7 @@ export default function EditorClient() {
                                 variant="contained"
                                 onClick={handleApproveOption}
                                 disabled={feedbackLoading || !selectedOptionData}
-                                sx={{ bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
+                                sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
                               >
                                 Aprovar opcao
                               </Button>

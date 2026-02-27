@@ -881,7 +881,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       {(planningAlerts.length > 0 || opportunitiesUrgentCount > 0) && (
         <Card
           sx={{
-            borderRadius: 2, border: '1px solid #fecaca', bgcolor: '#fff1f2',
+            borderRadius: 2, border: '1px solid', borderColor: 'error.light', bgcolor: 'error.light',
           }}
         >
           <CardContent sx={{ py: 1.5, px: 2 }}>
@@ -899,8 +899,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   clickable
                   label={`${alert.label}: ${alert.message}`}
                   sx={{
-                    bgcolor: alert.status === 'error' ? '#fef2f2' : '#fffbeb',
-                    color: alert.status === 'error' ? '#dc2626' : '#d97706',
+                    bgcolor: alert.status === 'error' ? 'error.light' : 'warning.light',
+                    color: alert.status === 'error' ? 'error.main' : 'warning.main',
                     fontWeight: 600,
                     textDecoration: 'none',
                     '&:hover': { opacity: 0.85, boxShadow: 1 },
@@ -915,7 +915,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   clickable
                   label={`${opportunitiesUrgentCount} oportunidade(s) urgente(s)`}
                   sx={{
-                    bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 700,
+                    bgcolor: 'error.light', color: 'error.main', fontWeight: 700,
                     textDecoration: 'none',
                     '&:hover': { opacity: 0.85, boxShadow: 1 },
                   }}
@@ -925,7 +925,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 size="small"
                 component={Link}
                 href={`/clients/${clientId}/planning`}
-                sx={{ ml: 'auto', color: '#dc2626', fontWeight: 600, minWidth: 0 }}
+                sx={{ ml: 'auto', color: 'error.main', fontWeight: 600, minWidth: 0 }}
               >
                 Ver planning →
               </Button>
@@ -1017,7 +1017,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   }}
                 >
                   {stat.alert && (
-                    <Box sx={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: '#dc2626', animation: 'pulse 1.4s infinite' }} />
+                    <Box sx={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1.4s infinite' }} />
                   )}
                   <Stack direction="row" alignItems="center" spacing={2}>
                     <Avatar sx={{ bgcolor: stat.color.bg, width: 48, height: 48, boxShadow: `0 4px 12px ${stat.color.fg}20` }}>
@@ -1172,7 +1172,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                           <Chip size="small" label={item.source_name || '--'} variant="outlined" sx={{ fontSize: '0.6rem', height: 20 }} />
                           <Typography variant="caption" color="text.secondary" fontSize="0.65rem">{formatDate(item.published_at)}</Typography>
                           <Chip size="small" label={`${score}`}
-                            sx={{ fontSize: '0.6rem', height: 20, bgcolor: score >= 80 ? '#ecfdf5' : score >= 50 ? '#fffbeb' : '#f8fafc', color: score >= 80 ? '#059669' : score >= 50 ? '#d97706' : '#94a3b8', fontWeight: 700 }} />
+                            sx={{ fontSize: '0.6rem', height: 20, bgcolor: score >= 80 ? 'success.light' : score >= 50 ? 'warning.light' : 'grey.100', color: score >= 80 ? 'success.main' : score >= 50 ? 'warning.main' : 'text.secondary', fontWeight: 700 }} />
                           <Button
                             size="small"
                             variant="outlined"
@@ -1291,7 +1291,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                       sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent', transition: 'background 0.2s' }}>
                       <Box textAlign="center" sx={{
                         minWidth: 48, py: 0.5, px: 1, borderRadius: 2,
-                        bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
+                        bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : 'grey.100',
                         color: idx === 0 ? 'white' : 'text.primary',
                       }}>
                         <Typography variant="caption" display="block" sx={{ fontSize: '0.6rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
@@ -1303,7 +1303,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                         <Typography variant="subtitle2" noWrap fontWeight={600}>{item.name}</Typography>
                         <Stack direction="row" spacing={0.5} alignItems="center">
                           <LinearProgress variant="determinate" value={Math.min(100, score)}
-                            sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { bgcolor: score >= 80 ? '#059669' : score >= 50 ? '#f59e0b' : '#94a3b8' } }} />
+                            sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider', '& .MuiLinearProgress-bar': { bgcolor: score >= 80 ? 'success.main' : score >= 50 ? 'warning.main' : 'text.disabled' } }} />
                           <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
                             {formatNumber(score)}{item.tier ? ` · ${item.tier}` : ''}
                           </Typography>
@@ -1356,8 +1356,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                       {typeof opp.confidence === 'number' && (
                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.75 }}>
                           <LinearProgress variant="determinate" value={opp.confidence}
-                            sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: '#e2e8f0',
-                              '& .MuiLinearProgress-bar': { bgcolor: opp.confidence >= 80 ? '#059669' : '#f59e0b' } }} />
+                            sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: 'divider',
+                              '& .MuiLinearProgress-bar': { bgcolor: opp.confidence >= 80 ? 'success.main' : 'warning.main' } }} />
                           <Typography variant="caption" fontWeight={600} fontSize="0.65rem">{opp.confidence}%</Typography>
                         </Stack>
                       )}
@@ -1387,8 +1387,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Typography>
               <Chip size="small" label={reporteiConfigured ? 'Reportei OK' : 'Nao configurado'}
                 sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700, mb: 2,
-                  bgcolor: reporteiConfigured ? '#ecfdf5' : '#fef2f2',
-                  color: reporteiConfigured ? '#059669' : '#dc2626' }} />
+                  bgcolor: reporteiConfigured ? 'success.light' : 'error.light',
+                  color: reporteiConfigured ? 'success.main' : 'error.main' }} />
               {reporteiEditorialInsights.length ? (
                 <Stack spacing={0.75}>
                   {reporteiEditorialInsights.map((insight, idx) => (
@@ -1418,8 +1418,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Typography variant="h6" fontWeight={700}>Producao</Typography>
             <Chip size="small" label={planningHealth?.overall === 'healthy' ? 'OK' : planningHealth?.overall === 'warning' ? 'Atencao' : 'Sem dados'}
               sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700,
-                bgcolor: planningHealth?.overall === 'healthy' ? '#ecfdf5' : planningHealth?.overall === 'warning' ? '#fffbeb' : '#f8fafc',
-                color: planningHealth?.overall === 'healthy' ? '#059669' : planningHealth?.overall === 'warning' ? '#d97706' : '#94a3b8' }} />
+                bgcolor: planningHealth?.overall === 'healthy' ? 'success.light' : planningHealth?.overall === 'warning' ? 'warning.light' : 'grey.100',
+                color: planningHealth?.overall === 'healthy' ? 'success.main' : planningHealth?.overall === 'warning' ? 'warning.main' : 'text.secondary' }} />
             <Box flex={1} />
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/perfil`} sx={{ color: SECTION_COLORS.creative.fg }}>
               Perfil
@@ -1440,8 +1440,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   label={`${row.label}: ${row.message}`}
                   sx={{
                     height: 24, fontSize: '0.65rem', fontWeight: 600,
-                    bgcolor: row.status === 'error' ? '#fef2f2' : '#fffbeb',
-                    color: row.status === 'error' ? '#dc2626' : '#d97706',
+                    bgcolor: row.status === 'error' ? 'error.light' : 'warning.light',
+                    color: row.status === 'error' ? 'error.main' : 'warning.main',
                   }} />
               ))}
             </Stack>
@@ -1610,7 +1610,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                         sx={{ p: 1, borderRadius: 2, bgcolor: idx === 0 ? SECTION_COLORS.calendar.bg : 'transparent' }}>
                         <Box textAlign="center" sx={{
                           minWidth: 44, py: 0.5, px: 0.75, borderRadius: 2,
-                          bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : '#f1f5f9',
+                          bgcolor: idx === 0 ? SECTION_COLORS.calendar.fg : 'grey.100',
                           color: idx === 0 ? 'white' : 'text.primary',
                         }}>
                           <Typography variant="caption" display="block" sx={{ fontSize: '0.55rem', fontWeight: 700, color: idx === 0 ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
@@ -1623,8 +1623,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                           <Chip size="small" label={`${score}${item.tier ? ` · ${item.tier}` : ''}`}
                             sx={{
                               height: 18, fontSize: '0.6rem', fontWeight: 700, mt: 0.25,
-                              bgcolor: score >= 80 ? '#ecfdf5' : '#f8fafc',
-                              color: score >= 80 ? '#059669' : '#94a3b8',
+                              bgcolor: score >= 80 ? 'success.light' : 'grey.100',
+                              color: score >= 80 ? 'success.main' : 'text.secondary',
                             }} />
                         </Box>
                       </Stack>
