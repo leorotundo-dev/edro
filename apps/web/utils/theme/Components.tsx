@@ -86,11 +86,11 @@ const Components: Components<Theme> = {
         fontSize: '1rem',
         borderRadius: '14px',
       },
-      containedPrimary: {
+      containedPrimary: ({ theme }) => ({
         '&:hover': {
-          backgroundColor: '#c43e10',
+          backgroundColor: theme.palette.primary.dark,
         },
-      },
+      }),
     },
   },
   MuiIconButton: {
@@ -140,18 +140,18 @@ const Components: Components<Theme> = {
       size: 'small',
     },
     styleOverrides: {
-      root: {
+      root: ({ theme }) => ({
         '& .MuiOutlinedInput-root': {
           borderRadius: '12px',
           '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#E85219',
+            borderColor: theme.palette.primary.main,
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#E85219',
+            borderColor: theme.palette.primary.main,
             borderWidth: '2px',
           },
         },
-      },
+      }),
     },
   },
   MuiSelect: {
@@ -197,13 +197,13 @@ const Components: Components<Theme> = {
           backgroundColor: theme.palette.action.hover,
         },
         '&.Mui-selected': {
-          backgroundColor: 'rgba(232, 82, 25, 0.08)',
-          color: '#E85219',
+          backgroundColor: `${theme.palette.primary.main}14`,
+          color: theme.palette.primary.main,
           '&:hover': {
-            backgroundColor: 'rgba(232, 82, 25, 0.14)',
+            backgroundColor: `${theme.palette.primary.main}24`,
           },
           '& .MuiListItemIcon-root': {
-            color: '#E85219',
+            color: theme.palette.primary.main,
           },
         },
       }),
@@ -224,7 +224,7 @@ const Components: Components<Theme> = {
         height: '6px',
         backgroundColor: theme.palette.mode === 'dark'
           ? 'rgba(255,255,255,0.12)'
-          : '#e5e7eb',
+          : theme.palette.grey[200],
       }),
     },
   },
@@ -286,11 +286,30 @@ const Components: Components<Theme> = {
     },
   },
   MuiTooltip: {
+    defaultProps: {
+      arrow: true,
+    },
     styleOverrides: {
-      tooltip: {
+      tooltip: ({ theme }) => ({
         borderRadius: '8px',
-        fontSize: '0.75rem',
-      },
+        fontSize: '0.72rem',
+        fontWeight: 500,
+        padding: '6px 10px',
+        backgroundColor: theme.palette.mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
+        color: theme.palette.mode === 'dark' ? '#1a1a1a' : '#f5f5f5',
+      }),
+      arrow: ({ theme }) => ({
+        color: theme.palette.mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
+      }),
+    },
+  },
+  MuiInputLabel: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        '&.Mui-focused': {
+          color: theme.palette.primary.main,
+        },
+      }),
     },
   },
   MuiAlert: {
