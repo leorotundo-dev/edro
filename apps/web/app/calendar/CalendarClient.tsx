@@ -8,6 +8,7 @@ import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import StatusChip from '@/components/shared/StatusChip';
 import { apiGet, apiPost, apiPatch, apiDelete, buildApiUrl } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -339,6 +340,7 @@ function getEventMeta(name: string, categories?: string[], tags?: string[]) {
 export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const confirm = useConfirm();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
@@ -373,6 +375,10 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [manualRelevance, setManualRelevance] = useState('');
   const [manualRelevanceClientId, setManualRelevanceClientId] = useState('');
   const [saveRelevanceLoading, setSaveRelevanceLoading] = useState(false);
+  const [editEventDialogOpen, setEditEventDialogOpen] = useState(false);
+  const [editEventTarget, setEditEventTarget] = useState<CalendarEventItem | null>(null);
+  const [editEventName, setEditEventName] = useState('');
+  const [editEventScore, setEditEventScore] = useState('');
 
   // ── Creative Inspirations ──────────────────────────────────────────────────
   type Inspiration = { id: string; title: string; snippet: string | null; url: string; source_lang: string };
@@ -975,50 +981,49 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const handleEditEvent = (event: CalendarEventItem) => {
     handleEventMenuClose();
-    if (typeof window === 'undefined') return;
-    const newName = window.prompt('Nome do evento:', event.name);
-    if (newName === null) return;
-    const scoreInput = window.prompt('Relevância (0–100):', String(Math.round(event.score)));
-    if (scoreInput === null) return;
-    const newScore = Math.max(0, Math.min(100, Number(scoreInput) || Math.round(event.score)));
-
-    setEventActionLoading(event.id);
-    setError('');
-    setNotice('');
-    (async () => {
-      try {
-        await apiPatch(`/calendar/events/${event.id}/edit`, {
-          name: newName.trim() || event.name,
-          relevance_score: newScore,
-        });
-        await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
-        setNotice('Evento atualizado.');
-      } catch (err: any) {
-        setError(err?.message || 'Falha ao editar evento.');
-      } finally {
-        setEventActionLoading(null);
-      }
-    })();
+    setEditEventTarget(event);
+    setEditEventName(event.name);
+    setEditEventScore(String(Math.round(event.score)));
+    setEditEventDialogOpen(true);
   };
 
-  const handleDeleteEvent = (event: CalendarEventItem) => {
+  const handleEditConfirm = async () => {
+    if (!editEventTarget) return;
+    setEditEventDialogOpen(false);
+    const newScore = clampScore(Number(editEventScore) || Math.round(editEventTarget.score));
+    setEventActionLoading(editEventTarget.id);
+    setError('');
+    setNotice('');
+    try {
+      await apiPatch(`/calendar/events/${editEventTarget.id}/edit`, {
+        name: editEventName.trim() || editEventTarget.name,
+        relevance_score: newScore,
+      });
+      await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
+      setNotice('Evento atualizado.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao editar evento.');
+    } finally {
+      setEventActionLoading(null);
+    }
+  };
+
+  const handleDeleteEvent = async (event: CalendarEventItem) => {
     handleEventMenuClose();
-    if (!window.confirm(`Excluir "${event.name}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await confirm(`Excluir "${event.name}"? Esta ação não pode ser desfeita.`)) return;
     setEventActionLoading(event.id);
     setError('');
     setNotice('');
-    (async () => {
-      try {
-        await apiDelete(`/calendar/events/${event.id}/edit`);
-        await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
-        if (selectedEvent?.id === event.id) setSelectedEvent(null);
-        setNotice('Evento excluído.');
-      } catch (err: any) {
-        setError(err?.message || 'Falha ao excluir evento.');
-      } finally {
-        setEventActionLoading(null);
-      }
-    })();
+    try {
+      await apiDelete(`/calendar/events/${event.id}/edit`);
+      await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
+      if (selectedEvent?.id === event.id) setSelectedEvent(null);
+      setNotice('Evento excluído.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao excluir evento.');
+    } finally {
+      setEventActionLoading(null);
+    }
   };
 
   const handleSaveEventRelevance = async () => {
@@ -1739,6 +1744,39 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     </Stack>
   );
 
+  // ── Editar Evento Dialog ──────────────────────────────────────────
+  const editEventDialog = (
+    <Dialog open={editEventDialogOpen} onClose={() => setEditEventDialogOpen(false)} maxWidth="xs" fullWidth>
+      <DialogTitle>Editar Evento</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="Nome do evento"
+            value={editEventName}
+            onChange={(e) => setEditEventName(e.target.value)}
+            autoFocus
+            fullWidth
+            onKeyDown={(e) => e.key === 'Enter' && handleEditConfirm()}
+          />
+          <TextField
+            label="Relevância (0–100)"
+            type="number"
+            value={editEventScore}
+            onChange={(e) => setEditEventScore(e.target.value)}
+            inputProps={{ min: 0, max: 100 }}
+            fullWidth
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditEventDialogOpen(false)}>Cancelar</Button>
+        <Button variant="contained" onClick={handleEditConfirm} disabled={!editEventName.trim()}>
+          Salvar
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   // ── Adicionar Evento Dialog ──────────────────────────────────────────
   const addEventDialog = (
     <Dialog open={addEventDialogOpen} onClose={() => setAddEventDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -1815,12 +1853,13 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   if (noShell) {
-    return <>{content}{addEventDialog}</>;
+    return <>{content}{editEventDialog}{addEventDialog}</>;
   }
 
   return (
     <AppShell title="Global Operational Calendar">
       {content}
+      {editEventDialog}
       {addEventDialog}
     </AppShell>
   );

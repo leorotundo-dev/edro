@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -528,6 +529,7 @@ function CampaignDetail({
   clientId: string;
   onRefresh: () => void;
 }) {
+  const confirm = useConfirm();
   const [formats, setFormats] = useState<CampaignFormat[]>([]);
   const [concepts, setConcepts] = useState<CreativeConcept[]>([]);
   const [briefings, setBriefings] = useState<LinkedBriefing[]>([]);
@@ -664,7 +666,7 @@ function CampaignDetail({
   };
 
   const handleDeleteConcept = async (concept: CreativeConcept) => {
-    if (!window.confirm(`Excluir território "${concept.name}"?`)) return;
+    if (!await confirm(`Excluir território "${concept.name}"?`)) return;
     try {
       await apiDelete(`/creative-concepts/${concept.id}`);
       await loadDetail();

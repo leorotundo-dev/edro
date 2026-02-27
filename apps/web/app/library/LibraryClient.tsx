@@ -10,6 +10,10 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
@@ -55,6 +59,14 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteSubmitting, setNoteSubmitting] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
 
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -148,46 +160,61 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
     }
   };
 
-  const createNote = async () => {
+  const createNote = () => {
     if (!selectedClient) return;
-    const title = window.prompt('Note title:');
-    if (!title) return;
-    const notes = window.prompt('Note content:') || '';
+    setNoteTitle('');
+    setNoteContent('');
+    setNoteDialogOpen(true);
+  };
+
+  const handleSubmitNote = async () => {
+    if (!selectedClient || !noteTitle.trim()) return;
+    setNoteSubmitting(true);
     try {
       await apiPost(`/clients/${selectedClient.id}/library`, {
         type: 'note',
-        title,
-        notes,
+        title: noteTitle.trim(),
+        notes: noteContent,
         category: 'general',
         tags: [],
         weight: 'medium',
         use_in_ai: true,
       });
+      setNoteDialogOpen(false);
       await loadItems();
     } catch (err: any) {
       setError(err?.message || 'Failed to create note.');
+    } finally {
+      setNoteSubmitting(false);
     }
   };
 
-  const createLink = async () => {
+  const createLink = () => {
     if (!selectedClient) return;
-    const title = window.prompt('Link title:');
-    if (!title) return;
-    const sourceUrl = window.prompt('URL:');
-    if (!sourceUrl) return;
+    setLinkTitle('');
+    setLinkUrl('');
+    setLinkDialogOpen(true);
+  };
+
+  const handleSubmitLink = async () => {
+    if (!selectedClient || !linkTitle.trim() || !linkUrl.trim()) return;
+    setLinkSubmitting(true);
     try {
       await apiPost(`/clients/${selectedClient.id}/library`, {
         type: 'link',
-        title,
-        source_url: sourceUrl,
+        title: linkTitle.trim(),
+        source_url: linkUrl.trim(),
         category: 'general',
         tags: [],
         weight: 'medium',
         use_in_ai: true,
       });
+      setLinkDialogOpen(false);
       await loadItems();
     } catch (err: any) {
       setError(err?.message || 'Failed to create link.');
+    } finally {
+      setLinkSubmitting(false);
     }
   };
 
@@ -466,8 +493,77 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
     </Stack>
   );
 
+  const noteDialog = (
+    <Dialog open={noteDialogOpen} onClose={() => setNoteDialogOpen(false)} maxWidth="xs" fullWidth>
+      <DialogTitle>Nova nota</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="Título"
+            value={noteTitle}
+            onChange={(e) => setNoteTitle(e.target.value)}
+            autoFocus
+            fullWidth
+          />
+          <TextField
+            label="Conteúdo"
+            value={noteContent}
+            onChange={(e) => setNoteContent(e.target.value)}
+            multiline
+            rows={3}
+            fullWidth
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setNoteDialogOpen(false)}>Cancelar</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmitNote}
+          disabled={noteSubmitting || !noteTitle.trim()}
+        >
+          {noteSubmitting ? <CircularProgress size={16} /> : 'Criar'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const linkDialog = (
+    <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} maxWidth="xs" fullWidth>
+      <DialogTitle>Novo link</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="Título"
+            value={linkTitle}
+            onChange={(e) => setLinkTitle(e.target.value)}
+            autoFocus
+            fullWidth
+          />
+          <TextField
+            label="URL"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://"
+            fullWidth
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setLinkDialogOpen(false)}>Cancelar</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmitLink}
+          disabled={linkSubmitting || !linkTitle.trim() || !linkUrl.trim()}
+        >
+          {linkSubmitting ? <CircularProgress size={16} /> : 'Criar'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   if (noShell) {
-    return content;
+    return <>{content}{noteDialog}{linkDialog}</>;
   }
 
   return (
@@ -482,6 +578,8 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
       }
     >
       {content}
+      {noteDialog}
+      {linkDialog}
     </AppShell>
   );
 }

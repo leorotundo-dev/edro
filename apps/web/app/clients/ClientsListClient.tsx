@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import EdroAvatar from '@/components/shared/EdroAvatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -55,6 +56,7 @@ type Client = {
 
 export default function ClientsListClient() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -121,11 +123,9 @@ export default function ClientsListClient() {
 
   const handleDeleteClient = async () => {
     if (!menuClient) return;
-    if (!window.confirm(`Excluir o cliente "${menuClient.name}"? Esta acao nao pode ser desfeita.`)) {
-      handleCloseMenu();
-      return;
-    }
+    const ok = await confirm(`Excluir o cliente "${menuClient.name}"? Esta acao nao pode ser desfeita.`);
     handleCloseMenu();
+    if (!ok) return;
     try {
       await apiDelete(`/clients/${menuClient.id}`);
       await loadClients();

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardCard from '@/components/shared/DashboardCard';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -63,6 +64,7 @@ type ClientClippingKeywordsQuickClientProps = {
 export default function ClientClippingKeywordsQuickClient({
   clientId,
 }: ClientClippingKeywordsQuickClientProps) {
+  const confirm = useConfirm();
   const [client, setClient] = useState<ClientRow | null>(null);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
@@ -186,8 +188,7 @@ export default function ClientClippingKeywordsQuickClient({
   }, [clientId]);
 
   const handleClearAll = useCallback(async () => {
-    const confirmed = window.confirm('Limpar todas as palavras obrigatorias do Clipping deste cliente?');
-    if (!confirmed) return;
+    if (!await confirm('Limpar todas as palavras obrigatorias do Clipping deste cliente?')) return;
     setKeywords([]);
     void saveKeywords([]);
   }, [saveKeywords]);

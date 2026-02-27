@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import { apiGet, apiPost, apiPatch, apiDelete, getApiBase } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -92,6 +93,7 @@ function timeAgo(dateStr: string | null) {
 }
 
 export default function ClippingDiagnosticsPage() {
+  const confirm = useConfirm();
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -190,7 +192,7 @@ export default function ClippingDiagnosticsPage() {
   };
 
   const handlePurgeQueue = async () => {
-    if (!window.confirm('Isso vai deletar TODOS os jobs de clipping pendentes na fila. Continuar?')) return;
+    if (!await confirm('Isso vai deletar TODOS os jobs de clipping pendentes na fila. Continuar?')) return;
     setPurging(true);
     setPurgeResult('');
     try {
@@ -205,7 +207,7 @@ export default function ClippingDiagnosticsPage() {
   };
 
   const handleCancelFetchProcessing = async () => {
-    if (!window.confirm('Isso vai CANCELAR os jobs de fetch que estao em processamento (viram FAILED). Continuar?')) return;
+    if (!await confirm('Isso vai CANCELAR os jobs de fetch que estao em processamento (viram FAILED). Continuar?')) return;
     setCancellingFetchProcessing(true);
     try {
       const res = await apiPost<{ ok: boolean; cancelled_jobs: number; touched_sources: number }>(
@@ -240,7 +242,7 @@ export default function ClippingDiagnosticsPage() {
   };
 
   const handleDeleteSource = async (sourceId: string, sourceName: string) => {
-    if (!window.confirm(`Tem certeza que quer deletar a fonte "${sourceName}"? Todos os items dessa fonte tambem serao removidos.`)) return;
+    if (!await confirm(`Tem certeza que quer deletar a fonte "${sourceName}"? Todos os items dessa fonte tambem serao removidos.`)) return;
     try {
       await apiDelete(`/clipping/sources/${sourceId}`);
       await load();

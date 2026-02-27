@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useConfirm } from '@/hooks/useConfirm';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -80,6 +81,7 @@ export default function OutputsList({
   onDeleteBriefing,
   onArchiveBriefing,
 }: OutputsListProps) {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<'briefings' | 'copies'>('briefings');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuBriefingId, setMenuBriefingId] = useState<string | null>(null);
@@ -100,11 +102,10 @@ export default function OutputsList({
     handleMenuClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (menuBriefingId && onDeleteBriefing) {
-      if (window.confirm('Excluir este briefing permanentemente? Todas as copies associadas tambem serao removidas.')) {
-        onDeleteBriefing(menuBriefingId);
-      }
+      const ok = await confirm('Excluir este briefing permanentemente? Todas as copies associadas tambem serao removidas.');
+      if (ok) onDeleteBriefing(menuBriefingId);
     }
     handleMenuClose();
   };

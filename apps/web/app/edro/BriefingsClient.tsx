@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -120,6 +121,7 @@ const PAGE_SIZE = 30;
 
 export default function BriefingsClient() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -246,7 +248,7 @@ export default function BriefingsClient() {
     if (!menuBriefingId) return;
     const id = menuBriefingId;
     handleMenuClose();
-    if (!window.confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
+    if (!await confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
     try {
       await apiDelete(`/edro/briefings/${id}`);
       setBriefings((prev) => prev.filter((b) => b.id !== id));
@@ -292,7 +294,7 @@ export default function BriefingsClient() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Excluir ${selectedIds.size} briefing(s) permanentemente? Todas as copies e tarefas associadas serão removidas.`)) return;
+    if (!await confirm(`Excluir ${selectedIds.size} briefing(s) permanentemente? Todas as copies e tarefas associadas serão removidas.`)) return;
     setBulkLoading(true);
     const ids = Array.from(selectedIds);
     try {
@@ -308,7 +310,7 @@ export default function BriefingsClient() {
 
   const handleBulkAdvance = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Avançar ${selectedIds.size} briefing(s) para a próxima etapa?`)) return;
+    if (!await confirm(`Avançar ${selectedIds.size} briefing(s) para a próxima etapa?`)) return;
     setBulkLoading(true);
     try {
       await apiPost('/edro/briefings/bulk/advance', { ids: Array.from(selectedIds) });

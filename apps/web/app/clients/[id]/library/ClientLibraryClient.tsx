@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -90,6 +91,7 @@ function formatDate(dateStr?: string): string {
 }
 
 export default function ClientLibraryClient({ clientId }: ClientLibraryClientProps) {
+  const confirm = useConfirm();
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -204,7 +206,7 @@ export default function ClientLibraryClient({ clientId }: ClientLibraryClientPro
   };
 
   const deleteItem = async (itemId: string) => {
-    if (!window.confirm('Deseja remover este item?')) return;
+    if (!await confirm('Deseja remover este item?')) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
     if (!token) return;
 

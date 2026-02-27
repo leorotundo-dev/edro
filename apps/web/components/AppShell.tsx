@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Sidebar from './layout/sidebar/Sidebar';
 import Header from './layout/header/Header';
+import { ConfirmProvider } from '@/hooks/useConfirm';
 
 type ActionButton = {
   label: string;
@@ -34,6 +35,7 @@ export default function AppShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
+    <ConfirmProvider>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Sidebar
         open={sidebarOpen}
@@ -74,5 +76,6 @@ export default function AppShell({
         </Box>
       </Box>
     </Box>
+    </ConfirmProvider>
   );
 }

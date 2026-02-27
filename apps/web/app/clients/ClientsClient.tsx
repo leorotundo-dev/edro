@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiDelete, apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -321,6 +322,7 @@ const buildFormFromClient = (client: ClientRow): ClientForm => {
 
 export default function ClientsClient({ clientId, noShell }: { clientId?: string; noShell?: boolean }) {
   const searchParams = useSearchParams();
+  const confirm = useConfirm();
   const urlClientId = searchParams?.get('clientId') || '';
   const lockedClientId = clientId || urlClientId;
   const isLocked = Boolean(clientId);
@@ -814,10 +816,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
 
   const handleDelete = async () => {
     if (!selectedId) return;
-    const confirmed = window.confirm(
-      'Excluir este cliente? Essa ação remove calendários, conectores e dados associados.'
-    );
-    if (!confirmed) return;
+    if (!await confirm('Excluir este cliente? Essa ação remove calendários, conectores e dados associados.')) return;
 
     setDeleting(true);
     setError('');

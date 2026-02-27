@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardCard from '@/components/shared/DashboardCard';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -206,6 +207,7 @@ type ClientSocialListeningQuickClientProps = {
 };
 
 export default function ClientSocialListeningQuickClient({ clientId }: ClientSocialListeningQuickClientProps) {
+  const confirm = useConfirm();
   const [client, setClient] = useState<ClientRow | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [keywords, setKeywords] = useState<KeywordRow[]>([]);
@@ -410,8 +412,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
 
   const handleDeleteKeyword = async (kw: KeywordRow) => {
     if (!kw.client_id) return;
-    const ok = window.confirm(`Remover a keyword \"${kw.keyword}\"?`);
-    if (!ok) return;
+    if (!await confirm(`Remover a keyword "${kw.keyword}"?`)) return;
 
     setKeywordsBusy(true);
     setKeywordsError('');
@@ -499,7 +500,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
   };
 
   const handleRemoveProfile = async (id: string) => {
-    if (!window.confirm('Remover este perfil?')) return;
+    if (!await confirm('Remover este perfil?')) return;
     setProfilesBusy(true);
     try {
       await apiDelete(`/social-listening/profiles/${id}`);

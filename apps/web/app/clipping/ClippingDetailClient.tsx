@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import StatusChip from '@/components/shared/StatusChip';
 import { apiGet, apiPost } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -138,6 +139,7 @@ function isUuid(value: string) {
 
 export default function ClippingDetailClient({ itemId, noShell, backHref }: ClippingDetailClientProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const backTo = backHref || '/clipping';
   const [item, setItem] = useState<ClippingItemDetail | null>(null);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -224,7 +226,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
   };
 
   const handleArchive = async () => {
-    if (!window.confirm('Arquivar este item? Ele não aparecerá mais na lista principal.')) return;
+    if (!await confirm('Arquivar este item? Ele não aparecerá mais na lista principal.')) return;
     setSaving(true);
     setError('');
     setSuccess('');

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -179,6 +180,7 @@ function statusChip(status?: string | null) {
 
 export default function ClippingClient({ clientId, noShell, embedded }: ClippingClientProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const lockedClientId = clientId || searchParams.get('clientId') || '';
   const isLocked = Boolean(lockedClientId);
@@ -441,7 +443,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   };
 
   const handleDeleteSource = async (id: string, name: string) => {
-    if (!window.confirm(`Excluir fonte "${name}"?`)) return;
+    if (!await confirm(`Excluir fonte "${name}"?`)) return;
     setError('');
     try {
       await apiDelete(`/clipping/sources/${id}`);
