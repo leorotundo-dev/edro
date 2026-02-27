@@ -26,6 +26,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
+import Popover from '@mui/material/Popover';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import StatusChip from '@/components/shared/StatusChip';
@@ -138,6 +139,8 @@ export default function BriefingsClient() {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [hoveredBriefing, setHoveredBriefing] = useState<Briefing | null>(null);
 
   const loadBriefings = useCallback(async () => {
     setLoading(true);
@@ -643,6 +646,8 @@ export default function BriefingsClient() {
                     '&:hover': { boxShadow: 3 },
                   }}
                   onClick={() => handleBriefingClick(briefing.id)}
+                  onMouseEnter={(e) => { setPopoverAnchor(e.currentTarget); setHoveredBriefing(briefing); }}
+                  onMouseLeave={() => { setPopoverAnchor(null); setHoveredBriefing(null); }}
                 >
                   <CardContent>
                     <Stack spacing={2}>
@@ -756,6 +761,54 @@ export default function BriefingsClient() {
           </Stack>
         )}
       </Stack>
+
+      {/* Hover preview Popover */}
+      <Popover
+        open={Boolean(popoverAnchor)}
+        anchorEl={popoverAnchor}
+        anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+        onClose={() => { setPopoverAnchor(null); setHoveredBriefing(null); }}
+        disableRestoreFocus
+        sx={{ pointerEvents: 'none', ml: 1 }}
+        slotProps={{ paper: { sx: { width: 280, p: 2, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' } } }}
+      >
+        {hoveredBriefing && (
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+              {hoveredBriefing.title}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+              <StatusChip status={hoveredBriefing.status} label={STATUS_LABELS[hoveredBriefing.status] || hoveredBriefing.status} />
+              {hoveredBriefing.client_name && (
+                <Chip size="small" label={hoveredBriefing.client_name} variant="outlined" />
+              )}
+            </Stack>
+            <Divider />
+            <Stack spacing={0.75}>
+              {hoveredBriefing.traffic_owner && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconUser size={13} />
+                  <Typography variant="caption" color="text.secondary">{hoveredBriefing.traffic_owner}</Typography>
+                </Stack>
+              )}
+              {hoveredBriefing.source && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconSourceCode size={13} />
+                  <Typography variant="caption" color="text.secondary">{hoveredBriefing.source}</Typography>
+                </Stack>
+              )}
+              <Stack direction="row" spacing={1} alignItems="center">
+                <IconCalendar size={13} />
+                <Typography variant="caption" color="text.secondary">
+                  Criado em {formatDate(hoveredBriefing.created_at)}
+                  {hoveredBriefing.due_at && ` · Prazo ${formatDate(hoveredBriefing.due_at)}`}
+                </Typography>
+              </Stack>
+            </Stack>
+          </Stack>
+        )}
+      </Popover>
 
       <Menu
         anchorEl={menuAnchor}

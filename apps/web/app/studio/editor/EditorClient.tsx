@@ -11,6 +11,13 @@ import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import LoadingButton from '@mui/lab/LoadingButton';
+import Timeline from '@mui/lab/Timeline';
+import TimelineItem from '@mui/lab/TimelineItem';
+import TimelineOppositeContent from '@mui/lab/TimelineOppositeContent';
+import TimelineSeparator from '@mui/lab/TimelineSeparator';
+import TimelineConnector from '@mui/lab/TimelineConnector';
+import TimelineContent from '@mui/lab/TimelineContent';
+import TimelineDot from '@mui/lab/TimelineDot';
 import {
   IconCheck,
   IconRefresh,
@@ -1913,30 +1920,49 @@ export default function EditorClient() {
               {copies.length ? (
                 <Card>
                   <CardContent>
-                    <Chip size="small" label="Historico de versoes" sx={{ mb: 2 }} />
-                    <Stack spacing={1}>
-                      {copies.map((copy) => {
+                    <Chip size="small" label="Historico de versoes" sx={{ mb: 1 }} />
+                    <Timeline sx={{ p: 0, m: 0 }}>
+                      {copies.map((copy, idx) => {
                         const reporteiSummary = formatReporteiSummary((copy.payload as any)?._edro?.reportei || null);
+                        const model = (copy.model || '').toLowerCase();
+                        const dotColor = model.includes('claude') || model.includes('anthropic') ? '#5D87FF'
+                          : model.includes('gpt') || model.includes('openai') ? '#22c55e'
+                          : model.includes('gemini') || model.includes('google') ? '#f59e0b'
+                          : '#94a3b8';
                         return (
-                          <Card key={copy.id} variant="outlined" sx={{ cursor: 'pointer' }} onClick={() => handleSelectVersion(copy)}>
-                            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                <Typography variant="subtitle2" fontWeight={600}>{copy.model || 'IA'}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {copy.created_at ? new Date(copy.created_at).toLocaleString('pt-BR') : 'Agora'}
-                                </Typography>
-                              </Stack>
-                              {reporteiSummary ? (
-                                <Typography variant="caption" color="text.secondary">{reporteiSummary}</Typography>
-                              ) : null}
-                              <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                {copy.output?.slice(0, 160)}
+                          <TimelineItem key={copy.id}>
+                            <TimelineOppositeContent sx={{ flex: 0.35, px: 1 }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
+                                {copy.created_at ? new Date(copy.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Agora'}
                               </Typography>
-                            </CardContent>
-                          </Card>
+                            </TimelineOppositeContent>
+                            <TimelineSeparator>
+                              <TimelineDot sx={{ bgcolor: dotColor, boxShadow: 'none', m: '6px 0' }} />
+                              {idx < copies.length - 1 && <TimelineConnector sx={{ bgcolor: 'divider' }} />}
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ pb: 2 }}>
+                              <Card
+                                variant="outlined"
+                                sx={{ cursor: 'pointer', '&:hover': { borderColor: dotColor + '80' } }}
+                                onClick={() => handleSelectVersion(copy)}
+                              >
+                                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                  <Typography variant="subtitle2" fontWeight={600} sx={{ color: dotColor }}>
+                                    {copy.model || 'IA'}
+                                  </Typography>
+                                  {reporteiSummary ? (
+                                    <Typography variant="caption" color="text.secondary" display="block">{reporteiSummary}</Typography>
+                                  ) : null}
+                                  <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                    {copy.output?.slice(0, 160)}
+                                  </Typography>
+                                </CardContent>
+                              </Card>
+                            </TimelineContent>
+                          </TimelineItem>
                         );
                       })}
-                    </Stack>
+                    </Timeline>
                   </CardContent>
                 </Card>
               ) : null}

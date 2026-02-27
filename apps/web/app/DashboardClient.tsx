@@ -16,6 +16,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
+import Grow from '@mui/material/Grow';
 import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -593,11 +594,19 @@ export default function DashboardClient() {
         {/* ── KPI Stats ──────────────────────────────────────── */}
         {metrics && (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
-            <StatBox label="Total Briefings" value={metrics.total} icon={<IconClipboardList size={22} />} color="#3b82f6" />
-            <StatBox label="Em Andamento" value={active} icon={<IconTrendingUp size={22} />} color="#f59e0b" />
-            <StatBox label="Concluidos" value={done} icon={<IconClipboardList size={22} />} color="#22c55e" />
-            <StatBox label="Atrasados" value={metrics.overdue} icon={<IconAlertTriangle size={22} />} color="#ef4444" />
-            <StatBox label="Copies Geradas" value={metrics.totalCopies} icon={<IconRobot size={22} />} color="#8b5cf6" />
+            {[
+              { label: 'Total Briefings', value: metrics.total, icon: <IconClipboardList size={22} />, color: '#3b82f6' },
+              { label: 'Em Andamento', value: active, icon: <IconTrendingUp size={22} />, color: '#f59e0b' },
+              { label: 'Concluidos', value: done, icon: <IconClipboardList size={22} />, color: '#22c55e' },
+              { label: 'Atrasados', value: metrics.overdue, icon: <IconAlertTriangle size={22} />, color: '#ef4444' },
+              { label: 'Copies Geradas', value: metrics.totalCopies, icon: <IconRobot size={22} />, color: '#8b5cf6' },
+            ].map((stat, i) => (
+              <Grow key={stat.label} in timeout={300 + i * 120} style={{ transformOrigin: '0 0 0' }}>
+                <Box sx={{ flex: 1, minWidth: { xs: '100%', sm: 0 } }}>
+                  <StatBox label={stat.label} value={stat.value} icon={stat.icon} color={stat.color} />
+                </Box>
+              </Grow>
+            ))}
           </Stack>
         )}
 

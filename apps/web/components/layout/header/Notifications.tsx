@@ -112,7 +112,18 @@ export default function Notifications() {
           color="primary"
           max={9}
           invisible={unreadCount === 0}
-          sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', minWidth: 18, height: 18 } }}
+          sx={{
+            '& .MuiBadge-badge': {
+              fontSize: '0.65rem',
+              minWidth: 18,
+              height: 18,
+              ...(unreadCount > 0 && { animation: 'notifPulse 2s ease-in-out infinite' }),
+              '@keyframes notifPulse': {
+                '0%, 100%': { boxShadow: '0 0 0 0 rgba(93, 135, 255, 0.5)', transform: 'scale(1)' },
+                '50%': { boxShadow: '0 0 0 5px rgba(93, 135, 255, 0)', transform: 'scale(1.12)' },
+              },
+            },
+          }}
         >
           <IconBell size={22} stroke={1.5} />
         </Badge>

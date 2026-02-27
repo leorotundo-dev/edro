@@ -1,10 +1,20 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
+import SpeedDial from '@mui/material/SpeedDial';
+import SpeedDialAction from '@mui/material/SpeedDialAction';
+import SpeedDialIcon from '@mui/material/SpeedDialIcon';
 import Sidebar from './layout/sidebar/Sidebar';
 import Header from './layout/header/Header';
 import { ConfirmProvider } from '@/hooks/useConfirm';
+import { IconFileText, IconUsers, IconPlus } from '@tabler/icons-react';
+
+const SPEED_DIAL_ACTIONS = [
+  { icon: <IconFileText size={18} />, name: 'Novo Brief', href: '/edro/novo' },
+  { icon: <IconUsers size={18} />, name: 'Novo Cliente', href: '/clients/novo' },
+];
 
 type ActionButton = {
   label: string;
@@ -31,6 +41,7 @@ export default function AppShell({
   topbarRight,
   children,
 }: AppShellProps) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -80,6 +91,29 @@ export default function AppShell({
           {children}
         </Box>
       </Box>
+      <SpeedDial
+        ariaLabel="Criar novo"
+        icon={<SpeedDialIcon openIcon={<IconPlus size={20} />} />}
+        sx={{
+          position: 'fixed',
+          bottom: 28,
+          right: 28,
+          '& .MuiSpeedDial-fab': {
+            bgcolor: 'primary.main',
+            '&:hover': { bgcolor: 'primary.dark' },
+          },
+        }}
+      >
+        {SPEED_DIAL_ACTIONS.map((action) => (
+          <SpeedDialAction
+            key={action.name}
+            icon={action.icon}
+            tooltipTitle={action.name}
+            tooltipOpen
+            onClick={() => router.push(action.href)}
+          />
+        ))}
+      </SpeedDial>
     </Box>
     </ConfirmProvider>
   );
