@@ -290,7 +290,7 @@ const SECTION_COLORS: Record<string, { bg: string; fg: string; border: string }>
   performance:  { bg: '#f0fdfa', fg: '#0d9488', border: '#0d9488' },
   library:      { bg: '#eef2ff', fg: '#4f46e5', border: '#4f46e5' },
   creative:     { bg: '#fdf2f8', fg: '#db2777', border: '#db2777' },
-  insights:     { bg: '#fff1e6', fg: '#ff6600', border: '#ff6600' },
+  insights:     { bg: '#fff1e6', fg: '#E85219', border: '#E85219' },
   planning:     { bg: '#f8fafc', fg: '#475569', border: '#475569' },
 };
 
@@ -700,7 +700,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       { key: 'copy-ia', label: 'Copy IA', count: counters.copyIa, color: '#64748b' },
       { key: 'aprovacao', label: 'Aprovação', count: counters.aprovacao, color: '#FFAE1F' },
       { key: 'producao', label: 'Produção', count: counters.producao, color: '#FA896B' },
-      { key: 'revisao', label: 'Revisão', count: counters.revisao, color: '#ff6600' },
+      { key: 'revisao', label: 'Revisão', count: counters.revisao, color: '#E85219' },
       { key: 'entregue', label: 'Entregue', count: counters.entregue, color: '#13DEB9' },
     ];
   }, [briefings]);
@@ -937,10 +937,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       {/* Recomendação + Pipeline */}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'rgba(255,102,0,0.03)', borderColor: 'rgba(255,102,0,0.2)', height: '100%' }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'rgba(232,82,25,0.03)', borderColor: 'rgba(232,82,25,0.2)', height: '100%' }}>
             <CardContent>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                <IconSparkles size={18} color="#ff6600" />
+                <IconSparkles size={18} color="#E85219" />
                 <Typography variant="subtitle2" fontWeight={700}>Recomendação do Dia</Typography>
               </Stack>
               {recommendation ? (
@@ -953,7 +953,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                     variant="contained"
                     component={Link}
                     href={recommendation.href}
-                    sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                    sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
                   >
                     {recommendation.action}
                   </Button>
@@ -1179,7 +1179,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                             component={Link}
                             href={createHref}
                             startIcon={<IconPlus size={14} />}
-                            sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                            sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#E85219', color: '#E85219' }}
                           >
                             Criar pauta
                           </Button>
@@ -1237,7 +1237,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                           component={Link}
                           href={createHref}
                           startIcon={<IconPlus size={14} />}
-                          sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                          sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#E85219', color: '#E85219' }}
                         >
                           Criar pauta
                         </Button>
@@ -1367,7 +1367,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                         component={Link}
                         href={createHref}
                         startIcon={<IconPlus size={14} />}
-                        sx={{ mt: 0.75, fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                        sx={{ mt: 0.75, fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#E85219', color: '#E85219' }}
                       >
                         Criar pauta
                       </Button>
@@ -1543,8 +1543,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{
                 borderRadius: '12px', p: 2.5,
-                background: 'linear-gradient(135deg, #ff6600 0%, #e65c00 100%)',
-                boxShadow: '0 8px 24px rgba(255,102,0,0.25)',
+                background: 'linear-gradient(135deg, #E85219 0%, #c43e10 100%)',
+                boxShadow: '0 8px 24px rgba(232,82,25,0.25)',
               }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ color: 'white', mb: 2 }}>
                   Acoes rapidas

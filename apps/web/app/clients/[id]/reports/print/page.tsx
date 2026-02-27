@@ -17,7 +17,7 @@ type ReportData = {
 
 const STAGE_COLORS: Record<string, string> = {
   briefing: '#5D87FF', copy_ia: '#94a3b8', aprovacao: '#FFAE1F',
-  producao: '#FA896B', revisao: '#ff6600', entrega: '#13DEB9', done: '#13DEB9',
+  producao: '#FA896B', revisao: '#E85219', entrega: '#13DEB9', done: '#13DEB9',
 };
 
 const TEMPLATE_LABELS: Record<string, string> = {
@@ -79,7 +79,7 @@ export default function ReportPrintPage() {
           <button
             onClick={() => window.print()}
             style={{
-              background: '#ff6600', color: '#fff', border: 'none', padding: '10px 24px',
+              background: '#E85219', color: '#fff', border: 'none', padding: '10px 24px',
               borderRadius: 6, fontWeight: 600, fontSize: 14, cursor: 'pointer', marginRight: 8,
             }}
           >
@@ -97,11 +97,11 @@ export default function ReportPrintPage() {
         </div>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #ff6600', paddingBottom: 16, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #E85219', paddingBottom: 16, marginBottom: 24 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <img src="/assets/logo-studio.png" alt="Edro" style={{ height: 32 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              <span style={{ fontSize: 22, fontWeight: 800, color: '#ff6600' }}>Edro Studio</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: '#E85219' }}>Edro Studio</span>
             </div>
             <h1 style={{ margin: '8px 0 4px', fontSize: 20, fontWeight: 700 }}>
               {TEMPLATE_LABELS[template] || 'Relatorio de Performance'}
@@ -119,7 +119,7 @@ export default function ReportPrintPage() {
         {/* Stats Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
           {[
-            { value: report.summary.total, label: isCliente ? 'Demandas' : 'Briefings', color: '#ff6600' },
+            { value: report.summary.total, label: isCliente ? 'Demandas' : 'Briefings', color: '#E85219' },
             { value: report.summary.completed, label: isCliente ? 'Entregues' : 'Concluidos', color: '#13DEB9' },
             { value: report.summary.overdue, label: isCliente ? 'Pendentes' : 'Atrasados', color: '#FA896B' },
             { value: report.copies.total_copies, label: isCliente ? 'Pecas Criadas' : 'Copies', color: '#5D87FF' },
@@ -213,9 +213,9 @@ export default function ReportPrintPage() {
         )}
 
         {/* Footer */}
-        <div style={{ borderTop: '2px solid #ff6600', paddingTop: 12, marginTop: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ borderTop: '2px solid #E85219', paddingTop: 12, marginTop: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
-            <strong style={{ color: '#ff6600' }}>Edro Studio</strong> &nbsp;·&nbsp; Relatorio gerado automaticamente em {today}
+            <strong style={{ color: '#E85219' }}>Edro Studio</strong> &nbsp;·&nbsp; Relatorio gerado automaticamente em {today}
           </div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
             edro.studio

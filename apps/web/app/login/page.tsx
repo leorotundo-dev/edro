@@ -134,7 +134,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-between flex-1 px-16 py-12 relative overflow-hidden">
 
         {/* Glow */}
-        <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-[radial-gradient(ellipse,rgba(255,102,0,0.10)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-[radial-gradient(ellipse,rgba(232,82,25,0.10)_0%,transparent_70%)] pointer-events-none" />
 
         {/* Logo */}
         <div>
@@ -231,10 +231,10 @@ export default function LoginPage() {
                   color: '#e2e8f0',
                   '& fieldset': { borderColor: 'rgba(255,255,255,0.12)' },
                   '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
-                  '&.Mui-focused fieldset': { borderColor: '#ff6600' },
+                  '&.Mui-focused fieldset': { borderColor: '#E85219' },
                 },
                 '& .MuiInputLabel-root': { color: '#64748b' },
-                '& .MuiInputLabel-root.Mui-focused': { color: '#ff6600' },
+                '& .MuiInputLabel-root.Mui-focused': { color: '#E85219' },
               }}
             />
 
@@ -253,10 +253,10 @@ export default function LoginPage() {
                     color: '#e2e8f0',
                     '& fieldset': { borderColor: 'rgba(255,255,255,0.12)' },
                     '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
-                    '&.Mui-focused fieldset': { borderColor: '#ff6600' },
+                    '&.Mui-focused fieldset': { borderColor: '#E85219' },
                   },
                   '& .MuiInputLabel-root': { color: '#64748b' },
-                  '& .MuiInputLabel-root.Mui-focused': { color: '#ff6600' },
+                  '& .MuiInputLabel-root.Mui-focused': { color: '#E85219' },
                 }}
               />
             )}
@@ -268,11 +268,11 @@ export default function LoginPage() {
               fullWidth
               sx={{
                 mt: 0.5,
-                bgcolor: '#ff6600',
+                bgcolor: '#E85219',
                 fontWeight: 700,
                 py: 1.25,
                 '&:hover': { bgcolor: '#e55c00' },
-                '&:disabled': { bgcolor: 'rgba(255,102,0,0.4)' },
+                '&:disabled': { bgcolor: 'rgba(232,82,25,0.4)' },
               }}
             >
               {loading

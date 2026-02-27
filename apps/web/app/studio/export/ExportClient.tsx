@@ -307,14 +307,14 @@ export default function ExportClient() {
             <Card>
               <CardContent>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                  <IconMail size={18} color="#ff6600" />
+                  <IconMail size={18} color="#E85219" />
                   <Typography variant="subtitle2" fontWeight={700}>Enviar para aprovação</Typography>
                 </Stack>
                 {!emailDraft ? (
                   <Button variant="outlined" fullWidth onClick={handleGenerateEmailDraft}
                     disabled={generatingEmail}
                     startIcon={generatingEmail ? <CircularProgress size={14} /> : <IconSparkles size={14} />}
-                    sx={{ borderColor: '#ff6600', color: '#ff6600', textTransform: 'none' }}>
+                    sx={{ borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}>
                     {generatingEmail ? 'Gerando...' : 'Gerar email de aprovação'}
                   </Button>
                 ) : (
@@ -329,7 +329,7 @@ export default function ExportClient() {
                     <Stack direction="row" spacing={1}>
                       <Button variant="contained" size="small"
                         onClick={() => briefing?.id && apiPost(`/edro/briefings/${briefing.id}/send-email`, emailDraft).catch(() => {})}
-                        sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}>
+                        sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none' }}>
                         Enviar email
                       </Button>
                       <Button variant="text" size="small"

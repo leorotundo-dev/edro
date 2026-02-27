@@ -364,7 +364,7 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
           {prefs.amd_performance.length > 0 && (
             <Box>
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
-                <IconTarget size={15} color="#ff6600" />
+                <IconTarget size={15} color="#E85219" />
                 <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Performance por AMD
                 </Typography>
@@ -472,7 +472,7 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
       {/* ── Learning Rules from format performance ── */}
       <Box>
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
-          <IconSparkles size={15} color="#ff6600" />
+          <IconSparkles size={15} color="#E85219" />
           <Typography variant="subtitle1" fontWeight={700}>Regras de Uplift</Typography>
           <Typography variant="caption" color="text.secondary">
             Padrões com uplift ≥ 15% vs. baseline derivados de métricas reais de campanhas.

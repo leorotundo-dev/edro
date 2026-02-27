@@ -232,10 +232,10 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const c1 = brandColors[1] || (c0 ? darkenHex(c0) : undefined);
   const headerBg = c0
     ? `linear-gradient(135deg, ${c0} 0%, ${c1} 100%)`
-    : 'linear-gradient(135deg, #ff6600 0%, #e65c00 50%, #cc5200 100%)';
+    : 'linear-gradient(135deg, #E85219 0%, #c43e10 50%, #cc5200 100%)';
   const headerShadow = c0
     ? `0 8px 32px ${hexToRgba(c0, 0.35)}`
-    : '0 8px 32px rgba(255, 102, 0, 0.3)';
+    : '0 8px 32px rgba(232, 82, 25, 0.3)';
 
   const sourcesLabel = analysisResult?.sources_used
     ? Object.entries(analysisResult.sources_used)
@@ -304,9 +304,9 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 href={`/studio/brief?clientId=${clientId}`}
                 sx={{
                   textTransform: 'none',
-                  bgcolor: '#ff6600',
+                  bgcolor: '#E85219',
                   color: 'white',
-                  '&:hover': { bgcolor: '#e65c00' },
+                  '&:hover': { bgcolor: '#c43e10' },
                 }}
               >
                 Criar Pauta

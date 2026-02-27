@@ -155,7 +155,7 @@ export default function ClientIntegrationsPage() {
                         chart: { toolbar: { show: false }, stacked: false },
                         plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '60%' } },
                         xaxis: { categories: metaData.campaigns.map((c) => c.name.length > 25 ? c.name.slice(0, 25) + '...' : c.name) },
-                        colors: ['#ff6600', '#5D87FF'],
+                        colors: ['#E85219', '#5D87FF'],
                         dataLabels: { enabled: false },
                         grid: { borderColor: '#f0f0f0' },
                         legend: { position: 'top' as const },

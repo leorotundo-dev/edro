@@ -282,14 +282,14 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   px: 1.25,
                   py: 0.6,
                   borderRadius: 1.5,
-                  bgcolor: 'rgba(255,102,0,0.04)',
-                  border: '1px solid rgba(255,102,0,0.12)',
+                  bgcolor: 'rgba(232,82,25,0.04)',
+                  border: '1px solid rgba(232,82,25,0.12)',
                   overflow: 'hidden',
                   maxWidth: 480,
                   flexShrink: 1,
                 }}
               >
-                <Avatar sx={{ width: 22, height: 22, bgcolor: '#ff6600', fontSize: '0.7rem' }}>
+                <Avatar sx={{ width: 22, height: 22, bgcolor: '#E85219', fontSize: '0.7rem' }}>
                   {activeClient.name?.[0] || 'C'}
                 </Avatar>
                 <Typography variant="caption" sx={{ fontWeight: 700 }}>
@@ -313,8 +313,8 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                       height: 18,
                       fontSize: '0.62rem',
                       maxWidth: 130,
-                      bgcolor: 'rgba(255,102,0,0.08)',
-                      color: '#ff6600',
+                      bgcolor: 'rgba(232,82,25,0.08)',
+                      color: '#E85219',
                     }}
                   />
                 ))}

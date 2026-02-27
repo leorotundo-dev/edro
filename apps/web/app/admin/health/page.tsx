@@ -91,7 +91,7 @@ export default function AdminHealthPage() {
     <AppShell title="System Admin">
       <Box sx={{ p: 3, width: '100%', maxWidth: 1400, mx: 'auto' }}>
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-        <IconHeartbeat size={28} color="#ff6600" />
+        <IconHeartbeat size={28} color="#E85219" />
         <Box flex={1}>
           <Typography variant="h5" fontWeight={700}>Health Score — Todos os Clientes</Typography>
           <Typography variant="body2" color="text.secondary">Visão geral da saúde de produção de cada cliente.</Typography>
@@ -110,7 +110,7 @@ export default function AdminHealthPage() {
       {data && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
-            { label: 'Score Médio', value: `${data.summary.avg_score}`, color: '#ff6600', sub: `${data.summary.total} clientes` },
+            { label: 'Score Médio', value: `${data.summary.avg_score}`, color: '#E85219', sub: `${data.summary.total} clientes` },
             { label: 'Excelentes', value: `${data.summary.excellent}`, color: '#13DEB9', sub: 'Score ≥ 80' },
             { label: 'Em Atenção', value: `${data.summary.warning + data.summary.critical}`, color: '#FA896B', sub: 'Score < 60' },
             { label: 'Gargalos Ativos', value: `${data.summary.total_bottlenecks}`, color: '#FFAE1F', sub: 'Briefings >48h parados' },
@@ -143,7 +143,7 @@ export default function AdminHealthPage() {
               label={s === 'status' ? 'Por Criticidade' : s === 'score' ? 'Por Score' : s === 'bottlenecks' ? 'Por Gargalos' : 'A-Z'}
               size="small"
               onClick={() => setSortBy(s)}
-              sx={{ cursor: 'pointer', bgcolor: sortBy === s ? '#ff6600' : undefined, color: sortBy === s ? '#fff' : undefined }}
+              sx={{ cursor: 'pointer', bgcolor: sortBy === s ? '#E85219' : undefined, color: sortBy === s ? '#fff' : undefined }}
             />
           ))}
         </Stack>
@@ -152,7 +152,7 @@ export default function AdminHealthPage() {
       {/* Client grid */}
       {loading && !data ? (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <CircularProgress size={32} sx={{ color: '#ff6600' }} />
+          <CircularProgress size={32} sx={{ color: '#E85219' }} />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Calculando scores para todos os clientes...
           </Typography>

@@ -219,7 +219,7 @@ export default function SectionEnrichmentCard({
                   variant="contained"
                   onClick={handleSaveManual}
                   disabled={savingManual}
-                  sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                  sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
                 >
                   {savingManual ? 'Salvando...' : 'Salvar'}
                 </Button>
@@ -312,7 +312,7 @@ export default function SectionEnrichmentCard({
               size="small"
               icon={<IconBulb size={12} />}
               label={`${fields.length} sugest${fields.length > 1 ? 'oes' : 'ao'}`}
-              sx={{ bgcolor: 'rgba(255,102,0,0.08)', color: '#ff6600' }}
+              sx={{ bgcolor: 'rgba(232,82,25,0.08)', color: '#E85219' }}
             />
             {refreshedAt ? (
               <Typography variant="caption" color="text.secondary">
@@ -361,7 +361,7 @@ export default function SectionEnrichmentCard({
                     startIcon={<IconCircleCheck size={14} />}
                     onClick={() => handleConfirm(field, entry.value)}
                     disabled={loadingField === field}
-                    sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                    sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
                   >
                     Confirmar
                   </Button>

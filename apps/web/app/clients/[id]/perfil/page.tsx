@@ -507,7 +507,7 @@ export default function PerfilPage() {
             <CardContent>
               <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
                 <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Avatar sx={{ bgcolor: '#fff1e6', color: '#ff6600', width: 36, height: 36 }}>
+                  <Avatar sx={{ bgcolor: '#fff1e6', color: '#E85219', width: 36, height: 36 }}>
                     <IconUserSquare size={20} />
                   </Avatar>
                   <Typography variant="h6" fontWeight={700}>Identidade do Cliente</Typography>

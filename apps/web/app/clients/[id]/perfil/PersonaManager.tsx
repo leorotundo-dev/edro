@@ -130,7 +130,7 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
               startIcon={generating ? <CircularProgress size={13} /> : <IconSparkles size={15} />}
               onClick={handleGenerate}
               disabled={generating}
-              sx={{ borderColor: '#ff6600', color: '#ff6600', '&:hover': { borderColor: '#e65c00', bgcolor: 'rgba(255,102,0,0.05)' } }}
+              sx={{ borderColor: '#E85219', color: '#E85219', '&:hover': { borderColor: '#c43e10', bgcolor: 'rgba(232,82,25,0.05)' } }}
             >
               {generating ? 'Gerando...' : 'Gerar com IA'}
             </Button>
@@ -145,8 +145,8 @@ export default function PersonaManager({ clientId }: { clientId: string }) {
         </Stack>
 
         {suggested.length > 0 && (
-          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(255,102,0,0.04)', borderRadius: 2, border: '1px dashed rgba(255,102,0,0.3)' }}>
-            <Typography variant="caption" fontWeight={700} color="#ff6600" sx={{ display: 'block', mb: 1.5 }}>
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(232,82,25,0.04)', borderRadius: 2, border: '1px dashed rgba(232,82,25,0.3)' }}>
+            <Typography variant="caption" fontWeight={700} color="#E85219" sx={{ display: 'block', mb: 1.5 }}>
               Sugestões da IA — revise e adicione as que fizer sentido
             </Typography>
             <Grid container spacing={1.5}>

@@ -1007,7 +1007,7 @@ function CampaignDetail({
                                         component="a"
                                         href={`/studio/brief/${linkedBriefing.id}`}
                                         clickable
-                                        sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(255,102,0,0.08)', color: '#ff6600', border: '1px solid rgba(255,102,0,0.3)', maxWidth: 180, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                                        sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(232,82,25,0.08)', color: '#E85219', border: '1px solid rgba(232,82,25,0.3)', maxWidth: 180, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
                                       />
                                     ) : (
                                       <Button
@@ -1015,7 +1015,7 @@ function CampaignDetail({
                                         variant="contained"
                                         component="a"
                                         href={`/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(result.draft.hook_text)}&message=${encodeURIComponent(result.audit.approved_text)}&source=behavioral_copy&campaign_id=${encodeURIComponent(campaign.id)}&campaign_phase_id=${encodeURIComponent(bi.phase_id ?? '')}&behavior_intent_id=${encodeURIComponent(bi.id ?? '')}${result.id ? `&behavioral_copy_id=${encodeURIComponent(result.id)}` : ''}`}
-                                        sx={{ fontSize: '0.65rem', height: 24, px: 1.25, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
+                                        sx={{ fontSize: '0.65rem', height: 24, px: 1.25, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none' }}
                                       >
                                         Criar Briefing
                                       </Button>
@@ -1737,7 +1737,7 @@ function CreateCampaignDialog({
                     width: s === dialogStep ? 20 : 8,
                     height: 8,
                     borderRadius: 4,
-                    bgcolor: s === dialogStep ? '#ff6600' : s < dialogStep ? '#13DEB9' : 'grey.300',
+                    bgcolor: s === dialogStep ? '#E85219' : s < dialogStep ? '#13DEB9' : 'grey.300',
                     transition: 'all 0.2s',
                   }}
                 />
@@ -1799,10 +1799,10 @@ function CreateCampaignDialog({
           <Stack spacing={2.5} sx={{ mt: 0.5 }}>
 
             {/* AI Assistant Card */}
-            <Box sx={{ border: '1px dashed rgba(255,102,0,0.4)', borderRadius: 2, p: 2, bgcolor: 'rgba(255,102,0,0.025)' }}>
+            <Box sx={{ border: '1px dashed rgba(232,82,25,0.4)', borderRadius: 2, p: 2, bgcolor: 'rgba(232,82,25,0.025)' }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                <IconSparkles size={18} color="#ff6600" />
-                <Typography variant="subtitle2" fontWeight={700} color="#ff6600">
+                <IconSparkles size={18} color="#E85219" />
+                <Typography variant="subtitle2" fontWeight={700} color="#E85219">
                   Assistente IA — Recomendação de Formatos
                 </Typography>
               </Stack>
@@ -1822,7 +1822,7 @@ function CreateCampaignDialog({
                 startIcon={recommending ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <IconSparkles size={15} />}
                 onClick={handleRecommend}
                 disabled={recommending}
-                sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
               >
                 {recommending ? 'Analisando...' : 'Sugerir formatos com IA'}
               </Button>
@@ -1909,7 +1909,7 @@ function CreateCampaignDialog({
                           border: '1px solid', borderColor: 'divider',
                           bgcolor: 'background.paper',
                           textDecoration: 'none', color: 'inherit',
-                          '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.03)' },
+                          '&:hover': { borderColor: '#E85219', bgcolor: 'rgba(232,82,25,0.03)' },
                           transition: 'all 0.15s',
                         }}
                       >
@@ -2001,7 +2001,7 @@ function CreateCampaignDialog({
                 setError('');
                 setDialogStep(1);
               }}
-              sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+              sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
             >
               Próximo: Formatos
             </Button>

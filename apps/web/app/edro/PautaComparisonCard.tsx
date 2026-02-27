@@ -114,7 +114,7 @@ export default function PautaComparisonCard({
                   fullWidth
                   onClick={onApproveA}
                   disabled={loading}
-                  sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                  sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
                 >
                   Aprovar A
                 </Button>

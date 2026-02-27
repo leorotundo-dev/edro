@@ -183,7 +183,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     label: 'Data Comemorativa',
     description: 'Planejada, sazonal, celebracao ou efemeride.',
     icon: <IconCalendarEvent size={22} />,
-    color: '#ff6600',
+    color: '#E85219',
     defaults: {
       objective: 'Engajamento',
       tone: 'Inspirador',
@@ -616,7 +616,7 @@ export default function BriefClient() {
     return '#94a3b8';                   // cinza
   };
 
-  const CLIENT_COLORS = ['#ff6600', '#5D87FF', '#7c3aed', '#dc2626', '#059669', '#d97706'];
+  const CLIENT_COLORS = ['#E85219', '#5D87FF', '#7c3aed', '#dc2626', '#059669', '#d97706'];
   const getClientColor = (name: string) => CLIENT_COLORS[name.charCodeAt(0) % CLIENT_COLORS.length];
 
   const handleSelectClient = (client: ClientRow) => {
@@ -904,8 +904,8 @@ export default function BriefClient() {
                 variant="contained"
                 href={`/studio/${draftRecovery.step}`}
                 sx={{
-                  bgcolor: '#ff6600',
-                  '&:hover': { bgcolor: '#e65c00' },
+                  bgcolor: '#E85219',
+                  '&:hover': { bgcolor: '#c43e10' },
                   textTransform: 'none',
                 }}
               >
@@ -994,7 +994,7 @@ export default function BriefClient() {
         ) : (
           <Card
             variant="outlined"
-            sx={{ borderColor: 'rgba(255,102,0,0.35)', bgcolor: 'rgba(255,102,0,0.02)' }}
+            sx={{ borderColor: 'rgba(232,82,25,0.35)', bgcolor: 'rgba(232,82,25,0.02)' }}
           >
             <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
               <Stack direction="row" spacing={1.5} alignItems="center">
@@ -1002,7 +1002,7 @@ export default function BriefClient() {
                   sx={{
                     width: 34,
                     height: 34,
-                    bgcolor: selectedClient ? (selectedClient.profile?.brand_colors?.[0] || getClientColor(selectedClient.name)) : '#ff6600',
+                    bgcolor: selectedClient ? (selectedClient.profile?.brand_colors?.[0] || getClientColor(selectedClient.name)) : '#E85219',
                     fontSize: '0.95rem',
                     fontWeight: 700,
                   }}
@@ -1219,7 +1219,7 @@ export default function BriefClient() {
                 variant="contained"
                 startIcon={<IconCalendarEvent size={16} />}
                 onClick={openCalendar}
-                sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, whiteSpace: 'nowrap', flexShrink: 0 }}
+                sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, whiteSpace: 'nowrap', flexShrink: 0 }}
               >
                 Abrir calendario
               </Button>
@@ -1232,16 +1232,16 @@ export default function BriefClient() {
         <Card
           variant="outlined"
           sx={{
-            borderColor: 'rgba(255,102,0,0.2)',
-            bgcolor: 'rgba(255,102,0,0.03)',
+            borderColor: 'rgba(232,82,25,0.2)',
+            bgcolor: 'rgba(232,82,25,0.03)',
           }}
         >
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
-              <IconLink size={15} color="#ff6600" />
+              <IconLink size={15} color="#E85219" />
               <Typography
                 variant="caption"
-                sx={{ textTransform: 'uppercase', color: '#ff6600', fontWeight: 700 }}
+                sx={{ textTransform: 'uppercase', color: '#E85219', fontWeight: 700 }}
               >
                 Origem desta pauta
               </Typography>
@@ -1261,7 +1261,7 @@ export default function BriefClient() {
               variant="text"
               onClick={() => prefillFromSource(sourceContext)}
               startIcon={<IconSparkles size={14} />}
-              sx={{ mt: 1, color: '#ff6600', textTransform: 'none', px: 0 }}
+              sx={{ mt: 1, color: '#E85219', textTransform: 'none', px: 0 }}
             >
               Usar como base do briefing
             </Button>
@@ -1396,8 +1396,8 @@ export default function BriefClient() {
                   sx={{
                     mt: 0.75,
                     cursor: 'pointer',
-                    bgcolor: 'rgba(255,102,0,0.08)',
-                    color: '#ff6600',
+                    bgcolor: 'rgba(232,82,25,0.08)',
+                    color: '#E85219',
                   }}
                 />
               ) : null}
@@ -1608,12 +1608,12 @@ export default function BriefClient() {
                           borderRadius: 1,
                           cursor: 'pointer',
                           bgcolor: isSelected
-                            ? '#ff6600'
+                            ? '#E85219'
                             : isToday
-                            ? 'rgba(255,102,0,0.12)'
+                            ? 'rgba(232,82,25,0.12)'
                             : 'transparent',
                           color: isSelected ? '#fff' : 'text.primary',
-                          '&:hover': { bgcolor: isSelected ? '#e65c00' : 'rgba(255,102,0,0.08)' },
+                          '&:hover': { bgcolor: isSelected ? '#c43e10' : 'rgba(232,82,25,0.08)' },
                           transition: 'background 0.12s',
                         }}
                       >
@@ -1673,7 +1673,7 @@ export default function BriefClient() {
                           onClick={() => handleEventPick({ ...evt, date: selectedDay })}
                           sx={{
                             cursor: 'pointer',
-                            '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.02)' },
+                            '&:hover': { borderColor: '#E85219', bgcolor: 'rgba(232,82,25,0.02)' },
                             transition: 'border-color 0.12s',
                           }}
                         >
@@ -1730,7 +1730,7 @@ export default function BriefClient() {
                       fullWidth
                       disabled={!manualEventName.trim()}
                       onClick={() => handleEventPick({ name: manualEventName.trim(), date: selectedDay })}
-                      sx={{ mt: 1, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}
+                      sx={{ mt: 1, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
                     >
                       Usar esta data
                     </Button>

@@ -808,10 +808,10 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                                     fontSize: '0.7rem',
                                     py: 0.25,
                                     px: 1,
-                                    borderColor: '#ff6600',
-                                    color: '#ff6600',
+                                    borderColor: '#E85219',
+                                    color: '#E85219',
                                     textTransform: 'none',
-                                    '&:hover': { bgcolor: 'rgba(255,102,0,0.05)', borderColor: '#ff6600' },
+                                    '&:hover': { bgcolor: 'rgba(232,82,25,0.05)', borderColor: '#E85219' },
                                   }}
                                 >
                                   Criar Pauta

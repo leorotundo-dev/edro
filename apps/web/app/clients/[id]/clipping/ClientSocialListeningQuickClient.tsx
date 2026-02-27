@@ -1270,7 +1270,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
                           href={createHref}
                           component="a"
                           startIcon={<IconPlus size={14} />}
-                          sx={{ textTransform: 'none', borderColor: '#ff6600', color: '#ff6600' }}
+                          sx={{ textTransform: 'none', borderColor: '#E85219', color: '#E85219' }}
                         >
                           Criar pauta
                         </Button>

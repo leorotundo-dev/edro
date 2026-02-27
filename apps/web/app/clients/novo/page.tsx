@@ -246,7 +246,7 @@ export default function NewClientWizardPage() {
         </Typography>
         <Stack direction="row" spacing={2} justifyContent="center">
           <Button variant="contained" onClick={() => router.push(`/clients/${createdId}`)}
-            sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             Abrir Painel do Cliente
           </Button>
           <Button variant="outlined" onClick={() => router.push(`/clients/${createdId}/analytics`)}>
@@ -277,7 +277,7 @@ export default function NewClientWizardPage() {
               StepIconComponent={() => (
                 <Box sx={{
                   width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  bgcolor: i < step ? '#13DEB9' : i === step ? '#ff6600' : 'action.hover',
+                  bgcolor: i < step ? '#13DEB9' : i === step ? '#E85219' : 'action.hover',
                   color: i <= step ? '#fff' : 'text.secondary',
                 }}>
                   {i < step ? <IconCheck size={16} /> : s.icon}
@@ -299,7 +299,7 @@ export default function NewClientWizardPage() {
           {step === 0 && (
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
-                <IconBuilding size={22} color="#ff6600" />
+                <IconBuilding size={22} color="#E85219" />
                 <Typography variant="h6" fontWeight={700}>Identidade do Cliente</Typography>
               </Stack>
               <Stack spacing={3}>
@@ -318,7 +318,7 @@ export default function NewClientWizardPage() {
                       startIcon={researching ? <CircularProgress size={14} /> : <IconWorldSearch size={16} />}
                       onClick={handleResearch}
                       disabled={researching || !data.name.trim()}
-                      sx={{ borderColor: '#ff6600', color: '#ff6600', '&:hover': { borderColor: '#e65c00', bgcolor: 'rgba(255,102,0,0.05)' } }}
+                      sx={{ borderColor: '#E85219', color: '#E85219', '&:hover': { borderColor: '#c43e10', bgcolor: 'rgba(232,82,25,0.05)' } }}
                     >
                       {researching ? 'Pesquisando...' : 'Pesquisar na internet'}
                     </Button>
@@ -340,7 +340,7 @@ export default function NewClientWizardPage() {
                         key={seg} label={seg} clickable
                         onClick={() => set('segment_primary', seg)}
                         sx={{
-                          bgcolor: data.segment_primary === seg ? '#ff6600' : undefined,
+                          bgcolor: data.segment_primary === seg ? '#E85219' : undefined,
                           color: data.segment_primary === seg ? '#fff' : undefined,
                           fontWeight: data.segment_primary === seg ? 700 : undefined,
                         }}
@@ -434,7 +434,7 @@ export default function NewClientWizardPage() {
           {step === 2 && (
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
-                <IconTag size={22} color="#ff6600" />
+                <IconTag size={22} color="#E85219" />
                 <Typography variant="h6" fontWeight={700}>Keywords & Redes Sociais</Typography>
               </Stack>
               <Stack spacing={3}>
@@ -454,7 +454,7 @@ export default function NewClientWizardPage() {
                   <Stack direction="row" flexWrap="wrap" gap={0.5}>
                     {data.keywords.map((kw) => (
                       <Chip key={kw} label={kw} size="small" onDelete={() => removeKeyword(kw)}
-                        sx={{ bgcolor: 'rgba(255,102,0,0.1)', color: '#ff6600' }} />
+                        sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219' }} />
                     ))}
                     {data.keywords.length === 0 && (
                       <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
@@ -573,7 +573,7 @@ export default function NewClientWizardPage() {
         {step < STEPS.length - 1 ? (
           <Button variant="contained" endIcon={<IconArrowRight size={18} />}
             onClick={next}
-            sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             Próximo
           </Button>
         ) : (

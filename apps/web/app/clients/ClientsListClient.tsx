@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
-import Avatar from '@mui/material/Avatar';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -238,13 +238,14 @@ export default function ClientsListClient() {
                 <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                     <Stack direction="row" spacing={2} alignItems="center">
-                      <Avatar
-                        variant="rounded"
+                      <EdroAvatar
                         src={client.logo_url}
-                        sx={{ bgcolor: brandColor ? `${brandColor}22` : 'grey.100', width: 48, height: 48, color: brandColor || 'primary.main' }}
+                        alt={client.name}
+                        size={48}
+                        sx={{ bgcolor: brandColor ? `${brandColor}22` : 'grey.100', color: brandColor || 'primary.main' }}
                       >
-                        <IconBriefcase size={22} />
-                      </Avatar>
+                        <IconBriefcase size={20} />
+                      </EdroAvatar>
                       <Box>
                         <Typography variant="h6">{client.name}</Typography>
                         <Typography variant="body2" color="text.secondary">

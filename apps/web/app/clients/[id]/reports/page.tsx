@@ -59,7 +59,7 @@ const STAGE_COLORS: Record<string, string> = {
   copy_ia: '#94a3b8',
   aprovacao: '#FFAE1F',
   producao: '#FA896B',
-  revisao: '#ff6600',
+  revisao: '#E85219',
   entrega: '#13DEB9',
   done: '#13DEB9',
 };
@@ -178,15 +178,15 @@ export default function ClientReportsPage() {
               onClick={() => setTemplate(t.key)}
               sx={{
                 cursor: 'pointer',
-                borderColor: template === t.key ? '#ff6600' : 'divider',
+                borderColor: template === t.key ? '#E85219' : 'divider',
                 borderWidth: template === t.key ? 2 : 1,
-                bgcolor: template === t.key ? 'rgba(255,102,0,0.04)' : 'transparent',
+                bgcolor: template === t.key ? 'rgba(232,82,25,0.04)' : 'transparent',
                 transition: 'all 0.15s',
-                '&:hover': { borderColor: '#ff6600' },
+                '&:hover': { borderColor: '#E85219' },
               }}
             >
               <CardContent sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1.5 }}>
-                <Radio checked={template === t.key} size="small" sx={{ p: 0, mt: 0.2, color: '#ff6600', '&.Mui-checked': { color: '#ff6600' } }} />
+                <Radio checked={template === t.key} size="small" sx={{ p: 0, mt: 0.2, color: '#E85219', '&.Mui-checked': { color: '#E85219' } }} />
                 <Box>
                   <Stack direction="row" spacing={0.5} alignItems="center">
                     {t.icon}
@@ -206,7 +206,7 @@ export default function ClientReportsPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
             <TextField label="De" type="date" value={from} onChange={(e) => setFrom(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
             <TextField label="Ate" type="date" value={to} onChange={(e) => setTo(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
-            <Button variant="contained" onClick={generateReport} disabled={loading} sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            <Button variant="contained" onClick={generateReport} disabled={loading} sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
               {loading ? <CircularProgress size={20} /> : 'Gerar Relatorio'}
             </Button>
             {report && (
@@ -474,7 +474,7 @@ export default function ClientReportsPage() {
               <Card variant="outlined" sx={{ mb: 3 }}>
                 <CardContent>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                    <IconBulb size={20} color="#ff6600" />
+                    <IconBulb size={20} color="#E85219" />
                     <Typography variant="h6" fontWeight={700}>Diagnostico Executivo</Typography>
                   </Stack>
                   <Typography

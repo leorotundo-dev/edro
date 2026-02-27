@@ -633,9 +633,9 @@ export default function ClientAnalyticsCore({
                       <Typography variant="caption" color="text.secondary">Peças Produzidas</Typography>
                     </CardContent>
                   </Card>
-                  <Card variant="outlined" sx={{ textAlign: 'center', bgcolor: 'rgba(255,102,0,0.05)' }}>
+                  <Card variant="outlined" sx={{ textAlign: 'center', bgcolor: 'rgba(232,82,25,0.05)' }}>
                     <CardContent>
-                      <Typography variant="h4" fontWeight={800} color="#ff6600">
+                      <Typography variant="h4" fontWeight={800} color="#E85219">
                         R$ {pov.data.value.market_value.toLocaleString('pt-BR')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">Valor de Mercado Estimado</Typography>
@@ -725,7 +725,7 @@ export default function ClientAnalyticsCore({
                 <Card variant="outlined">
                   <CardContent>
                     <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Promessa da Marca</Typography>
-                    <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#ff6600' }}>
+                    <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#E85219' }}>
                       "{brandVoice.dna.brand_promise}"
                     </Typography>
                   </CardContent>
@@ -836,7 +836,7 @@ export default function ClientAnalyticsCore({
         <Box>
           <Button variant="contained" startIcon={gapsLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconSearch size={18} />}
             onClick={loadGaps} disabled={gapsLoading}
-            sx={{ mb: gapsLoading ? 0 : 3, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            sx={{ mb: gapsLoading ? 0 : 3, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             {gapsLoading ? 'Pesquisando tendências...' : 'Detectar Content Gaps'}
           </Button>
 
@@ -867,7 +867,7 @@ export default function ClientAnalyticsCore({
                       {g.suggested_topics?.length > 0 && (
                         <Stack direction="row" flexWrap="wrap" gap={0.5}>
                           {g.suggested_topics.map((t, j) => (
-                            <Chip key={j} label={t} size="small" sx={{ bgcolor: 'rgba(255,102,0,0.1)', color: '#ff6600', fontSize: '0.7rem' }} />
+                            <Chip key={j} label={t} size="small" sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219', fontSize: '0.7rem' }} />
                           ))}
                         </Stack>
                       )}
@@ -880,7 +880,7 @@ export default function ClientAnalyticsCore({
                   <Typography variant="caption" color="text.secondary">Fontes: </Typography>
                   {gaps.citations.map((c, i) => (
                     <Typography key={i} variant="caption" sx={{ mr: 1 }}>
-                      <a href={c} target="_blank" rel="noreferrer" style={{ color: '#ff6600' }}>[{i + 1}]</a>
+                      <a href={c} target="_blank" rel="noreferrer" style={{ color: '#E85219' }}>[{i + 1}]</a>
                     </Typography>
                   ))}
                 </Box>
@@ -998,7 +998,7 @@ export default function ClientAnalyticsCore({
                   <Grid size={{ xs: 12, md: 6 }}>
                     <Card variant="outlined" sx={{ textAlign: 'center' }}>
                       <CardContent>
-                        <Typography variant="h3" fontWeight={800} color="#ff6600">{roi.value.value_multiplier}x</Typography>
+                        <Typography variant="h3" fontWeight={800} color="#E85219">{roi.value.value_multiplier}x</Typography>
                         <Typography variant="body2" color="text.secondary">Multiplicador de Valor</Typography>
                         <Typography variant="caption" color="text.secondary">
                           Paga R$ {roi.value.retainer_total.toLocaleString('pt-BR')} — recebe {roi.value.value_multiplier}x em valor
@@ -1018,7 +1018,7 @@ export default function ClientAnalyticsCore({
         <Box>
           <Button variant="contained" startIcon={calendarLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconCalendarEvent size={18} />}
             onClick={loadCalendar} disabled={calendarLoading}
-            sx={{ mb: 3, bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' } }}>
+            sx={{ mb: 3, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             {calendarLoading ? 'Analisando padrões...' : 'Gerar Calendário Preditivo'}
           </Button>
 

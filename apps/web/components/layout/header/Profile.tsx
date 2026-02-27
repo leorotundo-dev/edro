@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Avatar from '@mui/material/Avatar';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 import Box from '@mui/material/Box';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -69,18 +69,22 @@ export default function Profile() {
             {user?.role || 'Team'}
           </Typography>
         </Box>
-        <Avatar
-          src="/modernize/images/profile/user-1.jpg"
+        <EdroAvatar
           alt={displayName}
+          size={36}
           sx={{
-            width: 40,
-            height: 40,
+            bgcolor: 'primary.main',
+            color: '#fff',
+            fontSize: '0.8rem',
+            fontWeight: 700,
             border: '2px solid',
             borderColor: 'divider',
             transition: 'all 0.2s',
             '&:hover': { borderColor: 'primary.main' },
           }}
-        />
+        >
+          {displayName.slice(0, 2).toUpperCase()}
+        </EdroAvatar>
       </Stack>
 
       <Menu

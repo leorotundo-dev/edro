@@ -346,7 +346,7 @@ const parseRatioValue = (value?: string | null) => {
   return w / h;
 };
 
-const createSvgDataUri = (text: string, width: number, height: number, accent = '#ff6600') => {
+const createSvgDataUri = (text: string, width: number, height: number, accent = '#E85219') => {
   const safeText = text || 'Preview';
   const lines = wrapText(safeText, 26, 6);
   const lineHeight = Math.round(height / 8);
@@ -1820,7 +1820,7 @@ export default function Page() {
                   onClick={handleGenerateImagePrompt}
                   disabled={generatingPrompt}
                   startIcon={generatingPrompt ? <CircularProgress size={12} /> : <IconSparkles size={14} />}
-                  sx={{ borderColor: '#ff6600', color: '#ff6600', fontSize: '0.72rem', textTransform: 'none' }}
+                  sx={{ borderColor: '#E85219', color: '#E85219', fontSize: '0.72rem', textTransform: 'none' }}
                 >
                   {generatingPrompt ? 'Gerando prompt...' : 'Gerar prompt Midjourney/DALL-E'}
                 </Button>

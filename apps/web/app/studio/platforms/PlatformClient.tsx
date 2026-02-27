@@ -761,13 +761,13 @@ export default function PlatformClient() {
 
       {/* AI-First Recommendation View */}
       {viewMode === 'ai_recommendation' && recommendation ? (
-        <Card sx={{ border: 2, borderColor: 'rgba(255,102,0,0.3)', bgcolor: 'rgba(255,102,0,0.02)' }}>
+        <Card sx={{ border: 2, borderColor: 'rgba(232,82,25,0.3)', bgcolor: 'rgba(232,82,25,0.02)' }}>
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-              <IconSparkles size={18} color="#ff6600" />
+              <IconSparkles size={18} color="#E85219" />
               <Typography variant="subtitle1" fontWeight={700}>Recomendação da IA</Typography>
               <Chip size="small" label={`${recommendation.recommended_formats.length} formatos`}
-                sx={{ bgcolor: 'rgba(255,102,0,0.1)', color: '#ff6600' }} />
+                sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219' }} />
             </Stack>
             {recommendation.summary && (
               <Stack direction="row" spacing={3} sx={{ mb: 2, p: 1.5, bgcolor: 'background.default', borderRadius: 2 }}>
@@ -806,14 +806,14 @@ export default function PlatformClient() {
                   return (
                     <Card key={fmtId} variant="outlined" sx={{
                       cursor: 'pointer',
-                      borderColor: isChecked ? '#ff6600' : 'divider',
+                      borderColor: isChecked ? '#E85219' : 'divider',
                       borderWidth: isChecked ? 1.5 : 1,
                       transition: 'all 0.15s',
-                      '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.02)' },
+                      '&:hover': { borderColor: '#E85219', bgcolor: 'rgba(232,82,25,0.02)' },
                     }} onClick={() => toggleFormat(fmtId)}>
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction="row" alignItems="center" spacing={2}>
-                          <Checkbox checked={isChecked} size="small" sx={{ p: 0, color: '#ff6600', '&.Mui-checked': { color: '#ff6600' } }} onChange={() => toggleFormat(fmtId)} onClick={(e) => e.stopPropagation()} />
+                          <Checkbox checked={isChecked} size="small" sx={{ p: 0, color: '#E85219', '&.Mui-checked': { color: '#E85219' } }} onChange={() => toggleFormat(fmtId)} onClick={(e) => e.stopPropagation()} />
                           <Box sx={{ flex: 1 }}>
                             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                               <Typography variant="subtitle2" fontWeight={700}>{fmt.format_name}</Typography>
@@ -841,7 +841,7 @@ export default function PlatformClient() {
             <Button fullWidth variant="contained" size="large"
               onClick={handleContinue}
               disabled={selectedIds.size === 0 || saving}
-              sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none', mb: 1 }}>
+              sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', mb: 1 }}>
               {saving ? 'Salvando...' : `Usar ${selectedIds.size} formato${selectedIds.size !== 1 ? 's' : ''} selecionado${selectedIds.size !== 1 ? 's' : ''}`}
             </Button>
             <Button fullWidth variant="text" onClick={() => setViewMode('manual')}

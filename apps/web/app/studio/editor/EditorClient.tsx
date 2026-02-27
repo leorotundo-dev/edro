@@ -1601,10 +1601,10 @@ export default function EditorClient() {
                                     onClick={() => setSelectedOption(idx)}
                                     sx={{
                                       border: '2px solid',
-                                      borderColor: selectedOption === idx ? '#ff6600' : 'divider',
+                                      borderColor: selectedOption === idx ? '#E85219' : 'divider',
                                       transition: 'border-color 0.15s',
                                       cursor: 'pointer',
-                                      '&:hover': { borderColor: '#ff6600' },
+                                      '&:hover': { borderColor: '#E85219' },
                                       height: '100%',
                                       display: 'flex',
                                       flexDirection: 'column',
@@ -1746,7 +1746,7 @@ export default function EditorClient() {
                                           variant="contained"
                                           onClick={() => handleCopySelected(idx)}
                                           disabled={feedbackLoading}
-                                          sx={{ bgcolor: '#ff6600', '&:hover': { bgcolor: '#e65c00' }, textTransform: 'none' }}
+                                          sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none' }}
                                         >
                                           Esta é a melhor
                                         </Button>
