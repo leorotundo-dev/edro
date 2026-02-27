@@ -262,9 +262,7 @@ export default function HomeClient() {
           sx={{
             position: 'relative',
             overflow: 'hidden',
-            backgroundImage: 'url(/modernize/images/backgrounds/welcome-bg2.png)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            background: 'linear-gradient(135deg, rgba(232,82,25,0.06) 0%, transparent 60%)',
           }}
         >
           <CardContent sx={{ position: 'relative', zIndex: 1 }}>

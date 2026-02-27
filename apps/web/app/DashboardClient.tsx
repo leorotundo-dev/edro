@@ -333,12 +333,11 @@ export default function DashboardClient() {
         {/* ── Hero ────────────────────────────────────────────── */}
         <Card sx={{ position: 'relative', overflow: 'hidden' }}>
           <Box
-            component="img"
-            src="/modernize/images/backgrounds/welcome-bg2.png"
-            alt=""
             sx={{
-              position: 'absolute', right: 0, top: 0,
-              height: '100%', width: 'auto', opacity: 0.3, pointerEvents: 'none', zIndex: 0,
+              position: 'absolute', right: -80, top: -80,
+              width: 400, height: 400, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(232,82,25,0.10) 0%, transparent 70%)',
+              pointerEvents: 'none', zIndex: 0,
             }}
           />
           <CardContent sx={{ position: 'relative', pb: 3 }}>

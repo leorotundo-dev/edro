@@ -65,14 +65,24 @@ function formatDateBR(iso?: string) {
   return `${day}/${month}/${year}`;
 }
 
+type UserInfo = { name?: string; email?: string };
+
 export default function StudioLayout({ children }: StudioLayoutProps) {
   const pathname = usePathname();
   const currentStep = getCurrentStep(pathname);
   const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
+  const [user, setUser] = useState<UserInfo>({});
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Load user from localStorage
+    try {
+      const stored = window.localStorage.getItem('edro_user');
+      if (stored) setUser(JSON.parse(stored) as UserInfo);
+    } catch { /* ignore */ }
+
     const readClient = () => {
       try {
         const selected = JSON.parse(
@@ -139,27 +149,17 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
       >
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 3 }}>
           <Box
-            sx={{
-              width: 36,
-              height: 36,
-              borderRadius: 2,
-              bgcolor: 'white',
-              border: 1,
-              borderColor: 'divider',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: 1,
-            }}
-          >
-            <Box component="img" src="/modernize/images/logos/logoIcon.svg" alt="Modernize logo" sx={{ width: 24, height: 24 }} />
-          </Box>
+            component="img"
+            src="/brand/icon-orange.png"
+            alt="edro"
+            sx={{ width: 32, height: 32, objectFit: 'contain' }}
+          />
           <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, letterSpacing: '-0.01em' }}>
-              Edro Creative
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, letterSpacing: '-0.01em' }}>
+              Creative Studio
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Studio
+              edro.studio
             </Typography>
           </Box>
         </Stack>
@@ -187,11 +187,11 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   transition: 'background-color 0.2s',
                   ...(isActive
                     ? {
-                        bgcolor: 'primary.lighter',
+                        bgcolor: 'rgba(232,82,25,0.08)',
                         color: 'primary.main',
                         fontWeight: 600,
                         border: 1,
-                        borderColor: 'primary.light',
+                        borderColor: 'rgba(232,82,25,0.25)',
                       }
                     : isPast
                       ? {
@@ -365,19 +365,24 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
               sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em' }}
             />
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ textAlign: 'right' }}>
+              <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
                 <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', lineHeight: 1 }}>
-                  Leo Rotundo
+                  {user?.name || user?.email?.split('@')[0] || 'Edro User'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                  Admin
+                  {user?.email || ''}
                 </Typography>
               </Box>
               <Avatar
-                src="/modernize/images/profile/user-1.jpg"
-                alt="User avatar"
-                sx={{ width: 36, height: 36, border: 1, borderColor: 'divider' }}
-              />
+                sx={{
+                  width: 36, height: 36,
+                  bgcolor: '#E85219', color: '#fff',
+                  fontSize: '0.8rem', fontWeight: 700,
+                  border: 1, borderColor: 'divider',
+                }}
+              >
+                {(user?.name || user?.email || 'E').slice(0, 2).toUpperCase()}
+              </Avatar>
             </Stack>
             <IconButton component={Link} href="/clients" size="small" sx={{ color: 'text.secondary' }}>
               <IconX size={20} />
