@@ -1,5 +1,5 @@
 const Typography = {
-  fontFamily: "'Plus Jakarta Sans', sans-serif",
+  fontFamily: "'Space Grotesk', sans-serif",
   h1: {
     fontWeight: 600,
     fontSize: '2.25rem',

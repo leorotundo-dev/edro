@@ -1,6 +1,14 @@
 import './globals.css';
+import { Space_Grotesk } from 'next/font/google';
 import AuthGate from '@/components/AuthGate';
 import ThemeProvider from '@/utils/theme/ThemeProvider';
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-space-grotesk',
+});
 
 export const metadata = {
   title: 'Edro Editorial Board',
@@ -13,14 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>
+    <html lang="pt-BR" className={spaceGrotesk.variable}>
+      <body className={spaceGrotesk.className}>
         <ThemeProvider>
           <AuthGate>{children}</AuthGate>
         </ThemeProvider>
