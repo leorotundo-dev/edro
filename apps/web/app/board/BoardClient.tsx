@@ -10,6 +10,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -156,12 +157,43 @@ export default function BoardClient({ clientId }: BoardClientProps) {
 
   if (loading && clients.length === 0) {
     return (
-      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 200 }}>
-        <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando Kanban...
-        </Typography>
-      </Stack>
+      <AppShell title="Kanban">
+        <Stack spacing={3}>
+          <Stack spacing={0.5}>
+            <Skeleton variant="text" width={200} height={32} />
+            <Skeleton variant="text" width={280} height={18} />
+          </Stack>
+          {/* Kanban columns */}
+          <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
+            {Array.from({ length: 5 }).map((_, col) => (
+              <Box key={col} sx={{ minWidth: 260, flexShrink: 0 }}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Skeleton variant="rounded" width={90} height={22} sx={{ borderRadius: '99px' }} />
+                      <Skeleton variant="circular" width={22} height={22} />
+                    </Stack>
+                    <Stack spacing={1.5}>
+                      {Array.from({ length: col === 0 ? 4 : col === 1 ? 3 : 2 }).map((_, i) => (
+                        <Card key={i} variant="outlined" sx={{ boxShadow: 'none' }}>
+                          <CardContent sx={{ p: '12px !important' }}>
+                            <Skeleton variant="text" width="80%" height={16} />
+                            <Skeleton variant="text" width="55%" height={14} sx={{ mt: 0.5 }} />
+                            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+                              <Skeleton variant="rounded" width={50} height={18} sx={{ borderRadius: '99px' }} />
+                              <Skeleton variant="rounded" width={40} height={18} sx={{ borderRadius: '99px' }} />
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Box>
+            ))}
+          </Box>
+        </Stack>
+      </AppShell>
     );
   }
 

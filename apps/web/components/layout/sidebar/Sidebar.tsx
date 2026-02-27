@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
@@ -10,6 +11,8 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
+import Avatar from '@mui/material/Avatar';
+import Tooltip from '@mui/material/Tooltip';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MenuItems from './MenuItems';
@@ -44,6 +47,20 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const theme = useTheme();
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const { role } = useRole();
+
+  const [user, setUser] = useState<{ name?: string; email?: string; role?: string }>({});
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('edro_user');
+    if (!stored) return;
+    try { setUser(JSON.parse(stored)); } catch { /* ignore */ }
+  }, []);
+  const displayName = useMemo(() => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Edro User';
+  }, [user]);
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   const sidebarContent = (
     <Box
@@ -185,33 +202,66 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
         })}
       </Box>
 
-      {/* Bottom accent bar */}
-      <Box
-        sx={{
-          borderTop: `1px solid ${EDRO_BORDER}`,
-          px: 2,
-          py: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: open ? 'flex-start' : 'center',
-          gap: 1,
-        }}
-      >
+      {/* User footer */}
+      <Tooltip title={open ? '' : `${displayName} · ${user?.role || role || 'Team'}`} placement="right">
         <Box
           sx={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            bgcolor: EDRO_ORANGE,
-            flexShrink: 0,
+            borderTop: `1px solid ${EDRO_BORDER}`,
+            px: open ? 2 : 1,
+            py: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: open ? 'flex-start' : 'center',
+            gap: 1.5,
+            cursor: 'default',
+            transition: 'background-color 0.15s ease',
+            '&:hover': { bgcolor: EDRO_BG_HOVER },
           }}
-        />
-        {open && (
-          <Typography sx={{ fontSize: '0.65rem', color: EDRO_TEXT_DIM, letterSpacing: '0.05em' }}>
-            edro.studio
-          </Typography>
-        )}
-      </Box>
+        >
+          <Avatar
+            sx={{
+              width: 32,
+              height: 32,
+              bgcolor: EDRO_ORANGE,
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              flexShrink: 0,
+              border: `1.5px solid rgba(255,255,255,0.12)`,
+            }}
+          >
+            {initials}
+          </Avatar>
+          {open && (
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                sx={{
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: EDRO_TEXT,
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {displayName}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '0.65rem',
+                  color: EDRO_TEXT_DIM,
+                  lineHeight: 1.3,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {user?.role || role || 'Team'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </Tooltip>
     </Box>
   );
 

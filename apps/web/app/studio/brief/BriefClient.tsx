@@ -10,6 +10,7 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import Avatar from '@mui/material/Avatar';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -837,12 +838,52 @@ export default function BriefClient() {
 
   if (loading && clients.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-          Carregando briefing...
-        </Typography>
-      </Box>
+      <Stack spacing={3}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
+          <Stack spacing={0.5}>
+            <Skeleton variant="text" width={140} height={32} />
+            <Skeleton variant="text" width={280} height={18} />
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <Skeleton variant="rounded" width={120} height={36} />
+            <Skeleton variant="rounded" width={100} height={36} />
+          </Stack>
+        </Stack>
+        {/* Two-column form body */}
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, md: 8 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Skeleton variant="text" width={100} height={20} sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  <Skeleton variant="rounded" height={52} />
+                  <Skeleton variant="rounded" height={52} />
+                  <Skeleton variant="rounded" height={100} />
+                  <Stack direction="row" spacing={2}>
+                    <Skeleton variant="rounded" height={52} sx={{ flex: 1 }} />
+                    <Skeleton variant="rounded" height={52} sx={{ flex: 1 }} />
+                  </Stack>
+                  <Skeleton variant="rounded" height={52} />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Skeleton variant="text" width={90} height={20} sx={{ mb: 2 }} />
+                <Stack spacing={1.5}>
+                  <Skeleton variant="rounded" height={44} />
+                  <Skeleton variant="rounded" height={44} />
+                  <Skeleton variant="rounded" height={44} />
+                  <Skeleton variant="rounded" height={44} />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Stack>
     );
   }
 

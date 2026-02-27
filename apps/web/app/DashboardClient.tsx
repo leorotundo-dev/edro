@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
@@ -157,7 +157,31 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ── Sub-components ───────────────────────────────────────────────────
 
+function useCountUp(target: number, duration = 600) {
+  const [displayed, setDisplayed] = useState(0);
+  const rafRef = useRef<number>(0);
+  useEffect(() => {
+    if (typeof target !== 'number' || !isFinite(target)) return;
+    const start = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayed(Math.round(eased * target));
+      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target, duration]);
+  return displayed;
+}
+
 function StatBox({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
+  const numericValue = typeof value === 'number' ? value : NaN;
+  const animated = useCountUp(isFinite(numericValue) ? numericValue : 0);
+  const display = typeof value === 'string' ? value : animated;
+
   return (
     <DashboardCard sx={{ flex: 1, minWidth: 140 }}>
       <Stack direction="row" alignItems="center" spacing={2}>
@@ -171,7 +195,7 @@ function StatBox({ label, value, icon, color }: { label: string; value: string |
           {icon}
         </Box>
         <Box>
-          <Typography variant="h4" fontWeight={700}>{value}</Typography>
+          <Typography variant="h4" fontWeight={700}>{display}</Typography>
           <Typography variant="body2" color="text.secondary">{label}</Typography>
         </Box>
       </Stack>

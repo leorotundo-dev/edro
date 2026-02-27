@@ -18,6 +18,7 @@ import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Skeleton from '@mui/material/Skeleton';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -1138,12 +1139,53 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   if (loading && clients.length === 0) {
     return (
-      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
-        <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando calendario...
-        </Typography>
-      </Stack>
+      <AppShell title="Calendario">
+        <Stack spacing={3}>
+          {/* Controls bar */}
+          <Card variant="outlined">
+            <CardContent>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
+                <Stack direction="row" spacing={1}>
+                  <Skeleton variant="rounded" width={32} height={32} />
+                  <Skeleton variant="rounded" width={120} height={32} />
+                  <Skeleton variant="rounded" width={32} height={32} />
+                </Stack>
+                <Stack direction="row" spacing={1}>
+                  {['Mes', 'Semana', 'Dia'].map((l) => (
+                    <Skeleton key={l} variant="rounded" width={64} height={32} />
+                  ))}
+                </Stack>
+                <Skeleton variant="rounded" width={140} height={32} />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {/* Calendar grid */}
+          <Card variant="outlined">
+            <CardContent>
+              {/* Weekday header */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <Skeleton key={i} variant="text" height={16} />
+                ))}
+              </Box>
+              {/* Calendar days — 5 rows × 7 cols */}
+              {Array.from({ length: 5 }).map((_, row) => (
+                <Box key={row} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
+                  {Array.from({ length: 7 }).map((_, col) => (
+                    <Box key={col} sx={{ minHeight: 80 }}>
+                      <Skeleton variant="text" width={24} height={18} />
+                      {row === 0 && col % 3 === 0 && <Skeleton variant="rounded" height={22} sx={{ mt: 0.5 }} />}
+                      {row === 1 && col % 2 === 0 && <Skeleton variant="rounded" height={22} sx={{ mt: 0.5 }} />}
+                      {row === 2 && col % 4 === 0 && <Skeleton variant="rounded" height={22} sx={{ mt: 0.5 }} />}
+                    </Box>
+                  ))}
+                </Box>
+              ))}
+            </CardContent>
+          </Card>
+        </Stack>
+      </AppShell>
     );
   }
 
