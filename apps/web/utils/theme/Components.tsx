@@ -182,13 +182,13 @@ const Components: Components<Theme> = {
           backgroundColor: '#f3f4f6',
         },
         '&.Mui-selected': {
-          backgroundColor: '#fff1e6',
-          color: '#ff6600',
+          backgroundColor: 'rgba(232, 82, 25, 0.08)',
+          color: '#E85219',
           '&:hover': {
-            backgroundColor: '#ffe3cc',
+            backgroundColor: 'rgba(232, 82, 25, 0.14)',
           },
           '& .MuiListItemIcon-root': {
-            color: '#ff6600',
+            color: '#E85219',
           },
         },
       },

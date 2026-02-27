@@ -1,8 +1,8 @@
 const DefaultColors = {
   primary: {
-    main: '#ff6600',
-    light: '#fff1e6',
-    dark: '#e65c00',
+    main: '#E85219',
+    light: '#fdeee8',
+    dark: '#c43e10',
     contrastText: '#ffffff',
   },
   secondary: {
