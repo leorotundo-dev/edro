@@ -1,8 +1,8 @@
 const DarkColors = {
   primary: {
-    main: '#ff6600',
-    light: '#3d2200',
-    dark: '#ff8533',
+    main: '#E85219',
+    light: '#3d1a0a',
+    dark: '#c43e10',
     contrastText: '#ffffff',
   },
   secondary: {

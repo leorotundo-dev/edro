@@ -76,7 +76,7 @@ const Components: Components<Theme> = {
       },
       containedPrimary: {
         '&:hover': {
-          backgroundColor: '#e65c00',
+          backgroundColor: '#c43e10',
         },
       },
     },
@@ -101,8 +101,8 @@ const Components: Components<Theme> = {
         fontSize: '0.6875rem',
       },
       colorPrimary: {
-        backgroundColor: '#fff1e6',
-        color: '#ff6600',
+        backgroundColor: '#fdeee8',
+        color: '#E85219',
       },
       colorSuccess: {
         backgroundColor: '#E6FFFA',
@@ -132,10 +132,10 @@ const Components: Components<Theme> = {
         '& .MuiOutlinedInput-root': {
           borderRadius: '12px',
           '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#ff6600',
+            borderColor: '#E85219',
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#ff6600',
+            borderColor: '#E85219',
             borderWidth: '2px',
           },
         },

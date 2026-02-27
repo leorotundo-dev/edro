@@ -290,7 +290,7 @@ const SECTION_COLORS: Record<string, { bg: string; fg: string; border: string }>
   performance:  { bg: '#f0fdfa', fg: '#0d9488', border: '#0d9488' },
   library:      { bg: '#eef2ff', fg: '#4f46e5', border: '#4f46e5' },
   creative:     { bg: '#fdf2f8', fg: '#db2777', border: '#db2777' },
-  insights:     { bg: '#fff1e6', fg: '#E85219', border: '#E85219' },
+  insights:     { bg: '#fdeee8', fg: '#E85219', border: '#E85219' },
   planning:     { bg: '#f8fafc', fg: '#475569', border: '#475569' },
 };
 

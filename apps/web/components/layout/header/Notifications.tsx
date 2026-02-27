@@ -34,7 +34,7 @@ type InAppNotification = {
 const EVENT_ICONS: Record<string, { icon: any; color: string; bgColor: string }> = {
   stage_change: { icon: IconClipboardCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
   briefing_deadline: { icon: IconCalendarEvent, color: '#FFAE1F', bgColor: '#FEF5E5' },
-  task_assigned: { icon: IconMessage2, color: '#ff6600', bgColor: '#fff1e6' },
+  task_assigned: { icon: IconMessage2, color: '#E85219', bgColor: '#fdeee8' },
   copy_approved: { icon: IconCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
   weekly_digest: { icon: IconClipboardCheck, color: '#E85219', bgColor: '#ECF2FF' },
 };

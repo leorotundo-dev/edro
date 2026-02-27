@@ -25,12 +25,12 @@ type TopCardItem = {
 };
 
 const DEFAULT_CARDS: TopCardItem[] = [
-  { title: 'Briefings', value: '—', icon: IconClipboardList, color: '#ff6600', bgColor: '#fff1e6' },
+  { title: 'Briefings', value: '—', icon: IconClipboardList, color: '#E85219', bgColor: '#fdeee8' },
   { title: 'Concluídos', value: '—', icon: IconChecks, color: '#13DEB9', bgColor: '#E6FFFA' },
   { title: 'Aprovação', value: '—', icon: IconChartBar, color: '#FFAE1F', bgColor: '#FEF5E5' },
-  { title: 'Copies IA', value: '—', icon: IconSparkles, color: '#ff8a4d', bgColor: '#fff1e6' },
+  { title: 'Copies IA', value: '—', icon: IconSparkles, color: '#ff8a4d', bgColor: '#fdeee8' },
   { title: 'Clientes', value: '—', icon: IconUsers, color: '#64748b', bgColor: '#f1f5f9' },
-  { title: 'Eventos', value: '—', icon: IconCalendar, color: '#ff6600', bgColor: '#fff1e6' },
+  { title: 'Eventos', value: '—', icon: IconCalendar, color: '#E85219', bgColor: '#fdeee8' },
 ];
 
 type TopCardsProps = {
