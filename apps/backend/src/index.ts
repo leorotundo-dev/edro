@@ -9,7 +9,7 @@ async function main() {
     try {
       await runMigrations();
     } catch (error: any) {
-      console.error('[migrations] erro ao executar migracoes:', error.message);
+      console.error('[migrations] erro ao executar migrações:', error.message);
     }
   }
 

@@ -270,8 +270,8 @@ Você tem acesso a ferramentas para consultar e operar dados reais do sistema.
 
 CAPACIDADES:
 - Consultar briefings, copies, e fluxo de trabalho do cliente
-- Buscar noticias e clipping relevante
-- Ver tendencias e mencoes em redes sociais
+- Buscar notícias e clipping relevante
+- Ver tendências e menções em redes sociais
 - Consultar calendario de datas e eventos
 - Buscar na biblioteca de conhecimento do cliente
 - Listar e gerenciar campanhas
@@ -1150,7 +1150,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           'BIBLIOTECA DE CONHECIMENTO:',
           libraryText,
           '',
-          'CLIPPING RECENTE (noticias e mencoes):',
+          'CLIPPING RECENTE (notícias e menções):',
           clippingText,
           '',
           'TENDENCIAS SOCIAIS:',

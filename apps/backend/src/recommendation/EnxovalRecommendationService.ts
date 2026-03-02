@@ -41,7 +41,7 @@ export class EnxovalRecommendationService {
   constructor(catalog?: ProductionFormat[]) {
     this.catalog = catalog ?? loadRecommendationCatalog();
     if (!this.catalog.length) {
-      console.warn('⚠️ Catalogo de producao vazio para recomendacoes.');
+      console.warn('⚠️ Catálogo de produção vazio para recomendações.');
     } else {
       console.log(`✅ Catálogo carregado: ${this.catalog.length} formatos`);
     }
