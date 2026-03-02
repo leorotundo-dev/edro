@@ -434,15 +434,15 @@ ${assetSnapshot}`,
 
 Estrutura obrigatoria:
 ## Resumo Executivo
-## Estrategias em Comum que Estamos Perdendo (Top 5, ranqueadas por impacto)
+## Estratégias em Comum que Estamos Perdendo (Top 5, ranqueadas por impacto)
 ## Gaps de Posicionamento no Mercado (Top 3)
-## Fraquezas Exploraveis da Concorrencia (Top 2)
-## Aposta Contraria (Top 1)
-## Plano de Implementacao (dificuldade + prazo esperado por tatica)
+## Fraquezas Exploráveis da Concorrência (Top 2)
+## Aposta Contrária (Top 1)
+## Plano de Implementação (dificuldade + prazo esperado por tática)
 
 Regras:
 - Perspectiva agência -> cliente.
-- So use evidencias fornecidas.
+- Só use evidências fornecidas.
 - Se faltar base: "Dado insuficiente".
 
 Dados estruturados:
@@ -848,17 +848,17 @@ Para cada recomendação:
 - liste 3 a 6 oportunidades práticas.
 - se faltar base: "Dado insuficiente para oportunidades do próximo mês".
 
-### Riscos e Mitigacao (Top 3)
+### Riscos e Mitigação (Top 3)
 - Risco:
 - Impacto:
-- Mitigacao:
+- Mitigação:
 
 ### One-page Strategic Brief
-- Situacao atual
+- Situação atual
 - Oportunidade-chave
-- Acao recomendada
+- Ação recomendada
 - Resultado esperado
-- Proximos passos
+- Próximos passos
 
 Relatório base:
 ${narrative}

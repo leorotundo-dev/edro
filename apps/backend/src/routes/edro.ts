@@ -1292,7 +1292,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     ) {
       return reply.status(403).send({
         success: false,
-        error: 'Aprovacao requer perfil gestor.',
+        error: 'Aprovação requer perfil gestor.',
       });
     }
 

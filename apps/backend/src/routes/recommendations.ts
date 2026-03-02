@@ -152,7 +152,7 @@ export default async function recommendationRoutes(app: FastifyInstance) {
           });
           recommendation.warnings = [
             ...(recommendation.warnings || []),
-            'Recomendacao gerada em modo rapido por timeout.',
+            'Recomendação gerada em modo rápido por timeout.',
           ];
         } catch (fallbackError) {
           request.log?.error?.(fallbackError, 'Recommendation fallback failed.');

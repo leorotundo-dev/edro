@@ -1189,12 +1189,12 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           clientContext || 'Perfil não disponível.',
           '',
           'Elabore:',
-          '1. PLANO DE ACAO para os proximos 30 dias (acoes concretas, priorizadas, com responsavel sugerido)',
-          '2. OPORTUNIDADES DE CALENDARIO (como aproveitar as datas proximas para este cliente)',
-          '3. RECOMENDACOES DE CONTEUDO (temas, formatos, plataformas especificas)',
-          '4. QUICK WINS (acoes de baixo esforco e alto impacto, executaveis esta semana)',
-          '5. ALERTAS (pontos de atencao urgentes que precisam de acao imediata)',
-          '6. SUGESTOES DE BRIEFINGS (ideias concretas para proximos conteudos)',
+          '1. PLANO DE AÇÃO para os próximos 30 dias (ações concretas, priorizadas, com responsável sugerido)',
+          '2. OPORTUNIDADES DE CALENDÁRIO (como aproveitar as datas próximas para este cliente)',
+          '3. RECOMENDAÇÕES DE CONTEÚDO (temas, formatos, plataformas específicas)',
+          '4. QUICK WINS (ações de baixo esforço e alto impacto, executáveis esta semana)',
+          '5. ALERTAS (pontos de atenção urgentes que precisam de ação imediata)',
+          '6. SUGESTÕES DE BRIEFINGS (ideias concretas para próximos conteúdos)',
         ].join('\n'),
         reviewPrompt: (analysisOutput: string, strategicOutput: string) => [
           'Você é o diretor de planejamento de uma agência de comunicação premium.',
@@ -1203,7 +1203,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           'INSIGHTS DO ANALISTA:',
           analysisOutput,
           '',
-          'ESTRATEGIA PROPOSTA:',
+          'ESTRATÉGIA PROPOSTA:',
           strategicOutput,
           '',
           'Produza um relatório final em português brasileiro com as seções abaixo.',
@@ -1215,24 +1215,24 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           '(resumo executivo em 3-5 frases)',
           '',
           '## Análise de Presença Digital',
-          '(pontos fortes, fracos, sentimento, metricas de performance)',
+          '(pontos fortes, fracos, sentimento, métricas de performance)',
           '',
-          '## Oportunidades e Calendario',
-          '(datas proximas + como aproveitar)',
+          '## Oportunidades e Calendário',
+          '(datas próximas + como aproveitar)',
           '',
-          '## Plano de Acao',
-          '(tabela: acao | prioridade | prazo | plataforma)',
+          '## Plano de Ação',
+          '(tabela: ação | prioridade | prazo | plataforma)',
           '',
           '## Recomendações de Conteúdo',
           '(temas, formatos, ideias de briefing)',
           '',
           '## Quick Wins',
-          '(acoes rapidas de alto impacto)',
+          '(ações rápidas de alto impacto)',
           '',
           '## Alertas e Pontos de Atenção',
-          '(riscos, ameacas, acoes urgentes)',
+          '(riscos, ameaças, ações urgentes)',
           '',
-          '## Proximos Passos',
+          '## Próximos Passos',
           '(o que fazer esta semana)',
         ].join('\n'),
         maxTokens: { analysis: 2000, creative: 2500, review: 3000 },
@@ -1251,7 +1251,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       request.log?.error({ err: error }, 'client_analysis_failed');
       return reply.status(500).send({
         success: false,
-        error: error?.message || 'Falha ao gerar analise.',
+        error: error?.message || 'Falha ao gerar análise.',
       });
     }
   });
@@ -1332,7 +1332,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
             : src('healthy', `${socialTotal} trends detectadas`),
           calendar: calTotal === 0
             ? src('warning', 'Nenhum evento futuro cadastrado')
-            : src('healthy', `${calUpcoming} eventos proximos`),
+            : src('healthy', `${calUpcoming} eventos próximos`),
           opportunities: oppUrgent > 0
             ? src('warning', `${oppUrgent} oportunidade(s) urgente(s)`)
             : src('healthy', `${oppTotal} oportunidades ativas`),
