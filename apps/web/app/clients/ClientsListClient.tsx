@@ -69,7 +69,9 @@ export default function ClientsListClient() {
     setLoading(true);
     try {
       const response = await apiGet<Client[]>('/clients');
-      setClients(response || []);
+      setClients(
+        (response || []).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+      );
     } catch {
       setClients([]);
     } finally {
