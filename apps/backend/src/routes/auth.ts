@@ -78,7 +78,7 @@ export default async function authRoutes(app: FastifyInstance) {
       const isInvalid = error?.message === 'invalid_code';
       return reply.status(isDomain ? 403 : 401).send({
         success: false,
-        error: isInvalid ? 'Codigo invalido ou expirado.' : 'Nao autorizado.',
+        error: isInvalid ? 'Código inválido ou expirado.' : 'Não autorizado.',
       });
     }
   });

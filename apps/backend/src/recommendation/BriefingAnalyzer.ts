@@ -308,10 +308,10 @@ export class BriefingAnalyzer {
    * System prompt para LLM
    */
   private getSystemPrompt(): string {
-    return `Voce e um especialista em marketing e producao criativa. Sua tarefa e analisar briefings e extrair parametros estruturados.
+    return `Você é um especialista em marketing e produção criativa. Sua tarefa é analisar briefings e extrair parâmetros estruturados.
 
 REGRAS:
-1. Retorne apenas JSON valido.
+1. Retorne apenas JSON válido.
 2. Use o contexto do cliente (quando fornecido) para ajustar tom de voz e escolhas.
 3. Se algo nao estiver explicito, faca inferencias inteligentes.
 4. Budget: se nao especificado, use um valor medio (ex: R$ 50.000).

@@ -881,7 +881,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const dueAt = parseDate(body.due_at);
     if (body.due_at && !dueAt) {
-      return reply.status(400).send({ success: false, error: 'due_at invalido' });
+      return reply.status(400).send({ success: false, error: 'due_at inválido' });
     }
 
     const tenantId = (request.user as any)?.tenant_id;
@@ -1269,7 +1269,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const body = bodySchema.parse(request.body);
 
     if (!isWorkflowStage(params.stage)) {
-      return reply.status(400).send({ success: false, error: 'stage invalido' });
+      return reply.status(400).send({ success: false, error: 'stage inválido' });
     }
 
     const user = resolveUser(request);

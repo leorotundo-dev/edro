@@ -30,9 +30,9 @@ export class OrchestratedCopyValidator implements CopyValidatorProvider {
     const mustMentions = knowledge?.must_mentions ?? [];
 
     const prompt = `
-Voce e um revisor e organizador de copy.
+Você é um revisor e organizador de copy.
 TAREFA:
-1) Validar se as copies respeitam boas praticas de ${platform}/${format}.
+1) Validar se as copies respeitam boas práticas de ${platform}/${format}.
 2) Detectar problemas (clareza, promessas, tom, tamanho, compliance).
 3) Escolher a melhor e devolver JSON normalizado.
 

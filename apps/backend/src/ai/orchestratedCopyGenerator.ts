@@ -30,7 +30,7 @@ export class OrchestratedCopyGenerator implements CopyGeneratorProvider {
     const mustMentions = knowledge?.must_mentions ?? [];
     const approvedTerms = knowledge?.approved_terms ?? [];
 
-    const systemPrompt = `Voce e um redator publicitario senior de social media. Gere copies especificas para ${platform}/${format}.`;
+    const systemPrompt = `Você é um redator publicitário sênior de social media. Gere copies específicas para ${platform}/${format}.`;
     const prompt = `
 CLIENTE: ${client.name}
 SEGMENTO: ${client.segment_primary}

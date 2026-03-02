@@ -293,7 +293,7 @@ REGRAS:
 - Nao invente dados — use apenas o que as ferramentas retornarem
 
 CONTEXTO DO CLIENTE:
-${clientContext || 'Sem contexto disponivel.'}`;
+${clientContext || 'Sem contexto disponível.'}`;
 }
 
 function parseDueAt(value?: string) {
@@ -1094,11 +1094,11 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     // Format data for prompts
     const clippingText = clippingResult.rows.length
       ? clippingResult.rows.map((r: any) => `- [${r.score}] ${r.title}: ${r.snippet || ''} (keywords: ${(r.matched_keywords || []).join(', ')})`).join('\n')
-      : 'Nenhum clipping disponivel.';
+      : 'Nenhum clipping disponível.';
 
     const trendsText = trendsResult.rows.length
       ? trendsResult.rows.map((r: any) => `- ${r.keyword} (${r.platform}): ${r.mention_count} mencoes, sentimento ${r.average_sentiment}/100, engajamento ${r.total_engagement}`).join('\n')
-      : 'Nenhuma tendencia disponivel.';
+      : 'Nenhuma tendência disponível.';
 
     const calendarText = calendarResult.rows.length
       ? calendarResult.rows.map((r: any) => `- ${r.date}: ${r.name} [${(r.categories || []).join(', ')}] relevancia base: ${r.base_relevance}`).join('\n')
@@ -1132,7 +1132,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           if (p.editorial_insights) parts.push(`insights: ${typeof p.editorial_insights === 'string' ? p.editorial_insights : JSON.stringify(p.editorial_insights)}`);
           return parts.join(' ');
         }).join('\n')
-      : 'Nenhum dado de performance disponivel (Reportei nao sincronizado).';
+      : 'Nenhum dado de performance disponível (Reportei não sincronizado).';
 
     const analyzeUsageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
       ? { tenant_id: tenantId, feature: 'client_analysis' }
@@ -1145,7 +1145,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           'Analise TODOS os dados abaixo sobre o cliente e extraia insights estruturados.',
           '',
           'PERFIL DO CLIENTE:',
-          clientContext || 'Perfil nao disponivel.',
+          clientContext || 'Perfil não disponível.',
           '',
           'BIBLIOTECA DE CONHECIMENTO:',
           libraryText,
@@ -1186,7 +1186,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           analysisOutput,
           '',
           'PERFIL DO CLIENTE:',
-          clientContext || 'Perfil nao disponivel.',
+          clientContext || 'Perfil não disponível.',
           '',
           'Elabore:',
           '1. PLANO DE ACAO para os proximos 30 dias (acoes concretas, priorizadas, com responsavel sugerido)',
