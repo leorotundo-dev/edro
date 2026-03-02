@@ -394,9 +394,9 @@ export async function runMonthlyFlow(
       const altFormats = profile.supportedFormats.filter((f) => f !== format).slice(0, 2);
       alternatives = altFormats.map((altFormat) => ({
         format: altFormat,
-        copy: makeCopy(`${theme} (variacao ${altFormat})`),
+        copy: makeCopy(`${theme} (variação ${altFormat})`),
         score: copyScore,
-        why: `Variacao de formato dentro de ${req.platform}.`,
+        why: `Variação de formato dentro de ${req.platform}.`,
       }));
     }
 

@@ -219,9 +219,9 @@ async function toolGenerateCopy(args: any, ctx: ToolContext): Promise<ToolResult
     payload.objective ? `Objetivo: ${payload.objective}` : null,
     payload.platform ? `Plataforma: ${payload.platform}` : null,
     payload.format ? `Formato: ${payload.format}` : null,
-    args.instructions ? `Instrucoes: ${args.instructions}` : null,
-    `Gere ${count} opcoes completas de copy.`,
-    `Cada opcao deve conter: Headline, Corpo e CTA.`,
+    args.instructions ? `Instruções: ${args.instructions}` : null,
+    `Gere ${count} opções completas de copy.`,
+    `Cada opção deve conter: Headline, Corpo e CTA.`,
     `Idioma: ${language}.`,
   ].filter(Boolean) as string[];
 

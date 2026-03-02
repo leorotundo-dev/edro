@@ -59,7 +59,7 @@ async function executeTriggerAction(
           event: trigger.trigger_event,
           tenantId,
           userId: member.id,
-          title: payload.title || `Automacao: ${trigger.trigger_event}`,
+          title: payload.title || `Automação: ${trigger.trigger_event}`,
           body: payload.body || payload.message,
           link: payload.link,
           recipientEmail: member.email,
@@ -85,8 +85,8 @@ async function executeTriggerAction(
             event: trigger.trigger_event,
             tenantId,
             userId: adminId,
-            title: payload.title || 'Notificacao enviada ao cliente',
-            body: `Notificacao enviada para ${clientEmail}`,
+            title: payload.title || 'Notificação enviada ao cliente',
+            body: `Notificação enviada para ${clientEmail}`,
             recipientEmail: clientEmail,
           });
         }

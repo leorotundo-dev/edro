@@ -121,7 +121,7 @@ export async function searchTrendingTopics(params: {
   language?: string;
 }): Promise<PerplexityResponse> {
   const keywordList = params.keywords.slice(0, 10).join(', ');
-  const query = `Quais as tendencias e noticias mais recentes sobre ${keywordList} no segmento ${params.segment || 'geral'} no Brasil? Liste as 5 principais tendencias com fontes.`;
+  const query = `Quais as tendências e notícias mais recentes sobre ${keywordList} no segmento ${params.segment || 'geral'} no Brasil? Liste as 5 principais tendências com fontes.`;
 
   return searchPerplexity({
     query,
@@ -141,7 +141,7 @@ export async function enrichClippingItem(params: {
   client_keywords?: string[];
 }): Promise<PerplexityResponse> {
   const keywords = params.client_keywords?.slice(0, 5).join(', ') || '';
-  const query = `Analise esta noticia e seu impacto no mercado: "${params.title}". ${params.snippet ? `Resumo: ${params.snippet.slice(0, 300)}` : ''} ${keywords ? `Contexto: relevante para ${keywords}.` : ''} Encontre informacoes adicionais, dados e impactos relacionados.`;
+  const query = `Analise esta notícia e seu impacto no mercado: "${params.title}". ${params.snippet ? `Resumo: ${params.snippet.slice(0, 300)}` : ''} ${keywords ? `Contexto: relevante para ${keywords}.` : ''} Encontre informações adicionais, dados e impactos relacionados.`;
 
   return searchPerplexity({
     query,

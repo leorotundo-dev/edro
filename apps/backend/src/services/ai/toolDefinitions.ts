@@ -28,7 +28,7 @@ export const TOOLS: ToolDefinition[] = [
   // ── Briefings & Workflow ──
   {
     name: 'list_briefings',
-    description: 'Lista briefings do cliente atual. Retorna titulo, status, data de criacao e deadline.',
+    description: 'Lista briefings do cliente atual. Retorna título, status, data de criação e deadline.',
     parameters: {
       status: { type: 'string', description: 'Filtrar por status', enum: ['draft', 'in_progress', 'done', 'cancelled'] },
       limit: { type: 'number', description: 'Máximo de resultados (default 10, max 20)' },
@@ -38,7 +38,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_briefing',
-    description: 'Retorna detalhes completos de um briefing: titulo, payload, stages, copies gerados e tarefas.',
+    description: 'Retorna detalhes completos de um briefing: título, payload, stages, copies gerados e tarefas.',
     parameters: {
       briefing_id: { type: 'string', description: 'UUID do briefing' },
     },
@@ -47,15 +47,15 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'create_briefing',
-    description: 'Cria um novo briefing para o cliente. Use quando o usuario pedir para criar um briefing, post, ou conteudo.',
+    description: 'Cria um novo briefing para o cliente. Use quando o usuário pedir para criar um briefing, post, ou conteúdo.',
     parameters: {
-      title: { type: 'string', description: 'Titulo do briefing' },
-      objective: { type: 'string', description: 'Objetivo (ex: engajamento, awareness, conversao)' },
+      title: { type: 'string', description: 'Título do briefing' },
+      objective: { type: 'string', description: 'Objetivo (ex: engajamento, awareness, conversão)' },
       platform: { type: 'string', description: 'Plataforma alvo (instagram, facebook, linkedin, tiktok, youtube, twitter)' },
-      format: { type: 'string', description: 'Formato do conteudo (post, reels, stories, carousel, video)' },
+      format: { type: 'string', description: 'Formato do conteúdo (post, reels, stories, carousel, video)' },
       deadline: { type: 'string', description: 'Data limite no formato YYYY-MM-DD' },
-      channels: { type: 'array', description: 'Canais de distribuicao', items: { type: 'string' } },
-      notes: { type: 'string', description: 'Notas ou instrucoes adicionais' },
+      channels: { type: 'array', description: 'Canais de distribuição', items: { type: 'string' } },
+      notes: { type: 'string', description: 'Notas ou instruções adicionais' },
     },
     required: ['title'],
     category: 'write',
@@ -72,12 +72,12 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'generate_copy_for_briefing',
-    description: 'Gera opcoes de copy (texto criativo) para um briefing usando o pipeline de IA. Retorna preview do copy gerado.',
+    description: 'Gera opções de copy (texto criativo) para um briefing usando o pipeline de IA. Retorna preview do copy gerado.',
     parameters: {
       briefing_id: { type: 'string', description: 'UUID do briefing' },
-      count: { type: 'number', description: 'Numero de opcoes a gerar (default 3, max 5)' },
+      count: { type: 'number', description: 'Número de opções a gerar (default 3, max 5)' },
       language: { type: 'string', description: 'Idioma (default pt)', enum: ['pt', 'en', 'es'] },
-      instructions: { type: 'string', description: 'Instrucoes adicionais para a geracao do copy' },
+      instructions: { type: 'string', description: 'Instruções adicionais para a geração do copy' },
     },
     required: ['briefing_id'],
     category: 'action',

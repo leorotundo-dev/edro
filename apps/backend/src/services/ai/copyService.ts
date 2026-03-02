@@ -345,7 +345,7 @@ export async function generateCollaborativeCopy(params: {
     '- Tom da marca e adequação ao público-alvo',
     '- Compliance (termos proibidos, menções obrigatórias)',
     '- Forca e clareza do CTA',
-    '- Adequacao ao formato/plataforma',
+    '- Adequação ao formato/plataforma',
     '- Originalidade e impacto criativo',
     '',
     'REGRAS ABSOLUTAS:',

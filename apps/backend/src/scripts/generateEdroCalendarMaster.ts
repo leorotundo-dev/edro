@@ -174,7 +174,7 @@ function ingestDailyCsv() {
         risk_weight_0_100: clamp(priority + 5, 30, 95),
         window_key: item.toUpperCase().replace(/\W+/g, '_'),
         window_phase: 'peak',
-        content_angles: 'conteudo util|informacao|contexto do dia',
+        content_angles: 'conteúdo útil|informação|contexto do dia',
         default_cta: 'Saiba mais',
         platform_fit: PLAT.BRAND,
         notes: 'Calendario 365 dias (CSV)',

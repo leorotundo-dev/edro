@@ -12,7 +12,7 @@ export type DispatchNotificationInput = {
 
 function buildEmailText(payload?: Record<string, any> | null) {
   if (!payload) {
-    return 'Nova notificacao do Edro.';
+    return 'Nova notificação do Edro.';
   }
 
   const briefing = payload.briefing || payload.briefingId || null;
@@ -50,7 +50,7 @@ function buildEmailSubject(payload?: Record<string, any> | null) {
   if (briefing?.title) {
     return `Edro: ${briefing.title}`;
   }
-  return 'Edro: nova notificacao';
+  return 'Edro: nova notificação';
 }
 
 export async function dispatchNotification(input: DispatchNotificationInput) {

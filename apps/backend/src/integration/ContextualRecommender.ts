@@ -107,7 +107,7 @@ export class ContextualRecommender {
     if (sentiment > 0.7) {
       parts.push(`Formato com ${Math.round(sentiment * 100)}% de sentimento positivo em campanhas similares`);
     } else if (sentiment < 0.4) {
-      parts.push(`Atencao: sentimento abaixo da media (${Math.round(sentiment * 100)}%) em campanhas similares`);
+      parts.push(`Atenção: sentimento abaixo da média (${Math.round(sentiment * 100)}%) em campanhas similares`);
     }
 
     const engagement = format.performanceData.engagementRate;

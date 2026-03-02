@@ -256,7 +256,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
     <div style="font-size:20px;font-weight:800;color:#ff6600;margin-bottom:4px;">Edro Studio</div>
     <div style="font-size:16px;font-weight:700;">${escapeHtml(templateLabel)}</div>
     <div style="font-size:12px;color:#64748b;margin-top:4px;">
-      Cliente: <strong>${escapeHtml(name)}</strong> &nbsp;·&nbsp; Periodo: ${escapeHtml(dateFrom)} a ${escapeHtml(dateTo)}
+      Cliente: <strong>${escapeHtml(name)}</strong> &nbsp;·&nbsp; Período: ${escapeHtml(dateFrom)} a ${escapeHtml(dateTo)}
     </div>
   </div>
 
@@ -269,7 +269,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
       </td>
       <td style="text-align:center;padding:12px;border:1px solid #e2e8f0;width:25%;">
         <div style="font-size:24px;font-weight:800;color:#13DEB9;">${summary.completed}</div>
-        <div style="font-size:11px;color:#64748b;">${isCliente ? 'Entregues' : 'Concluidos'}</div>
+        <div style="font-size:11px;color:#64748b;">${isCliente ? 'Entregues' : 'Concluídos'}</div>
       </td>
       <td style="text-align:center;padding:12px;border:1px solid #e2e8f0;width:25%;">
         <div style="font-size:24px;font-weight:800;color:#FA896B;">${summary.overdue}</div>
@@ -307,9 +307,9 @@ export default async function reportsRoutes(app: FastifyInstance) {
 
     const text = [
       `${templateLabel} — ${name}`,
-      `Periodo: ${dateFrom} a ${dateTo}`,
+      `Período: ${dateFrom} a ${dateTo}`,
       '',
-      `Briefings: ${summary.total} | Concluidos: ${summary.completed} | Atrasados: ${summary.overdue} | Copies: ${copies}`,
+      `Briefings: ${summary.total} | Concluídos: ${summary.completed} | Atrasados: ${summary.overdue} | Copies: ${copies}`,
       '',
       byStage.map((s: any) => `${s.status}: ${s.count}`).join(', '),
       '',
@@ -468,7 +468,7 @@ ${assetSnapshot}`,
         duration_ms: d2,
       }).catch(() => {});
     } catch {
-      draft = `## Resumo Executivo\n\nDado insuficiente.\n\n## Estrategias em Comum que Estamos Perdendo (Top 5, ranqueadas por impacto)\n- Dado insuficiente.`;
+      draft = `## Resumo Executivo\n\nDado insuficiente.\n\n## Estratégias em Comum que Estamos Perdendo (Top 5, ranqueadas por impacto)\n- Dado insuficiente.`;
     }
 
     // Stage 3: Claude - final strategic lens
@@ -489,11 +489,11 @@ Entregue APENAS em markdown com seções:
 ## Strategic Brief de Concorrência
 ### Executive Summary (max 100 palavras)
 ### Reverse Engineering por Concorrente
-### 5 Estrategias em Comum (rank por impacto de receita)
+### 5 Estratégias em Comum (rank por impacto de receita)
 ### 3 Gaps de Posicionamento
-### 2 Fraquezas Exploraveis
-### 1 Aposta Contraria
-### Plano de Execucao (dificuldade + timeline + KPI)
+### 2 Fraquezas Exploráveis
+### 1 Aposta Contrária
+### Plano de Execução (dificuldade + timeline + KPI)
 
 Briefing base:
 ${draft}
@@ -722,7 +722,7 @@ ${dataSnapshot}`,
         duration_ms: d1,
       }).catch(() => {});
     } catch (err: any) {
-      structuredAnalysis = `{"kpis":[],"bottlenecks":[],"highlights":["Dados brutos: ${summary?.total || 0} briefings, ${summary?.completed || 0} concluidos, ${copies?.total_copies || 0} copies"],"risk_alerts":[]}`;
+      structuredAnalysis = `{"kpis":[],"bottlenecks":[],"highlights":["Dados brutos: ${summary?.total || 0} briefings, ${summary?.completed || 0} concluídos, ${copies?.total_copies || 0} copies"],"risk_alerts":[]}`;
     }
 
     // ── 3. Tavily — Market Context (optional) ──
@@ -802,7 +802,7 @@ ${dataSnapshot}`,
         duration_ms: d3,
       }).catch(() => {});
     } catch (err: any) {
-      narrative = `## Resumo do Periodo\n\nNo periodo de ${dateFrom} a ${dateTo}, ${clientName} registrou ${summary?.total || 0} briefings com taxa de conclusao de ${completionRate}%. ${(summary?.overdue || 0) > 0 ? `Atenção: ${summary.overdue} briefing(s) em atraso.` : 'Todos os prazos em dia.'}\n\n## Oportunidades do Proximo Mes (${nextMonthLabel})\n\nDado insuficiente para oportunidades do proximo mes.`;
+      narrative = `## Resumo do Período\n\nNo período de ${dateFrom} a ${dateTo}, ${clientName} registrou ${summary?.total || 0} briefings com taxa de conclusão de ${completionRate}%. ${(summary?.overdue || 0) > 0 ? `Atenção: ${summary.overdue} briefing(s) em atraso.` : 'Todos os prazos em dia.'}\n\n## Oportunidades do Próximo Mês (${nextMonthLabel})\n\nDado insuficiente para oportunidades do próximo mês.`;
     }
 
     // ── 5. Claude — Strategic Review (final strategic lens) ──

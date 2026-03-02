@@ -364,12 +364,12 @@ export const PLATFORM_PROFILES: PlatformProfile[] = [
     platform: 'EmailMarketing',
     supportedFormats: ['Newsletter', 'Promo', 'Nurture', 'Lifecycle'],
     maxChars: { headline: 80, body: 2000, cta: 40 },
-    languageStyle: 'claro, util, com objetivo; assunto direto',
+    languageStyle: 'claro, útil, com objetivo; assunto direto',
     bestPractices: [
       'Assunto curto e objetivo',
       '1 CTA principal por email',
-      'Hierarquia clara (titulo > beneficios > CTA)',
-      'Personalizacao quando possivel',
+      'Hierarquia clara (título > benefícios > CTA)',
+      'Personalização quando possível',
     ],
     avoid: ['texto longo sem quebras', 'muitos CTAs', 'linguagem vaga'],
     defaultMix: { Newsletter: 35, Promo: 30, Nurture: 20, Lifecycle: 15 },
@@ -1972,7 +1972,7 @@ export async function generateMonthlyCalendar(
         format: altFormat,
         copy: altVal.copy,
         score: altVal.score,
-        why: `Variacao de formato sugerida para ${platform}.`,
+        why: `Variação de formato sugerida para ${platform}.`,
       });
     }
 

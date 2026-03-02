@@ -322,9 +322,9 @@ function buildPlanningCopyPrompt(params: {
     typeof payload.platform === 'string' ? `Plataforma: ${payload.platform}` : null,
     typeof payload.format === 'string' ? `Formato: ${payload.format}` : null,
     Array.isArray(payload.channels) && payload.channels.length ? `Canais: ${payload.channels.join(', ')}` : null,
-    params.instructions ? `Instrucoes adicionais: ${params.instructions}` : null,
-    `Gere ${params.count} opcoes completas de copy.`,
-    `Cada opcao deve conter: Headline, Corpo e CTA.`,
+    params.instructions ? `Instruções adicionais: ${params.instructions}` : null,
+    `Gere ${params.count} opções completas de copy.`,
+    `Cada opção deve conter: Headline, Corpo e CTA.`,
     `Idioma: ${params.language}.`,
   ].filter(Boolean) as string[];
 
