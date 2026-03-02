@@ -476,17 +476,17 @@ ${assetSnapshot}`,
     try {
       const t3 = Date.now();
       const claudeResult = await runCompletionWithFallback('claude', {
-        prompt: `Voce e o estrategista final. Revise e fortaleça o briefing competitivo para decisao executiva.
+        prompt: `Você é o estrategista final. Revise e fortaleça o briefing competitivo para decisão executiva.
 
-Regras obrigatorias:
+Regras obrigatórias:
 1. Escrever em perspectiva agência -> cliente.
 2. Priorizar impacto em marketing e vendas.
-3. Trazer recomendacoes acionaveis para este mes.
-4. Nao mencionar IA, modelos, prompts, tokens ou bastidores.
-5. Nao inventar fatos; se faltar base, use "Dado insuficiente".
+3. Trazer recomendações acionáveis para este mês.
+4. Não mencionar IA, modelos, prompts, tokens ou bastidores.
+5. Não inventar fatos; se faltar base, use "Dado insuficiente".
 
-Entregue APENAS em markdown com secoes:
-## Strategic Brief de Concorrencia
+Entregue APENAS em markdown com seções:
+## Strategic Brief de Concorrência
 ### Executive Summary (max 100 palavras)
 ### Reverse Engineering por Concorrente
 ### 5 Estrategias em Comum (rank por impacto de receita)
@@ -810,22 +810,22 @@ ${dataSnapshot}`,
     try {
       const t4 = Date.now();
       const claudeResult = await runCompletionWithFallback('claude', {
-        prompt: `Voce esta na etapa final de revisao estrategica para um relatório de agência de marketing para cliente.
+        prompt: `Você está na etapa final de revisão estratégica para um relatório de agência de marketing para cliente.
 
-Sua missao:
-- Sintetizar dados em inteligencia acionavel de negocio (marketing, vendas, posicionamento, crescimento).
-- Corrigir vies operacional e focar impacto para o cliente final.
+Sua missão:
+- Sintetizar dados em inteligência acionável de negócio (marketing, vendas, posicionamento, crescimento).
+- Corrigir viés operacional e focar impacto para o cliente final.
 - Priorizar o que gera resultado primeiro.
 
-Regras obrigatorias:
+Regras obrigatórias:
 1. Use SOMENTE dados fornecidos.
-2. Nao mencione IA, modelo, prompt, token, custo tecnico, nem bastidores.
+2. Não mencione IA, modelo, prompt, token, custo técnico, nem bastidores.
 3. Escreva sempre da perspectiva agência -> cliente.
-4. Quando nao houver base, escreva literalmente: "Dado insuficiente".
-5. Inclua oportunidades do proximo mes com base no calendario e oportunidades abertas, quando existirem.
+4. Quando não houver base, escreva literalmente: "Dado insuficiente".
+5. Inclua oportunidades do próximo mês com base no calendário e oportunidades abertas, quando existirem.
 
-Formato obrigatorio (responda APENAS com essa secao):
-## Analise Estrategica
+Formato obrigatório (responda APENAS com essa seção):
+## Análise Estratégica
 ### Executive Summary
 - resumo em ate 100 palavras.
 

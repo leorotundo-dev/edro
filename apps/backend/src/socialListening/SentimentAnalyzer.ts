@@ -41,8 +41,8 @@ const NEGATIVE_WORDS = [
 function buildPrompt(text: string, knowledge?: ClientKnowledge | null) {
   const knowledgeBlock = buildClientKnowledgeBlock(knowledge);
   const lines = [
-    'Voce e um analisador de sentimento especializado em redes sociais brasileiras.',
-    'Retorne APENAS JSON valido, sem markdown, seguindo o schema:',
+    'Você é um analisador de sentimento especializado em redes sociais brasileiras.',
+    'Retorne APENAS JSON válido, sem markdown, seguindo o schema:',
     '{',
     '  "sentiment": "positive|negative|neutral",',
     '  "score": 0,',

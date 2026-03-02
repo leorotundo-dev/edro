@@ -125,7 +125,7 @@ export async function searchTrendingTopics(params: {
 
   return searchPerplexity({
     query,
-    system_prompt: `Voce e um analista de tendencias de mercado especializado no segmento de ${params.segment || 'marketing digital'}. Responda de forma objetiva, com dados e fontes.`,
+    system_prompt: `Você é um analista de tendências de mercado especializado no segmento de ${params.segment || 'marketing digital'}. Responda de forma objetiva, com dados e fontes.`,
     search_recency_filter: 'week',
     language: params.language || 'pt-BR',
   });
@@ -145,7 +145,7 @@ export async function enrichClippingItem(params: {
 
   return searchPerplexity({
     query,
-    system_prompt: 'Voce e um analista de clipping e inteligencia de mercado. Enriqueça a analise com dados complementares, fontes relevantes e impacto no mercado.',
+    system_prompt: 'Você é um analista de clipping e inteligência de mercado. Enriqueça a análise com dados complementares, fontes relevantes e impacto no mercado.',
     max_tokens: 800,
     language: 'pt-BR',
   });
@@ -164,7 +164,7 @@ export async function researchCompetitorActivity(params: {
 
   return searchPerplexity({
     query,
-    system_prompt: 'Voce e um estrategista de marketing digital. Analise tendencias de conteudo, formatos e engajamento com dados reais.',
+    system_prompt: 'Você é um estrategista de marketing digital. Analise tendências de conteúdo, formatos e engajamento com dados reais.',
     search_recency_filter: 'month',
     language: 'pt-BR',
   });
@@ -182,7 +182,7 @@ export async function researchForCopy(params: {
 
   return searchPerplexity({
     query,
-    system_prompt: 'Voce e um pesquisador de conteudo para redes sociais. Forneca dados factuais, estatisticas e insights que possam ser usados na criacao de copies.',
+    system_prompt: 'Você é um pesquisador de conteúdo para redes sociais. Forneça dados factuais, estatísticas e insights que possam ser usados na criação de copies.',
     max_tokens: 600,
     language: 'pt-BR',
   });

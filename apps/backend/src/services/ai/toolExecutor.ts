@@ -822,7 +822,7 @@ async function toolListClientSources(args: any, ctx: ToolContext): Promise<ToolR
 async function toolGetClientInsights(args: any, ctx: ToolContext): Promise<ToolResult> {
   const insight = await getLatestClientInsight({ tenantId: ctx.tenantId, clientId: ctx.clientId });
   if (!insight) {
-    return { success: true, data: { message: 'Nenhum insight disponivel. O worker de intelligence pode ainda nao ter rodado para este cliente.' } };
+    return { success: true, data: { message: 'Nenhum insight disponível. O worker de intelligence pode ainda não ter rodado para este cliente.' } };
   }
   return {
     success: true,

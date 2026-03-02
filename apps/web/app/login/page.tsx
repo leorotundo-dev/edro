@@ -90,13 +90,13 @@ export default function LoginPage() {
       setLoading(true);
       const response = await apiPost('/auth/request', { email });
       if (response?.code) {
-        setMessage(`Codigo gerado: ${response.code}`);
+        setMessage(`Código gerado: ${response.code}`);
       } else {
-        setMessage('Codigo enviado. Verifique seu email.');
+        setMessage('Código enviado. Verifique seu email.');
       }
       setStep('verify');
     } catch (err: any) {
-      setError(err?.message || 'Falha ao solicitar codigo.');
+      setError(err?.message || 'Falha ao solicitar código.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export default function LoginPage() {
       if (response?.user) localStorage.setItem('edro_user', JSON.stringify(response.user));
       router.replace(resolveNextPath());
     } catch (err: any) {
-      setError(err?.message || 'Falha ao validar codigo.');
+      setError(err?.message || 'Falha ao validar código.');
     } finally {
       setLoading(false);
     }

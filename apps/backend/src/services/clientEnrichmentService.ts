@@ -162,7 +162,7 @@ function buildPrompt(section: EnrichmentSection, client: ClientRow) {
   const scope = SECTION_FIELDS[section].join(', ');
 
   return `
-Voce e um analista de dados de cliente para marketing.
+Você é um analista de dados de cliente para marketing.
 Retorne JSON puro (sem markdown) com esta estrutura:
 {
   "fields": {
@@ -230,7 +230,7 @@ function fallbackSuggestion(section: EnrichmentSection, client: ClientRow) {
     fields.tone_description = {
       value: profile.tone_profile
         ? `Tom ${profile.tone_profile} com linguagem clara e objetiva.`
-        : `Tom profissional, direto e sem jargao desnecessario.`,
+        : `Tom profissional, direto e sem jargão desnecessário.`,
       confidence: 0.42,
       source: 'fallback',
       reasoning: 'Sugerido a partir do tom base e segmento.',

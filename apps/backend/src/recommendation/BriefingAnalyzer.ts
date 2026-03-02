@@ -284,7 +284,7 @@ export class BriefingAnalyzer {
       prompt += `Use essas informacoes como base e complete o que estiver faltando.\n\n`;
     }
 
-    prompt += `Retorne um JSON seguindo EXATAMENTE esta estrutura (todos os campos sao obrigatorios):\n`;
+    prompt += `Retorne um JSON seguindo EXATAMENTE esta estrutura (todos os campos são obrigatórios):\n`;
     prompt += JSON.stringify(this.getExampleStructure(), null, 2);
 
     return prompt;
@@ -321,7 +321,7 @@ REGRAS:
 8. Segmento: B2C, B2B, D2C ou Internal.
 9. campaign_objective: awareness, consideration, conversion ou retention.
 10. Seja conservador nas estimativas.
-11. Retorne TODOS os campos obrigatorios.`;
+11. Retorne TODOS os campos obrigatórios.`;
   }
 
   /**

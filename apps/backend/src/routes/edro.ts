@@ -541,8 +541,8 @@ function buildCopyPrompt(params: {
     : '';
 
   return [
-    'Voce e um redator para agencia de publicidade.',
-    `Crie ${params.count} variacoes de copy para pecas criativas de redes sociais.`,
+    'Você é um redator para agência de publicidade.',
+    `Crie ${params.count} variações de copy para peças criativas de redes sociais.`,
     `Idioma: ${languageLabel}.`,
     '',
     'FORMATO DE SAIDA — use EXATAMENTE este modelo para cada variacao:',
@@ -562,7 +562,7 @@ function buildCopyPrompt(params: {
     '- Arte - Titulo e Arte - Corpo sao curtos (para caber na peca grafica)',
     '- Legenda e o texto que sera publicado abaixo da imagem no Instagram/Facebook/LinkedIn',
     '',
-    `Cliente: ${params.briefing.client_name || 'nao informado'}`,
+    `Cliente: ${params.briefing.client_name || 'não informado'}`,
     knowledgeBlock ? `BASE DE CONHECIMENTO DO CLIENTE:\n${knowledgeBlock}` : '',
     params.reporteiHint || '',
     referenceBlock,
@@ -2470,8 +2470,8 @@ export default async function edroRoutes(app: FastifyInstance) {
       }
 
       const prompt = [
-        'Voce e um estrategista de marketing digital.',
-        'Gere uma recomendacao objetiva de formato (1-2 frases) para a campanha abaixo.',
+        'Você é um estrategista de marketing digital.',
+        'Gere uma recomendação objetiva de formato (1-2 frases) para a campanha abaixo.',
         `Objetivo: ${objective}.`,
         `Plataforma: ${platform}.`,
         `Formato recomendado: ${recommendedFormat}.`,

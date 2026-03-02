@@ -265,8 +265,8 @@ GUIDELINES:
 }
 
 function buildAgentSystemPrompt(clientContext: string): string {
-  return `Voce e o Jarvis, assistente de inteligencia do sistema EDRO.
-Voce tem acesso a ferramentas para consultar e operar dados reais do sistema.
+  return `Você é o Jarvis, assistente de inteligência do sistema EDRO.
+Você tem acesso a ferramentas para consultar e operar dados reais do sistema.
 
 CAPACIDADES:
 - Consultar briefings, copies, e fluxo de trabalho do cliente
@@ -1141,7 +1141,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       const result = await runCollaborativePipeline({
         usageContext: analyzeUsageCtx,
         analysisPrompt: [
-          'Voce e um analista de dados senior de uma agencia de comunicacao.',
+          'Você é um analista de dados sênior de uma agência de comunicação.',
           'Analise TODOS os dados abaixo sobre o cliente e extraia insights estruturados.',
           '',
           'PERFIL DO CLIENTE:',

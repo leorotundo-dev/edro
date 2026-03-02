@@ -51,7 +51,7 @@ export async function runMarketIntelligenceForClient(params: {
     `SELECT id, name, tenant_id, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
     [clientId, tenantId]
   );
-  if (!rows.length) return { itemsSaved: 0, skipped: 0, searches: [], errors: ['Cliente nao encontrado'] };
+  if (!rows.length) return { itemsSaved: 0, skipped: 0, searches: [], errors: ['Cliente não encontrado'] };
 
   const client = rows[0];
   const profile = client.profile ?? {};

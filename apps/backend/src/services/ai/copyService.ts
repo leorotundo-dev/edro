@@ -40,7 +40,7 @@ type CopyPipelineResult = {
 };
 
 const buildValidationPrompt = (params: { prompt: string; creativeOutput: string }) => [
-  'Voce e um revisor tecnico de copy.',
+  'Você é um revisor técnico de copy.',
   'Valide o texto abaixo preservando o formato OPCAO N com Arte-Titulo, Arte-Corpo, Legenda e CTA.',
   'Retorne APENAS JSON valido (sem blocos de codigo):',
   '{',
@@ -266,10 +266,10 @@ export async function generateCollaborativeCopy(params: {
   // psicologica ANTES de gerar os ganchos criativos. A intencao biologica precede
   // a gramatica — tecnica de Engenharia de Decisao Digital 2026.
   const analysisPrompt = [
-    'Voce e o Estrategista-Chefe de uma agencia de publicidade de alta performance.',
+    'Você é o Estrategista-Chefe de uma agência de publicidade de alta performance.',
     'Sua funcao: analisar o briefing e o perfil do cliente e declarar PRIMEIRO a estrategia psicologica que guiara a geracao de copy — so entao defina os ganchos e direcoes criativas.',
     '',
-    'CHAIN OF THOUGHT OBRIGATORIO: preencha os campos nesta ordem:',
+    'CHAIN OF THOUGHT OBRIGATÓRIO: preencha os campos nesta ordem:',
     '1. psychological_strategy — declare em 1-2 frases qual gatilho dominante voce aplicara e por que.',
     '   Ex: "Vou usar Avercao a Perda pois o objetivo e conversao e o publico enfrenta risco de perder oportunidade de mercado. O Pacing validara a frustracoa atual; o Leading apresentara a solucao como inevitavel."',
     '2. dominant_trigger — classifique: "loss_aversion", "specificity" ou "curiosity".',
@@ -300,10 +300,10 @@ export async function generateCollaborativeCopy(params: {
   ].filter(Boolean).join('\n');
 
   const buildCreativePrompt = (analysisOutput: string) => [
-    'Voce e um redator criativo de agencia de publicidade premiada.',
-    `Crie ${params.count} variacoes de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
+    'Você é um redator criativo de agência de publicidade premiada.',
+    `Crie ${params.count} variações de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
     '',
-    'FORMATO OBRIGATORIO — use EXATAMENTE este modelo:',
+    'FORMATO OBRIGATÓRIO — use EXATAMENTE este modelo:',
     'OPCAO 1:',
     'Arte - Titulo: [headline curto e impactante para o creative/arte, ate 8 palavras]',
     'Arte - Corpo: [texto curto que aparece na peca criativa, 1 a 2 frases]',
@@ -327,8 +327,8 @@ export async function generateCollaborativeCopy(params: {
   // Dois passos obrigatorios: AUDITORIA DE VETO primeiro, revisao criativa depois.
   // Implementa o Chain of Thought critico descrito na Engenharia de Decisao 2026.
   const buildReviewPrompt = (analysisOutput: string, creativeOutput: string) => [
-    'Voce e o Auditor-Chefe de uma agencia de comunicacao de alto nivel.',
-    'Sua funcao tem DOIS PASSOS OBRIGATORIOS — execute nesta ordem:',
+    'Você é o Auditor-Chefe de uma agência de comunicação de alto nível.',
+    'Sua função tem DOIS PASSOS OBRIGATÓRIOS — execute nesta ordem:',
     '',
     '══ PASSO 1 — AUDITORIA DE VETO (execute ANTES de qualquer revisao criativa) ══',
     'Leia cada opcao e elimine TODOS os seguintes problemas antes de continuar:',
@@ -355,7 +355,7 @@ export async function generateCollaborativeCopy(params: {
     '4. PROIBIDO incluir qualquer comentario editorial, analise, nota de melhoria ou justificativa dentro do texto das opcoes.',
     '5. Cada campo (Arte - Titulo, Arte - Corpo, Legenda, CTA) deve conter APENAS o texto final da peca, nada mais.',
     '',
-    'FORMATO OBRIGATORIO — use EXATAMENTE esta estrutura para cada opcao:',
+    'FORMATO OBRIGATÓRIO — use EXATAMENTE esta estrutura para cada opção:',
     'OPCAO 1:',
     'Arte - Titulo: [headline final, sem comentarios]',
     'Arte - Corpo: [texto da peca, sem comentarios]',
@@ -532,7 +532,7 @@ export async function generateCollaborativeCopyWithLoop(params: {
   // Reuse the analysis and creative prompts from generateCollaborativeCopy
   // but use the new review/revision prompts
   const analysisPrompt = [
-    'Voce e o Estrategista-Chefe de uma agencia de publicidade de alta performance.',
+    'Você é o Estrategista-Chefe de uma agência de publicidade de alta performance.',
     'Analise o briefing e o perfil do cliente. Declare a estrategia psicologica que guiara o copy.',
     '',
     'Retorne APENAS um JSON valido:',
@@ -565,10 +565,10 @@ export async function generateCollaborativeCopyWithLoop(params: {
   ].filter(Boolean).join('\n');
 
   const buildCreativePrompt = (analysisOutput: string) => [
-    'Voce e um redator criativo de agencia de publicidade premiada.',
-    `Crie ${params.count} variacoes de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
+    'Você é um redator criativo de agência de publicidade premiada.',
+    `Crie ${params.count} variações de copy usando as DIRETRIZES DO ESTRATEGISTA abaixo.`,
     '',
-    'FORMATO OBRIGATORIO — use EXATAMENTE este modelo:',
+    'FORMATO OBRIGATÓRIO — use EXATAMENTE este modelo:',
     'OPCAO 1:',
     'Arte - Titulo: [headline curto e impactante, ate 8 palavras]',
     'Arte - Corpo: [texto curto do criativo, 1 a 2 frases]',

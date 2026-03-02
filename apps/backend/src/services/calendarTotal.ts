@@ -347,7 +347,7 @@ export const PLATFORM_PROFILES: PlatformProfile[] = [
     supportedFormats: ['FeedAd', 'StoryAd', 'ReelAd', 'CarouselAd'],
     maxChars: { body: 125, headline: 40, cta: 20 },
     languageStyle: 'beneficio + prova + CTA; direto e claro',
-    bestPractices: ['variacoes A/B', '1 promessa por criativo', 'oferta clara'],
+    bestPractices: ['variações A/B', '1 promessa por criativo', 'oferta clara'],
     avoid: ['texto longo', 'promessa confusa'],
     defaultMix: { ReelAd: 30, CarouselAd: 30, FeedAd: 25, StoryAd: 15 },
   },
@@ -1672,7 +1672,7 @@ function buildCalendarCopyPrompt(ctx: CopyContext): string {
   const knowledge = buildClientKnowledgeSummary(ctx.client);
 
   const lines = [
-    'Voce e um redator senior de agencia.',
+    'Você é um redator sênior de agência.',
     'Crie 1 copy (headline, body, cta) para redes sociais.',
     `Cliente: ${ctx.client.name}.`,
     `Segmento: ${ctx.client.segment_primary}.`,
@@ -1714,9 +1714,9 @@ function buildValidationPrompt(copy: CopyPack, ctx: CopyContext): string {
   const knowledge = buildClientKnowledgeSummary(ctx.client);
 
   return [
-    'Voce e um revisor tecnico de copy.',
-    'Nao reescreva. Apenas valide, organize e pontue o texto recebido.',
-    'Retorne APENAS JSON valido com a estrutura:',
+    'Você é um revisor técnico de copy.',
+    'Não reescreva. Apenas valide, organize e pontue o texto recebido.',
+    'Retorne APENAS JSON válido com a estrutura:',
     '{',
     '  \"score\": 0,',
     '  \"copy\": { \"headline\": \"...\", \"body\": \"...\", \"cta\": \"...\" },',

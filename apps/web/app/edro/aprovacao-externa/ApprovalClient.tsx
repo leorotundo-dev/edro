@@ -158,7 +158,7 @@ export default function ApprovalClient() {
         </Typography>
         {!isExpired && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-            Link valido ate {expiresDate.toLocaleDateString('pt-BR')}
+            Link válido até {expiresDate.toLocaleDateString('pt-BR')}
           </Typography>
         )}
       </Box>

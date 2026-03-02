@@ -348,7 +348,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
             <Box>
               <Typography variant="subtitle2" gutterBottom>Fonte</Typography>
               <Typography variant="body2" color="text.secondary">
-                {item?.source_name || 'Nao informado'}
+                {item?.source_name || 'Não informado'}
               </Typography>
             </Box>
             {item?.source_url ? (
