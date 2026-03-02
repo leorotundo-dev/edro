@@ -520,11 +520,11 @@ function buildCopyPrompt(params: {
   // Referência específica passada manualmente (botão "Adaptar ideia")
   const referenceBlock = params.referenceContext
     ? [
-        'REFERENCIA CRIATIVA PARA INSPIRACAO:',
-        params.referenceTitle ? `Titulo: ${params.referenceTitle}` : '',
+        'REFERÊNCIA CRIATIVA PARA INSPIRAÇÃO:',
+        params.referenceTitle ? `Título: ${params.referenceTitle}` : '',
         `Contexto: ${params.referenceContext}`,
         params.referenceUrl ? `Fonte: ${params.referenceUrl}` : '',
-        'Use esta referencia como inspiracao criativa. Adapte o conceito ao contexto do cliente, sem copiar literalmente.',
+        'Use esta referência como inspiração criativa. Adapte o conceito ao contexto do cliente, sem copiar literalmente.',
       ].filter(Boolean).join('\n')
     : '';
 

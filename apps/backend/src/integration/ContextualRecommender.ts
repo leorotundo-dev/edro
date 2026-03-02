@@ -118,19 +118,19 @@ export class ContextualRecommender {
 
     const virality = format.performanceData.virality;
     if (virality > 0.6) {
-      parts.push('Alto potencial de viralizacao');
+      parts.push('Alto potencial de viralização');
     }
 
     const alignedTopics = enrichedBriefing.enrichedData.trendingTopics.filter((topic) => topic.sentiment > 0.7);
     if (alignedTopics.length) {
-      parts.push(`Alinhado com tendencias em alta: ${alignedTopics.map((t) => t.topic).join(', ')}`);
+      parts.push(`Alinhado com tendências em alta: ${alignedTopics.map((t) => t.topic).join(', ')}`);
     }
 
     if (format.performanceData.sampleSize < 20) {
-      parts.push(`Nota: Baseado em ${format.performanceData.sampleSize} amostras (confianca moderada)`);
+      parts.push(`Nota: Baseado em ${format.performanceData.sampleSize} amostras (confiança moderada)`);
     }
 
-    return parts.length ? `${parts.join('. ')}.` : 'Recomendacao baseada em dados recentes de performance.';
+    return parts.length ? `${parts.join('. ')}.` : 'Recomendação baseada em dados recentes de performance.';
   }
 
   private generateTrendingAngles(enrichedBriefing: EnrichedBriefing): string[] {
@@ -138,7 +138,7 @@ export class ContextualRecommender {
 
     enrichedBriefing.enrichedData.trendingTopics.forEach((topic) => {
       if (topic.sentiment > 0.7) {
-        angles.push(`Foco em "${topic.topic}" (${topic.growth} crescimento, alta aceitacao)`);
+        angles.push(`Foco em "${topic.topic}" (${topic.growth} crescimento, alta aceitação)`);
       }
     });
 
@@ -225,7 +225,7 @@ export class ContextualRecommender {
     }
 
     if (text.includes('antes') && text.includes('depois')) {
-      return 'Usou comparacao antes/depois efetiva';
+      return 'Usou comparação antes/depois efetiva';
     }
 
     if (text.includes('gratis') || text.includes('desconto')) {
@@ -251,7 +251,7 @@ export class ContextualRecommender {
     }
 
     if (format.performanceData.sampleSize < 10) {
-      risks.push('Poucos dados disponiveis - recomendacao com baixa confianca');
+      risks.push('Poucos dados disponíveis - recomendação com baixa confiança');
     }
 
     enrichedBriefing.enrichedData.risks.forEach((risk) => risks.push(risk));

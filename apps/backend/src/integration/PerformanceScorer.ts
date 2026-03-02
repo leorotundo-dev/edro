@@ -214,7 +214,7 @@ export class PerformanceScorer {
     }
 
     if (data.virality > 0.6) {
-      strengths.push('Alto potencial de viralizacao');
+      strengths.push('Alto potencial de viralização');
     }
 
     if (data.sampleSize > 100) {
@@ -236,11 +236,11 @@ export class PerformanceScorer {
     }
 
     if (data.virality < 0.3) {
-      weaknesses.push('Baixo potencial de viralizacao');
+      weaknesses.push('Baixo potencial de viralização');
     }
 
     if (data.sampleSize < 20) {
-      weaknesses.push('Poucos dados disponiveis (baixa confianca)');
+      weaknesses.push('Poucos dados disponíveis (baixa confiança)');
     }
 
     return weaknesses;

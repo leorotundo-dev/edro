@@ -151,7 +151,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       breakdown: [
         { label: 'Entrega no Prazo', weight: 30, score: Math.round(onTimeRate * 100), value: `${Math.round(onTimeRate * 100)}%` },
         { label: 'Velocidade de Etapas', weight: 25, score: Math.round(velocityScore), value: `${avgHours.toFixed(1)}h/etapa` },
-        { label: 'Taxa de Aprovacao', weight: 20, score: Math.round(approvalRate * 100), value: `${Math.round(approvalRate * 100)}%` },
+        { label: 'Taxa de Aprovação', weight: 20, score: Math.round(approvalRate * 100), value: `${Math.round(approvalRate * 100)}%` },
         { label: 'Crescimento de Volume', weight: 15, score: Math.round(volumeScore), value: `${current} briefings` },
         { label: 'Atividade Recente', weight: 10, score: activityScore, value: `${recentActivity} updates` },
       ],
