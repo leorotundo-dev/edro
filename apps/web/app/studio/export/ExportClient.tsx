@@ -16,7 +16,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import { IconMail, IconSparkles } from '@tabler/icons-react';
+import { IconMail, IconSparkles, IconCircleCheckFilled } from '@tabler/icons-react';
 
 type BriefingPayload = {
   id: string;
@@ -33,6 +33,20 @@ type MockupItem = {
   metadata?: Record<string, any> | null;
   created_at?: string | null;
 };
+
+const STATUS_CHIP_CONFIG: Record<string, { color: 'success' | 'warning' | 'default' | 'info' | 'error'; label: string }> = {
+  approved:          { color: 'success', label: 'Aprovado' },
+  changes_requested: { color: 'warning', label: 'Ajustes' },
+  draft:             { color: 'default', label: 'Rascunho' },
+  in_review:         { color: 'info',    label: 'Em revisão' },
+  rejected:          { color: 'error',   label: 'Rejeitado' },
+};
+
+function MockupStatusChip({ status }: { status?: string | null }) {
+  const s = status || 'draft';
+  const { color, label } = STATUS_CHIP_CONFIG[s] ?? { color: 'default' as const, label: s };
+  return <Chip size="small" color={color} label={label} sx={{ height: 20, fontSize: '0.65rem' }} />;
+}
 
 const readTextResponse = (payload: any) => {
   if (!payload) return '';
@@ -241,10 +255,16 @@ export default function ExportClient() {
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                             textAlign: 'left',
+                            position: 'relative',
                             ...(selectedIds.includes(mockup.id) ? { borderColor: 'primary.main', bgcolor: 'primary.lighter' } : {}),
                           }}
                           onClick={() => toggleSelect(mockup.id)}
                         >
+                          {selectedIds.includes(mockup.id) && (
+                            <Box sx={{ position: 'absolute', top: 8, right: 8, color: 'primary.main', lineHeight: 0 }}>
+                              <IconCircleCheckFilled size={18} />
+                            </Box>
+                          )}
                           <CardContent>
                             <Typography variant="overline" color="text.secondary">
                               {mockup.platform} &bull; {mockup.format}
@@ -265,9 +285,9 @@ export default function ExportClient() {
                             >
                               {mockup.metadata?.copy || mockup.metadata?.shortText || 'Sem preview de copy.'}
                             </Typography>
-                            <Typography variant="overline" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
-                              {mockup.status || 'draft'}
-                            </Typography>
+                            <Box sx={{ mt: 1.5 }}>
+                              <MockupStatusChip status={mockup.status} />
+                            </Box>
                           </CardContent>
                         </Card>
                       </Grid>
@@ -301,15 +321,28 @@ export default function ExportClient() {
 
             <Card>
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="h6">Seleção</Typography>
-                  <Typography variant="caption" color="text.secondary">{selectionLabel}</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle2" fontWeight={700}>Seleção</Typography>
+                  <Chip
+                    size="small"
+                    label={selectedIds.length ? `${selectedIds.length} de ${mockups.length}` : 'Nenhum'}
+                    color={selectedIds.length ? 'primary' : 'default'}
+                    sx={{ height: 20, fontSize: '0.65rem' }}
+                  />
                 </Stack>
-                <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap' }}>
-                  <Button variant="text" size="small" onClick={selectAll}>
-                    Selecionar todos
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Button variant="text" size="small" onClick={selectAll} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
+                    Todos
                   </Button>
-                  <Button variant="text" size="small" onClick={clearSelection}>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => setSelectedIds(mockups.filter((m) => m.status === 'approved').map((m) => m.id))}
+                    sx={{ textTransform: 'none', fontSize: '0.75rem', color: 'success.main' }}
+                  >
+                    Aprovados
+                  </Button>
+                  <Button variant="text" size="small" onClick={clearSelection} sx={{ textTransform: 'none', fontSize: '0.75rem', color: 'text.secondary' }}>
                     Limpar
                   </Button>
                 </Stack>

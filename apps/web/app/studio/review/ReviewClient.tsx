@@ -17,7 +17,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
-import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle } from '@tabler/icons-react';
+import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle, IconCircleCheckFilled } from '@tabler/icons-react';
 
 type CopyVersion = {
   id: string;
@@ -42,6 +42,20 @@ type MockupItem = {
   metadata?: Record<string, any> | null;
   created_at?: string | null;
 };
+
+const STATUS_CHIP_CONFIG: Record<string, { color: 'success' | 'warning' | 'default' | 'info' | 'error'; label: string }> = {
+  approved:          { color: 'success', label: 'Aprovado' },
+  changes_requested: { color: 'warning', label: 'Ajustes' },
+  draft:             { color: 'default', label: 'Rascunho' },
+  in_review:         { color: 'info',    label: 'Em revisão' },
+  rejected:          { color: 'error',   label: 'Rejeitado' },
+};
+
+function MockupStatusChip({ status }: { status?: string | null }) {
+  const s = status || 'draft';
+  const { color, label } = STATUS_CHIP_CONFIG[s] ?? { color: 'default' as const, label: s };
+  return <Chip size="small" color={color} label={label} sx={{ height: 20, fontSize: '0.65rem' }} />;
+}
 
 function EthicsBadge({ copy }: { copy: CopyVersion }) {
   const policyCheck = copy.payload?._edro?.policy_check as
@@ -287,10 +301,16 @@ export default function ReviewClient() {
                           sx={{
                             cursor: 'pointer',
                             transition: 'all 0.2s',
+                            position: 'relative',
                             ...(selectedMockups.includes(mockup.id) ? { borderColor: 'primary.main', bgcolor: 'primary.lighter' } : {}),
                           }}
                           onClick={() => toggleMockup(mockup.id)}
                         >
+                          {selectedMockups.includes(mockup.id) && (
+                            <Box sx={{ position: 'absolute', top: 8, right: 8, color: 'primary.main', lineHeight: 0 }}>
+                              <IconCircleCheckFilled size={18} />
+                            </Box>
+                          )}
                           <CardContent>
                             <Typography variant="overline" color="text.secondary">
                               {mockup.platform} &bull; {mockup.format}
@@ -301,9 +321,9 @@ export default function ReviewClient() {
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                               {mockup.metadata?.copy || mockup.metadata?.shortText || 'Sem preview de copy.'}
                             </Typography>
-                            <Typography variant="overline" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
-                              {mockup.status || 'draft'}
-                            </Typography>
+                            <Box sx={{ mt: 1.5 }}>
+                              <MockupStatusChip status={mockup.status} />
+                            </Box>
                           </CardContent>
                         </Card>
                       </Grid>
@@ -378,18 +398,42 @@ export default function ReviewClient() {
 
             <Card>
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="h6">Acoes rapidas</Typography>
-                  <Typography variant="caption" color="text.secondary">Mockups</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle2" fontWeight={700}>Ações rápidas</Typography>
+                  <Chip
+                    size="small"
+                    label={selectedMockups.length ? `${selectedMockups.length} selecionado${selectedMockups.length > 1 ? 's' : ''}` : 'Nenhum'}
+                    color={selectedMockups.length ? 'primary' : 'default'}
+                    sx={{ height: 20, fontSize: '0.65rem' }}
+                  />
                 </Stack>
                 <Stack spacing={1}>
-                  <Button variant="contained" fullWidth onClick={approveSelected}>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={approveSelected}
+                    disabled={!selectedMockups.length}
+                    color="success"
+                    sx={{ textTransform: 'none' }}
+                  >
                     Aprovar selecionados
                   </Button>
-                  <Button variant="outlined" fullWidth onClick={requestChanges}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={requestChanges}
+                    disabled={!selectedMockups.length}
+                    color="warning"
+                    sx={{ textTransform: 'none' }}
+                  >
                     Solicitar ajustes
                   </Button>
                 </Stack>
+                {!selectedMockups.length && (
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+                    Clique em um mockup para selecionar
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Stack>
