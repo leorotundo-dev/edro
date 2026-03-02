@@ -31,7 +31,7 @@ const { events, errors } = parseCalendarCsv(csvText, {
 });
 
 if (!events.length) {
-  exitWithError('Nenhum evento valido encontrado no CSV.');
+  exitWithError('Nenhum evento válido encontrado no CSV.');
 }
 
 if (errors.length) {

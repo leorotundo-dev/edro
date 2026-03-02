@@ -377,8 +377,8 @@ export default async function reportsRoutes(app: FastifyInstance) {
 
 Regras:
 - Use somente os dados fornecidos.
-- Sem invencao de fatos.
-- Retorne APENAS JSON valido.
+- Sem invenção de fatos.
+- Retorne APENAS JSON válido.
 - Se faltarem evidencias, use "Dado insuficiente".
 
 Formato JSON:
@@ -841,12 +841,12 @@ Para cada recomendacao:
 - Fato observado:
 - Interpretacao:
 - Acao recomendada:
-- Confianca: alta/media/baixa
+- Confiança: alta/média/baixa
 - KPI de sucesso: meta + prazo
 
-### Oportunidades do Proximo Mes (${nextMonthLabel})
-- liste 3 a 6 oportunidades praticas.
-- se faltar base: "Dado insuficiente para oportunidades do proximo mes".
+### Oportunidades do Próximo Mês (${nextMonthLabel})
+- liste 3 a 6 oportunidades práticas.
+- se faltar base: "Dado insuficiente para oportunidades do próximo mês".
 
 ### Riscos e Mitigacao (Top 3)
 - Risco:

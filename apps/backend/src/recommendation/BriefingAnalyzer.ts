@@ -276,7 +276,7 @@ export class BriefingAnalyzer {
    * Constrói prompt para LLM
    */
   private buildPrompt(text: string, partial: Partial<ExtractedParameters>): string {
-    let prompt = `Analise o seguinte briefing de campanha e extraia os parametros estruturados. Retorne APENAS JSON valido, sem markdown.\n\n`;
+    let prompt = `Analise o seguinte briefing de campanha e extraia os parâmetros estruturados. Retorne APENAS JSON válido, sem markdown.\n\n`;
     prompt += `BRIEFING:\n${text}\n\n`;
 
     if (Object.keys(partial).length > 0) {
