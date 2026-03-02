@@ -293,10 +293,10 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
     const avg = Number(summary.avg_score ?? 0);
 
     if (total > 0) {
-      lines.push(`Social (7d): ${formatNumber(total)} mencoes; sentimento medio ${formatNumber(avg)}%.`);
-      lines.push(`Distribuicao: ${formatNumber(positive)} positivas, ${formatNumber(neutral)} neutras, ${formatNumber(negative)} negativas.`);
+      lines.push(`Social (7d): ${formatNumber(total)} menções; sentimento médio ${formatNumber(avg)}%.`);
+      lines.push(`Distribuição: ${formatNumber(positive)} positivas, ${formatNumber(neutral)} neutras, ${formatNumber(negative)} negativas.`);
     } else {
-      lines.push('Social (7d): sem mencoes coletadas ainda.');
+      lines.push('Social (7d): sem menções coletadas ainda.');
     }
 
     if (topKeywords.length) {
@@ -313,7 +313,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
           .map((t) => `${t.keyword} (${t.platform})`)
           .filter(Boolean)
           .join(', ');
-        if (formatted) lines.push(`Tendencias (24h): ${formatted}.`);
+        if (formatted) lines.push(`Tendências (24h): ${formatted}.`);
       }
     }
 
@@ -330,7 +330,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
       const next = upcoming[0];
       if (next?.name) {
         const extra = upcoming.length > 1 ? ` +${upcoming.length - 1} outras datas.` : '';
-        lines.push(`Calendario: ${next.name} em ${formatDate(next.date)}.${extra}`);
+        lines.push(`Calendário: ${next.name} em ${formatDate(next.date)}.${extra}`);
       }
     }
 
@@ -369,7 +369,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
     colors: ['#E85219'],
     plotOptions: { bar: { borderRadius: 4 } },
   };
-  const keywordChartSeries = [{ name: 'Mencoes', data: topKeywords.map((kw) => kw.total) }];
+  const keywordChartSeries = [{ name: 'Menções', data: topKeywords.map((kw) => kw.total) }];
 
   const platformChartOptions: ApexCharts.ApexOptions = {
     ...baseChartOptions(isDark),
@@ -383,9 +383,9 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
       <Box>
-        <Typography variant="h4">Insights Estrategicos</Typography>
+        <Typography variant="h4">Insights Estratégicos</Typography>
         <Typography variant="body2" color="text.secondary">
-          Visao consolidada de tendencias, oportunidades e calendario relevante.
+          Visão consolidada de tendências, oportunidades e calendário relevante.
         </Typography>
       </Box>
 
@@ -442,7 +442,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
       <Card variant="outlined">
         <CardContent>
           <Typography variant="overline" color="text.secondary">
-            Resumo estrategico
+            Resumo estratégico
           </Typography>
           <Stack spacing={0.5} sx={{ mt: 1 }}>
             {strategicSummaryLines.length ? (
@@ -496,7 +496,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card variant="outlined" sx={{ bgcolor: 'warning.light' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Sentimento medio</Typography>
+              <Typography variant="overline" color="text.secondary">Sentimento médio</Typography>
               <Typography variant="h5">{formatNumber(summary.avg_score)}%</Typography>
             </CardContent>
           </Card>
@@ -588,7 +588,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
 
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="overline" color="text.secondary">Tendencias (24h)</Typography>
+                <Typography variant="overline" color="text.secondary">Tendências (24h)</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {trends.length ? (
                     trends.map((trend) => (
@@ -598,13 +598,13 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                           <Chip size="small" label={trend.platform} />
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
-                          {formatNumber(trend.mention_count)} mencoes - {formatNumber(trend.total_engagement)} engajamentos
+                          {formatNumber(trend.mention_count)} menções · {formatNumber(trend.total_engagement)} engajamentos
                         </Typography>
                         <Divider sx={{ my: 1 }} />
                       </Box>
                     ))
                   ) : (
-                    <Typography variant="body2" color="text.secondary">Sem tendencias.</Typography>
+                    <Typography variant="body2" color="text.secondary">Sem tendências registradas.</Typography>
                   )}
                 </Stack>
               </CardContent>
@@ -616,22 +616,30 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
           <Stack spacing={2}>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="overline" color="text.secondary">Oportunidades de calendario</Typography>
+                <Typography variant="overline" color="text.secondary">Oportunidades de calendário</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {upcoming.length ? (
                     upcoming.map((event) => (
                       <Box key={event.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                           <Typography variant="subtitle2">{event.name}</Typography>
-                          <Chip size="small" label={event.tier || 'C'} />
+                          <Chip
+                            size="small"
+                            label={`Tier ${event.tier || 'C'}`}
+                            sx={{
+                              fontWeight: 700,
+                              bgcolor: event.tier === 'A' ? '#dcfce7' : event.tier === 'B' ? '#fef9c3' : '#f1f5f9',
+                              color: event.tier === 'A' ? '#16a34a' : event.tier === 'B' ? '#ca8a04' : '#64748b',
+                            }}
+                          />
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
-                          {formatDate(event.date)} - Score {formatNumber(event.score)}
+                          {formatDate(event.date)} · Score {formatNumber(event.score)}
                         </Typography>
                       </Box>
                     ))
                   ) : (
-                    <Typography variant="body2" color="text.secondary">Sem datas relevantes proximas.</Typography>
+                    <Typography variant="body2" color="text.secondary">Sem datas relevantes próximas.</Typography>
                   )}
                 </Stack>
               </CardContent>
@@ -704,16 +712,16 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
                           <Chip size="small" label={opp.priority || 'medium'} />
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
-                          {opp.description || 'Sem descricao.'}
+                          {opp.description || 'Sem descrição.'}
                         </Typography>
                         {opp.suggested_action ? (
                           <Typography variant="caption" color="primary" display="block" sx={{ mt: 1 }}>
-                            Acao sugerida: {opp.suggested_action}
+                            Ação sugerida: {opp.suggested_action}
                           </Typography>
                         ) : null}
                         <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
                           <Typography variant="caption" color="text.secondary">
-                            {opp.source || 'IA'} {opp.confidence ? `- Confianca: ${Math.round(opp.confidence)}%` : ''}
+                            {opp.source || 'IA'} {opp.confidence ? `· Confiança: ${Math.round(opp.confidence)}%` : ''}
                           </Typography>
                           {opp.status !== 'actioned' && opp.status !== 'dismissed' ? (
                             <Stack direction="row" spacing={1}>
