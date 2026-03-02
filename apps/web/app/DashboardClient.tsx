@@ -460,6 +460,7 @@ export default function DashboardClient() {
 
   const todayNumber = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const todayLong = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const todayMonth = new Date().toLocaleDateString('pt-BR', { month: 'long' });
 
   const active = (metrics?.byStatus?.active ?? 0) + (metrics?.byStatus?.in_progress ?? 0);
   const done = metrics?.byStatus?.done ?? 0;
@@ -500,7 +501,12 @@ export default function DashboardClient() {
             >
               <Stack spacing={1}>
                 <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                  <Typography variant="h3" fontWeight={700}>{todayNumber}</Typography>
+                  <Stack spacing={0}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize', fontWeight: 600, letterSpacing: '0.06em', lineHeight: 1.2 }}>
+                      {todayMonth}
+                    </Typography>
+                    <Typography variant="h3" fontWeight={700}>{todayNumber}</Typography>
+                  </Stack>
                   <Chip label={todayLong} size="small" variant="outlined" />
                 </Stack>
                 <Typography variant="body1" color="text.secondary">
