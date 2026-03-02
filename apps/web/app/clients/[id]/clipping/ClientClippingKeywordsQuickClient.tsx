@@ -188,7 +188,7 @@ export default function ClientClippingKeywordsQuickClient({
   }, [clientId]);
 
   const handleClearAll = useCallback(async () => {
-    if (!await confirm('Limpar todas as palavras obrigatorias do Clipping deste cliente?')) return;
+    if (!await confirm('Limpar todas as palavras obrigatórias do Clipping deste cliente?')) return;
     setKeywords([]);
     void saveKeywords([]);
   }, [saveKeywords]);
@@ -271,7 +271,7 @@ export default function ClientClippingKeywordsQuickClient({
 
           <Grid size={{ xs: 12 }}>
             <Typography variant="body2" color="text.secondary">
-              Estas palavras sao <b>obrigatorias</b> para uma materia entrar no Clipping do cliente. Use isso para aumentar o rigor e evitar temas irrelevantes.
+              Estas palavras são <b>obrigatórias</b> para uma matéria entrar no Clipping do cliente. Use isso para aumentar o rigor e evitar temas irrelevantes.
             </Typography>
           </Grid>
 

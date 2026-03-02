@@ -85,11 +85,11 @@ function timeAgo(dateStr: string | null) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Agora';
-  if (mins < 60) return `${mins}min atras`;
+  if (mins < 60) return `${mins}min atrás`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h atras`;
+  if (hours < 24) return `${hours}h atrás`;
   const days = Math.floor(hours / 24);
-  return `${days}d atras`;
+  return `${days}d atrás`;
 }
 
 export default function ClippingDiagnosticsPage() {
@@ -118,7 +118,7 @@ export default function ClippingDiagnosticsPage() {
           const res = await fetch(url, { method: 'GET' });
           // Any HTTP response means the backend process is running
           setConnectivity('ok');
-          setConnectivityDetail(`Backend respondeu (status ${res.status}) — esta online`);
+          setConnectivityDetail(`Backend respondeu (status ${res.status}) — está online`);
           return;
         } catch {
           // Continue to next endpoint
@@ -127,7 +127,7 @@ export default function ClippingDiagnosticsPage() {
       // All endpoints failed — backend is unreachable
       setConnectivity('down');
       setConnectivityDetail(
-        'O servidor backend NAO esta respondendo. Verifique o Railway: o servico pode estar parado ou em erro.'
+        'O servidor backend NÃO está respondendo. Verifique o Railway: o serviço pode estar parado ou em erro.'
       );
     }
     checkBackend();
@@ -174,6 +174,7 @@ export default function ClippingDiagnosticsPage() {
   const [purgeResult, setPurgeResult] = useState('');
 
   const [cancellingFetchProcessing, setCancellingFetchProcessing] = useState(false);
+  const [cancelFetchResult, setCancelFetchResult] = useState('');
 
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchAllResult, setFetchAllResult] = useState('');
@@ -207,8 +208,9 @@ export default function ClippingDiagnosticsPage() {
   };
 
   const handleCancelFetchProcessing = async () => {
-    if (!await confirm('Isso vai CANCELAR os jobs de fetch que estao em processamento (viram FAILED). Continuar?')) return;
+    if (!await confirm('Isso vai CANCELAR os jobs de fetch que estão em processamento (viram FAILED). Continuar?')) return;
     setCancellingFetchProcessing(true);
+    setCancelFetchResult('');
     try {
       const res = await apiPost<{ ok: boolean; cancelled_jobs: number; touched_sources: number }>(
         '/clipping/admin/cancel-fetch-processing',
@@ -216,12 +218,12 @@ export default function ClippingDiagnosticsPage() {
       );
       const cancelled = res?.cancelled_jobs ?? 0;
       const touched = res?.touched_sources ?? 0;
-      window.alert(
+      setCancelFetchResult(
         `${cancelled.toLocaleString('pt-BR')} jobs cancelados. ${touched.toLocaleString('pt-BR')} fontes marcadas como erro.`
       );
       await load();
     } catch (err: any) {
-      window.alert(`Erro: ${err?.message || 'falha'}`);
+      setCancelFetchResult(`Erro: ${err?.message || 'falha'}`);
     } finally {
       setCancellingFetchProcessing(false);
     }
@@ -608,13 +610,18 @@ export default function ClippingDiagnosticsPage() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  {cancelFetchResult && (
+                    <Alert severity={cancelFetchResult.startsWith('Erro') ? 'error' : 'success'} sx={{ m: 1 }}>
+                      {cancelFetchResult}
+                    </Alert>
+                  )}
                 </DashboardCard>
               </Grid>
             </Grid>
 
             {/* Sources */}
             <DashboardCard
-              title="Saude das Fontes"
+              title="Saúde das Fontes"
               action={
                 <Stack direction="row" spacing={1}>
                   <Chip size="small" label={`${data.sources.filter(s => s.health === 'ERROR').length} com erro`} color="error" variant="outlined" />

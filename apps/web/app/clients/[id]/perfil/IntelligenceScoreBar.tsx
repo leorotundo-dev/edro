@@ -35,10 +35,10 @@ function formatRelativeTime(value?: string | null) {
   if (Number.isNaN(date.getTime())) return null;
   const diffMs = Date.now() - date.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  if (diffHours < 1) return 'ha poucos minutos';
-  if (diffHours < 24) return `${diffHours}h atras`;
+  if (diffHours < 1) return 'há poucos minutos';
+  if (diffHours < 24) return `${diffHours}h atrás`;
   const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d atras`;
+  return `${diffDays}d atrás`;
 }
 
 export default function IntelligenceScoreBar({
