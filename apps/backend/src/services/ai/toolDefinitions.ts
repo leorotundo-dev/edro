@@ -291,7 +291,7 @@ export const TOOLS: ToolDefinition[] = [
   // ── Web ──
   {
     name: 'web_search',
-    description: 'Pesquisa informacoes atuais na internet. Use para buscar noticias recentes, tendencias, dados de mercado, concorrentes, eventos atuais ou qualquer informacao que nao esteja na base do cliente. Retorna trechos relevantes de paginas web.',
+    description: 'Pesquisa informações atuais na internet. Use para buscar notícias recentes, tendências, dados de mercado, concorrentes, eventos atuais ou qualquer informação que não esteja na base do cliente. Retorna trechos relevantes de páginas web.',
     parameters: {
       query: { type: 'string', description: 'Termos de busca (em portugues ou ingles, seja especifico)' },
       context: { type: 'string', description: 'Contexto adicional para refinar a busca (ex: setor, regiao, periodo)' },

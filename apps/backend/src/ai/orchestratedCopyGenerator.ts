@@ -40,12 +40,12 @@ TOM: ${knowledge?.tone?.description ?? 'equilibrado'}
 
 ${knowledgeBlock ? `${knowledgeBlock}\n` : ''}
 
-FONTES (use quando fizer sentido, nao invente):
+FONTES (use quando fizer sentido, não invente):
 ${context_pack || 'Sem fontes adicionais.'}
 
 REGRAS:
-- Gere ${max_variations} variacoes.
-- Cada variacao deve ter: headline, body, cta.
+- Gere ${max_variations} variações.
+- Cada variação deve ter: headline, body, cta.
 - Linguagem adequada a plataforma.
 - Evite promessas enganosas. Seja claro.
 ${mustMentions.length ? `- Inclua: ${mustMentions.join(', ')}.` : ''}

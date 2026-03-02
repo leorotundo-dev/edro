@@ -102,7 +102,7 @@ SAIDA (JSON):
         issues: [
           {
             code: 'INVALID_JSON',
-            message: 'Gemini nao retornou JSON valido.',
+            message: 'Gemini não retornou JSON válido.',
             severity: 'high',
           },
         ],

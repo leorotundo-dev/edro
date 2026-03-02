@@ -336,7 +336,7 @@ export async function generateCollaborativeCopy(params: {
     '□ ADJETIVO QUALITATIVO SEM DADO: "incrivel", "revolucionario", "melhor", "eficiente", "agil" sem metrica → substitua por evidencia numerica ou fato concreto.',
     '□ VOZ PASSIVA: "foi entregue", "e realizado", "pode ser usado" → converta para voz ativa e assertiva.',
     '□ CONCLUSAO OBVIA: "Concluindo...", "Em resumo...", "Portanto...", "Como pudemos ver..." → elimine ou substitua por um novo insight.',
-    '□ PERFEICAO ABSOLUTA: se a peca nao tiver nenhum elemento de vulnerabilidade controlada ou aprendizado humano quando pertinente ao contexto, adicione um (Pratfall Effect: 2.4x mais confianca).',
+    '□ PERFEIÇÃO ABSOLUTA: se a peça não tiver nenhum elemento de vulnerabilidade controlada ou aprendizado humano quando pertinente ao contexto, adicione um (Pratfall Effect: 2.4x mais confiança).',
     '□ NUMERO REDONDO: se houver numeros genericos como "mais de 10%" ou "muito" → especifique com dado preciso quando possivel.',
     '',
     '══ PASSO 2 — REVISAO CRIATIVA ══',

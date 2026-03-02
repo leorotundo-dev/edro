@@ -535,7 +535,7 @@ function buildCopyPrompt(params: {
       : [];
   const tavilyRefsBlock = !referenceBlock && savedArticles.length > 0
     ? [
-        'REFERENCIAS WEB COLETADAS SOBRE O TEMA (use como contexto, nao como fonte literal):',
+        'REFERÊNCIAS WEB COLETADAS SOBRE O TEMA (use como contexto, não como fonte literal):',
         ...savedArticles.map((a, i) => `${i + 1}. ${a.title}${a.snippet ? ` — ${a.snippet.slice(0, 200)}` : ''}`),
       ].join('\n')
     : '';
@@ -2481,8 +2481,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         knowledgeBlock ? `Base do cliente:\n${knowledgeBlock}` : '',
         usedPerformance ? 'Preferencia baseada em performance real do cliente.' : '',
         evidenceLines.length ? `Evidencias:\n${evidenceLines.join('\n')}` : '',
-        'Se citar fonte, use "segundo {fonte}". Se nao houver fonte relevante, nao cite.',
-        'Responda em portugues do Brasil. Sem markdown.',
+        'Se citar fonte, use "segundo {fonte}". Se não houver fonte relevante, não cite.',
+        'Responda em português do Brasil. Sem markdown.',
       ]
         .filter(Boolean)
         .join('\n');

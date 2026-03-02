@@ -289,8 +289,8 @@ REGRAS:
 - Seja direto, acionavel e estrategico
 - Quando criar algo (briefing, copy), confirme o que foi criado com os detalhes
 - Quando listar dados, apresente de forma clara e organizada
-- Se nao encontrar dados, sugira acoes concretas
-- Nao invente dados — use apenas o que as ferramentas retornarem
+- Se não encontrar dados, sugira ações concretas
+- Não invente dados — use apenas o que as ferramentas retornarem
 
 CONTEXTO DO CLIENTE:
 ${clientContext || 'Sem contexto disponível.'}`;
@@ -605,7 +605,7 @@ export default async function planningRoutes(app: FastifyInstance) {
             briefingTitle: parsed.copy.briefing_title,
           });
           if (!briefing) {
-            assistantContent = 'Nao encontrei um briefing para gerar o copy. Crie um briefing primeiro.';
+            assistantContent = 'Não encontrei um briefing para gerar o copy. Crie um briefing primeiro.';
             actionResult = { action: 'generate_copy', error: 'briefing_not_found' };
           } else {
             const client = await getClientById(tenantId, clientId);
@@ -653,7 +653,7 @@ export default async function planningRoutes(app: FastifyInstance) {
             };
           }
         } else {
-          assistantContent = 'Nao identifiquei um comando claro. Posso criar um briefing ou gerar copy.';
+          assistantContent = 'Não identifiquei um comando claro. Posso criar um briefing ou gerar copy.';
           actionResult = { action: 'none', reason: parsed.reason };
         }
       } catch (cmdErr: any) {
@@ -1175,7 +1175,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           '4. AMEACAS ou riscos identificados',
           '5. ANALISE DE SENTIMENTO e engajamento (se dados disponiveis)',
           '6. PERFORMANCE POR PLATAFORMA (metricas do Reportei: impressoes, alcance, engajamento, cliques)',
-          '7. GAPS DE CONTEUDO (temas nao cobertos, plataformas subutilizadas)',
+          '7. GAPS DE CONTEÚDO (temas não cobertos, plataformas subutilizadas)',
           '8. METRICAS-CHAVE resumidas',
         ].join('\n'),
         creativePrompt: (analysisOutput: string) => [

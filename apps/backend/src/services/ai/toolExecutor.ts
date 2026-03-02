@@ -915,7 +915,7 @@ async function toolWebExtract(args: any, ctx: ToolContext): Promise<ToolResult> 
 
   const rawUrls = args.urls;
   if (!Array.isArray(rawUrls) || rawUrls.length === 0) {
-    return { success: false, error: 'urls deve ser um array nao vazio.' };
+    return { success: false, error: 'urls deve ser um array não vazio.' };
   }
   const urls = rawUrls.slice(0, 3).map((u: any) => String(u));
 

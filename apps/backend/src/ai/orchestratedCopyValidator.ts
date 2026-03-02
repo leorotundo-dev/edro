@@ -71,7 +71,7 @@ SAIDA (JSON):
           issues: [
             {
               code: 'INVALID_JSON',
-              message: 'Validador nao retornou JSON valido.',
+              message: 'Validador não retornou JSON válido.',
               severity: 'high',
             },
           ],

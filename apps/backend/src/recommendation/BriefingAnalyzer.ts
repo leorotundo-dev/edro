@@ -313,9 +313,9 @@ export class BriefingAnalyzer {
 REGRAS:
 1. Retorne apenas JSON válido.
 2. Use o contexto do cliente (quando fornecido) para ajustar tom de voz e escolhas.
-3. Se algo nao estiver explicito, faca inferencias inteligentes.
-4. Budget: se nao especificado, use um valor medio (ex: R$ 50.000).
-5. Prazo: se nao especificado, use 30 dias a partir de hoje.
+3. Se algo não estiver explícito, faça inferências inteligentes.
+4. Budget: se não especificado, use um valor médio (ex: R$ 50.000).
+5. Prazo: se não especificado, use 30 dias a partir de hoje.
 6. Plataformas: identifique todas mencionadas ou implicitas.
 7. production_types: mapeie (midia-on, midia-off, eventos-ativacoes, endomarketing, apresentacoes, branding, e-commerce, conteudo-editorial, educacional, streaming-podcast).
 8. Segmento: B2C, B2B, D2C ou Internal.

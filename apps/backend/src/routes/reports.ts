@@ -691,11 +691,11 @@ ${assetSnapshot}`,
 
 Regras obrigatórias:
 - Use somente os dados fornecidos.
-- Nao cite IA, modelo, prompt, token, custo tecnico, nem bastidores de geracao.
-- Nao invente probabilidades ou metricas ausentes.
+- Não cite IA, modelo, prompt, token, custo técnico, nem bastidores de geração.
+- Não invente probabilidades ou métricas ausentes.
 - Quando faltar dado, escreva "Dado insuficiente" explicitamente.
 
-Responda APENAS com JSON valido no formato:
+Responda APENAS com JSON válido no formato:
 {
   "kpis": [{ "label": "string", "value": "string", "trend": "string opcional", "evidence": "string", "confidence": "alta|media|baixa" }],
   "bottlenecks": ["string"],
@@ -760,23 +760,23 @@ ${dataSnapshot}`,
 Regras obrigatórias:
 - Perspectiva: agência orientando o cliente.
 - Use somente dados reais fornecidos.
-- Nao cite IA, modelos, prompts, tokens, custos de IA, nem bastidores tecnicos.
-- Nao invente numero/probabilidade.
-- Se faltar dado para conclusao, escreva "Dado insuficiente".
-- Em cada recomendacao, inclua: Evidencia, Confianca (alta/media/baixa) e KPI de sucesso (meta + prazo).
+- Não cite IA, modelos, prompts, tokens, custos de IA, nem bastidores técnicos.
+- Não invente número/probabilidade.
+- Se faltar dado para conclusão, escreva "Dado insuficiente".
+- Em cada recomendação, inclua: Evidência, Confiança (alta/média/baixa) e KPI de sucesso (meta + prazo).
 
 Estrutura em markdown (##):
 ## Resumo Executivo
-## Diagnostico por Funil (Awareness, Consideracao, Conversao, Retencao)
-## Oportunidades Prioritarias (Top 5)
-## Oportunidades do Proximo Mes (${nextMonthLabel})
-## Plano de Acao 30 dias
+## Diagnóstico por Funil (Awareness, Consideração, Conversão, Retenção)
+## Oportunidades Prioritárias (Top 5)
+## Oportunidades do Próximo Mês (${nextMonthLabel})
+## Plano de Ação 30 dias
 
-Na secao "## Oportunidades do Proximo Mes (${nextMonthLabel})":
-- Liste 3 a 6 oportunidades praticas para o mes seguinte.
-- Priorize oportunidades com maior relevancia no calendario e/ou maior prioridade em oportunidades abertas.
-- Para cada oportunidade, traga: oportunidade, evidencia, acao recomendada e KPI de sucesso (meta + prazo).
-- Se nao houver base, escreva: "Dado insuficiente para oportunidades do proximo mes".
+Na seção "## Oportunidades do Próximo Mês (${nextMonthLabel})":
+- Liste 3 a 6 oportunidades práticas para o mês seguinte.
+- Priorize oportunidades com maior relevância no calendário e/ou maior prioridade em oportunidades abertas.
+- Para cada oportunidade, traga: oportunidade, evidência, ação recomendada e KPI de sucesso (meta + prazo).
+- Se não houver base, escreva: "Dado insuficiente para oportunidades do próximo mês".
 
 Dados estruturados:
 ${structuredAnalysis}
