@@ -20,6 +20,9 @@ import TimelineContent from '@mui/lab/TimelineContent';
 import TimelineDot from '@mui/lab/TimelineDot';
 import {
   IconCheck,
+  IconCopy,
+  IconMinus,
+  IconPlus,
   IconRefresh,
   IconX,
 } from '@tabler/icons-react';
@@ -29,8 +32,11 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
@@ -396,6 +402,18 @@ const AMD_LABELS: Record<string, string> = {
   responder: 'Responder', marcar_alguem: 'Marcar alguém', pedir_proposta: 'Pedir proposta',
 };
 
+function CharCounter({ text, max }: { text: string; max?: number }) {
+  if (!max) return null;
+  const count = text.length;
+  const pct = count / max;
+  const color = pct > 1 ? 'error.main' : pct > 0.85 ? 'warning.main' : 'text.disabled';
+  return (
+    <Typography component="span" variant="caption" sx={{ color, fontSize: '0.58rem', ml: 0.5, fontVariantNumeric: 'tabular-nums' }}>
+      {count}/{max}
+    </Typography>
+  );
+}
+
 export default function EditorClient() {
   const router = useRouter();
   const [briefing, setBriefing] = useState<BriefingResponse['briefing'] | null>(null);
@@ -446,6 +464,14 @@ export default function EditorClient() {
   const [arteGeneratedPrompt, setArteGeneratedPrompt] = useState('');
   const [arteDiscardOpen, setArteDiscardOpen] = useState(false);
   const [arteDiscardTags, setArteDiscardTags] = useState<string[]>([]);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+    });
+  };
 
   const resolveActiveClient = () => {
     if (typeof window === 'undefined') return null;
@@ -1649,9 +1675,19 @@ export default function EditorClient() {
                                         ))
                                       ) : (
                                         <Box sx={{ mb: 1.5 }}>
-                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
-                                            Arte
-                                          </Typography>
+                                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.25 }}>
+                                            <Stack direction="row" alignItems="center">
+                                              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>
+                                                Arte
+                                              </Typography>
+                                              {option.title && <CharCounter text={option.title} max={catalogItem?.max_chars?.headline} />}
+                                            </Stack>
+                                            <Tooltip title={copiedField === `arte-${idx}` ? 'Copiado!' : 'Copiar texto de arte'}>
+                                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleCopy([option.title, option.body].filter(Boolean).join('\n'), `arte-${idx}`); }}>
+                                                {copiedField === `arte-${idx}` ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                                              </IconButton>
+                                            </Tooltip>
+                                          </Stack>
                                           {option.title && (
                                             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
                                               {option.title}
@@ -1673,9 +1709,19 @@ export default function EditorClient() {
                                       {/* Legenda */}
                                       {option.legenda && (
                                         <Box sx={{ mb: 1.5, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
-                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
-                                            Legenda
-                                          </Typography>
+                                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.25 }}>
+                                            <Stack direction="row" alignItems="center">
+                                              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>
+                                                Legenda
+                                              </Typography>
+                                              <CharCounter text={option.legenda} max={catalogItem?.max_chars?.caption} />
+                                            </Stack>
+                                            <Tooltip title={copiedField === `legenda-${idx}` ? 'Copiado!' : 'Copiar legenda'}>
+                                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleCopy(option.legenda, `legenda-${idx}`); }}>
+                                                {copiedField === `legenda-${idx}` ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                                              </IconButton>
+                                            </Tooltip>
+                                          </Stack>
                                           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
                                             {option.legenda}
                                           </Typography>
@@ -1685,9 +1731,16 @@ export default function EditorClient() {
                                       {/* Hashtags */}
                                       {option.hashtags && (
                                         <Box sx={{ mb: 1.5, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
-                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
-                                            Hashtags
-                                          </Typography>
+                                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.25 }}>
+                                            <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>
+                                              Hashtags
+                                            </Typography>
+                                            <Tooltip title={copiedField === `hashtags-${idx}` ? 'Copiado!' : 'Copiar hashtags'}>
+                                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleCopy(option.hashtags, `hashtags-${idx}`); }}>
+                                                {copiedField === `hashtags-${idx}` ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                                              </IconButton>
+                                            </Tooltip>
+                                          </Stack>
                                           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                             {option.hashtags}
                                           </Typography>
@@ -1697,9 +1750,19 @@ export default function EditorClient() {
                                       {/* CTA */}
                                       {option.cta && (
                                         <Box sx={{ pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
-                                          <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', display: 'block', mb: 0.25 }}>
-                                            CTA
-                                          </Typography>
+                                          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.25 }}>
+                                            <Stack direction="row" alignItems="center">
+                                              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>
+                                                CTA
+                                              </Typography>
+                                              <CharCounter text={option.cta} max={catalogItem?.max_chars?.cta} />
+                                            </Stack>
+                                            <Tooltip title={copiedField === `cta-${idx}` ? 'Copiado!' : 'Copiar CTA'}>
+                                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleCopy(option.cta, `cta-${idx}`); }}>
+                                                {copiedField === `cta-${idx}` ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                                              </IconButton>
+                                            </Tooltip>
+                                          </Stack>
                                           <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
                                             {option.cta}
                                           </Typography>
@@ -1925,7 +1988,7 @@ export default function EditorClient() {
                       {copies.map((copy, idx) => {
                         const reporteiSummary = formatReporteiSummary((copy.payload as any)?._edro?.reportei || null);
                         const model = (copy.model || '').toLowerCase();
-                        const dotColor = model.includes('claude') || model.includes('anthropic') ? '#5D87FF'
+                        const dotColor = model.includes('claude') || model.includes('anthropic') ? '#7c3aed'
                           : model.includes('gpt') || model.includes('openai') ? '#22c55e'
                           : model.includes('gemini') || model.includes('google') ? '#f59e0b'
                           : '#94a3b8';
@@ -1971,6 +2034,64 @@ export default function EditorClient() {
 
           {/* Sidebar */}
           <Grid size={{ xs: 12, lg: 3 }}>
+            <Stack spacing={2}>
+            <Card>
+              <CardContent>
+                <Chip size="small" label="Gerar copy" sx={{ mb: 1.5 }} />
+                <Stack spacing={1.5}>
+                  <TextField
+                    select
+                    size="small"
+                    label="Pipeline"
+                    value={pipeline}
+                    onChange={(e) => setPipeline(e.target.value as any)}
+                    fullWidth
+                  >
+                    {Object.entries(PIPELINE_LABELS).map(([v, l]) => (
+                      <MenuItem key={v} value={v}>{l}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    size="small"
+                    label="Tom de voz"
+                    value={tone}
+                    onChange={(e) => setTone(e.target.value)}
+                    fullWidth
+                  >
+                    <MenuItem value="">Padrão</MenuItem>
+                    {TONE_OPTIONS.map((t) => (
+                      <MenuItem key={t} value={t}>{t}</MenuItem>
+                    ))}
+                  </TextField>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+                      Opções
+                    </Typography>
+                    <IconButton size="small" onClick={() => setCount((c) => Math.max(1, c - 1))} disabled={count <= 1 || generating}>
+                      <IconMinus size={14} />
+                    </IconButton>
+                    <Typography variant="body2" fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                      {count}
+                    </Typography>
+                    <IconButton size="small" onClick={() => setCount((c) => Math.min(5, c + 1))} disabled={count >= 5 || generating}>
+                      <IconPlus size={14} />
+                    </IconButton>
+                  </Stack>
+                  <LoadingButton
+                    fullWidth
+                    variant="contained"
+                    size="small"
+                    loading={generating}
+                    onClick={handleGenerate}
+                    startIcon={!generating ? <IconRefresh size={14} /> : null}
+                    sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
+                  >
+                    {options.length ? 'Regenerar' : 'Gerar copy'}
+                  </LoadingButton>
+                </Stack>
+              </CardContent>
+            </Card>
             <Card>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
@@ -2024,6 +2145,7 @@ export default function EditorClient() {
                 </Stack>
               </CardContent>
             </Card>
+            </Stack>
           </Grid>
         </Grid>
 
@@ -2111,6 +2233,13 @@ export default function EditorClient() {
           </LoadingButton>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={Boolean(copiedField)}
+        message="Copiado!"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ '& .MuiSnackbarContent-root': { minWidth: 'auto', px: 2.5, py: 0.75 } }}
+      />
 
       {/* Dialog de descarte de arte — coleta tags de feedback para loop de aprendizado */}
       <Dialog
