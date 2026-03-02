@@ -135,7 +135,7 @@ type CopyMeta = {
 const TASK_TYPES = [
   { value: 'social_post', label: 'Social post' },
   { value: 'headlines', label: 'Headlines' },
-  { value: 'variations', label: 'Variacoes' },
+  { value: 'variations', label: 'Variações' },
   { value: 'institutional_copy', label: 'Institucional' },
   { value: 'campaign_strategy', label: 'Estrategia de campanha' },
 ];
@@ -855,7 +855,7 @@ export default function EditorClient() {
         );
       } else if (formatLower.includes('tv') || formatLower.includes('video')) {
         // TV e vídeo institucional longo: roteiro com cenas (NÃO é Hook/Corpo/CTA)
-        extraGuidelines.push('Formato audiovisual: incluir indicacoes de cena e locucao quando pertinente.');
+        extraGuidelines.push('Formato audiovisual: incluir indicações de cena e locução quando pertinente.');
       }
       if (formatLower.includes('outdoor') || formatLower.includes('ooh') || formatLower.includes('busdoor')) {
         extraGuidelines.push('OOH: copy curto, direto e legivel a distancia.');
@@ -1222,7 +1222,7 @@ export default function EditorClient() {
   const handleApproveOption = async () => {
     const copyId = resolveActiveCopyId();
     if (!copyId) {
-      setError('Selecione uma versao de copy antes de aprovar.');
+      setError('Selecione uma versão de copy antes de aprovar.');
       return;
     }
     setFeedbackLoading(true);
@@ -1243,7 +1243,7 @@ export default function EditorClient() {
   const handleRejectOption = async (tags: string[], reason: string) => {
     const copyId = resolveActiveCopyId();
     if (!copyId) {
-      setError('Selecione uma versao de copy antes de rejeitar.');
+      setError('Selecione uma versão de copy antes de rejeitar.');
       return;
     }
     setFeedbackLoading(true);
@@ -2155,7 +2155,7 @@ export default function EditorClient() {
             Voltar
           </Button>
           <Button variant="contained" onClick={() => router.push('/studio/mockups')}>
-            Aprovar e avancar
+            Aprovar e avançar
           </Button>
         </Stack>
       </Stack>

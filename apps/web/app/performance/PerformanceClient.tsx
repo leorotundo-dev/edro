@@ -284,7 +284,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
       <Box>
         <Typography variant="h4">Performance</Typography>
         <Typography variant="body2" color="text.secondary">
-          Visao consolidada de formatos e previsoes do catalogo.
+          Visão consolidada de formatos e previsões do catálogo.
         </Typography>
       </Box>
 
@@ -454,7 +454,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
             </Grid>
           ) : (
             <Typography variant="body2" color="text.secondary">
-              Sem dados do Reportei disponiveis. Configure o conector nas integracoes do cliente.
+              Sem dados do Reportei disponíveis. Configure o conector nas integrações do cliente.
             </Typography>
           )}
         </CardContent>

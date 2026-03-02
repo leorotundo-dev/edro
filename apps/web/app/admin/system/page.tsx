@@ -514,7 +514,7 @@ export default function AdminSystemPage() {
         </Grid>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-          Nenhum dado de seguranca disponivel
+          Nenhum dado de segurança disponível
         </Typography>
       )}
     </Stack>
@@ -526,7 +526,7 @@ export default function AdminSystemPage() {
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>System Administration</Typography>
           <Typography variant="body2" color="text.secondary">
-            Gerencie configuracoes avancadas do sistema
+            Gerencie configurações avançadas do sistema
           </Typography>
         </Box>
 

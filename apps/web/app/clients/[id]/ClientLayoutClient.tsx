@@ -201,7 +201,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
       const today = new Date().toLocaleDateString('pt-BR');
       await apiPost(`/clients/${clientId}/library`, {
         type: 'note',
-        title: `Analise Estrategica — ${clientName} (${today})`,
+        title: `Análise Estratégica — ${clientName} (${today})`,
         description: analysisResult.analysis,
         category: 'estrategia',
         tags: ['analise-estrategica', 'ai-generated'],
@@ -380,7 +380,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
           <Stack direction="row" spacing={1} alignItems="center">
             <IconSparkles size={20} />
             <Typography variant="h6" component="span">
-              Analise Estrategica — {clientName}
+              Análise Estratégica — {clientName}
             </Typography>
           </Stack>
           <IconButton onClick={() => !analyzing && setAnalysisOpen(false)} disabled={analyzing}>

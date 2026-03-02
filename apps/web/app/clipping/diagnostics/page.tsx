@@ -140,9 +140,9 @@ export default function ClippingDiagnosticsPage() {
       const res = await apiGet<DiagnosticsData>('/clipping/admin/diagnostics');
       setData(res);
     } catch (err: any) {
-      const msg = err?.message || 'Falha ao carregar diagnostico.';
+      const msg = err?.message || 'Falha ao carregar diagnóstico.';
       if (msg.includes('Proxy request failed')) {
-        setError('Backend indisponivel. O servidor nao esta respondendo. Verifique o Railway.');
+        setError('Backend indisponível. O servidor não está respondendo. Verifique o Railway.');
       } else {
         setError(msg);
       }
@@ -296,7 +296,7 @@ export default function ClippingDiagnosticsPage() {
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <Box>
             <Typography variant="h4" fontWeight={700}>
-              Diagnostico do Radar
+              Diagnóstico do Radar
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Status das migrations, worker, fontes e fila de jobs.
@@ -308,7 +308,7 @@ export default function ClippingDiagnosticsPage() {
             onClick={load}
             disabled={loading}
           >
-            {data ? 'Atualizar' : 'Executar Diagnostico'}
+            {data ? 'Atualizar' : 'Executar Diagnóstico'}
           </Button>
         </Stack>
 
@@ -353,7 +353,7 @@ export default function ClippingDiagnosticsPage() {
               {connectivity === 'down' ? (
                 <>
                   <IconPlugConnectedX size={48} color="#FA896B" />
-                  <Typography variant="h6">Backend indisponivel</Typography>
+                  <Typography variant="h6">Backend indisponível</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 500 }}>
                     O servidor backend nao esta respondendo. Acesse o painel do Railway e verifique se o servico
                     &quot;backend&quot; esta rodando. Pode ser que o deploy tenha falhado ou o servico esteja reiniciando.
@@ -362,7 +362,7 @@ export default function ClippingDiagnosticsPage() {
               ) : (
                 <>
                   <IconBug size={48} color="#E85219" />
-                  <Typography variant="h6">Clique em &quot;Executar Diagnostico&quot; para verificar o status do Radar</Typography>
+                  <Typography variant="h6">Clique em &quot;Executar Diagnóstico&quot; para verificar o status do Radar</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Vai checar migrations, colunas, fila de jobs, fontes e items recentes.
                   </Typography>

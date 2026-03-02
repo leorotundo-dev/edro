@@ -37,11 +37,11 @@ type Trigger = {
 const TRIGGER_EVENTS = [
   { id: 'briefing_created', label: 'Briefing Criado' },
   { id: 'stage_changed_to_copy_ia', label: 'Etapa: Copy IA' },
-  { id: 'stage_changed_to_aprovacao', label: 'Etapa: Aprovacao' },
-  { id: 'stage_changed_to_producao', label: 'Etapa: Producao' },
-  { id: 'stage_changed_to_revisao', label: 'Etapa: Revisao' },
+  { id: 'stage_changed_to_aprovacao', label: 'Etapa: Aprovação' },
+  { id: 'stage_changed_to_producao', label: 'Etapa: Produção' },
+  { id: 'stage_changed_to_revisao', label: 'Etapa: Revisão' },
   { id: 'stage_changed_to_entrega', label: 'Etapa: Entrega' },
-  { id: 'stage_changed_to_done', label: 'Etapa: Concluido' },
+  { id: 'stage_changed_to_done', label: 'Etapa: Concluído' },
   { id: 'briefing_overdue', label: 'Briefing Atrasado' },
 ];
 
@@ -65,7 +65,7 @@ export default function AutomationsPage() {
       const data = await apiGet<{ triggers: Trigger[] }>('/automations');
       setTriggers(data.triggers || []);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar automacoes.');
+      setError(err?.message || 'Erro ao carregar automações.');
     } finally {
       setLoading(false);
     }
@@ -120,14 +120,14 @@ export default function AutomationsPage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconRobot size={28} stroke={1.5} />
             <Box>
-              <Typography variant="h5" fontWeight={700}>Automacoes</Typography>
+              <Typography variant="h5" fontWeight={700}>Automações</Typography>
               <Typography variant="body2" color="text.secondary">
-                Configure triggers automaticos para o workflow de briefings.
+                Configure triggers automáticos para o workflow de briefings.
               </Typography>
             </Box>
           </Box>
           <Button variant="contained" startIcon={<IconPlus size={18} />} onClick={() => setDialogOpen(true)}>
-            Nova Automacao
+            Nova Automação
           </Button>
         </Box>
 

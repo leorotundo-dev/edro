@@ -167,7 +167,7 @@ export default function SectionEnrichmentCard({
                   sx={{ bgcolor: 'rgba(46,125,50,0.12)', color: 'success.dark' }}
                 />
               ) : (
-                <Chip size="small" label="Sem sugestoes" />
+                <Chip size="small" label="Sem sugestões" />
               )}
               {manualFields.length > 0 && !manualMode && (
                 <Button

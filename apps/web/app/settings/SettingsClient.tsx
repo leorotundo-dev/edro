@@ -79,14 +79,14 @@ export default function SettingsClient() {
         const response = await apiGet<{ success: boolean; data: SecurityDashboard }>('/security/dashboard');
         setSecurity(response?.data || {});
       } catch (err: any) {
-        setError(err?.message || 'Falha ao carregar dados de seguranca.');
+        setError(err?.message || 'Falha ao carregar dados de segurança.');
       }
 
       try {
         const response = await apiGet<FlagRow[]>('/flags');
         setFlags(response || []);
       } catch (err: any) {
-        setFlagError(err?.message || 'Sem permissao para flags ou flags indisponiveis.');
+        setFlagError(err?.message || 'Sem permissão para flags ou flags indisponíveis.');
       } finally {
         setLoading(false);
       }
@@ -124,7 +124,7 @@ export default function SettingsClient() {
 
     await runTest('Recomendacoes (enxoval)', async () => {
       await apiPost('/recommendations/enxoval', {
-        briefing_text: 'Diagnostico rapido do sistema',
+        briefing_text: 'Diagnóstico rápido do sistema',
         objective: 'awareness',
       });
     });
@@ -153,7 +153,7 @@ export default function SettingsClient() {
       <Stack alignItems="center" justifyContent="center" sx={{ minHeight: '60vh' }}>
         <CircularProgress size={32} />
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando configuracoes...
+          Carregando configurações...
         </Typography>
       </Stack>
     );
@@ -163,9 +163,9 @@ export default function SettingsClient() {
     <AppShell title="System Admin">
       <Box>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" gutterBottom>Configuracoes</Typography>
+          <Typography variant="h4" gutterBottom>Configurações</Typography>
           <Typography variant="body2" color="text.secondary">
-            Visao geral de seguranca e flags operacionais.
+            Visão geral de segurança e flags operacionais.
           </Typography>
         </Box>
 
@@ -234,7 +234,7 @@ export default function SettingsClient() {
                     <Typography variant="body2" fontWeight={600}>{formatNumber(security?.access_log?.reads)}</Typography>
                   </Stack>
                   <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2">Atualizacoes</Typography>
+                    <Typography variant="body2">Atualizações</Typography>
                     <Typography variant="body2" fontWeight={600}>{formatNumber(security?.access_log?.updates)}</Typography>
                   </Stack>
                   <Stack direction="row" justifyContent="space-between">
@@ -269,7 +269,7 @@ export default function SettingsClient() {
           <Grid size={{ xs: 12, md: 8 }}>
             <Stack spacing={3}>
               <DashboardCard
-                title="Diagnostico de integracoes"
+                title="Diagnóstico de integrações"
                 action={
                   <Button
                     variant="outlined"

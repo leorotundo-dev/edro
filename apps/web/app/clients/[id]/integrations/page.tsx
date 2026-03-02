@@ -73,7 +73,7 @@ export default function ClientIntegrationsPage() {
       const data = await apiGet<MetaData>(`/clients/${clientId}/integrations/meta-ads`);
       setMetaData(data);
     } catch (err: any) {
-      setError(err?.message || 'Meta Ads nao configurado ou erro na API.');
+      setError(err?.message || 'Meta Ads não configurado ou erro na API.');
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,7 @@ export default function ClientIntegrationsPage() {
       const data = await apiGet<GAData>(`/clients/${clientId}/integrations/google-analytics`);
       setGAData(data);
     } catch (err: any) {
-      setError(err?.message || 'Google Analytics nao configurado ou erro na API.');
+      setError(err?.message || 'Google Analytics não configurado ou erro na API.');
     } finally {
       setLoading(false);
     }

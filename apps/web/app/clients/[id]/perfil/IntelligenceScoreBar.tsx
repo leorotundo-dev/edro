@@ -105,7 +105,7 @@ export default function IntelligenceScoreBar({
                 {pendingCount > 0 ? (
                   <Chip
                     size="small"
-                    label={`${pendingCount} sugestao${pendingCount > 1 ? 'es' : ''} pendente${pendingCount > 1 ? 's' : ''}`}
+                    label={`${pendingCount} sugestão${pendingCount > 1 ? 'es' : ''} pendente${pendingCount > 1 ? 's' : ''}`}
                     sx={{ bgcolor: '#E85219', color: 'white', fontWeight: 700 }}
                   />
                 ) : null}

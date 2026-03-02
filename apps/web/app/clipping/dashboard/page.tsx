@@ -204,7 +204,7 @@ export default function ClippingDashboardPage() {
         <Box>
           <Typography variant="h4" fontWeight={700}>Clipping Dashboard</Typography>
           <Typography variant="body2" color="text.secondary">
-            Monitore conteudos capturados e tendencias.
+            Monitore conteúdos capturados e tendências.
           </Typography>
         </Box>
 
@@ -350,7 +350,7 @@ export default function ClippingDashboardPage() {
                   })
                 ) : (
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                    Sem tendencias disponiveis.
+                    Sem tendências disponíveis.
                   </Typography>
                 )}
               </Stack>
@@ -432,7 +432,7 @@ export default function ClippingDashboardPage() {
               <Avatar sx={{ bgcolor: 'grey.100', width: 64, height: 64 }}>
                 <IconSettings size={32} />
               </Avatar>
-              <Typography variant="h6">Nenhum dado disponivel</Typography>
+              <Typography variant="h6">Nenhum dado disponível</Typography>
               <Typography variant="body2" color="text.secondary">
                 Configure fontes para iniciar o clipping.
               </Typography>

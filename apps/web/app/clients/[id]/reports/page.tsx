@@ -221,7 +221,7 @@ export default function ClientReportsPage() {
                   disabled={aiLoading}
                   sx={{ bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
                 >
-                  {aiLoading ? 'Analisando...' : 'Analise Estrategica'}
+                  {aiLoading ? 'Analisando...' : 'Análise Estratégica'}
                 </Button>
                 <Button variant="outlined" startIcon={<IconDownload size={18} />} onClick={handlePrint}>
                   Imprimir / PDF
@@ -384,9 +384,9 @@ export default function ClientReportsPage() {
             <Card variant="outlined" sx={{ mt: 3 }}>
               <CardContent sx={{ textAlign: 'center', py: 4 }}>
                 <IconSparkles size={32} style={{ color: '#7c3aed', marginBottom: 8 }} />
-                <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Gerando Analise Estrategica...</Typography>
+                <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Gerando Análise Estratégica...</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Consolidando dados do cliente para gerar recomendacoes acionaveis.
+                  Consolidando dados do cliente para gerar recomendações acionáveis.
                 </Typography>
                 <LinearProgress sx={{ maxWidth: 400, mx: 'auto', '& .MuiLinearProgress-bar': { bgcolor: '#7c3aed' } }} />
               </CardContent>
@@ -477,7 +477,7 @@ export default function ClientReportsPage() {
                 <CardContent>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                     <IconBulb size={20} color="#E85219" />
-                    <Typography variant="h6" fontWeight={700}>Diagnostico Executivo</Typography>
+                    <Typography variant="h6" fontWeight={700}>Diagnóstico Executivo</Typography>
                   </Stack>
                   <Typography
                     variant="body2"
@@ -496,8 +496,8 @@ export default function ClientReportsPage() {
                   <CardContent>
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                       <IconSparkles size={20} color="#7c3aed" />
-                      <Typography variant="h6" fontWeight={700} color="#7c3aed">Analise Estrategica</Typography>
-                      <Chip label="Revisao Final" size="small" sx={{ bgcolor: '#7c3aed', color: '#fff', fontSize: '0.65rem' }} />
+                      <Typography variant="h6" fontWeight={700} color="#7c3aed">Análise Estratégica</Typography>
+                      <Chip label="Revisão Final" size="small" sx={{ bgcolor: '#7c3aed', color: '#fff', fontSize: '0.65rem' }} />
                     </Stack>
                     <Typography
                       variant="body2"

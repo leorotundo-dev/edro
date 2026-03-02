@@ -118,8 +118,8 @@ export default function ApprovalClient() {
             </Typography>
             <Typography color="text.secondary">
               {done.action === 'approve'
-                ? 'Obrigado! A copy aprovada ja foi encaminhada para producao.'
-                : 'Obrigado pelo feedback! A equipe vai revisar e enviar uma nova versao.'}
+                ? 'Obrigado! A copy aprovada já foi encaminhada para produção.'
+                : 'Obrigado pelo feedback! A equipe vai revisar e enviar uma nova versão.'}
             </Typography>
           </CardContent>
         </Card>
@@ -146,7 +146,7 @@ export default function ApprovalClient() {
       {/* Header */}
       <Box sx={{ textAlign: 'center', mb: 4 }}>
         <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-          Aprovacao de Copy
+          Aprovação de Copy
         </Typography>
         <Typography variant="body1" color="text.secondary">
           {data.clientName && (
@@ -171,7 +171,7 @@ export default function ApprovalClient() {
 
       {isExpired && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Este link de aprovacao expirou. Solicite um novo link a equipe.
+          Este link de aprovação expirou. Solicite um novo link à equipe.
         </Alert>
       )}
 
@@ -275,7 +275,7 @@ export default function ApprovalClient() {
       </Stack>
 
       {data.copies.length === 0 && (
-        <Alert severity="info">Nenhuma copy disponivel para aprovacao neste briefing.</Alert>
+        <Alert severity="info">Nenhuma copy disponível para aprovação neste briefing.</Alert>
       )}
 
       {/* Footer */}

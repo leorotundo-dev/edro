@@ -92,10 +92,10 @@ export default function ClientPermissionsPage() {
         return [...prev, { user_id: userId, email: user?.email || '', name: user?.name || '', perms: newPerms }];
       });
 
-      setSuccess('Permissao atualizada.');
+      setSuccess('Permissão atualizada.');
       setTimeout(() => setSuccess(''), 2000);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao atualizar permissao.');
+      setError(err?.message || 'Erro ao atualizar permissão.');
     }
   };
 
@@ -183,7 +183,7 @@ export default function ClientPermissionsPage() {
                   <TableRow>
                     <TableCell colSpan={ALL_PERMS.length + 2} align="center" sx={{ py: 4 }}>
                       <Typography color="text.secondary">
-                        Nenhuma permissao especifica configurada. Todos os membros da equipe tem acesso padrao.
+                        Nenhuma permissão específica configurada. Todos os membros da equipe têm acesso padrão.
                       </Typography>
                     </TableCell>
                   </TableRow>

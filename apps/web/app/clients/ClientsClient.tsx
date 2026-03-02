@@ -1211,7 +1211,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                                   </Stack>
                                 ) : (
                                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                                    Sem KPIs disponiveis.
+                                    Sem KPIs disponíveis.
                                   </Typography>
                                 )}
 

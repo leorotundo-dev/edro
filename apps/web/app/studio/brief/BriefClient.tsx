@@ -306,7 +306,7 @@ export default function BriefClient() {
 
     if (hoursUntilEvent <= 24) {
       deadline = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-      label = 'urgente: 4h para aprovacao';
+      label = 'urgente: 4h para aprovação';
     } else if (hoursUntilEvent <= 5 * 24) {
       deadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       deadline.setHours(18, 0, 0, 0);
@@ -939,7 +939,7 @@ export default function BriefClient() {
         <Box>
           <Typography variant="h4" fontWeight={700}>Briefing</Typography>
           <Typography variant="body2" color="text.secondary">
-            Preencha as informacoes estrategicas para iniciar a producao.
+            Preencha as informações estratégicas para iniciar a produção.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -1280,10 +1280,10 @@ export default function BriefClient() {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} justifyContent="space-between">
               <Box>
                 <Typography variant="subtitle2" fontWeight={700}>
-                  Escolha um evento do calendario
+                  Escolha um evento do calendário
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Selecione a data e o evento para guiar a producao do conteudo.
+                  Selecione a data e o evento para guiar a produção do conteúdo.
                 </Typography>
               </Box>
               <Button
@@ -1292,7 +1292,7 @@ export default function BriefClient() {
                 onClick={openCalendar}
                 sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, whiteSpace: 'nowrap', flexShrink: 0 }}
               >
-                Abrir calendario
+                Abrir calendário
               </Button>
             </Stack>
           </CardContent>
@@ -1325,7 +1325,7 @@ export default function BriefClient() {
               {sourceContext.title || 'Sem titulo'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-              {sourceContext.summary || sourceContext.snippet || 'Sem resumo disponivel.'}
+              {sourceContext.summary || sourceContext.snippet || 'Sem resumo disponível.'}
             </Typography>
             <Button
               size="small"
@@ -1558,7 +1558,7 @@ export default function BriefClient() {
             <Box>
               <Typography variant="h6">Mensagem</Typography>
               <Typography variant="body2" color="text.secondary">
-                Insira mensagem principal e observacoes.
+                Insira mensagem principal e observações.
               </Typography>
             </Box>
             <LoadingButton
@@ -1590,7 +1590,7 @@ export default function BriefClient() {
               <TextField
                 fullWidth
                 size="small"
-                label="Observacoes adicionais"
+                label="Observações adicionais"
                 multiline
                 rows={3}
                 value={form.notes}
@@ -1608,7 +1608,7 @@ export default function BriefClient() {
           Voltar
         </Button>
         <LoadingButton variant="contained" onClick={handleSubmit} loading={saving} disabled={!isContextReady}>
-          Criar briefing e avancar
+          Criar briefing e avançar
         </LoadingButton>
       </Stack>
 

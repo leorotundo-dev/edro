@@ -61,9 +61,9 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
         <CardContent>
           <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
             <IconPlugConnected size={40} stroke={1.5} color="#94a3b8" />
-            <Typography variant="h6">Reportei nao configurado</Typography>
+            <Typography variant="h6">Reportei não configurado</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 380 }}>
-              Para visualizar o dashboard de performance, configure a integracao com o Reportei na pagina de conectores e preencha o campo Embed URL.
+              Para visualizar o dashboard de performance, configure a integração com o Reportei na página de conectores e preencha o campo Embed URL.
             </Typography>
             <Button
               variant="contained"

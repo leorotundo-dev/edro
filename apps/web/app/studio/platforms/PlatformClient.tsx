@@ -154,9 +154,9 @@ const productionLabel = (value?: string) => {
   if (normalized.includes('midia-on')) return 'Midia ON';
   if (normalized.includes('midia-off')) return 'Midia OFF';
   if (normalized.includes('ooh')) return 'OOH';
-  if (normalized.includes('eventos')) return 'Eventos & Ativacoes';
+  if (normalized.includes('eventos')) return 'Eventos & Ativações';
   if (normalized.includes('endomarketing')) return 'Endomarketing';
-  if (normalized.includes('apresent')) return 'Apresentacoes';
+  if (normalized.includes('apresent')) return 'Apresentações';
   if (normalized.includes('branding')) return 'Branding';
   if (normalized.includes('educacional')) return 'Educacional';
   if (normalized.includes('conteudo-editorial')) return 'Conteudo editorial';
@@ -215,9 +215,9 @@ const buildPreviewLines = (format: SelectableFormat, recommended?: RecommendedFo
 const objectiveLabel = (value?: string) => {
   const key = (value || '').toLowerCase();
   if (key.includes('awareness') || key.includes('reconhecimento')) return 'Reconhecimento de marca';
-  if (key.includes('consideration') || key.includes('consideracao')) return 'Consideracao';
-  if (key.includes('conversion') || key.includes('conversao') || key.includes('performance')) return 'Conversao';
-  if (key.includes('retention') || key.includes('retencao')) return 'Retencao';
+  if (key.includes('consideration') || key.includes('consideracao')) return 'Consideração';
+  if (key.includes('conversion') || key.includes('conversao') || key.includes('performance')) return 'Conversão';
+  if (key.includes('retention') || key.includes('retencao')) return 'Retenção';
   return value || '';
 };
 
@@ -1011,7 +1011,7 @@ export default function PlatformClient() {
                               </Typography>
                             ))
                           ) : (
-                            <Typography variant="caption" color="text.disabled">Sem formatos disponiveis</Typography>
+                            <Typography variant="caption" color="text.disabled">Sem formatos disponíveis</Typography>
                           )}
                         </Stack>
                       </CardContent>

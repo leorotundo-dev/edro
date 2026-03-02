@@ -273,7 +273,7 @@ export default function HomeClient() {
             >
               <Box>
                 <Chip label={todayLabel} variant="outlined" size="small" sx={{ mb: 1 }} />
-                <Typography variant="h4">Visao geral do dia</Typography>
+                <Typography variant="h4">Visão geral do dia</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Fotografia do que acontece hoje, o que vem a seguir e como foi a semana.
                 </Typography>

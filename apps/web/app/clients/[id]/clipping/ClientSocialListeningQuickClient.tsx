@@ -624,7 +624,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
         { clientId, platforms: sources, includeComments: true, commentsPostsLimit: 10, commentsLimitPerPost: 50 }
       );
       const collected = Number(collectResult?.collected || 0);
-      setSuccess(collected > 0 ? `Coleta concluida: ${collected} mencoes.` : 'Coleta concluida, mas nenhuma mencao foi coletada.');
+      setSuccess(collected > 0 ? `Coleta concluída: ${collected} menções.` : 'Coleta concluída, mas nenhuma menção foi coletada.');
       await loadAll();
     } catch (err: any) {
       setError(err?.message || 'Falha ao ativar social listening.');
@@ -649,7 +649,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
       <Box>
         <Typography variant="h4" fontWeight={700}>Social Listening</Typography>
         <Typography variant="body2" color="text.secondary">
-          Digite o nome da empresa e a ferramenta configura keywords e coleta mencoes automaticamente.
+          Digite o nome da empresa e a ferramenta configura keywords e coleta menções automaticamente.
         </Typography>
       </Box>
 

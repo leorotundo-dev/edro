@@ -380,7 +380,7 @@ export default function ClippingQualityPage() {
                       ))
                     ) : (
                       <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                        Nenhuma sugestao. Marque itens como irrelevantes para gerar sugestoes.
+                        Nenhuma sugestão. Marque itens como irrelevantes para gerar sugestões.
                       </Typography>
                     )}
                   </Stack>

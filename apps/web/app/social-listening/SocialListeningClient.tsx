@@ -292,7 +292,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
       );
       setMentions(response?.mentions || []);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar mencoes.');
+      setError(err?.message || 'Falha ao carregar menções.');
     }
   }, [keywordFilter, platformFilter, search, selectedClient, sentimentFilter]);
 
@@ -302,7 +302,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
       const response = await apiGet<TrendRow[]>(`/social-listening/trends?clientId=${selectedClient.id}`);
       setTrends(response || []);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar tendencias.');
+      setError(err?.message || 'Falha ao carregar tendências.');
     }
   }, [selectedClient]);
 
@@ -397,7 +397,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
       await loadStats();
       await loadTrends();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao coletar mencoes.');
+      setError(err?.message || 'Falha ao coletar menções.');
     } finally {
       setCollecting(false);
     }
@@ -455,7 +455,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
       <Box>
         <Typography variant="h4">Social Listening</Typography>
         <Typography variant="body2" color="text.secondary">
-          Monitoramento em tempo real das conversas e tendencias para cada cliente.
+          Monitoramento em tempo real das conversas e tendências para cada cliente.
         </Typography>
       </Box>
 

@@ -560,7 +560,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         { assets: selectedAssets }
       );
       setCompetitiveBrief(
-        response?.strategic_brief || response?.draft || 'Analise concluida sem conteudo retornado.'
+        response?.strategic_brief || response?.draft || 'Análise concluída sem conteúdo retornado.'
       );
       setCompetitiveOpen(true);
       setSuccess(`Analise de concorrencia gerada com ${selectedAssets.length} ativo(s).`);
