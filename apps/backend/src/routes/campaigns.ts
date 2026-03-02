@@ -329,7 +329,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
             production_type: format.production_type,
           });
           if (!catalogFormat) {
-            throw new Error(`Formato nao encontrado no catalogo: ${format.format_name}`);
+            throw new Error(`Formato não encontrado no catálogo: ${format.format_name}`);
           }
 
           const costMin = Number(catalogFormat.production_cost?.production_cost_brl?.min ?? 0);

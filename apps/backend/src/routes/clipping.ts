@@ -321,7 +321,7 @@ export default async function clippingRoutes(app: FastifyInstance) {
 
       // URL sources need a different scraping approach. RSS-parser can handle RSS/Atom (including YouTube feeds).
       if (source.type === 'URL') {
-        return reply.send({ ok: true, message: 'Fonte nao RSS. Teste manual.' });
+        return reply.send({ ok: true, message: 'Fonte não RSS. Teste manual.' });
       }
 
       try {

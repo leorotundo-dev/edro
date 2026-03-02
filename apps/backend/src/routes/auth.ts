@@ -17,8 +17,8 @@ export default async function authRoutes(app: FastifyInstance) {
       return reply.send({ success: true, ...result });
     } catch (error: any) {
       const message = error?.message === 'domain_not_allowed'
-        ? 'Dominio nao autorizado.'
-        : 'Nao foi possivel enviar o codigo.';
+        ? 'Domínio não autorizado.'
+        : 'Não foi possível enviar o código.';
       return reply.status(403).send({ success: false, error: message });
     }
   });
@@ -92,7 +92,7 @@ export default async function authRoutes(app: FastifyInstance) {
       }
       const user = await findUserByEmail(userPayload.email);
       if (!user) {
-        return reply.status(404).send({ error: 'Usuario nao encontrado.' });
+        return reply.status(404).send({ error: 'Usuário não encontrado.' });
       }
       const tenant = await getPrimaryTenantForUser(user.id);
       return reply.send({

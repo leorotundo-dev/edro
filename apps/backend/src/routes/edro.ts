@@ -1031,7 +1031,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const briefing = await getBriefingById(params.id);
 
     if (!briefing) {
-      return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
+      return reply.status(404).send({ success: false, error: 'briefing não encontrado' });
     }
 
     const stages = await ensureBriefingStages(briefing.id);
@@ -1305,7 +1305,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     });
 
     if (!updatedStage) {
-      return reply.status(404).send({ success: false, error: 'stage nao encontrado' });
+      return reply.status(404).send({ success: false, error: 'stage não encontrado' });
     }
 
     if (body.status === 'done') {
@@ -1563,7 +1563,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const briefing = await getBriefingById(params.id);
 
     if (!briefing) {
-      return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
+      return reply.status(404).send({ success: false, error: 'briefing não encontrado' });
     }
 
     const user = resolveUser(request);
@@ -2131,7 +2131,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const briefing = await getBriefingById(params.id);
 
     if (!briefing) {
-      return reply.status(404).send({ success: false, error: 'briefing nao encontrado' });
+      return reply.status(404).send({ success: false, error: 'briefing não encontrado' });
     }
 
     const user = resolveUser(request);
@@ -2905,13 +2905,13 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const briefing = await getBriefingById(id);
     if (!briefing) {
-      return reply.status(404).send({ success: false, error: 'Briefing nao encontrado.' });
+      return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
     }
 
     const copies = await listCopyVersions(id);
     const copy = copies.find((c: any) => c.id === body.copyId);
     if (!copy) {
-      return reply.status(404).send({ success: false, error: 'Copy nao encontrada.' });
+      return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
     }
 
     const { rows } = await query<any>(

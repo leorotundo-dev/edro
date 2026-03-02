@@ -49,7 +49,7 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
 
     // Prevent admin from downgrading their own role
     if (userId === request.user.sub && role !== 'admin') {
-      return reply.status(400).send({ error: 'Voce nao pode alterar seu proprio papel.' });
+      return reply.status(400).send({ error: 'Você não pode alterar seu próprio papel.' });
     }
 
     const { rows } = await query(`
@@ -60,7 +60,7 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
     `, [role, tenantId, userId]);
 
     if (!rows.length) {
-      return reply.status(404).send({ error: 'Usuario nao encontrado neste tenant.' });
+      return reply.status(404).send({ error: 'Usuário não encontrado neste tenant.' });
     }
 
     // Also update edro_users.role for consistency
