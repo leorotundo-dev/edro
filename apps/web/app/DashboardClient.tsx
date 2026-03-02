@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
@@ -298,7 +298,7 @@ export default function DashboardClient() {
   const [priorityTags, setPriorityTags] = useState<string[]>([]);
   const [showNonRelevant, setShowNonRelevant] = useState(true);
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
       const now = new Date();
@@ -350,11 +350,11 @@ export default function DashboardClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNonRelevant]);
 
   useEffect(() => {
     loadDashboard();
-  }, [showNonRelevant]);
+  }, [loadDashboard]);
 
   if (loading) {
     return (
@@ -479,6 +479,13 @@ export default function DashboardClient() {
 
   const pendingApprovals = metrics?.byStatus?.['aprovacao'] || 0;
 
+  const approvalRate = (() => {
+    if (!metrics || metrics.total === 0) return '—';
+    const passed = ['producao', 'revisao', 'entrega', 'iclips_out', 'done']
+      .reduce((sum, s) => sum + (metrics.byStatus?.[s] ?? 0), 0);
+    return `${Math.round((passed / metrics.total) * 100)}%`;
+  })();
+
   return (
     <AppShell title="Dashboard">
       <Stack spacing={3}>
@@ -510,7 +517,7 @@ export default function DashboardClient() {
                   <Chip label={todayLong} size="small" variant="outlined" />
                 </Stack>
                 <Typography variant="body1" color="text.secondary">
-                  Resumo operacional, pipeline e inteligencia.
+                  Resumo operacional, pipeline e inteligência.
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={2} flexWrap="wrap">
@@ -518,7 +525,7 @@ export default function DashboardClient() {
                   Criar briefing
                 </Button>
                 <Button variant="outlined" startIcon={<IconCalendar size={18} />} onClick={() => router.push('/calendar')}>
-                  Calendario
+                  Calendário
                 </Button>
               </Stack>
             </Stack>
@@ -531,10 +538,10 @@ export default function DashboardClient() {
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, lg: 8 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Typography variant="overline" color="text.secondary">Celebracoes de hoje</Typography>
+                  <Typography variant="overline" color="text.secondary">Celebrações de hoje</Typography>
                   <Stack direction="row" spacing={1}>
                     <Button size="small" onClick={() => setShowNonRelevant((prev) => !prev)}>
-                      {showNonRelevant ? 'Somente relevantes' : 'Mostrar nao relevantes'}
+                      {showNonRelevant ? 'Somente relevantes' : 'Mostrar não relevantes'}
                     </Button>
                     <Button size="small" onClick={() => router.push('/calendar')}>Abrir dia</Button>
                   </Stack>
@@ -577,7 +584,7 @@ export default function DashboardClient() {
                                 {name}
                               </Typography>
                               <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.2 }}>
-                                {safeScore}%{!isRelevant ? ' • nao relevante' : ''}
+                                {safeScore}%{!isRelevant ? ' • não relevante' : ''}
                               </Typography>
                             </Box>
                           </Stack>
@@ -615,7 +622,7 @@ export default function DashboardClient() {
                           { label: 'Total de eventos', value: todayEvents.length },
                           { label: 'Briefings ativos', value: active || (metrics?.total ?? 0) },
                           { label: 'Vencem hoje', value: dueTodayCount },
-                          { label: 'Aprovacoes pendentes', value: pendingApprovals, highlight: true },
+                          { label: 'Aprovações pendentes', value: pendingApprovals, highlight: true },
                           { label: 'Tasks pendentes', value: todayTasks.length },
                         ].map((row) => (
                           <Stack key={row.label} direction="row" justifyContent="space-between">
@@ -631,7 +638,7 @@ export default function DashboardClient() {
                   {priorityTags.length > 0 && (
                     <Card variant="outlined">
                       <CardContent>
-                        <Typography variant="overline" color="text.secondary">Segmentos prioritarios</Typography>
+                        <Typography variant="overline" color="text.secondary">Segmentos prioritários</Typography>
                         <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
                           {priorityTags.map((tag) => (
                             <Chip key={tag} label={tag} size="small" variant="outlined" />
@@ -655,9 +662,9 @@ export default function DashboardClient() {
               return [
                 { label: 'Total Briefings', value: metrics.total, icon: <IconClipboardList size={22} />, color: '#3b82f6', sparkline: wv },
                 { label: 'Em Andamento', value: active, icon: <IconTrendingUp size={22} />, color: '#f59e0b', sparkline: wv },
-                { label: 'Concluidos', value: done, icon: <IconClipboardList size={22} />, color: '#22c55e', sparkline: wv },
+                { label: 'Concluídos', value: done, icon: <IconClipboardList size={22} />, color: '#22c55e', sparkline: wv },
                 { label: 'Atrasados', value: metrics.overdue, icon: <IconAlertTriangle size={22} />, color: '#ef4444', sparkline: wv },
-                { label: 'Copies Geradas', value: metrics.totalCopies, icon: <IconRobot size={22} />, color: '#8b5cf6', sparkline: cw },
+                { label: 'Cópias Geradas', value: metrics.totalCopies, icon: <IconRobot size={22} />, color: '#8b5cf6', sparkline: cw },
               ];
             })().map((stat, i) => (
               <Grow key={stat.label} in timeout={300 + i * 120} style={{ transformOrigin: '0 0 0' }}>
@@ -677,7 +684,7 @@ export default function DashboardClient() {
                 <FunnelBar key={item.stage} stage={item.stage} count={item.count} maxCount={funnelMax} />
               ))}
             </DashboardCard>
-            <DashboardCard title="Tempo Medio por Etapa" subtitle="Horas (etapas concluidas)" sx={{ flex: 1 }}>
+            <DashboardCard title="Tempo Médio por Etapa" subtitle="Horas (etapas concluídas)" sx={{ flex: 1 }}>
               {sortedAvgTime.length > 0 ? (
                 <Stack spacing={1}>
                   {sortedAvgTime.map(([stage, hours]) => (
@@ -722,7 +729,7 @@ export default function DashboardClient() {
               </DashboardCard>
             )}
             {metrics.weeklyVelocity.length > 0 && (
-              <DashboardCard title="Velocidade Semanal" subtitle="Briefings concluidos por semana" sx={{ flex: 2 }}>
+              <DashboardCard title="Velocidade Semanal" subtitle="Briefings concluídos por semana" sx={{ flex: 2 }}>
                 <Stack spacing={0.5}>
                   {metrics.weeklyVelocity.map((item) => {
                     const weekLabel = new Date(item.week).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
@@ -763,8 +770,8 @@ export default function DashboardClient() {
         {upcomingEvents.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5" color="primary.main">Proximas datas relevantes</Typography>
-              <Button size="small" onClick={() => router.push('/calendar')}>Ver calendario</Button>
+              <Typography variant="h5" color="primary.main">Próximas datas relevantes</Typography>
+              <Button size="small" onClick={() => router.push('/calendar')}>Ver calendário</Button>
             </Stack>
             <Grid container spacing={2}>
               {upcomingEvents.map((event) => (
@@ -776,14 +783,24 @@ export default function DashboardClient() {
                           <Typography variant="overline" color="text.secondary">{formatShortDate(event.date)}</Typography>
                           <Typography fontWeight={600}>{event.name}</Typography>
                         </Box>
-                        <Chip label={`${event.score}%`} size="small" />
+                        <Chip
+                          label={`${event.score}%`}
+                          size="small"
+                          sx={{
+                            bgcolor: event.score >= 80 ? '#dcfce7' : event.score >= 55 ? '#fef9c3' : '#f1f5f9',
+                            color: event.score >= 80 ? '#16a34a' : event.score >= 55 ? '#ca8a04' : '#64748b',
+                            fontWeight: 700,
+                          }}
+                        />
                       </Stack>
                       <LinearProgress
                         variant="determinate"
                         value={Math.min(event.score, 100)}
                         sx={{
                           mt: 2, height: 6, borderRadius: 99, bgcolor: 'grey.100',
-                          '& .MuiLinearProgress-bar': { bgcolor: 'primary.main' },
+                          '& .MuiLinearProgress-bar': {
+                            bgcolor: event.score >= 80 ? '#16a34a' : event.score >= 55 ? '#ca8a04' : '#94a3b8',
+                          },
                         }}
                       />
                     </CardContent>
@@ -798,7 +815,7 @@ export default function DashboardClient() {
         {recentBriefings.length > 0 && (
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5" color="primary.main">Proximos Deadlines</Typography>
+              <Typography variant="h5" color="primary.main">Próximos Deadlines</Typography>
               <Button size="small" onClick={() => router.push('/edro')}>Ver briefings</Button>
             </Stack>
             <Card variant="outlined">
@@ -847,13 +864,13 @@ export default function DashboardClient() {
         {/* ── Performance Semanal ─────────────────────────────── */}
         {metrics && (
           <Box>
-            <Typography variant="h5" mb={2} color="primary.main">Performance — Ultima Semana</Typography>
+            <Typography variant="h5" mb={2} color="primary.main">Performance — Última Semana</Typography>
             <Grid container spacing={2}>
               {[
                 { label: 'Briefings criados', value: metrics.recentBriefings, icon: <IconFileText size={18} />, color: 'success.main' },
                 { label: 'Briefings completados', value: done, icon: <IconClipboardList size={18} />, color: 'primary.main' },
-                { label: 'Taxa de aprovacao', value: '85%', icon: <IconChartLine size={18} />, color: 'info.main' },
-                { label: 'Copies geradas', value: metrics.totalCopies, icon: <IconRobot size={18} />, color: 'warning.main' },
+                { label: 'Taxa de aprovação', value: approvalRate, icon: <IconChartLine size={18} />, color: 'info.main' },
+                { label: 'Cópias geradas', value: metrics.totalCopies, icon: <IconRobot size={18} />, color: 'warning.main' },
               ].map((card) => (
                 <Grid key={card.label} size={{ xs: 12, md: 6, lg: 3 }}>
                   <Card variant="outlined">
@@ -951,7 +968,7 @@ export default function DashboardClient() {
             <Typography variant="h6" fontWeight={700} color="primary.main">
               <Stack direction="row" alignItems="center" spacing={1}>
                 <IconClock size={22} />
-                <span>Inteligencia Preditiva — Melhores Horarios</span>
+                <span>Inteligência Preditiva — Melhores Horários</span>
               </Stack>
             </Typography>
             <DashboardCard>
@@ -1001,7 +1018,7 @@ export default function DashboardClient() {
             <Typography variant="h6" fontWeight={700} color="primary.main">
               <Stack direction="row" alignItems="center" spacing={1}>
                 <IconBrain size={22} />
-                <span>Learning Loop — Preferencias Aprendidas</span>
+                <span>Learning Loop — Preferências Aprendidas</span>
               </Stack>
             </Typography>
             {metrics.learningInsights.map((li) => (
@@ -1009,7 +1026,7 @@ export default function DashboardClient() {
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Typography variant="subtitle2" fontWeight={700}>Score medio: {li.overall_avg_score}/5</Typography>
-                    <Chip label={`${li.total_scored_copies} copies avaliadas`} size="small" variant="outlined" />
+                    <Chip label={`${li.total_scored_copies} cópias avaliadas`} size="small" variant="outlined" />
                   </Stack>
                   <Typography variant="caption" color="text.secondary">
                     Atualizado: {new Date(li.rebuilt_at).toLocaleDateString('pt-BR')}
@@ -1103,7 +1120,7 @@ export default function DashboardClient() {
             Ver Todos os Briefings
           </Button>
           <Button variant="outlined" startIcon={<IconCalendar size={18} />} onClick={() => router.push('/calendar')}>
-            Calendario
+            Calendário
           </Button>
         </Stack>
       </Stack>
