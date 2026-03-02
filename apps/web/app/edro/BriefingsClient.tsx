@@ -25,6 +25,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Snackbar from '@mui/material/Snackbar';
 import TextField from '@mui/material/TextField';
 import Popover from '@mui/material/Popover';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -141,6 +142,8 @@ export default function BriefingsClient() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [hoveredBriefing, setHoveredBriefing] = useState<Briefing | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const showError = (message: string) => setSnackbar({ open: true, message });
 
   const loadBriefings = useCallback(async () => {
     setLoading(true);
@@ -220,7 +223,7 @@ export default function BriefingsClient() {
         a.click();
       }
     } catch (err: any) {
-      alert(err?.message || 'Erro ao exportar relatório.');
+      showError(err?.message || 'Erro ao exportar relatório.');
     }
   };
 
@@ -243,7 +246,7 @@ export default function BriefingsClient() {
       await apiPatch(`/edro/briefings/${id}/archive`);
       setBriefings((prev) => prev.map((b) => (b.id === id ? { ...b, status: 'archived' } : b)));
     } catch (err: any) {
-      alert(err?.message || 'Erro ao arquivar briefing.');
+      showError(err?.message || 'Erro ao arquivar briefing.');
     }
   };
 
@@ -256,7 +259,7 @@ export default function BriefingsClient() {
       await apiDelete(`/edro/briefings/${id}`);
       setBriefings((prev) => prev.filter((b) => b.id !== id));
     } catch (err: any) {
-      alert(err?.message || 'Erro ao excluir briefing.');
+      showError(err?.message || 'Erro ao excluir briefing.');
     }
   };
 
@@ -289,7 +292,7 @@ export default function BriefingsClient() {
       setBriefings((prev) => prev.map((b) => (ids.includes(b.id) ? { ...b, status: 'archived' } : b)));
       setSelectedIds(new Set());
     } catch (err: any) {
-      alert(err?.message || 'Erro ao arquivar briefings.');
+      showError(err?.message || 'Erro ao arquivar briefings.');
     } finally {
       setBulkLoading(false);
     }
@@ -305,7 +308,7 @@ export default function BriefingsClient() {
       setBriefings((prev) => prev.filter((b) => !ids.includes(b.id)));
       setSelectedIds(new Set());
     } catch (err: any) {
-      alert(err?.message || 'Erro ao excluir briefings.');
+      showError(err?.message || 'Erro ao excluir briefings.');
     } finally {
       setBulkLoading(false);
     }
@@ -320,7 +323,7 @@ export default function BriefingsClient() {
       setSelectedIds(new Set());
       await loadBriefings();
     } catch (err: any) {
-      alert(err?.message || 'Erro ao avançar briefings.');
+      showError(err?.message || 'Erro ao avançar briefings.');
     } finally {
       setBulkLoading(false);
     }
@@ -826,6 +829,17 @@ export default function BriefingsClient() {
           <ListItemText>Excluir</ListItemText>
         </MenuItem>
       </Menu>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </AppShell>
   );
 }
