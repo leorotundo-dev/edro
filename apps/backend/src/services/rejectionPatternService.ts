@@ -17,8 +17,8 @@ export async function syncRejectionPatternsToProfile(clientId: string, tenantId:
   const reasonsText = rows.map((r, i) => `${i + 1}. ${r.reason}`).join('\n');
 
   const result = await generateCompletion({
-    prompt: `Analise estes ${rows.length} motivos de rejeicao de copy e extraia padroes recorrentes:\n\n${reasonsText}\n\nRetorne JSON: {"patterns": ["padrao1", "padrao2", "padrao3"]} — maximo 5, em portugues, cada padrao em 1 frase curta e objetiva.`,
-    systemPrompt: 'Voce analisa feedbacks de copy. Retorne apenas JSON valido.',
+    prompt: `Analise estes ${rows.length} motivos de rejeição de copy e extraia padrões recorrentes:\n\n${reasonsText}\n\nRetorne JSON: {"patterns": ["padrão1", "padrão2", "padrão3"]} — máximo 5, em português, cada padrão em 1 frase curta e objetiva.`,
+    systemPrompt: 'Você analisa feedbacks de copy. Retorne apenas JSON válido.',
     temperature: 0.2,
     maxTokens: 300,
   });
