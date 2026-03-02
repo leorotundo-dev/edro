@@ -626,9 +626,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       library: 'Biblioteca',
       clipping: 'Clipping',
       social: 'Social',
-      calendar: 'Calendario',
+      calendar: 'Calendário',
       opportunities: 'Oportunidades',
-      antiRepetition: 'Anti-repeticao',
+      antiRepetition: 'Anti-repetição',
       briefings: 'Briefings',
     };
 
@@ -775,8 +775,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     const avg = Number(socialStats?.summary?.avg_score ?? 0);
 
     if (socialStats) {
-      if (total > 0) lines.push(`Social (7d): ${formatNumber(total)} mencoes; sentimento medio ${formatPercent(avg)}.`);
-      else lines.push('Social (7d): sem mencoes coletadas ainda.');
+      if (total > 0) lines.push(`Social (7d): ${formatNumber(total)} menções; sentimento médio ${formatPercent(avg)}.`);
+      else lines.push('Social (7d): sem menções coletadas ainda.');
     }
 
     if (topTrends.length) {
@@ -784,7 +784,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
         .map((t) => `${t.keyword} (${t.platform})`)
         .filter(Boolean)
         .join(', ');
-      if (formatted) lines.push(`Tendencias: ${formatted}.`);
+      if (formatted) lines.push(`Tendências: ${formatted}.`);
     }
 
     if (radarMatch?.title) {
@@ -793,7 +793,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     }
 
     if (nextCalendarItem?.name) {
-      lines.push(`Calendario: ${nextCalendarItem.name} em ${formatDate(nextCalendarItem.date)}.`);
+      lines.push(`Calendário: ${nextCalendarItem.name} em ${formatDate(nextCalendarItem.date)}.`);
     }
 
     if (topOpportunities.length) {
@@ -1058,9 +1058,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               { label: 'Clipping (7d)', value: formatNumber(clippingStats?.items_last_7_days), sub: `Novos: ${formatNumber(clippingStats?.new_items)}`, sub2: `Score: ${formatNumber(clippingStats?.avg_score)}`, icon: IconNews, color: SECTION_COLORS.clipping },
               { label: 'Social (7d)', value: formatNumber(socialStats?.summary?.total), sub: `Sentimento: ${formatPercent(socialStats?.summary?.avg_score ?? null)}`, icon: IconAntenna, color: SECTION_COLORS.social },
               { label: 'Radar', value: formatNumber(radarMatch?.score), sub: radarMatch?.title || 'Sem radar', icon: IconTarget, color: SECTION_COLORS.radar, href: radarDetailHref || undefined },
-              { label: 'Calendario', value: formatNumber(calendarItems.length), sub: `Alta relev.: ${formatNumber(calendarHighRelevanceCount)}`, icon: IconCalendar, color: SECTION_COLORS.calendar },
+              { label: 'Calendário', value: formatNumber(calendarItems.length), sub: `Alta relev.: ${formatNumber(calendarHighRelevanceCount)}`, icon: IconCalendar, color: SECTION_COLORS.calendar },
               { label: 'Oportunidades', value: formatNumber(opportunities.length), sub: `Urgentes: ${formatNumber(opportunitiesUrgentCount)}`, icon: IconBulb, color: SECTION_COLORS.opportunities, alert: opportunitiesUrgentCount > 0, href: `/clients/${clientId}/planning` },
-              { label: 'Performance', value: reporteiConfigured ? 'OK' : '--', sub: reporteiConfigured ? `Atualizado: ${formatDate(reportei?.updated_at || null)}` : 'Reportei nao configurado', icon: IconChartBar, color: SECTION_COLORS.performance },
+              { label: 'Performance', value: reporteiConfigured ? 'OK' : '--', sub: reporteiConfigured ? `Atualizado: ${formatDate(reportei?.updated_at || null)}` : 'Reportei não configurado', icon: IconChartBar, color: SECTION_COLORS.performance },
               { label: 'Biblioteca', value: formatNumber(planningStats?.library?.totalItems), sub: 'Itens prontos para IA', icon: IconBook2, color: SECTION_COLORS.library },
               { label: 'Creative', value: formatNumber(planningStats?.briefings?.pending), sub: `Copies (90d): ${formatNumber(planningStats?.copies?.recentHashes)}`, icon: IconSparkles, color: SECTION_COLORS.creative },
             ].map((stat) => (
@@ -1144,14 +1144,14 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Grid size={{ xs: 12, md: 4 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                 <IconHeartbeat size={18} color={SECTION_COLORS.insights.fg} />
-                <Typography variant="subtitle2" fontWeight={600}>Saude do Sistema</Typography>
+                <Typography variant="subtitle2" fontWeight={600}>Saúde do Sistema</Typography>
               </Stack>
               <Stack spacing={1.5}>
                 {[
                   { label: 'Biblioteca', value: planningStats?.library?.totalItems ?? 0, max: 50, color: SECTION_COLORS.library.fg },
                   { label: 'Clipping', value: planningStats?.clipping?.totalMatches ?? 0, max: 100, color: SECTION_COLORS.clipping.fg },
                   { label: 'Social', value: planningStats?.social?.totalMentions ?? 0, max: 200, color: SECTION_COLORS.social.fg },
-                  { label: 'Calendario', value: planningStats?.calendar?.next14Days ?? 0, max: 20, color: SECTION_COLORS.calendar.fg },
+                  { label: 'Calendário', value: planningStats?.calendar?.next14Days ?? 0, max: 20, color: SECTION_COLORS.calendar.fg },
                   { label: 'Oportunidades', value: planningStats?.opportunities?.active ?? 0, max: 10, color: SECTION_COLORS.opportunities.fg },
                 ].map((row) => (
                   <Box key={row.label}>
@@ -1260,7 +1260,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
               {topTrends.length > 0 && (
                 <Box sx={{ mb: 2 }}>
-                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>Top tendencias</Typography>
+                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>Top tendências</Typography>
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                     {topTrends.map((t) => (
                       <Chip key={`${t.keyword}-${t.platform}`} size="small"
@@ -1305,7 +1305,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   );
                   })
                 ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem mencoes recentes.</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem menções recentes.</Typography>
                 )}
               </Stack>
             </Grid>
@@ -1322,10 +1322,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Avatar sx={{ bgcolor: SECTION_COLORS.calendar.bg, width: 36, height: 36 }}>
               <IconCalendar size={20} color={SECTION_COLORS.calendar.fg} />
             </Avatar>
-            <Typography variant="h6" fontWeight={700}>Estrategia</Typography>
+            <Typography variant="h6" fontWeight={700}>Estratégia</Typography>
             <Box flex={1} />
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/calendar`} sx={{ color: SECTION_COLORS.calendar.fg }}>
-              Calendario
+              Calendário
             </Button>
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/inteligencia?sub=insights`} sx={{ color: SECTION_COLORS.insights.fg }}>
               Insights
@@ -1339,7 +1339,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             {/* Left — Calendario (14d) */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                Calendario (14d)
+                Calendário (14d)
               </Typography>
               <Stack spacing={1.5}>
                 {calendarItems.slice(0, 4).map((item, idx) => {
@@ -1372,7 +1372,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   );
                 })}
                 {!calendarItems.length && (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem datas proximas.</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Sem datas próximas.</Typography>
                 )}
               </Stack>
             </Grid>
@@ -1444,7 +1444,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
                 Performance
               </Typography>
-              <Chip size="small" label={reporteiConfigured ? 'Reportei OK' : 'Nao configurado'}
+              <Chip size="small" label={reporteiConfigured ? 'Reportei OK' : 'Não configurado'}
                 sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700, mb: 2,
                   bgcolor: reporteiConfigured ? 'success.light' : 'error.light',
                   color: reporteiConfigured ? 'success.main' : 'error.main' }} />
@@ -1474,8 +1474,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             <Avatar sx={{ bgcolor: SECTION_COLORS.creative.bg, width: 36, height: 36 }}>
               <IconSparkles size={20} color={SECTION_COLORS.creative.fg} />
             </Avatar>
-            <Typography variant="h6" fontWeight={700}>Producao</Typography>
-            <Chip size="small" label={planningHealth?.overall === 'healthy' ? 'OK' : planningHealth?.overall === 'warning' ? 'Atencao' : 'Sem dados'}
+            <Typography variant="h6" fontWeight={700}>Produção</Typography>
+            <Chip size="small" label={planningHealth?.overall === 'healthy' ? 'OK' : planningHealth?.overall === 'warning' ? 'Atenção' : 'Sem dados'}
               sx={{ height: 20, fontSize: '0.6rem', fontWeight: 700,
                 bgcolor: planningHealth?.overall === 'healthy' ? 'success.light' : planningHealth?.overall === 'warning' ? 'warning.light' : 'grey.100',
                 color: planningHealth?.overall === 'healthy' ? 'success.main' : planningHealth?.overall === 'warning' ? 'warning.main' : 'text.secondary' }} />
@@ -1508,7 +1508,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
           <Grid container spacing={3}>
             {/* Left — Briefings recentes */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
                 Briefings recentes
               </Typography>
@@ -1534,10 +1534,10 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Stack>
             </Grid>
 
-            {/* Center — Copies recentes */}
+            {/* Center — Cópias recentes */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                Copies recentes
+                Cópias recentes
               </Typography>
               <Stack spacing={1}>
                 {recentCopies.length ? (
@@ -1550,7 +1550,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                     </Box>
                   ))
                 ) : (
-                  <Typography variant="body2" color="text.secondary">Sem copies recentes.</Typography>
+                  <Typography variant="body2" color="text.secondary">Sem cópias recentes.</Typography>
                 )}
               </Stack>
             </Grid>
@@ -1606,7 +1606,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 boxShadow: '0 8px 24px rgba(232,82,25,0.25)',
               }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ color: 'white', mb: 2 }}>
-                  Acoes rapidas
+                  Ações rápidas
                 </Typography>
                 <Stack spacing={1.5}>
                   <Button fullWidth variant="contained" startIcon={<IconSparkles size={16} />}
@@ -1617,7 +1617,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                   <Button fullWidth variant="outlined" startIcon={<IconCalendar size={16} />}
                     component={Link} href={`/clients/${clientId}/calendar`}
                     sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', borderRadius: 2, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}>
-                    Calendario
+                    Calendário
                   </Button>
                 </Stack>
                 <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.2)' }} />
@@ -1657,7 +1657,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
             {/* Right — Proximas datas */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                Proximas datas
+                Próximas datas
               </Typography>
               <Stack spacing={1.5}>
                 {calendarItems.length > 0 ? (
