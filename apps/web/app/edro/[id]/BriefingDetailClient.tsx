@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -15,6 +16,7 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
+import Snackbar from '@mui/material/Snackbar';
 import Tooltip from '@mui/material/Tooltip';
 import {
   IconArchive,
@@ -298,6 +300,11 @@ function sortedPayloadEntries(payload: Record<string, any>) {
 
 export default function BriefingDetailClient({ briefingId }: { briefingId: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false, message: '', severity: 'error',
+  });
+  const showError = (message: string) => setSnackbar({ open: true, message, severity: 'error' });
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [copies, setCopies] = useState<Copy[]>([]);
@@ -396,7 +403,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       setAdaptSuccess(`3 copies geradas com inspiração em "${art.title.slice(0, 60)}${art.title.length > 60 ? '...' : ''}"`);
       setTimeout(() => setAdaptSuccess(''), 6000);
     } catch (err: any) {
-      alert(err?.message || 'Erro ao adaptar ideia. Tente novamente.');
+      showError(err?.message || 'Erro ao adaptar ideia. Tente novamente.');
     } finally {
       setAdaptingIdx(null);
     }
@@ -410,7 +417,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       const status = action === 'start' ? 'in_progress' : 'done';
       await apiPatch(`/edro/briefings/${briefingId}/stages/${stageKey}`, { status });
       await loadBriefing();
-    } catch (err: any) { alert(err?.message || 'Erro ao atualizar etapa.'); }
+    } catch (err: any) { showError(err?.message || 'Erro ao atualizar etapa.'); }
     finally { setActionLoading(null); }
   };
 
@@ -426,19 +433,19 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
   const handleArchive = async () => {
     if (!briefing) return;
-    if (!confirm('Arquivar este briefing?')) return;
+    if (!await confirm('Arquivar este briefing?')) return;
     try {
       await apiPatch(`/edro/briefings/${briefingId}/archive`);
       setBriefing({ ...briefing, status: 'archived' });
-    } catch (err: any) { alert(err?.message || 'Erro ao arquivar briefing.'); }
+    } catch (err: any) { showError(err?.message || 'Erro ao arquivar briefing.'); }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
+    if (!await confirm('Excluir este briefing permanentemente? Todas as copies e tarefas associadas serão removidas.')) return;
     try {
       await apiDelete(`/edro/briefings/${briefingId}`);
       router.push('/edro');
-    } catch (err: any) { alert(err?.message || 'Erro ao excluir briefing.'); }
+    } catch (err: any) { showError(err?.message || 'Erro ao excluir briefing.'); }
   };
 
   if (loading) {
@@ -1417,6 +1424,21 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
           </Grid>
         </Grid>
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </AppShell>
   );
 }
