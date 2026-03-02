@@ -365,10 +365,13 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
     setError('');
     try {
       const response = await apiGet<ClientRow[]>('/clients');
-      setClients(response || []);
-      if (response?.length && !selectedId && !isNew && !lockedClientId && !urlNew) {
-        setSelectedId(response[0].id);
-        setForm(buildFormFromClient(response[0]));
+      const sorted = (response || []).sort((a, b) =>
+        a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
+      );
+      setClients(sorted);
+      if (sorted.length && !selectedId && !isNew && !lockedClientId && !urlNew) {
+        setSelectedId(sorted[0].id);
+        setForm(buildFormFromClient(sorted[0]));
       }
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar clientes.');
@@ -546,9 +549,12 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
   }, [selectedId, loadClientDetail, loadConnectors, loadIntelligence, loadReportei]);
 
   const filteredClients = useMemo(() => {
-    if (!filter.trim()) return clients;
-    const query = filter.toLowerCase();
-    return clients.filter((client) => client.name.toLowerCase().includes(query));
+    const base = !filter.trim()
+      ? clients
+      : clients.filter((c) =>
+          `${c.name} ${c.segment_primary ?? ''} ${c.city ?? ''}`.toLowerCase().includes(filter.toLowerCase())
+        );
+    return [...base].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
   }, [clients, filter]);
 
   const handleSelectClient = (clientId: string) => {
