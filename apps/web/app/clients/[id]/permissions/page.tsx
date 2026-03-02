@@ -64,7 +64,7 @@ export default function ClientPermissionsPage() {
       setPermissions(permsData.permissions || []);
       setAllUsers(usersData.users || []);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar permissoes.');
+      setError(err?.message || 'Erro ao carregar permissões.');
     } finally {
       setLoading(false);
     }
@@ -104,10 +104,10 @@ export default function ClientPermissionsPage() {
       setError('');
       await apiDelete(`/admin/clients/${clientId}/permissions/${userId}`);
       setPermissions((prev) => prev.filter((p) => p.user_id !== userId));
-      setSuccess('Permissoes removidas.');
+      setSuccess('Permissões removidas.');
       setTimeout(() => setSuccess(''), 2000);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao remover permissoes.');
+      setError(err?.message || 'Erro ao remover permissões.');
     }
   };
 
@@ -119,7 +119,7 @@ export default function ClientPermissionsPage() {
   if (!isAdmin) {
     return (
       <Box sx={{ py: 4 }}>
-        <Alert severity="warning">Apenas administradores podem gerenciar permissoes de clientes.</Alert>
+        <Alert severity="warning">Apenas administradores podem gerenciar permissões de clientes.</Alert>
       </Box>
     );
   }
@@ -129,9 +129,9 @@ export default function ClientPermissionsPage() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <IconShieldCheck size={28} stroke={1.5} />
         <Box>
-          <Typography variant="h5" fontWeight={700}>Permissoes do Cliente</Typography>
+          <Typography variant="h5" fontWeight={700}>Permissões do Cliente</Typography>
           <Typography variant="body2" color="text.secondary">
-            Controle quais usuarios tem acesso a este cliente e com quais permissoes.
+            Controle quais usuários têm acesso a este cliente e com quais permissões.
           </Typography>
         </Box>
       </Box>

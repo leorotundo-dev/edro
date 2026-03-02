@@ -1294,7 +1294,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
             })
           ) : (
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-              Nenhuma mencao encontrada.
+              Nenhuma menção encontrada.
             </Typography>
           )}
         </Stack>

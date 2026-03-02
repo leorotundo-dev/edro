@@ -109,7 +109,7 @@ export default function LoginPage() {
       setLoading(true);
       const response = await apiPost('/auth/verify', { email, code });
       const token = response?.accessToken || response?.token;
-      if (!token) throw new Error('Token nao retornado.');
+      if (!token) throw new Error('Token não retornado.');
       localStorage.setItem('edro_token', token);
       if (response?.refreshToken) localStorage.setItem('edro_refresh', response.refreshToken);
       if (response?.user) localStorage.setItem('edro_user', JSON.stringify(response.user));

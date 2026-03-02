@@ -302,7 +302,7 @@ export default function SettingsClient() {
                   </Stack>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    Execute o diagnostico para ver os resultados.
+                    Execute o diagnóstico para ver os resultados.
                   </Typography>
                 )}
               </DashboardCard>

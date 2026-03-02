@@ -52,7 +52,7 @@ export default function AdminUsersPage() {
       const data = await apiGet<{ users: User[] }>('/admin/users');
       setUsers(data.users || []);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar usuarios.');
+      setError(err?.message || 'Erro ao carregar usuários.');
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function AdminUsersPage() {
           <Box>
             <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuários</Typography>
             <Typography variant="body2" color="text.secondary">
-              Gerencie papeis e permissoes dos membros da equipe.
+              Gerencie papéis e permissões dos membros da equipe.
             </Typography>
           </Box>
         </Box>

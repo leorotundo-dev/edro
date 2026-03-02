@@ -1001,7 +1001,7 @@ export default function BriefClient() {
                 Selecione o cliente
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Escolha para qual cliente esta pauta sera criada.
+                Escolha para qual cliente esta pauta será criada.
               </Typography>
               {clients.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">

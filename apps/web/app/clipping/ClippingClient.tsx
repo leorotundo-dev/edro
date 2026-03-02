@@ -530,7 +530,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const handleRunCompetitiveIntel = async () => {
     const clientIdForAnalysis = selectedClient?.id || lockedClientId;
     if (!clientIdForAnalysis) {
-      setError('Selecione um cliente para analise.');
+      setError('Selecione um cliente para análise.');
       return;
     }
 
@@ -548,7 +548,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
       }));
 
     if (!selectedAssets.length) {
-      setError('Selecione ate 10 materias para analise.');
+      setError('Selecione até 10 matérias para análise.');
       return;
     }
 
@@ -563,9 +563,9 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         response?.strategic_brief || response?.draft || 'Análise concluída sem conteúdo retornado.'
       );
       setCompetitiveOpen(true);
-      setSuccess(`Analise de concorrencia gerada com ${selectedAssets.length} ativo(s).`);
+      setSuccess(`Análise de concorrência gerada com ${selectedAssets.length} ativo(s).`);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao gerar analise de concorrencia.');
+      setError(err?.message || 'Falha ao gerar análise de concorrência.');
     } finally {
       setCompetitiveLoading(false);
     }
@@ -719,7 +719,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                   onClick={handleRunCompetitiveIntel}
                   disabled={competitiveLoading || selectedItemIds.length === 0}
                 >
-                  {competitiveLoading ? 'Analisando...' : 'Analisar concorrencia'}
+                  {competitiveLoading ? 'Analisando...' : 'Analisar concorrência'}
                 </Button>
               </Stack>
             }

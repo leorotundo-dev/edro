@@ -453,7 +453,7 @@ export default function AiCostsPage() {
                       <TableRow>
                         <TableCell colSpan={8} align="center">
                           <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
-                            Nenhuma chamada registrada ainda. Os custos serao logados a partir de agora.
+                            Nenhuma chamada registrada ainda. Os custos serão logados a partir de agora.
                           </Typography>
                         </TableCell>
                       </TableRow>

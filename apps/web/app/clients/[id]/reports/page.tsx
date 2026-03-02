@@ -146,7 +146,7 @@ export default function ClientReportsPage() {
       const data = await apiGet<AiSummary>(`/clients/${clientId}/reports/ai-summary?from=${from}&to=${to}&template=${template}`);
       setAiSummary(data);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao gerar analise estrategica.');
+      setError(err?.message || 'Erro ao gerar análise estratégica.');
     } finally {
       setAiLoading(false);
     }

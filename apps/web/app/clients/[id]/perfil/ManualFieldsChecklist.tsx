@@ -32,7 +32,7 @@ export default function ManualFieldsChecklist({ fields }: Props) {
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Nenhum campo obrigatorio de revisao humana pendente.
+            Nenhum campo obrigatório de revisão humana pendente.
           </Typography>
         </CardContent>
       </Card>

@@ -188,7 +188,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
         setAnalysisError('Resposta inesperada da API.');
       }
     } catch (err: any) {
-      setAnalysisError(err?.message || 'Falha ao gerar analise.');
+      setAnalysisError(err?.message || 'Falha ao gerar análise.');
     } finally {
       setAnalyzing(false);
     }

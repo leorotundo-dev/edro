@@ -887,7 +887,7 @@ export default function EditorClient() {
           client?.segment ? `Segmento: ${client.segment}` : '',
           `Formato selecionado: ${activeFormat?.format || 'não informado'}`,
           `Plataforma: ${activeFormat?.platform || 'não informado'}`,
-          activeFormat?.production_type ? `Tipo de producao: ${activeFormat.production_type}` : '',
+          activeFormat?.production_type ? `Tipo de produção: ${activeFormat.production_type}` : '',
           tone ? `Tom de voz: ${tone}` : '',
           clientsToGenerate.length > 1 ? 'Gerar opcoes alinhadas a este cliente.' : '',
           'Retorne opcoes separadas e numeradas.',
@@ -2125,7 +2125,7 @@ export default function EditorClient() {
                                 {item.platform || 'Plataforma'} &middot; {item.format || 'Formato'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {item.production_type ? item.production_type : 'Tipo nao informado'}
+                                {item.production_type ? item.production_type : 'Tipo não informado'}
                               </Typography>
                             </Box>
                             <Chip
