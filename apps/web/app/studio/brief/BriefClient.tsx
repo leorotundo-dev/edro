@@ -263,6 +263,7 @@ export default function BriefClient() {
   const [clientPersonas, setClientPersonas] = useState<Array<{ id: string; name: string; momento: string }>>([]);
   const [clientCampaigns, setClientCampaigns] = useState<Array<{ id: string; name: string; phases: Array<{ id: string; name: string; order: number }>; behavior_intents: Array<{ id: string; amd: string; momento: string; triggers: string[]; target_behavior: string; phase_id: string }> }>>([]);
   const [deadlineSuggestion, setDeadlineSuggestion] = useState<{ value: string; label: string } | null>(null);
+  const [generatingMessage, setGeneratingMessage] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -715,6 +716,34 @@ export default function BriefClient() {
   const formatMonthLabel = (ym: string) => {
     const [y, m] = ym.split('-').map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  };
+
+  const handleGenerateMessage = async () => {
+    setGeneratingMessage(true);
+    try {
+      const selectedPersona = clientPersonas.find((p) => p.id === form.persona_id);
+      const res = await apiPost<{ success: boolean; data: { message: string; notes: string } }>('/ai/brief-message', {
+        client_id:    activeClientId || undefined,
+        client_name:  selectedClient?.name || undefined,
+        objective:    form.objective || undefined,
+        tone:         form.tone || undefined,
+        event:        form.event || undefined,
+        date:         form.date || undefined,
+        amd:          form.amd || undefined,
+        momento:      form.momento_consciencia || undefined,
+        persona_name: selectedPersona?.name || undefined,
+      });
+      if (res?.data?.message) {
+        updateForm({
+          message: res.data.message,
+          notes: res.data.notes && !form.notes ? res.data.notes : form.notes,
+        });
+      }
+    } catch {
+      // silently fail — user keeps existing message
+    } finally {
+      setGeneratingMessage(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -1525,12 +1554,25 @@ export default function BriefClient() {
       {/* Mensagem */}
       <Card sx={{ opacity: isContextReady ? 1 : 0.5, pointerEvents: isContextReady ? 'auto' : 'none' }}>
         <CardContent>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6">Mensagem</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Insira mensagem principal e observacoes.
-            </Typography>
-          </Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
+            <Box>
+              <Typography variant="h6">Mensagem</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Insira mensagem principal e observacoes.
+              </Typography>
+            </Box>
+            <LoadingButton
+              size="small"
+              variant="outlined"
+              loading={generatingMessage}
+              onClick={handleGenerateMessage}
+              disabled={!isContextReady}
+              startIcon={!generatingMessage ? <IconSparkles size={14} /> : null}
+              sx={{ textTransform: 'none', flexShrink: 0 }}
+            >
+              Gerar com IA
+            </LoadingButton>
+          </Stack>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12 }}>
               <TextField
