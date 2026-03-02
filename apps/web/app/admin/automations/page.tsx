@@ -95,7 +95,7 @@ export default function AutomationsPage() {
       setNewEvent('');
       setNewAction('');
     } catch (err: any) {
-      setError(err?.message || 'Erro ao criar automacao.');
+      setError(err?.message || 'Erro ao criar automação.');
     }
   };
 
@@ -143,10 +143,10 @@ export default function AutomationsPage() {
           <Card variant="outlined">
             <CardContent sx={{ py: 6, textAlign: 'center' }}>
               <Typography color="text.secondary" sx={{ mb: 2 }}>
-                Nenhuma automacao configurada.
+                Nenhuma automação configurada.
               </Typography>
               <Button variant="outlined" onClick={() => setDialogOpen(true)}>
-                Criar primeira automacao
+                Criar primeira automação
               </Button>
             </CardContent>
           </Card>

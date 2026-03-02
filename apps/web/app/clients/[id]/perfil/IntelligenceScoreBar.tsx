@@ -23,7 +23,7 @@ type Props = {
 };
 
 const SCORE_LEVELS = [
-  { min: 0,  max: 30,  label: 'IA com informacao minima',          color: 'error.main',   colorHex: '#dc2626', bg: 'error.light' },
+  { min: 0,  max: 30,  label: 'IA com informação mínima',          color: 'error.main',   colorHex: '#dc2626', bg: 'error.light' },
   { min: 30, max: 60,  label: 'IA parcialmente contextualizada',   color: 'warning.main', colorHex: '#d97706', bg: 'warning.light' },
   { min: 60, max: 85,  label: 'IA bem contextualizada',            color: 'info.dark',    colorHex: '#475569', bg: 'info.light' },
   { min: 85, max: 101, label: 'IA totalmente alinhada',            color: 'success.main', colorHex: '#16a34a', bg: 'success.light' },

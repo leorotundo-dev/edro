@@ -112,7 +112,7 @@ export default function CalendarReviewPage() {
       await apiPost(`/calendars/${calendarId}/posts/bulk`, { action, indices });
       await loadPosts();
     } catch (err: any) {
-      setError(err?.message || 'Falha na aprovacao em lote.');
+      setError(err?.message || 'Falha na aprovação em lote.');
     }
   };
 
@@ -189,7 +189,7 @@ export default function CalendarReviewPage() {
       <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 300 }}>
         <CircularProgress size={28} />
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando aprovacao...
+          Carregando aprovação...
         </Typography>
       </Stack>
     );
@@ -219,7 +219,7 @@ export default function CalendarReviewPage() {
             <Box>
               <Typography variant="overline" color="text.secondary">Calendar Review</Typography>
               <Typography variant="h4">Calendar {calendarId}</Typography>
-              <Typography variant="body2" color="text.secondary">{rows.length} posts prontos para aprovacao</Typography>
+              <Typography variant="body2" color="text.secondary">{rows.length} posts prontos para aprovação</Typography>
             </Box>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button variant="outlined" size="small" startIcon={<IconDownload size={16} />} onClick={() => downloadFile('csv')}>

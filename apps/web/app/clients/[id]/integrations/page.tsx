@@ -122,7 +122,7 @@ export default function ClientIntegrationsPage() {
           {metaData && (
             <>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                Ultima atualizacao: {new Date(metaData.fetched_at).toLocaleString('pt-BR')}
+                Última atualização: {new Date(metaData.fetched_at).toLocaleString('pt-BR')}
               </Typography>
 
               <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -224,7 +224,7 @@ export default function ClientIntegrationsPage() {
           {gaData && (
             <>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                Ultima atualizacao: {new Date(gaData.fetched_at).toLocaleString('pt-BR')}
+                Última atualização: {new Date(gaData.fetched_at).toLocaleString('pt-BR')}
               </Typography>
 
               <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -238,7 +238,7 @@ export default function ClientIntegrationsPage() {
                   <StatCard label="Taxa de Rejeicao" value={`${(gaData.bounceRate * 100).toFixed(1)}%`} color="warning.main" />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
-                  <StatCard label="Duracao Media" value={`${Math.round(gaData.avgSessionDuration)}s`} />
+                  <StatCard label="Duração Média" value={`${Math.round(gaData.avgSessionDuration)}s`} />
                 </Grid>
               </Grid>
 

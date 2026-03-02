@@ -1055,7 +1055,7 @@ export default function PlatformClient() {
                   </Button>
                 ) : null}
                 <Button variant="outlined" size="small" onClick={handleClearSelection}>
-                  Limpar selecao
+                  Limpar seleção
                 </Button>
               </Stack>
             </Stack>

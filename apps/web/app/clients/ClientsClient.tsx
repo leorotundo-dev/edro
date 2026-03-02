@@ -1154,7 +1154,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                     <Typography variant="caption" color="text.secondary">
                       {reporteiUpdatedAt
                         ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
-                        : 'Sem atualizacao recente'}
+                        : 'Sem atualização recente'}
                     </Typography>
                   </Stack>
 

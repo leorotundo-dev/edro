@@ -350,7 +350,7 @@ export default function ClientConnectorsPage() {
         >
           Voltar para Cliente
         </Button>
-        <Typography variant="h5">Integracoes &amp; Connectors</Typography>
+        <Typography variant="h5">Integrações &amp; Connectors</Typography>
         <Typography variant="body2" color="text.secondary">
           Configure integrações com plataformas externas.
         </Typography>
@@ -398,7 +398,7 @@ export default function ClientConnectorsPage() {
                   return `Configurado em ${new Date(status.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}`;
                 if (isConnected && provider.oauthProvider && status?.payload?.page_name)
                   return `Página: ${status.payload.page_name as string}`;
-                return 'Sem sincronizacao recente.';
+                return 'Sem sincronização recente.';
               })();
 
               const statusColor = (() => {

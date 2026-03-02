@@ -458,7 +458,7 @@ export default function HomeClient() {
                     })
                   ) : (
                     <Typography variant="body2" color="text.secondary">
-                      Nenhuma criacao na ultima semana.
+                      Nenhuma criação na última semana.
                     </Typography>
                   )}
                 </Stack>

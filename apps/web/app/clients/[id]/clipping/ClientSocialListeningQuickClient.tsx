@@ -571,7 +571,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
         [platform]: { ...prev[platform], access_token: '' },
       }));
     } catch (err: any) {
-      setSourcesError(err?.message || 'Falha ao salvar configuracao Meta.');
+      setSourcesError(err?.message || 'Falha ao salvar configuração Meta.');
     } finally {
       setSourcesBusy(false);
     }
@@ -905,7 +905,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
                                 {meta.label}
                               </Typography>
                               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                {connectorUpdatedAt ? `Atualizado em ${formatDateTime(connectorUpdatedAt)}` : 'Sem configuracao salva ainda.'}
+                                {connectorUpdatedAt ? `Atualizado em ${formatDateTime(connectorUpdatedAt)}` : 'Sem configuração salva ainda.'}
                               </Typography>
                             </Box>
                           </Stack>

@@ -329,7 +329,7 @@ export default function ClippingDiagnosticsPage() {
           sx={{ mb: 2 }}
         >
           <Typography variant="body2" fontWeight={600}>
-            {connectivity === 'checking' && 'Verificando conexao com o backend...'}
+            {connectivity === 'checking' && 'Verificando conexão com o backend...'}
             {connectivity === 'ok' && 'Backend online'}
             {connectivity === 'down' && 'Backend OFFLINE'}
             {connectivity === 'unknown' && 'Status do backend incerto'}

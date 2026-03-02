@@ -382,7 +382,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
               <Typography variant="caption" color="text.secondary">
                 {reporteiUpdatedAt
                   ? `Atualizado em ${new Date(reporteiUpdatedAt).toLocaleDateString('pt-BR')}`
-                  : 'Sem atualizacao recente'}
+                  : 'Sem atualização recente'}
               </Typography>
               <Button
                 size="small"

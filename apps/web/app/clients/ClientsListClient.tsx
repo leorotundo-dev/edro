@@ -127,7 +127,7 @@ export default function ClientsListClient() {
 
   const handleDeleteClient = async () => {
     if (!menuClient) return;
-    const ok = await confirm(`Excluir o cliente "${menuClient.name}"? Esta acao nao pode ser desfeita.`);
+    const ok = await confirm(`Excluir o cliente "${menuClient.name}"? Esta ação não pode ser desfeita.`);
     handleCloseMenu();
     if (!ok) return;
     try {

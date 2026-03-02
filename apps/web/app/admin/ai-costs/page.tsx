@@ -416,7 +416,7 @@ export default function AiCostsPage() {
                       <TableCell align="right">Input</TableCell>
                       <TableCell align="right">Output</TableCell>
                       <TableCell align="right">Custo R$</TableCell>
-                      <TableCell align="right">Duracao</TableCell>
+                      <TableCell align="right">Duração</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
