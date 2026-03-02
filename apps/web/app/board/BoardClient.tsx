@@ -3,19 +3,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Skeleton from '@mui/material/Skeleton';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
+import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconRefresh } from '@tabler/icons-react';
+import {
+  IconCalendar,
+  IconCurrencyDollar,
+  IconExternalLink,
+  IconRefresh,
+  IconTarget,
+} from '@tabler/icons-react';
 
 type ClientRow = {
   id: string;
@@ -33,38 +41,33 @@ type CampaignRow = {
   created_at?: string | null;
 };
 
-type BoardClientProps = {
-  clientId?: string;
-};
-
 const STATUS_ORDER = ['draft', 'active', 'paused', 'completed', 'archived'];
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Rascunho',
-  active: 'Ativo',
-  paused: 'Pausado',
-  completed: 'Concluído',
-  archived: 'Arquivado',
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; chipColor: 'default' | 'primary' | 'success' | 'warning' | 'error' | 'secondary' }> = {
+  draft:     { label: 'Rascunho',  color: '#64748b', bg: '#f8fafc', chipColor: 'default' },
+  active:    { label: 'Ativo',     color: '#16a34a', bg: '#f0fdf4', chipColor: 'success' },
+  paused:    { label: 'Pausado',   color: '#d97706', bg: '#fffbeb', chipColor: 'warning' },
+  completed: { label: 'Concluído', color: '#2563eb', bg: '#eff6ff', chipColor: 'primary' },
+  archived:  { label: 'Arquivado', color: '#94a3b8', bg: '#f1f5f9', chipColor: 'default' },
 };
 
-function formatStatusLabel(status: string) {
-  if (!status) return 'Sem status';
-  if (STATUS_LABELS[status]) return STATUS_LABELS[status];
-  return status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+function getStatusCfg(status: string) {
+  return STATUS_CONFIG[status] ?? { label: status, color: '#64748b', bg: '#f8fafc', chipColor: 'default' as const };
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return '--';
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '--';
-  return date.toLocaleDateString('pt-BR');
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 function formatCurrency(value?: number | null) {
-  if (!Number.isFinite(value)) return '--';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value));
+  if (!Number.isFinite(value)) return null;
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(value));
 }
 
-export default function BoardClient({ clientId }: BoardClientProps) {
+export default function BoardClient({ clientId }: { clientId?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const lockedClientId = clientId || searchParams.get('clientId') || '';
@@ -74,7 +77,9 @@ export default function BoardClient({ clientId }: BoardClientProps) {
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -83,8 +88,7 @@ export default function BoardClient({ clientId }: BoardClientProps) {
       const response = await apiGet<ClientRow[]>('/clients');
       setClients(response || []);
       if (response?.length) {
-        const desired = lockedClientId;
-        const match = desired ? response.find((client) => client.id === desired) : response[0];
+        const match = lockedClientId ? response.find((c) => c.id === lockedClientId) : response[0];
         setSelectedClient(match || response[0]);
       }
     } catch (err: any) {
@@ -96,43 +100,32 @@ export default function BoardClient({ clientId }: BoardClientProps) {
 
   const loadClientDetail = useCallback(async (id: string) => {
     setLoading(true);
-    setError('');
     try {
       const response = await apiGet<ClientRow>(`/clients/${id}`);
-      if (response?.id) {
-        setSelectedClient(response);
-        setClients([response]);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar cliente.');
-    } finally {
-      setLoading(false);
-    }
+      if (response?.id) { setSelectedClient(response); setClients([response]); }
+    } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
 
-  const loadCampaigns = useCallback(async () => {
-    setLoading(true);
+  const loadCampaigns = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
     setError('');
     try {
       const qs = new URLSearchParams();
       if (selectedClient?.id) qs.set('client_id', selectedClient.id);
-      const response = await apiGet<{ success: boolean; data: CampaignRow[] }>(
-        `/campaigns?${qs.toString()}`
-      );
+      const response = await apiGet<{ success: boolean; data: CampaignRow[] }>(`/campaigns?${qs.toString()}`);
       setCampaigns(response?.data || []);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar campanhas.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [selectedClient]);
 
   useEffect(() => {
-    if (isLocked && lockedClientId) {
-      loadClientDetail(lockedClientId);
-    } else {
-      loadClients();
-    }
+    if (isLocked && lockedClientId) loadClientDetail(lockedClientId);
+    else loadClients();
   }, [isLocked, lockedClientId, loadClientDetail, loadClients]);
 
   useEffect(() => {
@@ -140,20 +133,29 @@ export default function BoardClient({ clientId }: BoardClientProps) {
     loadCampaigns();
   }, [selectedClient, loadCampaigns]);
 
+  const moveStatus = async (campaign: CampaignRow, newStatus: string) => {
+    setMovingId(campaign.id);
+    try {
+      await apiPatch(`/campaigns/${campaign.id}`, { status: newStatus });
+      setCampaigns((prev) => prev.map((c) => c.id === campaign.id ? { ...c, status: newStatus } : c));
+    } catch { /* ignore */ } finally { setMovingId(null); }
+  };
+
+  // Only show columns that have items OR are 'active'
   const grouped = useMemo(() => {
     const map = new Map<string, CampaignRow[]>();
-    campaigns.forEach((campaign) => {
-      const key = (campaign.status || 'active').toLowerCase();
+    campaigns.forEach((c) => {
+      const key = (c.status || 'draft').toLowerCase();
       if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(campaign);
+      map.get(key)!.push(c);
     });
-
-    const orderedKeys = Array.from(new Set([...STATUS_ORDER, ...Array.from(map.keys())]));
-    return orderedKeys.map((status) => ({
-      status,
-      items: map.get(status) || [],
-    }));
+    const keys = Array.from(new Set([...STATUS_ORDER, ...Array.from(map.keys())]));
+    return keys
+      .map((status) => ({ status, items: map.get(status) || [] }))
+      .filter((col) => col.items.length > 0 || col.status === 'active' || col.status === 'draft');
   }, [campaigns]);
+
+  const totalCampaigns = campaigns.length;
 
   if (loading && clients.length === 0) {
     return (
@@ -163,32 +165,10 @@ export default function BoardClient({ clientId }: BoardClientProps) {
             <Skeleton variant="text" width={200} height={32} />
             <Skeleton variant="text" width={280} height={18} />
           </Stack>
-          {/* Kanban columns */}
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
-            {Array.from({ length: 5 }).map((_, col) => (
-              <Box key={col} sx={{ minWidth: 260, flexShrink: 0 }}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                      <Skeleton variant="rounded" width={90} height={22} sx={{ borderRadius: '99px' }} />
-                      <Skeleton variant="circular" width={22} height={22} />
-                    </Stack>
-                    <Stack spacing={1.5}>
-                      {Array.from({ length: col === 0 ? 4 : col === 1 ? 3 : 2 }).map((_, i) => (
-                        <Card key={i} variant="outlined" sx={{ boxShadow: 'none' }}>
-                          <CardContent sx={{ p: '12px !important' }}>
-                            <Skeleton variant="text" width="80%" height={16} />
-                            <Skeleton variant="text" width="55%" height={14} sx={{ mt: 0.5 }} />
-                            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                              <Skeleton variant="rounded" width={50} height={18} sx={{ borderRadius: '99px' }} />
-                              <Skeleton variant="rounded" width={40} height={18} sx={{ borderRadius: '99px' }} />
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </Stack>
-                  </CardContent>
-                </Card>
+            {Array.from({ length: 4 }).map((_, col) => (
+              <Box key={col} sx={{ minWidth: 280, flexShrink: 0 }}>
+                <Skeleton variant="rounded" height={400} sx={{ borderRadius: 2 }} />
               </Box>
             ))}
           </Box>
@@ -209,99 +189,198 @@ export default function BoardClient({ clientId }: BoardClientProps) {
       }
     >
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h4">Pipeline de Campanhas</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Acompanhe o andamento das campanhas por status.
-          </Typography>
-        </Box>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
+          <Box>
+            <Typography variant="h4">Pipeline de Campanhas</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {selectedClient?.name ? `${selectedClient.name} · ` : ''}{totalCampaigns} campanha{totalCampaigns !== 1 ? 's' : ''}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {!isLocked && clients.length > 1 && (
+              <TextField
+                select
+                value={selectedClient?.id || ''}
+                onChange={(e) => {
+                  const match = clients.find((c) => c.id === e.target.value) || null;
+                  setSelectedClient(match);
+                  if (match) router.replace(`/board?clientId=${match.id}`);
+                }}
+                size="small"
+                sx={{ minWidth: 200 }}
+              >
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
+              </TextField>
+            )}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={refreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh size={16} />}
+              onClick={() => loadCampaigns(true)}
+              disabled={refreshing}
+            >
+              Atualizar
+            </Button>
+            {selectedClient && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<IconExternalLink size={16} />}
+                onClick={() => router.push(`/clients/${selectedClient.id}`)}
+              >
+                Ver cliente
+              </Button>
+            )}
+          </Stack>
+        </Stack>
 
-        {error ? (
+        {error && (
           <Card variant="outlined">
-            <CardContent>
-              <Typography color="error">{error}</Typography>
-            </CardContent>
+            <CardContent><Typography color="error">{error}</Typography></CardContent>
           </Card>
-        ) : null}
+        )}
 
-        <Card variant="outlined">
-          <CardContent>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
-              <Box>
-                <Typography variant="overline" color="text.secondary">Cliente</Typography>
-                <Typography variant="subtitle1">{selectedClient?.name || 'Global'}</Typography>
-                <Typography variant="caption" color="text.secondary">Kanban por status</Typography>
-              </Box>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
-                <TextField
-                  select
-                  value={selectedClient?.id || ''}
-                  onChange={(event) => {
-                    const match = clients.find((client) => client.id === event.target.value) || null;
-                    setSelectedClient(match);
-                    if (match) router.replace(`/board?clientId=${match.id}`);
+        {/* Kanban columns */}
+        <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, alignItems: 'flex-start' }}>
+          {grouped.map((column) => {
+            const cfg = getStatusCfg(column.status);
+            return (
+              <Box key={column.status} sx={{ minWidth: 290, maxWidth: 320, flexShrink: 0 }}>
+                {/* Column header */}
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{
+                    px: 1.5,
+                    py: 1,
+                    mb: 1.5,
+                    borderRadius: 1.5,
+                    bgcolor: cfg.bg,
+                    border: `1px solid ${cfg.color}22`,
                   }}
-                  disabled={isLocked}
-                  size="small"
                 >
-                  {clients.map((client) => (
-                    <MenuItem key={client.id} value={client.id}>
-                      {client.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={loadCampaigns}>
-                  Atualizar
-                </Button>
-              </Stack>
-            </Stack>
-          </CardContent>
-        </Card>
-
-        <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
-          {grouped.map((column) => (
-            <Card key={column.status} variant="outlined" sx={{ minWidth: 280, flexShrink: 0 }}>
-              <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2">{formatStatusLabel(column.status)}</Typography>
-                  <Chip size="small" label={column.items.length} />
+                  <Stack direction="row" spacing={0.75} alignItems="center">
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: cfg.color, flexShrink: 0 }} />
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: cfg.color }}>
+                      {cfg.label}
+                    </Typography>
+                  </Stack>
+                  <Chip
+                    size="small"
+                    label={column.items.length}
+                    sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${cfg.color}18`, color: cfg.color, fontWeight: 700 }}
+                  />
                 </Stack>
-                <Stack spacing={1}>
+
+                {/* Cards */}
+                <Stack spacing={1.5}>
                   {column.items.length ? (
                     column.items.map((campaign) => (
-                      <Card key={campaign.id} variant="outlined" sx={{ p: 1 }}>
-                        <CardContent>
-                          <Chip size="small" label={campaign.objective} sx={{ mb: 1 }} />
-                          <Button
-                            variant="text"
-                            onClick={() => router.push(`/clients?clientId=${selectedClient?.id || ''}`)}
-                            sx={{ textAlign: 'left', p: 0, textTransform: 'none' }}
-                          >
-                            <Typography variant="subtitle2">{campaign.name}</Typography>
-                          </Button>
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                            {formatDate(campaign.start_date)} - {formatDate(campaign.end_date)}
-                          </Typography>
-                          <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
-                            <Typography variant="caption" color="text.secondary">
-                              {campaign.id.slice(0, 6)}
+                      <Card
+                        key={campaign.id}
+                        variant="outlined"
+                        sx={{
+                          cursor: 'pointer',
+                          transition: 'box-shadow 0.15s',
+                          '&:hover': { boxShadow: 3 },
+                          borderLeft: `3px solid ${cfg.color}`,
+                          opacity: movingId === campaign.id ? 0.5 : 1,
+                        }}
+                        onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${campaign.id}`)}
+                      >
+                        <CardContent sx={{ p: '12px !important' }}>
+                          <Stack spacing={1}>
+                            {/* Name */}
+                            <Typography variant="subtitle2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
+                              {campaign.name}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatCurrency(campaign.budget_brl)}
-                            </Typography>
+
+                            {/* Objective chip */}
+                            {campaign.objective && (
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <IconTarget size={12} color="#94a3b8" />
+                                <Typography variant="caption" color="text.secondary" noWrap>
+                                  {campaign.objective}
+                                </Typography>
+                              </Stack>
+                            )}
+
+                            <Divider />
+
+                            {/* Dates + Budget */}
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              {(campaign.start_date || campaign.end_date) ? (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <IconCalendar size={12} color="#94a3b8" />
+                                  <Typography variant="caption" color="text.secondary">
+                                    {formatDate(campaign.start_date) || '?'} → {formatDate(campaign.end_date) || '?'}
+                                  </Typography>
+                                </Stack>
+                              ) : <Box />}
+                              {campaign.budget_brl ? (
+                                <Stack direction="row" spacing={0.25} alignItems="center">
+                                  <IconCurrencyDollar size={12} color="#94a3b8" />
+                                  <Typography variant="caption" color="text.secondary">
+                                    {formatCurrency(campaign.budget_brl)}
+                                  </Typography>
+                                </Stack>
+                              ) : null}
+                            </Stack>
+
+                            {/* Move to next status */}
+                            {(() => {
+                              const currentIdx = STATUS_ORDER.indexOf(column.status);
+                              const nextStatus = currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1
+                                ? STATUS_ORDER[currentIdx + 1] : null;
+                              if (!nextStatus) return null;
+                              const nextCfg = getStatusCfg(nextStatus);
+                              return (
+                                <Tooltip title={`Mover para ${nextCfg.label}`}>
+                                  <Button
+                                    size="small"
+                                    variant="text"
+                                    fullWidth
+                                    disabled={movingId === campaign.id}
+                                    onClick={(e) => { e.stopPropagation(); moveStatus(campaign, nextStatus); }}
+                                    sx={{
+                                      fontSize: '0.68rem',
+                                      textTransform: 'none',
+                                      color: nextCfg.color,
+                                      py: 0.25,
+                                      '&:hover': { bgcolor: `${nextCfg.color}12` },
+                                    }}
+                                  >
+                                    → Mover para {nextCfg.label}
+                                  </Button>
+                                </Tooltip>
+                              );
+                            })()}
                           </Stack>
                         </CardContent>
                       </Card>
                     ))
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Sem campanhas
-                    </Typography>
+                    <Box
+                      sx={{
+                        border: `2px dashed ${cfg.color}30`,
+                        borderRadius: 2,
+                        p: 3,
+                        textAlign: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.disabled">
+                        Sem campanhas
+                      </Typography>
+                    </Box>
                   )}
                 </Stack>
-              </CardContent>
-            </Card>
-          ))}
+              </Box>
+            );
+          })}
         </Box>
       </Stack>
     </AppShell>
