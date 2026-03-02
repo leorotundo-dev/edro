@@ -118,11 +118,11 @@ export const TOOLS: ToolDefinition[] = [
   // ── Clipping & Monitoramento ──
   {
     name: 'search_clipping',
-    description: 'Busca noticias e materias matcheadas para o cliente. Retorna titulo, snippet, score de relevancia e URL.',
+    description: 'Busca notícias e matérias matcheadas para o cliente. Retorna título, snippet, score de relevância e URL.',
     parameters: {
       query: { type: 'string', description: 'Termo de busca (opcional - sem filtro retorna por score)' },
-      min_score: { type: 'number', description: 'Score minimo de relevancia (0-100, default 0)' },
-      recency: { type: 'string', description: 'Recencia', enum: ['24h', '7d', '30d'] },
+      min_score: { type: 'number', description: 'Score mínimo de relevância (0-100, default 0)' },
+      recency: { type: 'string', description: 'Recência', enum: ['24h', '7d', '30d'] },
       limit: { type: 'number', description: 'Máximo de resultados (default 10, max 20)' },
     },
     required: [],

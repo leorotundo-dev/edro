@@ -1062,7 +1062,7 @@ Responda SOMENTE com JSON válido (array com exatamente 3 personas):
       const t0 = Date.now();
 
       const [newsRes, compRes, trendRes] = await Promise.all([
-        withTimeout(tavilySearch(`"${client.name}" noticias recentes marketing${contextSuffix}`, { maxResults: 3, searchDepth: 'basic' })),
+        withTimeout(tavilySearch(`"${client.name}" notícias recentes marketing${contextSuffix}`, { maxResults: 3, searchDepth: 'basic' })),
         competitors.length > 0
           ? withTimeout(tavilySearch(`${competitors.join(' OR ')} estratégia marketing conteúdo recente`, { maxResults: 3, searchDepth: 'basic' }))
           : Promise.resolve(null),
@@ -1146,7 +1146,7 @@ Responda SOMENTE com JSON válido (sem markdown, sem explicações):
   "keywords": ["palavra-chave1", "palavra-chave2", "palavra-chave3"],
   "audience": "descrição do público-alvo da empresa",
   "brand_promise": "proposta de valor, missão ou slogan da empresa",
-  "instagram": "handle @usuario ou URL do Instagram",
+  "instagram": "handle @usuário ou URL do Instagram",
   "linkedin": "URL do LinkedIn da empresa",
   "facebook": "URL da página do Facebook"
 }

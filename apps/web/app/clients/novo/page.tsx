@@ -471,7 +471,7 @@ export default function NewClientWizardPage() {
                   </Stack>
                   <Stack spacing={2}>
                     <TextField label="Instagram" fullWidth size="small" value={data.instagram}
-                      onChange={(e) => set('instagram', e.target.value)} placeholder="@usuario ou URL" />
+                      onChange={(e) => set('instagram', e.target.value)} placeholder="@usuário ou URL" />
                     <TextField label="LinkedIn" fullWidth size="small" value={data.linkedin}
                       onChange={(e) => set('linkedin', e.target.value)} placeholder="URL do perfil/empresa" />
                     <TextField label="Facebook" fullWidth size="small" value={data.facebook}

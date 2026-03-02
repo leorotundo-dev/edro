@@ -194,7 +194,7 @@ export default function ClientPermissionsPage() {
 
           {availableUsers.length > 0 && (
             <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Adicionar usuario:</Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Adicionar usuário:</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {availableUsers.map((user) => (
                   <Button

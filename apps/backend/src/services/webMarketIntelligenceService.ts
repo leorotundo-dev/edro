@@ -155,7 +155,7 @@ export async function runMarketIntelligenceForClient(params: {
 
   // ── 3b. Notícias recentes dos concorrentes ──────────────────
   if (competitors.length > 0) {
-    const newsQuery = `"${competitors[0]}" noticias recentes marketing lançamento ${new Date().getFullYear()}`;
+    const newsQuery = `"${competitors[0]}" notícias recentes marketing lançamento ${new Date().getFullYear()}`;
     try {
       const t2b = Date.now();
       const newsResult = await tavilySearch(newsQuery, { maxResults: 3, searchDepth: 'basic' });

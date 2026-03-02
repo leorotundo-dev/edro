@@ -159,7 +159,7 @@ export default function Notifications() {
           {notifications.length === 0 ? (
             <Box sx={{ py: 4, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
-                Nenhuma notificacao.
+                Nenhuma notificação.
               </Typography>
             </Box>
           ) : (
