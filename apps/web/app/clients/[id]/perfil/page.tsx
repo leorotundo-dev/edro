@@ -445,8 +445,8 @@ export default function PerfilPage() {
               <SectionEnrichmentCard
                 clientId={clientId}
                 sectionKey="identity"
-                title="Sugestoes de Identidade"
-                description="Descricao, audiencia, promessa e diferenciais."
+                title="Sugestões de Identidade"
+                description="Descrição, audiência, promessa e diferenciais."
                 suggestion={profileSuggestions.identity}
                 refreshedAt={sectionRefreshedAt.identity}
                 existingValues={sectionExistingValues.identity}
@@ -457,7 +457,7 @@ export default function PerfilPage() {
               <SectionEnrichmentCard
                 clientId={clientId}
                 sectionKey="voice"
-                title="Sugestoes de Tom de Voz"
+                title="Sugestões de Tom de Voz"
                 description="Tonalidade, formalidade e estilo de linguagem."
                 suggestion={profileSuggestions.voice}
                 refreshedAt={sectionRefreshedAt.voice}
@@ -469,8 +469,8 @@ export default function PerfilPage() {
               <SectionEnrichmentCard
                 clientId={clientId}
                 sectionKey="strategy"
-                title="Sugestoes de Estrategia"
-                description="Pilares, keywords e mix de conteudo."
+                title="Sugestões de Estratégia"
+                description="Pilares, keywords e mix de conteúdo."
                 suggestion={profileSuggestions.strategy}
                 refreshedAt={sectionRefreshedAt.strategy}
                 existingValues={sectionExistingValues.strategy}
@@ -481,8 +481,8 @@ export default function PerfilPage() {
               <SectionEnrichmentCard
                 clientId={clientId}
                 sectionKey="competitors"
-                title="Sugestoes de Concorrentes"
-                description="Concorrentes para monitoramento e comparacao."
+                title="Sugestões de Concorrentes"
+                description="Concorrentes para monitoramento e comparação."
                 suggestion={profileSuggestions.competitors}
                 refreshedAt={sectionRefreshedAt.competitors}
                 existingValues={sectionExistingValues.competitors}
@@ -493,8 +493,8 @@ export default function PerfilPage() {
               <SectionEnrichmentCard
                 clientId={clientId}
                 sectionKey="calendar"
-                title="Sugestoes de Calendario"
-                description="Datas estrategicas com maior potencial para o cliente."
+                title="Sugestões de Calendário"
+                description="Datas estratégicas com maior potencial para o cliente."
                 suggestion={profileSuggestions.calendar}
                 refreshedAt={sectionRefreshedAt.calendar}
                 existingValues={sectionExistingValues.calendar}
