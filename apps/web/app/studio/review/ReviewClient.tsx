@@ -5,10 +5,14 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LoadingButton from '@mui/lab/LoadingButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
 import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
@@ -17,7 +21,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
-import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle, IconCircleCheckFilled } from '@tabler/icons-react';
+import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle, IconCircleCheckFilled, IconEye } from '@tabler/icons-react';
 
 type CopyVersion = {
   id: string;
@@ -110,6 +114,9 @@ export default function ReviewClient() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [aiReview, setAiReview] = useState<{ overall_score: number; summary: string; warnings: string[] } | null>(null);
+  const [detailMockup, setDetailMockup] = useState<MockupItem | null>(null);
+  const [editCopy, setEditCopy] = useState('');
+  const [savingCopy, setSavingCopy] = useState(false);
 
   const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
 
@@ -212,6 +219,29 @@ export default function ReviewClient() {
       router.push('/studio/export');
     } catch (err: any) {
       setError(err?.message || 'Falha ao avancar etapa.');
+    }
+  };
+
+  useEffect(() => {
+    setEditCopy(detailMockup?.metadata?.copy || detailMockup?.metadata?.shortText || '');
+  }, [detailMockup]);
+
+  const openDetail = (e: React.MouseEvent, mockup: MockupItem) => {
+    e.stopPropagation();
+    setDetailMockup(mockup);
+  };
+
+  const saveCopy = async () => {
+    if (!detailMockup) return;
+    setSavingCopy(true);
+    try {
+      await apiPatch<MockupItem>(`/mockups/${detailMockup.id}`, {
+        metadata: { ...detailMockup.metadata, copy: editCopy },
+      });
+      setMockups((prev) => prev.map((m) => (m.id === detailMockup.id ? { ...m, metadata: { ...m.metadata, copy: editCopy } } : m)));
+      setDetailMockup((prev) => prev ? { ...prev, metadata: { ...prev.metadata, copy: editCopy } } : prev);
+    } catch { /* silent */ } finally {
+      setSavingCopy(false);
     }
   };
 
@@ -321,9 +351,14 @@ export default function ReviewClient() {
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                               {mockup.metadata?.copy || mockup.metadata?.shortText || 'Sem preview de copy.'}
                             </Typography>
-                            <Box sx={{ mt: 1.5 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
                               <MockupStatusChip status={mockup.status} />
-                            </Box>
+                              <Tooltip title="Ver / editar copy">
+                                <IconButton size="small" onClick={(e) => openDetail(e, mockup)} sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}>
+                                  <IconEye size={15} />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           </CardContent>
                         </Card>
                       </Grid>
@@ -449,6 +484,90 @@ export default function ReviewClient() {
           Aprovar e avancar
         </Button>
       </Stack>
+
+      {/* Mockup detail / copy editor drawer */}
+      <Drawer
+        anchor="right"
+        open={Boolean(detailMockup)}
+        onClose={() => setDetailMockup(null)}
+        slotProps={{ paper: { sx: { width: { xs: '100%', sm: 480 }, p: 3 } } }}
+      >
+        {detailMockup && (
+          <Stack spacing={2.5} sx={{ height: '100%' }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography variant="h6" fontWeight={700}>{detailMockup.title || 'Mockup'}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {detailMockup.platform} &bull; {detailMockup.format}
+                </Typography>
+              </Box>
+              <MockupStatusChip status={detailMockup.status} />
+            </Stack>
+
+            <Divider />
+
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+                Copy
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={10}
+                value={editCopy}
+                onChange={(e) => setEditCopy(e.target.value)}
+                placeholder="Texto do copy..."
+                size="small"
+                sx={{ flex: 1 }}
+              />
+            </Box>
+
+            <Stack spacing={1}>
+              <LoadingButton
+                variant="contained"
+                fullWidth
+                loading={savingCopy}
+                onClick={saveCopy}
+                sx={{ textTransform: 'none' }}
+              >
+                Salvar copy
+              </LoadingButton>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  color="success"
+                  sx={{ textTransform: 'none' }}
+                  onClick={async () => {
+                    await saveCopy();
+                    await apiPatch(`/mockups/${detailMockup.id}`, { status: 'approved' });
+                    setMockups((prev) => prev.map((m) => m.id === detailMockup.id ? { ...m, status: 'approved' } : m));
+                    setDetailMockup(null);
+                  }}
+                >
+                  Salvar e aprovar
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  color="warning"
+                  sx={{ textTransform: 'none' }}
+                  onClick={async () => {
+                    await apiPatch(`/mockups/${detailMockup.id}`, { status: 'changes_requested' });
+                    setMockups((prev) => prev.map((m) => m.id === detailMockup.id ? { ...m, status: 'changes_requested' } : m));
+                    setDetailMockup(null);
+                  }}
+                >
+                  Solicitar ajustes
+                </Button>
+              </Stack>
+              <Button variant="text" size="small" onClick={() => setDetailMockup(null)} sx={{ textTransform: 'none', color: 'text.secondary' }}>
+                Fechar
+              </Button>
+            </Stack>
+          </Stack>
+        )}
+      </Drawer>
     </Stack>
   );
 }
