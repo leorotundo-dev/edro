@@ -42,7 +42,7 @@ export async function runLibraryWorkerOnce() {
               scraped.siteName ? `Fonte: ${scraped.siteName}` : '',
               scraped.excerpt ? `Resumo: ${scraped.excerpt}` : '',
               scraped.contentText || '',
-              meta ? `\n--- Notas do usuario ---\n${meta}` : '',
+              meta ? `\n--- Notas do usuário ---\n${meta}` : '',
             ].filter(Boolean);
             rawText = parts.join('\n\n');
             // Update item title if it was just the URL

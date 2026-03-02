@@ -1881,7 +1881,7 @@ function pickThemeForEvent(ev: CalendarEvent, objective: Objective, platform: Pl
       : platform === 'TikTok'
         ? 'no ritmo da trend'
         : 'com gancho forte';
-  const obj = objective === 'conversion' ? 'para conversao' : objective;
+  const obj = objective === 'conversion' ? 'para conversão' : objective;
   return `${core} ${twist} (${obj}) - ${ev.name}`;
 }
 

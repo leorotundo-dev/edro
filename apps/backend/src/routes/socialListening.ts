@@ -350,7 +350,7 @@ export default async function socialListeningRoutes(app: FastifyInstance) {
         try {
           const t0 = Date.now();
           const res = await tavilySearch(
-            `"${competitor}" marketing noticias lançamento ${new Date().getFullYear()}`,
+            `"${competitor}" marketing notícias lançamento ${new Date().getFullYear()}`,
             { maxResults: 4, searchDepth: 'basic' }
           );
           logTavilyUsage({
