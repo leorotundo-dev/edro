@@ -82,7 +82,7 @@ function ApproachCard({
   accentColor: string;
   bgColor: string;
 }) {
-  const title = approach?.title || approach?.angle || 'Sem conteúdo';
+  const title = approach?.title || approach?.angle || 'Sem título';
   const message = approach?.message || approach?.angle || 'Sem descrição.';
   return (
     <Card variant="outlined" sx={{ height: '100%', bgcolor: bgColor, borderColor: `${accentColor}30` }}>

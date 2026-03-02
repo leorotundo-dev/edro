@@ -13,6 +13,7 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
+import TextField from '@mui/material/TextField';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import { IconWorldSearch, IconExternalLink } from '@tabler/icons-react';
@@ -45,7 +46,7 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <IconWorldSearch size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
         <Typography variant="h6" color="text.secondary" gutterBottom>
-          Perplexity AI nao configurado
+          Perplexity AI não configurado
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Configure a PERPLEXITY_API_KEY na aba de Connectors do cliente para ativar pesquisa em tempo real.
@@ -80,7 +81,7 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
       );
       setResult(res.data);
     } catch {
-      setResult({ content: 'Erro ao buscar tendencias. Tente novamente.', citations: [] });
+      setResult({ content: 'Erro ao buscar tendências. Tente novamente.', citations: [] });
     } finally {
       setTrendingLoading(false);
     }
@@ -98,22 +99,19 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
           disabled={trendingLoading}
           sx={{ textTransform: 'none' }}
         >
-          Tendencias do Cliente
+          Tendências do Cliente
         </Button>
       </Stack>
 
       {/* Search bar */}
       <Stack direction="row" spacing={1}>
-        <input
-          type="text"
-          placeholder="Pesquisar tendencias, noticias, dados de mercado..."
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Pesquisar tendências, notícias, dados de mercado..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && doSearch()}
-          style={{
-            flex: 1, padding: '10px 14px', borderRadius: 8,
-            border: '1px solid #e0e0e0', fontSize: 14, outline: 'none',
-          }}
         />
         <Button
           variant="contained"

@@ -78,7 +78,7 @@ export default function PautaInboxPanel() {
       setItems((prev) => prev.filter((item) => item.id !== suggestionId));
       if (result?.briefing_id) router.push(`/edro/${result.briefing_id}`);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao aprovar sugestao.');
+      setError(err?.message || 'Falha ao aprovar sugestão.');
     } finally {
       setSavingId(null);
     }
@@ -93,7 +93,7 @@ export default function PautaInboxPanel() {
       setItems((prev) => prev.filter((item) => item.id !== rejectTarget));
       setRejectTarget(null);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao rejeitar sugestao.');
+      setError(err?.message || 'Falha ao rejeitar sugestão.');
     } finally {
       setSavingId(null);
     }
