@@ -103,7 +103,7 @@ function pickTheme(ev: CalendarEvent | null, platform: Platform): string {
   return `${core} ${twist} - ${ev.name}`;
 }
 
-// Fallback de copy para nao travar o flow.
+// Fallback de copy para não travar o flow.
 function makeCopy(theme: string) {
   return { headline: theme, body: `Texto base: ${theme}`, cta: 'Saiba mais' };
 }

@@ -115,8 +115,8 @@ const STATUS_OPTIONS = [
 
 const TYPE_OPTIONS = [
   { value: '', label: 'Todos tipos' },
-  { value: 'NEWS', label: 'Noticias' },
-  { value: 'TREND', label: 'Tendencias' },
+  { value: 'NEWS', label: 'Notícias' },
+  { value: 'TREND', label: 'Tendências' },
 ];
 
 const RECENCY_OPTIONS = [
@@ -1097,7 +1097,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         <Stack direction="row" spacing={1} alignItems="center">
           <Typography variant="body2" color="text.secondary">Radar</Typography>
           <Typography variant="body2" color="text.secondary">/</Typography>
-          <Typography variant="body2" fontWeight={600}>Clipping & Noticias</Typography>
+          <Typography variant="body2" fontWeight={600}>Clipping & Notícias</Typography>
         </Stack>
       }
     >

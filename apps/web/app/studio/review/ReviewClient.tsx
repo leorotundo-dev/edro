@@ -275,7 +275,7 @@ export default function ReviewClient() {
       {/* Page Header */}
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
         <Box>
-          <Typography variant="h4" fontWeight={700}>Revisao &amp; Acoes</Typography>
+          <Typography variant="h4" fontWeight={700}>Revisão &amp; Ações</Typography>
           <Typography variant="body2" color="text.secondary">
             Confirme os assets finais antes de exportar.
           </Typography>

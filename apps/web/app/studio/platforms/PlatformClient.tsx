@@ -908,7 +908,7 @@ export default function PlatformClient() {
             ) : null}
             {recommendationInsights.warnings.length ? (
               <Alert severity="warning" icon={<IconAlertTriangle size={20} />}>
-                <strong>Atencao</strong> &mdash; {recommendationInsights.warnings.join(' \u00b7 ')}
+                <strong>Atenção</strong> &mdash; {recommendationInsights.warnings.join(' \u00b7 ')}
               </Alert>
             ) : null}
           </CardContent>

@@ -165,14 +165,14 @@ const STEP_LABELS: Record<string, string> = {
   platforms: 'Plataformas',
   editor: 'Editor',
   mockups: 'Mockups',
-  review: 'Revisao',
+  review: 'Revisão',
   export: 'Exportar',
 };
 
 const BRIEF_TEMPLATES: BriefTemplate[] = [
   {
     id: 'news_response',
-    label: 'Resposta a Noticia',
+    label: 'Resposta a Notícia',
     description: 'Urgente e editorial, baseado em acontecimento do dia.',
     icon: <IconNews size={22} />,
     color: '#dc2626',
@@ -185,7 +185,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
   {
     id: 'seasonal',
     label: 'Data Comemorativa',
-    description: 'Planejada, sazonal, celebracao ou efemeride.',
+    description: 'Planejada, sazonal, celebração ou efeméride.',
     icon: <IconCalendarEvent size={22} />,
     color: '#E85219',
     defaults: {
@@ -196,8 +196,8 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
   },
   {
     id: 'product_launch',
-    label: 'Lancamento',
-    description: 'Produto, servico ou iniciativa nova.',
+    label: 'Lançamento',
+    description: 'Produto, serviço ou iniciativa nova.',
     icon: <IconRocket size={22} />,
     color: '#E85219',
     defaults: {

@@ -2095,7 +2095,7 @@ export default function EditorClient() {
             <Card>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Chip size="small" label="Inventario de pecas" />
+                  <Chip size="small" label="Inventário de peças" />
                   <Typography variant="caption" color="text.secondary">
                     {inventoryProgress.done}/{inventoryProgress.total}
                   </Typography>

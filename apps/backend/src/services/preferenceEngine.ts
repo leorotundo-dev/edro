@@ -509,11 +509,11 @@ export function buildPreferencePromptBlock(context: PreferenceContext): string {
 
   const bestPlatforms = (context.creative.platform_patterns || [])
     .filter((p) => p.approval_rate >= 0.65 && p.platform)
-    .map((p) => `${p.platform} (${Math.round(p.approval_rate * 100)}% aprovacao)`)
+    .map((p) => `${p.platform} (${Math.round(p.approval_rate * 100)}% aprovação)`)
     .slice(0, 3)
     .join(', ');
   if (bestPlatforms) {
-    parts.push(`PLATAFORMAS COM MELHOR APROVACAO: ${bestPlatforms}`);
+    parts.push(`PLATAFORMAS COM MELHOR APROVAÇÃO: ${bestPlatforms}`);
   }
 
   parts.push(`MATURIDADE DE APRENDIZADO: ${context.learning_maturity}`);

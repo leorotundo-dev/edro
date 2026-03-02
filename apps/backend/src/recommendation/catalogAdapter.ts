@@ -199,7 +199,7 @@ export function loadRecommendationCatalog(): ProductionFormat[] {
     const items = JSON.parse(raw) as RawCatalogItem[];
     cachedCatalog = items.map(adaptCatalogItem);
   } catch (error) {
-    console.error('Erro ao carregar catalogo de producao', error);
+    console.error('Erro ao carregar catálogo de produção', error);
     cachedCatalog = [];
   }
   return cachedCatalog;

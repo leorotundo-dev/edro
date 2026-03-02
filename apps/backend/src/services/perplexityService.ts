@@ -160,7 +160,7 @@ export async function researchCompetitorActivity(params: {
   platforms?: string[];
 }): Promise<PerplexityResponse> {
   const platformList = params.platforms?.join(', ') || 'Instagram, LinkedIn, YouTube';
-  const query = `Quais as estrategias de marketing digital mais eficazes no segmento ${params.segment} nas plataformas ${platformList} no Brasil em 2026? Quais formatos e abordagens estao tendo mais engajamento?`;
+  const query = `Quais as estratégias de marketing digital mais eficazes no segmento ${params.segment} nas plataformas ${platformList} no Brasil em 2026? Quais formatos e abordagens estão tendo mais engajamento?`;
 
   return searchPerplexity({
     query,

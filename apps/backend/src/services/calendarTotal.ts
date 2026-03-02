@@ -287,7 +287,7 @@ export const PLATFORM_PROFILES: PlatformProfile[] = [
     platform: 'TikTok',
     supportedFormats: ['Video', 'Carousel', 'Live'],
     maxChars: { caption: 2200, headline: 80, cta: 25, body: 2200 },
-    languageStyle: 'direto, POV, ritmo rapido, humano; sem cara de anuncio',
+    languageStyle: 'direto, POV, ritmo rápido, humano; sem cara de anúncio',
     bestPractices: [
       'Comecar com conflito/curiosidade',
       'POV e bastidores performam',

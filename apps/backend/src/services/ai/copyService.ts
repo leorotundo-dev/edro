@@ -262,9 +262,9 @@ export async function generateCollaborativeCopy(params: {
   usageContext?: UsageContext;
 }): Promise<CopyPipelineResult> {
   // ── AGENTE 1: ESTRATEGISTA (Gemini) ─────────────────────────────────────
-  // Chain of Thought forcado: o estrategista declara explicitamente a estrategia
-  // psicologica ANTES de gerar os ganchos criativos. A intencao biologica precede
-  // a gramatica — tecnica de Engenharia de Decisao Digital 2026.
+  // Chain of Thought forçado: o estrategista declara explicitamente a estratégia
+  // psicológica ANTES de gerar os ganchos criativos. A intenção biológica precede
+  // a gramática — técnica de Engenharia de Decisão Digital 2026.
   const analysisPrompt = [
     'Você é o Estrategista-Chefe de uma agência de publicidade de alta performance.',
     'Sua função: analisar o briefing e o perfil do cliente e declarar PRIMEIRO a estratégia psicológica que guiará a geração de copy — só então defina os ganchos e direções criativas.',
@@ -324,25 +324,25 @@ export async function generateCollaborativeCopy(params: {
   ].filter(Boolean).join('\n');
 
   // ── AGENTE 3: AUDITOR/CRITICO (Claude) ──────────────────────────────────
-  // Dois passos obrigatorios: AUDITORIA DE VETO primeiro, revisao criativa depois.
+  // Dois passos obrigatórios: AUDITORIA DE VETO primeiro, revisão criativa depois.
   // Implementa o Chain of Thought critico descrito na Engenharia de Decisao 2026.
   const buildReviewPrompt = (analysisOutput: string, creativeOutput: string) => [
     'Você é o Auditor-Chefe de uma agência de comunicação de alto nível.',
     'Sua função tem DOIS PASSOS OBRIGATÓRIOS — execute nesta ordem:',
     '',
     '══ PASSO 1 — AUDITORIA DE VETO (execute ANTES de qualquer revisao criativa) ══',
-    'Leia cada opcao e elimine TODOS os seguintes problemas antes de continuar:',
-    '□ ABERTURA CLICHE: "No mundo de hoje", "Em um cenario de constantes mudancas", "Descubra como", "Em tempos como esses" → reescreva a abertura com substancia imediata.',
-    '□ ADJETIVO QUALITATIVO SEM DADO: "incrivel", "revolucionario", "melhor", "eficiente", "agil" sem metrica → substitua por evidencia numerica ou fato concreto.',
+    'Leia cada opção e elimine TODOS os seguintes problemas antes de continuar:',
+    '□ ABERTURA CLICHÊ: "No mundo de hoje", "Em um cenário de constantes mudanças", "Descubra como", "Em tempos como esses" → reescreva a abertura com substância imediata.',
+    '□ ADJETIVO QUALITATIVO SEM DADO: "incrível", "revolucionário", "melhor", "eficiente", "ágil" sem métrica → substitua por evidência numérica ou fato concreto.',
     '□ VOZ PASSIVA: "foi entregue", "e realizado", "pode ser usado" → converta para voz ativa e assertiva.',
     '□ CONCLUSAO OBVIA: "Concluindo...", "Em resumo...", "Portanto...", "Como pudemos ver..." → elimine ou substitua por um novo insight.',
     '□ PERFEIÇÃO ABSOLUTA: se a peça não tiver nenhum elemento de vulnerabilidade controlada ou aprendizado humano quando pertinente ao contexto, adicione um (Pratfall Effect: 2.4x mais confiança).',
     '□ NUMERO REDONDO: se houver numeros genericos como "mais de 10%" ou "muito" → especifique com dado preciso quando possivel.',
     '',
     '══ PASSO 2 — REVISAO CRIATIVA ══',
-    'Apos a auditoria de veto, revise e melhore CADA opcao considerando:',
+    'Após a auditoria de veto, revise e melhore CADA opção considerando:',
     '- Estratégia psicológica declarada pelo Estrategista (consulte DIRETRIZES abaixo)',
-    '- Tom da marca e adequacao ao publico-alvo',
+    '- Tom da marca e adequação ao público-alvo',
     '- Compliance (termos proibidos, menções obrigatórias)',
     '- Forca e clareza do CTA',
     '- Adequacao ao formato/plataforma',

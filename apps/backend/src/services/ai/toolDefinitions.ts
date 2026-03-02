@@ -31,7 +31,7 @@ export const TOOLS: ToolDefinition[] = [
     description: 'Lista briefings do cliente atual. Retorna titulo, status, data de criacao e deadline.',
     parameters: {
       status: { type: 'string', description: 'Filtrar por status', enum: ['draft', 'in_progress', 'done', 'cancelled'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10, max 20)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10, max 20)' },
     },
     required: [],
     category: 'read',
@@ -100,7 +100,7 @@ export const TOOLS: ToolDefinition[] = [
     parameters: {
       query: { type: 'string', description: 'Termo de busca' },
       year: { type: 'number', description: 'Ano (default ano atual)' },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: ['query'],
     category: 'read',
@@ -123,7 +123,7 @@ export const TOOLS: ToolDefinition[] = [
       query: { type: 'string', description: 'Termo de busca (opcional - sem filtro retorna por score)' },
       min_score: { type: 'number', description: 'Score minimo de relevancia (0-100, default 0)' },
       recency: { type: 'string', description: 'Recencia', enum: ['24h', '7d', '30d'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10, max 20)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10, max 20)' },
     },
     required: [],
     category: 'read',
@@ -153,7 +153,7 @@ export const TOOLS: ToolDefinition[] = [
     description: 'Lista tendencias de keywords monitorados com dados de volume, sentimento e engajamento.',
     parameters: {
       platform: { type: 'string', description: 'Filtrar por plataforma', enum: ['twitter', 'instagram', 'tiktok', 'youtube', 'linkedin', 'facebook', 'reddit'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: [],
     category: 'read',
@@ -165,7 +165,7 @@ export const TOOLS: ToolDefinition[] = [
       keyword: { type: 'string', description: 'Keyword para buscar' },
       platform: { type: 'string', description: 'Filtrar por plataforma', enum: ['twitter', 'instagram', 'tiktok', 'youtube', 'linkedin', 'facebook', 'reddit'] },
       sentiment: { type: 'string', description: 'Filtrar por sentimento', enum: ['positive', 'negative', 'neutral'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: ['keyword'],
     category: 'read',
@@ -185,7 +185,7 @@ export const TOOLS: ToolDefinition[] = [
     parameters: {
       query: { type: 'string', description: 'Termo de busca' },
       category: { type: 'string', description: 'Filtrar por categoria' },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: ['query'],
     category: 'read',
@@ -196,7 +196,7 @@ export const TOOLS: ToolDefinition[] = [
     parameters: {
       type: { type: 'string', description: 'Tipo de item', enum: ['note', 'link', 'file', 'template'] },
       category: { type: 'string', description: 'Filtrar por categoria' },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: [],
     category: 'read',
@@ -208,14 +208,14 @@ export const TOOLS: ToolDefinition[] = [
     description: 'Lista campanhas de marketing do cliente com status e budget.',
     parameters: {
       status: { type: 'string', description: 'Filtrar por status', enum: ['active', 'paused', 'completed', 'cancelled'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: [],
     category: 'read',
   },
   {
     name: 'get_campaign',
-    description: 'Retorna detalhes de uma campanha: formatos, metricas de performance, ROI e predicoes.',
+    description: 'Retorna detalhes de uma campanha: formatos, métricas de performance, ROI e predições.',
     parameters: {
       campaign_id: { type: 'string', description: 'UUID da campanha' },
     },
@@ -229,7 +229,7 @@ export const TOOLS: ToolDefinition[] = [
     description: 'Lista oportunidades de marketing detectadas pela IA (clipping, trends, calendario).',
     parameters: {
       priority: { type: 'string', description: 'Filtrar por prioridade', enum: ['urgent', 'high', 'medium', 'low'] },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
     },
     required: [],
     category: 'read',
@@ -239,7 +239,7 @@ export const TOOLS: ToolDefinition[] = [
     description: 'Aceita (cria briefing automaticamente) ou dispensa uma oportunidade detectada.',
     parameters: {
       opportunity_id: { type: 'string', description: 'UUID da oportunidade' },
-      action: { type: 'string', description: 'Acao a tomar', enum: ['accept', 'dismiss'] },
+      action: { type: 'string', description: 'Ação a tomar', enum: ['accept', 'dismiss'] },
     },
     required: ['opportunity_id', 'action'],
     category: 'write',
@@ -248,14 +248,14 @@ export const TOOLS: ToolDefinition[] = [
   // ── Inteligencia do Cliente ──
   {
     name: 'get_client_profile',
-    description: 'Retorna o perfil completo do cliente: segmento, keywords, pilares de conteudo, tom de voz, publico-alvo.',
+    description: 'Retorna o perfil completo do cliente: segmento, keywords, pilares de conteúdo, tom de voz, público-alvo.',
     parameters: {},
     required: [],
     category: 'read',
   },
   {
     name: 'get_intelligence_health',
-    description: 'Verifica a saude das fontes de inteligencia: biblioteca, clipping, social listening, oportunidades.',
+    description: 'Verifica a saúde das fontes de inteligência: biblioteca, clipping, social listening, oportunidades.',
     parameters: {},
     required: [],
     category: 'read',
@@ -264,10 +264,10 @@ export const TOOLS: ToolDefinition[] = [
   // ── Client Content & Intelligence ──
   {
     name: 'search_client_content',
-    description: 'Busca conteudo publicado pelo cliente (posts em redes sociais e paginas do site). Sem query retorna os mais recentes.',
+    description: 'Busca conteúdo publicado pelo cliente (posts em redes sociais e páginas do site). Sem query retorna os mais recentes.',
     parameters: {
       query: { type: 'string', description: 'Palavra-chave para buscar no titulo e conteudo dos posts/paginas' },
-      limit: { type: 'number', description: 'Maximo de resultados (default 10, max 20)' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 10, max 20)' },
     },
     required: [],
     category: 'read',
@@ -283,7 +283,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_client_insights',
-    description: 'Retorna o resumo de inteligencia do cliente gerado por IA (posicionamento, tom, industria, keywords, pilares, etc).',
+    description: 'Retorna o resumo de inteligência do cliente gerado por IA (posicionamento, tom, indústria, keywords, pilares, etc).',
     parameters: {},
     required: [],
     category: 'read',
@@ -293,26 +293,26 @@ export const TOOLS: ToolDefinition[] = [
     name: 'web_search',
     description: 'Pesquisa informações atuais na internet. Use para buscar notícias recentes, tendências, dados de mercado, concorrentes, eventos atuais ou qualquer informação que não esteja na base do cliente. Retorna trechos relevantes de páginas web.',
     parameters: {
-      query: { type: 'string', description: 'Termos de busca (em portugues ou ingles, seja especifico)' },
-      context: { type: 'string', description: 'Contexto adicional para refinar a busca (ex: setor, regiao, periodo)' },
+      query: { type: 'string', description: 'Termos de busca (em português ou inglês, seja específico)' },
+      context: { type: 'string', description: 'Contexto adicional para refinar a busca (ex: setor, região, período)' },
     },
     required: ['query'],
     category: 'read',
   },
   {
     name: 'web_extract',
-    description: 'Extrai o conteudo completo de uma ou mais URLs especificas. Use quando o usuario mencionar um artigo, site de concorrente ou link que precisa ser analisado em profundidade.',
+    description: 'Extrai o conteúdo completo de uma ou mais URLs específicas. Use quando o usuário mencionar um artigo, site de concorrente ou link que precisa ser analisado em profundidade.',
     parameters: {
-      urls: { type: 'array', description: 'Lista de URLs para extrair conteudo (maximo 3)', items: { type: 'string' } },
+      urls: { type: 'array', description: 'Lista de URLs para extrair conteúdo (máximo 3)', items: { type: 'string' } },
     },
     required: ['urls'],
     category: 'read',
   },
   {
     name: 'web_research',
-    description: 'Pesquisa profunda sobre um topico com multiplas fontes e resposta consolidada. Use para benchmarks de mercado, analise de setor, pesquisa de concorrentes ou entender tendencias com mais profundidade do que web_search.',
+    description: 'Pesquisa profunda sobre um tópico com múltiplas fontes e resposta consolidada. Use para benchmarks de mercado, análise de setor, pesquisa de concorrentes ou entender tendências com mais profundidade do que web_search.',
     parameters: {
-      query: { type: 'string', description: 'Topico a ser pesquisado em profundidade' },
+      query: { type: 'string', description: 'Tópico a ser pesquisado em profundidade' },
       focus: { type: 'string', description: 'Foco da pesquisa', enum: ['trends', 'competitors', 'strategy', 'market_data', 'general'] },
     },
     required: ['query'],

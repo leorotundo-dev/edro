@@ -43,7 +43,7 @@ export class LiveBoostEngineDb implements LiveBoostEngine {
         boosts.push({
           kind: 'performance',
           boost: 6,
-          reason: `Formato campeao no periodo: ${top.format}`,
+          reason: `Formato campeão no período: ${top.format}`,
           formats_affected: [top.format],
           confidence: 0.7,
         });

@@ -590,7 +590,7 @@ function visualBriefFromPost(post: any) {
       sub: post.copy?.cta?.slice(0, 18) ?? '',
     },
     composicao: 'headline grande + produto + CTA + selo de beneficio',
-    elementos_obrigatorios: ['logo', 'preco/beneficio', 'CTA'],
+    elementos_obrigatorios: ['logo', 'preço/benefício', 'CTA'],
     notas: [`Tema: ${post.theme}`, `Tier: ${post.tier} | Score: ${post.score}`],
   };
 }
