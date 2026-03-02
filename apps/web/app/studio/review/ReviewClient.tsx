@@ -204,11 +204,11 @@ export default function ReviewClient() {
       await Promise.all(
         selectedMockups.map((id) => apiPatch(`/mockups/${id}`, { status: 'changes_requested' }))
       );
-      setSuccess('Revisoes solicitadas.');
+      setSuccess('Revisões solicitadas.');
       await loadData();
       setSelectedMockups([]);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao solicitar revisoes.');
+      setError(err?.message || 'Falha ao solicitar revisões.');
     }
   };
 
@@ -218,7 +218,7 @@ export default function ReviewClient() {
       await apiPatch(`/edro/briefings/${briefingId}/stages/revisao`, { status: 'done' });
       router.push('/studio/export');
     } catch (err: any) {
-      setError(err?.message || 'Falha ao avancar etapa.');
+      setError(err?.message || 'Falha ao avançar etapa.');
     }
   };
 
@@ -481,7 +481,7 @@ export default function ReviewClient() {
           Voltar
         </Button>
         <Button variant="contained" onClick={markDone}>
-          Aprovar e avancar
+          Aprovar e avançar
         </Button>
       </Stack>
 
