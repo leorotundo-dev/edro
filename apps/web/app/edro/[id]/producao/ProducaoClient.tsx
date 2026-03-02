@@ -9,8 +9,10 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
+import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
@@ -59,6 +61,10 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false, message: '', severity: 'success',
+  });
 
   const [formData, setFormData] = useState({
     assigned_to: '',
@@ -128,9 +134,10 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
     e.preventDefault();
 
     if (!formData.assigned_to.trim()) {
-      alert('Preencha o email do designer.');
+      setValidationError('Preencha o e-mail do designer.');
       return;
     }
+    setValidationError('');
 
     setSubmitting(true);
     try {
@@ -145,10 +152,10 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
         copy_version_id: formData.copy_version_id || undefined,
       });
 
-      alert('Designer atribuído com sucesso! Notificações enviadas.');
-      router.push(`/edro/${briefingId}`);
+      setSnackbar({ open: true, message: 'Designer atribuído com sucesso! Notificações enviadas.', severity: 'success' });
+      setTimeout(() => router.push(`/edro/${briefingId}`), 1500);
     } catch (err: any) {
-      alert(err?.message || 'Erro ao atribuir designer.');
+      setSnackbar({ open: true, message: err?.message || 'Erro ao atribuir designer.', severity: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -270,14 +277,18 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
                   <TextField
                     fullWidth
                     size="small"
-                    label="Email do Designer *"
+                    label="E-mail do Designer *"
                     name="assigned_to"
                     type="email"
                     value={formData.assigned_to}
-                    onChange={handleChange}
+                    onChange={(e) => { setValidationError(''); handleChange(e); }}
                     required
+                    error={!!validationError}
                     placeholder="designer@edro.digital"
                   />
+                  {validationError && (
+                    <Alert severity="warning" sx={{ py: 0.25, fontSize: '0.8rem' }}>{validationError}</Alert>
+                  )}
 
                   <TextField
                     fullWidth
@@ -319,15 +330,25 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
                       ))}
                     </TextField>
 
-                    {formData.copy_version_id && (
-                      <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
-                        <CardContent>
-                          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                            {copies.find((c) => c.id === formData.copy_version_id)?.output || ''}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    )}
+                    {formData.copy_version_id && (() => {
+                      const idx = copies.findIndex((c) => c.id === formData.copy_version_id);
+                      const copy = copies[idx];
+                      return (
+                        <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                          <CardContent>
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                              <Chip size="small" label={`Versão ${idx + 1}`} color="primary" variant="outlined" sx={{ fontWeight: 600 }} />
+                              <Typography variant="caption" color="text.secondary">
+                                {copy ? new Date(copy.created_at).toLocaleString('pt-BR') : ''}
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                              {copy?.output || ''}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
                   </Stack>
                 </CardContent>
               </Card>
@@ -389,6 +410,21 @@ export default function ProducaoClient({ briefingId }: { briefingId: string }) {
           </Stack>
         </form>
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </AppShell>
   );
 }
