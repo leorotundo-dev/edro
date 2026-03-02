@@ -1169,7 +1169,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   if (loading && clients.length === 0) {
     return (
-      <AppShell title="Calendario">
+      <AppShell title="Calendário">
         <Stack spacing={3}>
           {/* Controls bar */}
           <Card variant="outlined">

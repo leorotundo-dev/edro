@@ -207,7 +207,7 @@ export default function HomeClient() {
         socialResp.error ||
         postsResp.error
       ) {
-        setSoftWarning('Alguns indicadores nao puderam ser atualizados.');
+        setSoftWarning('Alguns indicadores não puderam ser atualizados.');
       }
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar resumo da home.');
@@ -502,7 +502,7 @@ export default function HomeClient() {
                       <Box>
                         <Typography variant="subtitle2">Volume social</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Total de mencoes
+                          Total de menções
                         </Typography>
                       </Box>
                       <Chip size="small" label={formatNumber(socialSummary.total)} />

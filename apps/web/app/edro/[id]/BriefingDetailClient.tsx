@@ -591,7 +591,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
 
         {copySuccess && (
           <Alert severity="success" onClose={() => setCopySuccess(false)} sx={{ mb: 2 }}>
-            Copies geradas com sucesso!
+            Cópias geradas com sucesso!
           </Alert>
         )}
         {adaptSuccess && (
@@ -1059,7 +1059,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                   <Stack direction="row" spacing={1} alignItems="center">
                     <IconRobot size={18} color="#8b5cf6" />
                     <Typography variant="h6" fontWeight={600}>
-                      Copies Geradas{copies.length > 0 ? ` (${copies.length})` : ''}
+                      Cópias Geradas{copies.length > 0 ? ` (${copies.length})` : ''}
                     </Typography>
                   </Stack>
                   <Button
