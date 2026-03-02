@@ -31,6 +31,7 @@ import Popover from '@mui/material/Popover';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import StatusChip from '@/components/shared/StatusChip';
+import UserAvatar from '@/components/shared/UserAvatar';
 import {
   IconDownload,
   IconPlus,
@@ -621,7 +622,10 @@ export default function BriefingsClient() {
 
         {briefings.length === 0 && !loading ? (
           <Card variant="outlined">
-            <CardContent sx={{ textAlign: 'center', py: 6 }}>
+            <CardContent sx={{ textAlign: 'center', py: 6, px: 3, background: 'radial-gradient(ellipse at 50% 0%, rgba(232,82,25,0.05) 0%, transparent 70%)', borderRadius: 2 }}>
+              <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: '#fdeee8', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5, mx: 'auto', color: '#E85219' }}>
+                <IconFileText size={28} />
+              </Box>
               <Typography variant="h6" gutterBottom>
                 Nenhum briefing encontrado
               </Typography>
@@ -682,9 +686,9 @@ export default function BriefingsClient() {
                                 </Stack>
                               )}
                               {briefing.traffic_owner && (
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <IconUser size={14} />
-                                  <Typography variant="body2" color="text.secondary">
+                                <Stack direction="row" spacing={0.75} alignItems="center">
+                                  <UserAvatar name={briefing.traffic_owner} size={20} tooltip />
+                                  <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {briefing.traffic_owner}
                                   </Typography>
                                 </Stack>
@@ -790,8 +794,8 @@ export default function BriefingsClient() {
             <Divider />
             <Stack spacing={0.75}>
               {hoveredBriefing.traffic_owner && (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <IconUser size={13} />
+                <Stack direction="row" spacing={0.75} alignItems="center">
+                  <UserAvatar name={hoveredBriefing.traffic_owner} size={18} />
                   <Typography variant="caption" color="text.secondary">{hoveredBriefing.traffic_owner}</Typography>
                 </Stack>
               )}

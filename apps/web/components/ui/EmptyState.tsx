@@ -13,9 +13,22 @@ type EmptyStateProps = {
     onClick: () => void;
     icon?: React.ReactNode;
   };
+  iconColor?: string;
+  iconBg?: string;
+  gradient?: boolean;
+  size?: 'small' | 'default';
 };
 
-export default function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+export default function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  iconColor,
+  iconBg,
+  gradient,
+  size = 'default',
+}: EmptyStateProps) {
   return (
     <Box
       sx={{
@@ -24,9 +37,13 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
         alignItems: 'center',
         justifyContent: 'center',
         gap: 1.5,
-        py: 8,
+        py: size === 'small' ? 4 : 8,
         px: 3,
         textAlign: 'center',
+        ...(gradient && {
+          background: 'radial-gradient(ellipse at 50% 0%, rgba(93,135,255,0.06) 0%, transparent 70%)',
+          borderRadius: 3,
+        }),
       }}
     >
       {icon && (
@@ -35,12 +52,12 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
             width: 56,
             height: 56,
             borderRadius: '14px',
-            bgcolor: 'action.hover',
+            bgcolor: iconBg ?? 'action.hover',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             mb: 0.5,
-            color: 'text.disabled',
+            color: iconColor ?? 'text.disabled',
           }}
         >
           {icon}

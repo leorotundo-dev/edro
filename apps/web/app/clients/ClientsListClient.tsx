@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import EdroAvatar from '@/components/shared/EdroAvatar';
+import PlatformIcon from '@/components/shared/PlatformIcon';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -53,7 +54,7 @@ type Client = {
   intelligence_score?: number;
   updated_at?: string;
   logo_url?: string;
-  profile?: { brand_colors?: string[] } | null;
+  profile?: { brand_colors?: string[]; platforms?: string[] } | null;
 };
 
 export default function ClientsListClient() {
@@ -218,6 +219,9 @@ export default function ClientsListClient() {
             title="Nenhum cliente encontrado"
             description="Comece criando o primeiro cliente da sua operação."
             action={{ label: 'Criar cliente', onClick: () => router.push('/clients/novo'), icon: <IconPlus size={16} /> }}
+            iconColor="#E85219"
+            iconBg="#fdeee8"
+            gradient
           />
         </Card>
       ) : (
@@ -257,6 +261,7 @@ export default function ClientsListClient() {
                 sx={{
                   cursor: 'pointer',
                   height: '100%',
+                  overflow: 'hidden',
                   transition: 'all 0.2s ease',
                   borderLeftWidth: brandColor ? 4 : 1,
                   borderLeftColor: brandColor || undefined,
@@ -264,6 +269,7 @@ export default function ClientsListClient() {
                 }}
                 onClick={() => router.push(`/clients/${client.id}`)}
               >
+                <Box sx={{ height: 4, bgcolor: brandColor || 'grey.200', borderRadius: '12px 12px 0 0' }} />
                 <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                     <Stack direction="row" spacing={2} alignItems="center">
@@ -335,6 +341,14 @@ export default function ClientsListClient() {
                       </Typography>
                     </Grid>
                   </Grid>
+
+                  {(client.profile?.platforms?.length ?? 0) > 0 && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                      {client.profile!.platforms!.map((p) => (
+                        <PlatformIcon key={p} platform={p} size={14} variant="icon" tooltip />
+                      ))}
+                    </Stack>
+                  )}
 
                   <Stack direction="row" spacing={1}>
                     <Button

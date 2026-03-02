@@ -46,6 +46,7 @@ import {
   IconAlertTriangle,
   IconSparkles,
 } from '@tabler/icons-react';
+import PlatformIcon from '@/components/shared/PlatformIcon';
 
 type ClientRow = {
   id: string;
@@ -161,6 +162,22 @@ function formatSource(value?: string | null, url?: string | null) {
   } catch {
     return url;
   }
+}
+
+function detectPlatform(item: ClippingItem): string {
+  if (item.type === 'TREND') return 'trend';
+  if (item.type === 'SOCIAL') {
+    const src = (item.source_name ?? '').toLowerCase();
+    if (src.includes('instagram')) return 'instagram';
+    if (src.includes('linkedin')) return 'linkedin';
+    if (src.includes('tiktok')) return 'tiktok';
+    if (src.includes('youtube')) return 'youtube';
+    if (src.includes('twitter') || src.includes(' x ')) return 'twitter';
+    if (src.includes('facebook')) return 'facebook';
+    if (src.includes('whatsapp')) return 'whatsapp';
+    return 'instagram';
+  }
+  return 'news';
 }
 
 function timeAgo(value?: string | null) {
@@ -798,8 +815,8 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                             {/* top row */}
                             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 12, left: 12, right: 12 }} onClick={(e) => e.stopPropagation()}>
                               <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.7)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
-                              <Stack direction="row" spacing={0.5}>
-                                <Chip size="small" label={item.type || 'NEWS'} sx={{ bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: '0.6rem', height: 20, backdropFilter: 'blur(4px)' }} />
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <PlatformIcon platform={detectPlatform(item)} variant="chip" size={12} />
                                 <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.6rem', height: 20 }} />
                               </Stack>
                             </Stack>
@@ -840,7 +857,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                               <Box sx={{ height: 130, position: 'relative', flexShrink: 0, ...(item.image_url ? { backgroundImage: `url(${item.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: bg }) }}>
                                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 8, left: 8, right: 8 }} onClick={(e) => e.stopPropagation()}>
                                   <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.75)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
-                                  <Chip size="small" label={item.type || 'NEWS'} sx={{ bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: '0.6rem', height: 20, backdropFilter: 'blur(4px)' }} />
+                                  <PlatformIcon platform={detectPlatform(item)} variant="chip" size={12} />
                                 </Stack>
                               </Box>
 
@@ -868,18 +885,20 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                 </Box>
               );
             })() : (
-                <Stack alignItems="center" spacing={1.5} sx={{ py: 6 }}>
-                  <IconNews size={36} color="#bdbdbd" />
-                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                <Box sx={{ py: 6, px: 3, textAlign: 'center', background: 'radial-gradient(ellipse at 50% 0%, rgba(100,116,139,0.06) 0%, transparent 70%)', borderRadius: 3 }}>
+                  <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5, mx: 'auto', color: '#64748b' }}>
+                    <IconNews size={28} />
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={600} mb={0.5}>
                     Nenhum item encontrado
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 280 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 280, mx: 'auto', mb: 2 }}>
                     Tente ajustar os filtros ou adicione novas fontes para começar a capturar conteúdo.
                   </Typography>
                   <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={() => loadItems()}>
                     Recarregar
                   </Button>
-                </Stack>
+                </Box>
             )}
           </DashboardCard>
         </Grid>
