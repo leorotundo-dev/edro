@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch } from '@/lib/api';
+import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,6 +12,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -53,6 +55,7 @@ type User = {
 
 export default function AprovacaoClient({ briefingId }: { briefingId: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [user, setUser] = useState<User>({});
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [copies, setCopies] = useState<Copy[]>([]);
@@ -62,6 +65,11 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [comments, setComments] = useState('');
+  const [selectError, setSelectError] = useState('');
+  const [rejectError, setRejectError] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false, message: '', severity: 'success',
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -108,9 +116,10 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
 
   const handleApprove = async () => {
     if (!selectedCopy) {
-      alert('Selecione uma copy para aprovar.');
+      setSelectError('Selecione uma versão de copy para aprovar.');
       return;
     }
+    setSelectError('');
 
     setActionLoading(true);
     try {
@@ -123,10 +132,10 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
         },
       });
 
-      alert('Copy aprovada com sucesso!');
-      router.push(`/edro/${briefingId}`);
+      setSnackbar({ open: true, message: 'Copy aprovada com sucesso!', severity: 'success' });
+      setTimeout(() => router.push(`/edro/${briefingId}`), 1500);
     } catch (err: any) {
-      alert(err?.message || 'Erro ao aprovar copy.');
+      setSnackbar({ open: true, message: err?.message || 'Erro ao aprovar copy.', severity: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -134,11 +143,12 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
 
   const handleReject = async () => {
     if (!comments.trim()) {
-      alert('Adicione comentários sobre o motivo da rejeição.');
+      setRejectError('Adicione comentários sobre o motivo da rejeição.');
       return;
     }
+    setRejectError('');
 
-    const confirmed = confirm('Tem certeza que deseja rejeitar? O briefing voltará para a etapa de Copy IA.');
+    const confirmed = await confirm('Tem certeza que deseja rejeitar? O briefing voltará para a etapa de Copy IA.');
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -152,10 +162,10 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
         },
       });
 
-      alert('Copy rejeitada. Briefing voltou para etapa de Copy IA.');
-      router.push(`/edro/${briefingId}`);
+      setSnackbar({ open: true, message: 'Copy rejeitada. Briefing voltou para etapa de Copy IA.', severity: 'success' });
+      setTimeout(() => router.push(`/edro/${briefingId}`), 1500);
     } catch (err: any) {
-      alert(err?.message || 'Erro ao rejeitar copy.');
+      setSnackbar({ open: true, message: err?.message || 'Erro ao rejeitar copy.', severity: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -289,6 +299,9 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
               Copies Disponíveis ({copies.length})
             </Typography>
+            {selectError && (
+              <Alert severity="warning" sx={{ mb: 1, py: 0.25, fontSize: '0.8rem' }}>{selectError}</Alert>
+            )}
             <Stack spacing={1.5}>
               {copies.map((copy, index) => (
                 <Card
@@ -358,16 +371,20 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
-                    Comentários (Opcional)
+                    Comentários <Typography component="span" variant="caption" color="text.secondary">(obrigatório para rejeição)</Typography>
                   </Typography>
                   <TextField
                     fullWidth
                     multiline
                     rows={4}
                     value={comments}
-                    onChange={(e) => setComments(e.target.value)}
+                    onChange={(e) => { setRejectError(''); setComments(e.target.value); }}
+                    error={!!rejectError}
                     placeholder="Adicione comentários sobre a aprovação ou motivos de rejeição..."
                   />
+                  {rejectError && (
+                    <Alert severity="warning" sx={{ mt: 0.75, py: 0.25, fontSize: '0.8rem' }}>{rejectError}</Alert>
+                  )}
 
                   <Stack direction="row" spacing={1.5} justifyContent="flex-end" sx={{ mt: 3 }}>
                     <Button
@@ -399,6 +416,21 @@ export default function AprovacaoClient({ briefingId }: { briefingId: string }) 
           </Grid>
         </Grid>
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </AppShell>
   );
 }
