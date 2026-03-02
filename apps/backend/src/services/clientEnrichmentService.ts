@@ -194,8 +194,8 @@ ${JSON.stringify(
 )}
 
 Gere somente os campos deste escopo: ${scope}.
-Se um campo ja estiver bem preenchido, voce pode omitir.
-Evite inventar dados factuais nao confirmaveis.
+Se um campo já estiver bem preenchido, você pode omitir.
+Evite inventar dados factuais não confirmaveis.
 `;
 }
 

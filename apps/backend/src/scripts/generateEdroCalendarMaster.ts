@@ -451,7 +451,7 @@ intl.forEach(([m, d, name, tags, pr]) => {
     content_angles: 'conteudo educativo|institucional|acao pratica',
     default_cta: 'Saiba mais',
     platform_fit: PLAT.BRAND,
-    notes: 'Gancho de conteudo (nao comercial agressivo)',
+    notes: 'Gancho de conteúdo (não comercial agressivo)',
     source_hint: 'Curadoria datas internacionais',
   });
 });

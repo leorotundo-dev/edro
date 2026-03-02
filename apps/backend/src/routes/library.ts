@@ -35,7 +35,7 @@ async function ensureLibraryTables() {
     await dropBadForeignKeys();
     libraryTablesChecked = true;
   } catch {
-    console.log('[library] Tabela library_items nao encontrada, criando...');
+    console.log('[library] Tabela library_items não encontrada, criando...');
     await query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await query(`
       CREATE TABLE IF NOT EXISTS library_items (

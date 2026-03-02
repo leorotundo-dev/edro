@@ -8,26 +8,26 @@
 
 const MOMENTO_IMPLICATION: Record<string, string> = {
   problema:
-    'Em fase de descoberta. NAO venda — eduque. A copy deve criar awareness e nomear o problema que a persona sente mas nao articula. Nao mencione a solucao antes de validar a dor.',
+    'Em fase de descoberta. NÃO venda — eduque. A copy deve criar awareness e nomear o problema que a persona sente mas não articula. Não mencione a solução antes de validar a dor.',
   solucao:
-    'Avaliando opcoes. NAO explique o problema — diferencie a solucao. Responda implicitamente: por que esta solucao e nao a concorrente? Foco em diferenciais e provas concretas.',
+    'Avaliando opções. NÃO explique o problema — diferencie a solução. Responda implicitamente: por que esta solução e não a concorrente? Foco em diferenciais e provas concretas.',
   decisao:
-    'Pronta para agir. Minimize friccao cognitiva. Copy curta, CTA direto e especifico, remova objecoes finais. Nao eduque — feche. Cada palavra sem CTA e um desperdicio.',
+    'Pronta para agir. Minimize fricção cognitiva. Copy curta, CTA direto e específico, remova objeções finais. Não eduque — feche. Cada palavra sem CTA é um desperdício.',
 };
 
 const AMD_GUIDANCE: Record<string, string> = {
   salvar:
-    'AMD — SALVAR: Estruture como ferramenta de referencia (checklist, framework, tabela comparativa). Gatilhos: especificidade + valor pratico. O leitor salva o que vai usar depois — entregue algo que ele vai querer reler.',
+    'AMD — SALVAR: Estruture como ferramenta de referência (checklist, framework, tabela comparativa). Gatilhos: especificidade + valor prático. O leitor salva o que vai usar depois — entregue algo que ele vai querer reler.',
   compartilhar:
-    'AMD — COMPARTILHAR: Inclua 1 Dark Social Anchor — frase de autoridade que funciona como argumento standalone sem o contexto original do post. Gatilhos: dark social + prova social. O leitor compartilha o que o faz parecer inteligente na frente de alguem.',
+    'AMD — COMPARTILHAR: Inclua 1 Dark Social Anchor — frase de autoridade que funciona como argumento standalone sem o contexto original do post. Gatilhos: dark social + prova social. O leitor compartilha o que o faz parecer inteligente na frente de alguém.',
   clicar:
-    'AMD — CLICAR: Crie curiosity gap — informacao incompleta que so se resolve no clique. CTA acima da dobra e especifico (nao "saiba mais", mas "veja o calculo completo"). Gatilhos: aversao a perda + curiosidade.',
+    'AMD — CLICAR: Crie curiosity gap — informação incompleta que só se resolve no clique. CTA acima da dobra e específico (não "saiba mais", mas "veja o cálculo completo"). Gatilhos: aversão a perda + curiosidade.',
   responder:
-    'AMD — RESPONDER: Termine com pergunta aberta sobre a experiencia pessoal do leitor, nao retorica. Gatilhos: PNL pacing + pergunta direta. "Voce ja passou por isso?" funciona. "O que voce acha?" nao funciona.',
+    'AMD — RESPONDER: Termine com pergunta aberta sobre a experiência pessoal do leitor, não retórica. Gatilhos: PNL pacing + pergunta direta. "Você já passou por isso?" funciona. "O que você acha?" não funciona.',
   marcar_alguem:
-    'AMD — MARCAR ALGUEM: Referencie explicitamente uma situacao que o leitor reconhece em alguem especifico da vida dele (socio, chefe, colega). "Manda isso para quem precisa ouvir" funciona melhor que qualquer CTA generico.',
+    'AMD — MARCAR ALGUÉM: Referencie explicitamente uma situação que o leitor reconhece em alguém específico da vida dele (sócio, chefe, colega). "Manda isso para quem precisa ouvir" funciona melhor que qualquer CTA genérico.',
   pedir_proposta:
-    'AMD — PEDIR PROPOSTA: Mostre o custo do nao-agir (financeiro, competitivo ou de oportunidade). Inclua prova social de quem ja agiu. CTA especifica o proximo passo exato — sem ambiguidade, sem "entre em contato". Gatilhos: ancoragem + aversao a perda.',
+    'AMD — PEDIR PROPOSTA: Mostre o custo do não-agir (financeiro, competitivo ou de oportunidade). Inclua prova social de quem já agiu. CTA especifica o próximo passo exato — sem ambiguidade, sem "entre em contato". Gatilhos: ancoragem + aversão a perda.',
 };
 
 type PersonaShape = {
@@ -52,11 +52,11 @@ export function buildPersonaBlock(persona: PersonaShape | null, momento: string 
     `PERSONA ALVO: ${persona.name}`,
     persona.description,
   ];
-  if (persona.demographics) lines.push(`Demografico: ${persona.demographics}`);
+  if (persona.demographics) lines.push(`Demográfico: ${persona.demographics}`);
   if (Array.isArray(persona.pain_points) && persona.pain_points.length > 0) {
     lines.push(`Dores principais: ${persona.pain_points.slice(0, 5).join(' | ')}`);
   }
-  if (implication) lines.push(`Implicacao estrategica: ${implication}`);
+  if (implication) lines.push(`Implicação estratégica: ${implication}`);
 
   return `\n\nContexto de persona:\n${lines.join('\n')}`;
 }
@@ -97,14 +97,14 @@ export function buildBehaviorIntentBlock(intent: BehaviorIntentShape | null): st
   if (intent.audience_persona_name) {
     lines.push(`Público estratégico: ${intent.audience_persona_name}`);
   }
-  if (intent.amd) lines.push(`Acao minima desejada: ${intent.amd}`);
-  if (intent.momento) lines.push(`Momento de consciencia: ${intent.momento}`);
+  if (intent.amd) lines.push(`Ação mínima desejada: ${intent.amd}`);
+  if (intent.momento) lines.push(`Momento de consciência: ${intent.momento}`);
   if (intent.triggers?.length) {
-    lines.push(`Gatilhos estrategicos: ${intent.triggers.join(', ')}`);
+    lines.push(`Gatilhos estratégicos: ${intent.triggers.join(', ')}`);
   }
   if (intent.target_behavior) {
     lines.push(`Comportamento-alvo: ${intent.target_behavior}`);
   }
-  lines.push('INSTRUCAO: Esta peca esta dentro de uma campanha planejada. Respeite os gatilhos estrategicos definidos acima. O comportamento-alvo e o criterio de sucesso desta peca — nao o engajamento generico.');
+  lines.push('INSTRUÇÃO: Esta peça está dentro de uma campanha planejada. Respeite os gatilhos estratégicos definidos acima. O comportamento-alvo é o critério de sucesso desta peça — não o engajamento genérico.');
   return `\n\n${lines.join('\n')}`;
 }
