@@ -238,7 +238,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
     const summary = briefingSummary[0] || { total: 0, completed: 0, overdue: 0 };
     const copies = (copySummary[0] as any)?.total_copies || 0;
     const isCliente = template === 'cliente';
-    const templateLabel = template === 'executivo' ? 'Resumo Executivo' : template === 'cliente' ? 'Relatorio do Cliente' : 'Performance Completo';
+    const templateLabel = template === 'executivo' ? 'Resumo Executivo' : template === 'cliente' ? 'Relatório do Cliente' : 'Performance Completo';
     const today = new Date().toLocaleDateString('pt-BR');
 
     // Build branded HTML
@@ -293,13 +293,13 @@ export default async function reportsRoutes(app: FastifyInstance) {
   <!-- CTA -->
   <div style="text-align:center;margin:24px 0;">
     <a href="${process.env.FRONTEND_URL || 'https://edro.studio'}/clients/${clientId}/reports" style="display:inline-block;background:#ff6600;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">
-      Ver Relatorio Completo
+      Ver Relatório Completo
     </a>
   </div>
 
   <!-- Footer -->
   <div style="border-top:2px solid #ff6600;padding-top:12px;margin-top:24px;font-size:11px;color:#94a3b8;">
-    <strong style="color:#ff6600;">Edro Studio</strong> &nbsp;·&nbsp; Relatorio gerado em ${today}<br>
+    <strong style="color:#ff6600;">Edro Studio</strong> &nbsp;·&nbsp; Relatório gerado em ${today}<br>
     edro.studio
   </div>
 </body>
@@ -313,7 +313,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
       '',
       byStage.map((s: any) => `${s.status}: ${s.count}`).join(', '),
       '',
-      `Acesse o relatorio completo em: ${process.env.FRONTEND_URL || 'https://edro.studio'}/clients/${clientId}/reports`,
+      `Acesse o relatório completo em: ${process.env.FRONTEND_URL || 'https://edro.studio'}/clients/${clientId}/reports`,
     ].join('\n');
 
     const result = await sendEmail({
@@ -405,7 +405,7 @@ Formato JSON:
 Dados:
 ${assetSnapshot}`,
         systemPrompt:
-          'Voce e analista de inteligencia competitiva para agencias de marketing B2B. Seja objetivo e baseado em evidencia.',
+          'Você é analista de inteligência competitiva para agências de marketing B2B. Seja objetivo e baseado em evidência.',
         temperature: 0.2,
         maxTokens: 1800,
       });
@@ -441,7 +441,7 @@ Estrutura obrigatoria:
 ## Plano de Implementacao (dificuldade + prazo esperado por tatica)
 
 Regras:
-- Perspectiva agencia -> cliente.
+- Perspectiva agência -> cliente.
 - So use evidencias fornecidas.
 - Se faltar base: "Dado insuficiente".
 
@@ -451,7 +451,7 @@ ${structured}
 Dados brutos:
 ${assetSnapshot}`,
         systemPrompt:
-          'Voce e estrategista de crescimento em agencia de marketing. Gere recomendacoes praticas orientadas a resultado.',
+          'Você é estrategista de crescimento em agência de marketing. Gere recomendações práticas orientadas a resultado.',
         temperature: 0.55,
         maxTokens: 2200,
       });
@@ -479,7 +479,7 @@ ${assetSnapshot}`,
         prompt: `Voce e o estrategista final. Revise e fortaleça o briefing competitivo para decisao executiva.
 
 Regras obrigatorias:
-1. Escrever em perspectiva agencia -> cliente.
+1. Escrever em perspectiva agência -> cliente.
 2. Priorizar impacto em marketing e vendas.
 3. Trazer recomendacoes acionaveis para este mes.
 4. Nao mencionar IA, modelos, prompts, tokens ou bastidores.
@@ -504,7 +504,7 @@ ${structured}
 Ativos analisados:
 ${assetSnapshot}`,
         systemPrompt:
-          'Voce e consultor senior de inteligencia competitiva em marketing. Seja pragmatico, orientado a decisao e rigoroso com evidencias.',
+          'Você é consultor sênior de inteligência competitiva em marketing. Seja pragmático, orientado a decisão e rigoroso com evidências.',
         temperature: 0.35,
         maxTokens: 2600,
       });
@@ -687,7 +687,7 @@ ${assetSnapshot}`,
     try {
       const t1 = Date.now();
       const geminiResult = await runCompletionWithFallback('gemini', {
-        prompt: `Analise os dados do cliente final "${clientName}" (segmento: ${segment}) do ponto de vista de uma agencia que precisa melhorar marketing e vendas do cliente.
+        prompt: `Analise os dados do cliente final "${clientName}" (segmento: ${segment}) do ponto de vista de uma agência que precisa melhorar marketing e vendas do cliente.
 
 Regras obrigatorias:
 - Use somente os dados fornecidos.
@@ -705,7 +705,7 @@ Responda APENAS com JSON valido no formato:
 
 Dados:
 ${dataSnapshot}`,
-        systemPrompt: 'Voce e um analista de performance de marketing e vendas focado em cliente final. Saida estritamente em JSON valido, sem markdown e sem texto fora do JSON.',
+        systemPrompt: 'Você é um analista de performance de marketing e vendas focado em cliente final. Saída estritamente em JSON válido, sem markdown e sem texto fora do JSON.',
         temperature: 0.2,
         maxTokens: 1200,
       });
@@ -731,7 +731,7 @@ ${dataSnapshot}`,
       try {
         const t2 = Date.now();
         const tvRes = await tavilySearch(
-          `${segment} agencia marketing digital benchmark resultados produtividade 2026 Brasil`,
+          `${segment} agência marketing digital benchmark resultados produtividade 2026 Brasil`,
           { maxResults: 4, searchDepth: 'advanced', includeAnswer: true }
         );
         const duration_ms = Date.now() - t2;
@@ -755,10 +755,10 @@ ${dataSnapshot}`,
 
       const t3 = Date.now();
       const oaiResult = await runCompletionWithFallback('openai', {
-        prompt: `Escreva um relatorio narrativo para o cliente "${clientName}" (segmento: ${segment}) com foco em impacto de marketing e vendas. ${toneGuide}
+        prompt: `Escreva um relatório narrativo para o cliente "${clientName}" (segmento: ${segment}) com foco em impacto de marketing e vendas. ${toneGuide}
 
 Regras obrigatorias:
-- Perspectiva: agencia orientando o cliente.
+- Perspectiva: agência orientando o cliente.
 - Use somente dados reais fornecidos.
 - Nao cite IA, modelos, prompts, tokens, custos de IA, nem bastidores tecnicos.
 - Nao invente numero/probabilidade.
@@ -785,7 +785,7 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}
 
 Dados brutos:
 ${dataSnapshot}`,
-        systemPrompt: 'Voce e um estrategista senior de agencia. Foco absoluto em resultado de negocio do cliente. Portugues brasileiro, tom profissional, objetivo e acionavel. Maximo 650 palavras.',
+        systemPrompt: 'Você é um estrategista sênior de agência. Foco absoluto em resultado de negócio do cliente. Português brasileiro, tom profissional, objetivo e acionável. Máximo 650 palavras.',
         temperature: 0.6,
         maxTokens: 2000,
       });
@@ -810,7 +810,7 @@ ${dataSnapshot}`,
     try {
       const t4 = Date.now();
       const claudeResult = await runCompletionWithFallback('claude', {
-        prompt: `Voce esta na etapa final de revisao estrategica para um relatorio de agencia de marketing para cliente.
+        prompt: `Voce esta na etapa final de revisao estrategica para um relatório de agência de marketing para cliente.
 
 Sua missao:
 - Sintetizar dados em inteligencia acionavel de negocio (marketing, vendas, posicionamento, crescimento).
@@ -820,7 +820,7 @@ Sua missao:
 Regras obrigatorias:
 1. Use SOMENTE dados fornecidos.
 2. Nao mencione IA, modelo, prompt, token, custo tecnico, nem bastidores.
-3. Escreva sempre da perspectiva agencia -> cliente.
+3. Escreva sempre da perspectiva agência -> cliente.
 4. Quando nao houver base, escreva literalmente: "Dado insuficiente".
 5. Inclua oportunidades do proximo mes com base no calendario e oportunidades abertas, quando existirem.
 
@@ -860,7 +860,7 @@ Para cada recomendacao:
 - Resultado esperado
 - Proximos passos
 
-Relatorio base:
+Relatório base:
 ${narrative}
 
 Dados estruturados:
@@ -868,7 +868,7 @@ ${structuredAnalysis}
 
 ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
         systemPrompt:
-          'Voce e um estrategista senior de agencia, especialista em transformar dados em decisoes de negocio para clientes. Seja objetivo, pragmatico e rigoroso com evidencias. Portugues brasileiro.',
+          'Você é um estrategista sênior de agência, especialista em transformar dados em decisões de negócio para clientes. Seja objetivo, pragmático e rigoroso com evidências. Português brasileiro.',
         temperature: 0.4,
         maxTokens: 2200,
       });

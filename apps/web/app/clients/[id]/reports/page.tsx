@@ -53,7 +53,7 @@ type TemplateKey = 'executivo' | 'completo' | 'cliente';
 const TEMPLATES: { key: TemplateKey; label: string; description: string; icon: React.ReactNode }[] = [
   { key: 'executivo', label: 'Resumo Executivo', description: 'Stats + gráfico por etapa. 1 página.', icon: <IconPresentation size={20} /> },
   { key: 'completo', label: 'Performance Completo', description: 'Charts + timeline + tabela detalhada.', icon: <IconChartBar size={20} /> },
-  { key: 'cliente', label: 'Relatorio do Cliente', description: 'Visual limpo, foco em entregas.', icon: <IconUsers size={20} /> },
+  { key: 'cliente', label: 'Relatório do Cliente', description: 'Visual limpo, foco em entregas.', icon: <IconUsers size={20} /> },
 ];
 
 const STAGE_COLORS: Record<string, string> = {
@@ -111,7 +111,7 @@ export default function ClientReportsPage() {
       const data = await apiGet<ReportData>(`/clients/${clientId}/reports/summary?from=${from}&to=${to}`);
       setReport(data);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao gerar relatorio.');
+      setError(err?.message || 'Erro ao gerar relatório.');
     } finally {
       setLoading(false);
     }
@@ -131,7 +131,7 @@ export default function ClientReportsPage() {
         to,
         template,
       });
-      setEmailSent(`Relatorio enviado para ${email}`);
+      setEmailSent(`Relatório enviado para ${email}`);
       setTimeout(() => setEmailSent(''), 4000);
     } catch (err: any) {
       setError(err?.message || 'Erro ao enviar email.');
@@ -162,9 +162,9 @@ export default function ClientReportsPage() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <IconFileAnalytics size={28} stroke={1.5} />
         <Box>
-          <Typography variant="h5" fontWeight={700}>Relatorios</Typography>
+          <Typography variant="h5" fontWeight={700}>Relatórios</Typography>
           <Typography variant="body2" color="text.secondary">
-            Gere relatorios de performance para este cliente.
+            Gere relatórios de performance para este cliente.
           </Typography>
         </Box>
       </Box>
@@ -210,7 +210,7 @@ export default function ClientReportsPage() {
             <TextField label="De" type="date" value={from} onChange={(e) => setFrom(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
             <TextField label="Ate" type="date" value={to} onChange={(e) => setTo(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
             <Button variant="contained" onClick={generateReport} disabled={loading} sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
-              {loading ? <CircularProgress size={20} /> : 'Gerar Relatorio'}
+              {loading ? <CircularProgress size={20} /> : 'Gerar Relatório'}
             </Button>
             {report && (
               <>

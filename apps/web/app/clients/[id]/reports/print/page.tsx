@@ -23,7 +23,7 @@ const STAGE_COLORS: Record<string, string> = {
 const TEMPLATE_LABELS: Record<string, string> = {
   executivo: 'Resumo Executivo',
   completo: 'Performance Completo',
-  cliente: 'Relatorio do Cliente',
+  cliente: 'Relatório do Cliente',
 };
 
 export default function ReportPrintPage() {
@@ -48,7 +48,7 @@ export default function ReportPrintPage() {
         setReport(data);
         setClientName(client.name || clientId);
       } catch (err: any) {
-        setError(err?.message || 'Erro ao carregar relatorio.');
+        setError(err?.message || 'Erro ao carregar relatório.');
       }
     })();
   }, [clientId, from, to]);
@@ -59,7 +59,7 @@ export default function ReportPrintPage() {
   const today = new Date().toLocaleDateString('pt-BR');
 
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: '#e53e3e' }}>{error}</div>;
-  if (!report) return <div style={{ padding: 40, textAlign: 'center', color: '#666' }}>Carregando relatorio...</div>;
+  if (!report) return <div style={{ padding: 40, textAlign: 'center', color: '#666' }}>Carregando relatório...</div>;
 
   return (
     <>
@@ -104,7 +104,7 @@ export default function ReportPrintPage() {
               <span style={{ fontSize: 22, fontWeight: 800, color: '#E85219' }}>Edro Studio</span>
             </div>
             <h1 style={{ margin: '8px 0 4px', fontSize: 20, fontWeight: 700 }}>
-              {TEMPLATE_LABELS[template] || 'Relatorio de Performance'}
+              {TEMPLATE_LABELS[template] || 'Relatório de Performance'}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
               Cliente: <strong>{clientName}</strong> &nbsp;·&nbsp; Período: <strong>{from}</strong> a <strong>{to}</strong>
@@ -215,7 +215,7 @@ export default function ReportPrintPage() {
         {/* Footer */}
         <div style={{ borderTop: '2px solid #E85219', paddingTop: 12, marginTop: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
-            <strong style={{ color: '#E85219' }}>Edro Studio</strong> &nbsp;·&nbsp; Relatorio gerado automaticamente em {today}
+            <strong style={{ color: '#E85219' }}>Edro Studio</strong> &nbsp;·&nbsp; Relatório gerado automaticamente em {today}
           </div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
             edro.studio

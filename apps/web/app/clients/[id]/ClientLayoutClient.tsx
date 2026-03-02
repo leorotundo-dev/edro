@@ -399,7 +399,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                   <StepLabel>OpenAI — Elaborando estrategia</StepLabel>
                 </Step>
                 <Step>
-                  <StepLabel>Claude — Compilando relatorio</StepLabel>
+                  <StepLabel>Claude — Compilando relatório</StepLabel>
                 </Step>
               </Stepper>
               <LinearProgress
