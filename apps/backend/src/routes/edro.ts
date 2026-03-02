@@ -2446,7 +2446,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         );
       }
       if (recommendedDetails?.available_metrics?.length) {
-        evidenceLines.push(`Metricas disponiveis: ${recommendedDetails.available_metrics.slice(0, 6).join(', ')}.`);
+        evidenceLines.push(`Métricas disponíveis: ${recommendedDetails.available_metrics.slice(0, 6).join(', ')}.`);
       }
       if (recommendedDetails?.tracking_tools?.length) {
         evidenceLines.push(`Ferramentas de tracking: ${recommendedDetails.tracking_tools.slice(0, 4).join(', ')}.`);

@@ -834,13 +834,13 @@ Formato obrigatório (responda APENAS com essa seção):
 - Evidencia:
 - Relevancia: Alta/Media/Baixa
 - Janela de impacto: Imediata / 6-12 meses / 12+ meses
-- Acao recomendada:
+- Ação recomendada:
 
-### Recomendacoes Prioritarias (Top 3)
-Para cada recomendacao:
+### Recomendações Prioritárias (Top 3)
+Para cada recomendação:
 - Fato observado:
-- Interpretacao:
-- Acao recomendada:
+- Interpretação:
+- Ação recomendada:
 - Confiança: alta/média/baixa
 - KPI de sucesso: meta + prazo
 

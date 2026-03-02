@@ -159,7 +159,7 @@ export default async function recommendationRoutes(app: FastifyInstance) {
           return reply.send({
             recommended_formats: [],
             summary: { total_formats: 0 },
-            warnings: ['Falha ao gerar recomendacao.'],
+            warnings: ['Falha ao gerar recomendação.'],
             suggestions: [],
             briefing: { extracted_parameters: structured },
           });

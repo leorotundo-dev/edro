@@ -1101,11 +1101,11 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       : 'Nenhuma tendência disponível.';
 
     const calendarText = calendarResult.rows.length
-      ? calendarResult.rows.map((r: any) => `- ${r.date}: ${r.name} [${(r.categories || []).join(', ')}] relevancia base: ${r.base_relevance}`).join('\n')
+      ? calendarResult.rows.map((r: any) => `- ${r.date}: ${r.name} [${(r.categories || []).join(', ')}] relevância base: ${r.base_relevance}`).join('\n')
       : 'Nenhum evento proximo.';
 
     const opportunitiesText = opportunitiesResult.rows.length
-      ? opportunitiesResult.rows.map((r: any) => `- [${r.priority}] ${r.title}: ${r.description || ''} → ${r.suggested_action || ''} (confianca: ${r.confidence}%)`).join('\n')
+      ? opportunitiesResult.rows.map((r: any) => `- [${r.priority}] ${r.title}: ${r.description || ''} → ${r.suggested_action || ''} (confiança: ${r.confidence}%)`).join('\n')
       : 'Nenhuma oportunidade identificada.';
 
     const briefingsText = briefingsResult.rows.length
@@ -1171,12 +1171,12 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
           'Retorne um relatório estruturado com:',
           '1. PONTOS FORTES da presenca digital do cliente',
           '2. PONTOS FRACOS e gaps identificados',
-          '3. OPORTUNIDADES imediatas (proximos 14-30 dias)',
-          '4. AMEACAS ou riscos identificados',
-          '5. ANALISE DE SENTIMENTO e engajamento (se dados disponiveis)',
-          '6. PERFORMANCE POR PLATAFORMA (metricas do Reportei: impressoes, alcance, engajamento, cliques)',
+          '3. OPORTUNIDADES imediatas (próximos 14-30 dias)',
+          '4. AMEAÇAS ou riscos identificados',
+          '5. ANÁLISE DE SENTIMENTO e engajamento (se dados disponíveis)',
+          '6. PERFORMANCE POR PLATAFORMA (métricas do Reportei: impressões, alcance, engajamento, cliques)',
           '7. GAPS DE CONTEÚDO (temas não cobertos, plataformas subutilizadas)',
-          '8. METRICAS-CHAVE resumidas',
+          '8. MÉTRICAS-CHAVE resumidas',
         ].join('\n'),
         creativePrompt: (analysisOutput: string) => [
           'Você é um estrategista sênior de comunicação de uma agência premium.',
