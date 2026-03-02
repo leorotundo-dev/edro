@@ -242,7 +242,7 @@ export default function ClippingDiagnosticsPage() {
   };
 
   const handleDeleteSource = async (sourceId: string, sourceName: string) => {
-    if (!await confirm(`Tem certeza que quer deletar a fonte "${sourceName}"? Todos os items dessa fonte tambem serao removidos.`)) return;
+    if (!await confirm(`Tem certeza que quer deletar a fonte "${sourceName}"? Todos os itens dessa fonte também serão removidos.`)) return;
     try {
       await apiDelete(`/clipping/sources/${sourceId}`);
       await load();
@@ -355,8 +355,8 @@ export default function ClippingDiagnosticsPage() {
                   <IconPlugConnectedX size={48} color="#FA896B" />
                   <Typography variant="h6">Backend indisponível</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 500 }}>
-                    O servidor backend nao esta respondendo. Acesse o painel do Railway e verifique se o servico
-                    &quot;backend&quot; esta rodando. Pode ser que o deploy tenha falhado ou o servico esteja reiniciando.
+                    O servidor backend não está respondendo. Acesse o painel do Railway e verifique se o serviço
+                    &quot;backend&quot; está rodando. Pode ser que o deploy tenha falhado ou o serviço esteja reiniciando.
                   </Typography>
                 </>
               ) : (

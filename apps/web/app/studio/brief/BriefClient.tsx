@@ -1387,7 +1387,7 @@ export default function BriefClient() {
               <TextField
                 fullWidth
                 size="small"
-                label="Titulo do briefing"
+                label="Título do briefing"
                 value={form.title}
                 onChange={(event) => updateForm({ title: event.target.value })}
                 placeholder="Campanha, evento ou tema"
@@ -1483,7 +1483,7 @@ export default function BriefClient() {
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6">Contexto do evento</Typography>
             <Typography variant="body2" color="text.secondary">
-              Detalhes que guiam a recomendacao de formatos.
+              Detalhes que guiam a recomendação de formatos.
             </Typography>
           </Box>
           <Grid container spacing={2}>

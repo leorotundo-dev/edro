@@ -222,7 +222,7 @@ export default function ClientClippingKeywordsQuickClient({
       ) : null}
 
       <DashboardCard
-        title="Setup rapido (Clipping)"
+        title="Setup rápido (Clipping)"
         subtitle={subtitle}
         action={<Chip size="small" label={`${keywords.length} palavras`} color="info" variant="outlined" />}
       >

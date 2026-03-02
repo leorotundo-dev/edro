@@ -141,8 +141,8 @@ const TASK_TYPES = [
 ];
 
 const PIPELINE_LABELS: Record<string, string> = {
-  simple: 'Rapido',
-  standard: 'Padrao',
+  simple: 'Rápido',
+  standard: 'Padrão',
   premium: 'Premium',
   collaborative: 'Colaborativo (Gemini -> OpenAI -> Claude)',
   adversarial: 'Adversarial (3 IAs independentes)',
@@ -541,7 +541,7 @@ export default function EditorClient() {
       }
       const response = await apiGet<{ success: boolean; data: BriefingResponse }>(`/edro/briefings/${briefingId}`);
       const data = response?.data;
-      if (!data?.briefing) throw new Error('Briefing nao encontrado.');
+      if (!data?.briefing) throw new Error('Briefing não encontrado.');
       setBriefing(data.briefing);
       setCopies(data.copies || []);
       if (data.copies?.length) {
@@ -638,7 +638,7 @@ export default function EditorClient() {
 
   const formatLabel = activeFormat
     ? `${activeFormat.platform || 'Plataforma'} \u2022 ${activeFormat.format || 'Formato'}`
-    : 'Formato nao definido';
+    : 'Formato não definido';
 
   const mockupMeta = useMemo(() => {
     const parts = [activeFormat?.platform, activeFormat?.format].filter(Boolean) as string[];
@@ -841,9 +841,9 @@ export default function EditorClient() {
       if (isCarouselFormat(formatName)) {
         extraGuidelines.push(
           'FORMATO CARROSSEL — estruture CADA OPCAO com exatamente 3 slides:\n' +
-          'Slide 1: [Titulo do slide — gancho/abertura]\n[texto do slide 1]\n' +
-          'Slide 2: [Titulo do slide — desenvolvimento]\n[texto do slide 2]\n' +
-          'Slide 3: [Titulo do slide — fechamento ou CTA]\n[texto do slide 3]\n' +
+          'Slide 1: [Título do slide — gancho/abertura]\n[texto do slide 1]\n' +
+          'Slide 2: [Título do slide — desenvolvimento]\n[texto do slide 2]\n' +
+          'Slide 3: [Título do slide — fechamento ou CTA]\n[texto do slide 3]\n' +
           'Legenda: [caption para o post]\n' +
           'Hashtags: [#tag1 #tag2 ...]'
         );
@@ -885,8 +885,8 @@ export default function EditorClient() {
         const instructionLines = [
           client?.name ? `Cliente: ${client.name}` : '',
           client?.segment ? `Segmento: ${client.segment}` : '',
-          `Formato selecionado: ${activeFormat?.format || 'nao informado'}`,
-          `Plataforma: ${activeFormat?.platform || 'nao informado'}`,
+          `Formato selecionado: ${activeFormat?.format || 'não informado'}`,
+          `Plataforma: ${activeFormat?.platform || 'não informado'}`,
           activeFormat?.production_type ? `Tipo de producao: ${activeFormat.production_type}` : '',
           tone ? `Tom de voz: ${tone}` : '',
           clientsToGenerate.length > 1 ? 'Gerar opcoes alinhadas a este cliente.' : '',
@@ -1210,7 +1210,7 @@ export default function EditorClient() {
   const optionToText = (option: ParsedOption | null) => {
     if (!option) return output || '';
     const parts = [
-      option.title  ? `Arte - Titulo: ${option.title}` : '',
+      option.title  ? `Arte - Título: ${option.title}` : '',
       option.body   ? `Arte - Corpo: ${option.body}`   : '',
       option.legenda ? `Legenda: ${option.legenda}`    : '',
       option.cta    ? `CTA: ${option.cta}`             : '',

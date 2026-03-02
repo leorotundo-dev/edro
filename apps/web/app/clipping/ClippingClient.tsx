@@ -120,7 +120,7 @@ const TYPE_OPTIONS = [
 ];
 
 const RECENCY_OPTIONS = [
-  { value: '', label: 'Periodo' },
+  { value: '', label: 'Período' },
   { value: '24h', label: '24h' },
   { value: '7d', label: '7 dias' },
   { value: '30d', label: '30 dias' },
@@ -364,7 +364,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
       const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
       const effectiveScope = isLocked ? 'CLIENT' : sourceScope;
       if (effectiveScope === 'CLIENT' && !effectiveClientId) {
-        setError('Cliente invalido para criar fonte.');
+        setError('Cliente inválido para criar fonte.');
         return;
       }
       await apiPost('/clipping/sources', {
@@ -678,7 +678,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, md: 2 }}>
-            <TextField select label="Periodo" value={recencyFilter} onChange={(e) => setRecencyFilter(e.target.value)} fullWidth size="small">
+            <TextField select label="Período" value={recencyFilter} onChange={(e) => setRecencyFilter(e.target.value)} fullWidth size="small">
               {RECENCY_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
                   {option.label}

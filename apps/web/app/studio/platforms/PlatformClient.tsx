@@ -351,7 +351,7 @@ export default function PlatformClient() {
           client_name: clientName,
         }),
         RECOMMENDATION_TIMEOUT_MS,
-        'Tempo limite ao gerar recomendacao.'
+        'Tempo limite ao gerar recomendação.'
       );
 
       const formats = response?.recommended_formats || [];
@@ -369,7 +369,7 @@ export default function PlatformClient() {
         setSelectedIds(new Set());
       }
     } catch (err: any) {
-      setError(err?.message || 'Falha ao gerar recomendacao.');
+      setError(err?.message || 'Falha ao gerar recomendação.');
     } finally {
       setLoading(false);
     }
@@ -756,7 +756,7 @@ export default function PlatformClient() {
         <Box>
           <Typography variant="h4" fontWeight={700}>Seleção de Plataformas e Formatos</Typography>
           <Typography variant="body2" color="text.secondary">
-            Use a recomendacao da IA e tambem monte sua propria campanha.
+            Use a recomendação da IA e também monte sua própria campanha.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -1051,7 +1051,7 @@ export default function PlatformClient() {
               <Stack direction="row" spacing={1}>
                 {formats.length ? (
                   <Button variant="outlined" size="small" onClick={handleApplyRecommendation}>
-                    Aplicar recomendacao
+                    Aplicar recomendação
                   </Button>
                 ) : null}
                 <Button variant="outlined" size="small" onClick={handleClearSelection}>

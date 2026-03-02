@@ -42,7 +42,7 @@ export default function ApprovalClient() {
 
   useEffect(() => {
     if (!token) {
-      setError('Link invalido — token nao encontrado.');
+      setError('Link inválido — token não encontrado.');
       setLoading(false);
       return;
     }
@@ -53,7 +53,7 @@ export default function ApprovalClient() {
         const res = await fetch(`${base}/edro/public/approval?token=${encodeURIComponent(token)}`);
         const json = await res.json();
         if (!res.ok || !json.success) {
-          setError(json.error || 'Link invalido ou expirado.');
+          setError(json.error || 'Link inválido ou expirado.');
           return;
         }
         setData(json.data);

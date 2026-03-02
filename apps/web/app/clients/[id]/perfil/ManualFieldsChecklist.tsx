@@ -45,11 +45,11 @@ export default function ManualFieldsChecklist({ fields }: Props) {
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
           <IconInfoCircle size={18} color="#d97706" />
           <Typography variant="subtitle2" fontWeight={700}>
-            Precisamos de voce
+            Precisamos de você
           </Typography>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
-          Estes campos sao somente manuais e nao devem ser inferidos pela IA.
+          Estes campos são somente manuais e não devem ser inferidos pela IA.
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {fields.map((field) => (

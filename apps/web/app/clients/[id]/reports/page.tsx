@@ -51,7 +51,7 @@ type AiSummary = {
 type TemplateKey = 'executivo' | 'completo' | 'cliente';
 
 const TEMPLATES: { key: TemplateKey; label: string; description: string; icon: React.ReactNode }[] = [
-  { key: 'executivo', label: 'Resumo Executivo', description: 'Stats + grafico por etapa. 1 pagina.', icon: <IconPresentation size={20} /> },
+  { key: 'executivo', label: 'Resumo Executivo', description: 'Stats + gráfico por etapa. 1 página.', icon: <IconPresentation size={20} /> },
   { key: 'completo', label: 'Performance Completo', description: 'Charts + timeline + tabela detalhada.', icon: <IconChartBar size={20} /> },
   { key: 'cliente', label: 'Relatorio do Cliente', description: 'Visual limpo, foco em entregas.', icon: <IconUsers size={20} /> },
 ];
@@ -339,12 +339,12 @@ export default function ClientReportsPage() {
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2 }}>
-                  {showDeliveryFocus ? 'Entregas no Periodo' : 'Briefings no Periodo'}
+                  {showDeliveryFocus ? 'Entregas no Período' : 'Briefings no Período'}
                 </Typography>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell><strong>Titulo</strong></TableCell>
+                      <TableCell><strong>Título</strong></TableCell>
                       <TableCell><strong>Status</strong></TableCell>
                       <TableCell><strong>Prazo</strong></TableCell>
                       <TableCell><strong>Criado</strong></TableCell>

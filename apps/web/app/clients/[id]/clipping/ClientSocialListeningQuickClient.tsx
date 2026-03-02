@@ -669,7 +669,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
       ) : null}
 
       <DashboardCard
-        title="Setup rapido"
+        title="Setup rápido"
         subtitle={client ? `${client.name} - ${client.segment_primary || 'Sem segmento'}` : undefined}
         action={<Chip size="small" label={`${keywords.length} keywords`} color="info" variant="outlined" />}
       >
@@ -830,7 +830,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
 
       <DashboardCard
         title="Fontes"
-        subtitle="Escolha as plataformas monitoradas e configure tokens quando necessario."
+        subtitle="Escolha as plataformas monitoradas e configure tokens quando necessário."
         action={<Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />}
       >
         <Stack spacing={2}>
@@ -864,7 +864,7 @@ export default function ClientSocialListeningQuickClient({ clientId }: ClientSoc
                   Adicionar
                 </Button>
                 <Typography variant="caption" color="text.secondary">
-                  Tokens salvos nao sao exibidos; cole novamente para atualizar.
+                  Tokens salvos não são exibidos; cole novamente para atualizar.
                 </Typography>
               </Stack>
             </Grid>

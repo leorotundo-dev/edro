@@ -104,7 +104,7 @@ export default function OutputsList({
 
   const handleDelete = async () => {
     if (menuBriefingId && onDeleteBriefing) {
-      const ok = await confirm('Excluir este briefing permanentemente? Todas as copies associadas tambem serao removidas.');
+      const ok = await confirm('Excluir este briefing permanentemente? Todas as copies associadas também serão removidas.');
       if (ok) onDeleteBriefing(menuBriefingId);
     }
     handleMenuClose();

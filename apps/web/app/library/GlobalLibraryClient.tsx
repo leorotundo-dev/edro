@@ -191,7 +191,7 @@ export default function GlobalLibraryClient() {
                 >
                   <IconUpload size={24} />
                 </Box>
-                <Typography variant="subtitle2">Upload rapido</Typography>
+                <Typography variant="subtitle2">Upload rápido</Typography>
                 <Typography variant="caption" color="text.secondary">
                   Arraste ou clique para enviar PDFs, imagens e videos.
                 </Typography>

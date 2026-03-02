@@ -107,7 +107,7 @@ export default function ReportPrintPage() {
               {TEMPLATE_LABELS[template] || 'Relatorio de Performance'}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Cliente: <strong>{clientName}</strong> &nbsp;·&nbsp; Periodo: <strong>{from}</strong> a <strong>{to}</strong>
+              Cliente: <strong>{clientName}</strong> &nbsp;·&nbsp; Período: <strong>{from}</strong> a <strong>{to}</strong>
             </p>
           </div>
           <div style={{ textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>
@@ -176,12 +176,12 @@ export default function ReportPrintPage() {
         {report.briefings.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
-              {isCliente ? 'Entregas no Periodo' : 'Briefings no Periodo'}
+              {isCliente ? 'Entregas no Período' : 'Briefings no Período'}
             </h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Titulo</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Título</th>
                   <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Status</th>
                   <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Prazo</th>
                   <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Criado</th>
