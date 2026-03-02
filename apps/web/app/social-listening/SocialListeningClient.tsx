@@ -145,7 +145,7 @@ const KPI_LABELS: Record<string, string> = {
   ctr: 'CTR',
   cpc: 'CPC',
   cpm: 'CPM',
-  conversions: 'Conversoes',
+  conversions: 'Conversões',
   cost: 'Custo',
 };
 

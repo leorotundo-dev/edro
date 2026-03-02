@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <IconUsers size={28} stroke={1.5} />
           <Box>
-            <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuarios</Typography>
+            <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuários</Typography>
             <Typography variant="body2" color="text.secondary">
               Gerencie papeis e permissoes dos membros da equipe.
             </Typography>

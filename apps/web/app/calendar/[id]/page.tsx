@@ -270,7 +270,7 @@ export default function CalendarReviewPage() {
                   <TableCell>Data</TableCell>
                   <TableCell>Formato</TableCell>
                   <TableCell>Headline</TableCell>
-                  <TableCell>Acoes</TableCell>
+                  <TableCell>Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

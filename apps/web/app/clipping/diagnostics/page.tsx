@@ -387,7 +387,7 @@ export default function ClippingDiagnosticsPage() {
               sx={{ mb: 2 }}
             >
               {overallHealth
-                ? 'Pipeline saudavel. Migrations OK, colunas OK, sem jobs falhando.'
+                ? 'Pipeline saudável. Migrations OK, colunas OK, sem jobs falhando.'
                 : 'Problemas detectados. Veja os detalhes abaixo.'}
             </Alert>
 
@@ -631,9 +631,9 @@ export default function ClippingDiagnosticsPage() {
                       <TableCell>Nome / URL</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Erro</TableCell>
-                      <TableCell>Ultimo fetch</TableCell>
+                      <TableCell>Último fetch</TableCell>
                       <TableCell>Intervalo</TableCell>
-                      <TableCell align="right">Acoes</TableCell>
+                      <TableCell align="right">Ações</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

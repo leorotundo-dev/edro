@@ -237,7 +237,7 @@ export default function ClippingDashboardPage() {
         </Grid>
 
         {/* Time range filters */}
-        <DashboardCard title="Filtros" subtitle="Selecione o recorte para as metricas.">
+        <DashboardCard title="Filtros" subtitle="Selecione o recorte para as métricas.">
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {(['today', 'week', 'month'] as const).map((range) => (
               <Button

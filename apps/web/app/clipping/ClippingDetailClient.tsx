@@ -375,7 +375,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
 
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 4 }}>
-            <DashboardCard title="Acoes">
+            <DashboardCard title="Ações">
               <Stack spacing={2}>
                 <TextField
                   select

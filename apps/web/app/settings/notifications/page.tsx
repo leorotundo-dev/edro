@@ -21,10 +21,10 @@ import { apiGet, apiPatch } from '@/lib/api';
 
 const EVENT_TYPES = [
   { id: 'stage_change', label: 'Mudanca de Etapa', description: 'Quando um briefing muda de etapa no workflow' },
-  { id: 'briefing_deadline', label: 'Prazo Proximo', description: 'Alerta quando um briefing esta perto do prazo' },
-  { id: 'task_assigned', label: 'Tarefa Atribuida', description: 'Quando uma tarefa e atribuida a voce' },
-  { id: 'copy_approved', label: 'Copy Aprovada', description: 'Quando uma copy gerada e aprovada' },
-  { id: 'weekly_digest', label: 'Resumo Semanal', description: 'Resumo semanal de atividades e metricas' },
+  { id: 'briefing_deadline', label: 'Prazo Próximo', description: 'Alerta quando um briefing está perto do prazo' },
+  { id: 'task_assigned', label: 'Tarefa Atribuída', description: 'Quando uma tarefa é atribuída a você' },
+  { id: 'copy_approved', label: 'Copy Aprovada', description: 'Quando uma copy gerada é aprovada' },
+  { id: 'weekly_digest', label: 'Resumo Semanal', description: 'Resumo semanal de atividades e métricas' },
 ] as const;
 
 const CHANNELS = [

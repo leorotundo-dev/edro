@@ -146,7 +146,7 @@ export default function ClippingQualityPage() {
               Qualidade do Radar
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Metricas de precisao, feedback e qualidade das fontes.
+              Métricas de precisão, feedback e qualidade das fontes.
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">

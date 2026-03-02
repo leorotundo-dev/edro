@@ -752,7 +752,7 @@ export default function BriefClient() {
       return;
     }
     if (!form.title.trim()) {
-      setError('Informe o titulo do briefing.');
+      setError('Informe o título do briefing.');
       return;
     }
     if (!form.objective.trim()) {
@@ -1322,7 +1322,7 @@ export default function BriefClient() {
               ) : null}
             </Stack>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
-              {sourceContext.title || 'Sem titulo'}
+              {sourceContext.title || 'Sem título'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
               {sourceContext.summary || sourceContext.snippet || 'Sem resumo disponível.'}

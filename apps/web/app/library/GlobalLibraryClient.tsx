@@ -302,7 +302,7 @@ export default function GlobalLibraryClient() {
                         <TableCell>Cliente</TableCell>
                         <TableCell>Categoria</TableCell>
                         <TableCell>Tamanho</TableCell>
-                        <TableCell>Acoes</TableCell>
+                        <TableCell>Ações</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>

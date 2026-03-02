@@ -98,7 +98,7 @@ export default function ClientIntegrationsPage() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>Metricas de Performance</Typography>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>Métricas de Performance</Typography>
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab icon={<IconBrandMeta size={18} />} iconPosition="start" label="Meta Ads" />
@@ -229,7 +229,7 @@ export default function ClientIntegrationsPage() {
 
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid size={{ xs: 6, md: 3 }}>
-                  <StatCard label="Sessoes" value={gaData.sessions.toLocaleString('pt-BR')} />
+                  <StatCard label="Sessões" value={gaData.sessions.toLocaleString('pt-BR')} />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
                   <StatCard label="Pageviews" value={gaData.pageviews.toLocaleString('pt-BR')} />
@@ -246,12 +246,12 @@ export default function ClientIntegrationsPage() {
                 <>
                   <Card variant="outlined" sx={{ mb: 3 }}>
                     <CardContent>
-                      <Typography variant="h6" sx={{ mb: 1 }}>Sessoes e Pageviews por Dia</Typography>
+                      <Typography variant="h6" sx={{ mb: 1 }}>Sessões e Pageviews por Dia</Typography>
                       <Chart
                         type="area"
                         height={300}
                         series={[
-                          { name: 'Sessoes', data: gaData.rows.map((r) => r.sessions) },
+                          { name: 'Sessões', data: gaData.rows.map((r) => r.sessions) },
                           { name: 'Pageviews', data: gaData.rows.map((r) => r.pageviews) },
                         ]}
                         options={{
@@ -283,7 +283,7 @@ export default function ClientIntegrationsPage() {
                         <TableHead>
                           <TableRow>
                             <TableCell><strong>Data</strong></TableCell>
-                            <TableCell align="right"><strong>Sessoes</strong></TableCell>
+                            <TableCell align="right"><strong>Sessões</strong></TableCell>
                             <TableCell align="right"><strong>Pageviews</strong></TableCell>
                           </TableRow>
                         </TableHead>

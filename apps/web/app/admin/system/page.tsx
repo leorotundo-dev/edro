@@ -403,7 +403,7 @@ export default function AdminSystemPage() {
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle1" gutterBottom>Reportei Insights Job</Typography>
               <Typography variant="body2" color="text.secondary">
-                Coleta metricas do Reportei e salva insights para cada cliente.
+                Coleta métricas do Reportei e salva insights para cada cliente.
               </Typography>
             </Box>
             <LoadingButton

@@ -122,7 +122,7 @@ export default function SettingsClient() {
       await apiGet(`/calendar/events/${month}`);
     });
 
-    await runTest('Recomendacoes (enxoval)', async () => {
+    await runTest('Recomendações (enxoval)', async () => {
       await apiPost('/recommendations/enxoval', {
         briefing_text: 'Diagnóstico rápido do sistema',
         objective: 'awareness',

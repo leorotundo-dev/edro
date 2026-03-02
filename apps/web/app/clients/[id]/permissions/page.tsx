@@ -153,7 +153,7 @@ export default function ClientPermissionsPage() {
                   {ALL_PERMS.map((p) => (
                     <TableCell key={p} align="center"><strong>{PERM_LABELS[p]}</strong></TableCell>
                   ))}
-                  <TableCell align="center"><strong>Acoes</strong></TableCell>
+                  <TableCell align="center"><strong>Ações</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
