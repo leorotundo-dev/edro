@@ -376,6 +376,8 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [manualRelevance, setManualRelevance] = useState('');
   const [manualRelevanceClientId, setManualRelevanceClientId] = useState('');
   const [saveRelevanceLoading, setSaveRelevanceLoading] = useState(false);
+  const [deleteConfirmEvent, setDeleteConfirmEvent] = useState<CalendarEventItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [editEventDialogOpen, setEditEventDialogOpen] = useState(false);
   const [editEventTarget, setEditEventTarget] = useState<CalendarEventItem | null>(null);
   const [editEventName, setEditEventName] = useState('');
@@ -1009,9 +1011,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     }
   };
 
-  const handleDeleteEvent = async (event: CalendarEventItem) => {
+  const handleDeleteClick = (event: CalendarEventItem) => {
     handleEventMenuClose();
-    if (!await confirm(`Excluir "${event.name}"? Esta ação não pode ser desfeita.`)) return;
+    setDeleteConfirmEvent(event);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmEvent) return;
+    const event = deleteConfirmEvent;
+    setDeleteConfirmEvent(null);
+    setDeleteLoading(true);
     setEventActionLoading(event.id);
     setError('');
     setNotice('');
@@ -1024,6 +1033,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       setError(err?.message || 'Falha ao excluir evento.');
     } finally {
       setEventActionLoading(null);
+      setDeleteLoading(false);
     }
   };
 
@@ -1526,7 +1536,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                               <IconPencil size={15} style={{ marginRight: 8 }} />
                               Editar
                             </MenuItem>,
-                            <MenuItem key="delete" onClick={() => handleDeleteEvent(ev)} sx={{ color: 'error.main' }}>
+                            <MenuItem key="delete" onClick={() => handleDeleteClick(ev)} sx={{ color: 'error.main' }}>
                               <IconTrash size={15} style={{ marginRight: 8 }} />
                               Excluir
                             </MenuItem>,
@@ -1807,6 +1817,26 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     </Stack>
   );
 
+  // ── Confirmar Exclusão Dialog ────────────────────────────────────
+  const deleteConfirmDialog = (
+    <Dialog open={Boolean(deleteConfirmEvent)} onClose={() => setDeleteConfirmEvent(null)} maxWidth="xs" fullWidth>
+      <DialogTitle>Excluir evento</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary">
+          Excluir &quot;{deleteConfirmEvent?.name}&quot;? Esta ação não pode ser desfeita.
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button onClick={() => setDeleteConfirmEvent(null)} variant="outlined" size="small">
+          Cancelar
+        </Button>
+        <Button onClick={handleDeleteConfirm} variant="contained" color="error" size="small" disabled={deleteLoading}>
+          Excluir
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   // ── Editar Evento Dialog ──────────────────────────────────────────
   const editEventDialog = (
     <Dialog open={editEventDialogOpen} onClose={() => setEditEventDialogOpen(false)} maxWidth="xs" fullWidth>
@@ -1916,12 +1946,13 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   if (noShell) {
-    return <>{content}{editEventDialog}{addEventDialog}</>;
+    return <>{content}{deleteConfirmDialog}{editEventDialog}{addEventDialog}</>;
   }
 
   return (
     <AppShell title="Global Operational Calendar">
       {content}
+      {deleteConfirmDialog}
       {editEventDialog}
       {addEventDialog}
     </AppShell>
