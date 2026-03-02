@@ -20,7 +20,7 @@ function exitWithError(message: string) {
 }
 
 if (!fs.existsSync(csvPath)) {
-  exitWithError(`CSV nao encontrado: ${csvPath}`);
+  exitWithError(`CSV não encontrado: ${csvPath}`);
 }
 
 const csvText = fs.readFileSync(csvPath, 'utf8');

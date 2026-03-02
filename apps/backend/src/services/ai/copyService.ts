@@ -343,7 +343,7 @@ export async function generateCollaborativeCopy(params: {
     'Apos a auditoria de veto, revise e melhore CADA opcao considerando:',
     '- Estrategia psicologica declarada pelo Estrategista (consulte DIRETRIZES abaixo)',
     '- Tom da marca e adequacao ao publico-alvo',
-    '- Compliance (termos proibidos, mencoes obrigatorias)',
+    '- Compliance (termos proibidos, menções obrigatórias)',
     '- Forca e clareza do CTA',
     '- Adequacao ao formato/plataforma',
     '- Originalidade e impacto criativo',

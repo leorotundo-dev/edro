@@ -43,7 +43,7 @@ export async function runMarketIntelligenceForClient(params: {
   const { tenantId, clientId, trigger } = params;
 
   if (!isTavilyConfigured()) {
-    return { itemsSaved: 0, skipped: 0, searches: [], errors: ['TAVILY_API_KEY nao configurado'] };
+    return { itemsSaved: 0, skipped: 0, searches: [], errors: ['TAVILY_API_KEY não configurado'] };
   }
 
   // Load client data

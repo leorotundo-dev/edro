@@ -689,7 +689,7 @@ ${assetSnapshot}`,
       const geminiResult = await runCompletionWithFallback('gemini', {
         prompt: `Analise os dados do cliente final "${clientName}" (segmento: ${segment}) do ponto de vista de uma agência que precisa melhorar marketing e vendas do cliente.
 
-Regras obrigatorias:
+Regras obrigatórias:
 - Use somente os dados fornecidos.
 - Nao cite IA, modelo, prompt, token, custo tecnico, nem bastidores de geracao.
 - Nao invente probabilidades ou metricas ausentes.
@@ -757,7 +757,7 @@ ${dataSnapshot}`,
       const oaiResult = await runCompletionWithFallback('openai', {
         prompt: `Escreva um relatório narrativo para o cliente "${clientName}" (segmento: ${segment}) com foco em impacto de marketing e vendas. ${toneGuide}
 
-Regras obrigatorias:
+Regras obrigatórias:
 - Perspectiva: agência orientando o cliente.
 - Use somente dados reais fornecidos.
 - Nao cite IA, modelos, prompts, tokens, custos de IA, nem bastidores tecnicos.

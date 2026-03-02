@@ -842,7 +842,7 @@ async function toolWebSearch(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!apiKey) {
     return {
       success: false,
-      error: 'Web search nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.',
+      error: 'Web search não configurado. Adicione TAVILY_API_KEY nas variáveis de ambiente.',
     };
   }
 
@@ -910,7 +910,7 @@ async function toolWebSearch(args: any, ctx: ToolContext): Promise<ToolResult> {
 
 async function toolWebExtract(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!isTavilyConfigured()) {
-    return { success: false, error: 'Web extract nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
+    return { success: false, error: 'Web extract não configurado. Adicione TAVILY_API_KEY nas variáveis de ambiente.' };
   }
 
   const rawUrls = args.urls;
@@ -949,7 +949,7 @@ async function toolWebExtract(args: any, ctx: ToolContext): Promise<ToolResult> 
 
 async function toolWebResearch(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!isTavilyConfigured()) {
-    return { success: false, error: 'Web research nao configurado. Adicione TAVILY_API_KEY nas variaveis de ambiente.' };
+    return { success: false, error: 'Web research não configurado. Adicione TAVILY_API_KEY nas variáveis de ambiente.' };
   }
 
   const query: string = (args.query || '').slice(0, 400);

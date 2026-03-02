@@ -708,7 +708,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     try {
       await request.jwtVerify();
     } catch {
-      return reply.status(401).send({ success: false, error: 'Nao autorizado.' });
+      return reply.status(401).send({ success: false, error: 'Não autorizado.' });
     }
   });
 

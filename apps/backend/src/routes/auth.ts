@@ -88,7 +88,7 @@ export default async function authRoutes(app: FastifyInstance) {
       await request.jwtVerify();
       const userPayload = request.user as { email?: string };
       if (!userPayload?.email) {
-        return reply.status(401).send({ error: 'Nao autorizado.' });
+        return reply.status(401).send({ error: 'Não autorizado.' });
       }
       const user = await findUserByEmail(userPayload.email);
       if (!user) {
@@ -102,7 +102,7 @@ export default async function authRoutes(app: FastifyInstance) {
         tenant_id: tenant?.tenant_id ?? null,
       });
     } catch (error) {
-      return reply.status(401).send({ error: 'Nao autorizado.' });
+      return reply.status(401).send({ error: 'Não autorizado.' });
     }
   };
 
