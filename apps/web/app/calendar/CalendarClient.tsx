@@ -1130,6 +1130,26 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return { className: `tier-${event.tier.toLowerCase()}` };
   }, [brandColor]);
 
+  const rbcDayPropGetter = useCallback((date: Date) => {
+    const dateISO = toISODate(date);
+    if (dateISO === selectedDayISO && dateISO !== todayISO) {
+      return { className: 'rbc-selected-day' };
+    }
+    return {};
+  }, [selectedDayISO, todayISO]);
+
+  const CustomDateHeader = useCallback(({ date, label }: { date: Date; label: string }) => {
+    const dateISO = toISODate(date);
+    const isToday = dateISO === todayISO;
+    const isSelected = dateISO === selectedDayISO && !isToday;
+    const cls = isToday
+      ? 'rbc-date-num rbc-date-num--today'
+      : isSelected
+      ? 'rbc-date-num rbc-date-num--selected'
+      : 'rbc-date-num';
+    return <span className={cls}>{label}</span>;
+  }, [todayISO, selectedDayISO]);
+
   const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => (
     <span className="rbc-event-content">
       <span className="truncate">{event.title}</span>
@@ -1335,7 +1355,8 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               onSelectSlot={handleRbcSelectSlot}
               onSelectEvent={handleRbcSelectEvent}
               eventPropGetter={rbcEventPropGetter}
-              components={{ event: CalendarEventContent }}
+              dayPropGetter={rbcDayPropGetter}
+              components={{ event: CalendarEventContent, dateHeader: CustomDateHeader }}
               style={{ height: 720 }}
             />
           </CardContent>

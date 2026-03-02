@@ -45,19 +45,38 @@
   position: relative;
 }
 
-/* Colored circle around today's date number */
-.rbc-date-cell.rbc-now > a,
-.rbc-date-cell.rbc-now > button {
+/* Date number base */
+.rbc-date-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 0;
+}
+
+/* Today — orange circle */
+.rbc-date-num--today {
   border-radius: 50%;
   background: #E85219;
-  color: #ffffff !important;
+  color: #ffffff;
   font-weight: 700;
-  line-height: 1;
+}
+
+/* Selected day (not today) — orange box */
+.rbc-date-num--selected {
+  border-radius: 4px;
+  border: 2px solid #E85219;
+  color: #E85219;
+  font-weight: 700;
+}
+
+/* Selected day background (not today) */
+.rbc-selected-day {
+  background: rgba(232, 82, 25, 0.05);
+  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.45);
 }
 
 .rbc-date-cell {
@@ -170,10 +189,19 @@
   color: #a3a3a3;
 }
 
-.dark .rbc-date-cell.rbc-now > a,
-.dark .rbc-date-cell.rbc-now > button {
+.dark .rbc-date-num--today {
   background: #E85219;
-  color: #ffffff !important;
+  color: #ffffff;
+}
+
+.dark .rbc-date-num--selected {
+  border-color: #E85219;
+  color: #E85219;
+}
+
+.dark .rbc-selected-day {
+  background: rgba(232, 82, 25, 0.07);
+  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.55);
 }
 
 .dark .rbc-event.tier-a {
