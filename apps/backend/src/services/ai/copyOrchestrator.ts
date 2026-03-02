@@ -608,7 +608,6 @@ export async function runCollaborativePipelineWithLoop(params: {
     stages,
     analysis_json: analysisJson,
     creative_raw: creativeOutput,
-    best_variation_text: currentBest || undefined,
     editorial_notes: bestScore ? `Score: ${bestScore.overall}/10 | Revisões: ${revisionCount}` : '',
     total_duration_ms: Date.now() - startTotal,
     quality_score: legacyQualityScore,

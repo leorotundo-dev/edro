@@ -3905,4 +3905,80 @@ Retorne APENAS JSON válido:
       return reply.status(500).send({ success: false, error: err.message ?? 'email_draft_failed' });
     }
   });
+
+  // ── POST /ai/brief-message ─────────────────────────────────────────────────
+  // Gera sugestão de mensagem principal + observações para o briefing.
+
+  app.post('/ai/brief-message', async (request, reply) => {
+    const body = z.object({
+      client_id:    z.string().optional(),
+      client_name:  z.string().optional(),
+      objective:    z.string().optional(),
+      tone:         z.string().optional(),
+      event:        z.string().optional(),
+      date:         z.string().optional(),
+      amd:          z.string().optional(),
+      momento:      z.string().optional(),
+      persona_name: z.string().optional(),
+    }).parse(request.body);
+
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id || 'system';
+
+    let brandContext = '';
+    let clientName = body.client_name || 'Cliente';
+    try {
+      if (body.client_id && body.client_id !== 'system') {
+        const clientRow = await getClientById(tenantId, body.client_id);
+        if (clientRow) {
+          clientName = clientRow.name || clientName;
+          const knowledge = buildClientKnowledgeFromRow(clientRow);
+          brandContext = buildClientKnowledgeBlock(knowledge as ClientKnowledge);
+        }
+      }
+    } catch {
+      // continue without brand context
+    }
+
+    const prompt = `Você é um estrategista de conteúdo especialista em comunicação de marca.
+Redija a Mensagem Principal de um briefing criativo para orientar um copywriter.
+A mensagem deve ser clara, específica e inspirar o conteúdo — não um copy pronto, mas a direção estratégica.
+
+CONTEXTO:
+- Cliente: ${clientName}
+- Objetivo: ${body.objective || 'Engajamento'}
+- Tom de voz: ${body.tone || 'Profissional'}
+- Evento/tema: ${body.event || '(não informado)'}
+- Data: ${body.date || '(não informada)'}${body.amd ? `\n- Ação desejada (AMD): ${body.amd}` : ''}${body.momento ? `\n- Momento de consciência do público: ${body.momento}` : ''}${body.persona_name ? `\n- Persona alvo: ${body.persona_name}` : ''}${brandContext ? `\n\nDNA DA MARCA:\n${brandContext}` : ''}
+
+Retorne APENAS JSON válido (sem markdown):
+{
+  "message": "<mensagem principal: 3-4 frases sobre o que o conteúdo deve comunicar, o gancho emocional central, e o que o público deve sentir/pensar/fazer>",
+  "notes": "<observações táticas: 1-2 frases com recomendações de abordagem, ângulo ou formato>"
+}`;
+
+    try {
+      const result = await generateCopy({
+        prompt,
+        taskType: 'social_post',
+        temperature: 0.6,
+        maxTokens: 500,
+        usageContext: { tenant_id: tenantId, feature: 'brief_message' },
+      });
+
+      let parsed: any = { message: result.output, notes: '' };
+      try {
+        const start = result.output.indexOf('{');
+        const end   = result.output.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          parsed = JSON.parse(result.output.slice(start, end + 1));
+        }
+      } catch {
+        // use raw output as message
+      }
+
+      return reply.send({ success: true, data: parsed });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message ?? 'brief_message_failed' });
+    }
+  });
 }
