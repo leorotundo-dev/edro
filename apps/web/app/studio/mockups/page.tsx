@@ -15,6 +15,7 @@ import {
   resolveMockupComponent,
 } from '@/components/mockups/mockupRegistry';
 import { buildCatalogKey, mockupCatalogMap } from '@/components/mockups/mockupCatalogMap';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import LoadingButton from '@mui/lab/LoadingButton';
@@ -22,6 +23,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
+import Snackbar from '@mui/material/Snackbar';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -636,6 +638,7 @@ export default function Page() {
   const [imagePrompt, setImagePrompt] = useState('');
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [showCopyEditor, setShowCopyEditor] = useState(false);
+  const [exportError, setExportError] = useState('');
   const [editedCopy, setEditedCopy] = useState<{ headline: string; body: string; cta: string }>({
     headline: '',
     body: '',
@@ -1356,7 +1359,7 @@ export default function Page() {
       setTimeout(() => URL.revokeObjectURL(link.href), 1500);
     } catch (error) {
       console.error('Erro ao exportar mockups', error);
-      window.alert('Não foi possível exportar os mockups. Verifique as imagens e tente novamente.');
+      setExportError('Não foi possível exportar os mockups. Verifique as imagens e tente novamente.');
     }
   };
 
@@ -2145,6 +2148,17 @@ export default function Page() {
           ? 'Sincronizando mockups...'
           : `${generatedCount} de ${displayMockups.length} mockups gerados`}
       </Typography>
+
+      <Snackbar
+        open={!!exportError}
+        autoHideDuration={5000}
+        onClose={() => setExportError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setExportError('')} sx={{ width: '100%' }}>
+          {exportError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
