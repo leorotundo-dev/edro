@@ -128,7 +128,7 @@ export default function Profile() {
               <IconUsers size={18} stroke={1.5} />
             </ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>
-              Gerenciar Usuarios
+              Gerenciar Usuários
             </ListItemText>
           </MenuItem>
         )}

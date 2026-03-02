@@ -143,9 +143,9 @@ export default function Notifications() {
       >
         <Box sx={{ p: 2.5, pb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>
-            <Typography variant="h6">Notificacoes</Typography>
+            <Typography variant="h6">Notificações</Typography>
             <Typography variant="body2" color="text.secondary">
-              {unreadCount > 0 ? `${unreadCount} nao lida${unreadCount > 1 ? 's' : ''}` : 'Tudo em dia'}
+              {unreadCount > 0 ? `${unreadCount} não lida${unreadCount > 1 ? 's' : ''}` : 'Tudo em dia'}
             </Typography>
           </Box>
           {unreadCount > 0 && (

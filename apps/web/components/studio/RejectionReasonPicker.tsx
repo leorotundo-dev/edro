@@ -74,7 +74,7 @@ export default function RejectionReasonPicker({
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
           {type === 'copy'
             ? 'O que estava errado nesta copy?'
-            : 'Por que esta pauta nao deve seguir?'}
+            : 'Por que esta pauta não deve seguir?'}
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
           {tags.map((tag) => (
