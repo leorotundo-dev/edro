@@ -135,7 +135,7 @@ export default function ReportPrintPage() {
         {report.byStage.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, color: '#0f172a' }}>
-              {isCliente ? 'Status das Demandas' : 'Distribuicao por Etapa'}
+              {isCliente ? 'Status das Demandas' : 'Distribuição por Etapa'}
             </h3>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {report.byStage.map((s) => (

@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
                   <TableCell><strong>Email</strong></TableCell>
                   <TableCell><strong>Papel</strong></TableCell>
                   <TableCell><strong>Status</strong></TableCell>
-                  <TableCell><strong>Ultimo Login</strong></TableCell>
+                  <TableCell><strong>Último Login</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

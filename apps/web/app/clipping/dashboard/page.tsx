@@ -262,7 +262,7 @@ export default function ClippingDashboardPage() {
         {dashboard?.by_score && (
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 5 }}>
-              <DashboardCard title="Distribuicao de score" subtitle="Ultimo periodo">
+              <DashboardCard title="Distribuição de score" subtitle="Último período">
                 {scoreDonutSeries.length > 0 ? (
                   <Chart type="donut" series={scoreDonutSeries} options={scoreDonutOptions} height={300} />
                 ) : (

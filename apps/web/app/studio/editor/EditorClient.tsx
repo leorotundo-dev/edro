@@ -1983,7 +1983,7 @@ export default function EditorClient() {
               {copies.length ? (
                 <Card>
                   <CardContent>
-                    <Chip size="small" label="Historico de versoes" sx={{ mb: 1 }} />
+                    <Chip size="small" label="Histórico de versões" sx={{ mb: 1 }} />
                     <Timeline sx={{ p: 0, m: 0 }}>
                       {copies.map((copy, idx) => {
                         const reporteiSummary = formatReporteiSummary((copy.payload as any)?._edro?.reportei || null);

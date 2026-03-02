@@ -518,7 +518,7 @@ export default function ClippingDiagnosticsPage() {
                       </Typography>
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary">Ultimo item criado</Typography>
+                      <Typography variant="body2" color="text.secondary">Último item criado</Typography>
                       <Typography variant="body2" fontWeight={600} color="text.secondary">
                         {timeAgo(data.items.last_item_at)}
                       </Typography>

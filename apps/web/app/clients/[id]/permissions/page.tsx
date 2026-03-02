@@ -39,8 +39,8 @@ const ALL_PERMS = ['read', 'write', 'review', 'publish'] as const;
 const PERM_LABELS: Record<string, string> = {
   read: 'Leitura',
   write: 'Escrita',
-  review: 'Revisao',
-  publish: 'Publicacao',
+  review: 'Revisão',
+  publish: 'Publicação',
 };
 
 export default function ClientPermissionsPage() {

@@ -754,7 +754,7 @@ export default function PlatformClient() {
       {/* Page Header */}
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
         <Box>
-          <Typography variant="h4" fontWeight={700}>Selecao de Plataformas e Formatos</Typography>
+          <Typography variant="h4" fontWeight={700}>Seleção de Plataformas e Formatos</Typography>
           <Typography variant="body2" color="text.secondary">
             Use a recomendacao da IA e tambem monte sua propria campanha.
           </Typography>

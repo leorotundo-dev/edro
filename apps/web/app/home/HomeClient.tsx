@@ -432,7 +432,7 @@ export default function HomeClient() {
                         payload.title ||
                         payload.event ||
                         payload.format ||
-                        'Criacao recente';
+                        'Criação recente';
                       const subtitle =
                         payload.platform ||
                         payload.format ||

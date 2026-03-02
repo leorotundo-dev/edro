@@ -110,9 +110,9 @@ export default function NotificationPreferencesPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <IconBellCog size={28} stroke={1.5} />
           <Box>
-            <Typography variant="h5" fontWeight={700}>Preferencias de Notificacao</Typography>
+            <Typography variant="h5" fontWeight={700}>Preferências de Notificação</Typography>
             <Typography variant="body2" color="text.secondary">
-              Escolha como e quando voce quer ser notificado.
+              Escolha como e quando você quer ser notificado.
             </Typography>
           </Box>
         </Box>
