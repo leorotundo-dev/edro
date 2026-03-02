@@ -5,19 +5,21 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBrain, IconBulb, IconClipboard, IconSearch, IconTrendingUp } from '@tabler/icons-react';
+import { IconBrain, IconBulb, IconClipboard, IconEye, IconSearch, IconTrendingUp } from '@tabler/icons-react';
 import ClientClippingClient from '../clipping/ClientClippingClient';
 import ClientInsightsClient from '../insights/ClientInsightsClient';
 import ClientLearningClient from './ClientLearningClient';
+import DarkFunnelPage from '../dark-funnel/page';
 
-type SubTabValue = 'clipping' | 'social' | 'perplexity' | 'insights' | 'aprendizado';
+type SubTabValue = 'clipping' | 'social' | 'perplexity' | 'insights' | 'aprendizado' | 'dark-funnel';
 
 const SUB_TABS = [
-  { value: 'clipping' as const,    label: 'Clipping',        icon: <IconClipboard size={16} /> },
-  { value: 'social' as const,      label: 'Social Listening', icon: <IconTrendingUp size={16} /> },
-  { value: 'perplexity' as const,  label: 'Perplexity AI',   icon: <IconSearch size={16} /> },
-  { value: 'insights' as const,    label: 'Insights',        icon: <IconBulb size={16} /> },
-  { value: 'aprendizado' as const, label: 'Aprendizado',     icon: <IconBrain size={16} /> },
+  { value: 'clipping' as const,     label: 'Clipping',         icon: <IconClipboard size={16} /> },
+  { value: 'social' as const,       label: 'Social Listening', icon: <IconTrendingUp size={16} /> },
+  { value: 'perplexity' as const,   label: 'Perplexity AI',    icon: <IconSearch size={16} /> },
+  { value: 'insights' as const,     label: 'Insights',         icon: <IconBulb size={16} /> },
+  { value: 'aprendizado' as const,  label: 'Aprendizado',      icon: <IconBrain size={16} /> },
+  { value: 'dark-funnel' as const,  label: 'Dark Funnel',      icon: <IconEye size={16} /> },
 ];
 
 function parseSubTab(value: string | null): SubTabValue {
@@ -25,6 +27,7 @@ function parseSubTab(value: string | null): SubTabValue {
   if (value === 'perplexity') return 'perplexity';
   if (value === 'insights') return 'insights';
   if (value === 'aprendizado') return 'aprendizado';
+  if (value === 'dark-funnel') return 'dark-funnel';
   return 'clipping';
 }
 
@@ -71,7 +74,9 @@ export default function InteligenciaPage() {
         ))}
       </Tabs>
 
-      {tab === 'aprendizado' ? (
+      {tab === 'dark-funnel' ? (
+        <DarkFunnelPage />
+      ) : tab === 'aprendizado' ? (
         <ClientLearningClient clientId={clientId} />
       ) : tab === 'insights' ? (
         <ClientInsightsClient clientId={clientId} />

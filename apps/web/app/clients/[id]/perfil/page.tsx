@@ -21,7 +21,9 @@ import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import ClientLibraryClient from '../library/ClientLibraryClient';
 import {
+  IconBooks,
   IconBrandFacebook,
   IconBrandInstagram,
   IconBrandLinkedin,
@@ -360,6 +362,7 @@ export default function PerfilPage() {
         <Tab label="DNA de Marca" />
         <Tab label="Conteúdo" />
         <Tab label="Conectores" />
+        <Tab icon={<IconBooks size={16} />} iconPosition="start" label="Library" sx={{ fontSize: '0.85rem' }} />
       </Tabs>
 
       {tab === 0 && (
@@ -775,6 +778,8 @@ export default function PerfilPage() {
           </CardContent>
         </Card>
       )}
+
+      {tab === 4 && <ClientLibraryClient clientId={clientId} />}
     </Box>
   );
 }
