@@ -114,7 +114,7 @@ export default function ApprovalClient() {
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <Typography variant="h5" sx={{ mb: 2 }}>
-              {done.action === 'approve' ? 'Copy Aprovada!' : 'Revisao Solicitada'}
+              {done.action === 'approve' ? 'Copy Aprovada!' : 'Revisão Solicitada'}
             </Typography>
             <Typography color="text.secondary">
               {done.action === 'approve'
@@ -189,7 +189,7 @@ export default function ApprovalClient() {
             <Card key={copy.id} variant="outlined">
               <CardContent>
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                  <Typography variant="h6">Versao {i + 1}</Typography>
+                  <Typography variant="h6">Versão {i + 1}</Typography>
                   {copy.language && <Chip label={copy.language} size="small" />}
                   <Typography variant="caption" color="text.secondary">
                     {new Date(copy.created_at).toLocaleDateString('pt-BR')}
@@ -262,7 +262,7 @@ export default function ApprovalClient() {
                         {submitting === copy.id + 'reject' ? (
                           <CircularProgress size={18} color="inherit" />
                         ) : (
-                          'Solicitar Revisao'
+                          'Solicitar Revisão'
                         )}
                       </Button>
                     </Stack>

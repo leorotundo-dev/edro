@@ -193,7 +193,7 @@ export default function ClippingQualityPage() {
                       {precision !== null ? `${precision}%` : '--'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Precisao
+                      Precisão
                     </Typography>
                   </Stack>
                 </DashboardCard>

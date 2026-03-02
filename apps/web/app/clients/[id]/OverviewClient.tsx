@@ -1048,7 +1048,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
       </Grid>
 
       {/* ══════════════════════════════════════════════════════════════
-          SECTION 1 — KPIs & Visao Geral
+          SECTION 1 — KPIs & Visão Geral
           ══════════════════════════════════════════════════════════════ */}
       <Card sx={sectionCardSx}>
         <CardContent sx={sectionContentSx}>
