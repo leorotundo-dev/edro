@@ -1138,7 +1138,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return {};
   }, [selectedDayISO, todayISO]);
 
-  const CustomDateHeader = useCallback(({ date, label }: { date: Date; label: string }) => {
+  const CustomDateHeader = useCallback(({ date, label }: { date: Date; label: string; drilldownView: string; isOffRange: boolean; onDrillDown: () => void }) => {
     const dateISO = toISODate(date);
     const isToday = dateISO === todayISO;
     const isSelected = dateISO === selectedDayISO && !isToday;
@@ -1356,7 +1356,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               onSelectEvent={handleRbcSelectEvent}
               eventPropGetter={rbcEventPropGetter}
               dayPropGetter={rbcDayPropGetter}
-              components={{ event: CalendarEventContent, dateHeader: CustomDateHeader }}
+              components={{ event: CalendarEventContent, month: { dateHeader: CustomDateHeader } }}
               style={{ height: 720 }}
             />
           </CardContent>
