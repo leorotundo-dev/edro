@@ -1,73 +1,256 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteImagemProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
+  text?: string;
   caption?: string;
-  backgroundImage?: string;
+  description?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteImagem: React.FC<KeynoteImagemProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
+  text,
   caption,
-  backgroundImage,
+  description,
   image,
   postImage,
   thumbnail,
-  themeColor = '#6366f1',
+  profileImage,
+  brandColor,
+  themeColor = '#6366F1',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor;
+  const mainTitle = headline ?? title ?? 'Transformando o Futuro';
+  const subText = body ?? text ?? description ?? caption ??
+    'Uma visão poderosa que redefine as possibilidades do seu negócio.';
+  const photoUrl = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+  const author = name ?? username ?? brandName ?? '';
+
+  const bullets = [
+    'Inovação centrada no cliente',
+    'Resultados mensuráveis e reais',
+    'Tecnologia de ponta acessível',
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
-      </div>
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        background: '#ffffff',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'row',
+        userSelect: 'none',
+      }}
+    >
+      {/* Left accent strip */}
+      <div
+        style={{
+          width: '5px',
+          background: `linear-gradient(180deg, ${accent} 0%, ${accent}66 100%)`,
+          flexShrink: 0,
+        }}
+      />
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Left text panel — 40% */}
+      <div
+        style={{
+          width: '220px',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '24px 20px 24px 16px',
+          background: '#ffffff',
+        }}
+      >
+        {/* Category tag */}
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
-
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            background: `${accent}14`,
+            borderRadius: '20px',
+            padding: '2px 10px',
+            marginBottom: '12px',
+            width: 'fit-content',
+          }}
         >
-          {resolvedTitle}
-        </h1>
+          <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: accent }} />
+          <span style={{ fontSize: '8px', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Destaque
+          </span>
+        </div>
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+        {/* Headline */}
+        <h2
+          style={{
+            fontSize: '18px',
+            fontWeight: 900,
+            color: '#111827',
+            lineHeight: 1.25,
+            margin: '0 0 10px',
+          }}
+        >
+          {mainTitle}
+        </h2>
+
+        {/* Sub text */}
+        <p
+          style={{
+            fontSize: '10px',
+            color: '#6b7280',
+            lineHeight: 1.55,
+            margin: '0 0 14px',
+          }}
+        >
+          {subText}
+        </p>
+
+        {/* Bullet points */}
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {bullets.map((b, i) => (
+            <li
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '6px',
+                fontSize: '10px',
+                color: '#374151',
+                fontWeight: 500,
+              }}
+            >
+              <div
+                style={{
+                  width: '14px',
+                  height: '14px',
+                  borderRadius: '50%',
+                  background: accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: '1px',
+                }}
+              >
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" aria-hidden="true">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+              {b}
+            </li>
+          ))}
+        </ul>
+
+        {/* Author credit */}
+        {author && (
+          <div style={{ marginTop: '14px', fontSize: '9px', color: '#9ca3af' }}>
+            — {author}
+          </div>
+        )}
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Imagem Full
+      {/* Right image panel — 60% */}
+      <div
+        style={{
+          flex: 1,
+          position: 'relative',
+          background: `${accent}10`,
+          overflow: 'hidden',
+        }}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt="Imagem principal"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `linear-gradient(135deg, ${accent}18 0%, ${accent}08 100%)`,
+            }}
+          >
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={`${accent}55`} strokeWidth="1.2" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+            <span style={{ fontSize: '10px', color: `${accent}66`, marginTop: '8px', fontStyle: 'italic' }}>
+              Imagem do slide
+            </span>
+          </div>
+        )}
+
+        {/* Caption overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: 'linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)',
+            padding: '20px 12px 8px',
+          }}
+        >
+          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)', fontStyle: 'italic' }}>
+            {caption ?? 'Imagem ilustrativa'}
+          </span>
+        </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Slide label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: accent,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: '4px',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Imagem
       </div>
     </div>
   );

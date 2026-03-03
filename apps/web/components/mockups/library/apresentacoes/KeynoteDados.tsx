@@ -1,73 +1,187 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteDadosProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
+  text?: string;
   caption?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
+  description?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteDados: React.FC<KeynoteDadosProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
+  text,
   caption,
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  themeColor = '#6366f1',
+  description,
+  brandColor,
+  themeColor = '#6366F1',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor;
+  const slideTitle = headline ?? title ?? 'Números que Impressionam';
+  const source = body ?? text ?? caption ?? description ?? name ?? username ?? brandName ?? 'Fonte: Pesquisa Interna 2024';
+
+  const stats = [
+    {
+      value: '+87%',
+      label: 'Crescimento',
+      sub: 'em 12 meses',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M23 6l-9.5 9.5-5-5L1 18" />
+          <path d="M17 6h6v6" />
+        </svg>
+      ),
+      bg: `${accent}18`,
+      color: accent,
+    },
+    {
+      value: '2.4M',
+      label: 'Usuários ativos',
+      sub: 'em todo o Brasil',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+        </svg>
+      ),
+      bg: '#f0fdf4',
+      color: '#16a34a',
+    },
+    {
+      value: '98%',
+      label: 'Satisfação',
+      sub: 'NPS líder do setor',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+          <path d="M22 4L12 14.01l-3-3" />
+        </svg>
+      ),
+      bg: '#fffbeb',
+      color: '#d97706',
+    },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        background: '#f8f9fa',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        userSelect: 'none',
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: '16px 24px 8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+          <div style={{ width: '4px', height: '18px', background: accent, borderRadius: '2px' }} />
+          <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#111827', margin: 0 }}>
+            {slideTitle}
+          </h2>
+        </div>
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
-        <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
-
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
-        >
-          {resolvedTitle}
-        </h1>
-
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+      {/* Stats grid */}
+      <div
+        style={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '12px',
+          padding: '8px 20px 12px',
+          alignItems: 'stretch',
+        }}
+      >
+        {stats.map((stat, i) => (
+          <div
+            key={i}
+            style={{
+              background: stat.bg,
+              borderRadius: '10px',
+              padding: '16px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              border: `1px solid ${stat.color}22`,
+            }}
+          >
+            <div style={{ color: stat.color, marginBottom: '8px' }}>{stat.icon}</div>
+            <div
+              style={{
+                fontSize: '28px',
+                fontWeight: 900,
+                color: stat.color,
+                lineHeight: 1.1,
+                marginBottom: '4px',
+              }}
+            >
+              {stat.value}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '2px' }}>
+              {stat.label}
+            </div>
+            <div style={{ fontSize: '9px', color: '#9ca3af' }}>{stat.sub}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Dados/Stats
+      {/* Source citation */}
+      <div
+        style={{
+          padding: '6px 24px 10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          flexShrink: 0,
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
+        </svg>
+        <span style={{ fontSize: '9px', color: '#9ca3af', fontStyle: 'italic' }}>{source}</span>
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Slide label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: accent,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: '4px',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Dados
       </div>
     </div>
   );

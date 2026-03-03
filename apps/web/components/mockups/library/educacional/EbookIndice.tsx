@@ -1,44 +1,176 @@
+'use client';
+
 import React from 'react';
 
 interface EbookIndiceProps {
   title?: string;
   headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
   body?: string;
   caption?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
 }
 
 export const EbookIndice: React.FC<EbookIndiceProps> = ({
   title,
   headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
   body,
   caption,
+  description,
+  text,
+  brandColor = '#5D87FF',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Lesson Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Learning objectives';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Educational content...';
+  const resolvedTitle = title ?? headline ?? 'Índice';
+  const resolvedSubtitle = description ?? caption ?? body ?? text ?? 'Conteúdo do E-book';
+  const resolvedPublisher = brandName ?? name ?? username ?? 'EduPress';
+  const accent = brandColor;
+
+  const chapters = [
+    { num: '01', title: 'Introdução ao Aprendizado Acelerado', page: 12 },
+    { num: '02', title: 'Bases Neurocientíficas da Memória', page: 28 },
+    { num: '03', title: 'Técnicas de Repetição Espaçada', page: 47 },
+    { num: '04', title: 'Mapas Mentais e Conexões Cognitivas', page: 68 },
+    { num: '05', title: 'Rotina de Estudos de Alta Performance', page: 89 },
+    { num: '06', title: 'Avaliação e Ajuste do Método', page: 112 },
+  ];
 
   return (
-    <div className="relative w-full max-w-[700px] h-[500px] bg-white rounded-lg overflow-hidden shadow-xl border-2 border-gray-200 p-8">
-      <div className="text-center mb-6">
-        <h1 className="text-4xl font-black text-green-600 mb-2">{resolvedTitle}</h1>
-        <p className="text-lg text-gray-600">{resolvedSubtitle}</p>
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: '560px',
+        minHeight: '420px',
+        background: '#ffffff',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          background: accent,
+          padding: '28px 36px 24px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '3px',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.7)',
+            marginBottom: '6px',
+          }}
+        >
+          {resolvedSubtitle}
+        </div>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: '28px',
+            fontWeight: 900,
+            color: '#ffffff',
+            letterSpacing: '-0.5px',
+          }}
+        >
+          {resolvedTitle}
+        </h1>
       </div>
-      <div className="text-base text-gray-700">{resolvedContent}</div>
-      <div className="absolute top-3 right-3 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-        E-book Índice
+
+      {/* Chapter list */}
+      <div style={{ padding: '8px 36px 24px' }}>
+        {chapters.map((ch, i) => (
+          <div
+            key={ch.num}
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '0',
+              padding: '12px 0',
+              borderBottom: i < chapters.length - 1 ? '1px solid #f3f4f6' : 'none',
+            }}
+          >
+            {/* Chapter number */}
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: accent,
+                minWidth: '28px',
+                flexShrink: 0,
+              }}
+            >
+              {ch.num}
+            </span>
+
+            {/* Chapter title */}
+            <span
+              style={{
+                fontSize: '13px',
+                color: '#1f2937',
+                fontWeight: 500,
+                flex: 1,
+              }}
+            >
+              {ch.title}
+            </span>
+
+            {/* Dot leaders */}
+            <span
+              style={{
+                flex: 1,
+                borderBottom: '2px dotted #d1d5db',
+                margin: '0 8px',
+                minWidth: '20px',
+                position: 'relative',
+                top: '-4px',
+              }}
+            />
+
+            {/* Page number */}
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 700,
+                color: accent,
+                minWidth: '28px',
+                textAlign: 'right',
+                flexShrink: 0,
+              }}
+            >
+              {ch.page}
+            </span>
+          </div>
+        ))}
       </div>
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">Educacional</div>
+
+      {/* Footer */}
+      <div
+        style={{
+          padding: '10px 36px',
+          borderTop: '1px solid #f3f4f6',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span style={{ fontSize: '10px', color: '#9ca3af', letterSpacing: '1px', textTransform: 'uppercase' }}>
+          {resolvedPublisher}
+        </span>
+        <span style={{ fontSize: '10px', color: '#9ca3af' }}>
+          {chapters.length} capítulos
+        </span>
+      </div>
     </div>
   );
 };

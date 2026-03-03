@@ -1,58 +1,232 @@
+'use client';
+
 import React from 'react';
 
 interface LogoIconeProps {
-  logoImage?: string;
-  profileImage?: string;
-  brandLogo?: string;
+  name?: string;
+  username?: string;
   brandName?: string;
-  backgroundColor?: string;
-  showGrid?: boolean;
+  headline?: string;
+  title?: string;
+  body?: string;
+  caption?: string;
+  description?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const LogoIcone: React.FC<LogoIconeProps> = ({
-  logoImage = '',
+  name,
+  username,
+  brandName,
+  headline,
+  title,
+  body,
+  caption,
+  description,
+  text,
+  image,
+  postImage,
+  thumbnail,
   profileImage,
-  brandLogo,
-  brandName = 'Brand Name',
-  backgroundColor = '#ffffff',
-  showGrid = false,
+  brandColor = '#1a56db',
 }) => {
-  const resolvedLogo = logoImage || profileImage || brandLogo;
+  const resolvedBrand = brandName || name || username || 'Marca';
+  const resolvedTagline = headline || title || body || caption || description || text || 'Símbolo da marca';
+  const resolvedLogo = image || postImage || thumbnail || profileImage || null;
+  const accent = brandColor || '#1a56db';
+  const initial = resolvedBrand.charAt(0).toUpperCase();
+
+  const variants = [
+    {
+      label: 'Fundo Claro',
+      bg: '#ffffff',
+      border: '1px solid #e5e7eb',
+      iconBg: accent,
+      iconColor: '#fff',
+      textColor: '#111827',
+      subColor: '#6b7280',
+      note: 'Uso primário',
+      noteColor: accent,
+    },
+    {
+      label: 'Fundo Escuro',
+      bg: '#111827',
+      border: '1px solid #374151',
+      iconBg: '#ffffff',
+      iconColor: accent,
+      textColor: '#f9fafb',
+      subColor: '#9ca3af',
+      note: 'Uso em fundos escuros',
+      noteColor: '#9ca3af',
+    },
+    {
+      label: 'Fundo Colorido',
+      bg: accent,
+      border: `1px solid ${accent}`,
+      iconBg: '#ffffff',
+      iconColor: accent,
+      textColor: '#ffffff',
+      subColor: 'rgba(255,255,255,0.65)',
+      note: 'Uso institucional',
+      noteColor: 'rgba(255,255,255,0.8)',
+    },
+  ];
+
   return (
-    <div
-      className="relative w-[300px] h-[300px] rounded-lg overflow-hidden shadow-xl border-2 border-gray-200"
-      style={{ backgroundColor }}
-    >
-      {showGrid && (
-        <div className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-        />
-      )}
+    <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", display: 'inline-flex', flexDirection: 'column', gap: '14px' }}>
+      <style>{`
+        @keyframes li-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .li-wrap { animation: li-appear 0.4s cubic-bezier(0.22,1,0.36,1); }
+      `}</style>
 
-      <div className="relative h-full flex items-center justify-center p-8">
-        {resolvedLogo ? (
-          <img src={resolvedLogo} alt={brandName} className="max-w-full max-h-full object-contain" />
-        ) : (
-          <div className="text-center">
-            <div className="w-32 h-32 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-              <span className="text-5xl font-black text-white">{brandName.charAt(0)}</span>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+        Logo Ícone · Três Variantes de Fundo
+      </div>
+
+      <div className="li-wrap" style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+        {variants.map((v, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              borderRadius: '12px',
+              border: v.border,
+              background: v.bg,
+              padding: '24px 16px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '14px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+            }}
+          >
+            {/* Icon/mark */}
+            <div
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '20px',
+                background: v.iconBg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: i === 0 ? `0 6px 20px ${accent}44` : i === 1 ? '0 6px 16px rgba(0,0,0,0.4)' : '0 4px 14px rgba(0,0,0,0.25)',
+                flexShrink: 0,
+              }}
+            >
+              {resolvedLogo ? (
+                <img
+                  src={resolvedLogo}
+                  alt={resolvedBrand}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    objectFit: 'contain',
+                    filter: i === 1 ? `drop-shadow(0 0 4px ${accent}88)` : 'none',
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: '36px',
+                    fontWeight: 900,
+                    color: v.iconColor,
+                    letterSpacing: '-0.03em',
+                  }}
+                >
+                  {initial}
+                </span>
+              )}
             </div>
-            <h2 className="text-3xl font-black text-gray-900">{brandName}</h2>
+
+            {/* Label */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: v.textColor, letterSpacing: '-0.01em' }}>
+                {resolvedBrand}
+              </div>
+              <div style={{ fontSize: '10px', color: v.subColor, marginTop: '3px' }}>{resolvedTagline}</div>
+            </div>
+
+            {/* Variant name */}
+            <div
+              style={{
+                fontSize: '9px',
+                fontWeight: 700,
+                color: v.noteColor,
+                textTransform: 'uppercase',
+                letterSpacing: '0.07em',
+                borderTop: `1px solid ${i === 0 ? '#f3f4f6' : i === 1 ? '#374151' : 'rgba(255,255,255,0.2)'}`,
+                paddingTop: '10px',
+                width: '100%',
+                textAlign: 'center',
+              }}
+            >
+              {v.label}
+            </div>
+
+            <div
+              style={{
+                fontSize: '9px',
+                color: v.noteColor,
+                opacity: 0.75,
+                textAlign: 'center',
+                lineHeight: 1.4,
+              }}
+            >
+              {v.note}
+            </div>
           </div>
-        )}
+        ))}
       </div>
 
-      <div className="absolute top-3 right-3 bg-rose-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-        Logo Ícone
+      {/* Size reference row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          padding: '12px 16px',
+          background: '#f9fafb',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb',
+        }}
+      >
+        <span style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Proporções:
+        </span>
+        {[{ w: 24, label: '24px' }, { w: 40, label: '40px' }, { w: 56, label: '56px' }, { w: 80, label: '80px' }].map(({ w, label }) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+            {resolvedLogo ? (
+              <img src={resolvedLogo} alt="" style={{ width: `${w}px`, height: `${w}px`, objectFit: 'contain' }} />
+            ) : (
+              <div
+                style={{
+                  width: `${w}px`,
+                  height: `${w}px`,
+                  borderRadius: `${Math.round(w * 0.22)}px`,
+                  background: accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: `${Math.round(w * 0.45)}px`,
+                  fontWeight: 900,
+                }}
+              >
+                {initial}
+              </div>
+            )}
+            <span style={{ fontSize: '9px', color: '#9ca3af', fontWeight: 600 }}>{label}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        Square
-      </div>
+      <div style={{ fontSize: '10px', color: '#9ca3af' }}>Ícone isolado · Proporção 1:1 · Bordas arredondadas conforme versão digital/impressa</div>
     </div>
   );
 };

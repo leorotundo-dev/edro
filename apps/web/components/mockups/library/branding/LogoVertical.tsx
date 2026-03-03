@@ -1,58 +1,261 @@
+'use client';
+
 import React from 'react';
 
 interface LogoVerticalProps {
-  logoImage?: string;
-  profileImage?: string;
-  brandLogo?: string;
+  name?: string;
+  username?: string;
   brandName?: string;
-  backgroundColor?: string;
-  showGrid?: boolean;
+  headline?: string;
+  title?: string;
+  body?: string;
+  caption?: string;
+  description?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const LogoVertical: React.FC<LogoVerticalProps> = ({
-  logoImage = '',
+  name,
+  username,
+  brandName,
+  headline,
+  title,
+  body,
+  caption,
+  description,
+  text,
+  image,
+  postImage,
+  thumbnail,
   profileImage,
-  brandLogo,
-  brandName = 'Brand Name',
-  backgroundColor = '#ffffff',
-  showGrid = false,
+  brandColor = '#1a56db',
 }) => {
-  const resolvedLogo = logoImage || profileImage || brandLogo;
+  const resolvedBrand = brandName || name || username || 'MarcaDigital';
+  const resolvedTagline = headline || title || body || caption || description || text || 'Plataforma de Marketing';
+  const resolvedLogo = image || postImage || thumbnail || profileImage || null;
+  const accent = brandColor || '#1a56db';
+  const initial = resolvedBrand.charAt(0).toUpperCase();
+
   return (
-    <div
-      className="relative w-[300px] h-[500px] rounded-lg overflow-hidden shadow-xl border-2 border-gray-200"
-      style={{ backgroundColor }}
-    >
-      {showGrid && (
-        <div className="absolute inset-0 opacity-10"
+    <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", display: 'inline-flex', flexDirection: 'column', gap: '14px' }}>
+      <style>{`
+        @keyframes lvert-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .lvert-wrap { animation: lvert-appear 0.4s cubic-bezier(0.22,1,0.36,1); }
+      `}</style>
+
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+        Logo Vertical · Ícone sobre Wordmark
+      </div>
+
+      <div className="lvert-wrap" style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+
+        {/* Main vertical logo on white */}
+        <div
           style={{
-            backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
+            width: '180px',
+            borderRadius: '14px',
+            border: '1px solid #e5e7eb',
+            background: '#ffffff',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.09)',
+            padding: '32px 20px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px',
           }}
-        />
-      )}
+        >
+          {/* Dot grid bg */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'radial-gradient(circle, #e5e7eb 1px, transparent 1px)',
+              backgroundSize: '16px 16px',
+              borderRadius: '14px',
+              opacity: 0.5,
+              pointerEvents: 'none',
+            }}
+          />
 
-      <div className="relative h-full flex items-center justify-center p-8">
-        {resolvedLogo ? (
-          <img src={resolvedLogo} alt={brandName} className="max-w-full max-h-full object-contain" />
-        ) : (
-          <div className="text-center">
-            <div className="w-32 h-32 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-              <span className="text-5xl font-black text-white">{brandName.charAt(0)}</span>
-            </div>
-            <h2 className="text-3xl font-black text-gray-900">{brandName}</h2>
+          {/* Icon */}
+          <div
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '20px',
+              background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: `0 8px 24px ${accent}44`,
+              position: 'relative',
+              flexShrink: 0,
+            }}
+          >
+            {resolvedLogo ? (
+              <img
+                src={resolvedLogo}
+                alt={resolvedBrand}
+                style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '38px', fontWeight: 900, color: '#fff', letterSpacing: '-0.03em' }}>
+                {initial}
+              </span>
+            )}
           </div>
-        )}
+
+          {/* Wordmark */}
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                fontSize: '20px',
+                fontWeight: 900,
+                color: '#111827',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}
+            >
+              {resolvedBrand}
+            </div>
+            <div
+              style={{
+                fontSize: '9px',
+                color: accent,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                marginTop: '6px',
+              }}
+            >
+              {resolvedTagline}
+            </div>
+          </div>
+
+          <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: 600, marginTop: '4px' }}>Versão vertical · Fundo claro</div>
+        </div>
+
+        {/* Vertical logo on dark */}
+        <div
+          style={{
+            width: '180px',
+            borderRadius: '14px',
+            background: '#111827',
+            border: '1px solid #1f2937',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.15), 0 12px 32px rgba(0,0,0,0.25)',
+            padding: '32px 20px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Subtle glow */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '-40px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '120px',
+              height: '120px',
+              borderRadius: '50%',
+              background: `radial-gradient(circle, ${accent}33 0%, transparent 70%)`,
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Icon */}
+          <div
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '20px',
+              background: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              position: 'relative',
+              flexShrink: 0,
+            }}
+          >
+            {resolvedLogo ? (
+              <img
+                src={resolvedLogo}
+                alt={resolvedBrand}
+                style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '38px', fontWeight: 900, color: accent, letterSpacing: '-0.03em' }}>
+                {initial}
+              </span>
+            )}
+          </div>
+
+          {/* Wordmark */}
+          <div style={{ textAlign: 'center', position: 'relative' }}>
+            <div
+              style={{
+                fontSize: '20px',
+                fontWeight: 900,
+                color: '#ffffff',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}
+            >
+              {resolvedBrand}
+            </div>
+            <div
+              style={{
+                fontSize: '9px',
+                color: 'rgba(255,255,255,0.5)',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                marginTop: '6px',
+              }}
+            >
+              {resolvedTagline}
+            </div>
+          </div>
+
+          <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: 600, marginTop: '4px' }}>Versão vertical · Fundo escuro</div>
+        </div>
       </div>
 
-      <div className="absolute top-3 right-3 bg-rose-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-        Logo Vertical
+      {/* Usage notes */}
+      <div
+        style={{
+          padding: '10px 14px',
+          background: '#f9fafb',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '5px',
+        }}
+      >
+        {[
+          'Usar quando o espaço horizontal for limitado (ex: avatars, perfis)',
+          'Mínimo 120px de largura para a versão vertical',
+          'Proporção ícone/wordmark sempre 1:1 de largura',
+        ].map((rule, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+            <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: accent, flexShrink: 0, marginTop: '5px' }} />
+            <span style={{ fontSize: '10px', color: '#6b7280', lineHeight: 1.5 }}>{rule}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        Variable
-      </div>
+      <div style={{ fontSize: '10px', color: '#9ca3af' }}>Logo vertical · Ícone centralizado acima do wordmark · Exportar SVG + PNG</div>
     </div>
   );
 };

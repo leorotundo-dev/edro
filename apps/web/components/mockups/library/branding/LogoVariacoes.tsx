@@ -1,57 +1,259 @@
+'use client';
+
 import React from 'react';
 
 interface LogoVariacoesProps {
-  logoImage?: string;
-  profileImage?: string;
-  brandLogo?: string;
+  name?: string;
+  username?: string;
   brandName?: string;
-  backgroundColor?: string;
-  showGrid?: boolean;
+  headline?: string;
+  title?: string;
+  body?: string;
+  caption?: string;
+  description?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const LogoVariacoes: React.FC<LogoVariacoesProps> = ({
-  logoImage = '',
+  name,
+  username,
+  brandName,
+  headline,
+  title,
+  body,
+  caption,
+  description,
+  text,
+  image,
+  postImage,
+  thumbnail,
   profileImage,
-  brandLogo,
-  brandName = 'Brand Name',
-  backgroundColor = '#ffffff',
-  showGrid = false,
+  brandColor = '#1a56db',
 }) => {
-  const resolvedLogo = logoImage || profileImage || brandLogo;
+  const resolvedBrand = brandName || name || username || 'MarcaDigital';
+  const resolvedTagline = headline || title || body || caption || description || text || 'Plataforma Digital';
+  const resolvedLogo = image || postImage || thumbnail || profileImage || null;
+  const accent = brandColor || '#1a56db';
+  const initial = resolvedBrand.charAt(0).toUpperCase();
+
+  const variations = [
+    {
+      id: 'principal',
+      label: 'Principal',
+      sublabel: 'Uso padrão',
+      bg: '#ffffff',
+      border: '1px solid #e5e7eb',
+      iconBg: accent,
+      iconColor: '#fff',
+      wordColor: '#111827',
+      subColor: accent,
+      logoFilter: 'none',
+      horizontal: true,
+    },
+    {
+      id: 'negativo',
+      label: 'Negativo',
+      sublabel: 'Fundo escuro',
+      bg: '#111827',
+      border: '1px solid #1f2937',
+      iconBg: '#ffffff',
+      iconColor: '#111827',
+      wordColor: '#ffffff',
+      subColor: 'rgba(255,255,255,0.55)',
+      logoFilter: 'brightness(0) invert(1)',
+      horizontal: true,
+    },
+    {
+      id: 'monocromatico',
+      label: 'Monocromático',
+      sublabel: 'Impressão 1 cor',
+      bg: '#ffffff',
+      border: '1px solid #e5e7eb',
+      iconBg: '#000000',
+      iconColor: '#ffffff',
+      wordColor: '#000000',
+      subColor: '#666666',
+      logoFilter: 'brightness(0)',
+      horizontal: true,
+    },
+    {
+      id: 'vertical',
+      label: 'Vertical',
+      sublabel: 'Avatar / perfil',
+      bg: '#ffffff',
+      border: '1px solid #e5e7eb',
+      iconBg: accent,
+      iconColor: '#fff',
+      wordColor: '#111827',
+      subColor: accent,
+      logoFilter: 'none',
+      horizontal: false,
+    },
+    {
+      id: 'icone',
+      label: 'Ícone',
+      sublabel: 'Favicon / app',
+      bg: '#f9fafb',
+      border: '1px solid #e5e7eb',
+      iconBg: accent,
+      iconColor: '#fff',
+      wordColor: '#111827',
+      subColor: '#6b7280',
+      logoFilter: 'none',
+      horizontal: false,
+    },
+    {
+      id: 'colorido',
+      label: 'Colorido',
+      sublabel: 'Uso institucional',
+      bg: accent,
+      border: `1px solid ${accent}`,
+      iconBg: '#ffffff',
+      iconColor: accent,
+      wordColor: '#ffffff',
+      subColor: 'rgba(255,255,255,0.7)',
+      logoFilter: 'brightness(0)',
+      horizontal: false,
+    },
+  ];
+
   return (
-    <div
-      className="relative w-full max-w-[700px] h-[500px] rounded-lg overflow-hidden shadow-xl border-2 border-gray-200"
-      style={{ backgroundColor }}
-    >
-      {showGrid && (
-        <div className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-        />
-      )}
+    <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", display: 'inline-flex', flexDirection: 'column', gap: '14px' }}>
+      <style>{`
+        @keyframes lv-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .lv-wrap { animation: lv-appear 0.4s cubic-bezier(0.22,1,0.36,1); }
+      `}</style>
 
-      <div className="relative h-full flex items-center justify-center p-8">
-        {resolvedLogo ? (
-          <img src={resolvedLogo} alt={brandName} className="max-w-full max-h-full object-contain" />
-        ) : (
-          <div className="text-center">
-            <div className="w-32 h-32 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-              <span className="text-5xl font-black text-white">{brandName.charAt(0)}</span>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+        Variações do Logo · Grade 2×3
+      </div>
+
+      <div
+        className="lv-wrap"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '10px',
+          width: '400px',
+        }}
+      >
+        {variations.map((v) => (
+          <div
+            key={v.id}
+            style={{
+              borderRadius: '10px',
+              border: v.border,
+              background: v.bg,
+              padding: v.horizontal ? '16px 16px 12px' : '20px 16px 12px',
+              display: 'flex',
+              flexDirection: v.horizontal ? 'row' : 'column',
+              alignItems: 'center',
+              gap: v.horizontal ? '10px' : '10px',
+              justifyContent: v.horizontal ? 'flex-start' : 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              minHeight: '80px',
+            }}
+          >
+            {/* Icon */}
+            <div
+              style={{
+                width: v.horizontal ? '36px' : '48px',
+                height: v.horizontal ? '36px' : '48px',
+                borderRadius: v.horizontal ? '9px' : '12px',
+                background: v.iconBg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {resolvedLogo ? (
+                <img
+                  src={resolvedLogo}
+                  alt={resolvedBrand}
+                  style={{
+                    width: v.horizontal ? '24px' : '32px',
+                    height: v.horizontal ? '24px' : '32px',
+                    objectFit: 'contain',
+                    filter: v.logoFilter,
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: v.horizontal ? '16px' : '22px',
+                    fontWeight: 900,
+                    color: v.iconColor,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  {initial}
+                </span>
+              )}
             </div>
-            <h2 className="text-3xl font-black text-gray-900">{brandName}</h2>
+
+            {/* Text (only for horizontal, or vertical with brand name) */}
+            {(v.horizontal || v.id === 'vertical') && (
+              <div style={{ textAlign: v.horizontal ? 'left' : 'center' }}>
+                {v.horizontal && (
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: v.wordColor, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                    {resolvedBrand}
+                  </div>
+                )}
+                {v.id === 'vertical' && (
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: v.wordColor, letterSpacing: '-0.01em', lineHeight: 1, marginTop: '2px' }}>
+                    {resolvedBrand}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Label always at bottom for icon-only cards */}
+            {(!v.horizontal && v.id !== 'vertical') && (
+              <div style={{ fontSize: '11px', fontWeight: 700, color: v.wordColor, marginTop: '4px' }}>
+                {resolvedBrand.split(' ')[0]}
+              </div>
+            )}
+
+            {/* Variant label */}
+            <div
+              style={{
+                marginLeft: v.horizontal ? 'auto' : undefined,
+                marginTop: !v.horizontal ? 'auto' : undefined,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: v.horizontal ? 'flex-end' : 'center',
+                gap: '2px',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  color: v.wordColor,
+                  opacity: 0.75,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {v.label}
+              </div>
+              <div style={{ fontSize: '8px', color: v.subColor, opacity: 0.8 }}>
+                {v.sublabel}
+              </div>
+            </div>
           </div>
-        )}
+        ))}
       </div>
 
-      <div className="absolute top-3 right-3 bg-rose-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-        Variações do Logo
-      </div>
-
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        Variable
+      <div style={{ fontSize: '10px', color: '#9ca3af' }}>
+        Todas as variações do brandbook · Selecionar conforme contexto de aplicação
       </div>
     </div>
   );

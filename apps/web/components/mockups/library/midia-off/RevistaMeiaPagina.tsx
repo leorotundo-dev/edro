@@ -1,58 +1,221 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaMeiaPaginaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaMeiaPagina: React.FC<RevistaMeiaPaginaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#16a085',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
-  return (
-    <div className="relative w-[315px] h-[210px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
-      </div>
+  const brand = brandName ?? name ?? 'Marca';
+  const mainHeadline = headline ?? title ?? 'Metade da página, o dobro de impacto';
+  const bodyText =
+    body ?? caption ?? description ?? text ??
+    'O anúncio de meia página combina visibilidade com custo-benefício. Ideal para lançamentos, ofertas e reforço de marca em contexto editorial.';
+  const heroImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+  return (
+    <div
+      style={{
+        width: 340,
+        height: 220,
+        background: '#f8f8f4',
+        fontFamily: '"Georgia", "Times New Roman", serif',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'row',
+        border: `1px solid #e0e0d8`,
+      }}
+    >
+      <style>{`
+        @keyframes rmp-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+        .rmp-in { animation: rmp-in 0.45s ease both; }
+      `}</style>
+
+      {/* Left image column */}
+      <div
+        style={{
+          width: 148,
+          flexShrink: 0,
+          background: '#ccc',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+        className="rmp-in"
+      >
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={mainHeadline}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              background: `linear-gradient(160deg, ${brandColor}33 0%, ${brandColor}77 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={brandColor} strokeWidth="1" opacity="0.55">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            <span style={{ fontSize: 8.5, color: brandColor, fontFamily: 'sans-serif', opacity: 0.6 }}>
+              Imagem
+            </span>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+        {/* Left brand accent strip */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            background: brandColor,
+          }}
+        />
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Meia Página
-      </div>
+      {/* Right text column */}
+      <div
+        style={{
+          flex: 1,
+          padding: '16px 16px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          borderLeft: '1px solid #e8e8e0',
+        }}
+      >
+        <div>
+          {/* Brand tag */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+            <div style={{ width: 22, height: 3, background: brandColor }} />
+            <span
+              style={{
+                fontSize: 7.5,
+                fontFamily: 'sans-serif',
+                color: brandColor,
+                textTransform: 'uppercase',
+                letterSpacing: 1.2,
+                fontWeight: 700,
+              }}
+            >
+              {brand}
+            </span>
+          </div>
 
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        21x14cm
+          {/* Headline */}
+          <h2
+            style={{
+              fontSize: 14,
+              fontWeight: 900,
+              color: '#111',
+              lineHeight: 1.25,
+              margin: '0 0 9px',
+              letterSpacing: -0.2,
+            }}
+          >
+            {mainHeadline}
+          </h2>
+
+          {/* Body */}
+          <p style={{ fontSize: 9.5, color: '#444', lineHeight: 1.65, margin: 0 }}>
+            {bodyText}
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div>
+          {/* Offer badge */}
+          <div
+            style={{
+              display: 'inline-block',
+              background: brandColor,
+              padding: '3px 10px',
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 8.5,
+                color: '#fff',
+                fontFamily: 'sans-serif',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: 0.8,
+              }}
+            >
+              Meia Página
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 8, color: '#888', fontFamily: 'sans-serif' }}>
+              (11) 9 9999-0000
+            </span>
+            <button
+              type="button"
+              aria-label={`Ver mais sobre ${brand}`}
+              style={{
+                border: `1px solid ${brandColor}`,
+                background: 'transparent',
+                padding: '3px 9px',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 8,
+                  color: brandColor,
+                  fontFamily: 'sans-serif',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.8,
+                }}
+              >
+                Ver mais
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

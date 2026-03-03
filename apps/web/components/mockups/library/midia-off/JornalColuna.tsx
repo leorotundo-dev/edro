@@ -1,64 +1,97 @@
+'use client';
+
 import React from 'react';
 
 interface JornalColunaProps {
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
-  description?: string;
-  bodyText?: string;
-  text?: string;
   body?: string;
   caption?: string;
-  content?: string;
-  adImage?: string;
+  description?: string;
+  text?: string;
+  image?: string;
   postImage?: string;
   thumbnail?: string;
-  image?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const JornalColuna: React.FC<JornalColunaProps> = ({
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
-  description,
-  bodyText,
-  text,
   body,
   caption,
-  content,
-  adImage,
+  description,
+  text,
+  image,
   postImage,
   thumbnail,
-  image,
+  profileImage,
+  brandColor = '#1a1a1a',
 }) => {
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline Here';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or tagline';
-  const resolvedBodyText = bodyText ?? text ?? body ?? caption ?? content ?? 'Ad body text and call to action';
-  const resolvedAdImage = adImage ?? postImage ?? thumbnail ?? image ?? '';
+  const brand = brandName ?? name ?? 'Marca';
+  const mainHeadline = headline ?? title ?? 'A melhor escolha para o seu dia a dia';
+  const bodyText = body ?? caption ?? description ?? text ?? 'Produtos selecionados com qualidade superior. Conheça nossa linha completa e descubra por que somos referência no mercado.';
+  const heroImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
   return (
-    <div className="relative w-[150px] h-[600px] bg-white border border-gray-400 shadow-md overflow-hidden">
-      <div className="absolute inset-0 bg-gray-50 p-3">
-        {resolvedAdImage && (
-          <div className="w-full h-1/2 bg-gray-200 mb-2">
-            <img src={resolvedAdImage} alt="Ad" className="w-full h-full object-cover" />
+    <div style={{ width: 260, background: '#faf9f5', fontFamily: '"Georgia", "Times New Roman", serif', border: '2px solid #222', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes jcol-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        .jcol-in { animation: jcol-in 0.45s ease both; }
+      `}</style>
+
+      {/* Top accent */}
+      <div style={{ height: 5, background: brandColor }} />
+
+      {/* Brand header */}
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #d0cfc0' }} className="jcol-in">
+        <div style={{ fontSize: 8, fontFamily: 'sans-serif', color: '#888', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 2 }}>Publicidade</div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#111', letterSpacing: -0.3, textTransform: 'uppercase' }}>{brand}</div>
+      </div>
+
+      {/* Bold headline */}
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #d0cfc0' }}>
+        <div style={{ width: 24, height: 3, background: brandColor, marginBottom: 7 }} />
+        <h2 style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.25, margin: 0, letterSpacing: -0.3 }}>{mainHeadline}</h2>
+      </div>
+
+      {/* Vertical image */}
+      <div style={{ width: '100%', height: 200, background: '#ccc9b8', overflow: 'hidden', flexShrink: 0 }}>
+        {heroImage ? (
+          <img src={heroImage} alt={mainHeadline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(180deg,#ccc9b8 0%,#9e9c8e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 6 }}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span style={{ fontSize: 9, color: '#888', fontFamily: 'sans-serif' }}>Imagem</span>
           </div>
         )}
-        <h2 className="text-gray-900 text-xl font-black mb-1 leading-tight">{resolvedHeadline}</h2>
-        <h3 className="text-gray-700 text-sm font-bold mb-2">{resolvedSubheadline}</h3>
-        <p className="text-gray-600 text-xs leading-relaxed">{resolvedBodyText}</p>
       </div>
 
-      <div className="absolute top-2 right-2 bg-gray-900 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
-        Jornal Coluna
+      {/* Body copy */}
+      <div style={{ padding: '10px 14px', flex: 1 }}>
+        <p style={{ fontSize: 10, color: '#444', lineHeight: 1.65, margin: '0 0 12px' }}>{bodyText}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {['Qualidade garantida', 'Entrega rápida', 'Melhor preço'].map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 4, height: 4, background: brandColor, flexShrink: 0 }} />
+              <span style={{ fontSize: 9, color: '#333', fontFamily: 'sans-serif' }}>{item}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="absolute bottom-2 left-2 bg-white text-gray-900 text-xs px-2 py-1 rounded border border-gray-300">
-        10x40cm
+      {/* CTA at bottom */}
+      <div style={{ background: brandColor, padding: '10px 14px', marginTop: 'auto' }}>
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)', fontFamily: 'sans-serif', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 1 }}>Entre em contato</div>
+        <div style={{ fontSize: 12, color: '#fff', fontWeight: 700, fontFamily: 'sans-serif', marginBottom: 2 }}>(11) 9 9999-0000</div>
+        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)', fontFamily: 'sans-serif' }}>www.{brand.toLowerCase().replace(/\s/g, '')}.com.br</div>
       </div>
     </div>
   );

@@ -1,73 +1,226 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteAgendaProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  backgroundImage?: string;
+  description?: string;
+  text?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteAgenda: React.FC<KeynoteAgendaProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  themeColor = '#6366f1',
+  description,
+  text,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor ?? '#6366F1';
+  const resolvedTitle = title ?? headline ?? brandName ?? 'Agenda da Apresentação';
+  const resolvedBody = body ?? caption ?? description ?? text ?? '';
+
+  const topics = [
+    'Introdução e contexto do projeto',
+    'Análise de mercado e oportunidades',
+    'Nossa proposta de valor e diferenciais',
+    'Resultados e métricas alcançadas',
+    'Próximos passos e chamada para ação',
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
-      </div>
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        background: '#ffffff',
+      }}
+    >
+      {/* Left accent panel */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '6px',
+          height: '100%',
+          background: accent,
+        }}
+      />
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Top header area */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '6px',
+          right: 0,
+          height: '72px',
+          background: `linear-gradient(90deg, ${accent}18 0%, transparent 100%)`,
+          borderBottom: `1px solid ${accent}20`,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 28px',
+          gap: '12px',
+        }}
+      >
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
-
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: accent,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          {resolvedTitle}
-        </h1>
-
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize: '10px', fontWeight: 600, color: accent, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+            O que veremos hoje
+          </div>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1a2e', margin: 0, lineHeight: 1.1 }}>
+            {resolvedTitle}
+          </h2>
+        </div>
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Agenda
+      {/* Topics list */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '80px',
+          left: '34px',
+          right: '28px',
+          bottom: '44px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '4px',
+        }}
+      >
+        {topics.map((topic, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              background: i === 0 ? `${accent}12` : 'transparent',
+              border: `1px solid ${i === 0 ? accent + '40' : '#f0f0f0'}`,
+            }}
+          >
+            {/* Number badge */}
+            <div
+              style={{
+                minWidth: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: i === 0 ? accent : `${accent}20`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontWeight: 800,
+                color: i === 0 ? '#fff' : accent,
+              }}
+            >
+              {i + 1}
+            </div>
+            {/* Left accent bar */}
+            <div
+              style={{
+                width: '3px',
+                height: '28px',
+                borderRadius: '2px',
+                background: i === 0 ? accent : `${accent}30`,
+              }}
+            />
+            <span
+              style={{
+                fontSize: '12px',
+                fontWeight: i === 0 ? 700 : 500,
+                color: i === 0 ? '#1a1a2e' : '#555',
+                lineHeight: 1.3,
+              }}
+            >
+              {topic}
+            </span>
+          </div>
+        ))}
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Bottom progress dots */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '14px',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            style={{
+              width: i === 1 ? '20px' : '7px',
+              height: '7px',
+              borderRadius: '4px',
+              background: i === 1 ? accent : `${accent}30`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Slide number */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '14px',
+          right: '18px',
+          fontSize: '10px',
+          color: '#aaa',
+          fontWeight: 500,
+        }}
+      >
+        02
       </div>
     </div>
   );

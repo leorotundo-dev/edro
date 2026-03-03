@@ -1,73 +1,193 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteTimelineProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
+  text?: string;
   caption?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
+  description?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteTimeline: React.FC<KeynoteTimelineProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
-  body,
-  caption,
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  themeColor = '#6366f1',
+  username,
+  brandName,
+  headline,
+  title,
+  brandColor,
+  themeColor = '#6366F1',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor;
+  const slideTitle = headline ?? title ?? name ?? username ?? brandName ?? 'Nossa Jornada';
+
+  const milestones = [
+    {
+      year: '2021',
+      event: 'Fundação',
+      detail: 'Empresa fundada com foco em inovação digital',
+    },
+    {
+      year: '2022',
+      event: 'Primeiro produto',
+      detail: 'Lançamento da plataforma principal para o mercado',
+    },
+    {
+      year: '2023',
+      event: 'Expansão',
+      detail: 'Abertura de novos mercados e parcerias estratégicas',
+    },
+    {
+      year: '2024',
+      event: 'Consolidação',
+      detail: 'Liderança no setor e crescimento de 87% em receita',
+    },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        background: '#ffffff',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        userSelect: 'none',
+        padding: '20px 24px 20px',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexShrink: 0 }}>
+        <div style={{ width: '4px', height: '18px', background: accent, borderRadius: '2px' }} />
+        <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#111827', margin: 0 }}>{slideTitle}</h2>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" aria-hidden="true" style={{ marginLeft: '4px' }}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4l3 3" />
+        </svg>
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Timeline section */}
+      <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        {/* Horizontal line */}
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
+          style={{
+            position: 'absolute',
+            top: '28px',
+            left: '28px',
+            right: '28px',
+            height: '3px',
+            background: `linear-gradient(90deg, ${accent} 0%, ${accent}44 100%)`,
+            borderRadius: '2px',
+          }}
         />
 
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+        {/* Milestone nodes + labels */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            position: 'relative',
+          }}
         >
-          {resolvedTitle}
-        </h1>
+          {milestones.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                width: '110px',
+              }}
+            >
+              {/* Circle node */}
+              <div
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: i === milestones.length - 1 ? accent : '#fff',
+                  border: `3px solid ${accent}`,
+                  boxShadow: i === milestones.length - 1 ? `0 0 0 4px ${accent}22` : 'none',
+                  zIndex: 1,
+                  marginBottom: '10px',
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                }}
+              />
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+              {/* Year */}
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: accent,
+                  marginBottom: '4px',
+                  lineHeight: 1,
+                }}
+              >
+                {m.year}
+              </div>
+
+              {/* Event name */}
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#111827',
+                  marginBottom: '4px',
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                }}
+              >
+                {m.event}
+              </div>
+
+              {/* Detail */}
+              <div
+                style={{
+                  fontSize: '9px',
+                  color: '#6b7280',
+                  textAlign: 'center',
+                  lineHeight: 1.4,
+                }}
+              >
+                {m.detail}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Timeline
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Slide label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: accent,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: '4px',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Timeline
       </div>
     </div>
   );

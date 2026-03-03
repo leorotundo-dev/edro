@@ -1,64 +1,117 @@
+'use client';
+
 import React from 'react';
 
 interface JornalPrimeiraPaginaProps {
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
-  description?: string;
-  bodyText?: string;
-  text?: string;
   body?: string;
   caption?: string;
-  content?: string;
-  adImage?: string;
+  description?: string;
+  text?: string;
+  image?: string;
   postImage?: string;
   thumbnail?: string;
-  image?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const JornalPrimeiraPagina: React.FC<JornalPrimeiraPaginaProps> = ({
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
-  description,
-  bodyText,
-  text,
   body,
   caption,
-  content,
-  adImage,
+  description,
+  text,
+  image,
   postImage,
   thumbnail,
-  image,
+  profileImage,
+  brandColor = '#1a1a1a',
 }) => {
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline Here';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or tagline';
-  const resolvedBodyText = bodyText ?? text ?? body ?? caption ?? content ?? 'Ad body text and call to action';
-  const resolvedAdImage = adImage ?? postImage ?? thumbnail ?? image ?? '';
+  const paperName = brandName ?? name ?? 'DIÁRIO NACIONAL';
+  const mainHeadline = headline ?? title ?? 'Grande evento transforma cenário econômico do país';
+  const bodyText = body ?? caption ?? description ?? text ?? 'A expectativa dos mercados se voltou para os desdobramentos que prometem redefinir as relações comerciais. Especialistas avaliam o impacto a longo prazo para os setores produtivos.';
+  const heroImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
   return (
-    <div className="relative w-[450px] h-[600px] bg-white border border-gray-400 shadow-md overflow-hidden">
-      <div className="absolute inset-0 bg-gray-50 p-3">
-        {resolvedAdImage && (
-          <div className="w-full h-1/2 bg-gray-200 mb-2">
-            <img src={resolvedAdImage} alt="Ad" className="w-full h-full object-cover" />
+    <div style={{ width: 560, background: '#faf9f5', fontFamily: '"Georgia", "Times New Roman", serif', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', overflow: 'hidden', border: '1px solid #c8c2b0' }}>
+      <style>{`
+        @keyframes jpp-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .jpp-fadein { animation: jpp-fadein 0.5s ease both; }
+      `}</style>
+
+      {/* Masthead */}
+      <div style={{ background: brandColor, padding: '10px 16px 8px', borderBottom: '3px solid #111' }} className="jpp-fadein">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ color: '#fff', fontSize: 10, letterSpacing: 1, opacity: 0.85 }}>EST. 1942</span>
+          <span style={{ color: '#fff', fontSize: 10, letterSpacing: 1, opacity: 0.85 }}>ANO LXXXII — Nº 28.741</span>
+        </div>
+        <h1 style={{ color: '#fff', fontSize: 32, fontWeight: 900, letterSpacing: -1, textAlign: 'center', margin: 0, lineHeight: 1.1, textTransform: 'uppercase' }}>{paperName}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+          <span style={{ color: '#fff', fontSize: 9, opacity: 0.8, textTransform: 'capitalize' }}>{today}</span>
+          <span style={{ color: '#fff', fontSize: 9, background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: 2 }}>R$ 4,50</span>
+        </div>
+      </div>
+
+      {/* Ticker bar */}
+      <div style={{ background: '#111', padding: '4px 16px', display: 'flex', gap: 24, overflow: 'hidden' }}>
+        {['Política', 'Economia', 'Esportes', 'Internacional', 'Tecnologia', 'Cultura'].map((s, i) => (
+          <span key={i} style={{ color: '#e0d9c8', fontSize: 9, fontFamily: 'sans-serif', letterSpacing: 0.5, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{s}</span>
+        ))}
+      </div>
+
+      {/* Main content */}
+      <div style={{ padding: '12px 16px 8px' }}>
+        {/* Hero story */}
+        <div style={{ borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 10 }}>
+          {heroImage ? (
+            <img src={heroImage} alt="Foto principal" style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block', marginBottom: 8 }} />
+          ) : (
+            <div style={{ width: '100%', height: 180, background: 'linear-gradient(135deg, #d0cfc0 0%, #b8b5a5 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontFamily: 'sans-serif', color: '#777', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Manchete Principal</div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111', lineHeight: 1.15, margin: '0 0 6px', letterSpacing: -0.5 }}>{mainHeadline}</h2>
+              <p style={{ fontSize: 11, color: '#333', lineHeight: 1.6, margin: 0 }}>{bodyText}</p>
+            </div>
           </div>
-        )}
-        <h2 className="text-gray-900 text-xl font-black mb-1 leading-tight">{resolvedHeadline}</h2>
-        <h3 className="text-gray-700 text-sm font-bold mb-2">{resolvedSubheadline}</h3>
-        <p className="text-gray-600 text-xs leading-relaxed">{resolvedBodyText}</p>
-      </div>
+        </div>
 
-      <div className="absolute top-2 right-2 bg-gray-900 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
-        Jornal Primeira Página
-      </div>
+        {/* 3-column secondary stories */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr 1px 1fr', gap: 0 }}>
+          {[
+            { section: 'Economia', hed: 'Mercados reagem com alta no pregão desta manhã', blurb: 'Bovespa registra ganhos expressivos após anúncio de política fiscal.' },
+            { section: 'Política', hed: 'Congresso aprova nova medida com votos decisivos', blurb: 'Placar apertado define aprovação do projeto em segundo turno.' },
+            { section: 'Internacional', hed: 'Cúpula mundial debate acordos de sustentabilidade', blurb: 'Líderes buscam consenso sobre metas climáticas para a próxima década.' },
+          ].map((story, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <div style={{ background: '#bbb', width: 1 }} />}
+              <div style={{ padding: '0 10px' }}>
+                <div style={{ fontSize: 8, fontFamily: 'sans-serif', color: brandColor, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 3 }}>{story.section}</div>
+                <h3 style={{ fontSize: 11, fontWeight: 800, color: '#111', lineHeight: 1.3, margin: '0 0 4px' }}>{story.hed}</h3>
+                <p style={{ fontSize: 9.5, color: '#555', lineHeight: 1.5, margin: 0 }}>{story.blurb}</p>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
 
-      <div className="absolute bottom-2 left-2 bg-white text-gray-900 text-xs px-2 py-1 rounded border border-gray-300">
-        30x40cm
+        {/* Bottom bar */}
+        <div style={{ marginTop: 10, borderTop: '1px solid #c8c2b0', paddingTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 8, fontFamily: 'sans-serif', color: '#888' }}>Tiragem: 120.000 exemplares</span>
+          <span style={{ fontSize: 8, fontFamily: 'sans-serif', color: '#888' }}>www.{paperName.toLowerCase().replace(/\s/g,'')}.com.br</span>
+          <span style={{ fontSize: 8, fontFamily: 'sans-serif', color: '#888' }}>ISSN 1234-5678</span>
+        </div>
       </div>
     </div>
   );

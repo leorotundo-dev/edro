@@ -1,58 +1,121 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaSampleProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaSample: React.FC<RevistaSampleProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#e11d48',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
+  const brand = brandName ?? name ?? 'Marca Amostra';
+  const mainHeadline = headline ?? title ?? 'Amostra Grátis — experimente antes de comprar';
+  const bodyText = body ?? caption ?? description ?? text ?? 'Descole e experimente. Esta amostra foi desenvolvida especialmente para novos clientes. Descubra por que somos a escolha de milhões de pessoas.';
+  const adImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
   return (
-    <div className="relative w-[75px] h-[75px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
+    <div style={{ width: 340, height: 454, background: '#fff', fontFamily: '"Georgia", "Times New Roman", serif', boxShadow: '0 8px 32px rgba(0,0,0,0.20)', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes rsmp-in { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+        .rsmp-in { animation: rsmp-in 0.55s cubic-bezier(0.34,1.56,0.64,1) both; }
+        @keyframes rsmp-star { 0%,100%{transform:rotate(-3deg) scale(1)} 50%{transform:rotate(3deg) scale(1.04)} }
+        .rsmp-star { animation: rsmp-star 3s ease infinite; }
+        @keyframes rsmp-img { from{transform:scale(1.05)} to{transform:scale(1)} }
+        .rsmp-img { animation: rsmp-img 0.7s ease both; }
+      `}</style>
+
+      {/* Perforation top edge */}
+      <div style={{ height: 12, background: '#f8f8f8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderBottom: '1px dashed #ccc' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {Array.from({ length: 28 }, (_, i) => (
+            <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd' }} />
+          ))}
+        </div>
       </div>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+      {/* Bold top bar */}
+      <div style={{ background: brandColor, padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }} className="rsmp-in">
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: -0.3 }}>{brand}</div>
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)', fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: 1.5 }}>Amostra Grátis</div>
+      </div>
+
+      {/* Image section */}
+      <div style={{ width: '100%', height: 170, overflow: 'hidden', position: 'relative', flexShrink: 0 }} className="rsmp-img">
+        {adImage ? (
+          <img src={adImage} alt={mainHeadline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${brandColor}18 0%, ${brandColor}38 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={brandColor} strokeWidth="1" opacity="0.35"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span style={{ fontSize: 10, color: brandColor, fontFamily: 'sans-serif', opacity: 0.45 }}>Produto em destaque</span>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+
+        {/* Starburst "GRÁTIS" badge */}
+        <div className="rsmp-star" style={{ position: 'absolute', top: 12, right: 14 }}>
+          <svg width="64" height="64" viewBox="0 0 64 64"><polygon points="32,4 38,22 56,22 42,34 48,52 32,40 16,52 22,34 8,22 26,22" fill={brandColor} opacity="0.95"/><text x="32" y="36" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="900" fontFamily="sans-serif">GRÁTIS</text></svg>
+        </div>
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Sample/Amostra
+      {/* Dashed separator */}
+      <div style={{ height: 1, background: 'repeating-linear-gradient(90deg, #ccc 0, #ccc 6px, transparent 6px, transparent 12px)', flexShrink: 0, margin: '0 14px' }} />
+
+      {/* Content */}
+      <div style={{ flex: 1, padding: '12px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="rsmp-in">
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
+            <div style={{ width: 24, height: 3, background: brandColor }} />
+            <span style={{ fontSize: 8, color: brandColor, fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: 1.3, fontWeight: 700 }}>Experimente hoje</span>
+          </div>
+          <h2 style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.22, margin: '0 0 9px', letterSpacing: -0.25 }}>{mainHeadline}</h2>
+          <p style={{ fontSize: 10, color: '#666', lineHeight: 1.65, margin: 0, fontFamily: 'sans-serif' }}>{bodyText}</p>
+        </div>
+
+        {/* CTA + contact */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #eee', paddingTop: 10 }}>
+          <div style={{ background: brandColor, padding: '8px 20px' }}>
+            <span style={{ fontSize: 9, color: '#fff', fontFamily: 'sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Resgatar</span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 8.5, color: '#bbb', fontFamily: 'sans-serif' }}>www.{brand.toLowerCase().replace(/\s/g, '')}.com.br</div>
+            <div style={{ fontSize: 8.5, color: '#bbb', fontFamily: 'sans-serif' }}>(11) 9 9999-0000</div>
+          </div>
+        </div>
       </div>
 
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        5x5cm
+      {/* Perforation bottom edge */}
+      <div style={{ height: 12, background: '#f8f8f8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderTop: '1px dashed #ccc' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {Array.from({ length: 28 }, (_, i) => (
+            <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd' }} />
+          ))}
+        </div>
       </div>
     </div>
   );

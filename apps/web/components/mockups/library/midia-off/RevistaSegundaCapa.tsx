@@ -1,58 +1,87 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaSegundaCapaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaSegundaCapa: React.FC<RevistaSegundaCapaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#2d6a4f',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
-  return (
-    <div className="relative w-[315px] h-[420px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
-      </div>
+  const brand = brandName ?? name ?? 'Marca Premium';
+  const mainHeadline = headline ?? title ?? 'Onde a excelência encontra o estilo';
+  const bodyText = body ?? caption ?? description ?? text ?? 'Uma experiência única criada para quem não abre mão do melhor. Descubra nossa nova coleção.';
+  const coverImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+  return (
+    <div style={{ width: 340, height: 454, background: '#111', fontFamily: '"Georgia", "Times New Roman", serif', boxShadow: '0 8px 32px rgba(0,0,0,0.35)', overflow: 'hidden', position: 'relative' }}>
+      <style>{`
+        @keyframes r2c-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: scale(1); } }
+        .r2c-in { animation: r2c-in 0.6s ease both; }
+      `}</style>
+
+      {/* Full bleed image */}
+      <div style={{ position: 'absolute', inset: 0 }} className="r2c-in">
+        {coverImage ? (
+          <img src={coverImage} alt={mainHeadline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(145deg, ${brandColor}33 0%, #111 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="0.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.65) 70%, rgba(0,0,0,0.92) 100%)' }} />
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Segunda Capa
+      {/* Premium placement badge */}
+      <div style={{ position: 'absolute', top: 14, right: 14, background: brandColor, padding: '4px 10px' }}>
+        <span style={{ fontSize: 8, color: '#fff', fontFamily: 'sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>2ª Capa</span>
       </div>
 
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        21x28cm
+      {/* Content */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 18px' }}>
+        {/* Brand name */}
+        <div style={{ fontSize: 11, fontFamily: 'sans-serif', color: brandColor, textTransform: 'uppercase', letterSpacing: 3, fontWeight: 700, marginBottom: 8 }}>{brand}</div>
+
+        {/* Headline */}
+        <h2 style={{ fontSize: 26, fontWeight: 900, color: '#fff', lineHeight: 1.15, margin: '0 0 10px', letterSpacing: -0.5 }}>{mainHeadline}</h2>
+
+        {/* Decorative rule */}
+        <div style={{ width: 50, height: 2, background: brandColor, marginBottom: 12 }} />
+
+        {/* Body */}
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, margin: '0 0 16px', fontFamily: 'sans-serif' }}>{bodyText}</p>
+
+        {/* CTA */}
+        <div style={{ display: 'inline-block', border: `1px solid ${brandColor}`, padding: '7px 18px' }}>
+          <span style={{ fontSize: 10, color: brandColor, fontFamily: 'sans-serif', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>Saiba mais</span>
+        </div>
       </div>
     </div>
   );

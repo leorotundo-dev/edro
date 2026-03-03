@@ -1,83 +1,155 @@
+'use client';
+
 import React from 'react';
 
 interface PitchInvestimentoProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
-  accentColor?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchInvestimento: React.FC<PitchInvestimentoProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  accentColor = '#f59e0b',
+  description,
+  text,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const slideTitle = headline ?? title ?? 'A Oportunidade';
+  const companyName = brandName ?? name ?? 'Startup';
+  const subText = body ?? caption ?? description ?? text ?? 'Captação Série A para acelerar crescimento e expansão regional';
+
+  const useOfFunds = [
+    { label: 'Produto & Eng.',    pct: 40, color: accent },
+    { label: 'Vendas & Mktg.',    pct: 30, color: '#8b5cf6' },
+    { label: 'Operações & CS',    pct: 20, color: '#22c55e' },
+    { label: 'Reserva Estratégica', pct: 10, color: '#f59e0b' },
+  ];
+
+  const milestones = [
+    { label: 'R$ 2M MRR',         timeline: '6 meses' },
+    { label: 'Expansão LATAM',    timeline: '9 meses' },
+    { label: 'Series B ready',    timeline: '18 meses' },
+    { label: '50k usuários ativos', timeline: '12 meses' },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div style={{
+      position: 'relative', width: '560px', height: '315px',
+      borderRadius: '10px', overflow: 'hidden',
+      background: '#0f172a',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <style>{`
+        @keyframes pitch-inv-glow {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.8; }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+      {/* Background radial */}
+      <div style={{
+        position: 'absolute', top: '-60px', left: '-60px',
+        width: '300px', height: '300px', borderRadius: '50%',
+        background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`,
+        animation: 'pitch-inv-glow 4s ease-in-out infinite',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-40px', right: '-40px',
+        width: '200px', height: '200px', borderRadius: '50%',
+        background: `radial-gradient(circle, #8b5cf622 0%, transparent 70%)`,
+      }} />
+
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accent}, ${accent}44, transparent)` }} />
+
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '22px 28px 18px 28px' }}>
+
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: `${accent}99`, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            {companyName} · {slideTitle}
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.03em', lineHeight: 1 }}>
+            Captando <span style={{ color: accent }}>R$ 8 milhões</span>
+          </div>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: '6px 0 0 0' }}>{subText}</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
+          {/* Use of funds */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+              Uso dos Recursos
             </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+              {useOfFunds.map((u, i) => (
+                <div key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 600 }}>{u.label}</span>
+                    <span style={{ fontSize: '10px', color: u.color, fontWeight: 800 }}>{u.pct}%</span>
+                  </div>
+                  <div style={{ height: '6px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${u.pct}%`,
+                      background: u.color, borderRadius: '3px',
+                      transition: 'width 0.8s ease-out',
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Vertical divider */}
+          <div style={{ width: '1px', background: '#1e293b' }} />
+
+          {/* Milestones unlocked */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+              Marcos Desbloqueados
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+              {milestones.map((m, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  background: '#1e293b', borderRadius: '7px', padding: '6px 10px',
+                  border: `1px solid ${accent}22`,
+                }}>
+                  <div style={{
+                    width: '18px', height: '18px', borderRadius: '50%',
+                    background: `${accent}22`, border: `1.5px solid ${accent}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 600, flex: 1 }}>{m.label}</span>
+                  <span style={{ fontSize: '9px', color: '#475569', whiteSpace: 'nowrap' }}>{m.timeline}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', color: '#334155' }}>
+          <span>Confidencial · {companyName}</span>
+          <span>11 / 15</span>
         </div>
-
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
-        </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Investimento
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

@@ -1,90 +1,121 @@
+'use client';
+
 import React from 'react';
 
 interface NewsletterNovosFuncionariosProps {
-  companyLogo?: string;
-  companyName?: string;
+  brandName?: string;
+  brandColor?: string;
   title?: string;
   headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  contentImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  bodyText?: string;
-  text?: string;
   body?: string;
-  caption?: string;
-  ctaText?: string;
-  brandColor?: string;
 }
 
 export const NewsletterNovosFuncionarios: React.FC<NewsletterNovosFuncionariosProps> = ({
-  companyLogo = '',
-  companyName = 'Company Name',
-  title,
-  headline,
-  name,
-  subtitle,
-  description,
-  contentImage,
-  postImage,
-  thumbnail,
-  bodyText,
-  text,
-  body,
-  caption,
-  ctaText = 'Read More',
-  brandColor = '#3b82f6',
+  brandName = 'Empresa S.A.',
+  brandColor = '#10b981',
+  title = 'Novos no Time!',
+  headline = 'Março 2025',
+  name = 'Recursos Humanos',
+  body = 'Que tal dar as boas-vindas a quem chegou esse mês? Apresente-se no corredor, no chat ou nos grupos de afinidade. O time cresce e fica ainda mais forte!',
 }) => {
-  const resolvedTitle = title || headline || name || 'Newsletter Title';
-  const resolvedSubtitle = subtitle || description || 'Edition subtitle or date';
-  const resolvedContentImage = contentImage || postImage || thumbnail || '';
-  const resolvedBodyText = bodyText || text || body || caption || 'Newsletter content goes here. Share important updates, news, and information with your team.';
+  const novatos = [
+    { nome: 'Larissa Moura', cargo: 'Desenvolvedora Front-End', depto: 'Tecnologia', avatar: 'LM', cor: '#3b82f6', fato: 'Fã de escalada e voluntária em projetos de tecnologia social.' },
+    { nome: 'Gabriel Torres', cargo: 'Analista de Marketing', depto: 'Marketing', avatar: 'GT', cor: '#8b5cf6', fato: 'Toca violão em banda de rock cover nos fins de semana.' },
+    { nome: 'Beatriz Nunes', cargo: 'Gerente de Contas', depto: 'Comercial', avatar: 'BN', cor: '#f59e0b', fato: 'Viajou para 18 países e coleciona selos de passaporte.' },
+    { nome: 'Thiago Carvalho', cargo: 'Analista de BI', depto: 'Dados', avatar: 'TC', cor: '#ef4444', fato: 'Maratonista amador — já completou 3 maratonas em cidades diferentes.' },
+  ];
+
   return (
-    <div className="w-full max-w-[600px] min-h-[600px] bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
-      <div
-        className="p-6 text-white"
-        style={{ backgroundColor: brandColor }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          {companyLogo && (
-            <div className="w-12 h-12 bg-white rounded">
-              <img src={companyLogo} alt={companyName} className="w-full h-full object-contain p-1" />
-            </div>
-          )}
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold">{companyName}</h3>
-            <p className="text-xs opacity-90">{resolvedSubtitle}</p>
+    <div style={{
+      width: 420, background: '#ffffff',
+      borderRadius: 12, overflow: 'hidden',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+    }}>
+      <style>{`
+        @keyframes nnf-card { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .nnf-card { animation: nnf-card 0.4s ease both; }
+        .nnf-card:nth-child(1){animation-delay:0.05s}
+        .nnf-card:nth-child(2){animation-delay:0.13s}
+        .nnf-card:nth-child(3){animation-delay:0.21s}
+        .nnf-card:nth-child(4){animation-delay:0.29s}
+        @keyframes nnf-wave { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(20deg)} 75%{transform:rotate(-10deg)} }
+        .nnf-wave { display:inline-block; animation: nnf-wave 1.2s ease 0.5s 3; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${brandColor}, #059669)`, padding: '26px 28px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{brandName} · {name}</div>
+            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10 }}>{headline}</div>
           </div>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <span className="nnf-wave" style={{ fontSize: 30 }}>👋</span>
         </div>
-        <h1 className="text-2xl font-black">{resolvedTitle}</h1>
+        <h1 style={{ color: 'white', fontSize: 22, fontWeight: 900, margin: '0 0 4px' }}>{title}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, margin: 0 }}>{body}</p>
       </div>
 
-      <div className="p-6">
-        {resolvedContentImage && (
-          <div className="w-full h-48 bg-gray-200 rounded mb-4">
-            <img src={resolvedContentImage} alt="Content" className="w-full h-full object-cover rounded" />
+      {/* Cards */}
+      <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {novatos.map((p, i) => (
+          <div key={i} className="nnf-card" style={{
+            display: 'flex', gap: 14, alignItems: 'flex-start',
+            background: '#f9fafb', borderRadius: 10, padding: '14px',
+            border: '1px solid #e5e7eb', borderLeft: `3px solid ${p.cor}`,
+          }}>
+            {/* Avatar */}
+            <div style={{
+              width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
+              background: `linear-gradient(135deg, ${p.cor}, ${p.cor}aa)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontSize: 14, fontWeight: 800,
+            }}>{p.avatar}</div>
+            {/* Info */}
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#111827', fontSize: 13, fontWeight: 800, marginBottom: 1 }}>{p.nome}</div>
+              <div style={{ color: '#374151', fontSize: 11, marginBottom: 2 }}>{p.cargo}</div>
+              <span style={{
+                background: `${p.cor}12`, border: `1px solid ${p.cor}30`,
+                color: p.cor, fontSize: 8, fontWeight: 700,
+                padding: '2px 7px', borderRadius: 10, display: 'inline-block', marginBottom: 6,
+              }}>{p.depto}</span>
+              <div style={{
+                display: 'flex', gap: 5, alignItems: 'flex-start',
+              }}>
+                <span style={{ fontSize: 12, flexShrink: 0 }}>💬</span>
+                <p style={{ color: '#6b7280', fontSize: 10, margin: 0, lineHeight: 1.4, fontStyle: 'italic' }}>
+                  "{p.fato}"
+                </p>
+              </div>
+            </div>
           </div>
-        )}
-
-        <p className="text-gray-700 text-sm leading-relaxed mb-4">{resolvedBodyText}</p>
-
-        <button
-          className="text-white font-semibold py-2 px-6 rounded text-sm"
-          style={{ backgroundColor: brandColor }}
-        >
-          {ctaText}
-        </button>
+        ))}
       </div>
 
-      <div className="absolute top-2 right-2 bg-cyan-600 text-white text-xs font-bold px-2 py-1 rounded">
-        Newsletter Novos Funcionários
+      {/* CTA */}
+      <div style={{ padding: '0 28px 22px' }}>
+        <div style={{
+          background: `${brandColor}0d`, border: `1px solid ${brandColor}25`,
+          borderRadius: 10, padding: '14px 16px', textAlign: 'center',
+        }}>
+          <p style={{ color: '#374151', fontSize: 11, margin: '0 0 10px', lineHeight: 1.5 }}>
+            Apresente-se no canal <strong>#boas-vindas</strong> do Teams e mande uma mensagem para os novos colegas!
+          </p>
+          <button type="button" aria-label="Acessar canal de boas-vindas" style={{
+            background: brandColor, color: 'white', border: 'none',
+            borderRadius: 8, padding: '9px 22px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>
+            Dar Boas-Vindas 👋
+          </button>
+        </div>
       </div>
 
-      <div className="px-6 pb-4 text-center text-xs text-gray-500">
-        Internal Communication • Email
+      {/* Footer */}
+      <div style={{ background: '#f9fafb', borderTop: '1px solid #e5e7eb', padding: '12px 28px', display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{brandName} · RH · Integração</span>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{new Date().toLocaleDateString('pt-BR')}</span>
       </div>
     </div>
   );

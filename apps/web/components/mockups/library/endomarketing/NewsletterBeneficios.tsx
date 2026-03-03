@@ -1,90 +1,115 @@
+'use client';
+
 import React from 'react';
 
 interface NewsletterBeneficiosProps {
-  companyLogo?: string;
-  companyName?: string;
+  brandName?: string;
+  brandColor?: string;
   title?: string;
   headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  contentImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  bodyText?: string;
-  text?: string;
-  body?: string;
-  caption?: string;
-  ctaText?: string;
-  brandColor?: string;
 }
 
 export const NewsletterBeneficios: React.FC<NewsletterBeneficiosProps> = ({
-  companyLogo = '',
-  companyName = 'Company Name',
-  title,
-  headline,
-  name,
-  subtitle,
-  description,
-  contentImage,
-  postImage,
-  thumbnail,
-  bodyText,
-  text,
-  body,
-  caption,
-  ctaText = 'Read More',
-  brandColor = '#3b82f6',
+  brandName = 'Empresa S.A.',
+  brandColor = '#0891b2',
+  title = 'Atualização de Benefícios',
+  headline = '1º Semestre 2025',
+  name = 'RH',
 }) => {
-  const resolvedTitle = title || headline || name || 'Newsletter Title';
-  const resolvedSubtitle = subtitle || description || 'Edition subtitle or date';
-  const resolvedContentImage = contentImage || postImage || thumbnail || '';
-  const resolvedBodyText = bodyText || text || body || caption || 'Newsletter content goes here. Share important updates, news, and information with your team.';
+  const beneficios = [
+    { icone: '🏥', nome: 'Plano de Saúde', tag: 'ATUALIZADO', tagCor: '#f59e0b', desc: 'Ampliação da rede credenciada em SP e RJ. Novos hospitais e clínicas parceiras.' },
+    { icone: '🦷', nome: 'Plano Odontológico', tag: 'NOVO', tagCor: '#22c55e', desc: 'Cobertura para implantes e ortodontia a partir de abril. Sem carência para procedimentos básicos.' },
+    { icone: '🍽️', nome: 'Vale-Refeição', tag: 'ATUALIZADO', tagCor: '#f59e0b', desc: 'Reajuste de 15% no valor diário. Aceito em mais de 500 novos estabelecimentos.' },
+    { icone: '🚌', nome: 'Vale-Transporte', tag: 'SEM ALTERAÇÃO', tagCor: '#6b7280', desc: 'Mantido nos mesmos termos do contrato anterior.' },
+    { icone: '📚', nome: 'Auxílio Educação', tag: 'NOVO', tagCor: '#22c55e', desc: 'Reembolso de até R$ 500/mês para graduação, pós-graduação e idiomas.' },
+  ];
+
   return (
-    <div className="w-full max-w-[600px] min-h-[700px] bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
-      <div
-        className="p-6 text-white"
-        style={{ backgroundColor: brandColor }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          {companyLogo && (
-            <div className="w-12 h-12 bg-white rounded">
-              <img src={companyLogo} alt={companyName} className="w-full h-full object-contain p-1" />
-            </div>
-          )}
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold">{companyName}</h3>
-            <p className="text-xs opacity-90">{resolvedSubtitle}</p>
+    <div style={{
+      width: 420, background: '#ffffff',
+      borderRadius: 12, overflow: 'hidden',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+    }}>
+      <style>{`
+        @keyframes ben-in { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+        .ben-item { animation: ben-in 0.35s ease both; }
+        .ben-item:nth-child(1){animation-delay:0.05s}
+        .ben-item:nth-child(2){animation-delay:0.12s}
+        .ben-item:nth-child(3){animation-delay:0.19s}
+        .ben-item:nth-child(4){animation-delay:0.26s}
+        .ben-item:nth-child(5){animation-delay:0.33s}
+      `}</style>
+
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${brandColor}, #06b6d4)`, padding: '26px 28px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{brandName} · {name}</div>
+            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{headline}</div>
           </div>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <div style={{ fontSize: 32 }}>💎</div>
         </div>
-        <h1 className="text-2xl font-black">{resolvedTitle}</h1>
+        <h1 style={{ color: 'white', fontSize: 20, fontWeight: 900, margin: 0 }}>{title}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, margin: '6px 0 0' }}>
+          Conheça as atualizações do seu pacote de benefícios
+        </p>
       </div>
 
-      <div className="p-6">
-        {resolvedContentImage && (
-          <div className="w-full h-48 bg-gray-200 rounded mb-4">
-            <img src={resolvedContentImage} alt="Content" className="w-full h-full object-cover rounded" />
+      {/* Intro */}
+      <div style={{ padding: '18px 28px 10px' }}>
+        <p style={{ color: '#4b5563', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+          Temos o prazer de comunicar importantes atualizações no nosso pacote de benefícios, refletindo nosso compromisso com o bem-estar de todos os colaboradores.
+        </p>
+      </div>
+
+      {/* Benefits list */}
+      <div style={{ padding: '8px 28px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {beneficios.map((b, i) => (
+          <div key={i} className="ben-item" style={{
+            display: 'flex', gap: 12, alignItems: 'flex-start',
+            background: '#f9fafb', borderRadius: 10, padding: '12px 14px',
+            border: '1px solid #e5e7eb',
+          }}>
+            <div style={{ fontSize: 24, flexShrink: 0, lineHeight: 1 }}>{b.icone}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                <span style={{ color: '#111827', fontWeight: 700, fontSize: 13 }}>{b.nome}</span>
+                <span style={{
+                  background: `${b.tagCor}18`, border: `1px solid ${b.tagCor}44`,
+                  color: b.tagCor, fontSize: 8, fontWeight: 700,
+                  padding: '2px 6px', borderRadius: 3,
+                }}>{b.tag}</span>
+              </div>
+              <p style={{ color: '#6b7280', fontSize: 11, margin: 0, lineHeight: 1.5 }}>{b.desc}</p>
+            </div>
           </div>
-        )}
-
-        <p className="text-gray-700 text-sm leading-relaxed mb-4">{resolvedBodyText}</p>
-
-        <button
-          className="text-white font-semibold py-2 px-6 rounded text-sm"
-          style={{ backgroundColor: brandColor }}
-        >
-          {ctaText}
-        </button>
+        ))}
       </div>
 
-      <div className="absolute top-2 right-2 bg-cyan-600 text-white text-xs font-bold px-2 py-1 rounded">
-        Newsletter Benefícios
+      {/* CTA */}
+      <div style={{ padding: '0 28px 22px' }}>
+        <div style={{ background: `${brandColor}10`, borderRadius: 10, padding: '14px 18px', border: `1px solid ${brandColor}25` }}>
+          <p style={{ color: '#374151', fontSize: 12, margin: '0 0 10px', lineHeight: 1.5 }}>
+            Para dúvidas ou solicitações, acesse o portal do colaborador ou entre em contato com o RH pelo ramal 200.
+          </p>
+          <button type="button" aria-label="Acessar portal de benefícios" style={{
+            background: brandColor, color: 'white', border: 'none',
+            borderRadius: 8, padding: '9px 22px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>
+            Ver Meus Benefícios
+          </button>
+        </div>
       </div>
 
-      <div className="px-6 pb-4 text-center text-xs text-gray-500">
-        Internal Communication • Email
+      {/* Footer */}
+      <div style={{
+        background: '#f9fafb', borderTop: '1px solid #e5e7eb',
+        padding: '12px 28px', display: 'flex', justifyContent: 'space-between',
+      }}>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{brandName} · RH</span>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{new Date().toLocaleDateString('pt-BR')}</span>
       </div>
     </div>
   );

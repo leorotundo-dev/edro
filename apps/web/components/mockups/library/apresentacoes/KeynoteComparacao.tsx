@@ -1,73 +1,181 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteComparacaoProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
+  text?: string;
   caption?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
+  description?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteComparacao: React.FC<KeynoteComparacaoProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
-  body,
-  caption,
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  themeColor = '#6366f1',
+  username,
+  brandName,
+  headline,
+  title,
+  brandColor,
+  themeColor = '#6366F1',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor;
+  const slideTitle = headline ?? title ?? name ?? username ?? brandName ?? 'Comparação';
+
+  const features: { label: string; a: boolean; b: boolean }[] = [
+    { label: 'Facilidade de uso', a: true, b: false },
+    { label: 'Suporte 24/7', a: true, b: true },
+    { label: 'Integração via API', a: true, b: false },
+    { label: 'Relatórios avançados', a: true, b: false },
+    { label: 'Preço acessível', a: false, b: true },
+  ];
+
+  const Check = () => (
+    <span style={{ color: '#16a34a', fontWeight: 800, fontSize: '14px' }}>✓</span>
+  );
+  const Cross = () => (
+    <span style={{ color: '#dc2626', fontWeight: 800, fontSize: '14px' }}>✗</span>
+  );
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        background: '#fafafa',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        userSelect: 'none',
+      }}
+    >
+      {/* Header bar */}
+      <div
+        style={{
+          background: accent,
+          padding: '10px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexShrink: 0,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" aria-hidden="true">
+          <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+        </svg>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: '13px' }}>{slideTitle}</span>
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Table */}
+      <div style={{ flex: 1, padding: '10px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        {/* Column headers */}
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
-
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 108px 108px',
+            gap: '6px',
+            marginBottom: '6px',
+          }}
         >
-          {resolvedTitle}
-        </h1>
+          <div style={{ fontSize: '9px', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', paddingLeft: '4px' }}>
+            Funcionalidade
+          </div>
+          <div
+            style={{
+              textAlign: 'center',
+              fontSize: '10px',
+              fontWeight: 700,
+              color: '#fff',
+              background: accent,
+              borderRadius: '6px',
+              padding: '4px 4px',
+            }}
+          >
+            Nossa Solução
+          </div>
+          <div
+            style={{
+              textAlign: 'center',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: '#6b7280',
+              background: '#e5e7eb',
+              borderRadius: '6px',
+              padding: '4px 4px',
+            }}
+          >
+            Concorrente
+          </div>
+        </div>
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+        {/* Feature rows */}
+        {features.map((f, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 108px 108px',
+              gap: '6px',
+              alignItems: 'center',
+              padding: '7px 0',
+              borderBottom: i < features.length - 1 ? '1px solid #f0f0f0' : 'none',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: '#374151', fontWeight: 500, paddingLeft: '4px' }}>
+              {f.label}
+            </div>
+            <div
+              style={{
+                textAlign: 'center',
+                background: f.a ? '#f0fdf4' : '#fef2f2',
+                borderRadius: '4px',
+                padding: '2px',
+                border: f.a ? '1px solid #bbf7d0' : '1px solid #fecaca',
+              }}
+            >
+              {f.a ? <Check /> : <Cross />}
+            </div>
+            <div
+              style={{
+                textAlign: 'center',
+                background: f.b ? '#f0fdf4' : '#fef2f2',
+                borderRadius: '4px',
+                padding: '2px',
+                border: f.b ? '1px solid #bbf7d0' : '1px solid #fecaca',
+              }}
+            >
+              {f.b ? <Check /> : <Cross />}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Comparação
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Winner badge */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '14px',
+          background: accent,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '3px 10px',
+          borderRadius: '20px',
+          letterSpacing: '0.4px',
+        }}
+      >
+        Vencedor: Nossa Solução
       </div>
     </div>
   );

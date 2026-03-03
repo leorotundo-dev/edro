@@ -1,83 +1,157 @@
+'use client';
+
 import React from 'react';
 
 interface PitchRoadmapProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
-  accentColor?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchRoadmap: React.FC<PitchRoadmapProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  accentColor = '#f59e0b',
+  description,
+  text,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const slideTitle = headline ?? title ?? 'Roadmap de Produto';
+  const companyName = brandName ?? name ?? 'Startup';
+  const subText = body ?? caption ?? description ?? text ?? 'Prioridades claras para os próximos 12 meses';
+
+  const columns = [
+    {
+      label: 'Agora',
+      sublabel: 'Q1–Q2 2026',
+      color: accent,
+      bgColor: `${accent}10`,
+      borderColor: accent,
+      items: [
+        { feat: 'Módulo de Relatórios v2', cat: 'Core' },
+        { feat: 'Integração Zapier + Make', cat: 'Integrações' },
+        { feat: 'Mobile App (iOS/Android)', cat: 'Plataforma' },
+        { feat: 'SSO Enterprise', cat: 'Segurança' },
+      ],
+    },
+    {
+      label: 'Próximo',
+      sublabel: 'Q3–Q4 2026',
+      color: '#8b5cf6',
+      bgColor: '#8b5cf610',
+      borderColor: '#8b5cf6',
+      items: [
+        { feat: 'IA Preditiva de Churn', cat: 'IA / ML' },
+        { feat: 'Marketplace de Templates', cat: 'Ecossistema' },
+        { feat: 'API Pública v2.0', cat: 'Developers' },
+        { feat: 'Multi-idioma (EN/ES)', cat: 'Expansão' },
+      ],
+    },
+    {
+      label: 'Futuro',
+      sublabel: '2027+',
+      color: '#64748b',
+      bgColor: '#64748b0a',
+      borderColor: '#cbd5e1',
+      items: [
+        { feat: 'White-label Platform', cat: 'Parceiros' },
+        { feat: 'Modelos de Indústria', cat: 'Vertical' },
+        { feat: 'Analytics Avançado', cat: 'BI' },
+        { feat: 'Compliance LGPD/SOC2', cat: 'Segurança' },
+      ],
+    },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div style={{
+      position: 'relative', width: '560px', height: '315px',
+      borderRadius: '10px', overflow: 'hidden',
+      background: '#ffffff',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <style>{`
+        @keyframes pitch-road-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accent}, ${accent}44, transparent)` }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: `linear-gradient(180deg, ${accent}, transparent)` }} />
+
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 26px 16px 30px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px' }}>
+            {companyName}
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: '0 0 3px 0', letterSpacing: '-0.02em' }}>
+            {slideTitle}
+          </h2>
+          <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>{subText}</p>
+        </div>
+
+        {/* Three columns */}
+        <div style={{ display: 'flex', gap: '10px', flex: 1, animation: 'pitch-road-in 0.5s ease-out' }}>
+          {columns.map((col, ci) => (
+            <div key={ci} style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              background: col.bgColor,
+              border: `1.5px solid ${col.borderColor}`,
+              borderRadius: '10px', overflow: 'hidden',
+            }}>
+              {/* Column header */}
+              <div style={{
+                padding: '8px 12px',
+                background: ci === 0 ? accent : ci === 1 ? '#8b5cf6' : '#f1f5f9',
+                borderBottom: `1px solid ${col.borderColor}`,
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: ci < 2 ? '#fff' : '#334155' }}>{col.label}</div>
+                <div style={{ fontSize: '9px', color: ci < 2 ? 'rgba(255,255,255,0.75)' : '#64748b', marginTop: '1px' }}>{col.sublabel}</div>
+              </div>
+
+              {/* Feature pills */}
+              <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
+                {col.items.map((item, ii) => (
+                  <div key={ii} style={{
+                    background: '#ffffff',
+                    border: `1px solid ${ci === 2 ? '#e2e8f0' : col.borderColor}33`,
+                    borderRadius: '6px', padding: '5px 8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#1e293b' }}>{item.feat}</span>
+                    <span style={{
+                      fontSize: '8px', fontWeight: 700,
+                      background: `${col.color}18`, color: col.color,
+                      borderRadius: '20px', padding: '1px 6px', whiteSpace: 'nowrap', marginLeft: '4px',
+                    }}>
+                      {item.cat}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+          ))}
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px', color: '#94a3b8' }}>
+          <span>Sujeito a revisão conforme feedback dos clientes</span>
+          <span>13 / 15</span>
         </div>
-
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
-        </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Roadmap
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

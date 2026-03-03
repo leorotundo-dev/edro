@@ -1,58 +1,212 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaPaginaDuplaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaPaginaDupla: React.FC<RevistaPaginaDuplaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#8e44ad',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
-  return (
-    <div className="relative w-[630px] h-[420px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
-      </div>
+  const brand = brandName ?? name ?? 'Marca';
+  const mainHeadline = headline ?? title ?? 'Duas páginas. Uma história inesquecível.';
+  const bodyText =
+    body ?? caption ?? description ?? text ??
+    'O formato duplo cria um impacto visual sem igual. Use este espaço panorâmico para apresentar sua marca com a grandiosidade que ela merece.';
+  const heroImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+  return (
+    <div
+      style={{
+        width: 600,
+        height: 454,
+        background: '#111',
+        fontFamily: '"Georgia", "Times New Roman", serif',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.35)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      <style>{`
+        @keyframes rpd-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: scale(1); } }
+        .rpd-in { animation: rpd-in 0.65s ease both; }
+      `}</style>
+
+      {/* Full-bleed panoramic image */}
+      <div style={{ position: 'absolute', inset: 0 }} className="rpd-in">
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={mainHeadline}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              background: `linear-gradient(100deg, #1a1a2e 0%, ${brandColor}33 40%, #0d0d0d 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="0.7">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+        {/* Vignette */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%)',
+          }}
+        />
+        {/* Bottom gradient */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 220,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 100%)',
+          }}
+        />
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Página Dupla
+      {/* Gutter crease at centre */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 3,
+          height: '100%',
+          background: 'rgba(255,255,255,0.06)',
+          pointerEvents: 'none',
+          zIndex: 3,
+        }}
+      />
+
+      {/* Top badge */}
+      <div style={{ position: 'absolute', top: 16, left: 20, zIndex: 4 }}>
+        <div style={{ background: brandColor, padding: '3px 12px' }}>
+          <span
+            style={{
+              fontSize: 8,
+              color: '#fff',
+              fontFamily: 'sans-serif',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: 1.5,
+            }}
+          >
+            Página dupla
+          </span>
+        </div>
       </div>
 
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        42x28cm
+      {/* Centred headline overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 60,
+          left: 0,
+          right: 0,
+          zIndex: 4,
+          textAlign: 'center',
+          padding: '0 60px',
+        }}
+      >
+        <div style={{ width: 50, height: 3, background: brandColor, margin: '0 auto 14px' }} />
+        <h2
+          style={{
+            fontSize: 26,
+            fontWeight: 900,
+            color: '#fff',
+            lineHeight: 1.15,
+            margin: '0 0 12px',
+            letterSpacing: -0.5,
+            textShadow: '0 2px 12px rgba(0,0,0,0.7)',
+          }}
+        >
+          {mainHeadline}
+        </h2>
+        <p
+          style={{
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.78)',
+            lineHeight: 1.55,
+            margin: '0 auto',
+            fontFamily: 'sans-serif',
+            maxWidth: 400,
+          }}
+        >
+          {bodyText}
+        </p>
+      </div>
+
+      {/* Bottom brand strip */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 4,
+          height: 48,
+          background: 'rgba(0,0,0,0.75)',
+          borderTop: `2px solid ${brandColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>
+          {brand.toUpperCase()}
+        </div>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', fontFamily: 'sans-serif' }}>
+            (11) 9 9999-0000
+          </span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', fontFamily: 'sans-serif' }}>
+            www.{brand.toLowerCase().replace(/\s/g, '')}.com.br
+          </span>
+        </div>
       </div>
     </div>
   );

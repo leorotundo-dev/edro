@@ -1,83 +1,169 @@
+'use client';
+
 import React from 'react';
 
 interface PitchTimeProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
+  description?: string;
+  text?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
-  accentColor?: string;
+  profileImage?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchTime: React.FC<PitchTimeProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
+  description,
+  text,
   image,
   postImage,
   thumbnail,
-  accentColor = '#f59e0b',
+  profileImage,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const slideTitle = headline ?? title ?? 'Nosso Time';
+  const companyName = brandName ?? name ?? 'Startup';
+  const subText = body ?? caption ?? description ?? text ?? 'Fundadores com experiência comprovada e complementar';
+  const founderImg = profileImage ?? image ?? postImage ?? thumbnail ?? '';
+
+  const founders = [
+    {
+      name: 'Ana Souza',
+      role: 'CEO & Co-fundadora',
+      cred: 'Ex-Google · MBA Wharton',
+      badge: 'Produto',
+      badgeColor: accent,
+    },
+    {
+      name: 'Bruno Lima',
+      role: 'CTO & Co-fundador',
+      cred: 'Ex-Nubank · 10 anos eng.',
+      badge: 'Tech',
+      badgeColor: '#8b5cf6',
+    },
+    {
+      name: 'Carla Melo',
+      role: 'CFO & Co-fundadora',
+      cred: 'Ex-Goldman · CFA',
+      badge: 'Finanças',
+      badgeColor: '#22c55e',
+    },
+    {
+      name: 'Diego Ramos',
+      role: 'CMO',
+      cred: 'Ex-iFood · 200k leads/mês',
+      badge: 'Growth',
+      badgeColor: '#f59e0b',
+    },
+  ];
+
+  const advisors = ['Fundo XP Ventures', 'Y Combinator W24', 'Endeavor Mentorship'];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div style={{
+      position: 'relative', width: '560px', height: '315px',
+      borderRadius: '10px', overflow: 'hidden',
+      background: '#ffffff',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <style>{`
+        @keyframes pitch-team-in {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accent}, ${accent}44, transparent)` }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: `linear-gradient(180deg, ${accent}, transparent)` }} />
+
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 26px 16px 30px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px' }}>
+            {companyName}
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: '0 0 3px 0', letterSpacing: '-0.02em' }}>
+            {slideTitle}
+          </h2>
+          <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>{subText}</p>
+        </div>
+
+        {/* Founder cards */}
+        <div style={{ display: 'flex', gap: '10px', flex: 1, animation: 'pitch-team-in 0.5s ease-out' }}>
+          {founders.map((f, i) => (
+            <div key={i} style={{
+              flex: 1, borderRadius: '10px', padding: '12px 10px',
+              background: '#f8fafc', border: '1px solid #e2e8f0',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              textAlign: 'center',
+            }}>
+              {/* Avatar circle */}
+              {i === 0 && founderImg ? (
+                <img
+                  src={founderImg}
+                  alt={f.name}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', marginBottom: '8px', border: `2px solid ${f.badgeColor}` }}
+                />
+              ) : (
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: `${f.badgeColor}18`,
+                  border: `2px solid ${f.badgeColor}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: '8px',
+                  fontSize: '16px', fontWeight: 900, color: f.badgeColor,
+                }}>
+                  {f.name.charAt(0)}
+                </div>
+              )}
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '2px' }}>{f.name}</div>
+              <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '6px', lineHeight: 1.3 }}>{f.role}</div>
+              <div style={{ fontSize: '9px', color: '#475569', marginBottom: '8px', lineHeight: 1.3 }}>{f.cred}</div>
+              <div style={{
+                background: `${f.badgeColor}18`, border: `1px solid ${f.badgeColor}44`,
+                borderRadius: '20px', padding: '2px 8px',
+                fontSize: '9px', fontWeight: 700, color: f.badgeColor,
+              }}>
+                {f.badge}
+              </div>
             </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+          ))}
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
+        {/* Advisors strip */}
+        <div style={{
+          marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px',
+          background: '#f1f5f9', borderRadius: '7px', padding: '6px 12px',
+        }}>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>Apoio:</span>
+          {advisors.map((a, i) => (
+            <div key={i} style={{
+              background: '#ffffff', border: '1px solid #e2e8f0',
+              borderRadius: '20px', padding: '2px 8px',
+              fontSize: '9px', fontWeight: 600, color: '#334155',
+            }}>
+              {a}
+            </div>
+          ))}
+          <div style={{ marginLeft: 'auto', fontSize: '10px', color: '#94a3b8' }}>09 / 15</div>
         </div>
-
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
-        </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Time
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

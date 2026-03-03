@@ -1,90 +1,149 @@
+'use client';
+
 import React from 'react';
 
 interface NewsletterTrimestralProps {
-  companyLogo?: string;
-  companyName?: string;
+  brandName?: string;
+  brandColor?: string;
   title?: string;
   headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  contentImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  bodyText?: string;
-  text?: string;
   body?: string;
-  caption?: string;
-  ctaText?: string;
-  brandColor?: string;
 }
 
 export const NewsletterTrimestral: React.FC<NewsletterTrimestralProps> = ({
-  companyLogo = '',
-  companyName = 'Company Name',
-  title,
-  headline,
-  name,
-  subtitle,
-  description,
-  contentImage,
-  postImage,
-  thumbnail,
-  bodyText,
-  text,
-  body,
-  caption,
-  ctaText = 'Read More',
-  brandColor = '#3b82f6',
+  brandName = 'Empresa S.A.',
+  brandColor = '#1e40af',
+  title = 'Relatório Trimestral',
+  headline = 'Q1 2025 — Janeiro · Fevereiro · Março',
+  name = 'Diretoria Executiva',
+  body = 'Um trimestre de conquistas e aprendizados. Confira os resultados consolidados, o destaque por área e as principais movimentações de pessoas neste período.',
 }) => {
-  const resolvedTitle = title || headline || name || 'Newsletter Title';
-  const resolvedSubtitle = subtitle || description || 'Edition subtitle or date';
-  const resolvedContentImage = contentImage || postImage || thumbnail || '';
-  const resolvedBodyText = bodyText || text || body || caption || 'Newsletter content goes here. Share important updates, news, and information with your team.';
+  const financeiros = [
+    { label: 'Receita Total', valor: 'R$ 12,4M', vs: '+21% vs Q1/24', cor: '#16a34a' },
+    { label: 'EBITDA', valor: '24%', vs: '+2pp vs Q1/24', cor: '#3b82f6' },
+    { label: 'Novos Contratos', valor: '31', vs: '+8 vs Q1/24', cor: '#8b5cf6' },
+  ];
+
+  const destaques = [
+    { depto: 'Tecnologia', conquista: 'Migração cloud 100% concluída — 30 dias antes do prazo', cor: '#3b82f6' },
+    { depto: 'Comercial', conquista: 'Melhor Q1 da história: 127% da meta atingida', cor: '#059669' },
+    { depto: 'RH', conquista: 'eNPS de 68 pontos — maior resultado desde 2019', cor: '#8b5cf6' },
+  ];
+
+  const pessoas = [
+    { label: 'Novos colaboradores', val: '23', icone: '👋' },
+    { label: 'Promoções internas', val: '11', icone: '⬆️' },
+    { label: 'Turnover', val: '4,2%', icone: '📊' },
+  ];
+
   return (
-    <div className="w-full max-w-[600px] min-h-[800px] bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
-      <div
-        className="p-6 text-white"
-        style={{ backgroundColor: brandColor }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          {companyLogo && (
-            <div className="w-12 h-12 bg-white rounded">
-              <img src={companyLogo} alt={companyName} className="w-full h-full object-contain p-1" />
-            </div>
-          )}
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold">{companyName}</h3>
-            <p className="text-xs opacity-90">{resolvedSubtitle}</p>
+    <div style={{
+      width: 420, background: '#ffffff',
+      borderRadius: 12, overflow: 'hidden',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+    }}>
+      <style>{`
+        @keyframes ntr-fin { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .ntr-fin { animation: ntr-fin 0.35s ease both; }
+        .ntr-fin:nth-child(1){animation-delay:0.05s}
+        .ntr-fin:nth-child(2){animation-delay:0.12s}
+        .ntr-fin:nth-child(3){animation-delay:0.19s}
+        @keyframes ntr-dept { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+        .ntr-dept { animation: ntr-dept 0.35s ease both; }
+        .ntr-dept:nth-child(1){animation-delay:0.1s}
+        .ntr-dept:nth-child(2){animation-delay:0.18s}
+        .ntr-dept:nth-child(3){animation-delay:0.26s}
+      `}</style>
+
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${brandColor}, #1e3a8a)`, padding: '24px 28px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>{brandName} · {name}</div>
+          <div style={{
+            background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)',
+            borderRadius: 6, padding: '5px 12px',
+          }}>
+            <span style={{ color: 'white', fontSize: 12, fontWeight: 800 }}>Q1 2025</span>
           </div>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         </div>
-        <h1 className="text-2xl font-black">{resolvedTitle}</h1>
+        <h1 style={{ color: 'white', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>{title}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: 0 }}>{headline}</p>
       </div>
 
-      <div className="p-6">
-        {resolvedContentImage && (
-          <div className="w-full h-48 bg-gray-200 rounded mb-4">
-            <img src={resolvedContentImage} alt="Content" className="w-full h-full object-cover rounded" />
-          </div>
-        )}
-
-        <p className="text-gray-700 text-sm leading-relaxed mb-4">{resolvedBodyText}</p>
-
-        <button
-          className="text-white font-semibold py-2 px-6 rounded text-sm"
-          style={{ backgroundColor: brandColor }}
-        >
-          {ctaText}
-        </button>
+      {/* Intro */}
+      <div style={{ padding: '16px 28px 10px' }}>
+        <p style={{ color: '#4b5563', fontSize: 11, lineHeight: 1.65, margin: 0 }}>{body}</p>
       </div>
 
-      <div className="absolute top-2 right-2 bg-cyan-600 text-white text-xs font-bold px-2 py-1 rounded">
-        Newsletter Trimestral
+      {/* Financeiro */}
+      <div style={{ padding: '0 28px 14px' }}>
+        <div style={{ color: '#6b7280', fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+          Destaques financeiros
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {financeiros.map((f, i) => (
+            <div key={i} className="ntr-fin" style={{
+              background: `${f.cor}08`, border: `1px solid ${f.cor}20`,
+              borderRadius: 8, padding: '10px 8px', textAlign: 'center',
+            }}>
+              <div style={{ color: f.cor, fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{f.valor}</div>
+              <div style={{ color: '#9ca3af', fontSize: 8, margin: '3px 0' }}>{f.label}</div>
+              <div style={{ color: '#16a34a', fontSize: 8, fontWeight: 700 }}>{f.vs}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="px-6 pb-4 text-center text-xs text-gray-500">
-        Internal Communication • Email
+      {/* Destaque por departamento */}
+      <div style={{ padding: '0 28px 14px' }}>
+        <div style={{ color: '#6b7280', fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+          Destaque por área
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {destaques.map((d, i) => (
+            <div key={i} className="ntr-dept" style={{
+              display: 'flex', gap: 10, alignItems: 'flex-start',
+              background: '#f9fafb', borderRadius: 7, padding: '10px 12px',
+              border: '1px solid #e5e7eb', borderLeft: `3px solid ${d.cor}`,
+            }}>
+              <div>
+                <span style={{
+                  background: `${d.cor}12`, border: `1px solid ${d.cor}25`,
+                  color: d.cor, fontSize: 8, fontWeight: 700,
+                  padding: '2px 7px', borderRadius: 3, display: 'inline-block', marginBottom: 3,
+                }}>{d.depto}</span>
+                <p style={{ color: '#374151', fontSize: 11, margin: 0, lineHeight: 1.4 }}>{d.conquista}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pessoas / RH */}
+      <div style={{ padding: '0 28px 20px' }}>
+        <div style={{ color: '#6b7280', fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+          Pessoas & RH
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {pessoas.map((p, i) => (
+            <div key={i} style={{
+              flex: 1, background: '#f9fafb', borderRadius: 8, padding: '10px',
+              textAlign: 'center', border: '1px solid #e5e7eb',
+            }}>
+              <div style={{ fontSize: 18 }}>{p.icone}</div>
+              <div style={{ color: brandColor, fontSize: 16, fontWeight: 900, marginTop: 4 }}>{p.val}</div>
+              <div style={{ color: '#9ca3af', fontSize: 8, lineHeight: 1.3 }}>{p.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ background: '#f9fafb', borderTop: '1px solid #e5e7eb', padding: '12px 28px', display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{brandName} · Relatório Q1 2025</span>
+        <span style={{ color: '#9ca3af', fontSize: 10 }}>{new Date().toLocaleDateString('pt-BR')}</span>
       </div>
     </div>
   );

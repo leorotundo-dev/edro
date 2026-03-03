@@ -1,74 +1,239 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteCapaProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  backgroundImage?: string;
+  description?: string;
+  text?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteCapa: React.FC<KeynoteCapaProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  backgroundImage,
+  description,
+  text,
   image,
   postImage,
   thumbnail,
-  themeColor = '#6366f1',
+  profileImage,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor ?? '#6366F1';
+  const resolvedTitle = title ?? headline ?? brandName ?? 'Inovação em Foco';
+  const resolvedSubtitle = body ?? caption ?? description ?? text ?? 'Uma apresentação sobre o futuro do nosso negócio';
+  const resolvedName = name ?? username ?? 'Maria Silva';
+  const resolvedImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  // Derive a darker shade for gradient
+  const accentDark = accent;
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        background: `linear-gradient(135deg, ${accent}f0 0%, ${accent}80 50%, #1a1a2e 100%)`,
+      }}
+    >
+      {/* Background geometric shapes */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '-60px',
+          right: '-60px',
+          width: '220px',
+          height: '220px',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.08)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '-40px',
+          left: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.05)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: '50px',
+          left: '30px',
+          width: '3px',
+          height: '200px',
+          background: 'rgba(255,255,255,0.15)',
+          borderRadius: '2px',
+        }}
+      />
+
+      {/* Background image overlay */}
+      {resolvedImage && (
+        <img
+          src={resolvedImage}
+          alt="Capa"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            opacity: 0.08,
+          }}
+        />
+      )}
+
+      {/* Top label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '18px',
+          right: '18px',
+          background: 'rgba(255,255,255,0.15)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: '20px',
+          padding: '3px 10px',
+          fontSize: '9px',
+          fontWeight: 700,
+          color: '#fff',
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Apresentação
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Main content */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 60px',
+          textAlign: 'center',
+        }}
+      >
+        {/* Decorative line above title */}
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
+          style={{
+            width: '48px',
+            height: '3px',
+            background: 'rgba(255,255,255,0.7)',
+            borderRadius: '2px',
+            marginBottom: '20px',
+          }}
         />
 
         <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+          style={{
+            fontSize: '32px',
+            fontWeight: 900,
+            color: '#ffffff',
+            lineHeight: 1.1,
+            margin: '0 0 14px 0',
+            letterSpacing: '-0.5px',
+            textShadow: '0 2px 12px rgba(0,0,0,0.3)',
+          }}
         >
           {resolvedTitle}
         </h1>
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+        <p
+          style={{
+            fontSize: '13px',
+            color: 'rgba(255,255,255,0.8)',
+            margin: '0 0 28px 0',
+            lineHeight: 1.5,
+            maxWidth: '380px',
+            fontWeight: 400,
+          }}
+        >
+          {resolvedSubtitle}
+        </p>
+
+        {/* Divider */}
+        <div
+          style={{
+            width: '60px',
+            height: '1px',
+            background: 'rgba(255,255,255,0.4)',
+            marginBottom: '20px',
+          }}
+        />
+
+        {/* Presenter + date */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.2)',
+              border: '2px solid rgba(255,255,255,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#fff',
+              overflow: 'hidden',
+            }}
+          >
+            {resolvedName.charAt(0).toUpperCase()}
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{resolvedName}</div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>{dateStr}</div>
+          </div>
+        </div>
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Capa
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
-      </div>
+      {/* Bottom bar */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'rgba(255,255,255,0.3)',
+        }}
+      />
     </div>
   );
 };

@@ -1,58 +1,199 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaQuartaPaginaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaQuartaPagina: React.FC<RevistaQuartaPaginaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#e67e22',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
+  const brand = brandName ?? name ?? 'Marca';
+  const mainHeadline = headline ?? title ?? 'Oferta especial para leitores';
+  const bodyText =
+    body ?? caption ?? description ?? text ??
+    'Anúncio horizontal de ¼ de página — formato faixa econômico e eficiente.';
+  const heroImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
   return (
-    <div className="relative w-[315px] h-[420px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
+    <div
+      style={{
+        width: 340,
+        height: 110,
+        background: '#f8f8f4',
+        fontFamily: '"Georgia", "Times New Roman", serif',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'stretch',
+        border: `1px solid #e0e0d8`,
+        borderLeft: `5px solid ${brandColor}`,
+      }}
+    >
+      <style>{`
+        @keyframes rqp-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+        .rqp-in { animation: rqp-in 0.4s ease both; }
+        @keyframes rqp-pulse { 0%,100%{opacity:1} 50%{opacity:0.82} }
+        .rqp-cta { animation: rqp-pulse 2.2s ease infinite; }
+      `}</style>
+
+      {/* Brand block */}
+      <div
+        style={{
+          width: 90,
+          background: '#111',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 8px',
+          flexShrink: 0,
+        }}
+        className="rqp-in"
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 900,
+            color: '#fff',
+            textTransform: 'uppercase',
+            textAlign: 'center',
+            lineHeight: 1.1,
+            letterSpacing: -0.2,
+          }}
+        >
+          {brand}
+        </div>
+        <div style={{ width: 20, height: 2, background: brandColor, marginTop: 4 }} />
+        <div
+          style={{
+            fontSize: 6.5,
+            color: 'rgba(255,255,255,0.4)',
+            fontFamily: 'sans-serif',
+            marginTop: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+          }}
+        >
+          ¼ página
+        </div>
       </div>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
-          </div>
-        )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+      {/* Optional image */}
+      {heroImage && (
+        <div style={{ width: 80, flexShrink: 0, overflow: 'hidden' }}>
+          <img
+            src={heroImage}
+            alt={mainHeadline}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        </div>
+      )}
+
+      {/* Copy */}
+      <div
+        style={{
+          flex: 1,
+          padding: '0 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 4,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 7,
+            fontFamily: 'sans-serif',
+            color: brandColor,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+            fontWeight: 700,
+          }}
+        >
+          Publicidade
+        </div>
+        <h2
+          style={{
+            fontSize: 13,
+            fontWeight: 900,
+            color: '#111',
+            lineHeight: 1.2,
+            margin: 0,
+            letterSpacing: -0.2,
+          }}
+        >
+          {mainHeadline}
+        </h2>
+        <p style={{ fontSize: 8.5, color: '#555', margin: 0, fontFamily: 'sans-serif', lineHeight: 1.4 }}>
+          {bodyText}
+        </p>
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Quarta Página
-      </div>
-
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        21x28cm
+      {/* CTA */}
+      <div
+        style={{
+          width: 80,
+          background: brandColor,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 8px',
+          flexShrink: 0,
+          gap: 4,
+        }}
+        className="rqp-cta"
+      >
+        <div
+          style={{
+            fontSize: 9.5,
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
+            textAlign: 'center',
+            lineHeight: 1.2,
+          }}
+        >
+          Acesse já!
+        </div>
+        <div
+          style={{
+            fontSize: 7.5,
+            color: 'rgba(255,255,255,0.7)',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+          }}
+        >
+          (11) 9 9999-0000
+        </div>
       </div>
     </div>
   );

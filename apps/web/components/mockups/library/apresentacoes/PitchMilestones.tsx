@@ -1,83 +1,168 @@
+'use client';
+
 import React from 'react';
 
 interface PitchMilestonesProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
-  accentColor?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchMilestones: React.FC<PitchMilestonesProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  accentColor = '#f59e0b',
+  description,
+  text,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const slideTitle = headline ?? title ?? 'Marcos Alcançados';
+  const companyName = brandName ?? name ?? 'Startup';
+  const subText = body ?? caption ?? description ?? text ?? 'De ideia a produto com tração real em 24 meses';
+
+  const milestones = [
+    { date: 'Jan 2024', label: 'Fundação',         desc: 'Empresa constituída, primeiros R$500k de investimento anjo', done: true  },
+    { date: 'Abr 2024', label: 'MVP Lançado',       desc: 'Versão beta com 50 clientes piloto e NPS 68', done: true  },
+    { date: 'Jul 2024', label: 'Product-Market Fit', desc: 'Taxa de retenção 85% e primeiras renovações', done: true  },
+    { date: 'Out 2024', label: 'R$ 100k MRR',        desc: 'Marco de receita atingido com 400 clientes', done: true  },
+    { date: 'Jan 2025', label: 'Seed Round',         desc: 'R$3M captados com fundo XP Ventures', done: true  },
+    { date: 'Ago 2025', label: 'R$ 480k MRR',        desc: 'Crescimento 28% MoM — marco atual', done: true, current: true },
+    { date: 'Mar 2026', label: 'Série A',            desc: 'Captação em andamento — R$8M', done: false },
+    { date: 'Dez 2026', label: 'Expansão LATAM',    desc: 'México e Colômbia como novos mercados', done: false },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div style={{
+      position: 'relative', width: '560px', height: '315px',
+      borderRadius: '10px', overflow: 'hidden',
+      background: '#ffffff',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <style>{`
+        @keyframes pitch-ms-pop {
+          from { transform: scale(0); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accent}, ${accent}44, transparent)` }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: `linear-gradient(180deg, ${accent}, transparent)` }} />
+
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 26px 16px 30px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px' }}>
+            {companyName}
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: '0 0 3px 0', letterSpacing: '-0.02em' }}>
+            {slideTitle}
+          </h2>
+          <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>{subText}</p>
+        </div>
+
+        {/* Timeline track */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+
+          {/* Horizontal line */}
+          <div style={{
+            position: 'absolute', top: '50%', left: 0, right: 0,
+            height: '2px', background: '#e2e8f0', transform: 'translateY(-50%)',
+          }} />
+          {/* Completed portion */}
+          <div style={{
+            position: 'absolute', top: '50%', left: 0, width: '75%',
+            height: '2px', background: `linear-gradient(90deg, ${accent}, ${accent}88)`,
+            transform: 'translateY(-50%)',
+          }} />
+
+          {/* Milestone dots */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
+            {milestones.map((m, i) => {
+              const isTop = i % 2 === 0;
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '56px' }}>
+                  {/* Top label */}
+                  {isTop && (
+                    <div style={{ marginBottom: '6px', textAlign: 'center' }}>
+                      <div style={{
+                        fontSize: '8px', fontWeight: 700,
+                        color: m.current ? accent : m.done ? '#334155' : '#94a3b8',
+                        lineHeight: 1.2, marginBottom: '2px',
+                      }}>
+                        {m.label}
+                      </div>
+                      <div style={{ fontSize: '7px', color: '#94a3b8', lineHeight: 1.2 }}>{m.date}</div>
+                    </div>
+                  )}
+                  {!isTop && <div style={{ height: '38px' }} />}
+
+                  {/* Dot */}
+                  <div style={{
+                    width: m.current ? '16px' : '12px',
+                    height: m.current ? '16px' : '12px',
+                    borderRadius: '50%',
+                    background: m.current ? accent : m.done ? accent : '#e2e8f0',
+                    border: m.current ? `3px solid ${accent}` : m.done ? `2px solid ${accent}` : '2px solid #cbd5e1',
+                    boxShadow: m.current ? `0 0 0 4px ${accent}33` : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: `pitch-ms-pop 0.3s ease-out ${i * 0.07}s both`,
+                    zIndex: 1, position: 'relative',
+                    flexShrink: 0,
+                  }}>
+                    {m.done && !m.current && (
+                      <svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Bottom label */}
+                  {!isTop && (
+                    <div style={{ marginTop: '6px', textAlign: 'center' }}>
+                      <div style={{
+                        fontSize: '8px', fontWeight: 700,
+                        color: m.current ? accent : m.done ? '#334155' : '#94a3b8',
+                        lineHeight: 1.2, marginBottom: '2px',
+                      }}>
+                        {m.label}
+                      </div>
+                      <div style={{ fontSize: '7px', color: '#94a3b8', lineHeight: 1.2 }}>{m.date}</div>
+                    </div>
+                  )}
+                  {isTop && <div style={{ height: '38px' }} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px', color: '#94a3b8' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: accent }} />
+              <span>Concluído</span>
             </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+              <span>Planejado</span>
+            </div>
+          </div>
+          <span>12 / 15</span>
         </div>
-
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
-        </div>
-
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
-        </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Milestones
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

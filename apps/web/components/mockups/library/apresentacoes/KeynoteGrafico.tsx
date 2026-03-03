@@ -1,73 +1,195 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteGraficoProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
+  text?: string;
   caption?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
+  description?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteGrafico: React.FC<KeynoteGraficoProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
+  text,
   caption,
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  themeColor = '#6366f1',
+  description,
+  brandColor,
+  themeColor = '#6366F1',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor;
+  const slideTitle = headline ?? title ?? 'Evolução de Resultados';
+  const legendLabel = body ?? text ?? caption ?? description ??
+    name ?? username ?? brandName ?? 'Receita mensal (R$ mil)';
+
+  const bars = [
+    { label: 'Jan', value: 55, color: `${accent}88` },
+    { label: 'Fev', value: 68, color: `${accent}99` },
+    { label: 'Mar', value: 72, color: `${accent}aa` },
+    { label: 'Abr', value: 80, color: `${accent}bb` },
+    { label: 'Mai', value: 91, color: accent },
+  ];
+
+  const maxVal = 100;
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        background: '#ffffff',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        userSelect: 'none',
+      }}
+    >
+      {/* CSS animation */}
+      <style>{`
+        @keyframes kn-bar-grow {
+          from { transform: scaleY(0); }
+          to { transform: scaleY(1); }
+        }
+        .kn-bar {
+          animation: kn-bar-grow 0.8s ease-out both;
+          transform-origin: bottom;
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '4px', height: '18px', background: accent, borderRadius: '2px' }} />
+          <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#111827', margin: 0 }}>{slideTitle}</h2>
+        </div>
+        {/* Legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: accent }} />
+          <span style={{ fontSize: '9px', color: '#6b7280' }}>{legendLabel}</span>
+        </div>
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
-        <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
+      {/* Chart area */}
+      <div style={{ flex: 1, padding: '8px 24px 4px', display: 'flex', flexDirection: 'column' }}>
+        {/* Y-axis labels + chart */}
+        <div style={{ flex: 1, display: 'flex', gap: '10px' }}>
+          {/* Y-axis labels */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '24px' }}>
+            {[100, 75, 50, 25, 0].map((v) => (
+              <span key={v} style={{ fontSize: '8px', color: '#d1d5db', lineHeight: 1 }}>{v}</span>
+            ))}
+          </div>
 
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
-        >
-          {resolvedTitle}
-        </h1>
+          {/* Grid + bars */}
+          <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            {/* Horizontal grid lines */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              {[0, 25, 50, 75, 100].map((v) => (
+                <div
+                  key={v}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: `${v}%`,
+                    height: '1px',
+                    background: v === 0 ? '#9ca3af' : '#f0f0f0',
+                  }}
+                />
+              ))}
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+              {/* Bar columns */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-around',
+                  paddingBottom: '1px',
+                }}
+              >
+                {bars.map((bar, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      height: '100%',
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    {/* Value label on top */}
+                    <span style={{ fontSize: '8px', fontWeight: 700, color: accent, marginBottom: '2px' }}>
+                      {bar.value}
+                    </span>
+                    <div
+                      className="kn-bar"
+                      style={{
+                        width: '44px',
+                        height: `${(bar.value / maxVal) * 100}%`,
+                        background: bar.color,
+                        borderRadius: '4px 4px 0 0',
+                        animationDelay: `${i * 0.12}s`,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* X-axis labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-around', paddingTop: '4px' }}>
+              {bars.map((bar, i) => (
+                <span key={i} style={{ fontSize: '9px', color: '#6b7280', width: '44px', textAlign: 'center' }}>
+                  {bar.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Gráfico
+      {/* X-axis label */}
+      <div style={{ textAlign: 'center', paddingBottom: '8px', flexShrink: 0 }}>
+        <span style={{ fontSize: '8px', color: '#9ca3af' }}>Período — 2024</span>
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Slide label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: accent,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: '4px',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Gráfico
       </div>
     </div>
   );

@@ -1,44 +1,185 @@
+'use client';
+
 import React from 'react';
 
 interface SlideAulaCapaProps {
   title?: string;
   headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
   body?: string;
   caption?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
 }
 
 export const SlideAulaCapa: React.FC<SlideAulaCapaProps> = ({
   title,
   headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
   body,
   caption,
+  description,
+  text,
+  brandColor = '#5D87FF',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Lesson Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Learning objectives';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Educational content...';
+  const resolvedTitle = title ?? headline ?? 'Introdução ao Cálculo Diferencial';
+  const resolvedSubtitle = description ?? caption ?? 'Fundamentos, limites e derivadas';
+  const resolvedProfessor = name ?? username ?? 'Prof. Dr. Ricardo Lima';
+  const resolvedInstitution = brandName ?? 'Universidade EduTech';
+  const resolvedDate = body ?? text ?? 'Março de 2025';
+  const accent = brandColor;
 
   return (
-    <div className="relative w-full max-w-[700px] h-[500px] bg-white rounded-lg overflow-hidden shadow-xl border-2 border-gray-200 p-8">
-      <div className="text-center mb-6">
-        <h1 className="text-4xl font-black text-green-600 mb-2">{resolvedTitle}</h1>
-        <p className="text-lg text-gray-600">{resolvedSubtitle}</p>
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
+        fontFamily: 'system-ui, sans-serif',
+        background: '#0f172a',
+        display: 'flex',
+      }}
+    >
+      {/* Left color panel */}
+      <div
+        style={{
+          width: '8px',
+          background: accent,
+          flexShrink: 0,
+        }}
+      />
+
+      {/* Left content column */}
+      <div
+        style={{
+          flex: 1,
+          padding: '36px 32px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        {/* Institution badge */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: `${accent}20`,
+            border: `1px solid ${accent}40`,
+            borderRadius: '4px',
+            padding: '5px 12px',
+            alignSelf: 'flex-start',
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+            <path d="M6 12v5c3 3 9 3 12 0v-5" />
+          </svg>
+          <span style={{ fontSize: '10px', color: accent, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>
+            {resolvedInstitution}
+          </span>
+        </div>
+
+        {/* Title block */}
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '26px',
+              fontWeight: 900,
+              color: '#ffffff',
+              lineHeight: 1.15,
+              marginBottom: '10px',
+            }}
+          >
+            {resolvedTitle}
+          </h1>
+          <div
+            style={{
+              width: '48px',
+              height: '3px',
+              background: accent,
+              borderRadius: '2px',
+              marginBottom: '10px',
+            }}
+          />
+          <p
+            style={{
+              margin: 0,
+              fontSize: '13px',
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}
+          >
+            {resolvedSubtitle}
+          </p>
+        </div>
+
+        {/* Footer info */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            paddingTop: '14px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '9px', color: '#475569', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
+              Responsável
+            </div>
+            <div style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 600 }}>{resolvedProfessor}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '9px', color: '#475569', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
+              Data
+            </div>
+            <div style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 600 }}>{resolvedDate}</div>
+          </div>
+        </div>
       </div>
-      <div className="text-base text-gray-700">{resolvedContent}</div>
-      <div className="absolute top-3 right-3 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-        Slide Aula Capa
+
+      {/* Right decorative column */}
+      <div
+        style={{
+          width: '140px',
+          flexShrink: 0,
+          background: `linear-gradient(160deg, ${accent}18 0%, ${accent}05 100%)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderLeft: `1px solid ${accent}15`,
+        }}
+      >
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="0.7" opacity="0.3">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
       </div>
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">Educacional</div>
+
+      {/* Slide number */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '12px',
+          fontSize: '10px',
+          color: '#334155',
+          fontWeight: 700,
+        }}
+      >
+        01
+      </div>
     </div>
   );
 };

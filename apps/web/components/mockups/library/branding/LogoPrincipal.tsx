@@ -1,58 +1,259 @@
+'use client';
+
 import React from 'react';
 
 interface LogoPrincipalProps {
-  logoImage?: string;
-  profileImage?: string;
-  brandLogo?: string;
+  name?: string;
+  username?: string;
   brandName?: string;
-  backgroundColor?: string;
-  showGrid?: boolean;
+  headline?: string;
+  title?: string;
+  body?: string;
+  caption?: string;
+  description?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const LogoPrincipal: React.FC<LogoPrincipalProps> = ({
-  logoImage = '',
+  name,
+  username,
+  brandName,
+  headline,
+  title,
+  body,
+  caption,
+  description,
+  text,
+  image,
+  postImage,
+  thumbnail,
   profileImage,
-  brandLogo,
-  brandName = 'Brand Name',
-  backgroundColor = '#ffffff',
-  showGrid = false,
+  brandColor = '#1a56db',
 }) => {
-  const resolvedLogo = logoImage || profileImage || brandLogo;
+  const resolvedBrand = brandName || name || username || 'MarcaDigital';
+  const resolvedTagline = headline || title || body || caption || description || text || 'Plataforma de Marketing';
+  const resolvedLogo = image || postImage || thumbnail || profileImage || null;
+  const accent = brandColor || '#1a56db';
+  const initial = resolvedBrand.charAt(0).toUpperCase();
+  const X = 24; // exclusion zone unit in px
+
   return (
-    <div
-      className="relative w-[400px] h-[400px] rounded-lg overflow-hidden shadow-xl border-2 border-gray-200"
-      style={{ backgroundColor }}
-    >
-      {showGrid && (
-        <div className="absolute inset-0 opacity-10"
+    <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", display: 'inline-flex', flexDirection: 'column', gap: '14px' }}>
+      <style>{`
+        @keyframes lp-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .lp-wrap { animation: lp-appear 0.4s cubic-bezier(0.22,1,0.36,1); }
+      `}</style>
+
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+        Logo Principal · Área de Exclusão
+      </div>
+
+      <div
+        className="lp-wrap"
+        style={{
+          width: '380px',
+          borderRadius: '12px',
+          border: '1px solid #e5e7eb',
+          background: '#ffffff',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.09)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Canvas with dot grid */}
+        <div
           style={{
-            backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
+            position: 'relative',
+            height: '240px',
+            background: '#fafbff',
           }}
-        />
-      )}
+        >
+          {/* Dot grid */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'radial-gradient(circle, #c7d2fe 1px, transparent 1px)',
+              backgroundSize: '16px 16px',
+              opacity: 0.6,
+            }}
+          />
 
-      <div className="relative h-full flex items-center justify-center p-8">
-        {resolvedLogo ? (
-          <img src={resolvedLogo} alt={brandName} className="max-w-full max-h-full object-contain" />
-        ) : (
-          <div className="text-center">
-            <div className="w-32 h-32 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-              <span className="text-5xl font-black text-white">{brandName.charAt(0)}</span>
-            </div>
-            <h2 className="text-3xl font-black text-gray-900">{brandName}</h2>
+          {/* Outer clear-space zone */}
+          <div
+            style={{
+              position: 'absolute',
+              top: X,
+              left: X,
+              right: X,
+              bottom: X,
+              border: `1.5px dashed ${accent}66`,
+              borderRadius: '6px',
+            }}
+          />
+
+          {/* Corner "X" distance markers */}
+          {(['top', 'bottom'] as const).map((vert) =>
+            (['left', 'right'] as const).map((horiz) => (
+              <div
+                key={`${vert}-${horiz}`}
+                style={{
+                  position: 'absolute',
+                  [vert]: X - 7,
+                  [horiz]: X - 7,
+                  width: '14px',
+                  height: '14px',
+                  border: `2px solid ${accent}`,
+                  borderRadius: '2px',
+                  background: '#fff',
+                }}
+              />
+            ))
+          )}
+
+          {/* Arrow callout — horizontal */}
+          <div
+            style={{
+              position: 'absolute',
+              top: X / 2 - 5,
+              left: X,
+              right: X,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ flex: 1, height: '1px', background: `${accent}55` }} />
+            <span style={{ fontSize: '9px', color: accent, fontWeight: 700, padding: '0 4px', background: '#fafbff' }}>X</span>
+            <div style={{ flex: 1, height: '1px', background: `${accent}55` }} />
           </div>
-        )}
+
+          {/* Arrow callout — vertical left */}
+          <div
+            style={{
+              position: 'absolute',
+              left: X / 2 - 5,
+              top: X,
+              bottom: X,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ flex: 1, width: '1px', background: `${accent}55` }} />
+            <span
+              style={{
+                fontSize: '9px',
+                color: accent,
+                fontWeight: 700,
+                padding: '2px 0',
+                background: '#fafbff',
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+              }}
+            >
+              X
+            </span>
+            <div style={{ flex: 1, width: '1px', background: `${accent}55` }} />
+          </div>
+
+          {/* Logo centred */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: X * 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '14px',
+            }}
+          >
+            {resolvedLogo ? (
+              <img src={resolvedLogo} alt={resolvedBrand} style={{ height: '60px', width: 'auto', objectFit: 'contain' }} />
+            ) : (
+              <>
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '14px',
+                    background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 100%)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '28px',
+                    fontWeight: 900,
+                    boxShadow: `0 6px 20px ${accent}44`,
+                    flexShrink: 0,
+                  }}
+                >
+                  {initial}
+                </div>
+                <div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#111827', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {resolvedBrand}
+                  </div>
+                  <div style={{ fontSize: '10px', color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '5px' }}>
+                    {resolvedTagline}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* "Área de exclusão = X" callout box */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              right: '14px',
+              background: `${accent}11`,
+              border: `1px solid ${accent}33`,
+              borderRadius: '6px',
+              padding: '5px 10px',
+              fontSize: '9px',
+              color: accent,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+            }}
+          >
+            Área de exclusão = X = altura do ícone
+          </div>
+        </div>
+
+        {/* Info bar */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: '1px solid #e5e7eb',
+            background: '#f8f9fb',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px 24px',
+          }}
+        >
+          {[
+            { color: accent, text: 'Nenhum elemento dentro da área de exclusão' },
+            { color: '#22c55e', text: 'Mínimo 80px de largura na versão digital' },
+            { color: '#ef4444', text: 'Não alterar proporções, cores ou tipografia' },
+          ].map((n, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: n.color, flexShrink: 0 }} />
+              <span style={{ fontSize: '10px', color: '#374151' }}>{n.text}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="absolute top-3 right-3 bg-rose-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-        Logo Principal
-      </div>
-
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        Variable
-      </div>
+      <div style={{ fontSize: '10px', color: '#9ca3af' }}>Logo principal · Versão primária · SVG + PNG 2x fornecidos no brandbook</div>
     </div>
   );
 };

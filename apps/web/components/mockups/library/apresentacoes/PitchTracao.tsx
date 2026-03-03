@@ -1,83 +1,130 @@
+'use client';
+
 import React from 'react';
 
 interface PitchTracaoProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
-  image?: string;
-  postImage?: string;
-  thumbnail?: string;
-  accentColor?: string;
+  description?: string;
+  text?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchTracao: React.FC<PitchTracaoProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
-  image,
-  postImage,
-  thumbnail,
-  accentColor = '#f59e0b',
+  description,
+  text,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const slideTitle = headline ?? title ?? 'Tração';
+  const companyName = brandName ?? name ?? 'Startup';
+  const subText = body ?? caption ?? description ?? text ?? 'Crescimento consistente mês a mês com retenção excepcional';
+
+  const metrics = [
+    { label: 'MRR', value: 'R$480k', delta: '+34%', color: accent, bg: `${accent}12` },
+    { label: 'Usuários Ativos', value: '12.400', delta: '+28%', color: '#8b5cf6', bg: '#8b5cf612' },
+    { label: 'Crescimento MoM', value: '28%', delta: '+6pp', color: '#22c55e', bg: '#22c55e12' },
+    { label: 'NPS', value: '72', delta: '+8pts', color: '#f59e0b', bg: '#f59e0b12' },
+  ];
+
+  const chartBars = [38, 47, 52, 61, 68, 74, 82, 91, 100];
+  const months = ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev', 'Mar'];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div style={{
+      position: 'relative', width: '560px', height: '315px',
+      borderRadius: '10px', overflow: 'hidden',
+      background: '#ffffff',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <style>{`
+        @keyframes pitch-trac-bar {
+          from { transform: scaleY(0); }
+          to { transform: scaleY(1); }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accent}, ${accent}44, transparent)` }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: `linear-gradient(180deg, ${accent}, transparent)` }} />
+
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 26px 16px 30px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px' }}>
+            {companyName}
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: '0 0 3px 0', letterSpacing: '-0.02em' }}>
+            {slideTitle}
+          </h2>
+          <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>{subText}</p>
+        </div>
+
+        {/* Metric cards */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+          {metrics.map((m, i) => (
+            <div key={i} style={{
+              flex: 1, borderRadius: '10px', padding: '10px 10px 8px',
+              background: m.bg, border: `1px solid ${m.color}33`,
+            }}>
+              <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', fontWeight: 600 }}>{m.label}</div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginBottom: '4px' }}>{m.value}</div>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '2px',
+                background: '#dcfce7', borderRadius: '20px', padding: '1px 6px',
+              }}>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15" />
+                </svg>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: '#16a34a' }}>{m.delta}</span>
+              </div>
             </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+          ))}
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
+        {/* Growth chart */}
+        <div style={{
+          flex: 1, background: '#f8fafc', borderRadius: '10px',
+          border: '1px solid #e2e8f0', padding: '10px 14px 6px',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
+            MRR — Últimos 9 meses (R$ mil)
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
+            {chartBars.map((h, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                <div style={{
+                  width: '100%',
+                  height: `${h * 0.52}px`,
+                  borderRadius: '3px 3px 0 0',
+                  background: i === chartBars.length - 1 ? accent : `${accent}55`,
+                  transformOrigin: 'bottom',
+                  animation: `pitch-trac-bar 0.6s ease-out ${i * 0.05}s both`,
+                }} />
+                <span style={{ fontSize: '8px', color: '#94a3b8' }}>{months[i]}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px', color: '#94a3b8' }}>
+          <span>Dados auditados · Q1 2026</span>
+          <span>07 / 15</span>
         </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Tração
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

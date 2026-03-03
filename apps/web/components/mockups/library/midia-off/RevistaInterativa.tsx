@@ -1,58 +1,135 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaInterativaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaInterativa: React.FC<RevistaInterativaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#4f46e5',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
+  const brand = brandName ?? name ?? 'Marca Digital';
+  const mainHeadline = headline ?? title ?? 'Aponte sua câmera e descubra o que está por trás da página';
+  const bodyText = body ?? caption ?? description ?? text ?? 'A página interativa conecta o impresso ao digital. Com um QR Code, o leitor acessa vídeo, catálogo completo ou experiência imersiva em segundos — sem digitar nenhum endereço.';
+  const adImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
+  const interactions = [
+    { icon: '▶', label: 'Vídeo exclusivo' },
+    { icon: '📱', label: 'Catálogo digital' },
+    { icon: '🌐', label: 'Site completo' },
+  ];
+
   return (
-    <div className="relative w-[150px] h-[150px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
+    <div style={{ width: 360, height: 454, background: '#fff', fontFamily: '"Georgia", "Times New Roman", serif', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes rint-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .rint-in { animation: rint-in 0.55s ease both; }
+        @keyframes rint-img { from{transform:scale(1.04)} to{transform:scale(1)} }
+        .rint-img { animation: rint-img 0.7s ease both; }
+        @keyframes rint-qr-pulse { 0%,100%{box-shadow:0 0 0 0 transparent} 50%{box-shadow:0 0 0 6px rgba(79,70,229,0.18)} }
+        .rint-qr-pulse { animation: rint-qr-pulse 2.5s ease infinite; }
+      `}</style>
+
+      {/* Tech-style header */}
+      <div style={{ background: brandColor, padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }} className="rint-in">
+        <div>
+          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.65)', fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 2 }}>Página Interativa</div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', letterSpacing: -0.3, textTransform: 'uppercase' }}>{brand}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
+          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.75)', fontFamily: 'sans-serif' }}>Interativo</span>
+        </div>
       </div>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+      {/* Image with QR overlay */}
+      <div style={{ width: '100%', height: 190, overflow: 'hidden', position: 'relative', flexShrink: 0 }} className="rint-img">
+        {adImage ? (
+          <img src={adImage} alt={mainHeadline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(145deg, ${brandColor}18 0%, ${brandColor}40 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={brandColor} strokeWidth="1" opacity="0.35"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span style={{ fontSize: 10, color: brandColor, fontFamily: 'sans-serif', opacity: 0.45 }}>Conteúdo em vídeo disponível</span>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+
+        {/* Video play button overlay */}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.18)' }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: 0, height: 0, borderStyle: 'solid', borderWidth: '9px 0 9px 18px', borderColor: `transparent transparent transparent ${brandColor}`, marginLeft: 3 }} />
+          </div>
+        </div>
+
+        {/* Bottom gradient */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, background: 'linear-gradient(to top, rgba(255,255,255,0.9), transparent)' }} />
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Interativa/QR
-      </div>
+      {/* Content area */}
+      <div style={{ flex: 1, padding: '14px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="rint-in">
+        <div>
+          {/* Tag */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 24, height: 3, background: brandColor }} />
+            <span style={{ fontSize: 7.5, color: brandColor, fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 700 }}>Escaneie e acesse</span>
+          </div>
 
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        Variable
+          <h2 style={{ fontSize: 15, fontWeight: 900, color: '#111', lineHeight: 1.25, margin: '0 0 8px', letterSpacing: -0.2 }}>{mainHeadline}</h2>
+          <p style={{ fontSize: 9.5, color: '#666', lineHeight: 1.62, margin: '0 0 12px', fontFamily: 'sans-serif' }}>{bodyText}</p>
+
+          {/* Interaction options */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {interactions.map((it, i) => (
+              <div key={i} style={{ flex: 1, background: `${brandColor}10`, border: `1px solid ${brandColor}22`, padding: '6px 4px', textAlign: 'center', borderRadius: 4 }}>
+                <div style={{ fontSize: 14, marginBottom: 2 }}>{it.icon}</div>
+                <div style={{ fontSize: 7.5, color: brandColor, fontFamily: 'sans-serif', fontWeight: 700 }}>{it.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* QR Code area + CTA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
+          {/* QR placeholder */}
+          <div className="rint-qr-pulse" style={{ width: 56, height: 56, background: '#f5f5f5', border: `2px solid ${brandColor}`, padding: 4, flexShrink: 0 }}>
+            <div style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1 }}>
+              {Array.from({ length: 25 }, (_, i) => (
+                <div key={i} style={{ background: [0,2,4,5,10,12,14,15,20,22,24,7,17].includes(i) ? brandColor : 'transparent', borderRadius: 1 }} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#333', fontFamily: 'sans-serif', marginBottom: 4 }}>Aponte a câmera para o QR Code</div>
+            <div style={{ fontSize: 8.5, color: '#888', fontFamily: 'sans-serif', marginBottom: 6 }}>www.{brand.toLowerCase().replace(/\s/g, '')}.com.br</div>
+            <div style={{ fontSize: 8, color: '#bbb', fontFamily: 'sans-serif' }}>(11) 9 9999-0000</div>
+          </div>
+        </div>
       </div>
     </div>
   );

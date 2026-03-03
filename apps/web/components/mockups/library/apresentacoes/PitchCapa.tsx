@@ -1,83 +1,182 @@
+'use client';
+
 import React from 'react';
 
 interface PitchCapaProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  logo?: string;
-  backgroundImage?: string;
+  description?: string;
+  text?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
-  accentColor?: string;
+  profileImage?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const PitchCapa: React.FC<PitchCapaProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  logo = '',
-  backgroundImage,
+  description,
+  text,
   image,
   postImage,
   thumbnail,
-  accentColor = '#f59e0b',
+  profileImage,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle or description';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Main content goes here';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = themeColor ?? brandColor ?? '#0EA5E9';
+  const companyName = brandName ?? name ?? 'NomeDaEmpresa';
+  const tagline = headline ?? title ?? 'Transformando o futuro com tecnologia';
+  const subText = body ?? caption ?? description ?? text ?? 'Apresentação Confidencial · 2026';
+
+  const logoImg = profileImage ?? image ?? postImage ?? thumbnail ?? '';
+
+  const accentDark = accent;
+  const gradientStyle = {
+    background: `linear-gradient(135deg, #0f172a 0%, #1e293b 40%, ${accent}22 100%)`,
+  };
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-10" />}
-      </div>
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        ...gradientStyle,
+      }}
+    >
+      <style>{`
+        @keyframes pitch-capa-pulse {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+        @keyframes pitch-capa-fadein {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
-      <div className="relative h-full flex flex-col p-12">
-        <div className="flex items-center justify-between mb-auto">
-          {logo && (
-            <div className="w-16 h-16">
-              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
-            </div>
-          )}
-          <div
-            className="w-12 h-1 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
+      {/* Background decorative circles */}
+      <div style={{
+        position: 'absolute', top: '-60px', right: '-60px',
+        width: '220px', height: '220px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${accent}33 0%, transparent 70%)`,
+        animation: 'pitch-capa-pulse 4s ease-in-out infinite',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-40px', left: '30%',
+        width: '160px', height: '160px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`,
+      }} />
+
+      {/* Top bar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0,
+        height: '3px',
+        background: `linear-gradient(90deg, ${accent}, ${accent}88, transparent)`,
+      }} />
+
+      {/* Left accent stripe */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: '4px',
+        background: `linear-gradient(180deg, ${accent}, ${accent}44)`,
+      }} />
+
+      <div style={{
+        position: 'relative', height: '100%',
+        display: 'flex', flexDirection: 'column',
+        padding: '28px 32px 24px 36px',
+        animation: 'pitch-capa-fadein 0.6s ease-out',
+      }}>
+
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {logoImg ? (
+              <img src={logoImg} alt="Logo da empresa" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'contain' }} />
+            ) : (
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '6px',
+                background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </div>
+            )}
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {companyName}
+            </span>
+          </div>
+          <div style={{
+            background: `${accent}22`, border: `1px solid ${accent}55`,
+            borderRadius: '20px', padding: '3px 10px',
+            fontSize: '10px', fontWeight: 600, color: accent, letterSpacing: '0.06em',
+          }}>
+            APRESENTAÇÃO DE INVESTIMENTO
+          </div>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-5xl font-black text-gray-900 mb-4">{resolvedTitle}</h1>
-          <p className="text-2xl text-gray-600 mb-6">{resolvedSubtitle}</p>
-          <p className="text-lg text-gray-700">{resolvedContent}</p>
+        {/* Main content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{
+            display: 'inline-block',
+            background: `${accent}18`, border: `1px solid ${accent}40`,
+            borderRadius: '4px', padding: '2px 8px', marginBottom: '14px',
+            fontSize: '10px', fontWeight: 700, color: accent, letterSpacing: '0.1em', textTransform: 'uppercase',
+          }}>
+            Série A · Rodada de Captação
+          </div>
+
+          <h1 style={{
+            fontSize: '34px', fontWeight: 900, color: '#f8fafc',
+            lineHeight: 1.1, margin: '0 0 10px 0',
+            letterSpacing: '-0.02em',
+          }}>
+            {companyName}
+          </h1>
+
+          <p style={{
+            fontSize: '15px', color: '#94a3b8', margin: '0 0 18px 0',
+            fontWeight: 400, lineHeight: 1.5, maxWidth: '380px',
+          }}>
+            {tagline}
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '28px', height: '2px', background: accent, borderRadius: '2px' }} />
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>{subText}</span>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mt-auto">
-          <div className="text-sm text-gray-500">Confidential</div>
-          <div className="text-sm text-gray-500">01</div>
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+          <span style={{ fontSize: '10px', color: '#475569' }}>Confidencial · Não distribuir</span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {[accent, `${accent}88`, `${accent}44`].map((c, i) => (
+              <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: c }} />
+            ))}
+          </div>
+          <span style={{ fontSize: '10px', color: '#475569' }}>01 / 15</span>
         </div>
-      </div>
-
-      <div className="absolute top-4 right-4 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>
-        Pitch Deck - Capa
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
       </div>
     </div>
   );

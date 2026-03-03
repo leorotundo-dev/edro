@@ -1,58 +1,90 @@
+'use client';
+
 import React from 'react';
 
 interface RevistaTerceiraCapaProps {
-  coverImage?: string;
-  postImage?: string;
-  thumbnail?: string;
-  image?: string;
+  name?: string;
+  username?: string;
+  brandName?: string;
   headline?: string;
   title?: string;
-  name?: string;
-  subheadline?: string;
-  subtitle?: string;
+  body?: string;
+  caption?: string;
   description?: string;
-  brandLogo?: string;
+  text?: string;
+  image?: string;
+  postImage?: string;
+  thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
 }
 
 export const RevistaTerceiraCapa: React.FC<RevistaTerceiraCapaProps> = ({
-  coverImage,
-  postImage,
-  thumbnail,
-  image,
+  name,
+  username,
+  brandName,
   headline,
   title,
-  name,
-  subheadline,
-  subtitle,
+  body,
+  caption,
   description,
-  brandLogo = '',
+  text,
+  image,
+  postImage,
+  thumbnail,
+  profileImage,
+  brandColor = '#1d3557',
 }) => {
-  const resolvedCoverImage = coverImage ?? postImage ?? thumbnail ?? image ?? '';
-  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline';
-  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or description';
+  const brand = brandName ?? name ?? 'Marca Editorial';
+  const mainHeadline = headline ?? title ?? 'O futuro chegou — e ele é mais bonito do que imaginávamos';
+  const bodyText = body ?? caption ?? description ?? text ?? 'Nossa nova linha redefine padrões com materiais sustentáveis, design atemporal e performance incomparável.';
+  const coverImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
   return (
-    <div className="relative w-[315px] h-[420px] bg-white border border-gray-300 shadow-lg overflow-hidden">
-      <div className="absolute inset-0 bg-gray-100">
-        {resolvedCoverImage && <img src={resolvedCoverImage} alt="Magazine" className="w-full h-full object-cover" />}
+    <div style={{ width: 340, height: 454, background: '#f8f8f4', fontFamily: '"Georgia", "Times New Roman", serif', boxShadow: '0 8px 32px rgba(0,0,0,0.22)', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes r3c-slide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .r3c-slide { animation: r3c-slide 0.55s ease both; }
+      `}</style>
+
+      {/* Editorial-feel top bar */}
+      <div style={{ background: brandColor, padding: '10px 16px', flexShrink: 0 }} className="r3c-slide">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>{brand.toUpperCase()}</div>
+          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)', fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: 1.5 }}>3ª Capa</div>
+        </div>
       </div>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {brandLogo && (
-          <div className="w-20 h-20 mb-3">
-            <img src={brandLogo} alt="Brand" className="w-full h-full object-contain" />
+      {/* Image */}
+      <div style={{ width: '100%', height: 220, background: '#ddd', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+        {coverImage ? (
+          <img src={coverImage} alt={mainHeadline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${brandColor}22 0%, ${brandColor}44 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={brandColor} strokeWidth="1" opacity="0.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span style={{ fontSize: 10, color: brandColor, fontFamily: 'sans-serif', opacity: 0.5 }}>Foto do produto</span>
           </div>
         )}
-        <h3 className="text-gray-900 text-lg font-bold text-center mb-2">{resolvedHeadline}</h3>
-        <p className="text-gray-700 text-sm text-center">{resolvedSubheadline}</p>
+        {/* Caption bar */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.4)', padding: '4px 12px' }}>
+          <span style={{ fontSize: 8, color: '#ddd', fontFamily: 'sans-serif' }}>Imagem ilustrativa — {brand}</span>
+        </div>
       </div>
 
-      <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Revista Terceira Capa
-      </div>
-
-      <div className="absolute bottom-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded">
-        21x28cm
+      {/* Article copy */}
+      <div style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 32, height: 3, background: brandColor }} />
+            <span style={{ fontSize: 8, fontFamily: 'sans-serif', color: brandColor, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700 }}>Editorial</span>
+          </div>
+          <h2 style={{ fontSize: 17, fontWeight: 900, color: '#111', lineHeight: 1.25, margin: '0 0 10px', letterSpacing: -0.3 }}>{mainHeadline}</h2>
+          <p style={{ fontSize: 10.5, color: '#444', lineHeight: 1.7, margin: 0 }}>{bodyText}</p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid #ddd' }}>
+          <span style={{ fontSize: 9, color: '#888', fontFamily: 'sans-serif' }}>(11) 9 9999-0000</span>
+          <span style={{ fontSize: 9, color: '#888', fontFamily: 'sans-serif' }}>www.{brand.toLowerCase().replace(/\s/g, '')}.com.br</span>
+        </div>
       </div>
     </div>
   );

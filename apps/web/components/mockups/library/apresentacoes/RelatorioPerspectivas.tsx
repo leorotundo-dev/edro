@@ -1,65 +1,184 @@
+'use client';
+
 import React from 'react';
 
 interface RelatorioPerspectivasProps {
-  coverImage?: string;
-  companyLogo?: string;
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  year?: string;
-  coverColor?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
+  brandColor?: string;
+  themeColor?: string;
 }
 
 export const RelatorioPerspectivas: React.FC<RelatorioPerspectivasProps> = ({
-  coverImage = '',
-  companyLogo = '',
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  year = '2026',
-  coverColor = '#0f172a',
+  username,
+  brandName,
+  headline,
+  title,
+  brandColor,
+  themeColor = '#1E3A5F',
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Annual Report';
-  const resolvedSubtitle = subtitle ?? description ?? 'Company performance and insights';
+  const accent = brandColor ?? themeColor;
+  const pageTitle = headline ?? title ?? name ?? username ?? brandName ?? 'Perspectivas 2025';
+
+  const priorities = [
+    {
+      num: '01',
+      title: 'Expansão Internacional',
+      detail: 'Abertura de operações em 3 novos países da América Latina',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+        </svg>
+      ),
+      color: '#2563eb',
+    },
+    {
+      num: '02',
+      title: 'Plataforma IA',
+      detail: 'Lançamento de módulos de inteligência artificial para todos os produtos',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+        </svg>
+      ),
+      color: '#7c3aed',
+    },
+    {
+      num: '03',
+      title: 'Sustentabilidade',
+      detail: 'Meta de neutralidade de carbono até dezembro de 2025',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      ),
+      color: '#16a34a',
+    },
+    {
+      num: '04',
+      title: 'Crescimento Acelerado',
+      detail: 'Projeção de receita de R$ 1 bilhão com margem EBITDA de 28%',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M23 6l-9.5 9.5-5-5L1 18" />
+          <path d="M17 6h6v6" />
+        </svg>
+      ),
+      color: accent,
+    },
+  ];
 
   return (
-    <div className="relative w-[297px] h-[420px] bg-white border-2 border-gray-300 rounded-lg overflow-hidden shadow-xl">
+    <div
+      style={{
+        position: 'relative',
+        width: '420px',
+        height: '594px',
+        background: '#ffffff',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        userSelect: 'none',
+      }}
+    >
+      {/* Top bar */}
+      <div style={{ height: '5px', background: accent, flexShrink: 0 }} />
+
+      {/* Header */}
       <div
-        className="absolute inset-0"
-        style={{ backgroundColor: coverColor }}
+        style={{
+          padding: '20px 28px 16px',
+          background: `linear-gradient(135deg, ${accent} 0%, ${accent}bb 100%)`,
+          flexShrink: 0,
+        }}
       >
-        {coverImage && <img src={coverImage} alt="Cover" className="w-full h-full object-cover opacity-20" />}
+        <div style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>
+          Relatório Anual 2024
+        </div>
+        <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{pageTitle}</h2>
+        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', margin: '5px 0 0' }}>
+          Prioridades estratégicas para o próximo exercício
+        </p>
       </div>
 
-      <div className="relative h-full flex flex-col p-8">
-        {companyLogo && (
-          <div className="w-24 h-24 bg-white rounded-lg p-3 mb-auto shadow-lg">
-            <img src={companyLogo} alt="Company" className="w-full h-full object-contain" />
+      {/* Strategic priority cards */}
+      <div style={{ flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {priorities.map((p, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '14px',
+              padding: '14px',
+              background: '#f9fafb',
+              borderRadius: '8px',
+              border: `1px solid ${p.color}18`,
+              borderLeft: `4px solid ${p.color}`,
+            }}
+          >
+            {/* Icon */}
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: `${p.color}14`,
+                color: p.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {p.icon}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 800, color: p.color, letterSpacing: '0.3px' }}>{p.num}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#111827' }}>{p.title}</span>
+              </div>
+              <p style={{ fontSize: '10px', color: '#6b7280', margin: 0, lineHeight: 1.5 }}>{p.detail}</p>
+            </div>
           </div>
-        )}
-
-        <div className="flex-1 flex flex-col justify-center">
-          <h1 className="text-4xl font-black text-white mb-3 drop-shadow-lg">{resolvedTitle}</h1>
-          <p className="text-lg text-white/90 mb-4 drop-shadow-md">{resolvedSubtitle}</p>
-          <div className="text-6xl font-black text-white/80 drop-shadow-lg">{year}</div>
-        </div>
-
-        <div className="mt-auto">
-          <div className="h-1 bg-white/30 rounded-full" />
-        </div>
+        ))}
       </div>
 
-      <div className="absolute top-3 right-3 bg-slate-700 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-        Relatório Anual - Perspectivas
+      {/* Bottom note */}
+      <div style={{ padding: '8px 28px 14px', flexShrink: 0 }}>
+        <p style={{ fontSize: '9px', color: '#9ca3af', margin: 0, fontStyle: 'italic' }}>
+          Projeções sujeitas a revisão trimestral conforme condições de mercado.
+        </p>
       </div>
 
-      <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">
-        A4
+      <div style={{ height: '4px', background: `linear-gradient(90deg, ${accent} 0%, ${accent}44 100%)`, flexShrink: 0 }} />
+
+      {/* Slide label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(255,255,255,0.2)',
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: '4px',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+          border: '1px solid rgba(255,255,255,0.3)',
+        }}
+      >
+        Perspectivas
       </div>
     </div>
   );

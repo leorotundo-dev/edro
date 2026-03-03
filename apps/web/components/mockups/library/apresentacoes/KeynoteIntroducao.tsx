@@ -1,73 +1,245 @@
+'use client';
+
 import React from 'react';
 
 interface KeynoteIntroducaoProps {
-  title?: string;
-  headline?: string;
   name?: string;
-  subtitle?: string;
-  description?: string;
-  content?: string;
-  text?: string;
+  username?: string;
+  brandName?: string;
+  headline?: string;
+  title?: string;
   body?: string;
   caption?: string;
-  backgroundImage?: string;
+  description?: string;
+  text?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
+  profileImage?: string;
+  brandColor?: string;
   themeColor?: string;
 }
 
 export const KeynoteIntroducao: React.FC<KeynoteIntroducaoProps> = ({
-  title,
-  headline,
   name,
-  subtitle,
-  description,
-  content,
-  text,
+  username,
+  brandName,
+  headline,
+  title,
   body,
   caption,
-  backgroundImage,
+  description,
+  text,
   image,
   postImage,
   thumbnail,
-  themeColor = '#6366f1',
+  profileImage,
+  brandColor,
+  themeColor,
 }) => {
-  const resolvedTitle = title ?? headline ?? name ?? 'Slide Title';
-  const resolvedSubtitle = subtitle ?? description ?? 'Subtitle';
-  const resolvedContent = content ?? text ?? body ?? caption ?? 'Content';
-  const resolvedBackgroundImage = backgroundImage ?? image ?? postImage ?? thumbnail ?? '';
+  const accent = brandColor ?? themeColor ?? '#6366F1';
+  const resolvedName = name ?? username ?? 'Ana Beatriz Costa';
+  const resolvedTitle = title ?? headline ?? 'Diretora de Estratégia';
+  const resolvedCompany = brandName ?? 'Empresa S.A.';
+  const resolvedBio = body ?? caption ?? description ?? text ?? 'Profissional com mais de 15 anos de experiência em gestão estratégica, inovação corporativa e transformação digital de grandes organizações.';
+  const resolvedImage = image ?? postImage ?? thumbnail ?? profileImage ?? '';
+
+  const credentials = [
+    { icon: '🎓', label: 'MBA em Gestão', detail: 'FGV — 2012' },
+    { icon: '🏆', label: 'Premiação Excelência', detail: 'Top 50 Líderes 2023' },
+    { icon: '🌍', label: 'Projetos Globais', detail: '12 países, 200+ entregas' },
+  ];
 
   return (
-    <div className="relative w-full max-w-[800px] aspect-video bg-gradient-to-br from-gray-50 to-white rounded-lg overflow-hidden shadow-2xl border border-gray-200">
-      <div className="absolute inset-0">
-        {resolvedBackgroundImage && <img src={resolvedBackgroundImage} alt="Background" className="w-full h-full object-cover opacity-5" />}
+    <div
+      style={{
+        position: 'relative',
+        width: '560px',
+        height: '315px',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        background: '#f8f9fc',
+      }}
+    >
+      {/* Top accent bar */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: `linear-gradient(90deg, ${accent}, ${accent}60)` }} />
+
+      {/* Section label top-left */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '18px',
+          left: '24px',
+          fontSize: '9px',
+          fontWeight: 700,
+          color: accent,
+          letterSpacing: '2px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Quem somos
       </div>
 
-      <div className="relative h-full flex flex-col items-center justify-center p-16 text-center">
+      {/* Left: Bio card */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '36px',
+          left: '24px',
+          width: '190px',
+          bottom: '24px',
+          background: '#fff',
+          borderRadius: '10px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px 12px',
+          border: `1px solid ${accent}20`,
+        }}
+      >
+        {/* Photo circle */}
         <div
-          className="w-20 h-1 rounded-full mb-8"
-          style={{ backgroundColor: themeColor }}
-        />
-
-        <h1
-          className="text-6xl font-black mb-6"
-          style={{ color: themeColor }}
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: resolvedImage ? 'transparent' : `linear-gradient(135deg, ${accent}, ${accent}80)`,
+            border: `3px solid ${accent}`,
+            overflow: 'hidden',
+            marginBottom: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '22px',
+            fontWeight: 800,
+            color: '#fff',
+            boxShadow: `0 0 0 4px ${accent}20`,
+          }}
         >
+          {resolvedImage
+            ? <img src={resolvedImage} alt={resolvedName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : resolvedName.charAt(0).toUpperCase()
+          }
+        </div>
+
+        <div style={{ fontSize: '13px', fontWeight: 800, color: '#1a1a2e', marginBottom: '2px', textAlign: 'center' }}>
+          {resolvedName}
+        </div>
+        <div style={{ fontSize: '10px', fontWeight: 600, color: accent, marginBottom: '2px', textAlign: 'center' }}>
           {resolvedTitle}
-        </h1>
+        </div>
+        <div style={{ fontSize: '9px', color: '#888', marginBottom: '10px', textAlign: 'center' }}>
+          {resolvedCompany}
+        </div>
 
-        <p className="text-2xl text-gray-700 mb-4">{resolvedSubtitle}</p>
-        <p className="text-lg text-gray-600 max-w-2xl">{resolvedContent}</p>
+        {/* Divider */}
+        <div style={{ width: '40px', height: '1px', background: `${accent}40`, marginBottom: '10px' }} />
+
+        <p style={{ fontSize: '9px', color: '#666', lineHeight: 1.5, textAlign: 'center', margin: 0 }}>
+          {resolvedBio}
+        </p>
       </div>
 
-      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Keynote - Introdução
+      {/* Right: Credentials */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '36px',
+          left: '230px',
+          right: '24px',
+          bottom: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
+        <div style={{ fontSize: '14px', fontWeight: 800, color: '#1a1a2e', marginBottom: '4px' }}>
+          Destaques da carreira
+        </div>
+
+        {credentials.map((cred, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: '#fff',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+              border: `1px solid ${accent}15`,
+            }}
+          >
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: `${accent}15`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                flexShrink: 0,
+              }}
+            >
+              {cred.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#1a1a2e' }}>{cred.label}</div>
+              <div style={{ fontSize: '9px', color: '#888', marginTop: '1px' }}>{cred.detail}</div>
+            </div>
+            {/* Accent dot */}
+            <div
+              style={{
+                marginLeft: 'auto',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: accent,
+                opacity: 0.5,
+              }}
+            />
+          </div>
+        ))}
+
+        {/* Social row */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+          {['LinkedIn', 'Twitter', 'Site'].map((s) => (
+            <div
+              key={s}
+              style={{
+                fontSize: '8px',
+                fontWeight: 600,
+                color: accent,
+                background: `${accent}15`,
+                borderRadius: '20px',
+                padding: '3px 8px',
+              }}
+            >
+              {s}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        16:9
+      {/* Slide number */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '8px',
+          right: '18px',
+          fontSize: '10px',
+          color: '#bbb',
+          fontWeight: 500,
+        }}
+      >
+        03
       </div>
     </div>
   );
