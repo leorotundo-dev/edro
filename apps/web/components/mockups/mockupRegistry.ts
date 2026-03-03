@@ -494,6 +494,8 @@ const registry: Record<string, MockupComponent> = {
   "whatsappbusiness": dynamic(() => import("./library/social/WhatsAppBusiness").then((mod) => mod.WhatsAppBusiness)),
   "whatsappcall": dynamic(() => import("./library/midia-on/WhatsAppCall").then((mod) => mod.WhatsAppCall)),
   "whatsappgroup": dynamic(() => import("./library/midia-on/WhatsAppGroup").then((mod) => mod.WhatsAppGroup)),
+  "whatsappchannel": dynamic(() => import("./library/social/WhatsAppChannel").then((mod) => mod.WhatsAppChannel)),
+  "whatsappcanaloficial": dynamic(() => import("./library/social/WhatsAppChannel").then((mod) => mod.WhatsAppChannel)),
   "whatsappmessage": dynamic(() => import("./library/social/WhatsAppMessage").then((mod) => mod.WhatsAppMessage)),
   "whatsapppoll": dynamic(() => import("./library/midia-on/WhatsAppPoll").then((mod) => mod.WhatsAppPoll)),
   "whatsappstatus": dynamic(() => import("./library/social/WhatsAppStatus").then((mod) => mod.WhatsAppStatus)),
