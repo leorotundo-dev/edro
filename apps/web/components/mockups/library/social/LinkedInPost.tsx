@@ -1,153 +1,404 @@
-import React from 'react';
+'use client';
+
+/* eslint-disable react/forbid-dom-props */
+import React, { useState } from 'react';
 
 interface LinkedInPostProps {
+  // Identity
   name?: string;
   username?: string;
+  brandName?: string;
+  authorHeadline?: string;
   headline?: string;
   subheadline?: string;
   subtitle?: string;
   profileImage?: string;
-  timeAgo?: string;
-  postText?: string;
+  thumbnail?: string;
+  // Content
+  body?: string;
   caption?: string;
   description?: string;
+  text?: string;
+  postText?: string;
+  // Media
   postImage?: string;
   image?: string;
+  // Metrics
+  likeCount?: number | string;
   likes?: number | string;
+  commentCount?: number | string;
   comments?: number | string;
+  repostCount?: number | string;
   shares?: number | string;
+  // Meta
+  timeLabel?: string;
+  timeAgo?: string;
+  connectionDegree?: string;
+  showFollow?: boolean;
 }
+
+const LI_BLUE = '#0A66C2';
+const LI_GRAY = '#666666';
+const LI_BG = '#F3F2EF';
+const LI_TEXT = 'rgba(0,0,0,0.9)';
+const LI_TEXT_MUTED = 'rgba(0,0,0,0.60)';
+const LI_BORDER = '#E0DFDC';
 
 export const LinkedInPost: React.FC<LinkedInPostProps> = ({
   name,
   username,
+  brandName,
+  authorHeadline,
   headline,
   subheadline,
   subtitle,
-  profileImage = '',
-  timeAgo = '2 h',
-  postText,
+  profileImage,
+  thumbnail,
+  body,
   caption,
   description,
+  text,
+  postText,
   postImage,
   image,
-  likes = '1.234',
-  comments = 124,
-  shares = 45,
+  likeCount,
+  likes,
+  commentCount,
+  comments,
+  repostCount,
+  shares,
+  timeLabel,
+  timeAgo,
+  connectionDegree = '1º',
+  showFollow = true,
 }) => {
-  const displayName = name || username || 'Nome Profissional';
-  const displayHeadline = headline || subheadline || subtitle || 'Cargo · Empresa';
-  const text = postText || caption || description || '';
-  const media = postImage || image || '';
-  const likesLabel = String(likes);
+  const [liked, setLiked] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const displayName = name || username || brandName || 'Nome Profissional';
+  const displayHeadline = authorHeadline || headline || subheadline || subtitle || 'Cargo · Empresa';
+  const displayTime = timeLabel || timeAgo || '2 h';
+  const displayImage = profileImage || thumbnail || '';
+  const displayPost = postImage || image || '';
+  const postBody = body || postText || caption || description || text || '';
+
+  const rawLikes = likeCount ?? likes ?? 1234;
+  const rawComments = commentCount ?? comments ?? 124;
+  const rawReposts = repostCount ?? shares ?? 45;
+
+  const likesNum = typeof rawLikes === 'number' ? rawLikes + (liked ? 1 : 0) : rawLikes;
+  const likesLabel = typeof likesNum === 'number' ? likesNum.toLocaleString('pt-BR') : String(likesNum);
+  const commentsLabel = typeof rawComments === 'number' ? rawComments.toLocaleString('pt-BR') : String(rawComments);
+  const repostsLabel = typeof rawReposts === 'number' ? rawReposts.toLocaleString('pt-BR') : String(rawReposts);
+
+  const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+  const actionBtnStyle: React.CSSProperties = {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: LI_TEXT_MUTED,
+    padding: '10px 4px',
+    fontSize: 13,
+    fontWeight: 600,
+    borderRadius: 4,
+    fontFamily,
+  };
 
   return (
     <div
-      className="w-full max-w-[552px] bg-white rounded-lg border shadow-sm overflow-hidden font-sans"
-      style={{ borderColor: '#e0dfdc', color: 'rgba(0,0,0,0.9)' }}
+      style={{
+        width: 420,
+        maxWidth: '100%',
+        background: '#FFFFFF',
+        borderRadius: 8,
+        border: `1px solid ${LI_BORDER}`,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+        overflow: 'hidden',
+        fontFamily,
+        color: LI_TEXT,
+      }}
     >
-      {/* Header */}
-      <div className="flex items-start gap-3 px-4 pt-4 pb-2">
-        <div className="w-12 h-12 rounded-full overflow-hidden border flex-shrink-0" style={{ borderColor: '#e0dfdc' }}>
-          {profileImage ? (
-            <img src={profileImage} alt={displayName} className="w-full h-full object-cover" />
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px 8px' }}>
+        {/* Avatar */}
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: `2px solid ${LI_BLUE}`,
+            flexShrink: 0,
+            background: '#D0E8FF',
+          }}
+        >
+          {displayImage ? (
+            <img src={displayImage} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div className="w-full h-full bg-gray-200" />
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: `linear-gradient(135deg, ${LI_BLUE} 0%, #004182 100%)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5.33 0-8 2.67-8 4v1h16v-1c0-1.33-2.67-4-8-4z" />
+              </svg>
+            </div>
           )}
         </div>
-        <div className="flex-1 flex flex-col leading-tight min-w-0">
-          <div className="flex items-center gap-1">
-            <span className="font-semibold text-[14px] hover:text-[#0a66c2] cursor-pointer">{displayName}</span>
-            <span className="text-[14px]" style={{ color: '#666666' }}>• 1º</span>
+
+        {/* Name + headline + time */}
+        <div style={{ flex: 1, minWidth: 0, lineHeight: 1.3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: LI_TEXT, cursor: 'pointer' }}>{displayName}</span>
+            <span style={{ fontSize: 13, color: LI_GRAY }}>{connectionDegree}</span>
           </div>
-          <span className="text-[12px] truncate" style={{ color: 'rgba(0,0,0,0.60)' }}>{displayHeadline}</span>
-          <div className="flex items-center text-[12px] gap-1 mt-[2px]" style={{ color: 'rgba(0,0,0,0.60)' }}>
-            <span>{timeAgo} • </span>
+          <div
+            style={{
+              fontSize: 12,
+              color: LI_TEXT_MUTED,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginTop: 1,
+            }}
+          >
+            {displayHeadline}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, fontSize: 12, color: LI_TEXT_MUTED }}>
+            <span>{displayTime}</span>
+            <span>·</span>
             {/* Globe icon */}
-            <svg className="w-3 h-3 fill-current" viewBox="0 0 16 16">
-              <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm2.44 11.24A5.55 5.55 0 018 13.5a5.55 5.55 0 01-2.44-.56C5.8 11.83 6.69 11 8 11s2.2.83 2.44 1.94zM10.84 11a4.23 4.23 0 00-5.68 0A5.53 5.53 0 012.65 8 5.51 5.51 0 018 2.5a5.5 5.5 0 015.35 5.5 5.53 5.53 0 01-2.51 3z" />
-              <path d="M8 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+            <svg width="12" height="12" viewBox="0 0 16 16" fill={LI_TEXT_MUTED}>
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM2.5 8.5h2c.1 1 .3 2 .7 2.8A5.5 5.5 0 0 1 2.5 8.5zm2 -1h-2A5.5 5.5 0 0 1 5.2 4.7c-.4.8-.6 1.8-.7 2.8zm1 0c.1-1.2.5-2.2 1-2.9.4-.5.7-.6 1-.6s.6.1 1 .6c.5.7.9 1.7 1 2.9H5.5zm0 1h4c-.1 1.2-.5 2.2-1 2.9-.4.5-.7.6-1 .6s-.6-.1-1-.6c-.5-.7-.9-1.7-1-2.9zm5 0h2A5.5 5.5 0 0 1 10.8 11.3c.4-.8.6-1.8.7-2.8zm0-1c-.1-1-.3-2-.7-2.8A5.5 5.5 0 0 1 13.5 7.5h-2z" />
             </svg>
           </div>
         </div>
-        <button className="p-1 rounded-full hover:bg-gray-100" style={{ color: 'rgba(0,0,0,0.60)' }}>
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M14 12a2 2 0 11-2-2 2 2 0 012 2zM4 10a2 2 0 102 2 2 2 0 00-2-2zm16 0a2 2 0 102 2 2 2 0 00-2-2z" />
-          </svg>
-        </button>
+
+        {/* Right side: Follow + overflow */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {showFollow && (
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: LI_BLUE,
+                fontWeight: 600,
+                fontSize: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 4px',
+                fontFamily,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill={LI_BLUE}>
+                <path d="M9 7H7v2H5v2h2v2h2v-2h2V9H9V7zm4.5-5.5h-11A1.5 1.5 0 0 0 1 3v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 15 13V3a1.5 1.5 0 0 0-1.5-1.5zm0 12h-11V3h11v10.5z" />
+              </svg>
+              Seguir
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Mais opções"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: LI_TEXT_MUTED, padding: 4, display: 'flex' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* Caption */}
-      {text ? (
-        <div className="px-4 pb-2 text-[14px] leading-[1.4]">
-          <p className="line-clamp-3">{text}</p>
-          <button className="font-semibold mt-1 hover:underline" style={{ color: 'rgba(0,0,0,0.60)' }}>…ver mais</button>
+      {/* ── Post body text ── */}
+      {postBody ? (
+        <div style={{ padding: '0 16px 10px', fontSize: 14, lineHeight: 1.5, color: LI_TEXT }}>
+          <p
+            style={{
+              margin: 0,
+              display: '-webkit-box',
+              WebkitLineClamp: expanded ? undefined : 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: expanded ? 'visible' : 'hidden',
+            }}
+          >
+            {postBody}
+          </p>
+          {!expanded && postBody.length > 180 && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: LI_TEXT_MUTED,
+                fontWeight: 600,
+                fontSize: 14,
+                padding: '2px 0 0',
+                fontFamily,
+              }}
+            >
+              …ver mais
+            </button>
+          )}
         </div>
       ) : null}
 
-      {/* Mídia */}
-      <div className="w-full overflow-hidden" style={{ background: '#f3f2ef' }}>
-        {media ? (
-          <img src={media} alt="Post" className="w-full h-auto max-h-[600px] object-cover" />
-        ) : (
-          <div className="w-full flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
-            <span className="text-sm" style={{ color: 'rgba(0,0,0,0.50)' }}>Mídia Estática</span>
-          </div>
-        )}
-      </div>
+      {/* ── Post image ── */}
+      {displayPost ? (
+        <div style={{ width: '100%', overflow: 'hidden' }}>
+          <img
+            src={displayPost}
+            alt="Publicação"
+            style={{ width: '100%', display: 'block', maxHeight: 420, objectFit: 'cover', borderRadius: 4 }}
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            aspectRatio: '16/9',
+            background: LI_BG,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ fontSize: 13, color: LI_TEXT_MUTED }}>Mídia do post</span>
+        </div>
+      )}
 
-      {/* Reações */}
+      {/* ── Reaction summary ── */}
       <div
-        className="px-4 py-2 border-b mx-2 flex justify-between items-center text-[12px]"
-        style={{ borderColor: '#e0dfdc', color: 'rgba(0,0,0,0.60)' }}
+        style={{
+          padding: '8px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: 12,
+          color: LI_TEXT_MUTED,
+          borderBottom: `1px solid ${LI_BORDER}`,
+        }}
       >
-        <div className="flex items-center gap-1 cursor-pointer hover:underline">
-          <div className="flex -space-x-0.5">
-            {/* Like badge */}
-            <div className="w-[18px] h-[18px] rounded-full flex items-center justify-center border border-white" style={{ background: '#0a66c2' }}>
-              <svg className="w-[10px] h-[10px] fill-white" viewBox="0 0 16 16">
-                <path d="M5.5 6v9.5H2V6h3.5zm10 2.5c0 .8-.5 1.5-1.2 1.8.6.2 1 .8 1 1.5 0 .6-.3 1.1-.8 1.4.4.2.7.7.7 1.3 0 1.1-.9 2-2 2H8.5c-1.1 0-2-.9-2-2V7.5c0-.8.5-1.5 1.2-1.8C8 5.2 8.5 4 8.5 2.5c0-1.1.9-2 2-2s2 .9 2 2c0 1.2-.5 2.3-1.3 3h2.8c1.1 0 2 .9 2 2z" />
-              </svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+          {/* Reaction emoji badges */}
+          <div style={{ display: 'flex', marginRight: 2 }}>
+            {/* Like */}
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: LI_BLUE,
+                border: '1.5px solid white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: -2,
+              }}
+            >
+              <span style={{ fontSize: 10 }}>👍</span>
             </div>
-            {/* Celebrate badge */}
-            <div className="w-[18px] h-[18px] rounded-full flex items-center justify-center border border-white" style={{ background: '#6dae4f' }}>
-              <svg className="w-[10px] h-[10px] fill-white" viewBox="0 0 16 16">
-                <path d="M8 1l1.8 3.6L14 5.6l-3 2.9.7 4.1L8 10.6l-3.7 1.9.7-4.1-3-2.9 4.2-.9L8 1z" />
-              </svg>
+            {/* Heart */}
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: '#DF704D',
+                border: '1.5px solid white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: -4,
+              }}
+            >
+              <span style={{ fontSize: 10 }}>❤️</span>
+            </div>
+            {/* Celebrate */}
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: '#6DAE4F',
+                border: '1.5px solid white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: -4,
+              }}
+            >
+              <span style={{ fontSize: 10 }}>🤝</span>
             </div>
           </div>
-          <span className="ml-1">Você e {likesLabel} outras pessoas</span>
+          <span>{likesLabel}</span>
         </div>
-        <div className="flex gap-2">
-          <span className="cursor-pointer hover:underline">{comments} comentários</span>
-          <span>•</span>
-          <span className="cursor-pointer hover:underline">{shares} compartilhamentos</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <span style={{ cursor: 'pointer' }}>{commentsLabel} comentários</span>
+          <span>·</span>
+          <span style={{ cursor: 'pointer' }}>{repostsLabel} repostagens</span>
         </div>
       </div>
 
-      {/* Botões de ação */}
-      <div className="flex items-center justify-between px-2 py-1 font-semibold text-[14px]" style={{ color: 'rgba(0,0,0,0.60)' }}>
-        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-md hover:bg-black/5 transition-colors">
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M19.46 11l-3.91-3.91a7 7 0 01-1.69-2.74l-.49-1.47A2.76 2.76 0 0010.76 1 2.75 2.75 0 008 3.74v1.12a9.19 9.19 0 00.46 2.88L8.89 9H4.11A2.12 2.12 0 002 11.11V20a2 2 0 002 2h9.61a5.6 5.6 0 005.11-3.37l2.84-7.1A2 2 0 0019.46 11zM4 20h-2v-9h2zm15.61-9.45l-2.84 7.1a3.6 3.6 0 01-3.28 2.15H6V11.11a.12.12 0 01.11-.11h4.86a1 1 0 00.86-1.48l-1-2.11a7.17 7.17 0 01-.36-2.24V3.74A.75.75 0 0110.76 3a.76.76 0 01.75.75l.49 1.47a9 9 0 002.16 3.52L18.05 11h1.45v-.45z" />
+      {/* ── Action buttons ── */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '2px 4px' }}>
+        {/* Curtir */}
+        <button
+          type="button"
+          onClick={() => setLiked(p => !p)}
+          style={{
+            ...actionBtnStyle,
+            color: liked ? LI_BLUE : LI_TEXT_MUTED,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={liked ? LI_BLUE : 'none'} stroke={liked ? LI_BLUE : 'currentColor'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
+            <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
           </svg>
-          Gostei
+          Curtir
         </button>
-        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-md hover:bg-black/5 transition-colors">
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M7 9h10v1H7zm0 4h7v-1H7zm11-10H6a3 3 0 00-3 3v15l4.5-4.5h10.5a3 3 0 003-3V6a3 3 0 00-3-3zm1 10a1 1 0 01-1 1H7.09L5 15.09V6a1 1 0 011-1h12a1 1 0 011 1z" />
+
+        {/* Comentar */}
+        <button type="button" style={actionBtnStyle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           Comentar
         </button>
-        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-md hover:bg-black/5 transition-colors">
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M23 12l-4.61 5L17 15.63 20.39 12 17 8.37l1.39-1.37L23 12zM10.15 6L8.85 7.37 12 10.33H1.27v2h10.77l-3.15 3.1 1.3 1.37L15 11.33 10.15 6z" />
+
+        {/* Repostar */}
+        <button type="button" style={actionBtnStyle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 1l4 4-4 4" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <path d="M7 23l-4-4 4-4" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
           </svg>
           Repostar
         </button>
-        <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-md hover:bg-black/5 transition-colors">
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M21 3L0 10l7.66 4.26L16 8l-6.26 8.34L14 24l7-21z" />
+
+        {/* Enviar */}
+        <button type="button" style={actionBtnStyle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
           Enviar
         </button>

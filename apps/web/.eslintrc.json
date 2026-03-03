@@ -7,5 +7,14 @@
     "@next/next/no-img-element": "off",
     "@next/next/no-page-custom-font": "off",
     "react/no-unescaped-entities": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["components/mockups/**/*.tsx", "components/mockups/**/*.ts"],
+      "rules": {
+        "react/forbid-dom-props": "off",
+        "react/forbid-component-props": "off"
+      }
+    }
+  ]
 }
