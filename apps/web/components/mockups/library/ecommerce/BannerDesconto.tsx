@@ -4,59 +4,326 @@ interface BannerDescontoProps {
   title?: string;
   headline?: string;
   name?: string;
+  brandName?: string;
   subtitle?: string;
+  description?: string;
+  body?: string;
+  caption?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
-  price?: string;
+  profileImage?: string;
   brandColor?: string;
+  discount?: string;
+  coupon?: string;
 }
 
 export const BannerDesconto: React.FC<BannerDescontoProps> = ({
   title: titleProp,
   headline,
   name,
-  subtitle = 'Product description',
+  brandName,
+  subtitle,
+  description,
+  body,
+  caption,
   image: imageProp,
   postImage,
   thumbnail,
-  price = '$99.99',
-  brandColor = '#f97316',
+  profileImage,
+  brandColor = '#5D87FF',
+  discount = '30%',
+  coupon = 'PROMO30',
 }) => {
-  const title = titleProp ?? headline ?? name ?? 'Product Title';
-  const image = imageProp ?? postImage ?? thumbnail ?? '';
-  return (
-    <div className="relative w-full max-w-[800px] h-[500px] bg-white rounded-lg overflow-hidden shadow-xl border-2 border-gray-200">
-      <div className="h-full flex flex-col p-8">
-        <div className="flex-1 flex items-center justify-center">
-          {image ? (
-            <img src={image} alt={title} className="max-w-full max-h-full object-contain" />
-          ) : (
-            <div className="w-64 h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            </div>
-          )}
-        </div>
+  const title = titleProp ?? headline ?? 'Produto Destaque';
+  const brand = brandName ?? name ?? 'Minha Marca';
+  const sub = subtitle ?? description ?? body ?? caption ?? 'Aproveite o desconto exclusivo hoje';
+  const image = imageProp ?? postImage ?? thumbnail ?? profileImage ?? '';
 
-        <div className="mt-6">
-          <h2 className="text-3xl font-black text-gray-900 mb-2">{title}</h2>
-          <p className="text-lg text-gray-600 mb-3">{subtitle}</p>
-          <div
-            className="text-4xl font-black"
-            style={{ color: brandColor }}
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        position: 'relative',
+        width: '500px',
+        height: '200px',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        background: '#ffffff',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.10)',
+        border: '1.5px solid #E8ECF4',
+        display: 'flex',
+        alignItems: 'stretch',
+        fontFamily: "'Segoe UI', Arial, sans-serif",
+      }}
+    >
+      {/* Left — discount percentage badge */}
+      <div
+        style={{
+          flex: '0 0 130px',
+          background: `linear-gradient(135deg, ${brandColor}15 0%, ${brandColor}08 100%)`,
+          borderRight: `3px solid ${brandColor}20`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px 12px',
+          gap: '2px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Decorative arc */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-40px',
+            left: '-40px',
+            width: '120px',
+            height: '120px',
+            borderRadius: '50%',
+            border: `24px solid ${brandColor}12`,
+          }}
+        />
+
+        <span
+          style={{
+            color: brandColor,
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+            opacity: 0.7,
+          }}
+        >
+          Desconto
+        </span>
+        <div style={{ lineHeight: 1, display: 'flex', alignItems: 'flex-start', gap: '2px' }}>
+          <span
+            style={{
+              color: brandColor,
+              fontSize: '54px',
+              fontWeight: 900,
+              letterSpacing: '-3px',
+              lineHeight: 1,
+            }}
           >
-            {price}
+            {discount}
+          </span>
+        </div>
+        <span
+          style={{
+            color: brandColor,
+            fontSize: '13px',
+            fontWeight: 800,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            marginTop: '-4px',
+          }}
+        >
+          OFF
+        </span>
+      </div>
+
+      {/* Center — product info + coupon */}
+      <div
+        style={{
+          flex: 1,
+          padding: '18px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '6px',
+        }}
+      >
+        {/* Brand */}
+        <span
+          style={{
+            color: 'rgba(0,0,0,0.35)',
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          {brand}
+        </span>
+
+        {/* Product name */}
+        <h3
+          style={{
+            color: '#1A1A2E',
+            fontSize: '16px',
+            fontWeight: 800,
+            margin: 0,
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </h3>
+
+        <p
+          style={{
+            color: 'rgba(0,0,0,0.5)',
+            fontSize: '11px',
+            lineHeight: 1.4,
+            margin: 0,
+          }}
+        >
+          {sub}
+        </p>
+
+        {/* Coupon box */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+          <span
+            style={{
+              color: 'rgba(0,0,0,0.45)',
+              fontSize: '10px',
+              fontWeight: 600,
+              letterSpacing: '0.3px',
+            }}
+          >
+            Use o cupom:
+          </span>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: `${brandColor}08`,
+              border: `1.5px dashed ${brandColor}60`,
+              borderRadius: '6px',
+              padding: '6px 12px',
+              alignSelf: 'flex-start',
+            }}
+          >
+            <span
+              style={{
+                color: brandColor,
+                fontSize: '15px',
+                fontWeight: 900,
+                letterSpacing: '2px',
+                fontFamily: "'Courier New', Courier, monospace",
+              }}
+            >
+              {coupon}
+            </span>
+            <div
+              style={{
+                width: '1px',
+                height: '16px',
+                background: `${brandColor}30`,
+              }}
+            />
+            <span
+              style={{
+                color: brandColor,
+                fontSize: '9px',
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+                opacity: 0.7,
+              }}
+            >
+              COPIAR
+            </span>
           </div>
         </div>
+
+        {/* CTA */}
+        <button
+          type="button"
+          style={{
+            marginTop: '6px',
+            alignSelf: 'flex-start',
+            background: brandColor,
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '7px',
+            padding: '8px 18px',
+            fontSize: '11px',
+            fontWeight: 800,
+            letterSpacing: '0.4px',
+            cursor: 'pointer',
+            boxShadow: `0 4px 12px ${brandColor}40`,
+          }}
+        >
+          Comprar Agora
+        </button>
       </div>
 
-      <div className="absolute top-3 right-3 bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        Banner Desconto
-      </div>
+      {/* Right — product image */}
+      <div
+        style={{
+          flex: '0 0 120px',
+          position: 'relative',
+          overflow: 'hidden',
+          background: '#F5F7FA',
+          borderLeft: '1px solid #E8ECF4',
+        }}
+      >
+        {image ? (
+          <img
+            src={image}
+            alt={title}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '12px',
+                background: `${brandColor}20`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="18" rx="3" fill={brandColor} opacity="0.3"/>
+                <circle cx="8.5" cy="8.5" r="1.5" fill={brandColor}/>
+                <path d="M21 15l-5-5L5 21" stroke={brandColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        )}
 
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        E-commerce
+        {/* Sticker */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            background: '#FF3B3B',
+            color: '#fff',
+            borderRadius: '50%',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1,
+            boxShadow: '0 2px 6px rgba(255,59,59,0.4)',
+          }}
+        >
+          <span style={{ fontSize: '9px', fontWeight: 900 }}>{discount}</span>
+          <span style={{ fontSize: '7px', fontWeight: 700 }}>OFF</span>
+        </div>
       </div>
     </div>
   );

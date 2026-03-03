@@ -1,62 +1,317 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 
 interface BannerCountdownProps {
   title?: string;
   headline?: string;
   name?: string;
+  brandName?: string;
   subtitle?: string;
+  description?: string;
+  body?: string;
+  caption?: string;
   image?: string;
   postImage?: string;
   thumbnail?: string;
-  price?: string;
+  profileImage?: string;
   brandColor?: string;
+  discount?: string;
 }
 
 export const BannerCountdown: React.FC<BannerCountdownProps> = ({
   title: titleProp,
   headline,
   name,
-  subtitle = 'Product description',
+  brandName,
+  subtitle,
+  description,
+  body,
+  caption,
   image: imageProp,
   postImage,
   thumbnail,
-  price = '$99.99',
-  brandColor = '#f97316',
+  profileImage,
+  brandColor = '#5D87FF',
+  discount = '50%',
 }) => {
-  const title = titleProp ?? headline ?? name ?? 'Product Title';
-  const image = imageProp ?? postImage ?? thumbnail ?? '';
+  const title = titleProp ?? headline ?? 'Oferta por tempo limitado';
+  const sub = subtitle ?? description ?? body ?? caption ?? 'Aproveite antes que acabe!';
+  const image = imageProp ?? postImage ?? thumbnail ?? profileImage ?? '';
+
+  // Static fake countdown values (no live timer to keep it stable for preview)
+  const [hours] = useState('23');
+  const [minutes] = useState('59');
+  const [seconds] = useState('47');
+
+  const bgDark = '#0F0F14';
+  const bgCard = '#1A1A24';
+
   return (
-    <div className="relative w-full max-w-[800px] h-[500px] bg-white rounded-lg overflow-hidden shadow-xl border-2 border-gray-200">
-      <div className="h-full flex flex-col p-8">
-        <div className="flex-1 flex items-center justify-center">
-          {image ? (
-            <img src={image} alt={title} className="max-w-full max-h-full object-contain" />
-          ) : (
-            <div className="w-64 h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            </div>
-          )}
-        </div>
+    <div
+      style={{
+        flexShrink: 0,
+        position: 'relative',
+        width: '600px',
+        height: '200px',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        background: bgDark,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+        display: 'flex',
+        alignItems: 'stretch',
+        fontFamily: "'Segoe UI', Arial, sans-serif",
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      {/* Subtle top gradient accent */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: `linear-gradient(90deg, transparent, ${brandColor}, #FF6B00, transparent)`,
+        }}
+      />
 
-        <div className="mt-6">
-          <h2 className="text-3xl font-black text-gray-900 mb-2">{title}</h2>
-          <p className="text-lg text-gray-600 mb-3">{subtitle}</p>
+      {/* Left section — label + headline */}
+      <div
+        style={{
+          flex: '0 0 220px',
+          padding: '22px 20px 22px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '8px',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(255,107,0,0.12)',
+            border: '1px solid rgba(255,107,0,0.3)',
+            borderRadius: '4px',
+            padding: '3px 9px',
+            alignSelf: 'flex-start',
+          }}
+        >
           <div
-            className="text-4xl font-black"
-            style={{ color: brandColor }}
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: '#FF6B00',
+              animation: 'none',
+            }}
+          />
+          <span
+            style={{
+              color: '#FF6B00',
+              fontSize: '10px',
+              fontWeight: 800,
+              letterSpacing: '1.5px',
+              textTransform: 'uppercase',
+            }}
           >
-            {price}
-          </div>
+            Oferta Relampago
+          </span>
+        </div>
+
+        <h2
+          style={{
+            color: '#ffffff',
+            fontSize: '17px',
+            fontWeight: 800,
+            lineHeight: 1.25,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h2>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '12px',
+            lineHeight: 1.4,
+            margin: 0,
+          }}
+        >
+          {sub}
+        </p>
+      </div>
+
+      {/* Center section — countdown */}
+      <div
+        style={{
+          flex: '0 0 220px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          padding: '20px',
+        }}
+      >
+        <span
+          style={{
+            color: 'rgba(255,255,255,0.4)',
+            fontSize: '10px',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+            fontWeight: 600,
+          }}
+        >
+          Termina em
+        </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {[
+            { value: hours, label: 'HORAS' },
+            { value: minutes, label: 'MIN' },
+            { value: seconds, label: 'SEG' },
+          ].map((unit, i) => (
+            <React.Fragment key={unit.label}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <div
+                  style={{
+                    background: bgCard,
+                    border: `1px solid ${brandColor}30`,
+                    borderRadius: '8px',
+                    width: '50px',
+                    height: '50px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 0 12px ${brandColor}20, inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: '#ffffff',
+                      fontSize: '22px',
+                      fontWeight: 900,
+                      letterSpacing: '-0.5px',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {unit.value}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    color: 'rgba(255,255,255,0.35)',
+                    fontSize: '9px',
+                    letterSpacing: '1px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {unit.label}
+                </span>
+              </div>
+              {i < 2 && (
+                <span
+                  style={{
+                    color: brandColor,
+                    fontSize: '22px',
+                    fontWeight: 900,
+                    marginBottom: '14px',
+                    lineHeight: 1,
+                  }}
+                >
+                  :
+                </span>
+              )}
+            </React.Fragment>
+          ))}
         </div>
       </div>
 
-      <div className="absolute top-3 right-3 bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        Banner Countdown
-      </div>
+      {/* Right section — discount badge + CTA */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          padding: '20px 24px 20px 16px',
+          borderLeft: '1px solid rgba(255,255,255,0.06)',
+          position: 'relative',
+        }}
+      >
+        {/* Product thumbnail */}
+        {image && (
+          <img
+            src={image}
+            alt="produto"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: 0.12,
+            }}
+          />
+        )}
 
-      <div className="absolute bottom-3 left-3 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
-        E-commerce
+        {/* Discount badge */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            lineHeight: 1,
+          }}
+        >
+          <span
+            style={{
+              color: brandColor,
+              fontSize: '42px',
+              fontWeight: 900,
+              letterSpacing: '-2px',
+            }}
+          >
+            {discount}
+          </span>
+          <span
+            style={{
+              color: brandColor,
+              fontSize: '14px',
+              fontWeight: 800,
+              letterSpacing: '2px',
+              marginTop: '-4px',
+            }}
+          >
+            OFF
+          </span>
+        </div>
+
+        {/* CTA */}
+        <button
+          type="button"
+          style={{
+            background: brandColor,
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '7px',
+            padding: '9px 18px',
+            fontSize: '12px',
+            fontWeight: 800,
+            letterSpacing: '0.5px',
+            cursor: 'pointer',
+            boxShadow: `0 4px 14px ${brandColor}50`,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Aproveitar Agora
+        </button>
       </div>
     </div>
   );
