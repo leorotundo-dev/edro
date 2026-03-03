@@ -2,86 +2,199 @@ import React from 'react';
 
 interface InstagramStoryMockupProps {
   username?: string;
+  name?: string;
   profileImage?: string;
   storyImage?: string;
+  image?: string;
   timeAgo?: string;
+  /** AI-generated headline shown when no image */
+  arteHeadline?: string;
+  headline?: string;
+  /** AI-generated body text */
+  arteBody?: string;
+  body?: string;
+  /** Background/accent color for text overlay */
+  arteBgColor?: string;
+  /** Number of story segments to show in progress bar */
+  totalSegments?: number;
+  /** Current active segment (0-based) */
+  activeSegment?: number;
 }
 
 export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
   username = 'username',
+  name,
   profileImage = '',
   storyImage = '',
+  image,
   timeAgo = '2h',
+  arteHeadline,
+  headline,
+  arteBody,
+  body,
+  arteBgColor,
+  totalSegments = 3,
+  activeSegment = 0,
 }) => {
+  const displayUsername = name || username;
+  const resolvedImage = storyImage || image || '';
+  const resolvedHeadline = arteHeadline || headline;
+  const resolvedBody = arteBody || body;
+  const accentColor = arteBgColor || '#E1306C';
+
+  const segments = Math.max(1, totalSegments);
+
   return (
     <div
-      className="w-full max-w-[360px] bg-gray-800 rounded-xl overflow-hidden shadow-lg relative border border-gray-200 font-sans text-white"
-      style={{ aspectRatio: '9/16' }}
+      className="font-sans text-white"
+      style={{
+        position: 'relative',
+        width: 320,
+        height: 568,
+        borderRadius: 16,
+        overflow: 'hidden',
+        background: '#111',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      }}
     >
-      {/* Background media */}
-      <div className="absolute inset-0 w-full h-full bg-gray-300 flex items-center justify-center">
-        {storyImage ? (
-          <img src={storyImage} alt="Story" className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-gray-500 text-sm">Mídia Vertical</span>
-        )}
-      </div>
+      {/* ── Background ── */}
+      {resolvedImage ? (
+        <img
+          src={resolvedImage}
+          alt="Story"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : resolvedHeadline ? (
+        /* AI text overlay as background */
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `linear-gradient(160deg, #0f172a 0%, ${accentColor}55 100%)`,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '80px 28px 100px',
+          textAlign: 'center',
+        }}>
+          {/* Accent bar */}
+          <div style={{
+            width: 40, height: 3, borderRadius: 2,
+            background: accentColor,
+            marginBottom: 18, opacity: 0.9,
+          }} />
+          <p style={{
+            fontSize: 24, fontWeight: 800,
+            lineHeight: 1.25, letterSpacing: '-0.02em',
+            textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+            margin: '0 0 12px',
+          }}>
+            {resolvedHeadline}
+          </p>
+          {resolvedBody && (
+            <p style={{
+              fontSize: 14, lineHeight: 1.5,
+              color: 'rgba(255,255,255,0.78)',
+              margin: 0,
+            }}>
+              {resolvedBody}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(160deg, #1a1a2e 0%, #16213e 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Mídia Vertical 9:16</span>
+        </div>
+      )}
 
-      {/* Top gradient overlay */}
-      <div className="absolute top-0 w-full h-24 bg-gradient-to-b from-black/50 to-transparent z-10 pointer-events-none" />
+      {/* ── Top gradient for readability ── */}
+      <div style={{
+        position: 'absolute', top: 0, width: '100%', height: 100,
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 100%)',
+        pointerEvents: 'none',
+        zIndex: 10,
+      }} />
 
-      {/* Top bar */}
-      <div className="absolute top-0 w-full z-20 px-3 pt-3 flex flex-col gap-2">
+      {/* ── Top bar ── */}
+      <div style={{ position: 'absolute', top: 0, width: '100%', zIndex: 20, padding: '10px 12px 0' }}>
         {/* Progress segments */}
-        <div className="w-full flex gap-1">
-          <div className="h-[2px] bg-white rounded-full flex-1" />
-          <div className="h-[2px] bg-white/40 rounded-full flex-1" />
+        <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
+          {Array.from({ length: segments }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1, height: 2, borderRadius: 2,
+                background: i <= activeSegment ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)',
+              }}
+            />
+          ))}
         </div>
 
         {/* User row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {profileImage ? (
-              <img
-                src={profileImage}
-                alt={username}
-                className="w-8 h-8 rounded-full object-cover border border-white/20"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-white/30 border border-white/20" />
-            )}
-            <span className="font-semibold text-[13px] drop-shadow-md">{username}</span>
-            <span className="text-[13px] text-white/80 drop-shadow-md">{timeAgo}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Avatar with gradient ring */}
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', padding: 2,
+              background: 'linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)',
+              flexShrink: 0,
+            }}>
+              <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid #111', overflow: 'hidden' }}>
+                {profileImage ? (
+                  <img src={profileImage} alt={displayUsername} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: accentColor }} />
+                )}
+              </div>
+            </div>
+            <span style={{ fontWeight: 600, fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>{displayUsername}</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>{timeAgo}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
               <circle cx="12" cy="12" r="1.5" />
               <circle cx="6" cy="12" r="1.5" />
               <circle cx="18" cy="12" r="1.5" />
             </svg>
-            <svg className="w-6 h-6 drop-shadow-md" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </div>
         </div>
       </div>
 
-      {/* Bottom gradient overlay */}
-      <div className="absolute bottom-0 w-full h-24 bg-gradient-to-t from-black/60 to-transparent z-10 pointer-events-none" />
+      {/* ── Bottom gradient ── */}
+      <div style={{
+        position: 'absolute', bottom: 0, width: '100%', height: 100,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)',
+        pointerEvents: 'none',
+        zIndex: 10,
+      }} />
 
-      {/* Bottom bar: message input + heart */}
-      <div className="absolute bottom-0 w-full z-20 px-3 pb-4 flex items-center gap-3">
-        <div className="flex-1 h-11 rounded-full border border-white/60 flex items-center px-4 bg-black/10 backdrop-blur-sm">
-          <span className="text-[14px] text-white/90">Enviar mensagem</span>
+      {/* ── Bottom bar: reply input + heart ── */}
+      <div style={{
+        position: 'absolute', bottom: 0, width: '100%',
+        zIndex: 20, padding: '0 12px 16px',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <div style={{
+          flex: 1, height: 44, borderRadius: 22,
+          border: '1.5px solid rgba(255,255,255,0.55)',
+          display: 'flex', alignItems: 'center', padding: '0 16px',
+          background: 'rgba(0,0,0,0.12)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>Enviar mensagem</span>
         </div>
-        <svg
-          className="w-7 h-7 flex-shrink-0 drop-shadow-md"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          viewBox="0 0 24 24"
-        >
+        {/* Heart */}
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
           <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78v0z" />
+        </svg>
+        {/* Share */}
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
       </div>
     </div>

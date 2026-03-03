@@ -2,14 +2,20 @@ import React, { useState } from 'react';
 
 interface InstagramFeedMockupProps {
   username?: string;
+  name?: string;
   profileImage?: string;
   postImage?: string;
+  image?: string;
   slides?: string[];
   isCarousel?: boolean;
   /** @deprecated use arteHeadline + arteBody */
   arteText?: string;
   arteHeadline?: string;
   arteBody?: string;
+  /** Alias for arteHeadline — passed by Studio AI system */
+  headline?: string;
+  /** Alias for arteBody — passed by Studio AI system */
+  body?: string;
   arteBgColor?: string;
   likes?: number;
   caption?: string;
@@ -57,13 +63,17 @@ function renderCaption(username: string, text: string) {
 
 export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   username = 'youraccount',
+  name,
   profileImage = '',
   postImage = '',
+  image,
   slides,
   isCarousel = false,
   arteText,
   arteHeadline,
   arteBody,
+  headline,
+  body,
   arteBgColor,
   likes = 3452,
   caption = 'Enhance your Instagram with our UI Mockup Download for your instagram creativity. @instagram #templates #bold #fun #aesthetic #newpost',
@@ -72,14 +82,16 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   dateLabel = 'HÁ 2 HORAS',
   postAspectRatio = '4/5',
 }) => {
+  const displayUsername = name || username;
   // Resolve headline/body from new props or legacy arteText
-  const resolvedHeadline = arteHeadline || (arteText ? arteText.split('\n\n')[0] : undefined);
-  const resolvedBody = arteBody || (arteText ? arteText.split('\n\n').slice(1).join('\n\n') : undefined);
+  const resolvedHeadline = arteHeadline || headline || (arteText ? arteText.split('\n\n')[0] : undefined);
+  const resolvedBody = arteBody || body || (arteText ? arteText.split('\n\n').slice(1).join('\n\n') : undefined);
+  const resolvedPostImage = postImage || image || '';
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  const allSlides = isCarousel && slides && slides.length > 0 ? slides : [postImage];
+  const allSlides = isCarousel && slides && slides.length > 0 ? slides : [resolvedPostImage];
   const totalSlides = allSlides.length;
-  const currentImage = allSlides[currentSlide] || postImage;
+  const currentImage = allSlides[currentSlide] || resolvedPostImage;
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,7 +121,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
                  : 'linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)' }}>
             <div className="rounded-full border-2 border-white overflow-hidden" style={{ width: 36, height: 36 }}>
               {profileImage ? (
-                <img src={profileImage} alt={username} className="w-full h-full object-cover" />
+                <img src={profileImage} alt={displayUsername} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full" style={{ background: arteBgColor || '#e2e8f0' }} />
               )}
@@ -119,7 +131,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
           {/* Username + location */}
           <div className="flex flex-col">
             <div className="flex items-center gap-1">
-              <span style={{ fontWeight: 600, fontSize: 14, lineHeight: '18px' }}>{username}</span>
+              <span style={{ fontWeight: 600, fontSize: 14, lineHeight: '18px' }}>{displayUsername}</span>
               {/* Verified badge — oficial do Instagram */}
               <svg aria-label="Verificado" width="14" height="14" viewBox="0 0 24 24" fill="#3897F0">
                 <path d="M12.001.504a11.5 11.5 0 1 0 11.5 11.5 11.513 11.513 0 0 0-11.5-11.5Zm5.706 9.21-6.5 6.495a1 1 0 0 1-1.414-.001l-3.5-3.503a1 1 0 1 1 1.414-1.414l2.794 2.796L16.293 8.3a1 1 0 0 1 1.414 1.415Z" />
@@ -302,7 +314,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
 
       {/* ── Caption ── */}
       <div className="px-3 pb-1">
-        {renderCaption(username, caption || '')}
+        {renderCaption(displayUsername, caption || '')}
         {(caption || '').length > 125 && (
           <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.40)', cursor: 'pointer' }}>
             {' '}... mais
