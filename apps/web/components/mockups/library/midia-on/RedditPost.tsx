@@ -1,13 +1,18 @@
 import React from 'react';
-import { ArrowUp, ArrowDown, MessageSquare, Share2 } from 'lucide-react';
 
 interface RedditPostProps {
   subreddit?: string;
   username?: string;
   timeAgo?: string;
   title?: string;
+  headline?: string;
+  name?: string;
   postText?: string;
+  content?: string;
+  text?: string;
+  body?: string;
   postImage?: string;
+  thumbnail?: string;
   upvotes?: number;
   comments?: number;
 }
@@ -17,21 +22,31 @@ export const RedditPost: React.FC<RedditPostProps> = ({
   username = 'u/username',
   timeAgo = '2h ago',
   title = 'Post Title Goes Here',
+  headline,
+  name,
   postText = 'Post content text goes here. This is the body of the Reddit post.',
+  content,
+  text,
+  body,
   postImage = '',
+  thumbnail,
   upvotes = 1234,
   comments = 89,
 }) => {
+  const resolvedTitle = headline ?? name ?? title;
+  const resolvedPostText = content ?? text ?? body ?? postText;
+  const resolvedPostImage = thumbnail ?? postImage;
+
   return (
     <div className="w-full max-w-[700px] bg-white border border-gray-300 rounded hover:border-gray-400">
       <div className="flex">
         <div className="flex flex-col items-center bg-gray-50 p-2 rounded-l">
           <button className="text-gray-400 hover:text-orange-500 p-1">
-            <ArrowUp className="w-5 h-5" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
           </button>
           <span className="text-xs font-bold text-gray-900 my-1">{upvotes}</span>
           <button className="text-gray-400 hover:text-blue-500 p-1">
-            <ArrowDown className="w-5 h-5" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
         </div>
         <div className="flex-1 p-2">
@@ -42,20 +57,20 @@ export const RedditPost: React.FC<RedditPostProps> = ({
             <span>•</span>
             <span>{timeAgo}</span>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-          {postText && <p className="text-sm text-gray-800 mb-2">{postText}</p>}
-          {postImage && (
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">{resolvedTitle}</h3>
+          {resolvedPostText && <p className="text-sm text-gray-800 mb-2">{resolvedPostText}</p>}
+          {resolvedPostImage && (
             <div className="mb-2 rounded overflow-hidden">
-              <img src={postImage} alt="Post" className="w-full object-cover max-h-[400px]" />
+              <img src={resolvedPostImage} alt="Post" className="w-full object-cover max-h-[400px]" />
             </div>
           )}
           <div className="flex items-center gap-4 mt-2">
             <button className="flex items-center gap-1 text-gray-600 hover:bg-gray-100 px-2 py-1 rounded text-xs font-bold">
-              <MessageSquare className="w-4 h-4" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               {comments} Comments
             </button>
             <button className="flex items-center gap-1 text-gray-600 hover:bg-gray-100 px-2 py-1 rounded text-xs font-bold">
-              <Share2 className="w-4 h-4" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               Share
             </button>
           </div>

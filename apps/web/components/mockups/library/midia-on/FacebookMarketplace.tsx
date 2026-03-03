@@ -1,5 +1,4 @@
 import React from 'react';
-import { MapPin } from 'lucide-react';
 
 interface FacebookMarketplaceProps {
   productImage?: string;
@@ -21,13 +20,13 @@ export const FacebookMarketplace: React.FC<FacebookMarketplaceProps> = ({
       <div className="relative w-full aspect-square bg-gray-200">
         {productImage && <img src={productImage} alt={productName} className="w-full h-full object-cover" />}
       </div>
-      
+
       <div className="p-3">
         <p className="text-lg font-bold text-gray-900 mb-1">{price}</p>
         <h3 className="text-sm text-gray-900 line-clamp-2 mb-2">{productName}</h3>
         <p className="text-xs text-gray-600 mb-1">{condition}</p>
         <div className="flex items-center gap-1 text-xs text-gray-500">
-          <MapPin className="w-3 h-3" />
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           <span>{location}</span>
         </div>
       </div>

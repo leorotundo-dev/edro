@@ -1,51 +1,60 @@
 import React from 'react';
-import { Navigation } from 'lucide-react';
 
 interface PlacaEstacionamentoProps {
   brandName?: string;
+  name?: string;
+  username?: string;
   brandLogo?: string;
   tagline?: string;
+  subtitle?: string;
+  description?: string;
   backgroundColor?: string;
   textColor?: string;
 }
 
 export const PlacaEstacionamento: React.FC<PlacaEstacionamentoProps> = ({
-  brandName = 'Brand Name',
+  brandName,
+  name,
+  username,
   brandLogo = '',
-  tagline = 'Your tagline here',
+  tagline,
+  subtitle,
+  description,
   backgroundColor = '#1f2937',
   textColor = '#ffffff',
 }) => {
+  const resolvedBrandName = brandName ?? name ?? username ?? 'Brand Name';
+  const resolvedTagline = tagline ?? subtitle ?? description ?? 'Your tagline here';
   return (
-    <div 
+    <div
       className="relative w-[400px] h-[300px] rounded-lg overflow-hidden shadow-2xl border-4"
       style={{ backgroundColor, borderColor: '#374151' }}
     >
       <div className="h-full flex flex-col items-center justify-center p-6">
         {brandLogo && (
           <div className="w-32 h-32 mb-4">
-            <img src={brandLogo} alt={brandName} className="w-full h-full object-contain" />
+            <img src={brandLogo} alt={resolvedBrandName} className="w-full h-full object-contain" />
           </div>
         )}
-        <h2 
+        <h2
           className="text-3xl font-black text-center mb-2"
           style={{ color: textColor }}
         >
-          {brandName}
+          {resolvedBrandName}
         </h2>
-        <p 
+        <p
           className="text-base text-center"
           style={{ color: textColor, opacity: 0.9 }}
         >
-          {tagline}
+          {resolvedTagline}
         </p>
       </div>
-      
+
       <div className="absolute top-3 right-3 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <Navigation className="w-3 h-3" />
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
         Placa Estacionamento
       </div>
-      
+
       <div className="absolute bottom-3 left-3 bg-black/80 text-white text-xs px-2 py-1 rounded">
         Variable
       </div>

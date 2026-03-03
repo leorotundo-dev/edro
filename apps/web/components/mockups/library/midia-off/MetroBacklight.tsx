@@ -2,37 +2,54 @@ import React from 'react';
 
 interface MetroBacklightProps {
   adImage?: string;
+  postImage?: string;
+  thumbnail?: string;
+  image?: string;
   brandLogo?: string;
   headline?: string;
+  title?: string;
+  name?: string;
   subheadline?: string;
+  subtitle?: string;
+  description?: string;
 }
 
 export const MetroBacklight: React.FC<MetroBacklightProps> = ({
-  adImage = '',
+  adImage,
+  postImage,
+  thumbnail,
+  image,
   brandLogo = '',
-  headline = 'Your Headline Here',
-  subheadline = 'Subheadline or call to action',
+  headline,
+  title,
+  name,
+  subheadline,
+  subtitle,
+  description,
 }) => {
+  const resolvedAdImage = adImage ?? postImage ?? thumbnail ?? image ?? '';
+  const resolvedHeadline = headline ?? title ?? name ?? 'Your Headline Here';
+  const resolvedSubheadline = subheadline ?? subtitle ?? description ?? 'Subheadline or call to action';
   return (
     <div className="relative w-full max-w-[500px] h-[350px] bg-white border-2 border-gray-300 rounded overflow-hidden shadow-lg">
       <div className="absolute inset-0 bg-gray-200">
-        {adImage && <img src={adImage} alt="Ad" className="w-full h-full object-cover" />}
+        {resolvedAdImage && <img src={resolvedAdImage} alt="Ad" className="w-full h-full object-cover" />}
       </div>
-      
+
       <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-gradient-to-t from-black/60 to-transparent">
         {brandLogo && (
           <div className="w-24 h-24 mb-4">
             <img src={brandLogo} alt="Brand" className="w-full h-full object-contain drop-shadow-lg" />
           </div>
         )}
-        <h2 className="text-white text-2xl md:text-4xl font-black text-center mb-2 drop-shadow-lg">{headline}</h2>
-        <p className="text-white text-base md:text-xl font-semibold text-center drop-shadow-lg">{subheadline}</p>
+        <h2 className="text-white text-2xl md:text-4xl font-black text-center mb-2 drop-shadow-lg">{resolvedHeadline}</h2>
+        <p className="text-white text-base md:text-xl font-semibold text-center drop-shadow-lg">{resolvedSubheadline}</p>
       </div>
-      
+
       <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
         Backlight Metrô
       </div>
-      
+
       <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
         Variable
       </div>

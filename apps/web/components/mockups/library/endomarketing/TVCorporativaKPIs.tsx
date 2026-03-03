@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv } from 'lucide-react';
+
 
 interface TVCorporativaKPIsProps {
   companyLogo?: string;
@@ -46,7 +46,7 @@ export const TVCorporativaKPIs: React.FC<TVCorporativaKPIsProps> = ({
       </div>
       
       <div className="absolute top-4 right-4 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-        <Tv className="w-3 h-3" />
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
         TV Corporativa KPIs
       </div>
       

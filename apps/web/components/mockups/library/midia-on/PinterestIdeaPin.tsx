@@ -1,9 +1,10 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
 
 interface PinterestIdeaPinProps {
   pages?: string[];
   title?: string;
+  headline?: string;
+  name?: string;
   creatorName?: string;
   creatorImage?: string;
 }
@@ -11,9 +12,13 @@ interface PinterestIdeaPinProps {
 export const PinterestIdeaPin: React.FC<PinterestIdeaPinProps> = ({
   pages = ['', '', ''],
   title = 'Idea Pin Title',
+  headline,
+  name,
   creatorName = 'Creator Name',
   creatorImage = '',
 }) => {
+  const resolvedTitle = headline ?? name ?? title;
+
   return (
     <div className="w-full max-w-[300px] bg-white rounded-2xl shadow-sm overflow-hidden">
       <div className="relative w-full aspect-[9/16] bg-gray-200">
@@ -22,11 +27,11 @@ export const PinterestIdeaPin: React.FC<PinterestIdeaPinProps> = ({
           1/{pages.length}
         </div>
         <button className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
-          <ChevronRight className="w-5 h-5 text-gray-900" />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
       <div className="p-3">
-        <h3 className="font-semibold text-sm text-gray-900 line-clamp-2">{title}</h3>
+        <h3 className="font-semibold text-sm text-gray-900 line-clamp-2">{resolvedTitle}</h3>
         <div className="flex items-center gap-2 mt-2">
           <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden">
             {creatorImage && <img src={creatorImage} alt={creatorName} className="w-full h-full object-cover" />}
