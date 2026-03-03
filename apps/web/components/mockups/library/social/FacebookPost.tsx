@@ -120,7 +120,7 @@ export const FacebookPost: React.FC<FacebookPostProps> = ({
       <div className="flex items-center justify-between px-3 py-1 font-semibold text-[15px]" style={{ color: '#65676B' }}>
         <button className="flex-1 flex items-center justify-center gap-2 py-[6px] rounded-md hover:bg-[#F2F2F2] transition-colors">
           <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20">
-            <path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM8 13.5l-3.5-3.5 1.5-1.5L8 10.5 14 4.5l1.5 1.5L8 13.5z" />
+            <path d="M4 8.5v9H1.5v-9H4zm13 1.5c0 .7-.4 1.3-.9 1.6.4.3.7.8.7 1.4 0 .5-.2 1-.6 1.3.3.3.5.7.5 1.2 0 .5-.2 1-.6 1.3.3.3.5.8.5 1.2 0 1-.8 1.5-1.8 1.5H9.5c-1 0-1.8-.8-1.8-1.8V9.5c0-.7.4-1.3 1-1.6C9 7.3 9.5 6.2 9.5 5c0-1 .8-1.5 1.8-1.5s1.8.8 1.8 1.5c0 1-.4 1.9-1.1 2.5H15c1 0 2 .9 2 2z" />
           </svg>
           Curtir
         </button>
