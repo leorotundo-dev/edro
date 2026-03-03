@@ -1,42 +1,60 @@
 import React from 'react';
-import { MessageSquare } from 'lucide-react';
 
 interface SlackThreadProps {
   username?: string;
+  name?: string;
   userAvatar?: string;
+  profileImage?: string;
+  image?: string;
   message?: string;
+  text?: string;
+  body?: string;
+  caption?: string;
+  description?: string;
   replyCount?: number;
 }
 
 export const SlackThread: React.FC<SlackThreadProps> = ({
-  username = 'Username',
-  userAvatar = '',
-  message = 'Original message that started the thread',
+  username,
+  name,
+  userAvatar,
+  profileImage,
+  image,
+  message,
+  text,
+  body,
+  caption,
+  description,
   replyCount = 5,
 }) => {
+  const displayUsername = username || name || 'Usuário';
+  const displayAvatar = userAvatar || profileImage || image || '';
+  const displayMessage = message || text || body || caption || description || 'Mensagem original que iniciou o tópico';
+
   return (
-    <div className="w-full max-w-[600px] bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <div className="p-4 hover:bg-gray-50">
-        <div className="flex gap-3">
-          <div className="w-9 h-9 rounded bg-gray-300 overflow-hidden flex-shrink-0">
-            {userAvatar && <img src={userAvatar} alt={username} className="w-full h-full object-cover" />}
+    <div style={{ width: '100%', maxWidth: 600, background: '#fff', border: '1px solid #E8E8E8', borderRadius: 8, overflow: 'hidden', fontFamily: 'Lato, -apple-system, BlinkMacSystemFont, sans-serif', color: '#1D1C1D' }}>
+      <div style={{ padding: 16 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 4, background: '#DDDDDD', overflow: 'hidden', flexShrink: 0 }}>
+            {displayAvatar && <img src={displayAvatar} alt={displayUsername} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-bold text-sm text-gray-900">{username}</span>
-              <span className="text-xs text-gray-500">10:30 AM</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#1D1C1D' }}>{displayUsername}</span>
+              <span style={{ fontSize: 12, color: '#616061' }}>10:30</span>
             </div>
-            <p className="text-sm text-gray-900 mb-2">{message}</p>
-            <button className="flex items-center gap-2 text-xs text-blue-600 hover:underline">
-              <MessageSquare className="w-4 h-4" />
-              {replyCount} replies
+            <p style={{ fontSize: 14, color: '#1D1C1D', margin: '0 0 8px', lineHeight: 1.5 }}>{displayMessage}</p>
+            <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#1264A3', fontSize: 12 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1264A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              {replyCount} respostas
             </button>
           </div>
         </div>
       </div>
-      
-      <div className="bg-gray-50 border-t border-gray-200 p-4 pl-16">
-        <p className="text-xs text-gray-600">View thread</p>
+      <div style={{ background: '#F8F8F8', borderTop: '1px solid #E8E8E8', padding: '12px 16px 12px 64px' }}>
+        <p style={{ fontSize: 12, color: '#616061', margin: 0 }}>Ver tópico</p>
       </div>
     </div>
   );

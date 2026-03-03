@@ -1,45 +1,67 @@
 import React from 'react';
-import { Users, Hash } from 'lucide-react';
 
 interface DiscordServerProps {
   serverName?: string;
+  name?: string;
+  headline?: string;
   serverIcon?: string;
-  memberCount?: string;
-  onlineCount?: string;
+  image?: string;
+  profileImage?: string;
+  memberCount?: string | number;
+  onlineCount?: string | number;
+  description?: string;
+  text?: string;
+  body?: string;
+  caption?: string;
 }
 
 export const DiscordServer: React.FC<DiscordServerProps> = ({
-  serverName = 'Server Name',
-  serverIcon = '',
-  memberCount = '1.2K',
+  serverName,
+  name,
+  headline,
+  serverIcon,
+  image,
+  profileImage,
+  memberCount = '1,2K',
   onlineCount = '234',
+  description,
+  text,
+  body,
+  caption,
 }) => {
+  const displayName = serverName || name || headline || 'Nome do Servidor';
+  const displayIcon = serverIcon || image || profileImage || '';
+  const displayDesc = description || text || body || caption || '';
+
   return (
-    <div className="w-full max-w-[300px] bg-[#2B2D31] rounded-lg shadow-lg overflow-hidden">
-      <div className="relative h-[80px] bg-gradient-to-r from-indigo-600 to-purple-600">
-        <div className="absolute -bottom-8 left-4">
-          <div className="w-16 h-16 rounded-full border-4 border-[#2B2D31] bg-indigo-600 overflow-hidden">
-            {serverIcon && <img src={serverIcon} alt={serverName} className="w-full h-full object-cover" />}
-          </div>
+    <div style={{ width: 300, maxWidth: '100%', background: '#2B2D31', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', overflow: 'hidden', fontFamily: '"gg sans", "Noto Sans", "Helvetica Neue", Arial, sans-serif' }}>
+      <div style={{ height: 80, background: 'linear-gradient(135deg, #5865F2 0%, #3B3F98 100%)' }} />
+      <div style={{ position: 'relative', padding: '0 16px' }}>
+        <div style={{ position: 'absolute', top: -28, left: 16, width: 56, height: 56, borderRadius: '50%', border: '4px solid #2B2D31', background: '#5865F2', overflow: 'hidden' }}>
+          {displayIcon ? (
+            <img src={displayIcon} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{displayName[0]}</span>
+            </div>
+          )}
         </div>
       </div>
-      
-      <div className="pt-12 px-4 pb-4">
-        <h3 className="text-lg font-bold text-white mb-3">{serverName}</h3>
-        
-        <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <span>{onlineCount} Online</span>
+      <div style={{ padding: '36px 16px 16px' }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#F2F3F5', margin: '0 0 8px' }}>{displayName}</h3>
+        {displayDesc && <p style={{ fontSize: 13, color: '#B5BAC1', margin: '0 0 12px', lineHeight: '18px' }}>{displayDesc}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#23A55A' }} />
+            <span style={{ fontSize: 13, color: '#B5BAC1' }}>{onlineCount} online</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Users className="w-4 h-4" />
-            <span>{memberCount} Members</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#80848E' }} />
+            <span style={{ fontSize: 13, color: '#B5BAC1' }}>{memberCount} membros</span>
           </div>
         </div>
-
-        <button className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold py-2 rounded text-sm">
-          Join Server
+        <button type="button" style={{ width: '100%', background: '#5865F2', border: 'none', borderRadius: 4, color: 'white', fontWeight: 600, fontSize: 14, padding: '10px 0', cursor: 'pointer' }}>
+          Entrar no Servidor
         </button>
       </div>
     </div>

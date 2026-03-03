@@ -1,55 +1,67 @@
 import React from 'react';
-import { Users, Lock } from 'lucide-react';
 
 interface FacebookGroupProps {
   groupName?: string;
+  name?: string;
+  headline?: string;
   groupCover?: string;
-  members?: string;
+  image?: string;
+  postImage?: string;
+  members?: string | number;
   postsPerDay?: number;
   isPrivate?: boolean;
 }
 
 export const FacebookGroup: React.FC<FacebookGroupProps> = ({
-  groupName = 'Group Name',
-  groupCover = '',
-  members = '12.4K members',
+  groupName,
+  name,
+  headline,
+  groupCover,
+  image,
+  postImage,
+  members = '12,4K membros',
   postsPerDay = 15,
   isPrivate = true,
 }) => {
+  const displayName = groupName || name || headline || 'Nome do Grupo';
+  const displayCover = groupCover || image || postImage || '';
+
   return (
-    <div className="w-full max-w-[800px] bg-white rounded-lg shadow-sm overflow-hidden">
-      <div className="relative w-full h-[200px] bg-gray-200">
-        {groupCover && <img src={groupCover} alt={groupName} className="w-full h-full object-cover" />}
+    <div style={{ width: 800, maxWidth: '100%', background: '#fff', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#050505' }}>
+      <div style={{ width: '100%', height: 200, background: '#E4E6EB', overflow: 'hidden' }}>
+        {displayCover ? (
+          <img src={displayCover} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1877F2 0%, #0052cc 100%)' }} />
+        )}
       </div>
-      
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
+      <div style={{ padding: '20px 24px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">{groupName}</h1>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>{displayName}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#65676B' }}>
               {isPrivate && (
                 <>
-                  <Lock className="w-4 h-4" />
-                  <span>Private group</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65676B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                  <span>Grupo privado</span>
                   <span>·</span>
                 </>
               )}
-              <Users className="w-4 h-4" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65676B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               <span>{members}</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">{postsPerDay} posts per day</p>
+            <p style={{ fontSize: 12, color: '#65676B', margin: '4px 0 0' }}>{postsPerDay} publicações por dia</p>
           </div>
-          
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md">
-            Join Group
+          <button type="button" style={{ background: '#1877F2', border: 'none', borderRadius: 6, color: 'white', fontWeight: 700, fontSize: 15, padding: '8px 20px', cursor: 'pointer' }}>
+            Entrar no Grupo
           </button>
         </div>
-
-        <div className="flex gap-2 border-t border-gray-200 pt-3">
-          <button className="text-sm font-semibold text-blue-600 border-b-2 border-blue-600 pb-2">Discussion</button>
-          <button className="text-sm font-semibold text-gray-600 pb-2">Featured</button>
-          <button className="text-sm font-semibold text-gray-600 pb-2">Members</button>
-          <button className="text-sm font-semibold text-gray-600 pb-2">Events</button>
+        <div style={{ display: 'flex', gap: 4, borderTop: '1px solid #E4E6EB', paddingTop: 8 }}>
+          {['Discussão', 'Destaque', 'Membros', 'Eventos'].map((tab, i) => (
+            <button key={tab} type="button" style={{ background: 'none', border: 'none', borderBottom: i === 0 ? '2px solid #1877F2' : '2px solid transparent', color: i === 0 ? '#1877F2' : '#65676B', fontWeight: 700, fontSize: 14, padding: '8px 12px', cursor: 'pointer' }}>
+              {tab}
+            </button>
+          ))}
         </div>
       </div>
     </div>

@@ -1,57 +1,82 @@
 import React from 'react';
-import { Briefcase, MapPin, Users, Clock } from 'lucide-react';
 
 interface LinkedInJobPostProps {
   jobTitle?: string;
+  title?: string;
+  headline?: string;
+  name?: string;
   companyName?: string;
+  brandName?: string;
+  username?: string;
   companyLogo?: string;
+  profileImage?: string;
+  image?: string;
   location?: string;
+  address?: string;
   jobType?: string;
-  applicants?: number;
+  applicants?: number | string;
   postedTime?: string;
 }
 
 export const LinkedInJobPost: React.FC<LinkedInJobPostProps> = ({
-  jobTitle = 'Job Title',
-  companyName = 'Company Name',
-  companyLogo = '',
-  location = 'City, Country',
-  jobType = 'Full-time',
+  jobTitle,
+  title,
+  headline,
+  name,
+  companyName,
+  brandName,
+  username,
+  companyLogo,
+  profileImage,
+  image,
+  location,
+  address,
+  jobType = 'Tempo integral',
   applicants = 47,
-  postedTime = '2 days ago',
+  postedTime = 'há 2 dias',
 }) => {
+  const displayTitle = jobTitle || title || headline || name || 'Título da Vaga';
+  const displayCompany = companyName || brandName || username || 'Nome da Empresa';
+  const displayLogo = companyLogo || profileImage || image || '';
+  const displayLocation = location || address || 'Cidade, País';
+
   return (
-    <div className="w-full max-w-[700px] bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div className="flex items-start gap-4">
-        <div className="w-14 h-14 rounded bg-gray-200 overflow-hidden flex-shrink-0">
-          {companyLogo && <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />}
+    <div style={{ width: '100%', maxWidth: 700, background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #E0E0E0', padding: 16, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#000000E6' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 4, background: '#E0E0E0', overflow: 'hidden', flexShrink: 0 }}>
+          {displayLogo && <img src={displayLogo} alt={displayCompany} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
         </div>
-        
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-gray-900 mb-1">{jobTitle}</h3>
-          <p className="text-sm text-gray-700 mb-2">{companyName}</p>
-          
-          <div className="space-y-1 mb-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span>{location}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#000000E6', margin: '0 0 4px', lineHeight: 1.3 }}>{displayTitle}</h3>
+          <p style={{ fontSize: 14, color: '#000000CC', margin: '0 0 12px' }}>{displayCompany}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#00000099' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00000099" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span>{displayLocation}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Briefcase className="w-4 h-4" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#00000099' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00000099" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </svg>
               <span>{jobType}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Users className="w-4 h-4" />
-              <span>{applicants} applicants</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#00000099' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00000099" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>{applicants} candidatos</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Clock className="w-4 h-4" />
-              <span>{postedTime}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#00000066' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00000066" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span>Publicado {postedTime}</span>
             </div>
           </div>
-
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-full text-sm">
-            Apply
+          <button type="button" style={{ background: '#0A66C2', border: 'none', borderRadius: 9999, color: '#fff', fontWeight: 700, fontSize: 14, padding: '8px 24px', cursor: 'pointer' }}>
+            Candidatar-se
           </button>
         </div>
       </div>

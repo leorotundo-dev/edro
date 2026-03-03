@@ -1,39 +1,59 @@
 import React from 'react';
-import { Play } from 'lucide-react';
 
 interface TwitchClipProps {
   thumbnail?: string;
+  image?: string;
+  postImage?: string;
   clipTitle?: string;
+  title?: string;
+  headline?: string;
+  caption?: string;
+  name?: string;
   streamerName?: string;
+  username?: string;
   views?: string;
   duration?: string;
 }
 
 export const TwitchClip: React.FC<TwitchClipProps> = ({
-  thumbnail = '',
-  clipTitle = 'Epic Moment!',
-  streamerName = 'StreamerName',
-  views = '12.4K',
+  thumbnail,
+  image,
+  postImage,
+  clipTitle,
+  title,
+  headline,
+  caption,
+  name,
+  streamerName,
+  username,
+  views = '12,4K',
   duration = '0:30',
 }) => {
+  const displayThumbnail = thumbnail || image || postImage || '';
+  const displayTitle = clipTitle || title || headline || caption || name || 'Momento Épico!';
+  const displayStreamer = streamerName || username || 'NomeDoStreamer';
+
   return (
-    <div className="w-full max-w-[300px] bg-[#18181B] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-      <div className="relative w-full aspect-video bg-gray-900">
-        {thumbnail && <img src={thumbnail} alt={clipTitle} className="w-full h-full object-cover" />}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
-            <Play className="w-6 h-6 text-gray-900 fill-gray-900 ml-0.5" />
+    <div style={{ width: '100%', maxWidth: 300, background: '#18181B', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', cursor: 'pointer', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', background: '#0E0E10' }}>
+        {displayThumbnail && (
+          <img src={displayThumbnail} alt={displayTitle} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        )}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ width: 48, height: 48, background: 'rgba(255,255,255,0.9)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#18181B" style={{ marginLeft: 3 }}>
+              <polygon points="5,3 19,12 5,21"/>
+            </svg>
           </div>
         </div>
-        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+        <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 11, padding: '2px 6px', borderRadius: 3, fontWeight: 600 }}>
           {duration}
         </div>
       </div>
-      
-      <div className="p-3">
-        <p className="font-semibold text-sm text-white line-clamp-2 mb-1">{clipTitle}</p>
-        <p className="text-xs text-gray-400">{streamerName}</p>
-        <p className="text-xs text-gray-500 mt-1">{views} views</p>
+      <div style={{ padding: 12 }}>
+        <p style={{ fontWeight: 600, fontSize: 13, color: '#EFEFF1', margin: '0 0 4px', lineHeight: 1.4 }}>{displayTitle}</p>
+        <p style={{ fontSize: 12, color: '#ADADB8', margin: 0 }}>{displayStreamer}</p>
+        <p style={{ fontSize: 12, color: '#7D7D8E', margin: '4px 0 0' }}>{views} visualizações</p>
       </div>
     </div>
   );

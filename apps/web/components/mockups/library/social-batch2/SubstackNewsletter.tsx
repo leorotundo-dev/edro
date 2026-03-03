@@ -1,46 +1,66 @@
 import React from 'react';
-import { Mail } from 'lucide-react';
 
 interface SubstackNewsletterProps {
   postImage?: string;
+  image?: string;
+  thumbnail?: string;
   title?: string;
+  headline?: string;
+  name?: string;
   excerpt?: string;
+  description?: string;
+  text?: string;
+  body?: string;
+  caption?: string;
   authorName?: string;
+  username?: string;
   date?: string;
 }
 
 export const SubstackNewsletter: React.FC<SubstackNewsletterProps> = ({
-  postImage = '',
-  title = 'Newsletter Post Title',
-  excerpt = 'Post excerpt or introduction text',
-  authorName = 'Author Name',
-  date = 'Jan 27, 2026',
+  postImage,
+  image,
+  thumbnail,
+  title,
+  headline,
+  name,
+  excerpt,
+  description,
+  text,
+  body,
+  caption,
+  authorName,
+  username,
+  date = '27 jan. 2026',
 }) => {
+  const displayImage = postImage || image || thumbnail || '';
+  const displayTitle = title || headline || name || 'Título da Newsletter';
+  const displayExcerpt = excerpt || description || text || body || caption || 'Introdução ou resumo do conteúdo da newsletter';
+  const displayAuthor = authorName || username || 'Nome do Autor';
+
   return (
-    <div className="w-full max-w-[600px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      {postImage && (
-        <div className="w-full h-[240px] bg-gray-200">
-          <img src={postImage} alt={title} className="w-full h-full object-cover" />
+    <div style={{ width: '100%', maxWidth: 600, background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #E5E5E5', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', color: '#0F0F0F' }}>
+      {displayImage && (
+        <div style={{ width: '100%', height: 240, background: '#E5E5E5', overflow: 'hidden' }}>
+          <img src={displayImage} alt={displayTitle} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
       )}
-      
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <Mail className="w-4 h-4 text-orange-600" />
-          <span className="text-xs font-semibold text-orange-600 uppercase">Newsletter</span>
+      <div style={{ padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6719" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+          </svg>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#FF6719', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Newsletter</span>
         </div>
-        
-        <h2 className="text-2xl font-bold text-gray-900 mb-3 leading-tight">{title}</h2>
-        <p className="text-base text-gray-600 mb-4">{excerpt}</p>
-        
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0F0F0F', margin: '0 0 12px', lineHeight: 1.3 }}>{displayTitle}</h2>
+        <p style={{ fontSize: 15, color: '#6B6B6B', margin: '0 0 16px', lineHeight: 1.6 }}>{displayExcerpt}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16, borderTop: '1px solid #E5E5E5' }}>
           <div>
-            <p className="font-semibold text-sm text-gray-900">{authorName}</p>
-            <p className="text-xs text-gray-500">{date}</p>
+            <p style={{ fontWeight: 600, fontSize: 13, color: '#0F0F0F', margin: 0 }}>{displayAuthor}</p>
+            <p style={{ fontSize: 11, color: '#9B9B9B', margin: '2px 0 0' }}>{date}</p>
           </div>
-          
-          <button className="text-sm text-orange-600 font-semibold hover:underline">
-            Read more
+          <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#FF6719', fontWeight: 600, padding: 0 }}>
+            Ler mais
           </button>
         </div>
       </div>
