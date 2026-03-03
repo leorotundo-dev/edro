@@ -63,21 +63,30 @@ const TikTokBookmark = () => (
 
 // TikTok music disc (spinning record)
 const MusicDisc = ({ image }: { image?: string }) => (
-  <div style={{
-    width: 42, height: 42,
-    borderRadius: '50%',
-    background: image ? `url(${image}) center/cover` : 'linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%)',
-    border: '3px solid rgba(255,255,255,0.15)',
-    boxShadow: '0 0 0 8px rgba(255,255,255,0.08)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  }}>
-    <div style={{
-      width: 12, height: 12, borderRadius: '50%',
-      background: 'rgba(255,255,255,0.9)',
-      border: '2px solid rgba(0,0,0,0.3)',
-    }} />
-  </div>
+  <>
+    <style>{`
+      @keyframes tiktokDiscSpin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+      .tiktok-disc { animation: tiktokDiscSpin 4s linear infinite; }
+    `}</style>
+    <div className="tiktok-disc" style={{
+      width: 42, height: 42,
+      borderRadius: '50%',
+      background: image ? `url(${image}) center/cover` : 'linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%)',
+      border: '3px solid rgba(255,255,255,0.15)',
+      boxShadow: '0 0 0 8px rgba(255,255,255,0.08)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      <div style={{
+        width: 12, height: 12, borderRadius: '50%',
+        background: 'rgba(255,255,255,0.9)',
+        border: '2px solid rgba(0,0,0,0.3)',
+      }} />
+    </div>
+  </>
 );
 
 // Plus button overlay for follow
