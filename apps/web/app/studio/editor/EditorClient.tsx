@@ -1407,30 +1407,6 @@ export default function EditorClient() {
                     align="left"
                     showHeader={false}
                   />
-                  {copyWarnings.length > 0 && (
-                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
-                      {copyWarnings.map((w, i) => (
-                        <Alert key={i} severity="warning" sx={{ py: 0.5, fontSize: 12 }}>
-                          {w.message}
-                        </Alert>
-                      ))}
-                    </Stack>
-                  )}
-                  {catalogItem?.best_practices && catalogItem.best_practices.length > 0 && (
-                    <Box sx={{ mt: 1.5, px: 0.5 }}>
-                      <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 700, display: 'block', mb: 0.5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        Boas práticas
-                      </Typography>
-                      <Stack spacing={0.25}>
-                        {catalogItem.best_practices.map((bp, i) => (
-                          <Typography key={i} variant="caption" color="text.secondary" sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start' }}>
-                            <span style={{ color: '#16a34a', fontWeight: 700, flexShrink: 0, lineHeight: 1.6 }}>✓</span>
-                            {bp}
-                          </Typography>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
                 </Grid>
                 {/* Copy options card */}
                 <Grid size={{ xs: 12, xl: 4 }}>

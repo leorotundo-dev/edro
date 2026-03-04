@@ -663,23 +663,6 @@ export default function LiveMockupPreview({
 
 
 
-      {counters.length ? (
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-          {counters.map((counter) => {
-            const overflow = counter.count > counter.limit;
-            return (
-              <span
-                key={counter.label}
-                className={`px-2 py-1 rounded-full border ${
-                  overflow ? 'border-rose-200 text-rose-500 bg-rose-50' : 'border-slate-200 text-slate-500'
-                }`}
-              >
-                {counter.label}: {counter.count}/{counter.limit}
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
     </div>
   );
 }
