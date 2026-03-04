@@ -40,13 +40,14 @@ const STUDIO_STEPS = [
   { label: 'Briefing',    path: '/studio/brief',     step: 1, icon: 'edit_note' },
   { label: 'Plataformas', path: '/studio/platforms',  step: 2, icon: 'devices' },
   { label: 'Criar',       path: '/studio/editor',     step: 3, icon: 'brush' },
-  { label: 'Revisão',     path: '/studio/review',     step: 4, icon: 'fact_check' },
-  { label: 'Exportar',    path: '/studio/export',     step: 5, icon: 'download' },
+  { label: 'Exportar',    path: '/studio/export',     step: 4, icon: 'download' },
 ];
 
 function getCurrentStep(pathname: string): number {
-  // /studio/mockups is now embedded inside step 3 (Criar)
+  // /studio/mockups is embedded inside step 3 (Criar)
   if (pathname.startsWith('/studio/mockups')) return 3;
+  // /studio/review is no longer in the nav — map to step 4 (Exportar) for progress bar
+  if (pathname.startsWith('/studio/review')) return 4;
   const step = STUDIO_STEPS.find((s) => pathname.startsWith(s.path));
   return step?.step || 1;
 }
@@ -234,11 +235,11 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
             </Typography>
             <LinearProgress
               variant="determinate"
-              value={(currentStep / 5) * 100}
+              value={(currentStep / 4) * 100}
               sx={{ height: 6, borderRadius: 3 }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Etapa {currentStep} de 5
+              Etapa {currentStep} de 4
             </Typography>
           </Box>
         </Box>
@@ -359,7 +360,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
 
           <Stack direction="row" spacing={2} alignItems="center">
             <Chip
-              label={`ETAPA ${currentStep} DE 5`}
+              label={`ETAPA ${currentStep} DE 4`}
               size="small"
               color="primary"
               variant="outlined"

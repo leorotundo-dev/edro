@@ -2143,12 +2143,12 @@ export default function Page({ embedded }: PageProps = {}) {
             <Button
               variant="contained"
               component={Link}
-              href="/studio/review"
+              href="/studio/export"
               onClick={updateStageDone}
               endIcon={<IconArrowRight size={18} />}
               sx={{ boxShadow: 2 }}
             >
-              Continuar
+              Exportar
             </Button>
           </Stack>
         </Stack>

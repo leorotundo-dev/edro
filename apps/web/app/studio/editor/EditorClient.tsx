@@ -2398,8 +2398,8 @@ export default function EditorClient() {
           <Button variant="outlined" onClick={() => router.back()}>
             Voltar
           </Button>
-          <Button variant="contained" component={Link} href="/studio/review">
-            Avançar para Revisão
+          <Button variant="contained" component={Link} href="/studio/export">
+            Avançar para Exportar
           </Button>
         </Stack>
         </>
