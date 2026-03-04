@@ -58,6 +58,7 @@ type BenchmarkData = {
 type ContentGap = {
   gaps: { gap: string; opportunity: string; format: string; urgency: string; suggested_topics: string[] }[];
   market_context: string; citations: string[];
+  detected_at?: string;
 };
 
 type StrategicBrief = {
@@ -351,6 +352,13 @@ export default function ClientAnalyticsCore({
     setGaps(await apiPost<ContentGap>(`/clients/${clientId}/content-gap`, {}));
   });
 
+  const loadPersistedGaps = async () => {
+    try {
+      const res = await apiGet<ContentGap>(`/clients/${clientId}/content-gap`);
+      if (res?.gaps?.length) setGaps(res);
+    } catch { /* 204 or error — silently ignore */ }
+  };
+
   const loadBrief = () => wrap(setBriefLoading, async () => {
     setBrief(await apiPost<StrategicBrief>(`/clients/${clientId}/strategic-brief`, {}));
   });
@@ -402,13 +410,16 @@ export default function ClientAnalyticsCore({
     if (activeTab === 1 && !alerts && !alertsLoading) {
       void loadAlerts();
     }
+    if (activeTab === 5 && !gaps && !gapsLoading) {
+      void loadPersistedGaps();
+    }
     if (activeTab === 9 && !amdPerf.length && !amdPerfLoading) {
       void loadAmdPerf();
     }
     if (activeTab === 10 && !postMetrics.length && !postMetricsLoading) {
       void loadPostMetrics();
     }
-  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, amdPerf.length, amdPerfLoading, postMetrics.length, postMetricsLoading]);
+  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, gaps, gapsLoading, amdPerf.length, amdPerfLoading, postMetrics.length, postMetricsLoading]);
 
   const tabs = [
     { label: 'Health Score', icon: <IconHeartbeat size={18} /> },
@@ -886,11 +897,18 @@ export default function ClientAnalyticsCore({
       {/* ── TAB 5: Content Gap ───────────────────────────────────────────────── */}
       {activeTab === 5 && (
         <Box>
-          <Button variant="contained" startIcon={gapsLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconSearch size={18} />}
-            onClick={loadGaps} disabled={gapsLoading}
-            sx={{ mb: gapsLoading ? 0 : 3, bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
-            {gapsLoading ? 'Pesquisando tendências...' : 'Detectar Content Gaps'}
-          </Button>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: gapsLoading ? 0 : 3 }}>
+            <Button variant="contained" startIcon={gapsLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconSearch size={18} />}
+              onClick={loadGaps} disabled={gapsLoading}
+              sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
+              {gapsLoading ? 'Pesquisando tendências...' : gaps ? 'Reanalisar Gaps' : 'Detectar Content Gaps'}
+            </Button>
+            {gaps?.detected_at && !gapsLoading && (
+              <Typography variant="caption" color="text.secondary">
+                Última análise: {new Date(gaps.detected_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </Typography>
+            )}
+          </Stack>
 
           <AITaskProgress loading={gapsLoading} steps={[
             { label: 'Analisando conteúdo existente', durationMs: 2000 },

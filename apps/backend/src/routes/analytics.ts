@@ -642,6 +642,38 @@ Retorne JSON com exatamente esta estrutura:
 
   // ────────────────────────────────────────────────────────────────────────────
   // 6. CONTENT GAP DETECTOR
+  // ────────────────────────────────────────────────────────────────────────────
+  // GET — Load persisted content gaps for a client
+  // ────────────────────────────────────────────────────────────────────────────
+  app.get('/clients/:clientId/content-gap', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+
+    const { rows } = await query<{
+      id: string; gaps: any; market_context: string | null;
+      citations: any; keywords_used: any; detected_at: string;
+    }>(
+      `SELECT id, gaps, market_context, citations, keywords_used, detected_at
+       FROM client_content_gaps
+       WHERE tenant_id = $1 AND client_id = $2
+       ORDER BY detected_at DESC LIMIT 1`,
+      [tenantId, clientId]
+    );
+
+    if (!rows.length) return reply.status(204).send();
+
+    const row = rows[0];
+    return {
+      gaps: row.gaps,
+      market_context: row.market_context,
+      citations: row.citations,
+      keywords_used: row.keywords_used,
+      detected_at: row.detected_at,
+    };
+  });
+
   // Uses Tavily to find content opportunities not yet in calendar
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/content-gap', {
@@ -720,13 +752,24 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
       gaps = [{ gap: 'Análise disponível', opportunity: marketContext.slice(0, 500), format: 'Variado', urgency: 'média', suggested_topics: [] }];
     }
 
+    const citations = tvRes.results.map((r: any) => r.url).slice(0, 5);
+    const keywordsUsed = keywords.slice(0, 8);
+
+    // Persist for future loads
+    await query(
+      `INSERT INTO client_content_gaps (tenant_id, client_id, gaps, market_context, citations, keywords_used)
+       VALUES ($1, $2, $3::jsonb, $4, $5::jsonb, $6::jsonb)`,
+      [tenantId, clientId, JSON.stringify(gaps), marketContext, JSON.stringify(citations), JSON.stringify(keywordsUsed)]
+    ).catch(() => { /* non-blocking — don't fail the response if insert fails */ });
+
     return {
       client_name: client.name,
       gaps,
       market_context: marketContext,
-      citations: tvRes.results.map((r: any) => r.url).slice(0, 5),
-      keywords_used: keywords.slice(0, 8),
+      citations,
+      keywords_used: keywordsUsed,
       duration_ms: Date.now() - t0,
+      detected_at: new Date().toISOString(),
     };
   });
 
