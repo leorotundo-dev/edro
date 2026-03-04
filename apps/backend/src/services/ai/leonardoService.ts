@@ -71,6 +71,12 @@ export async function generateImageWithLeonardo(params: {
   const { width, height } = resolveSize(params.aspectRatio);
   const numImages = params.numImages ?? 1;
 
+  // Leonardo enforces a 1500-char prompt limit
+  const MAX_PROMPT = 1490;
+  const prompt = params.prompt.length > MAX_PROMPT
+    ? params.prompt.slice(0, MAX_PROMPT)
+    : params.prompt;
+
   // ── 1. Create generation ────────────────────────────────────────────
   const createRes = await fetch(`${LEONARDO_BASE_URL}/generations`, {
     method: 'POST',
@@ -79,7 +85,7 @@ export async function generateImageWithLeonardo(params: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      prompt: params.prompt,
+      prompt,
       modelId,
       width,
       height,
