@@ -1414,9 +1414,10 @@ export default function EditorClient() {
                   </Box>
                 </Box>
               )}
-              <Grid container spacing={3}>
+              <Card sx={{ overflow: 'hidden' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr 1fr' } }}>
                 {/* Mockup preview */}
-                <Grid size={{ xs: 12, xl: 4 }}>
+                <Box sx={{ p: 2, borderRight: { xl: '1px solid' }, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
                   <CollaborativeInsights analysisJson={analysisJson} />
                   <LiveMockupPreview
                     platform={activeFormat?.platform}
@@ -1432,11 +1433,9 @@ export default function EditorClient() {
                     align="left"
                     showHeader={false}
                   />
-                </Grid>
-                {/* Copy options card */}
-                <Grid size={{ xs: 12, xl: 4 }}>
-                  <Card>
-                    <CardContent>
+                </Box>
+                {/* Copy options */}
+                <Box sx={{ p: 2, borderRight: { xl: '1px solid' }, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
                       {/* ── Generation controls ── */}
                       <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
                         <TextField
@@ -1909,7 +1908,7 @@ export default function EditorClient() {
                         /* ── Lista vertical: Editor de Copy estruturado ── */
                         <>
                           {options.length ? (
-                            <Box sx={{ mt: 2 }}>
+                            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
                                 <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem' }}>
                                   Editor de Copy
@@ -1918,7 +1917,7 @@ export default function EditorClient() {
                                   <Chip size="small" label={`Opção ${selectedOption + 1} de ${options.length}`} sx={{ height: 18, fontSize: '0.62rem' }} />
                                 )}
                               </Stack>
-                              <Stack spacing={1.5}>
+                              <Stack spacing={1.5} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                                 <TextField
                                   size="small"
                                   label="Headline"
@@ -1955,9 +1954,10 @@ export default function EditorClient() {
                                   onChange={(e) => setEditorCopy((prev) => ({ ...prev, legenda: e.target.value }))}
                                   placeholder="Legenda do post..."
                                   multiline
-                                  minRows={3}
+                                  minRows={6}
                                   fullWidth
-                                  InputProps={{ sx: { fontSize: 13 } }}
+                                  InputProps={{ sx: { fontSize: 13, alignItems: 'flex-start' } }}
+                                  sx={{ flexGrow: 1, '& .MuiInputBase-root': { height: '100%' }, '& textarea': { flexGrow: 1 } }}
                                 />
                               </Stack>
                               {options.length > 1 && (
@@ -2070,14 +2070,10 @@ export default function EditorClient() {
                           ) : null}
                         </>
                       )}
-                    </CardContent>
-                  </Card>
-                </Grid>
+                </Box>
 
                 {/* ── Image Generation Panel ── */}
-                <Grid size={{ xs: 12, xl: 4 }}>
-                  <Card sx={{ height: '100%' }}>
-                    <CardContent>
+                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                         <Chip size="small" label="Criativo com IA" />
                         {arteRefsCount > 0 && (
@@ -2186,10 +2182,9 @@ export default function EditorClient() {
                           </Box>
                         )}
                       </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
+                </Box>
+                </Box>
+              </Card>
 
               {/* Version History */}
               {copies.length ? (
