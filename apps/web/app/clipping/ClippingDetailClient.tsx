@@ -34,7 +34,10 @@ import {
   IconThumbUp,
   IconThumbDown,
   IconAlertTriangle,
+  IconSparkles,
 } from '@tabler/icons-react';
+import PautaFromClippingModal from './PautaFromClippingModal';
+import type { PautaSuggestion } from '@/app/edro/PautaComparisonCard';
 
 type ClientRow = {
   id: string;
@@ -150,6 +153,8 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pautaLoading, setPautaLoading] = useState(false);
+  const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
 
   useEffect(() => {
     if (!isUuid(itemId)) {
@@ -431,6 +436,37 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                 </Button>
                 <Button
                   variant="outlined"
+                  startIcon={pautaLoading ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : <IconSparkles size={16} />}
+                  disabled={pautaLoading || !clientId || !item}
+                  fullWidth
+                  sx={{ borderColor: '#E85219', color: '#E85219', '&:hover': { borderColor: '#c94315', bgcolor: 'rgba(232,82,25,0.04)' } }}
+                  onClick={async () => {
+                    if (!clientId || !item) return;
+                    setPautaLoading(true);
+                    try {
+                      const res = await apiPost<{ ok: boolean; suggestion: PautaSuggestion }>(
+                        '/pauta-inbox/from-clipping',
+                        {
+                          client_id: clientId,
+                          clipping_id: item.id,
+                          title: item.title || 'Pauta',
+                          snippet: item.snippet || item.content?.slice(0, 300) || undefined,
+                          url: item.url || undefined,
+                          score: item.score ?? undefined,
+                        }
+                      );
+                      if (res?.suggestion) {
+                        setPautaModal({ open: true, suggestion: { ...res.suggestion, client_id: clientId } });
+                      }
+                    } finally {
+                      setPautaLoading(false);
+                    }
+                  }}
+                >
+                  {pautaLoading ? 'Gerando pauta...' : 'Criar Pauta IA'}
+                </Button>
+                <Button
+                  variant="outlined"
                   startIcon={<IconUserPlus size={16} />}
                   onClick={handleAssign}
                   disabled={saving || !clientId}
@@ -549,19 +585,26 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
   }
 
   return (
-    <AppShell
-      title="Radar"
-      topbarLeft={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Button variant="text" size="small" onClick={() => router.push(backTo)} sx={{ color: 'text.secondary', textTransform: 'none' }}>
-            Radar
-          </Button>
-          <IconChevronRight size={14} />
-          <Typography variant="body2" fontWeight={600}>Detalhe do item</Typography>
-        </Stack>
-      }
-    >
-      {content}
-    </AppShell>
+    <>
+      <AppShell
+        title="Radar"
+        topbarLeft={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Button variant="text" size="small" onClick={() => router.push(backTo)} sx={{ color: 'text.secondary', textTransform: 'none' }}>
+              Radar
+            </Button>
+            <IconChevronRight size={14} />
+            <Typography variant="body2" fontWeight={600}>Detalhe do item</Typography>
+          </Stack>
+        }
+      >
+        {content}
+      </AppShell>
+      <PautaFromClippingModal
+        open={pautaModal.open}
+        suggestion={pautaModal.suggestion}
+        onClose={() => setPautaModal({ open: false, suggestion: null })}
+      />
+    </>
   );
 }

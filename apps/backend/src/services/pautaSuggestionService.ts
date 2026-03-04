@@ -51,6 +51,130 @@ function fallbackApproaches(source: PautaSource, client: ClientRow) {
   };
 }
 
+export type GeneratedSuggestion = {
+  id: string;
+  approach_a: Record<string, any>;
+  approach_b: Record<string, any>;
+  topic_category: string | null;
+  suggested_deadline: string | null;
+};
+
+/**
+ * Generates a single pauta suggestion synchronously and returns the created record.
+ * Used by the /pauta-inbox/from-clipping endpoint for immediate modal display.
+ */
+export async function generateSinglePautaSuggestion(params: {
+  client_id: string;
+  tenant_id: string;
+  source: PautaSource;
+}): Promise<GeneratedSuggestion | null> {
+  const { client_id, tenant_id, source } = params;
+
+  const [clientRes, preferenceCtx] = await Promise.all([
+    query<ClientRow>(
+      `SELECT id, name, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+      [client_id, tenant_id]
+    ),
+    getClientPreferenceContext(client_id, tenant_id),
+  ]);
+
+  const client = clientRes.rows[0];
+  if (!client) return null;
+
+  const profile = client.profile || {};
+  const preferenceBlock = buildPreferencePromptBlock(preferenceCtx);
+
+  let parsed: any = null;
+  try {
+    const result = await generateWithProvider('gemini', {
+      prompt: `Você é um estrategista de conteúdo. Com base na oportunidade abaixo, crie DUAS abordagens distintas de pauta para a empresa.
+
+As abordagens devem ser diferentes em ângulo e execução — não variações do mesmo tema.
+
+Retorne APENAS JSON válido:
+{
+  "topic_category": "categoria do tema (ex: Logística, Inovação, Institucional)",
+  "suggested_deadline": "YYYY-MM-DD",
+  "approach_a": {
+    "angle": "nome do ângulo (ex: Protagonismo, Thought Leadership, Notícia)",
+    "title": "título da pauta",
+    "message": "mensagem principal em 1-2 frases",
+    "tone": "tom sugerido",
+    "platforms": ["plataforma1", "plataforma2"],
+    "why": "por que este ângulo faz sentido"
+  },
+  "approach_b": {
+    "angle": "nome do ângulo alternativo",
+    "title": "título alternativo",
+    "message": "mensagem alternativa",
+    "tone": "tom alternativo",
+    "platforms": ["plataforma1"],
+    "why": "por que este ângulo alternativo faz sentido"
+  }
+}
+
+EMPRESA: ${client.name}
+SEGMENTO: ${client.segment_primary || 'não informado'}
+PILARES: ${(profile.pillars || []).join(', ') || 'não informados'}
+
+OPORTUNIDADE:
+Fonte: ${source.domain || source.type}
+Título: ${source.title}
+Resumo: ${source.summary}
+${source.date ? `Data do evento: ${source.date}` : ''}
+
+${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}`,
+      temperature: 0.4,
+      maxTokens: 700,
+    });
+    parsed = safeParseJson(result.output);
+  } catch {
+    parsed = null;
+  }
+
+  const data = parsed && parsed.approach_a && parsed.approach_b
+    ? parsed
+    : fallbackApproaches(source, client);
+
+  const platforms = [
+    ...(data.approach_a?.platforms || []),
+    ...(data.approach_b?.platforms || []),
+  ].filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
+
+  try {
+    const { rows } = await query<GeneratedSuggestion>(
+      `
+      INSERT INTO pauta_suggestions (
+        tenant_id, client_id, title,
+        approach_a, approach_b,
+        source_type, source_id, source_domain, source_text,
+        ai_score, topic_category, suggested_deadline, platforms
+      ) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING id, approach_a, approach_b, topic_category, suggested_deadline
+      `,
+      [
+        tenant_id,
+        client_id,
+        data.approach_a?.title || source.title,
+        JSON.stringify(data.approach_a),
+        JSON.stringify(data.approach_b),
+        source.type,
+        source.id,
+        source.domain || null,
+        source.summary,
+        source.score ?? 7.0,
+        data.topic_category || null,
+        data.suggested_deadline || null,
+        JSON.stringify(platforms),
+      ]
+    );
+    return rows[0] ?? null;
+  } catch (err: any) {
+    console.error('[pautaSuggestionService] generateSingle insert failed:', err?.message);
+    return null;
+  }
+}
+
 export async function generatePautaSuggestions(params: {
   client_id: string;
   tenant_id: string;

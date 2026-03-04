@@ -5,7 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import { createBriefing, createBriefingStages } from '../repositories/edroBriefingRepository';
 import { recordPreferenceFeedback } from '../services/preferenceEngine';
-import { generatePautaSuggestions } from '../services/pautaSuggestionService';
+import { generatePautaSuggestions, generateSinglePautaSuggestion } from '../services/pautaSuggestionService';
 
 const approveSchema = z.object({
   approach: z.enum(['A', 'B']).default('A'),
@@ -91,6 +91,42 @@ export default async function pautaInboxRoutes(app: FastifyInstance) {
           console.error('[pautaInbox/generate] AI generation failed:', err?.message);
         });
       });
+    }
+  );
+
+  // Synchronous generation from a specific clipping item — returns suggestion immediately for modal display
+  app.post(
+    '/pauta-inbox/from-clipping',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const body = z.object({
+        client_id: z.string().min(1),
+        clipping_id: z.string().min(1),
+        title: z.string().min(1),
+        snippet: z.string().optional(),
+        url: z.string().optional(),
+        score: z.number().optional(),
+      }).parse(request.body || {});
+
+      const suggestion = await generateSinglePautaSuggestion({
+        client_id: body.client_id,
+        tenant_id: tenantId,
+        source: {
+          type: 'clipping',
+          id: body.clipping_id,
+          title: body.title,
+          summary: body.snippet || body.title,
+          domain: body.url ? (() => { try { return new URL(body.url!).hostname; } catch { return undefined; } })() : undefined,
+          score: body.score,
+        },
+      });
+
+      if (!suggestion) {
+        return reply.status(500).send({ error: 'generation_failed' });
+      }
+
+      return reply.send({ ok: true, suggestion });
     }
   );
 

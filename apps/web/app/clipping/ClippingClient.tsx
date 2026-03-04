@@ -47,6 +47,8 @@ import {
   IconSparkles,
 } from '@tabler/icons-react';
 import PlatformIcon from '@/components/shared/PlatformIcon';
+import PautaFromClippingModal from './PautaFromClippingModal';
+import type { PautaSuggestion } from '@/app/edro/PautaComparisonCard';
 
 type ClientRow = {
   id: string;
@@ -238,6 +240,8 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [competitiveLoading, setCompetitiveLoading] = useState(false);
   const [competitiveOpen, setCompetitiveOpen] = useState(false);
   const [competitiveBrief, setCompetitiveBrief] = useState('');
+  const [pautaLoadingId, setPautaLoadingId] = useState<string | null>(null);
+  const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -755,15 +759,34 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     <Button
                       size="small"
                       variant={light ? 'contained' : 'outlined'}
-                      onClick={(e) => {
+                      disabled={pautaLoadingId === item.id}
+                      onClick={async (e) => {
                         e.stopPropagation();
                         const cid = selectedClient?.id || lockedClientId;
                         if (!cid) return;
-                        router.push(`/studio/brief?clientId=${encodeURIComponent(cid)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`);
+                        setPautaLoadingId(item.id);
+                        try {
+                          const res = await apiPost<{ ok: boolean; suggestion: PautaSuggestion }>(
+                            '/pauta-inbox/from-clipping',
+                            {
+                              client_id: cid,
+                              clipping_id: item.id,
+                              title: item.title || 'Pauta',
+                              snippet: item.snippet || undefined,
+                              url: item.url || undefined,
+                              score: item.client_score ?? item.score ?? undefined,
+                            }
+                          );
+                          if (res?.suggestion) {
+                            setPautaModal({ open: true, suggestion: { ...res.suggestion, client_id: cid } });
+                          }
+                        } finally {
+                          setPautaLoadingId(null);
+                        }
                       }}
                       sx={light ? { fontSize: '0.7rem', py: 0.25, px: 1, bgcolor: '#E85219', '&:hover': { bgcolor: '#c94315' } } : { fontSize: '0.7rem', py: 0.25, px: 1, borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}
                     >
-                      Criar Pauta
+                      {pautaLoadingId === item.id ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : 'Criar Pauta'}
                     </Button>
                   )}
                   {item.url && (
@@ -1110,17 +1133,24 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   }
 
   return (
-    <AppShell
-      title="Radar"
-      topbarLeft={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Typography variant="body2" color="text.secondary">Radar</Typography>
-          <Typography variant="body2" color="text.secondary">/</Typography>
-          <Typography variant="body2" fontWeight={600}>Clipping & Notícias</Typography>
-        </Stack>
-      }
-    >
-      {content}
-    </AppShell>
+    <>
+      <AppShell
+        title="Radar"
+        topbarLeft={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">Radar</Typography>
+            <Typography variant="body2" color="text.secondary">/</Typography>
+            <Typography variant="body2" fontWeight={600}>Clipping & Notícias</Typography>
+          </Stack>
+        }
+      >
+        {content}
+      </AppShell>
+      <PautaFromClippingModal
+        open={pautaModal.open}
+        suggestion={pautaModal.suggestion}
+        onClose={() => setPautaModal({ open: false, suggestion: null })}
+      />
+    </>
   );
 }

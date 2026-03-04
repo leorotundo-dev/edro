@@ -52,6 +52,8 @@ import {
   IconUsers,
   IconWorld,
 } from '@tabler/icons-react';
+import PautaFromClippingModal from '@/app/clipping/PautaFromClippingModal';
+import type { PautaSuggestion } from '@/app/edro/PautaComparisonCard';
 
 type KnowledgeBase = {
   description?: string;
@@ -320,6 +322,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const [calendarItems, setCalendarItems] = useState<CalendarUpcomingItem[]>([]);
   const [clippingStats, setClippingStats] = useState<ClippingStats | null>(null);
   const [clippingItems, setClippingItems] = useState<ClippingItem[]>([]);
+  const [pautaLoadingId, setPautaLoadingId] = useState<string | null>(null);
+  const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
   const [clippingSources, setClippingSources] = useState<ClippingSource[]>([]);
   const [socialStats, setSocialStats] = useState<SocialStatsResponse | null>(null);
   const [socialTrends, setSocialTrends] = useState<SocialTrendRow[]>([]);
@@ -888,7 +892,61 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
   const sectionContentSx = { p: { xs: 2, sm: 3 } };
 
   return (
+    <>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+      {/* ══ Setup Checklist (novos clientes / perfil incompleto) ══════ */}
+      {(() => {
+        const hasCalendar = calendarItems.length > 0;
+        const hasIntegration = metaConfigured || reporteiConfigured;
+        const hasIntelligence = Boolean(client?.profile?.knowledge_base?.description) || clippingItems.length > 0;
+        const hasKnowledge = Boolean(client?.keywords?.length) && Boolean(client?.content_pillars?.length);
+        const incomplete = [hasCalendar, hasIntegration, hasIntelligence, hasKnowledge].filter((v) => !v).length;
+        if (incomplete < 2) return null;
+        const steps = [
+          { done: hasCalendar, label: 'Calendário gerado', href: `/calendar?clientId=${clientId}` },
+          { done: hasIntegration, label: 'Integração configurada (Meta ou Reportei)', href: `/clients/${clientId}/integrations` },
+          { done: hasIntelligence, label: 'Inteligência de mercado', href: `/clients/${clientId}/inteligencia` },
+          { done: hasKnowledge, label: 'Palavras-chave e pilares definidos', href: `/clients/${clientId}/perfil` },
+        ];
+        return (
+          <Card variant="outlined" sx={{ borderColor: '#FFAE1F50', bgcolor: '#fffbeb' }}>
+            <CardContent>
+              <Stack direction="row" spacing={1.5} alignItems="center" mb={1.5}>
+                <IconRocket size={20} color="#ca8a04" />
+                <Typography variant="subtitle2" fontWeight={700} color="#92400e">
+                  Configure o cliente para começar a trabalhar
+                </Typography>
+              </Stack>
+              <Stack spacing={1}>
+                {steps.map((step) => (
+                  <Stack key={step.label} direction="row" spacing={1} alignItems="center">
+                    <Box sx={{
+                      width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                      bgcolor: step.done ? '#16a34a' : '#e5e7eb',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {step.done && <Box component="span" sx={{ width: 8, height: 8, bgcolor: '#fff', borderRadius: '50%' }} />}
+                    </Box>
+                    {step.done ? (
+                      <Typography variant="body2" sx={{ color: '#6b7280', textDecoration: 'line-through' }}>{step.label}</Typography>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        component={Link}
+                        href={step.href}
+                        sx={{ color: '#92400e', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        {step.label} →
+                      </Typography>
+                    )}
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ══ Health Score Banner ══════════════════════════════════════ */}
       {healthScore && (
@@ -1205,7 +1263,6 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 {clippingItems.length ? (
                   clippingItems.slice(0, 3).map((item) => {
                     const score = Number(item.client_score ?? item.score ?? 0);
-                    const createHref = `/studio/brief?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(item.title || 'Pauta')}&source=clipping&sourceId=${encodeURIComponent(item.id)}`;
                     return (
                       <Box key={item.id} sx={{ p: 1, borderRadius: 2, '&:hover': { bgcolor: '#f8fafc' }, transition: 'background 0.2s' }}>
                         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
@@ -1235,9 +1292,29 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                           <Button
                             size="small"
                             variant="outlined"
-                            component={Link}
-                            href={createHref}
-                            startIcon={<IconPlus size={14} />}
+                            disabled={pautaLoadingId === item.id}
+                            startIcon={pautaLoadingId === item.id ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : <IconPlus size={14} />}
+                            onClick={async () => {
+                              setPautaLoadingId(item.id);
+                              try {
+                                const res = await apiPost<{ ok: boolean; suggestion: PautaSuggestion }>(
+                                  '/pauta-inbox/from-clipping',
+                                  {
+                                    client_id: clientId,
+                                    clipping_id: item.id,
+                                    title: item.title || 'Pauta',
+                                    snippet: item.snippet || undefined,
+                                    url: item.url || undefined,
+                                    score: item.client_score ?? item.score ?? undefined,
+                                  }
+                                );
+                                if (res?.suggestion) {
+                                  setPautaModal({ open: true, suggestion: { ...res.suggestion, client_id: clientId } });
+                                }
+                              } finally {
+                                setPautaLoadingId(null);
+                              }
+                            }}
                             sx={{ fontSize: '0.65rem', py: 0.15, px: 0.8, minWidth: 0, textTransform: 'none', borderColor: '#E85219', color: '#E85219' }}
                           >
                             Criar pauta
@@ -1700,5 +1777,11 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
         </CardContent>
       </Card>
     </Box>
+    <PautaFromClippingModal
+      open={pautaModal.open}
+      suggestion={pautaModal.suggestion}
+      onClose={() => setPautaModal({ open: false, suggestion: null })}
+    />
+    </>
   );
 }
