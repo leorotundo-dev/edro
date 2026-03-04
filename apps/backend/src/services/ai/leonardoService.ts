@@ -45,6 +45,13 @@ function resolveSize(aspectRatio?: string): { width: number; height: number } {
   }
 }
 
+/** Map MIME type → Leonardo file extension */
+function mimeToExt(mime: string): string {
+  if (mime.includes('png'))  return 'png';
+  if (mime.includes('webp')) return 'webp';
+  return 'jpg';
+}
+
 export interface LeonardoImageResult {
   imageUrl: string;
   /** base64 PNG if downloaded; otherwise empty string */
@@ -54,8 +61,71 @@ export interface LeonardoImageResult {
 }
 
 /**
+ * Upload a reference image to Leonardo's init-image endpoint.
+ * Returns the init_image_id to use in a subsequent generation call.
+ *
+ * Flow:
+ *   1. POST /init-image with { extension } → get presigned S3 URL + id
+ *   2. PUT image bytes to that presigned URL
+ *   3. Return id for use as init_image_id
+ */
+export async function uploadInitImageToLeonardo(
+  imageBuffer: Buffer,
+  mimeType: string
+): Promise<string> {
+  const apiKey = env.LEONARDO_API_KEY;
+  if (!apiKey) throw new Error('LEONARDO_API_KEY não configurada');
+
+  const extension = mimeToExt(mimeType);
+
+  // Step 1: Request presigned upload URL
+  const presignRes = await fetch(`${LEONARDO_BASE_URL}/init-image`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ extension }),
+  });
+
+  if (!presignRes.ok) {
+    const err = await presignRes.text();
+    throw new Error(`Leonardo init-image presign failed: ${err}`);
+  }
+
+  const presignData = await presignRes.json() as {
+    uploadInitImage?: { id: string; url: string; fields: Record<string, string> };
+  };
+
+  const upload = presignData.uploadInitImage;
+  if (!upload?.id || !upload?.url) {
+    throw new Error(`Leonardo: presign response inválido — ${JSON.stringify(presignData)}`);
+  }
+
+  // Step 2: Upload image bytes to the presigned S3 URL
+  // Leonardo uses multipart/form-data with policy fields
+  const form = new FormData();
+  for (const [key, value] of Object.entries(upload.fields || {})) {
+    form.append(key, value);
+  }
+  form.append('file', new Blob([imageBuffer], { type: mimeType }));
+
+  const uploadRes = await fetch(upload.url, { method: 'POST', body: form });
+  if (!uploadRes.ok && uploadRes.status !== 204) {
+    const err = await uploadRes.text();
+    throw new Error(`Leonardo init-image upload failed (${uploadRes.status}): ${err}`);
+  }
+
+  return upload.id;
+}
+
+/**
  * Generate an image via Leonardo.ai and return the result.
  * Polls until complete (max ~60s).
+ *
+ * When initImageId is provided, uses img2img mode — the reference image
+ * guides composition/structure while the prompt drives style/content.
+ * initStrength: 0.0 = full AI, 1.0 = faithful copy of reference (default 0.35)
  */
 export async function generateImageWithLeonardo(params: {
   prompt: string;
@@ -63,6 +133,10 @@ export async function generateImageWithLeonardo(params: {
   aspectRatio?: string;
   negativePrompt?: string;
   numImages?: number;
+  /** init_image_id from uploadInitImageToLeonardo() for img2img */
+  initImageId?: string;
+  /** 0.0–1.0: how strongly to follow init image (default 0.35) */
+  initStrength?: number;
 }): Promise<LeonardoImageResult> {
   const apiKey = env.LEONARDO_API_KEY;
   if (!apiKey) throw new Error('LEONARDO_API_KEY não configurada');
@@ -92,6 +166,11 @@ export async function generateImageWithLeonardo(params: {
       num_images: numImages,
       ...(params.negativePrompt ? { negative_prompt: params.negativePrompt } : {}),
       ...(NO_ALCHEMY_MODELS.has(modelId) ? {} : { alchemy: true }),
+      // img2img params — only when init image is provided
+      ...(params.initImageId ? {
+        init_image_id: params.initImageId,
+        init_strength: params.initStrength ?? 0.35,
+      } : {}),
     }),
   });
 

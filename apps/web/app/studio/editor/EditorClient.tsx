@@ -53,6 +53,7 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
+import Slider from '@mui/material/Slider';
 import MockupsPage from '@/app/studio/mockups/page';
 
 type CopyVersion = {
@@ -480,6 +481,11 @@ export default function EditorClient() {
   const [arteRefining, setArteRefining] = useState(false);
   // Preview Rápido
   const [arteIsPreview, setArteIsPreview] = useState(false);
+  // img2img — imagens da library do cliente como referência para Leonardo
+  const [libraryImages, setLibraryImages] = useState<Array<{ id: string; title: string; file_mime: string; category?: string }>>([]);
+  const [selectedLibraryImageId, setSelectedLibraryImageId] = useState<string | null>(null);
+  const [initStrength, setInitStrength] = useState(0.35);
+  const [libraryImagesLoading, setLibraryImagesLoading] = useState(false);
   // Tabs: 0 = Gerador de Copy, 1 = Grade de Mockups
   const [criarTab, setCriarTab] = useState<0 | 1>(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -676,6 +682,25 @@ export default function EditorClient() {
       legenda: selectedOptionData.legenda || '',
     });
   }, [selectedOptionData]);
+
+  // Load client library images when Leonardo is selected
+  useEffect(() => {
+    if (imageProvider !== 'leonardo') {
+      setLibraryImages([]);
+      setSelectedLibraryImageId(null);
+      return;
+    }
+    const clientId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') : null;
+    if (!clientId) return;
+    setLibraryImagesLoading(true);
+    apiGet<any[]>(`/clients/${clientId}/library?type=file&status=ready`)
+      .then((rows) => {
+        const images = (rows || []).filter((item: any) => item.file_mime?.startsWith('image/'));
+        setLibraryImages(images);
+      })
+      .catch(() => {})
+      .finally(() => setLibraryImagesLoading(false));
+  }, [imageProvider]);
 
   // Merge selectedOptionData with live-edited editorCopy for preview + approval
   const resolvedOption = useMemo<ParsedOption | null>(() => {
@@ -1198,6 +1223,8 @@ export default function EditorClient() {
           image_provider: imageProvider !== 'gemini' ? imageProvider : undefined,
           aspect_ratio: (imageProvider === 'leonardo' || imageModel.startsWith('imagen-')) ? imageAspectRatio : undefined,
           negative_prompt: imageNegativePrompt || undefined,
+          init_image_library_item_id: (imageProvider === 'leonardo' && selectedLibraryImageId) ? selectedLibraryImageId : undefined,
+          init_strength: (imageProvider === 'leonardo' && selectedLibraryImageId) ? initStrength : undefined,
         }
       );
       const imageUrl = res.image_url || res.data?.image_url;
@@ -2225,6 +2252,68 @@ export default function EditorClient() {
                             <MenuItem value="leonardo-kino-xl">Kino XL — Cinematográfico</MenuItem>
                             <MenuItem value="leonardo-diffusion-xl">Diffusion XL — Criativo</MenuItem>
                           </TextField>
+                        )}
+
+                        {/* Library image reference picker — Leonardo only */}
+                        {imageProvider === 'leonardo' && (libraryImagesLoading || libraryImages.length > 0) && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem', display: 'block', mb: 0.75 }}>
+                              Referência de local (biblioteca do cliente)
+                            </Typography>
+                            {libraryImagesLoading ? (
+                              <Stack direction="row" spacing={0.75}>
+                                {[0,1,2].map(i => <Box key={i} sx={{ width: 56, height: 56, borderRadius: 1, bgcolor: 'action.hover', flexShrink: 0 }} />)}
+                              </Stack>
+                            ) : (
+                              <Stack direction="row" spacing={0.75} sx={{ overflowX: 'auto', pb: 0.5 }}>
+                                <Tooltip title="Sem referência (txt2img puro)">
+                                  <Box
+                                    sx={{
+                                      width: 56, height: 56, flexShrink: 0, borderRadius: 1,
+                                      border: 2, borderColor: !selectedLibraryImageId ? 'primary.main' : 'divider',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      cursor: 'pointer', bgcolor: 'action.hover', fontSize: 10, color: 'text.secondary', textAlign: 'center', lineHeight: 1.2,
+                                    }}
+                                    onClick={() => setSelectedLibraryImageId(null)}
+                                  >
+                                    Sem ref.
+                                  </Box>
+                                </Tooltip>
+                                {libraryImages.map((img) => (
+                                  <Tooltip key={img.id} title={img.title}>
+                                    <Box
+                                      component="img"
+                                      src={`/api/proxy/library/${img.id}/file`}
+                                      alt={img.title}
+                                      sx={{
+                                        width: 56, height: 56, flexShrink: 0, borderRadius: 1, objectFit: 'cover',
+                                        border: 2, borderColor: selectedLibraryImageId === img.id ? 'primary.main' : 'divider',
+                                        cursor: 'pointer',
+                                      }}
+                                      onClick={() => setSelectedLibraryImageId(img.id)}
+                                    />
+                                  </Tooltip>
+                                ))}
+                              </Stack>
+                            )}
+                            {selectedLibraryImageId && (
+                              <Box sx={{ mt: 1 }}>
+                                <Stack direction="row" justifyContent="space-between">
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Fiel ao local</Typography>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Criativo</Typography>
+                                </Stack>
+                                <Slider
+                                  size="small"
+                                  value={initStrength}
+                                  onChange={(_, v) => setInitStrength(v as number)}
+                                  min={0.2} max={0.7} step={0.05}
+                                  valueLabelDisplay="auto"
+                                  valueLabelFormat={(v) => `${Math.round((v as number) * 100)}%`}
+                                  sx={{ color: '#E85219' }}
+                                />
+                              </Box>
+                            )}
+                          </Box>
                         )}
 
                         {/* Aspect ratio — Imagen 3 or Leonardo */}

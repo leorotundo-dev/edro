@@ -57,7 +57,7 @@ import {
   isWorkflowStage,
 } from '../utils/workflow';
 import { env } from '../env';
-import { saveFile, buildKey } from '../library/storage';
+import { saveFile, buildKey, readFile } from '../library/storage';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { getClientPreferences, rebuildClientPreferences } from '../services/learningLoopService';
 import { recomputeClientLearningRules } from '../services/learningEngine';
@@ -3441,6 +3441,10 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       headline: z.string().optional(),
       /** Corpo do post (campo estruturado) — contexto temático secundário */
       body_text: z.string().optional(),
+      /** Library item ID to use as img2img reference (Leonardo only) */
+      init_image_library_item_id: z.string().uuid().optional(),
+      /** img2img strength: 0.0 = full AI, 1.0 = copy of reference (default 0.35) */
+      init_strength: z.coerce.number().min(0).max(1).optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -3588,7 +3592,51 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       });
     }
 
-    // ── Modo geração: chama Gemini ──────────────────────────────────────
+    // ── img2img: carregar imagem da biblioteca do cliente (Leonardo only) ──
+    let initImageBuffer: Buffer | undefined;
+    let initImageMime: string | undefined;
+    let initImageRefUrl: string | undefined;
+
+    if (body.image_provider === 'leonardo' && tenantId) {
+      try {
+        let libraryItem: { file_key: string; file_mime: string; id: string } | null = null;
+
+        if (body.init_image_library_item_id) {
+          // User explicitly selected a library item
+          const { rows } = await query<{ id: string; file_key: string; file_mime: string }>(
+            `SELECT id, file_key, file_mime FROM library_items
+             WHERE id=$1 AND tenant_id=$2 AND type='file'
+               AND file_mime LIKE 'image/%' AND status='ready' LIMIT 1`,
+            [body.init_image_library_item_id, tenantId]
+          );
+          libraryItem = rows[0] || null;
+        } else if (resolvedClientId) {
+          // Auto-pick: most recent ready image from client library, category photography
+          const { rows } = await query<{ id: string; file_key: string; file_mime: string }>(
+            `SELECT id, file_key, file_mime FROM library_items
+             WHERE tenant_id=$1 AND client_id=$2 AND type='file'
+               AND file_mime LIKE 'image/%' AND status='ready'
+             ORDER BY
+               (CASE WHEN category='photography' THEN 0 ELSE 1 END),
+               created_at DESC
+             LIMIT 1`,
+            [tenantId, resolvedClientId]
+          );
+          libraryItem = rows[0] || null;
+        }
+
+        if (libraryItem?.file_key) {
+          initImageBuffer = await readFile(libraryItem.file_key);
+          initImageMime = libraryItem.file_mime || 'image/jpeg';
+          initImageRefUrl = `/api/library/${libraryItem.id}/file`;
+        }
+      } catch (libErr: any) {
+        // Non-fatal: continue without init image
+        console.warn('[generate-creative] library image load failed:', libErr?.message);
+      }
+    }
+
+    // ── Modo geração ────────────────────────────────────────────────────
     try {
       const result = await generateAdCreative({
         copy: selectedCopy.output,
@@ -3609,6 +3657,9 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         aspectRatio: body.aspect_ratio || undefined,
         negativePrompt: body.negative_prompt || undefined,
         tenantId: tenantId || undefined,
+        initImageBuffer,
+        initImageMime,
+        initStrength: body.init_strength,
       });
 
       if (!result.success) {
@@ -3638,6 +3689,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       return reply.send({
         success: true,
         image_url: result.image_url,
+        reference_image_url: initImageRefUrl || null,
         data: {
           image_url: result.image_url,
           format: body.format,

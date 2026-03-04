@@ -1,6 +1,6 @@
 import { env } from '../env';
 import { generateImage } from './ai/geminiService';
-import { generateImageWithLeonardo, resolveLeonardoModelId } from './ai/leonardoService';
+import { generateImageWithLeonardo, uploadInitImageToLeonardo, resolveLeonardoModelId } from './ai/leonardoService';
 import { generateCompletion } from './ai/claudeService';
 import { logLeonardoUsage } from './ai/aiUsageLogger';
 
@@ -24,6 +24,12 @@ type AdCreativeRequest = {
   aspectRatio?: string;
   negativePrompt?: string;
   tenantId?: string;
+  /** Raw bytes of a reference image from client library (for Leonardo img2img) */
+  initImageBuffer?: Buffer;
+  /** MIME type of the init image */
+  initImageMime?: string;
+  /** 0.0–1.0 how strongly to follow the init image (default 0.35) */
+  initStrength?: number;
 };
 
 type AdCreativeResponse = {
@@ -278,12 +284,26 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
       const LEONARDO_PREFIX = 'Cinematic advertising photograph, pure background image, absolutely no text no words no letters no logos no watermarks, photorealistic, commercial quality. SCENE:';
       const finalPrompt = `${LEONARDO_PREFIX} ${sceneNarrative}`;
       const modelId = resolveLeonardoModelId(params.imageModel);
+
+      // ── img2img: upload init image from client library (if provided) ──
+      let initImageId: string | undefined;
+      if (params.initImageBuffer && params.initImageMime) {
+        try {
+          initImageId = await uploadInitImageToLeonardo(params.initImageBuffer, params.initImageMime);
+        } catch (uploadErr: any) {
+          // Non-fatal: fall back to text-to-image if upload fails
+          console.warn('[leonardo] init-image upload failed, falling back to txt2img:', uploadErr?.message);
+        }
+      }
+
       const t0 = Date.now();
       const result = await generateImageWithLeonardo({
         prompt: finalPrompt,
         modelId,
         aspectRatio: params.aspectRatio,
         negativePrompt: params.negativePrompt,
+        initImageId,
+        initStrength: params.initStrength,
       });
       const durationMs = Date.now() - t0;
       if (params.tenantId) {
