@@ -17,12 +17,13 @@ import Divider from '@mui/material/Divider';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import {
   IconChartBar, IconSparkles, IconAlertTriangle, IconTrophy,
   IconBrandMeta, IconCalendarEvent, IconTarget, IconCoin,
   IconBulb, IconRefresh, IconTrendingUp, IconTrendingDown,
   IconHeartbeat, IconDna, IconSearch, IconRobot,
-  IconPhoto, IconExternalLink,
+  IconPhoto, IconExternalLink, IconCheck, IconBookmark,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import EdroAvatar from '@/components/shared/EdroAvatar';
@@ -271,6 +272,8 @@ export default function ClientAnalyticsCore({
 
   const [gaps, setGaps] = useState<ContentGap | null>(null);
   const [gapsLoading, setGapsLoading] = useState(false);
+  const [savingGap, setSavingGap] = useState<number | null>(null);
+  const [savedGaps, setSavedGaps] = useState<Set<number>>(new Set());
 
   const [brief, setBrief] = useState<StrategicBrief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
@@ -931,30 +934,70 @@ export default function ClientAnalyticsCore({
           {gaps && (
             <Box>
               <Stack spacing={2} sx={{ mb: 3 }}>
-                {(gaps.gaps || []).map((g, i) => (
-                  <Card key={i} variant="outlined">
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2" fontWeight={700}>{g.gap}</Typography>
-                        <Stack direction="row" spacing={1}>
-                          <Chip label={g.format} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                          <Chip label={g.urgency} size="small" sx={{
-                            bgcolor: g.urgency === 'alta' ? '#FA896B' : g.urgency === 'média' ? '#FFAE1F' : '#E85219',
-                            color: '#fff', fontSize: '0.7rem',
-                          }} />
+                {(gaps.gaps || []).map((g, i) => {
+                  const isSaved = savedGaps.has(i);
+                  const isSaving = savingGap === i;
+                  return (
+                    <Card key={i} variant="outlined" sx={isSaved ? { borderColor: '#13DEB9' } : {}}>
+                      <CardContent>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
+                          <Typography variant="subtitle2" fontWeight={700}>{g.gap}</Typography>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip label={g.format} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                            <Chip label={g.urgency} size="small" sx={{
+                              bgcolor: g.urgency === 'alta' ? '#FA896B' : g.urgency === 'média' ? '#FFAE1F' : '#E85219',
+                              color: '#fff', fontSize: '0.7rem',
+                            }} />
+                          </Stack>
                         </Stack>
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{g.opportunity}</Typography>
-                      {g.suggested_topics?.length > 0 && (
-                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                          {g.suggested_topics.map((t, j) => (
-                            <Chip key={j} label={t} size="small" sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219', fontSize: '0.7rem' }} />
-                          ))}
-                        </Stack>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{g.opportunity}</Typography>
+                        {g.suggested_topics?.length > 0 && (
+                          <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mb: 1.5 }}>
+                            {g.suggested_topics.map((t, j) => (
+                              <Chip key={j} label={t} size="small" sx={{ bgcolor: 'rgba(232,82,25,0.1)', color: '#E85219', fontSize: '0.7rem' }} />
+                            ))}
+                          </Stack>
+                        )}
+                        <Tooltip title={isSaved ? 'Pauta criada — aparece no Pauta Inbox' : 'Criar pauta com abordagens geradas por IA'}>
+                          <span>
+                            <Button
+                              size="small"
+                              variant={isSaved ? 'outlined' : 'contained'}
+                              color={isSaved ? 'success' : 'primary'}
+                              disabled={isSaved || isSaving}
+                              startIcon={isSaving
+                                ? <CircularProgress size={14} color="inherit" />
+                                : isSaved ? <IconCheck size={14} /> : <IconBookmark size={14} />}
+                              onClick={async () => {
+                                setSavingGap(i);
+                                try {
+                                  await apiPost('/pauta-inbox/generate', {
+                                    client_id: clientId,
+                                    title: g.gap,
+                                    source_type: 'content_gap',
+                                    source_text: g.opportunity,
+                                    topic_category: g.format,
+                                    platforms: g.format.toLowerCase().includes('reels') || g.format.toLowerCase().includes('stories')
+                                      ? ['instagram']
+                                      : ['instagram', 'linkedin'],
+                                  });
+                                  setSavedGaps((prev) => { const next = new Set(prev); next.add(i); return next; });
+                                } catch {
+                                  // silently fail — user can retry
+                                } finally {
+                                  setSavingGap(null);
+                                }
+                              }}
+                              sx={!isSaved ? { bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, fontSize: '0.72rem' } : { fontSize: '0.72rem' }}
+                            >
+                              {isSaving ? 'Criando...' : isSaved ? 'Pauta criada' : 'Criar Pauta'}
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </Stack>
               {gaps.citations?.length > 0 && (
                 <Box>
