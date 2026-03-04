@@ -2043,146 +2043,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       /* audit is non-blocking */
     }
 
-    // ── Semantic Review Loop ─────────────────────────────────────────────────
-    // Editor-chefe IA: avalia 7 dimensões + histórico de repetição e corrige
-    // cirurgicamente até score >= 7.5/10. Máx 2 iterações. Invisível ao usuário.
-    // ─────────────────────────────────────────────────────────────────────────
-    const REVIEW_SCORE_THRESHOLD = 7.5;
-    const MAX_REVIEW_ITERATIONS = 2;
-    let semanticReviewScore: number | null = null;
-    let semanticReviewWarnings: string[] = [];
-    let semanticReviewDimensions: Record<string, number> | null = null;
-    let semanticReviewIterations = 0;
-
-    try {
-      if (tenantId) {
-        // Reutiliza blocos já computados acima — custo zero
-        const briefingCtx = [
-          briefing.title,
-          (briefing.payload as any)?.objetivo || (briefing.payload as any)?.objective || '',
-        ].filter(Boolean).join(' — ');
-        const brandCtx       = knowledgeBlock || '';
-        const platformCtx    = platformBlock  || '';
-        const personaCtx     = [personaBlock, amdBlock, behaviorIntentBlock].filter(Boolean).join('\n');
-        const historyCtx     = [preferenceBlock, learnedBlock].filter(Boolean).join('\n');
-
-        // ── Histórico de copies do cliente (deduplicação cross-briefing) ─────
-        let pastCopiesCtx = '';
-        if (selectedClientId) {
-          try {
-            const { rows: pastRows } = await query<{ output: string }>(
-              `SELECT cv.output
-               FROM edro_copy_versions cv
-               JOIN edro_briefings b ON b.id = cv.briefing_id
-               WHERE b.main_client_id = $1
-                 AND b.tenant_id = $2
-                 AND cv.output IS NOT NULL
-               ORDER BY cv.created_at DESC
-               LIMIT 15`,
-              [selectedClientId, tenantId]
-            );
-            if (pastRows.length > 0) {
-              const excerpts = pastRows.map((r, i) => {
-                const t = typeof r.output === 'string' ? r.output : JSON.stringify(r.output);
-                return `${i + 1}. ${t.slice(0, 200).replace(/\n/g, ' ')}`;
-              });
-              pastCopiesCtx = `HISTÓRICO DE COPIES DO CLIENTE — NUNCA repetir ângulos, hooks, frases ou abordagens já usados:\n${excerpts.join('\n')}`;
-            }
-          } catch { /* non-blocking */ }
-        }
-
-        for (let ri = 0; ri < MAX_REVIEW_ITERATIONS; ri++) {
-          const reviewText = typeof output === 'string' ? output : JSON.stringify(output);
-          if (!reviewText || reviewText.length < 50) break;
-
-          // ── Prompt do editor-chefe: 7 dimensões com pesos explícitos ─────
-          const reviewPrompt = `Você é o editor-chefe de uma agência de comunicação premium. Avalie o copy com rigor profissional em 7 dimensões.
-${briefingCtx    ? `\nBRIEFING: ${briefingCtx}`                              : ''}
-${brandCtx       ? `\nDNA DO CLIENTE (tom, vocabulário, compliance):\n${brandCtx}` : ''}
-${platformCtx    ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}`                  : ''}
-${personaCtx     ? `\nPERSONA E CONTEXTO COMPORTAMENTAL (AMD):\n${personaCtx}` : ''}
-${historyCtx     ? `\nPADRÕES DE PERFORMANCE HISTÓRICA:\n${historyCtx}`        : ''}
-${pastCopiesCtx  ? `\n${pastCopiesCtx}`                                        : ''}
-
-COPY PARA AVALIAÇÃO:
-${reviewText}
-
-Avalie cada dimensão de 0 a 10 e calcule overall_score como média ponderada pelos pesos:
-
-1. briefing_fit      (peso 0.25) — entrega exatamente o que o brief pediu? objetivo, formato, tom?
-2. brand_voice       (peso 0.20) — tom de voz, vocabulário e personalidade da marca estão corretos?
-3. platform_language (peso 0.15) — linguagem, registro e formato certos para a plataforma e audiência?
-4. originality       (peso 0.15) — ângulo, hook e frases são originais? Nada repetido do histórico acima?
-5. emotional_hook    (peso 0.10) — captura atenção imediata, provoca emoção ou curiosidade genuína?
-6. cta_effectiveness (peso 0.10) — CTA específico, persuasivo e alinhado ao momento do AMD?
-7. audience_alignment(peso 0.05) — fala com a persona certa no nível de consciência correto?
-
-Retorne APENAS JSON válido (sem markdown, sem texto antes ou depois):
-{"dimensions":{"briefing_fit":0,"brand_voice":0,"platform_language":0,"originality":0,"emotional_hook":0,"cta_effectiveness":0,"audience_alignment":0},"overall_score":0.0,"warnings":["problema crítico 1","problema crítico 2"]}`;
-
-          const reviewResult = await generateCopy({
-            prompt: reviewPrompt,
-            taskType: 'final_review',
-            temperature: 0.2,
-            maxTokens: 500,
-            usageContext: { tenant_id: tenantId, feature: 'review_loop' },
-          });
-
-          let reviewParsed: { dimensions?: Record<string, number>; overall_score: number; warnings: string[] } = { overall_score: 8, warnings: [] };
-          try {
-            const s = reviewResult.output.indexOf('{');
-            const e = reviewResult.output.lastIndexOf('}');
-            if (s >= 0 && e > s) reviewParsed = JSON.parse(reviewResult.output.slice(s, e + 1));
-          } catch { /* assume passing on parse failure */ }
-
-          semanticReviewScore      = reviewParsed.overall_score ?? 8;
-          semanticReviewWarnings   = Array.isArray(reviewParsed.warnings) ? reviewParsed.warnings : [];
-          semanticReviewDimensions = reviewParsed.dimensions ?? null;
-          semanticReviewIterations = ri + 1;
-
-          if (semanticReviewScore >= REVIEW_SCORE_THRESHOLD || semanticReviewWarnings.length === 0 || ri === MAX_REVIEW_ITERATIONS - 1) break;
-
-          // ── Reescrita cirúrgica — aponta dimensões fracas + warnings ──────
-          const failedDims = Object.entries(semanticReviewDimensions || {})
-            .filter(([, v]) => (v as number) < 7)
-            .map(([k, v]) => `${k}: ${v}/10`)
-            .join(', ');
-
-          const correctionPrompt = `Você é um redator sênior de agência de comunicação premium realizando uma reescrita cirúrgica.
-
-Score atual: ${semanticReviewScore}/10${failedDims ? ` — dimensões abaixo do padrão: ${failedDims}` : ''}
-
-Problemas a corrigir obrigatoriamente:
-${semanticReviewWarnings.map((w) => `- ${w}`).join('\n')}
-${briefingCtx   ? `\nBRIEFING: ${briefingCtx}`                               : ''}
-${brandCtx      ? `\nDNA DO CLIENTE:\n${brandCtx}`                             : ''}
-${platformCtx   ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}`                    : ''}
-${personaCtx    ? `\nPERSONA E AMD:\n${personaCtx}`                            : ''}
-${pastCopiesCtx ? `\n${pastCopiesCtx}`                                         : ''}
-
-COPY ORIGINAL:
-${reviewText}
-
-Reescreva corrigindo exatamente os problemas listados. Mantenha a estrutura (headline, body, CTA, legenda, hashtags) e idioma. Retorne apenas o copy reescrito, sem explicações.`;
-
-          const corrected = await generateCopy({
-            prompt: correctionPrompt,
-            taskType: 'social_post',
-            temperature: 0.45,
-            maxTokens: 1500,
-            usageContext: { tenant_id: tenantId, feature: 'review_loop_correction' },
-          });
-
-          if (corrected?.output) {
-            output = corrected.output;
-            request.log?.info({ score: semanticReviewScore, iteration: ri + 1, failed_dims: failedDims }, 'review_loop_corrected');
-          }
-        }
-      }
-    } catch {
-      /* review loop é totalmente não-bloqueante — falha silenciosa */
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    // Semantic review loop moved to background — see setImmediate after reply.send()
 
     // AgentTagger — classifica a copy com metadata comportamental (Gemini Flash, não-bloqueante)
     let behavioralTags: Awaited<ReturnType<typeof tagCopy>> | null = null;
@@ -2236,15 +2097,7 @@ Reescreva corrigindo exatamente os problemas listados. Mantenha a estrutura (hea
         rationale:           policyResult.rationale,
       };
     }
-    if (semanticReviewScore !== null) {
-      edroPayload.review_loop = {
-        final_score:  semanticReviewScore,
-        iterations:   semanticReviewIterations,
-        dimensions:   semanticReviewDimensions,
-        warnings:     semanticReviewWarnings,
-        passed:       semanticReviewScore >= REVIEW_SCORE_THRESHOLD,
-      };
-    }
+    // review_loop metadata written by background task after reply
     const hasEdroPayload = Object.keys(edroPayload).length > 0;
     const hasBasePayload = Object.keys(basePayload).length > 0;
     let enrichedPayload = payload ?? null;
@@ -2338,7 +2191,7 @@ Reescreva corrigindo exatamente os problemas listados. Mantenha a estrutura (hea
       }
     }
 
-    return reply.status(201).send({
+    reply.status(201).send({
       success: true,
       data: {
         copy,
@@ -2346,6 +2199,165 @@ Reescreva corrigindo exatamente os problemas listados. Mantenha a estrutura (hea
         trafficNotifications,
       },
     });
+
+    // ── Semantic Review Loop — roda em background após a resposta ─────────────
+    // Editor-chefe IA: avalia 7 dimensões + deduplicação cross-briefing.
+    // Se o copy não atingir 7.5/10, reescreve cirurgicamente e atualiza o banco.
+    // O usuário já recebeu o copy; esta etapa refina silenciosamente para uso futuro.
+    // ─────────────────────────────────────────────────────────────────────────
+    setImmediate(async () => {
+      try {
+        if (!tenantId) return;
+        const REVIEW_SCORE_THRESHOLD = 7.5;
+        const MAX_REVIEW_ITERATIONS = 2;
+
+        const briefingCtx = [
+          briefing.title,
+          (briefing.payload as any)?.objetivo || (briefing.payload as any)?.objective || '',
+        ].filter(Boolean).join(' — ');
+        const brandCtx    = knowledgeBlock || '';
+        const platformCtx = platformBlock  || '';
+        const personaCtx  = [personaBlock, amdBlock, behaviorIntentBlock].filter(Boolean).join('\n');
+        const historyCtx  = [preferenceBlock, learnedBlock].filter(Boolean).join('\n');
+
+        // Histórico de copies do cliente para deduplicação
+        let pastCopiesCtx = '';
+        if (selectedClientId) {
+          try {
+            const { rows: pastRows } = await query<{ output: string }>(
+              `SELECT cv.output
+               FROM edro_copy_versions cv
+               JOIN edro_briefings b ON b.id = cv.briefing_id
+               WHERE b.main_client_id = $1
+                 AND b.tenant_id = $2
+                 AND cv.output IS NOT NULL
+                 AND cv.id != $3
+               ORDER BY cv.created_at DESC
+               LIMIT 15`,
+              [selectedClientId, tenantId, copy.id]
+            );
+            if (pastRows.length > 0) {
+              const excerpts = pastRows.map((r, i) => {
+                const t = typeof r.output === 'string' ? r.output : JSON.stringify(r.output);
+                return `${i + 1}. ${t.slice(0, 200).replace(/\n/g, ' ')}`;
+              });
+              pastCopiesCtx = `HISTÓRICO DE COPIES DO CLIENTE — NUNCA repetir ângulos, hooks, frases ou abordagens já usados:\n${excerpts.join('\n')}`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
+        let reviewOutput = typeof output === 'string' ? output : JSON.stringify(output);
+        let finalScore: number | null = null;
+        let finalDimensions: Record<string, number> | null = null;
+        let finalWarnings: string[] = [];
+        let iterations = 0;
+
+        for (let ri = 0; ri < MAX_REVIEW_ITERATIONS; ri++) {
+          if (!reviewOutput || reviewOutput.length < 50) break;
+
+          const reviewPrompt = `Você é o editor-chefe de uma agência de comunicação premium. Avalie o copy com rigor profissional em 7 dimensões.
+${briefingCtx   ? `\nBRIEFING: ${briefingCtx}`                              : ''}
+${brandCtx      ? `\nDNA DO CLIENTE (tom, vocabulário, compliance):\n${brandCtx}` : ''}
+${platformCtx   ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}`                  : ''}
+${personaCtx    ? `\nPERSONA E CONTEXTO COMPORTAMENTAL (AMD):\n${personaCtx}` : ''}
+${historyCtx    ? `\nPADRÕES DE PERFORMANCE HISTÓRICA:\n${historyCtx}`        : ''}
+${pastCopiesCtx ? `\n${pastCopiesCtx}`                                        : ''}
+
+COPY PARA AVALIAÇÃO:
+${reviewOutput}
+
+Avalie cada dimensão de 0 a 10 e calcule overall_score como média ponderada pelos pesos:
+1. briefing_fit (0.25) 2. brand_voice (0.20) 3. platform_language (0.15) 4. originality (0.15) 5. emotional_hook (0.10) 6. cta_effectiveness (0.10) 7. audience_alignment (0.05)
+
+Retorne APENAS JSON válido:
+{"dimensions":{"briefing_fit":0,"brand_voice":0,"platform_language":0,"originality":0,"emotional_hook":0,"cta_effectiveness":0,"audience_alignment":0},"overall_score":0.0,"warnings":["problema 1"]}`;
+
+          const reviewResult = await generateCopy({
+            prompt: reviewPrompt,
+            taskType: 'final_review',
+            temperature: 0.2,
+            maxTokens: 500,
+            usageContext: { tenant_id: tenantId, feature: 'review_loop_bg' },
+          });
+
+          let reviewParsed: { dimensions?: Record<string, number>; overall_score: number; warnings: string[] } = { overall_score: 8, warnings: [] };
+          try {
+            const s = reviewResult.output.indexOf('{');
+            const e = reviewResult.output.lastIndexOf('}');
+            if (s >= 0 && e > s) reviewParsed = JSON.parse(reviewResult.output.slice(s, e + 1));
+          } catch { /* assume passing */ }
+
+          finalScore      = reviewParsed.overall_score ?? 8;
+          finalDimensions = reviewParsed.dimensions ?? null;
+          finalWarnings   = Array.isArray(reviewParsed.warnings) ? reviewParsed.warnings : [];
+          iterations      = ri + 1;
+
+          if (finalScore >= REVIEW_SCORE_THRESHOLD || finalWarnings.length === 0 || ri === MAX_REVIEW_ITERATIONS - 1) break;
+
+          const failedDims = Object.entries(finalDimensions || {})
+            .filter(([, v]) => (v as number) < 7)
+            .map(([k, v]) => `${k}: ${v}/10`)
+            .join(', ');
+
+          const corrected = await generateCopy({
+            prompt: `Você é um redator sênior realizando reescrita cirúrgica.
+Score atual: ${finalScore}/10${failedDims ? ` — dimensões abaixo do padrão: ${failedDims}` : ''}
+Problemas a corrigir:
+${finalWarnings.map((w) => `- ${w}`).join('\n')}
+${briefingCtx   ? `\nBRIEFING: ${briefingCtx}` : ''}
+${brandCtx      ? `\nDNA DO CLIENTE:\n${brandCtx}` : ''}
+${platformCtx   ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}` : ''}
+${personaCtx    ? `\nPERSONA E AMD:\n${personaCtx}` : ''}
+${pastCopiesCtx ? `\n${pastCopiesCtx}` : ''}
+
+COPY ORIGINAL:
+${reviewOutput}
+
+Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o copy reescrito.`,
+            taskType: 'social_post',
+            temperature: 0.45,
+            maxTokens: 1500,
+            usageContext: { tenant_id: tenantId, feature: 'review_loop_correction_bg' },
+          });
+
+          if (corrected?.output) {
+            reviewOutput = corrected.output;
+            request.log?.info({ copy_id: copy.id, score: finalScore, iteration: ri + 1 }, 'review_loop_bg_corrected');
+          }
+        }
+
+        // Se o copy foi melhorado, atualiza o banco silenciosamente
+        if (reviewOutput !== (typeof output === 'string' ? output : JSON.stringify(output))) {
+          await query(
+            `UPDATE edro_copy_versions
+             SET output = $1,
+                 payload = jsonb_set(COALESCE(payload, '{}'), '{_edro,review_loop}', $2::jsonb)
+             WHERE id = $3`,
+            [
+              reviewOutput,
+              JSON.stringify({ final_score: finalScore, iterations, dimensions: finalDimensions, warnings: finalWarnings, passed: (finalScore ?? 0) >= REVIEW_SCORE_THRESHOLD }),
+              copy.id,
+            ]
+          );
+          request.log?.info({ copy_id: copy.id, final_score: finalScore, iterations }, 'review_loop_bg_updated');
+        } else if (finalScore !== null) {
+          // Mesmo sem mudança, persiste o score para auditoria
+          await query(
+            `UPDATE edro_copy_versions
+             SET payload = jsonb_set(COALESCE(payload, '{}'), '{_edro,review_loop}', $1::jsonb)
+             WHERE id = $2`,
+            [
+              JSON.stringify({ final_score: finalScore, iterations, dimensions: finalDimensions, warnings: finalWarnings, passed: finalScore >= REVIEW_SCORE_THRESHOLD }),
+              copy.id,
+            ]
+          );
+        }
+      } catch (err) {
+        request.log?.error({ err }, 'review_loop_bg_failed');
+      }
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+
   });
 
   app.post('/edro/briefings/:id/assign-da', async (request, reply) => {
