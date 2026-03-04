@@ -3305,11 +3305,13 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       prompt_only: z.boolean().optional(),
       /** Prompt editado pelo usuário — substitui o auto-gerado na geração real */
       custom_prompt: z.string().optional(),
-      /** Override image model (e.g. 'imagen-3.0-generate-001', 'imagen-3.0-fast-generate-001') */
+      /** Override image model (e.g. 'imagen-3.0-generate-001', Leonardo model ID) */
       image_model: z.string().optional(),
-      /** Aspect ratio for Imagen 3 ('1:1' | '3:4' | '4:3' | '9:16' | '16:9') */
+      /** Image generation provider ('gemini' | 'leonardo') */
+      image_provider: z.enum(['gemini', 'leonardo']).optional(),
+      /** Aspect ratio for Imagen 3 / Leonardo ('1:1' | '3:4' | '4:3' | '9:16' | '16:9') */
       aspect_ratio: z.string().optional(),
-      /** Negative prompt for Imagen 3 */
+      /** Negative prompt */
       negative_prompt: z.string().optional(),
       /** Headline do post (campo estruturado) — conceito visual primário */
       headline: z.string().optional(),
@@ -3478,6 +3480,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
         imageModel: body.image_model || undefined,
+        imageProvider: body.image_provider || undefined,
         aspectRatio: body.aspect_ratio || undefined,
         negativePrompt: body.negative_prompt || undefined,
       });

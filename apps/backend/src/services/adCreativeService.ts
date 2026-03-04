@@ -1,5 +1,6 @@
 import { env } from '../env';
 import { generateImage } from './ai/geminiService';
+import { generateImageWithLeonardo, resolveLeonardoModelId } from './ai/leonardoService';
 import { generateCompletion } from './ai/claudeService';
 
 type AdCreativeRequest = {
@@ -17,6 +18,8 @@ type AdCreativeRequest = {
   approvedExamples?: string[];
   avoidPatterns?: string[];
   imageModel?: string;
+  /** 'gemini' (default) | 'leonardo' */
+  imageProvider?: 'gemini' | 'leonardo';
   aspectRatio?: string;
   negativePrompt?: string;
 };
@@ -216,6 +219,33 @@ export function buildCreativePrompt(
  * customPrompt é a narrativa de cena (sem DNA base) — vem do Art Director ou da edição do usuário.
  */
 export async function generateAdCreative(params: AdCreativeRequest): Promise<AdCreativeResponse> {
+  const provider = params.imageProvider || 'gemini';
+
+  // ── Leonardo.ai ─────────────────────────────────────────────────────
+  if (provider === 'leonardo') {
+    if (!env.LEONARDO_API_KEY) {
+      return { success: false, error: 'LEONARDO_API_KEY não configurada' };
+    }
+    try {
+      const sceneNarrative = params.customPrompt || buildScenePrompt(params);
+      const finalPrompt = `${VISUAL_DNA_BASE}\n${sceneNarrative}`;
+      const modelId = resolveLeonardoModelId(params.imageModel);
+      const result = await generateImageWithLeonardo({
+        prompt: finalPrompt,
+        modelId,
+        aspectRatio: params.aspectRatio,
+        negativePrompt: params.negativePrompt,
+      });
+      return {
+        success: true,
+        image_url: `data:${result.mimeType};base64,${result.base64}`,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao gerar imagem com Leonardo.ai' };
+    }
+  }
+
+  // ── Gemini (default) ────────────────────────────────────────────────
   if (!env.GEMINI_API_KEY) {
     return { success: false, error: 'GEMINI_API_KEY não configurada' };
   }
@@ -243,7 +273,7 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
 }
 
 export function isAdCreativeConfigured(): boolean {
-  return Boolean(env.GEMINI_API_KEY);
+  return Boolean(env.GEMINI_API_KEY || env.LEONARDO_API_KEY);
 }
 
 /**

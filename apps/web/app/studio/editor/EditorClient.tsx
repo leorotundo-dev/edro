@@ -468,6 +468,7 @@ export default function EditorClient() {
   const [arteRefsCount, setArteRefsCount] = useState(0);
   const [arteModalError, setArteModalError] = useState('');
   const [imageModel, setImageModel] = useState('gemini-2.0-flash-exp-image-generation');
+  const [imageProvider, setImageProvider] = useState<'gemini' | 'leonardo'>('gemini');
   const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
   const [imageNegativePrompt, setImageNegativePrompt] = useState('');
   // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
@@ -1192,8 +1193,9 @@ export default function EditorClient() {
           headline: editorCopy.headline || undefined,
           body_text: editorCopy.body || undefined,
           custom_prompt: artePrompt || undefined,
-          image_model: imageModel,
-          aspect_ratio: imageModel.startsWith('imagen-') ? imageAspectRatio : undefined,
+          image_model: imageProvider === 'leonardo' ? undefined : imageModel,
+          image_provider: imageProvider !== 'gemini' ? imageProvider : undefined,
+          aspect_ratio: (imageProvider === 'leonardo' || imageModel.startsWith('imagen-')) ? imageAspectRatio : undefined,
           negative_prompt: imageNegativePrompt || undefined,
         }
       );
@@ -2178,20 +2180,53 @@ export default function EditorClient() {
                       </Stack>
 
                       <Stack spacing={1.5}>
-                        {/* Model */}
+                        {/* Provider */}
                         <TextField
-                          select size="small" label="Modelo de imagem"
-                          value={imageModel}
-                          onChange={(e) => setImageModel(e.target.value)}
+                          select size="small" label="Provedor de imagem"
+                          value={imageProvider}
+                          onChange={(e) => {
+                            const p = e.target.value as 'gemini' | 'leonardo';
+                            setImageProvider(p);
+                            if (p === 'leonardo') setImageModel('leonardo-phoenix');
+                            else setImageModel('gemini-2.0-flash-exp-image-generation');
+                          }}
                           fullWidth
                         >
-                          <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (padrão)</MenuItem>
-                          <MenuItem value="imagen-3.0-generate-001">Imagen 3 — Alta qualidade</MenuItem>
-                          <MenuItem value="imagen-3.0-fast-generate-001">Imagen 3 Fast — Nano (rápido)</MenuItem>
+                          <MenuItem value="gemini">Google Gemini / Imagen</MenuItem>
+                          <MenuItem value="leonardo">Leonardo.ai</MenuItem>
                         </TextField>
 
-                        {/* Aspect ratio — Imagen 3 only */}
-                        {imageModel.startsWith('imagen-') && (
+                        {/* Model — Gemini */}
+                        {imageProvider === 'gemini' && (
+                          <TextField
+                            select size="small" label="Modelo"
+                            value={imageModel}
+                            onChange={(e) => setImageModel(e.target.value)}
+                            fullWidth
+                          >
+                            <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (padrão)</MenuItem>
+                            <MenuItem value="imagen-3.0-generate-001">Imagen 3 — Alta qualidade</MenuItem>
+                            <MenuItem value="imagen-3.0-fast-generate-001">Imagen 3 Fast — Rápido</MenuItem>
+                          </TextField>
+                        )}
+
+                        {/* Model — Leonardo */}
+                        {imageProvider === 'leonardo' && (
+                          <TextField
+                            select size="small" label="Modelo Leonardo"
+                            value={imageModel}
+                            onChange={(e) => setImageModel(e.target.value)}
+                            fullWidth
+                          >
+                            <MenuItem value="leonardo-phoenix">Phoenix — Flagship (melhor qualidade)</MenuItem>
+                            <MenuItem value="leonardo-lightning-xl">Lightning XL — Rápido</MenuItem>
+                            <MenuItem value="leonardo-kino-xl">Kino XL — Cinematográfico</MenuItem>
+                            <MenuItem value="leonardo-diffusion-xl">Diffusion XL — Criativo</MenuItem>
+                          </TextField>
+                        )}
+
+                        {/* Aspect ratio — Imagen 3 or Leonardo */}
+                        {(imageProvider === 'leonardo' || imageModel.startsWith('imagen-')) && (
                           <TextField
                             select size="small" label="Proporção"
                             value={imageAspectRatio}
@@ -2199,6 +2234,7 @@ export default function EditorClient() {
                             fullWidth
                           >
                             <MenuItem value="1:1">1:1 — Quadrado (Feed)</MenuItem>
+                            <MenuItem value="4:5">4:5 — Portrait (Instagram)</MenuItem>
                             <MenuItem value="4:3">4:3 — Landscape</MenuItem>
                             <MenuItem value="3:4">3:4 — Portrait</MenuItem>
                             <MenuItem value="16:9">16:9 — Widescreen</MenuItem>
