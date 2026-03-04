@@ -37,9 +37,9 @@ type AdCreativeResponse = {
 };
 
 // ── DNA Visual — Base Técnica Fixa ──────────────────────────────────────────
-// Este prefixo é sempre injetado antes do prompt de ação.
-// Garante consistência fotográfica/cinematográfica em todas as imagens geradas.
-// O usuário edita apenas a parte descritiva (ação/conceito); a base permanece intacta.
+// Apenas qualidade fotográfica e proibições absolutas.
+// NÃO inclui referências de pessoas ou setor — isso é responsabilidade do bloco de ação,
+// que conhece o tema do post e pode contextualizar corretamente.
 const VISUAL_DNA_BASE = `\
 CRITICAL RULE — READ FIRST: This is a PURE BACKGROUND IMAGE. Do NOT include any text, words, letters, numbers, titles, captions, labels, overlays, watermarks, typography, or written content of any kind anywhere in the image. The image must be completely text-free. Any text in the image is a failure.
 
@@ -51,8 +51,6 @@ Soft directional key light combined with real practical ambient light. Warm cine
 
 Commercial color grading, balanced contrast, realistic color response, warm highlight roll-off, preserved skin tones, high clarity without oversharpen.
 
-Authentic Brazilian workforce presence when people are shown. Real people, natural beauty, authentic skin tones, human dignity, confidence, and technical competence.
-
 ABSOLUTE PROHIBITIONS: No text. No words. No letters. No numbers. No logos. No watermarks. No titles. No captions. No labels. No overlays. No typography of any kind. No AI artifacts, no distorted anatomy, no fake skin, no melted materials, no warped geometry, no extreme lens distortion, no CGI plastic look.
 
 SCENE:`;
@@ -60,55 +58,60 @@ SCENE:`;
 /**
  * Monta a parte descritiva (ação/conceito) do prompt com base nos parâmetros.
  *
- * Hierarquia visual:
- *  1. headline  → âncora primária do conceito visual (sem truncamento, peso máximo)
- *  2. bodyText  → contexto temático secundário (truncado em 200 chars)
- *  3. copy      → fallback quando headline/bodyText não fornecidos (truncado em 140 chars)
- *  4. visualContext → branding do cliente (cores, diretrizes, posts anteriores)
+ * Hierarquia semântica:
+ *  ① POST TOPIC (headline + bodyText) — o que a imagem deve mostrar, peso máximo
+ *  ② BRAND CONTEXT (brand, segment, colors, visualContext) — identidade visual, peso secundário
+ *     O segmento da empresa NÃO é o assunto da imagem: é apenas contexto de marca.
+ *     Ex: empresa de rodovias que posta sobre "Dia do Publicitário" → imagem deve ser
+ *     sobre publicidade/criatividade, não sobre estradas ou obras.
  *
  * A base técnica (VISUAL_DNA_BASE) é injetada separadamente em generateAdCreative.
- * Exportado para que o endpoint possa retornar o prompt completo no modo prompt_only.
  */
 export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPrompt' | 'referenceImageUrls'>): string {
   const colorHint = params.colors?.length
-    ? `Brand accent color: ${params.colors[0]}.`
+    ? `Apply brand accent color ${params.colors[0]} as tonal influence in lighting and environment.`
     : '';
 
-  // Headline: conceito visual primário — sem truncamento, é o driver da imagem
+  // ① POST TOPIC — âncora visual primária (peso máximo)
   const headlineAnchor = params.headline
-    ? `PRIMARY VISUAL CONCEPT — translate this idea into imagery, do NOT render it as text: "${params.headline}".`
+    ? `IMAGE SUBJECT — visualize this concept as a scene, do NOT render it as text: "${params.headline}".`
     : '';
 
-  // Body: contexto temático secundário — informa a cena, não precisa ser literal
   const bodyContext = params.bodyText
-    ? `Thematic context to inform the scene (do NOT render as text): ${params.bodyText.slice(0, 200)}.`
+    ? `Post theme to inform the scene (do NOT render as text): ${params.bodyText.slice(0, 220)}.`
     : !params.headline && params.copy
     ? `Visual concept (do NOT render as text): ${params.copy.slice(0, 140)}.`
     : '';
 
-  const actionBlock = [
-    `Social media advertising background image for ${params.format} format. No text anywhere.`,
-    headlineAnchor,
-    bodyContext,
-    params.brand ? `Brand: ${params.brand}.` : '',
-    params.segment ? `Industry sector: ${params.segment}.` : '',
+  // ② BRAND CONTEXT — estilo e identidade, NÃO o assunto da cena
+  const brandContext = [
+    params.brand || params.segment
+      ? `BRAND CONTEXT (style reference only — this is NOT the image subject): brand "${params.brand || ''}"${params.segment ? `, sector: ${params.segment}` : ''}.`
+      : '',
     colorHint,
     params.visualContext
-      ? `Client brand aesthetic reference:\n${params.visualContext}`
+      ? `Brand aesthetic reference:\n${params.visualContext}`
       : '',
     params.style && params.style !== 'modern'
       ? `Visual tone: ${params.style}.`
       : '',
     params.approvedExamples?.length
-      ? `Aesthetic style reference from previous approved generations: ${params.approvedExamples.slice(0, 2).join(' | ')}.`
+      ? `Approved aesthetic style from previous generations: ${params.approvedExamples.slice(0, 2).join(' | ')}.`
       : '',
     params.avoidPatterns?.length
-      ? `Previously rejected for these reasons — avoid: ${params.avoidPatterns.join(', ')}.`
+      ? `Previously rejected — avoid: ${params.avoidPatterns.join(', ')}.`
       : '',
+  ].filter(Boolean).join(' ');
+
+  const actionBlock = [
+    `Social media advertising background image for ${params.format} format. No text anywhere.`,
+    headlineAnchor,
+    bodyContext,
+    brandContext,
     'Produce a visually compelling full-bleed background image — no text, no words, no letters anywhere. Only pure visual imagery suitable for text overlay by the designer.',
   ]
     .filter(Boolean)
-    .join(' ');
+    .join('\n');
 
   return `${VISUAL_DNA_BASE}\n${actionBlock}`;
 }
