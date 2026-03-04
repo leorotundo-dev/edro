@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, momentLocalizer, type View } from 'react-big-calendar';
 import moment from 'moment';
@@ -11,6 +11,8 @@ import { apiGet, apiPost, apiPatch, apiDelete, buildApiUrl } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
+import InputAdornment from '@mui/material/InputAdornment';
+import Popover from '@mui/material/Popover';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -64,6 +66,9 @@ import {
   IconGlobe,
   IconUsersGroup,
   IconFileText,
+  IconSearch,
+  IconExternalLink,
+  IconCalendarPlus,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -385,6 +390,108 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [editEventScore, setEditEventScore] = useState('');
 
   const [eventBriefingMap, setEventBriefingMap] = useState<Record<string, string>>({});
+
+  // ── Calendar Search ────────────────────────────────────────────────────────
+  type LocalSearchResult = { dateISO: string; event: CalendarEventItem };
+  type TavilyResult = { title: string; url: string; snippet: string };
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchAnchorEl, setSearchAnchorEl] = useState<HTMLDivElement | null>(null);
+  const [localSearchResults, setLocalSearchResults] = useState<LocalSearchResult[]>([]);
+  const [tavilyResults, setTavilyResults] = useState<TavilyResult[]>([]);
+  const [tavilyAnswer, setTavilyAnswer] = useState<string | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [tavilyLoading, setTavilyLoading] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Calendar Search handlers ───────────────────────────────────────────────
+  function normalizeForSearch(text: string) {
+    return text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  function searchLocalEvents(q: string): LocalSearchResult[] {
+    const norm = normalizeForSearch(q);
+    if (!norm) return [];
+    const results: LocalSearchResult[] = [];
+    for (const [dateISO, events] of Array.from(eventsByDate.entries())) {
+      for (const event of events) {
+        const haystack = normalizeForSearch(
+          [event.name, event.slug ?? '', ...(event.categories ?? []), ...(event.tags ?? [])].join(' ')
+        );
+        if (haystack.includes(norm)) {
+          results.push({ dateISO, event });
+        }
+      }
+    }
+    results.sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    return results.slice(0, 15);
+  }
+
+  async function runTavilySearch(q: string) {
+    setTavilyLoading(true);
+    setTavilyResults([]);
+    setTavilyAnswer(null);
+    try {
+      const res = await apiPost<{ answer: string | null; results: TavilyResult[] }>(
+        '/calendar/search/tavily',
+        { q }
+      );
+      setTavilyResults(res?.results ?? []);
+      setTavilyAnswer(res?.answer ?? null);
+    } catch { /* non-blocking */ }
+    finally { setTavilyLoading(false); }
+  }
+
+  function handleSearchChange(value: string) {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (!value.trim()) {
+      setLocalSearchResults([]);
+      setTavilyResults([]);
+      setTavilyAnswer(null);
+      setSearchAnchorEl(null);
+      return;
+    }
+    setSearchAnchorEl(searchContainerRef.current);
+    const local = searchLocalEvents(value);
+    setLocalSearchResults(local);
+
+    // Only call Tavily when no local results found
+    if (local.length === 0) {
+      searchDebounceRef.current = setTimeout(() => {
+        runTavilySearch(value.trim());
+      }, 600);
+    } else {
+      setTavilyResults([]);
+      setTavilyAnswer(null);
+    }
+  }
+
+  function handleSearchResultClick(dateISO: string) {
+    // Navigate calendar to that month and highlight the date
+    const [year, month] = dateISO.split('-');
+    if (year && month) setMonthFilter(`${year}-${month}`);
+    setSelectedDayISO(dateISO);
+    setSearchQuery('');
+    setSearchAnchorEl(null);
+    setLocalSearchResults([]);
+    setTavilyResults([]);
+  }
+
+  function handleAddTavilyEventToCalendar(result: TavilyResult) {
+    setAddEventName(result.title);
+    setAddEventDialogOpen(true);
+    setSearchAnchorEl(null);
+    setSearchQuery('');
+    setLocalSearchResults([]);
+    setTavilyResults([]);
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   // ── Creative Inspirations ──────────────────────────────────────────────────
   type Inspiration = { id: string; title: string; snippet: string | null; url: string; source_lang: string };
@@ -1340,8 +1447,127 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               </Button>
             ) : null}
           </Stack>
+
+          {/* Search bar */}
+          <Box ref={searchContainerRef} sx={{ position: 'relative' }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Buscar data ou evento comemorativo…"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => { if (searchQuery.trim()) setSearchAnchorEl(searchContainerRef.current); }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconSearch size={18} color="gray" />
+                  </InputAdornment>
+                ),
+                endAdornment: searchLoading || tavilyLoading ? (
+                  <InputAdornment position="end">
+                    <CircularProgress size={16} />
+                  </InputAdornment>
+                ) : searchQuery ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => { setSearchQuery(''); setSearchAnchorEl(null); setLocalSearchResults([]); setTavilyResults([]); }}>
+                      <IconX size={14} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : undefined,
+              }}
+              sx={{ bgcolor: 'background.paper', borderRadius: 1 }}
+            />
+          </Box>
         </Stack>
       </DashboardCard>
+
+      {/* Search results popover */}
+      <Popover
+        open={Boolean(searchAnchorEl) && (localSearchResults.length > 0 || tavilyResults.length > 0 || tavilyLoading)}
+        anchorEl={searchAnchorEl}
+        onClose={() => setSearchAnchorEl(null)}
+        disableAutoFocus
+        disableEnforceFocus
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{ sx: { width: searchContainerRef.current?.offsetWidth ?? 600, maxHeight: 480, overflow: 'auto', p: 0, mt: 0.5 } }}
+      >
+        {localSearchResults.length > 0 && (
+          <Box>
+            <Typography variant="caption" sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
+              NO CALENDÁRIO ({localSearchResults.length})
+            </Typography>
+            <List dense disablePadding>
+              {localSearchResults.map(({ dateISO, event }) => (
+                <ListItemButton key={`${dateISO}-${event.id}`} onClick={() => handleSearchResultClick(dateISO)} sx={{ py: 0.75, px: 2 }}>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <IconCalendarEvent size={18} color="#5D87FF" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={event.name}
+                    secondary={formatDayLabel(dateISO)}
+                    primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                    secondaryTypographyProps={{ variant: 'caption' }}
+                  />
+                  <Chip label={event.tier} size="small" color={TIER_COLORS[event.tier] as any} sx={{ fontSize: 10, height: 18 }} />
+                </ListItemButton>
+              ))}
+            </List>
+          </Box>
+        )}
+
+        {tavilyLoading && (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: 1.5 }}>
+            <CircularProgress size={14} />
+            <Typography variant="body2" color="text.secondary">Buscando na web…</Typography>
+          </Stack>
+        )}
+
+        {tavilyResults.length > 0 && (
+          <Box>
+            <Divider />
+            <Typography variant="caption" sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
+              RESULTADOS DA WEB (TAVILY)
+            </Typography>
+            {tavilyAnswer && (
+              <Alert severity="info" sx={{ mx: 2, mb: 1, py: 0.5 }}>
+                <Typography variant="caption">{tavilyAnswer}</Typography>
+              </Alert>
+            )}
+            <List dense disablePadding>
+              {tavilyResults.map((r, i) => (
+                <ListItemButton key={i} sx={{ py: 0.75, px: 2, alignItems: 'flex-start' }}>
+                  <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                    <IconGlobe size={18} color="#13DEB9" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={r.title}
+                    secondary={r.snippet}
+                    primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                    secondaryTypographyProps={{ variant: 'caption', sx: { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }}
+                  />
+                  <Stack direction="row" spacing={0.5} sx={{ ml: 1, flexShrink: 0, mt: 0.5 }}>
+                    <IconButton
+                      size="small"
+                      title="Adicionar ao calendário"
+                      onClick={(e) => { e.stopPropagation(); handleAddTavilyEventToCalendar(r); }}
+                    >
+                      <IconCalendarPlus size={16} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Abrir fonte"
+                      onClick={(e) => { e.stopPropagation(); window.open(r.url, '_blank'); }}
+                    >
+                      <IconExternalLink size={16} />
+                    </IconButton>
+                  </Stack>
+                </ListItemButton>
+              ))}
+            </List>
+          </Box>
+        )}
+      </Popover>
 
       {/* Legend */}
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">

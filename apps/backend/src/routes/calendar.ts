@@ -22,6 +22,7 @@ import { scrapeInspirations } from '../jobs/calendarInspirationWorker';
 import { generateCompletion } from '../services/ai/openaiService';
 import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
 import { matchesWordBoundary } from '../clipping/scoring';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 
 const platformSchema = z.enum([
   'Instagram',
@@ -2007,6 +2008,85 @@ Responda em português. Seja específico, concreto e adequado ao segmento do cli
         adapted_ideas: adapted?.text?.trim() ?? '',
         generated_at: new Date().toISOString(),
       });
+    }
+  );
+
+  // GET /calendar/search?q=QUERY&limit=20
+  // Searches events table by name, slug, categories and tags.
+  app.get(
+    '/calendar/search',
+    { preHandler: [authGuard] },
+    async (request: any, reply) => {
+      const { q, limit } = z
+        .object({
+          q: z.string().min(1).max(200),
+          limit: z.coerce.number().int().min(1).max(50).default(20),
+        })
+        .parse(request.query);
+
+      const normalized = normalizeSearchText(q);
+      const terms = normalized.split(/\s+/).filter(Boolean);
+      if (terms.length === 0) return reply.send({ results: [] });
+
+      // Build a WHERE clause that checks name, slug, categories (jsonb array), tags (jsonb array)
+      // We use simple ILIKE on the searchable text representation
+      const { rows } = await query<{
+        id: string;
+        name: string;
+        slug: string | null;
+        date: string;
+        categories: string[] | null;
+        tags: string[] | null;
+        source: string | null;
+        score: number | null;
+        tier: string | null;
+      }>(
+        `SELECT id, name, slug, date, categories, tags, source, base_relevance AS score, tier
+         FROM events
+         WHERE (
+           unaccent(lower(name)) ILIKE unaccent(lower($1))
+           OR unaccent(lower(coalesce(slug,''))) ILIKE unaccent(lower($1))
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(categories::jsonb) = 'array' THEN categories::jsonb ELSE '[]'::jsonb END) t
+             WHERE unaccent(lower(t)) ILIKE unaccent(lower($1))
+           )
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(tags::jsonb) = 'array' THEN tags::jsonb ELSE '[]'::jsonb END) t
+             WHERE unaccent(lower(t)) ILIKE unaccent(lower($1))
+           )
+         )
+         ORDER BY date ASC
+         LIMIT $2`,
+        [`%${normalized}%`, limit]
+      );
+
+      return reply.send({ results: rows });
+    }
+  );
+
+  // POST /calendar/search/tavily
+  // Searches the web via Tavily and returns results formatted for calendar import.
+  app.post(
+    '/calendar/search/tavily',
+    { preHandler: [authGuard] },
+    async (request: any, reply) => {
+      const { q } = z
+        .object({ q: z.string().min(1).max(300) })
+        .parse(request.body || {});
+
+      if (!isTavilyConfigured()) {
+        return reply.status(503).send({ error: 'tavily_not_configured' });
+      }
+
+      const res = await tavilySearch(q, { maxResults: 6, includeAnswer: true });
+
+      const results = res.results.map((r) => ({
+        title: r.title,
+        url: r.url,
+        snippet: r.snippet,
+      }));
+
+      return reply.send({ answer: res.answer ?? null, results });
     }
   );
 }
