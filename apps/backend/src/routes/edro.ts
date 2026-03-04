@@ -1794,6 +1794,114 @@ export default async function edroRoutes(app: FastifyInstance) {
           } catch { /* sem preferencias aprendidas ainda — continuar */ }
         }
 
+        // ── Brand Voice DNA ───────────────────────────────────────────────────
+        // Lê o DNA de marca salvo (extraído de copies aprovados) e injeta como
+        // diretiva de voz — garante consistência mesmo quando o usuário não
+        // preenche manualmente o tom de voz no briefing.
+        let brandVoiceBlock = '';
+        if (selectedClientId && tenantId) {
+          try {
+            const bvRow = await getClientById(tenantId, selectedClientId);
+            const bv = (bvRow as any)?.profile?.brand_voice;
+            if (bv) {
+              const bvText = typeof bv === 'string' ? bv : JSON.stringify(bv, null, 0);
+              brandVoiceBlock = `\n\nDNA DE VOZ DA MARCA (extraído de copies aprovados — respeite rigorosamente):\n${bvText.slice(0, 800)}`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
+        // ── Audience Behavior Profiles ────────────────────────────────────────
+        // Clusters reais da audiência derivados de métricas de performance.
+        // Informa o motor sobre o perfil dominante para calibrar AMD e gatilhos.
+        let behaviorProfileBlock = '';
+        if (selectedClientId && tenantId) {
+          try {
+            const { rows: bpRows } = await query<any>(
+              `SELECT cluster_type, cluster_label, preferred_format, preferred_amd,
+                      preferred_triggers, avg_save_rate, avg_click_rate, confidence_score
+               FROM client_behavior_profiles
+               WHERE tenant_id=$1 AND client_id=$2 AND confidence_score >= 0.3
+               ORDER BY confidence_score DESC LIMIT 3`,
+              [tenantId, selectedClientId]
+            );
+            if (bpRows.length) {
+              const lines = bpRows.map((r: any) =>
+                `${r.cluster_label}: formato="${r.preferred_format || '?'}" AMD="${r.preferred_amd || '?'}"${r.preferred_triggers?.length ? ` gatilhos=${r.preferred_triggers.slice(0, 3).join('/')}` : ''} (confiança ${Math.round((r.confidence_score || 0) * 100)}%)`
+              );
+              behaviorProfileBlock = `\n\nCLUSTERS COMPORTAMENTAIS DA AUDIÊNCIA (dados reais de performance):\n${lines.join('\n')}`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
+        // ── Learning Rules ────────────────────────────────────────────────────
+        // Padrões com uplift validado estatisticamente para este cliente.
+        // Complementa o learnedBlock (que vem de preferências de feedback)
+        // com evidência de performance de campanhas reais.
+        let learningRulesBlock = '';
+        if (selectedClientId && tenantId) {
+          try {
+            const { rows: lrRows } = await query<any>(
+              `SELECT effective_pattern, uplift_metric, uplift_value
+               FROM learning_rules
+               WHERE tenant_id=$1 AND client_id=$2 AND is_active=true AND uplift_value >= 15
+               ORDER BY uplift_value DESC LIMIT 5`,
+              [tenantId, selectedClientId]
+            );
+            if (lrRows.length) {
+              const lines = lrRows.map((r: any) =>
+                `+${Math.round(r.uplift_value)}% em ${r.uplift_metric}: ${r.effective_pattern}`
+              );
+              learningRulesBlock = `\n\nREGRAS DE PERFORMANCE VALIDADAS (histórico deste cliente):\n${lines.join('\n')}`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
+        // ── Calendar Events ───────────────────────────────────────────────────
+        // Eventos reais do calendário do cliente nos próximos 30 dias.
+        // Permite calibrar copy para datas específicas e gerar urgência contextual.
+        let calendarEventsBlock = '';
+        if (selectedClientId) {
+          try {
+            const { rows: evRows } = await query<any>(
+              `SELECT title, event_date::text, category
+               FROM calendar_events
+               WHERE client_id=$1 AND event_date BETWEEN NOW() AND NOW() + INTERVAL '30 days'
+               ORDER BY event_date ASC LIMIT 6`,
+              [selectedClientId]
+            );
+            if (evRows.length) {
+              const lines = evRows.map((r: any) => {
+                const d = new Date(r.event_date);
+                return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${r.title}${r.category ? ` (${r.category})` : ''}`;
+              });
+              calendarEventsBlock = `\n\nEVENTOS DO CALENDÁRIO DO CLIENTE (próximos 30 dias):\n${lines.join('\n')}\nUse esses eventos para dar contexto temporal, urgência ou relevância ao copy se pertinente.`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
+        // ── Content Gaps ──────────────────────────────────────────────────────
+        // Lacunas estratégicas de conteúdo detectadas por IA (alta urgência).
+        // Orienta o motor a endereçar oportunidades de mercado ainda não cobertas.
+        let contentGapsBlock = '';
+        if (selectedClientId && tenantId) {
+          try {
+            const { rows: cgRows } = await query<any>(
+              `SELECT gaps FROM client_content_gaps
+               WHERE tenant_id=$1 AND client_id=$2
+               ORDER BY detected_at DESC LIMIT 1`,
+              [tenantId, selectedClientId]
+            );
+            const allGaps: any[] = cgRows[0]?.gaps ?? [];
+            const highGaps = allGaps.filter((g: any) => g.urgency === 'alta').slice(0, 3);
+            if (highGaps.length) {
+              const lines = highGaps.map((g: any) =>
+                `• ${g.gap} → ${g.format}${g.suggested_topics?.length ? `: "${g.suggested_topics[0]}"` : ''}`
+              );
+              contentGapsBlock = `\n\nGAPS ESTRATÉGICOS DE CONTEÚDO (alta prioridade — identificados por IA de mercado):\n${lines.join('\n')}\nSe pertinente ao briefing, este copy pode abordar uma dessas lacunas não cobertas.`;
+            }
+          } catch { /* non-blocking */ }
+        }
+
         // Persona + AMD — quem vai receber e que microcomportamento queremos provocar
         let resolvedPersona: any = null;
         if (payloadPersonaId && selectedClientId && tenantId) {
@@ -1915,9 +2023,25 @@ export default async function edroRoutes(app: FastifyInstance) {
           // Não-bloqueante — falha silenciosa
         }
 
-        const enrichedKnowledgeBlock = [knowledgeBlock, preferenceBlock, learnedBlock, personaBlock, amdBlock, behaviorIntentBlock, platformBlock, temporalBlock, promptDNABlock, webResearchBlock].filter(Boolean).join('\n');
+        const enrichedKnowledgeBlock = [
+          knowledgeBlock,
+          brandVoiceBlock,
+          behaviorProfileBlock,
+          learningRulesBlock,
+          calendarEventsBlock,
+          contentGapsBlock,
+          preferenceBlock,
+          learnedBlock,
+          personaBlock,
+          amdBlock,
+          behaviorIntentBlock,
+          platformBlock,
+          temporalBlock,
+          promptDNABlock,
+          webResearchBlock,
+        ].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
+        const enrichedPrompt = `${prompt}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
 
         let result;
         if (pipeline === 'adversarial') {

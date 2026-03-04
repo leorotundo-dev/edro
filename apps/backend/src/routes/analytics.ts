@@ -774,7 +774,32 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // 7. ESTRATEGISTA VIRTUAL MENSAL
+  // 7a. GET — Load latest persisted strategic brief
+  // ────────────────────────────────────────────────────────────────────────────
+  app.get('/clients/:clientId/strategic-brief', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+
+    const { rows } = await query<{ summary: any; created_at: string }>(
+      `SELECT summary, created_at FROM client_insights
+       WHERE tenant_id=$1 AND client_id=$2 AND period LIKE 'strategic_brief_%'
+       ORDER BY created_at DESC LIMIT 1`,
+      [tenantId, clientId]
+    );
+
+    if (!rows.length) return reply.status(204).send();
+
+    const row = rows[0];
+    return {
+      ...row.summary,
+      detected_at: row.created_at,
+    };
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 7b. ESTRATEGISTA VIRTUAL MENSAL
   // Full strategic brief using Claude for premium quality
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/strategic-brief', {
@@ -889,7 +914,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       metadata: { client_id: clientId, month: targetMonth, year: targetYear },
     }).catch(() => {});
 
-    return {
+    const briefResponse = {
       brief: result.text,
       client_name: client.name,
       target_period: { month: targetMonth, year: targetYear, label: `${monthName}/${targetYear}` },
@@ -902,7 +927,19 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       provider: result.provider,
       model: result.model,
       duration_ms: durationMs,
+      detected_at: new Date().toISOString(),
     };
+
+    // Persist to client_insights (non-blocking)
+    const periodKey = `strategic_brief_${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+    query(
+      `INSERT INTO client_insights (tenant_id, client_id, period, summary)
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [tenantId, clientId, periodKey, JSON.stringify(briefResponse)]
+    ).catch(() => {});
+
+    return briefResponse;
   });
 
   // ────────────────────────────────────────────────────────────────────────────

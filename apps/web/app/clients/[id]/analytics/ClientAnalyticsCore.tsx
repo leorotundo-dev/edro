@@ -65,6 +65,7 @@ type StrategicBrief = {
   brief: string; target_period: { label: string };
   data_used: { briefings: number; calendar_events: number; ai_opportunities: number };
   provider: string;
+  detected_at?: string;
 };
 
 type RoiData = {
@@ -363,6 +364,13 @@ export default function ClientAnalyticsCore({
     setBrief(await apiPost<StrategicBrief>(`/clients/${clientId}/strategic-brief`, {}));
   });
 
+  const loadPersistedBrief = async () => {
+    try {
+      const res = await apiGet<StrategicBrief>(`/clients/${clientId}/strategic-brief`);
+      if (res?.brief) setBrief(res);
+    } catch { /* 204 — silently ignore */ }
+  };
+
   const loadRoi = () => wrap(setRoiLoading, async () => {
     setRoi(await apiGet<RoiData>(`/clients/${clientId}/roi-retainer${retainerValue ? `?retainer_value=${retainerValue}` : ''}`));
   });
@@ -412,6 +420,9 @@ export default function ClientAnalyticsCore({
     }
     if (activeTab === 5 && !gaps && !gapsLoading) {
       void loadPersistedGaps();
+    }
+    if (activeTab === 6 && !brief && !briefLoading) {
+      void loadPersistedBrief();
     }
     if (activeTab === 9 && !amdPerf.length && !amdPerfLoading) {
       void loadAmdPerf();
@@ -963,11 +974,18 @@ export default function ClientAnalyticsCore({
       {/* ── TAB 6: Estrategista Virtual ──────────────────────────────────────── */}
       {activeTab === 6 && (
         <Box>
-          <Button variant="contained" startIcon={briefLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconRobot size={18} />}
-            onClick={loadBrief} disabled={briefLoading}
-            sx={{ mb: briefLoading ? 0 : 3, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>
-            {briefLoading ? 'Elaborando estratégia...' : 'Gerar Planejamento Estratégico'}
-          </Button>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: briefLoading ? 0 : 3 }}>
+            <Button variant="contained" startIcon={briefLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconRobot size={18} />}
+              onClick={loadBrief} disabled={briefLoading}
+              sx={{ bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>
+              {briefLoading ? 'Elaborando estratégia...' : brief ? 'Reanalisar' : 'Gerar Planejamento Estratégico'}
+            </Button>
+            {brief?.detected_at && !briefLoading && (
+              <Typography variant="caption" color="text.secondary">
+                Última análise: {new Date(brief.detected_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </Typography>
+            )}
+          </Stack>
 
           <AITaskProgress loading={briefLoading} steps={[
             { label: 'Coletando dados do período', durationMs: 2000 },
