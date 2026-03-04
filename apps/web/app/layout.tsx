@@ -2,6 +2,7 @@ import './globals.css';
 import { Space_Grotesk } from 'next/font/google';
 import AuthGate from '@/components/AuthGate';
 import ThemeProvider from '@/utils/theme/ThemeProvider';
+import { JarvisProvider } from '@/contexts/JarvisContext';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -24,7 +25,9 @@ export default function RootLayout({
     <html lang="pt-BR" className={spaceGrotesk.variable}>
       <body className={spaceGrotesk.className}>
         <ThemeProvider>
-          <AuthGate>{children}</AuthGate>
+          <JarvisProvider>
+            <AuthGate>{children}</AuthGate>
+          </JarvisProvider>
         </ThemeProvider>
       </body>
     </html>

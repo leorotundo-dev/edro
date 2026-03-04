@@ -42,6 +42,7 @@ import {
   IconClock,
   IconPlus,
 } from '@tabler/icons-react';
+import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -506,6 +507,8 @@ export default function DashboardClient() {
   return (
     <AppShell title="Dashboard">
       <Stack spacing={3}>
+        {/* ── Jarvis ──────────────────────────────────────────── */}
+        <JarvisHomeSection />
         {/* ── Hero ────────────────────────────────────────────── */}
         <Card sx={{ position: 'relative', overflow: 'hidden' }}>
           <Box

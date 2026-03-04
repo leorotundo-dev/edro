@@ -582,6 +582,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     let resultModel = '';
     let assistantContent = '';
     let actionResult: Record<string, any> | null = null;
+    let artifacts: Array<{ type: string; [key: string]: any }> = [];
 
     // ── 2. Load conversation history (for agent + chat modes) ──────
     let conversationHistory: LoopMessage[] = [];
@@ -645,6 +646,9 @@ export default async function planningRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         assistantContent = resultOutput;
+        artifacts = (loopResult.toolResults ?? [])
+          .filter(r => r.success && r.data)
+          .map(r => ({ type: r.toolName, ...r.data }));
         console.log(`[planning_chat] agent ok in ${loopResult.totalDurationMs}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
       } catch (agentError: any) {
         const errMsg = agentError?.message || 'AGENT_ERROR';
@@ -835,6 +839,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         action: actionResult,
         conversationId: savedConversationId,
         mode,
+        artifacts,
       },
     });
   });
@@ -1918,4 +1923,29 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       return reply.send({ success: true, data: insight });
     },
   );
+
+  // Global conversations list (cross-client) — used by home page
+  app.get('/planning/conversations', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any)?.tenant_id || 'default';
+    const userId = (request.user as any)?.sub;
+    const qs = request.query as { limit?: string };
+    const limit = Math.min(parseInt(qs.limit || '20', 10), 100);
+
+    const result = await query(
+      `SELECT pc.id, pc.title, pc.provider, pc.status, pc.created_at, pc.updated_at,
+              (SELECT COUNT(*) FROM jsonb_array_elements(pc.messages)) as message_count,
+              ec.name as client_name, c.id as client_text_id
+       FROM planning_conversations pc
+       LEFT JOIN edro_clients ec ON ec.id = pc.client_id
+       LEFT JOIN clients c ON c.edro_id = pc.client_id
+       WHERE pc.tenant_id = $1 AND pc.user_id = $2
+       ORDER BY pc.updated_at DESC
+       LIMIT $3`,
+      [tenantId, userId, limit]
+    );
+
+    return reply.send({ success: true, data: { conversations: result.rows } });
+  });
 }
