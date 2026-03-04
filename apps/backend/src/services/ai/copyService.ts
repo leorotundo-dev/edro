@@ -646,6 +646,20 @@ export type AdversarialCopyResult = {
   };
 };
 
+function coerceSynthesisToString(val: unknown): string {
+  if (typeof val === 'string') return val.trim();
+  if (val && typeof val === 'object') {
+    const o = val as Record<string, unknown>;
+    return [
+      o.titulo || o.title || o.headline || o.header || '',
+      o.corpo || o.body || o.texto || o.text || '',
+      o.cta ? `CTA: ${o.cta}` : '',
+      o.hashtags || o.tags || '',
+    ].filter(Boolean).join('\n');
+  }
+  return String(val || '').trim();
+}
+
 function parseAdversarialSynthesis(text: string): { synthesis: string; contributions: { gemini: string; openai: string; claude: string } } {
   const fallback = { synthesis: text.trim(), contributions: { gemini: '—', openai: '—', claude: '—' } };
   try {
@@ -655,7 +669,7 @@ function parseAdversarialSynthesis(text: string): { synthesis: string; contribut
     if (start < 0 || end <= start) return fallback;
     const parsed = JSON.parse(trimmed.slice(start, end + 1));
     return {
-      synthesis: String(parsed.synthesis || '').trim() || fallback.synthesis,
+      synthesis: coerceSynthesisToString(parsed.synthesis) || fallback.synthesis,
       contributions: {
         gemini: String(parsed.contributions?.gemini || '—'),
         openai: String(parsed.contributions?.openai || '—'),
