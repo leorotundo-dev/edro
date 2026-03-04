@@ -134,7 +134,7 @@ export const DiscordServer: React.FC<DiscordServerProps> = ({
             aria-label={`Canal ${ch.name}`}
             onClick={() => setActiveChannel(ch.name)}
             style={{
-              width: '100%', background: activeChannel === ch.name ? 'rgba(255,255,255,0.08)' : 'none',
+              background: activeChannel === ch.name ? 'rgba(255,255,255,0.08)' : 'none',
               border: 'none', borderRadius: 4, margin: '1px 8px', padding: '5px 10px',
               display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
               width: 'calc(100% - 16px)',

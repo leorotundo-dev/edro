@@ -57,7 +57,6 @@ export const AdesivoParedeExterno: React.FC<AdesivoParedeExternoProps> = ({
         <div style={{
           width: '360px',
           height: '480px',
-          background: 'repeating-linear-gradient(0deg, #bfb8ad 0px, #bfb8ad 30px, #b5ae a3 31px, #b5aea3 32px)',
           background: '#c4bdb2',
           borderRadius: '8px',
           position: 'relative',

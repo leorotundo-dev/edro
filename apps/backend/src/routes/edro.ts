@@ -1728,6 +1728,13 @@ export default async function edroRoutes(app: FastifyInstance) {
     let prompt = body.prompt;
     let model = body.model ?? process.env.OPENAI_MODEL ?? null;
     let payload: Record<string, any> | null = null;
+    let knowledgeBlock = '';
+    let platformBlock = '';
+    let preferenceBlock = '';
+    let learnedBlock = '';
+    let personaBlock = '';
+    let amdBlock = '';
+    let behaviorIntentBlock = '';
 
     if (!output) {
       prompt = prompt ||
@@ -1751,11 +1758,11 @@ export default async function edroRoutes(app: FastifyInstance) {
           maxTokens: 1500,
         };
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
-        const knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
+        knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
 
         // Regras criativas nativas da plataforma selecionada
-        const platformBlock = buildPlatformRulesBlock(selectedPlatform, selectedFormat);
+        platformBlock = buildPlatformRulesBlock(selectedPlatform, selectedFormat);
 
         // Contexto temporal — Bio-Sincronia: mês/ano atual + orientação sazonal
         // Permite ao motor calibrar para datas comemorativas, sazonalidade e tendências
@@ -1767,8 +1774,6 @@ export default async function edroRoutes(app: FastifyInstance) {
         // Enriquecer com histórico de preferências do cliente (feedback loop)
         // O filtro de plataforma garante isolamento: copy aprovado no Instagram
         // não contamina a geração de posts do LinkedIn e vice-versa.
-        let preferenceBlock = '';
-        let learnedBlock = '';
         if (learningClientId && tenantId) {
           try {
             const prefCtx = await getClientPreferenceContext(
@@ -1911,11 +1916,8 @@ export default async function edroRoutes(app: FastifyInstance) {
             resolvedPersona = personas.find((p: any) => p.id === payloadPersonaId) ?? null;
           } catch { /* non-blocking */ }
         }
-        const personaBlock = buildPersonaBlock(resolvedPersona, payloadMomento);
-        const amdBlock     = buildAMDBlock(payloadAmd, payloadMomento);
-
-        // BehaviorIntent — contexto comportamental da campanha (se briefing vinculado)
-        let behaviorIntentBlock = '';
+        personaBlock = buildPersonaBlock(resolvedPersona, payloadMomento);
+        amdBlock     = buildAMDBlock(payloadAmd, payloadMomento);
         if (briefing.campaign_id && briefing.campaign_phase_id) {
           try {
             const { rows: campRows } = await query(

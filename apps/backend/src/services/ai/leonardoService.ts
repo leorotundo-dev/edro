@@ -108,7 +108,7 @@ export async function uploadInitImageToLeonardo(
   for (const [key, value] of Object.entries(upload.fields || {})) {
     form.append(key, value);
   }
-  form.append('file', new Blob([imageBuffer], { type: mimeType }));
+  form.append('file', new Blob([imageBuffer as unknown as ArrayBuffer], { type: mimeType }));
 
   const uploadRes = await fetch(upload.url, { method: 'POST', body: form });
   if (!uploadRes.ok && uploadRes.status !== 204) {
