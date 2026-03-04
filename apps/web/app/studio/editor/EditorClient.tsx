@@ -50,7 +50,10 @@ import MenuItem from '@mui/material/MenuItem';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
 import Stepper from '@mui/material/Stepper';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
+import MockupsPage from '@/app/studio/mockups/page';
 
 type CopyVersion = {
   id: string;
@@ -476,6 +479,8 @@ export default function EditorClient() {
   const [arteRefining, setArteRefining] = useState(false);
   // Preview Rápido
   const [arteIsPreview, setArteIsPreview] = useState(false);
+  // Tabs: 0 = Gerador de Copy, 1 = Grade de Mockups
+  const [criarTab, setCriarTab] = useState<0 | 1>(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const handleCopy = (text: string, field: string) => {
@@ -1464,7 +1469,17 @@ export default function EditorClient() {
           );
         })()}
 
-        <>
+        {/* Tab bar — Gerador de Copy / Grade de Mockups */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={criarTab} onChange={(_, v) => setCriarTab(v as 0 | 1)}>
+            <Tab value={0} label="Gerador de Copy" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab value={1} label="Grade de Mockups" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+          </Tabs>
+        </Box>
+
+        {criarTab === 1 && <MockupsPage embedded />}
+
+        {criarTab === 0 && <>
         <Grid container>
           <Grid size={{ xs: 12 }}>
             <Stack spacing={3}>
@@ -2323,12 +2338,15 @@ export default function EditorClient() {
                                 </Box>
                               )}
                             </Box>
-                            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                            <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap">
                               <Button size="small" variant="contained" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />}>
                                 Usar
                               </Button>
                               <Button size="small" variant="outlined" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />}>
                                 Descartar
+                              </Button>
+                              <Button size="small" variant="outlined" onClick={() => { handleApproveCreative(); setCriarTab(1); }} sx={{ ml: 'auto' }}>
+                                Ver Mockups →
                               </Button>
                             </Stack>
                           </Box>
