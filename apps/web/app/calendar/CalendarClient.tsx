@@ -373,6 +373,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [addEventLoading, setAddEventLoading] = useState(false);
   const [addEventDialogOpen, setAddEventDialogOpen] = useState(false);
   const [addEventName, setAddEventName] = useState('');
+  const [addEventDate, setAddEventDate] = useState('');
   const [addEventScore, setAddEventScore] = useState('70');
   const [addEventClientIds, setAddEventClientIds] = useState<string[]>([]);
   const [addEventAllClients, setAddEventAllClients] = useState(false);
@@ -403,6 +404,41 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [tavilyLoading, setTavilyLoading] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Date extraction from Tavily text ──────────────────────────────────────
+  function extractDateFromText(text: string): string | null {
+    const MONTHS: Record<string, number> = {
+      janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
+      julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
+      jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+      jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+    };
+    const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    // "10 de maio de 2026" or "10 de maio 2026"
+    const ptFull = /(\d{1,2})\s+de\s+([a-z]+)\s+(?:de\s+)?(\d{4})/;
+    const m1 = norm.match(ptFull);
+    if (m1) {
+      const day = parseInt(m1[1]);
+      const month = MONTHS[m1[2]];
+      const year = parseInt(m1[3]);
+      if (month && year >= 2024 && day >= 1 && day <= 31) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+    // "10/05/2026"
+    const numeric = /(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+    const m2 = norm.match(numeric);
+    if (m2) {
+      const day = parseInt(m2[1]);
+      const month = parseInt(m2[2]);
+      const year = parseInt(m2[3]);
+      if (year >= 2024 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+    return null;
+  }
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Calendar Search handlers ───────────────────────────────────────────────
@@ -484,7 +520,10 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   }
 
   function handleAddTavilyEventToCalendar(result: TavilyResult) {
-    setAddEventName(result.title);
+    // Try to extract the event date from title + snippet
+    const extracted = extractDateFromText(result.title) || extractDateFromText(result.snippet);
+    setAddEventName(result.title.split('|')[0].trim()); // strip "| Source" from title
+    setAddEventDate(extracted || '');
     setAddEventDialogOpen(true);
     setSearchAnchorEl(null);
     setSearchQuery('');
@@ -1048,6 +1087,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const handleOpenAddEvent = () => {
     setAddEventName('');
+    setAddEventDate(selectedDayISO || activeDateISO || '');
     setAddEventScore('70');
     if (selectedClient?.id) {
       setAddEventClientIds([selectedClient.id]);
@@ -1061,7 +1101,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const handleSubmitAddEvent = async () => {
     if (!addEventName.trim()) return;
-    const dateISO = selectedDayISO || activeDateISO;
+    const dateISO = addEventDate || selectedDayISO || activeDateISO;
     const score = clampScore(Number(addEventScore || 70));
     const clientIdsToSend = addEventAllClients ? clients.map((c) => c.id) : addEventClientIds;
 
@@ -1079,6 +1119,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       setActiveDateISO(dateISO);
       setSelectedDayISO(dateISO);
       setNotice('Evento adicionado com sucesso.');
+      setAddEventDate('');
       setAddEventDialogOpen(false);
     } catch (err: any) {
       setError(err?.message || 'Falha ao adicionar evento.');
@@ -2133,7 +2174,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   // ── Adicionar Evento Dialog ──────────────────────────────────────────
   const addEventDialog = (
-    <Dialog open={addEventDialogOpen} onClose={() => setAddEventDialogOpen(false)} maxWidth="sm" fullWidth>
+    <Dialog open={addEventDialogOpen} onClose={() => { setAddEventDialogOpen(false); setAddEventDate(''); }} maxWidth="sm" fullWidth>
       <DialogTitle>Adicionar Evento</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
@@ -2144,6 +2185,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
             autoFocus
             fullWidth
             onKeyDown={(e) => e.key === 'Enter' && handleSubmitAddEvent()}
+          />
+          <TextField
+            label="Data do evento"
+            type="date"
+            value={addEventDate}
+            onChange={(e) => setAddEventDate(e.target.value)}
+            fullWidth
+            InputLabelProps={{ shrink: true }}
+            helperText={addEventDate ? undefined : 'Obrigatório — defina a data em que o evento ocorre'}
+            error={!addEventDate}
           />
           <TextField
             label="Relevância (0–100)"
@@ -2198,7 +2249,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
         <Button
           variant="contained"
           onClick={handleSubmitAddEvent}
-          disabled={addEventLoading || !addEventName.trim()}
+          disabled={addEventLoading || !addEventName.trim() || !addEventDate}
         >
           {addEventLoading ? <CircularProgress size={16} /> : 'Adicionar'}
         </Button>
