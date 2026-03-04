@@ -3576,6 +3576,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
         aestheticProfile,
+        provider: body.image_provider || undefined,
       };
       // generateArtDirectorPrompt returns an array of 3 scene narratives (no VISUAL_DNA_BASE)
       const variations = await generateArtDirectorPrompt(artDirectorParams);
@@ -3736,6 +3737,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       headline: z.string().max(300).optional(),
       brand: z.string().max(200).optional(),
       client_id: z.string().optional(),
+      provider: z.enum(['gemini', 'leonardo']).optional(),
     });
 
     let body: z.infer<typeof bodySchema>;
@@ -3773,6 +3775,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         headline: body.headline,
         brand: body.brand,
         aestheticProfile,
+        provider: body.provider,
       });
       return reply.send({ ok: true, refined_prompt: refined });
     } catch (err: any) {

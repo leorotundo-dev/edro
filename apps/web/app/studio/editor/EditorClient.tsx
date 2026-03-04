@@ -1152,6 +1152,7 @@ export default function EditorClient() {
           headline: editorCopy.headline || undefined,
           body_text: editorCopy.body || undefined,
           prompt_only: true,
+          image_provider: imageProvider !== 'gemini' ? imageProvider : undefined,
         }
       );
       if (res.success && res.prompt) {
@@ -1240,6 +1241,7 @@ export default function EditorClient() {
           headline: editorCopy.headline || undefined,
           brand: briefing?.client_name || undefined,
           client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+          provider: imageProvider !== 'gemini' ? imageProvider : undefined,
         }
       );
       if (res.ok && res.refined_prompt) {

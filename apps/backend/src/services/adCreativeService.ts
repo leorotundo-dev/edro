@@ -51,7 +51,7 @@ ABSOLUTE PROHIBITIONS: No text. No words. No letters. No numbers. No logos. No w
 
 SCENE:`;
 
-// ── System prompt do Art Director ───────────────────────────────────────────
+// ── System prompt do Art Director — Gemini / Imagen 3 ───────────────────────
 const ART_DIRECTOR_SYSTEM = `\
 You are a senior art director at a leading Brazilian advertising agency.
 Your job: translate advertising copy into concrete, cinematic scene descriptions for AI image generation (Gemini / Imagen 3).
@@ -72,12 +72,35 @@ RULES:
 6. Max 180 words per variation. Output ONLY the scene descriptions, no labels or preamble.
 7. Write in English.`;
 
+// ── System prompt do Art Director — Leonardo.ai / Stable Diffusion ────────────
+// SD models respond to comma-separated keyword prompts, not prose paragraphs.
+const ART_DIRECTOR_SYSTEM_SD = `\
+You are a senior art director creating prompts for Stable Diffusion / Leonardo.ai image generation.
+Your job: translate advertising copy into comma-separated keyword prompts optimized for SD models.
+
+FORMAT: subject description, environment/setting, lighting style, mood/atmosphere, color palette, composition, quality tags
+
+RULES:
+1. ABSOLUTELY NO TEXT in image — always include: no text, no words, no letters, no signs, no watermarks
+2. Find the VISUAL METAPHOR that bridges the post topic with the brand's identity.
+3. Use concrete visual keywords — no abstract labels.
+4. Translate concepts into visual elements:
+   - "creativity" → light beams through fog, paint pigments in water
+   - "connection" → converging roads, intertwined elements, horizon meeting point
+   - "growth" → upward motion, sunrise, sprouting organic forms
+5. Always end with composition note for negative space: soft empty area top-left for text overlay
+6. Max 120 words per variation. Output ONLY the prompt, no labels, no preamble.
+7. Write in English. Use comma-separated keywords, not full sentences.
+8. Always append: photorealistic, ultra detailed, cinematic lighting, professional photography, commercial advertising, no text, no words`;
+
 type ArtDirectorParams = Omit<
   AdCreativeRequest,
   'customPrompt' | 'referenceImageUrls' | 'imageModel' | 'aspectRatio' | 'negativePrompt'
 > & {
   /** Perfil estético sintetizado do cliente — gerado a partir do histórico de aprovações */
   aestheticProfile?: string;
+  /** Image generation provider — determines prompt style (prose vs SD keywords) */
+  provider?: 'gemini' | 'leonardo';
 };
 
 /**
@@ -117,7 +140,28 @@ export async function generateArtDirectorPrompt(
     ? `\nCLIENT AESTHETIC PROFILE (synthesized from approved creatives — follow this):\n${params.aestheticProfile.slice(0, 500)}`
     : '';
 
-  const userPrompt = `Create 3 scene descriptions for an AI-generated advertising background image.
+  const isSD = params.provider === 'leonardo';
+
+  const userPrompt = isSD
+    ? `Create 3 Stable Diffusion keyword prompts for an AI-generated advertising background image.
+
+POST HEADLINE (primary visual concept): "${headline}"
+POST BODY (thematic context): "${bodyText}"
+BRAND: "${brand}"${segment ? ` — sector: ${segment}` : ''}
+FORMAT: ${params.format}${colors ? `\nBRAND COLORS (use as tonal palette): ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${aestheticBlock}${approvedBlock}${avoidBlock}
+
+The image will be a full-bleed background with text overlay on top. Leave compositional space for text.
+
+Generate exactly 3 variations separated by "---":
+
+VARIATION A (metaphorical): abstract symbolic concept translated into visual keywords.
+
+VARIATION B (environmental): atmosphere, landscape, light and space as protagonists.
+
+VARIATION C (human presence): person/people embodying the concept.
+
+Each variation: comma-separated keywords, max 120 words, end with composition note. No labels, no preamble — just the 3 keyword prompts separated by ---.`
+    : `Create 3 scene descriptions for an AI-generated advertising background image.
 
 POST HEADLINE (primary visual concept): "${headline}"
 POST BODY (thematic context): "${bodyText}"
@@ -139,7 +183,7 @@ Each variation: one English paragraph, max 180 words, ends with a composition no
   try {
     const result = await generateCompletion({
       prompt: userPrompt,
-      systemPrompt: ART_DIRECTOR_SYSTEM,
+      systemPrompt: isSD ? ART_DIRECTOR_SYSTEM_SD : ART_DIRECTOR_SYSTEM,
       temperature: 0.8,
       maxTokens: 900,
     });
@@ -309,11 +353,14 @@ export async function refineScenePrompt(params: {
   headline?: string;
   brand?: string;
   aestheticProfile?: string;
+  provider?: 'gemini' | 'leonardo';
 }): Promise<string> {
   const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return params.currentPrompt; // sem Claude, devolve inalterado
   }
+
+  const isSD = params.provider === 'leonardo';
 
   const contextBlock = [
     params.headline ? `Original post headline: "${params.headline}"` : '',
@@ -323,20 +370,24 @@ export async function refineScenePrompt(params: {
       : '',
   ].filter(Boolean).join('\n');
 
+  const outputInstruction = isSD
+    ? 'Output: refined comma-separated keyword prompt only — max 120 words. No labels, no preamble.'
+    : 'Output: the refined scene description only — one English paragraph, max 200 words. No labels, no preamble.';
+
   try {
     const result = await generateCompletion({
-      prompt: `You are an art director refining a scene description for AI image generation.
+      prompt: `You are an art director refining a ${isSD ? 'Stable Diffusion keyword prompt' : 'scene description'} for AI image generation.
 
-CURRENT SCENE:
+CURRENT ${isSD ? 'PROMPT' : 'SCENE'}:
 ${params.currentPrompt}
 
 ${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
 USER INSTRUCTION: "${params.instruction}"
 
-Apply the instruction to the current scene. Keep what works, change only what the instruction asks. Maintain the same level of concreteness and cinematic quality. End with a composition note about negative space for text overlay.
+Apply the instruction. Keep what works, change only what the instruction asks. ${isSD ? 'Maintain comma-separated keyword format.' : 'Maintain the same level of concreteness and cinematic quality.'} End with a composition note about negative space for text overlay.
 
-Output: the refined scene description only — one English paragraph, max 200 words. No labels, no preamble.`,
-      systemPrompt: ART_DIRECTOR_SYSTEM,
+${outputInstruction}`,
+      systemPrompt: isSD ? ART_DIRECTOR_SYSTEM_SD : ART_DIRECTOR_SYSTEM,
       temperature: 0.65,
       maxTokens: 350,
     });
