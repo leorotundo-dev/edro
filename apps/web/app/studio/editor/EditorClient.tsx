@@ -1929,7 +1929,7 @@ export default function EditorClient() {
                                   onChange={(e) => setEditorCopy((prev) => ({ ...prev, body: e.target.value }))}
                                   placeholder="Texto principal / caption"
                                   multiline
-                                  rows={3}
+                                  minRows={3}
                                   fullWidth
                                   InputProps={{ sx: { fontSize: 13 } }}
                                 />
@@ -1949,7 +1949,7 @@ export default function EditorClient() {
                                   onChange={(e) => setEditorCopy((prev) => ({ ...prev, legenda: e.target.value }))}
                                   placeholder="Legenda do post..."
                                   multiline
-                                  rows={2}
+                                  minRows={3}
                                   fullWidth
                                   InputProps={{ sx: { fontSize: 13 } }}
                                 />
