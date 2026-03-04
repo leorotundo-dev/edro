@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
-import MockupsPage from '@/app/studio/mockups/page';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
@@ -26,10 +26,7 @@ import {
   IconPlus,
   IconRefresh,
   IconX,
-  IconApps,
 } from '@tabler/icons-react';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -427,7 +424,7 @@ export default function EditorClient() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [activeFormatId, setActiveFormatId] = useState('');
-  const [criarTab, setCriarTab] = useState<0 | 1>(0);
+  const [editorCopy, setEditorCopy] = useState({ headline: '', body: '', cta: '', legenda: '' });
   const [output, setOutput] = useState('');
   const [options, setOptions] = useState<ParsedOption[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
@@ -652,6 +649,29 @@ export default function EditorClient() {
   }, [activeFormat?.platform, activeFormat?.format, catalogItem?.production_type]);
 
   const selectedOptionData = useMemo(() => options[selectedOption] || null, [options, selectedOption]);
+
+  // Sync editorCopy fields when the selected option changes (new generation or option switch)
+  useEffect(() => {
+    if (!selectedOptionData) return;
+    setEditorCopy({
+      headline: selectedOptionData.title || '',
+      body: selectedOptionData.body || '',
+      cta: selectedOptionData.cta || '',
+      legenda: selectedOptionData.legenda || '',
+    });
+  }, [selectedOptionData]);
+
+  // Merge selectedOptionData with live-edited editorCopy for preview + approval
+  const resolvedOption = useMemo<ParsedOption | null>(() => {
+    if (!selectedOptionData) return null;
+    return {
+      ...selectedOptionData,
+      title: editorCopy.headline,
+      body: editorCopy.body,
+      cta: editorCopy.cta,
+      legenda: editorCopy.legenda,
+    };
+  }, [selectedOptionData, editorCopy]);
 
   const copyWarnings = useMemo(() => {
     const rule = matchPlatformRule(activeFormat?.platform || '');
@@ -1238,7 +1258,7 @@ export default function EditorClient() {
     try {
       await apiPatch(`/edro/copies/${copyId}/feedback`, {
         status: 'approved',
-        approved_text: optionToText(selectedOptionData),
+        approved_text: optionToText(resolvedOption),
         feedback: 'Aprovada no Creative Studio',
       });
       setSuccess('Opção aprovada e aprendizado salvo no perfil do cliente.');
@@ -1360,15 +1380,7 @@ export default function EditorClient() {
           );
         })()}
 
-        {/* Tab bar — Gerador de Copy / Grade de Mockups */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={criarTab} onChange={(_, v) => setCriarTab(v as 0 | 1)}>
-            <Tab value={0} label="Gerador de Copy" iconPosition="start" icon={<IconRefresh size={16} />} sx={{ textTransform: 'none', fontWeight: 600 }} />
-            <Tab value={1} label="Grade de Mockups" iconPosition="start" icon={<IconApps size={16} />} sx={{ textTransform: 'none', fontWeight: 600 }} />
-          </Tabs>
-        </Box>
-
-        {criarTab === 0 && <>
+        <>
         {/* Main + Sidebar grid */}
         <Grid container spacing={3}>
           {/* Main panel */}
@@ -1383,8 +1395,8 @@ export default function EditorClient() {
                     format={activeFormat?.format}
                     productionType={activeFormat?.production_type}
                     copy={output}
-                    option={selectedOptionData}
-                    legenda={selectedOptionData?.legenda || null}
+                    option={resolvedOption}
+                    legenda={resolvedOption?.legenda || null}
                     maxChars={catalogItem?.max_chars}
                     brandName={briefing?.client_name}
                     brandColor={clientBrandColor || undefined}
@@ -1412,9 +1424,6 @@ export default function EditorClient() {
                         </Button>
                         <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />} sx={{ minWidth: 'auto' }}>
                           Descartar
-                        </Button>
-                        <Button size="small" variant="outlined" onClick={() => setCriarTab(1)} startIcon={<IconApps size={14} />} sx={{ minWidth: 'auto', ml: 1 }}>
-                          Ver todos os formatos
                         </Button>
                       </>
                     )}
@@ -1891,53 +1900,113 @@ export default function EditorClient() {
                           )}
                         </Box>
                       ) : (
-                        /* ── Lista vertical (fallback: 1 opção ou pós-seleção) ── */
+                        /* ── Lista vertical: Editor de Copy estruturado ── */
                         <>
-                          <Stack spacing={1} sx={{ mt: 2 }}>
-                            {options.length ? (
-                              options.map((option, index) => (
-                                <Card
-                                  key={index}
-                                  variant={selectedOption === index ? 'elevation' : 'outlined'}
-                                  sx={{
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    ...(selectedOption === index ? { borderColor: 'primary.main', bgcolor: 'primary.lighter' } : {}),
-                                  }}
-                                  onClick={() => handleSelectOption(index)}
-                                >
-                                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                    <Typography variant="subtitle2" fontWeight={600}>
-                                      {option.title || `Opção ${index + 1}`}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                                      {option.body || option.legenda || ''}
-                                    </Typography>
-                                    {option.cta ? (
-                                      <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
-                                        CTA: {option.cta}
-                                      </Typography>
-                                    ) : null}
-                                  </CardContent>
-                                </Card>
-                              ))
-                            ) : (
-                              <Box sx={{ textAlign: 'center', py: 4 }}>
-                                {generating ? (
-                                  <>
-                                    <CircularProgress size={24} sx={{ mb: 1 }} />
-                                    <Typography variant="body2" color="text.secondary">
-                                      Preparando opcoes de copy...
-                                    </Typography>
-                                  </>
-                                ) : (
-                                  <Typography variant="body2" color="text.secondary">
-                                    Nenhuma opção gerada.
-                                  </Typography>
+                          {options.length ? (
+                            <Box sx={{ mt: 2 }}>
+                              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                                <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem' }}>
+                                  Editor de Copy
+                                </Typography>
+                                {options.length > 1 && (
+                                  <Chip size="small" label={`Opção ${selectedOption + 1} de ${options.length}`} sx={{ height: 18, fontSize: '0.62rem' }} />
                                 )}
-                              </Box>
-                            )}
-                          </Stack>
+                              </Stack>
+                              <Stack spacing={1.5}>
+                                <TextField
+                                  size="small"
+                                  label="Headline"
+                                  value={editorCopy.headline}
+                                  onChange={(e) => setEditorCopy((prev) => ({ ...prev, headline: e.target.value }))}
+                                  placeholder="Título principal do criativo"
+                                  fullWidth
+                                  InputProps={{ sx: { fontSize: 13 } }}
+                                />
+                                <TextField
+                                  size="small"
+                                  label="Corpo"
+                                  value={editorCopy.body}
+                                  onChange={(e) => setEditorCopy((prev) => ({ ...prev, body: e.target.value }))}
+                                  placeholder="Texto principal / caption"
+                                  multiline
+                                  rows={3}
+                                  fullWidth
+                                  InputProps={{ sx: { fontSize: 13 } }}
+                                />
+                                <TextField
+                                  size="small"
+                                  label="CTA"
+                                  value={editorCopy.cta}
+                                  onChange={(e) => setEditorCopy((prev) => ({ ...prev, cta: e.target.value }))}
+                                  placeholder="Ex: Saiba mais, Compre agora"
+                                  fullWidth
+                                  InputProps={{ sx: { fontSize: 13 } }}
+                                />
+                                <TextField
+                                  size="small"
+                                  label="Legenda"
+                                  value={editorCopy.legenda}
+                                  onChange={(e) => setEditorCopy((prev) => ({ ...prev, legenda: e.target.value }))}
+                                  placeholder="Legenda do post..."
+                                  multiline
+                                  rows={2}
+                                  fullWidth
+                                  InputProps={{ sx: { fontSize: 13 } }}
+                                />
+                              </Stack>
+                              {options.length > 1 && (
+                                <Box sx={{ mt: 2 }}>
+                                  <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'block', mb: 0.75 }}>
+                                    Outras opções
+                                  </Typography>
+                                  <Stack spacing={0.75}>
+                                    {options.map((option, index) => {
+                                      if (index === selectedOption) return null;
+                                      return (
+                                        <Card
+                                          key={index}
+                                          variant="outlined"
+                                          sx={{ cursor: 'pointer', '&:hover': { borderColor: 'primary.light' } }}
+                                          onClick={() => handleSelectOption(index)}
+                                        >
+                                          <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                            <Stack direction="row" spacing={1} alignItems="flex-start">
+                                              <Chip size="small" label={`Opção ${index + 1}`} sx={{ height: 16, fontSize: '0.6rem', flexShrink: 0, mt: 0.25 }} />
+                                              <Box sx={{ minWidth: 0 }}>
+                                                <Typography variant="caption" fontWeight={600} display="block" noWrap>
+                                                  {option.title || option.body?.slice(0, 60) || `Opção ${index + 1}`}
+                                                </Typography>
+                                                {option.body && (
+                                                  <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                    {option.body}
+                                                  </Typography>
+                                                )}
+                                              </Box>
+                                            </Stack>
+                                          </CardContent>
+                                        </Card>
+                                      );
+                                    })}
+                                  </Stack>
+                                </Box>
+                              )}
+                            </Box>
+                          ) : (
+                            <Box sx={{ textAlign: 'center', py: 4 }}>
+                              {generating ? (
+                                <>
+                                  <CircularProgress size={24} sx={{ mb: 1 }} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    Preparando opcoes de copy...
+                                  </Typography>
+                                </>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  Nenhuma opção gerada.
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
 
                           {/* Video script editor — aparece quando formato é video e opção selecionada */}
                           {isVideoFormat(activeFormat?.format) && selectedOptionData && (
@@ -2175,13 +2244,11 @@ export default function EditorClient() {
           <Button variant="outlined" onClick={() => router.back()}>
             Voltar
           </Button>
-          <Button variant="contained" onClick={() => setCriarTab(1)} endIcon={<IconApps size={16} />}>
-            Ver Grade de Mockups
+          <Button variant="contained" component={Link} href="/studio/review">
+            Avançar para Revisão
           </Button>
         </Stack>
-        </>}
-
-        {criarTab === 1 && <MockupsPage embedded />}
+        </>
       </Stack>
 
       {activeFormat?.id && (
