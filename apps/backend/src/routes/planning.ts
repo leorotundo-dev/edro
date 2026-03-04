@@ -19,6 +19,8 @@ import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
+import { loadBehaviorProfiles } from '../services/behaviorClusteringService';
+import { loadLearningRules } from '../services/learningEngine';
 import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
 import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
 import { ToolContext } from '../services/ai/toolExecutor';
@@ -248,6 +250,41 @@ async function buildClientContext(tenantId: string, clientId: string): Promise<s
   return parts.join('\n');
 }
 
+async function loadPsychContext(tenantId: string, clientId: string): Promise<string> {
+  try {
+    const [clusters, rules] = await Promise.all([
+      loadBehaviorProfiles(tenantId, clientId),
+      loadLearningRules(tenantId, clientId),
+    ]);
+
+    const parts: string[] = [];
+
+    if (clusters.length > 0) {
+      parts.push('\nPERFIS COMPORTAMENTAIS REAIS DA AUDIÊNCIA:');
+      clusters.forEach((c) => {
+        const triggers = c.preferred_triggers?.join(', ') || '—';
+        const conf = c.confidence_score ? ` [confiança ${Math.round(c.confidence_score * 100)}%]` : '';
+        parts.push(`  - ${c.cluster_label}: formato "${c.preferred_format || '—'}", AMD "${c.preferred_amd || '—'}", gatilhos [${triggers}], save_rate ${(c.avg_save_rate * 100).toFixed(2)}%${conf}`);
+      });
+      parts.push('  → Use esses perfis ao recomendar AMDs, gatilhos e formatos.');
+    }
+
+    if (rules.length > 0) {
+      const top = rules.slice(0, 6);
+      parts.push('\nREGRAS DE APRENDIZADO VALIDADAS (dados reais desta audiência):');
+      top.forEach((r) => {
+        const conf = r.confidence_score ? ` [confiança ${Math.round(r.confidence_score * 100)}%]` : '';
+        parts.push(`  - ${r.effective_pattern} [uplift +${r.uplift_value.toFixed(1)}% em ${r.uplift_metric}${conf}]`);
+      });
+      parts.push('  → Priorize AMDs e gatilhos com uplift comprovado.');
+    }
+
+    return parts.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 function buildSystemPrompt(clientContext: string): string {
   return `You are an expert marketing and communications strategist for the EDRO platform.
 You help create marketing plans, campaign strategies, and creative content for clients.
@@ -264,7 +301,7 @@ GUIDELINES:
 - Consider the client's industry and market context`;
 }
 
-function buildAgentSystemPrompt(clientContext: string): string {
+function buildAgentSystemPrompt(clientContext: string, psychContext: string): string {
   return `Você é o Jarvis, assistente de inteligência do sistema EDRO.
 Você tem acesso a ferramentas para consultar e operar dados reais do sistema.
 
@@ -281,6 +318,45 @@ CAPACIDADES:
 - Buscar conteúdo publicado pelo cliente (posts em redes sociais e páginas do site)
 - Listar fontes de conteúdo do cliente e status de coleta
 - Ver resumo de inteligência do cliente (posicionamento, tom, indústria, etc)
+
+FRAMEWORK DE PERSUASÃO E PSICOLOGIA:
+Use este conhecimento ao criar briefings, avaliar copy e responder perguntas estratégicas.
+
+MODELO FOGG — avalie qualquer copy em 3 dimensões (1–10):
+  - Motivação: o texto aumenta desejo ou urgência?
+  - Habilidade: a ação pedida é simples o suficiente?
+  - Prompt: o CTA é claro, específico e oportuno?
+
+7 GATILHOS MENTAIS:
+  1. Aversão à Perda — framing de perda é 2× mais poderoso que ganho ("Cada semana sem X custa Y")
+  2. Especificidade — 34.7% em vez de ~35% bypassa ceticismo automaticamente
+  3. Curiosidade / Zeigarnik — lacuna não resolvida força leitura até o CTA
+  4. Ancoragem — apresentar benchmark alto antes da solução barateia custo percebido
+  5. Prova Social — dados de volume ativam neurônios-espelho ("X empresas já usam")
+  6. Pratfall Effect — vulnerabilidade controlada gera 2.4× mais confiança
+  7. Dark Social Anchor — frase autossuficiente que funciona fora de contexto (projeta sabedoria de quem compartilha)
+
+PNL:
+  - Pacing → validar 1–2 dores antes de qualquer solução (constrói "sim" mental)
+  - Leading → após o sim, introduzir solução como único passo lógico
+  - VAK → alternar predicados sensoriais: Visual ("veja"), Auditivo ("sintonize"), Cinestésico ("sinta")
+
+AMD (Ação Mínima Desejada) × Gatilho ideal:
+  - salvar → especificidade + autoridade
+  - clicar → curiosidade + perda
+  - compartilhar → Dark Social Anchor + prova social
+  - responder → diálogo + empatia
+  - marcar_alguem → identidade + prova social
+  - pedir_proposta → perda + urgência
+
+CARGA COGNITIVA POR PLATAFORMA:
+  - TikTok/Reels: Lc < 1.0 | Instagram: 1.0–1.8 | LinkedIn: 1.8–3.5 | Relatórios: > 3.5
+
+BIO-SINCRONISMO (horário ideal de publicação):
+  - Manhã (pico de cortisol): dados densos, alertas de mercado, frameworks analíticos
+  - Tarde (pico de oxitocina): histórias emocionais, cases humanizados, validação social
+  - Noite (pico de dopamina): hooks curtos, entretenimento, recompensa imediata
+${psychContext}
 
 REGRAS:
 - Use as ferramentas SEMPRE que a pergunta envolver dados do sistema
@@ -415,12 +491,16 @@ export default async function planningRoutes(app: FastifyInstance) {
     }
     const { message, provider, conversationId, mode, attachmentIds } = body;
 
-    // ── 1. Quick client context (best-effort, 2s max) ──────────────
+    // ── 1. Quick client context + psych context (best-effort, 2s max) ──────────────
     let clientContext = '';
+    let psychContext = '';
     try {
-      clientContext = await Promise.race([
-        buildClientContext(tenantId, clientId),
-        new Promise<string>((resolve) => setTimeout(() => resolve(''), 2000)),
+      [clientContext, psychContext] = await Promise.race([
+        Promise.all([
+          buildClientContext(tenantId, clientId),
+          loadPsychContext(tenantId, clientId),
+        ]),
+        new Promise<[string, string]>((resolve) => setTimeout(() => resolve(['', '']), 2000)),
       ]);
     } catch { /* ignore */ }
 
@@ -512,7 +592,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: loopMessages,
-            systemPrompt: buildAgentSystemPrompt(clientContext),
+            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext),
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
