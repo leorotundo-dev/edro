@@ -457,11 +457,13 @@ export default function EditorClient() {
   const [adversarialVersions, setAdversarialVersions] = useState<{ gemini: string; openai: string; claude: string } | null>(null);
   const [amdResults, setAmdResults] = useState<Record<string, string>>({});
   const [arteImageUrl, setArteImageUrl] = useState<string | null>(null);
-  const [arteStep, setArteStep] = useState<null | 'loading_prompt' | 'editing' | 'generating'>(null);
+  const [arteStep, setArteStep] = useState<null | 'loading_prompt' | 'generating'>(null);
   const [artePrompt, setArtePrompt] = useState('');
   const [arteRefsCount, setArteRefsCount] = useState(0);
-  const [arteModalOpen, setArteModalOpen] = useState(false);
   const [arteModalError, setArteModalError] = useState('');
+  const [imageModel, setImageModel] = useState('gemini-2.0-flash-exp-image-generation');
+  const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
+  const [imageNegativePrompt, setImageNegativePrompt] = useState('');
   // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
   const [arteGeneratedPrompt, setArteGeneratedPrompt] = useState('');
   const [arteDiscardOpen, setArteDiscardOpen] = useState(false);
@@ -1140,8 +1142,7 @@ export default function EditorClient() {
         setArtePrompt(res.prompt);
         setArteRefsCount(res.visual_refs_count || 0);
         setArteModalError('');
-        setArteModalOpen(true);
-        setArteStep('editing');
+        setArteStep(null);
       } else {
         setError(res.error || 'Erro ao montar prompt de arte');
         setArteStep(null);
@@ -1172,6 +1173,9 @@ export default function EditorClient() {
           brand_color: clientBrandColor || undefined,
           client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
           custom_prompt: artePrompt,
+          image_model: imageModel,
+          aspect_ratio: imageModel.startsWith('imagen-') ? imageAspectRatio : undefined,
+          negative_prompt: imageNegativePrompt || undefined,
         }
       );
       const imageUrl = res.image_url || res.data?.image_url;
@@ -1179,7 +1183,6 @@ export default function EditorClient() {
         setArteImageUrl(imageUrl);
         setArteGeneratedPrompt(artePrompt); // salva para feedback posterior
         setArteDiscardTags([]);
-        setArteModalOpen(false);
         setArteStep(null);
         setArteModalError('');
         // Persist so step 4 (Mockups) can load it
@@ -1190,13 +1193,13 @@ export default function EditorClient() {
         const msg = res.error || 'Gemini não retornou imagem. Tente novamente.';
         console.error('[arteIA] generate-creative error:', msg, res);
         setArteModalError(msg);
-        setArteStep('editing');
+        setArteStep(null);
       }
     } catch (e: any) {
       const msg = e?.message || 'Erro de rede ao gerar arte com IA';
       console.error('[arteIA] generate-creative exception:', msg);
       setArteModalError(msg);
-      setArteStep('editing');
+      setArteStep(null);
     }
   };
 
@@ -1387,7 +1390,7 @@ export default function EditorClient() {
           <Grid size={{ xs: 12, lg: 9 }}>
             <Stack spacing={3}>
               <Grid container spacing={3}>
-                {/* Mockup */}
+                {/* Mockup preview */}
                 <Grid size={{ xs: 12, xl: 4 }}>
                   <CollaborativeInsights analysisJson={analysisJson} />
                   <LiveMockupPreview
@@ -1404,32 +1407,8 @@ export default function EditorClient() {
                     align="left"
                     showHeader={false}
                   />
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
-                    <LoadingButton
-                      size="small"
-                      variant="outlined"
-                      onClick={handleGenerateArte}
-                      loading={arteStep === 'loading_prompt'}
-                      disabled={arteStep !== null || !output}
-                    >
-                      Gerar Arte com IA
-                    </LoadingButton>
-                    {arteImageUrl && (
-                      <>
-                        <Button size="small" variant="text" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />} sx={{ minWidth: 'auto' }}>
-                          Usar
-                        </Button>
-                        <Button size="small" variant="text" onClick={handleGenerateArte} disabled={arteStep !== null} startIcon={<IconRefresh size={14} />} sx={{ minWidth: 'auto' }}>
-                          Regenerar
-                        </Button>
-                        <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />} sx={{ minWidth: 'auto' }}>
-                          Descartar
-                        </Button>
-                      </>
-                    )}
-                  </Stack>
                   {copyWarnings.length > 0 && (
-                    <Stack spacing={0.5} sx={{ mt: 1 }}>
+                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
                       {copyWarnings.map((w, i) => (
                         <Alert key={i} severity="warning" sx={{ py: 0.5, fontSize: 12 }}>
                           {w.message}
@@ -1454,7 +1433,7 @@ export default function EditorClient() {
                   )}
                 </Grid>
                 {/* Copy options card */}
-                <Grid size={{ xs: 12, xl: 8 }}>
+                <Grid size={{ xs: 12, xl: 4 }}>
                   <Card>
                     <CardContent>
                       {/* ── Generation controls ── */}
@@ -2104,6 +2083,122 @@ export default function EditorClient() {
                     </CardContent>
                   </Card>
                 </Grid>
+
+                {/* ── Image Generation Panel ── */}
+                <Grid size={{ xs: 12, xl: 4 }}>
+                  <Card sx={{ height: '100%' }}>
+                    <CardContent>
+                      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                        <Chip size="small" label="Criativo com IA" />
+                        {arteRefsCount > 0 && (
+                          <Chip size="small" variant="outlined" label={`${arteRefsCount} ref${arteRefsCount > 1 ? 's' : ''} visual`} />
+                        )}
+                      </Stack>
+
+                      <Stack spacing={1.5}>
+                        {/* Model */}
+                        <TextField
+                          select size="small" label="Modelo de imagem"
+                          value={imageModel}
+                          onChange={(e) => setImageModel(e.target.value)}
+                          fullWidth
+                        >
+                          <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (padrão)</MenuItem>
+                          <MenuItem value="imagen-3.0-generate-001">Imagen 3 — Alta qualidade</MenuItem>
+                          <MenuItem value="imagen-3.0-fast-generate-001">Imagen 3 Fast — Nano (rápido)</MenuItem>
+                        </TextField>
+
+                        {/* Aspect ratio — Imagen 3 only */}
+                        {imageModel.startsWith('imagen-') && (
+                          <TextField
+                            select size="small" label="Proporção"
+                            value={imageAspectRatio}
+                            onChange={(e) => setImageAspectRatio(e.target.value)}
+                            fullWidth
+                          >
+                            <MenuItem value="1:1">1:1 — Quadrado (Feed)</MenuItem>
+                            <MenuItem value="4:3">4:3 — Landscape</MenuItem>
+                            <MenuItem value="3:4">3:4 — Portrait</MenuItem>
+                            <MenuItem value="16:9">16:9 — Widescreen</MenuItem>
+                            <MenuItem value="9:16">9:16 — Story / Vertical</MenuItem>
+                          </TextField>
+                        )}
+
+                        {/* Prompt */}
+                        <Box>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem' }}>
+                              Prompt
+                            </Typography>
+                            <LoadingButton
+                              size="small" variant="text"
+                              loading={arteStep === 'loading_prompt'}
+                              disabled={arteStep !== null || !output}
+                              onClick={handleGenerateArte}
+                              sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.25 }}
+                            >
+                              Auto-gerar
+                            </LoadingButton>
+                          </Stack>
+                          <TextField
+                            multiline minRows={5}
+                            fullWidth size="small"
+                            value={artePrompt}
+                            onChange={(e) => setArtePrompt(e.target.value)}
+                            placeholder="Descreva o criativo desejado, ou clique em Auto-gerar para criar automaticamente a partir do copy..."
+                            disabled={arteStep === 'generating'}
+                            inputProps={{ style: { fontFamily: 'monospace', fontSize: 12 } }}
+                          />
+                        </Box>
+
+                        {/* Negative prompt */}
+                        <TextField
+                          size="small" label="Prompt negativo (opcional)"
+                          value={imageNegativePrompt}
+                          onChange={(e) => setImageNegativePrompt(e.target.value)}
+                          placeholder="Ex: texto, palavras, logos, watermark, distorção..."
+                          fullWidth
+                        />
+
+                        {/* Error */}
+                        {arteModalError && (
+                          <Alert severity="error" sx={{ py: 0.5, fontSize: 12 }}>{arteModalError}</Alert>
+                        )}
+
+                        {/* Generate */}
+                        <LoadingButton
+                          fullWidth variant="contained" size="small"
+                          loading={arteStep === 'generating'}
+                          disabled={!artePrompt.trim() || arteStep === 'loading_prompt'}
+                          onClick={handleGenerateArteWithPrompt}
+                          sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
+                        >
+                          {arteImageUrl ? 'Regenerar Imagem' : 'Gerar Imagem com IA'}
+                        </LoadingButton>
+
+                        {/* Generated image preview */}
+                        {arteImageUrl && (
+                          <Box>
+                            <Box
+                              component="img"
+                              src={arteImageUrl}
+                              alt="Arte gerada"
+                              sx={{ width: '100%', borderRadius: 1.5, border: 1, borderColor: 'divider', display: 'block' }}
+                            />
+                            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                              <Button size="small" variant="contained" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />}>
+                                Usar
+                              </Button>
+                              <Button size="small" variant="outlined" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />}>
+                                Descartar
+                              </Button>
+                            </Stack>
+                          </Box>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
               </Grid>
 
               {/* Version History */}
@@ -2246,64 +2341,6 @@ export default function EditorClient() {
         onClose={() => setRejectOpen(false)}
         onSubmit={handleRejectOption}
       />
-
-      {/* ── Modal de edição do prompt de arte ── */}
-      <Dialog
-        open={arteModalOpen}
-        onClose={() => { if (arteStep !== 'generating') { setArteModalOpen(false); setArteStep(null); } }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <span>Configurar Arte IA</span>
-            {arteRefsCount > 0 && (
-              <Chip
-                size="small"
-                label={`${arteRefsCount} referência${arteRefsCount > 1 ? 's' : ''} visual encontrada${arteRefsCount > 1 ? 's' : ''}`}
-                color="primary"
-                variant="outlined"
-                sx={{ fontSize: 11 }}
-              />
-            )}
-          </Stack>
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-            Prompt montado automaticamente com base no copy, segmento e referências visuais do cliente. Edite livremente antes de gerar.
-          </Typography>
-          {arteModalError && (
-            <Typography variant="body2" color="error" sx={{ mb: 1.5, p: 1.5, bgcolor: 'error.50', borderRadius: 1, border: '1px solid', borderColor: 'error.200' }}>
-              Erro: {arteModalError}
-            </Typography>
-          )}
-          <TextField
-            multiline
-            rows={10}
-            fullWidth
-            value={artePrompt}
-            onChange={(e) => setArtePrompt(e.target.value)}
-            disabled={arteStep === 'generating'}
-            inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => { setArteModalOpen(false); setArteStep(null); }}
-            disabled={arteStep === 'generating'}
-          >
-            Cancelar
-          </Button>
-          <LoadingButton
-            variant="contained"
-            onClick={handleGenerateArteWithPrompt}
-            loading={arteStep === 'generating'}
-            disabled={!artePrompt.trim()}
-          >
-            Gerar Imagem →
-          </LoadingButton>
-        </DialogActions>
-      </Dialog>
 
       <Snackbar
         open={Boolean(copiedField)}

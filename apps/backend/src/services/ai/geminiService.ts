@@ -202,12 +202,67 @@ async function fetchImageAsInlineData(url: string): Promise<{ inlineData: { data
   }
 }
 
+/** Imagen 3 uses a separate predict endpoint (not generateContent). */
+async function generateImageWithImagen(params: {
+  prompt: string;
+  model: string;
+  aspectRatio?: string;
+  negativePrompt?: string;
+}): Promise<GeminiImageResult> {
+  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY_NOT_SET');
+  const body = {
+    instances: [{ prompt: params.prompt }],
+    parameters: {
+      sampleCount: 1,
+      aspectRatio: params.aspectRatio || '1:1',
+      personGeneration: 'ALLOW_ADULT',
+      ...(params.negativePrompt ? { negativePrompt: params.negativePrompt } : {}),
+    },
+  };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  let response: Response;
+  try {
+    response = await fetch(
+      `${IMAGE_BASE_URL}/models/${params.model}:predict?key=${env.GEMINI_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }
+    );
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('Imagen timed out after 120s');
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.status.toString());
+    throw new Error(`Imagen API error ${response.status}: ${text.slice(0, 300)}`);
+  }
+  const data = await response.json() as { predictions?: Array<{ bytesBase64Encoded: string; mimeType: string }>; error?: { message: string } };
+  if (data.error) throw new Error(data.error.message);
+  const prediction = data.predictions?.[0];
+  if (!prediction?.bytesBase64Encoded) throw new Error('Imagen returned no image');
+  return { base64: prediction.bytesBase64Encoded, mimeType: prediction.mimeType || 'image/png' };
+}
+
 export async function generateImage(params: {
   prompt: string;
   /** URLs of reference images to include as visual style context (best-effort) */
   referenceImageUrls?: string[];
+  /** Override the default Gemini Flash model. Use 'imagen-3.0-generate-001' or 'imagen-3.0-fast-generate-001' for Imagen 3. */
+  model?: string;
+  /** Aspect ratio — only respected by Imagen 3 models */
+  aspectRatio?: string;
+  /** Negative prompt — only respected by Imagen 3 models */
+  negativePrompt?: string;
 }): Promise<GeminiImageResult> {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY_NOT_SET');
+
+  const model = params.model || IMAGE_MODEL;
+
+  // Route Imagen 3 models to the predict endpoint
+  if (model.startsWith('imagen-')) {
+    return generateImageWithImagen({ prompt: params.prompt, model, aspectRatio: params.aspectRatio, negativePrompt: params.negativePrompt });
+  }
 
   // Build multimodal parts: text prompt + optional reference images
   const textPart = { text: params.prompt };
@@ -238,7 +293,7 @@ export async function generateImage(params: {
   let response: Response;
   try {
     response = await fetch(
-      `${IMAGE_BASE_URL}/models/${IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+      `${IMAGE_BASE_URL}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -3143,6 +3143,12 @@ export default async function edroRoutes(app: FastifyInstance) {
       prompt_only: z.boolean().optional(),
       /** Prompt editado pelo usuário — substitui o auto-gerado na geração real */
       custom_prompt: z.string().optional(),
+      /** Override image model (e.g. 'imagen-3.0-generate-001', 'imagen-3.0-fast-generate-001') */
+      image_model: z.string().optional(),
+      /** Aspect ratio for Imagen 3 ('1:1' | '3:4' | '4:3' | '9:16' | '16:9') */
+      aspect_ratio: z.string().optional(),
+      /** Negative prompt for Imagen 3 */
+      negative_prompt: z.string().optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -3290,6 +3296,9 @@ export default async function edroRoutes(app: FastifyInstance) {
         referenceImageUrls,
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
+        imageModel: body.image_model || undefined,
+        aspectRatio: body.aspect_ratio || undefined,
+        negativePrompt: body.negative_prompt || undefined,
       });
 
       if (!result.success) {

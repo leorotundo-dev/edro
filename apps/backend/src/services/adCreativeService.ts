@@ -18,6 +18,12 @@ type AdCreativeRequest = {
   approvedExamples?: string[];
   /** Tags de rejeição frequentes — o prompt avisa o Gemini para evitar esses padrões */
   avoidPatterns?: string[];
+  /** Override image model: 'imagen-3.0-generate-001', 'imagen-3.0-fast-generate-001', or Gemini Flash */
+  imageModel?: string;
+  /** Aspect ratio for Imagen 3: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' */
+  aspectRatio?: string;
+  /** Negative prompt — Imagen 3 only */
+  negativePrompt?: string;
 };
 
 type AdCreativeResponse = {
@@ -109,6 +115,9 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
     const result = await generateImage({
       prompt: finalPrompt,
       referenceImageUrls: params.referenceImageUrls,
+      model: params.imageModel,
+      aspectRatio: params.aspectRatio,
+      negativePrompt: params.negativePrompt,
     });
 
     return {
