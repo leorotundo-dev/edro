@@ -1479,7 +1479,7 @@ export default function EditorClient() {
 
         {criarTab === 1 && <MockupsPage embedded />}
 
-        {criarTab === 0 && <>
+        {criarTab === 0 && (
         <Grid container>
           <Grid size={{ xs: 12 }}>
             <Stack spacing={3}>
@@ -2410,6 +2410,7 @@ export default function EditorClient() {
           </Grid>
 
         </Grid>
+        )}
 
         {/* Footer actions */}
         <Stack direction="row" justifyContent="flex-end" spacing={2}>
@@ -2420,7 +2421,6 @@ export default function EditorClient() {
             Avançar para Exportar
           </Button>
         </Stack>
-        </>
       </Stack>
 
       {activeFormat?.id && (
