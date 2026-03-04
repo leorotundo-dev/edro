@@ -37,15 +37,16 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STUDIO_STEPS = [
-  { label: 'Briefing', path: '/studio/brief', step: 1, icon: 'edit_note' },
-  { label: 'Plataformas', path: '/studio/platforms', step: 2, icon: 'devices' },
-  { label: 'Editor', path: '/studio/editor', step: 3, icon: 'brush' },
-  { label: 'Mockups', path: '/studio/mockups', step: 4, icon: 'preview' },
-  { label: 'Revisão', path: '/studio/review', step: 5, icon: 'fact_check' },
-  { label: 'Exportar', path: '/studio/export', step: 6, icon: 'download' },
+  { label: 'Briefing',    path: '/studio/brief',     step: 1, icon: 'edit_note' },
+  { label: 'Plataformas', path: '/studio/platforms',  step: 2, icon: 'devices' },
+  { label: 'Criar',       path: '/studio/editor',     step: 3, icon: 'brush' },
+  { label: 'Revisão',     path: '/studio/review',     step: 4, icon: 'fact_check' },
+  { label: 'Exportar',    path: '/studio/export',     step: 5, icon: 'download' },
 ];
 
 function getCurrentStep(pathname: string): number {
+  // /studio/mockups is now embedded inside step 3 (Criar)
+  if (pathname.startsWith('/studio/mockups')) return 3;
   const step = STUDIO_STEPS.find((s) => pathname.startsWith(s.path));
   return step?.step || 1;
 }
@@ -233,11 +234,11 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
             </Typography>
             <LinearProgress
               variant="determinate"
-              value={(currentStep / 6) * 100}
+              value={(currentStep / 5) * 100}
               sx={{ height: 6, borderRadius: 3 }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Etapa {currentStep} de 6
+              Etapa {currentStep} de 5
             </Typography>
           </Box>
         </Box>
@@ -358,7 +359,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
 
           <Stack direction="row" spacing={2} alignItems="center">
             <Chip
-              label={`ETAPA ${currentStep} DE 6`}
+              label={`ETAPA ${currentStep} DE 5`}
               size="small"
               color="primary"
               variant="outlined"

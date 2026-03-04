@@ -6,6 +6,7 @@ import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
+import MockupsPage from '@/app/studio/mockups/page';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
@@ -25,7 +26,10 @@ import {
   IconPlus,
   IconRefresh,
   IconX,
+  IconApps,
 } from '@tabler/icons-react';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -423,6 +427,7 @@ export default function EditorClient() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [activeFormatId, setActiveFormatId] = useState('');
+  const [criarTab, setCriarTab] = useState<0 | 1>(0);
   const [output, setOutput] = useState('');
   const [options, setOptions] = useState<ParsedOption[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
@@ -1355,6 +1360,15 @@ export default function EditorClient() {
           );
         })()}
 
+        {/* Tab bar — Gerador de Copy / Grade de Mockups */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={criarTab} onChange={(_, v) => setCriarTab(v as 0 | 1)}>
+            <Tab value={0} label="Gerador de Copy" iconPosition="start" icon={<IconRefresh size={16} />} sx={{ textTransform: 'none', fontWeight: 600 }} />
+            <Tab value={1} label="Grade de Mockups" iconPosition="start" icon={<IconApps size={16} />} sx={{ textTransform: 'none', fontWeight: 600 }} />
+          </Tabs>
+        </Box>
+
+        {criarTab === 0 && <>
         {/* Main + Sidebar grid */}
         <Grid container spacing={3}>
           {/* Main panel */}
@@ -1398,6 +1412,9 @@ export default function EditorClient() {
                         </Button>
                         <Button size="small" variant="text" color="error" onClick={() => setArteDiscardOpen(true)} startIcon={<IconX size={14} />} sx={{ minWidth: 'auto' }}>
                           Descartar
+                        </Button>
+                        <Button size="small" variant="outlined" onClick={() => setCriarTab(1)} startIcon={<IconApps size={14} />} sx={{ minWidth: 'auto', ml: 1 }}>
+                          Ver todos os formatos
                         </Button>
                       </>
                     )}
@@ -2158,10 +2175,13 @@ export default function EditorClient() {
           <Button variant="outlined" onClick={() => router.back()}>
             Voltar
           </Button>
-          <Button variant="contained" onClick={() => router.push('/studio/mockups')}>
-            Aprovar e avançar
+          <Button variant="contained" onClick={() => setCriarTab(1)} endIcon={<IconApps size={16} />}>
+            Ver Grade de Mockups
           </Button>
         </Stack>
+        </>}
+
+        {criarTab === 1 && <MockupsPage embedded />}
       </Stack>
 
       {activeFormat?.id && (

@@ -622,7 +622,9 @@ const rebuildInventoryFromList = () => {
   return inventory;
 };
 
-export default function Page() {
+type PageProps = { embedded?: boolean };
+
+export default function Page({ embedded }: PageProps = {}) {
   const [mockups, setMockups] = useState<MockupItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [displayMap, setDisplayMap] = useState<Record<string, string>>({});
@@ -1044,7 +1046,7 @@ export default function Page() {
 
   useEffect(() => {
     const briefingId = safeGet('edro_briefing_id');
-    if (!briefingId) return;
+    if (!briefingId || embedded) return;
     api.patch(`/edro/briefings/${briefingId}/stages/producao`, { status: 'in_progress' }).catch(() => null);
   }, []);
 
@@ -2118,37 +2120,39 @@ export default function Page() {
         </Box>
       </Box>
 
-      {/* Footer */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 3 }}>
-        <Button
-          variant="text"
-          component={Link}
-          href="/studio/editor"
-          startIcon={<IconArrowLeft size={18} />}
-          sx={{ color: 'text.disabled', fontWeight: 700, '&:hover': { color: 'text.primary' } }}
-        >
-          Voltar ao Passo 3
-        </Button>
-        <Stack direction="row" spacing={2} alignItems="center">
+      {/* Footer — hidden when embedded inside EditorClient */}
+      {!embedded && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 3 }}>
           <Button
-            variant="outlined"
-            onClick={handleSaveDraftAll}
-            disabled={syncing || !displayMockups.length}
-          >
-            Salvar como Rascunho
-          </Button>
-          <Button
-            variant="contained"
+            variant="text"
             component={Link}
-            href="/studio/export"
-            onClick={updateStageDone}
-            endIcon={<IconArrowRight size={18} />}
-            sx={{ boxShadow: 2 }}
+            href="/studio/editor"
+            startIcon={<IconArrowLeft size={18} />}
+            sx={{ color: 'text.disabled', fontWeight: 700, '&:hover': { color: 'text.primary' } }}
           >
-            Continuar
+            Voltar ao Passo 3
           </Button>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button
+              variant="outlined"
+              onClick={handleSaveDraftAll}
+              disabled={syncing || !displayMockups.length}
+            >
+              Salvar como Rascunho
+            </Button>
+            <Button
+              variant="contained"
+              component={Link}
+              href="/studio/review"
+              onClick={updateStageDone}
+              endIcon={<IconArrowRight size={18} />}
+              sx={{ boxShadow: 2 }}
+            >
+              Continuar
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
+      )}
       <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
         {syncing
           ? 'Sincronizando mockups...'
