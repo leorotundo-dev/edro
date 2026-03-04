@@ -2044,73 +2044,126 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     // ── Semantic Review Loop ─────────────────────────────────────────────────
-    // Avalia o copy gerado com o olhar do editor-chefe e corrige automaticamente
-    // até atingir qualidade >= 7.5/10. Máx 2 iterações — totalmente invisível ao usuário.
+    // Editor-chefe IA: avalia 7 dimensões + histórico de repetição e corrige
+    // cirurgicamente até score >= 7.5/10. Máx 2 iterações. Invisível ao usuário.
     // ─────────────────────────────────────────────────────────────────────────
     const REVIEW_SCORE_THRESHOLD = 7.5;
     const MAX_REVIEW_ITERATIONS = 2;
     let semanticReviewScore: number | null = null;
     let semanticReviewWarnings: string[] = [];
+    let semanticReviewDimensions: Record<string, number> | null = null;
     let semanticReviewIterations = 0;
 
     try {
       if (tenantId) {
+        // Reutiliza blocos já computados acima — custo zero
         const briefingCtx = [
           briefing.title,
           (briefing.payload as any)?.objetivo || (briefing.payload as any)?.objective || '',
         ].filter(Boolean).join(' — ');
-        const brandCtx = knowledgeBlock || '';
+        const brandCtx       = knowledgeBlock || '';
+        const platformCtx    = platformBlock  || '';
+        const personaCtx     = [personaBlock, amdBlock, behaviorIntentBlock].filter(Boolean).join('\n');
+        const historyCtx     = [preferenceBlock, learnedBlock].filter(Boolean).join('\n');
+
+        // ── Histórico de copies do cliente (deduplicação cross-briefing) ─────
+        let pastCopiesCtx = '';
+        if (selectedClientId) {
+          try {
+            const { rows: pastRows } = await query<{ output: string }>(
+              `SELECT cv.output
+               FROM edro_copy_versions cv
+               JOIN edro_briefings b ON b.id = cv.briefing_id
+               WHERE b.main_client_id = $1
+                 AND b.tenant_id = $2
+                 AND cv.output IS NOT NULL
+               ORDER BY cv.created_at DESC
+               LIMIT 15`,
+              [selectedClientId, tenantId]
+            );
+            if (pastRows.length > 0) {
+              const excerpts = pastRows.map((r, i) => {
+                const t = typeof r.output === 'string' ? r.output : JSON.stringify(r.output);
+                return `${i + 1}. ${t.slice(0, 200).replace(/\n/g, ' ')}`;
+              });
+              pastCopiesCtx = `HISTÓRICO DE COPIES DO CLIENTE — NUNCA repetir ângulos, hooks, frases ou abordagens já usados:\n${excerpts.join('\n')}`;
+            }
+          } catch { /* non-blocking */ }
+        }
 
         for (let ri = 0; ri < MAX_REVIEW_ITERATIONS; ri++) {
           const reviewText = typeof output === 'string' ? output : JSON.stringify(output);
           if (!reviewText || reviewText.length < 50) break;
 
-          // Score the current output
-          const reviewPrompt = `Você é o editor-chefe de uma agência de comunicação premium.
-Analise o copy abaixo e avalie a qualidade em relação ao briefing e DNA do cliente.
-${briefingCtx ? `\nBRIEFING: ${briefingCtx}` : ''}
-${brandCtx ? `\nDNA DO CLIENTE:\n${brandCtx}` : ''}
+          // ── Prompt do editor-chefe: 7 dimensões com pesos explícitos ─────
+          const reviewPrompt = `Você é o editor-chefe de uma agência de comunicação premium. Avalie o copy com rigor profissional em 7 dimensões.
+${briefingCtx    ? `\nBRIEFING: ${briefingCtx}`                              : ''}
+${brandCtx       ? `\nDNA DO CLIENTE (tom, vocabulário, compliance):\n${brandCtx}` : ''}
+${platformCtx    ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}`                  : ''}
+${personaCtx     ? `\nPERSONA E CONTEXTO COMPORTAMENTAL (AMD):\n${personaCtx}` : ''}
+${historyCtx     ? `\nPADRÕES DE PERFORMANCE HISTÓRICA:\n${historyCtx}`        : ''}
+${pastCopiesCtx  ? `\n${pastCopiesCtx}`                                        : ''}
 
 COPY PARA AVALIAÇÃO:
 ${reviewText}
 
-Retorne APENAS JSON válido:
-{"overall_score":<número 0-10>,"summary":"<1-2 frases>","warnings":["<problema 1>","<problema 2>"]}
+Avalie cada dimensão de 0 a 10 e calcule overall_score como média ponderada pelos pesos:
 
-Critério: >= 7.5 = aprovado, < 7.5 = requer refinamento.`;
+1. briefing_fit      (peso 0.25) — entrega exatamente o que o brief pediu? objetivo, formato, tom?
+2. brand_voice       (peso 0.20) — tom de voz, vocabulário e personalidade da marca estão corretos?
+3. platform_language (peso 0.15) — linguagem, registro e formato certos para a plataforma e audiência?
+4. originality       (peso 0.15) — ângulo, hook e frases são originais? Nada repetido do histórico acima?
+5. emotional_hook    (peso 0.10) — captura atenção imediata, provoca emoção ou curiosidade genuína?
+6. cta_effectiveness (peso 0.10) — CTA específico, persuasivo e alinhado ao momento do AMD?
+7. audience_alignment(peso 0.05) — fala com a persona certa no nível de consciência correto?
+
+Retorne APENAS JSON válido (sem markdown, sem texto antes ou depois):
+{"dimensions":{"briefing_fit":0,"brand_voice":0,"platform_language":0,"originality":0,"emotional_hook":0,"cta_effectiveness":0,"audience_alignment":0},"overall_score":0.0,"warnings":["problema crítico 1","problema crítico 2"]}`;
 
           const reviewResult = await generateCopy({
             prompt: reviewPrompt,
             taskType: 'final_review',
-            temperature: 0.25,
-            maxTokens: 400,
+            temperature: 0.2,
+            maxTokens: 500,
             usageContext: { tenant_id: tenantId, feature: 'review_loop' },
           });
 
-          let reviewParsed: { overall_score: number; warnings: string[] } = { overall_score: 8, warnings: [] };
+          let reviewParsed: { dimensions?: Record<string, number>; overall_score: number; warnings: string[] } = { overall_score: 8, warnings: [] };
           try {
             const s = reviewResult.output.indexOf('{');
             const e = reviewResult.output.lastIndexOf('}');
             if (s >= 0 && e > s) reviewParsed = JSON.parse(reviewResult.output.slice(s, e + 1));
-          } catch { /* use defaults — assume passing */ }
+          } catch { /* assume passing on parse failure */ }
 
-          semanticReviewScore = reviewParsed.overall_score ?? 8;
-          semanticReviewWarnings = Array.isArray(reviewParsed.warnings) ? reviewParsed.warnings : [];
+          semanticReviewScore      = reviewParsed.overall_score ?? 8;
+          semanticReviewWarnings   = Array.isArray(reviewParsed.warnings) ? reviewParsed.warnings : [];
+          semanticReviewDimensions = reviewParsed.dimensions ?? null;
           semanticReviewIterations = ri + 1;
 
           if (semanticReviewScore >= REVIEW_SCORE_THRESHOLD || semanticReviewWarnings.length === 0 || ri === MAX_REVIEW_ITERATIONS - 1) break;
 
-          // Rewrite with targeted corrections
-          const correctionPrompt = `Você é um redator sênior de agência de comunicação premium.
-O copy abaixo foi avaliado com score ${semanticReviewScore}/10. Corrija os seguintes problemas:
+          // ── Reescrita cirúrgica — aponta dimensões fracas + warnings ──────
+          const failedDims = Object.entries(semanticReviewDimensions || {})
+            .filter(([, v]) => (v as number) < 7)
+            .map(([k, v]) => `${k}: ${v}/10`)
+            .join(', ');
+
+          const correctionPrompt = `Você é um redator sênior de agência de comunicação premium realizando uma reescrita cirúrgica.
+
+Score atual: ${semanticReviewScore}/10${failedDims ? ` — dimensões abaixo do padrão: ${failedDims}` : ''}
+
+Problemas a corrigir obrigatoriamente:
 ${semanticReviewWarnings.map((w) => `- ${w}`).join('\n')}
-${briefingCtx ? `\nBRIEFING: ${briefingCtx}` : ''}
-${brandCtx ? `\nDNA DO CLIENTE:\n${brandCtx}` : ''}
+${briefingCtx   ? `\nBRIEFING: ${briefingCtx}`                               : ''}
+${brandCtx      ? `\nDNA DO CLIENTE:\n${brandCtx}`                             : ''}
+${platformCtx   ? `\nREGRAS DA PLATAFORMA:\n${platformCtx}`                    : ''}
+${personaCtx    ? `\nPERSONA E AMD:\n${personaCtx}`                            : ''}
+${pastCopiesCtx ? `\n${pastCopiesCtx}`                                         : ''}
 
 COPY ORIGINAL:
 ${reviewText}
 
-Reescreva mantendo exatamente a mesma estrutura (headline, body, CTA, legenda, hashtags) e idioma. Retorne apenas o copy reescrito, sem explicações ou comentários.`;
+Reescreva corrigindo exatamente os problemas listados. Mantenha a estrutura (headline, body, CTA, legenda, hashtags) e idioma. Retorne apenas o copy reescrito, sem explicações.`;
 
           const corrected = await generateCopy({
             prompt: correctionPrompt,
@@ -2122,7 +2175,7 @@ Reescreva mantendo exatamente a mesma estrutura (headline, body, CTA, legenda, h
 
           if (corrected?.output) {
             output = corrected.output;
-            request.log?.info({ score: semanticReviewScore, iteration: ri + 1, warnings: semanticReviewWarnings.length }, 'review_loop_corrected');
+            request.log?.info({ score: semanticReviewScore, iteration: ri + 1, failed_dims: failedDims }, 'review_loop_corrected');
           }
         }
       }
@@ -2187,6 +2240,7 @@ Reescreva mantendo exatamente a mesma estrutura (headline, body, CTA, legenda, h
       edroPayload.review_loop = {
         final_score:  semanticReviewScore,
         iterations:   semanticReviewIterations,
+        dimensions:   semanticReviewDimensions,
         warnings:     semanticReviewWarnings,
         passed:       semanticReviewScore >= REVIEW_SCORE_THRESHOLD,
       };
