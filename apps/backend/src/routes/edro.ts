@@ -14,7 +14,7 @@ import {
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
-import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt } from '../services/adCreativeService';
+import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt, refineScenePrompt } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
@@ -3185,6 +3185,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     // ── Histórico de aprendizado de criativos (loop de feedback) ─────────
     let approvedExamples: string[] = [];
     let avoidPatterns: string[] = [];
+    let aestheticProfile: string | undefined;
     if (resolvedClientId) {
       try {
         const profile = clientRow?.profile || {};
@@ -3194,6 +3195,9 @@ export default async function edroRoutes(app: FastifyInstance) {
         avoidPatterns = Array.isArray(profile.creative_avoid_patterns)
           ? profile.creative_avoid_patterns.slice(0, 4)
           : [];
+        aestheticProfile = typeof profile.creative_aesthetic_profile === 'string'
+          ? profile.creative_aesthetic_profile
+          : undefined;
       } catch { /* non-blocking */ }
     }
 
@@ -3283,6 +3287,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         visualContext: visualContext || undefined,
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
+        aestheticProfile,
       };
       // generateArtDirectorPrompt returns an array of 3 scene narratives (no VISUAL_DNA_BASE)
       const variations = await generateArtDirectorPrompt(artDirectorParams);
@@ -3429,6 +3434,60 @@ export default async function edroRoutes(app: FastifyInstance) {
     } catch (err: any) {
       request.log?.error({ err }, 'creative_feedback_failed');
       return reply.status(500).send({ ok: false, error: 'feedback_save_failed' });
+    }
+  });
+
+  // ── Iteração Guiada — refina narrativa de cena em linguagem natural ──────────
+  app.post('/edro/briefings/:id/refine-creative-prompt', async (request, reply) => {
+    const { id: briefingId } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const bodySchema = z.object({
+      current_prompt: z.string().min(1).max(8000),
+      instruction: z.string().min(1).max(500),
+      headline: z.string().max(300).optional(),
+      brand: z.string().max(200).optional(),
+      client_id: z.string().optional(),
+    });
+
+    let body: z.infer<typeof bodySchema>;
+    try {
+      body = bodySchema.parse(request.body);
+    } catch {
+      return reply.status(400).send({ ok: false, error: 'invalid_body' });
+    }
+
+    const tenantId = (request as any).tenantId || (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(401).send({ ok: false, error: 'unauthorized' });
+
+    // Resolve aesthetic profile para contexto (best-effort)
+    let aestheticProfile: string | undefined;
+    try {
+      let clientId: string | null = body.client_id || null;
+      if (!clientId) {
+        const { rows } = await query<{ main_client_id: string | null; payload: any }>(
+          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+          [briefingId, tenantId]
+        );
+        const bRow = rows[0];
+        clientId = bRow?.main_client_id || resolveClientIdFromPayload(bRow?.payload || {}) || null;
+      }
+      if (clientId) {
+        const clientRow = await getClientById(clientId, tenantId);
+        aestheticProfile = (clientRow?.profile as any)?.creative_aesthetic_profile || undefined;
+      }
+    } catch { /* non-blocking */ }
+
+    try {
+      const refined = await refineScenePrompt({
+        currentPrompt: body.current_prompt,
+        instruction: body.instruction,
+        headline: body.headline,
+        brand: body.brand,
+        aestheticProfile,
+      });
+      return reply.send({ ok: true, refined_prompt: refined });
+    } catch (err: any) {
+      request.log?.error({ err }, 'refine_creative_prompt_failed');
+      return reply.status(500).send({ ok: false, error: 'refinement_failed' });
     }
   });
 

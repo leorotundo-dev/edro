@@ -70,7 +70,10 @@ RULES:
 type ArtDirectorParams = Omit<
   AdCreativeRequest,
   'customPrompt' | 'referenceImageUrls' | 'imageModel' | 'aspectRatio' | 'negativePrompt'
->;
+> & {
+  /** Perfil estético sintetizado do cliente — gerado a partir do histórico de aprovações */
+  aestheticProfile?: string;
+};
 
 /**
  * Art Director IA — gera variações de narrativa de cena para o prompt do Gemini.
@@ -105,13 +108,16 @@ export async function generateArtDirectorPrompt(
   const approvedBlock = params.approvedExamples?.length
     ? `\nApproved aesthetic style from past: ${params.approvedExamples.slice(0, 2).join(' | ')}.`
     : '';
+  const aestheticBlock = params.aestheticProfile
+    ? `\nCLIENT AESTHETIC PROFILE (synthesized from approved creatives — follow this):\n${params.aestheticProfile.slice(0, 500)}`
+    : '';
 
   const userPrompt = `Create 3 scene descriptions for an AI-generated advertising background image.
 
 POST HEADLINE (primary visual concept): "${headline}"
 POST BODY (thematic context): "${bodyText}"
 BRAND: "${brand}"${segment ? ` — sector: ${segment}` : ''}
-FORMAT: ${params.format}${colors ? `\nBRAND COLORS: ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${approvedBlock}${avoidBlock}
+FORMAT: ${params.format}${colors ? `\nBRAND COLORS: ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${aestheticBlock}${approvedBlock}${avoidBlock}
 
 The image will be a full-bleed background — the designer overlays headline and copy on top.
 
@@ -238,4 +244,58 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
 
 export function isAdCreativeConfigured(): boolean {
   return Boolean(env.GEMINI_API_KEY);
+}
+
+/**
+ * Iteração Guiada — o usuário descreve o que quer mudar na cena e o DA ajusta.
+ * Recebe a narrativa atual + instrução em linguagem natural → devolve narrativa refinada.
+ *
+ * Exemplos de instrução:
+ *   "mais sombrio, cena noturna"
+ *   "sem pessoas, só paisagem"
+ *   "mais abstrato, menos literal"
+ *   "use a cor laranja como elemento dominante"
+ */
+export async function refineScenePrompt(params: {
+  currentPrompt: string;
+  instruction: string;
+  headline?: string;
+  brand?: string;
+  aestheticProfile?: string;
+}): Promise<string> {
+  const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return params.currentPrompt; // sem Claude, devolve inalterado
+  }
+
+  const contextBlock = [
+    params.headline ? `Original post headline: "${params.headline}"` : '',
+    params.brand ? `Brand: ${params.brand}` : '',
+    params.aestheticProfile
+      ? `Client aesthetic profile: ${params.aestheticProfile.slice(0, 300)}`
+      : '',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const result = await generateCompletion({
+      prompt: `You are an art director refining a scene description for AI image generation.
+
+CURRENT SCENE:
+${params.currentPrompt}
+
+${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
+USER INSTRUCTION: "${params.instruction}"
+
+Apply the instruction to the current scene. Keep what works, change only what the instruction asks. Maintain the same level of concreteness and cinematic quality. End with a composition note about negative space for text overlay.
+
+Output: the refined scene description only — one English paragraph, max 200 words. No labels, no preamble.`,
+      systemPrompt: ART_DIRECTOR_SYSTEM,
+      temperature: 0.65,
+      maxTokens: 350,
+    });
+
+    return result.text.trim() || params.currentPrompt;
+  } catch {
+    return params.currentPrompt;
+  }
 }

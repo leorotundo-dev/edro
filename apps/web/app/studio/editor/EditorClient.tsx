@@ -25,6 +25,8 @@ import {
   IconMinus,
   IconPlus,
   IconRefresh,
+  IconSparkles,
+  IconBolt,
   IconX,
 } from '@tabler/icons-react';
 import Card from '@mui/material/Card';
@@ -469,6 +471,11 @@ export default function EditorClient() {
   const [arteGeneratedPrompt, setArteGeneratedPrompt] = useState('');
   const [arteDiscardOpen, setArteDiscardOpen] = useState(false);
   const [arteDiscardTags, setArteDiscardTags] = useState<string[]>([]);
+  // Iteração Guiada
+  const [arteRefinement, setArteRefinement] = useState('');
+  const [arteRefining, setArteRefining] = useState(false);
+  // Preview Rápido
+  const [arteIsPreview, setArteIsPreview] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const handleCopy = (text: string, field: string) => {
@@ -1192,6 +1199,7 @@ export default function EditorClient() {
         setArteDiscardTags([]);
         setArteStep(null);
         setArteModalError('');
+        setArteIsPreview(false);
         // Persist so step 4 (Mockups) can load it
         if (briefingId) {
           apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl }).catch(() => null);
@@ -1207,6 +1215,72 @@ export default function EditorClient() {
       console.error('[arteIA] generate-creative exception:', msg);
       setArteModalError(msg);
       setArteStep(null);
+    }
+  };
+
+  // ── Iteração Guiada — refina a narrativa em linguagem natural ─────────
+  const handleRefinePrompt = async () => {
+    if (!artePrompt.trim() || !arteRefinement.trim()) return;
+    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (!briefingId) return;
+    setArteRefining(true);
+    try {
+      const res = await apiPost<{ ok: boolean; refined_prompt?: string; error?: string }>(
+        `/edro/briefings/${briefingId}/refine-creative-prompt`,
+        {
+          current_prompt: artePrompt,
+          instruction: arteRefinement,
+          headline: editorCopy.headline || undefined,
+          brand: briefing?.client_name || undefined,
+          client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+        }
+      );
+      if (res.ok && res.refined_prompt) {
+        setArtePrompt(res.refined_prompt);
+        setArteRefinement('');
+      }
+    } catch { /* silent — user retains current prompt */ }
+    setArteRefining(false);
+  };
+
+  // ── Preview Rápido — força Flash para prévia instantânea ──────────────
+  const handlePreviewArte = async () => {
+    const copyVersionId = resolveActiveCopyId();
+    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (!briefingId || !copyVersionId || !artePrompt.trim()) return;
+
+    setArteModalError('');
+    setArteStep('generating');
+    setArteIsPreview(true);
+    try {
+      const res = await apiPost<{ success: boolean; image_url?: string; data?: { image_url?: string }; error?: string }>(
+        `/edro/briefings/${briefingId}/generate-creative`,
+        {
+          copy_version_id: copyVersionId,
+          format: activeFormat?.format || 'instagram-feed',
+          brand_color: clientBrandColor || undefined,
+          client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+          headline: editorCopy.headline || undefined,
+          body_text: editorCopy.body || undefined,
+          custom_prompt: artePrompt || undefined,
+          image_model: 'gemini-2.0-flash-exp-image-generation', // sempre Flash para prévia
+        }
+      );
+      const imageUrl = res.image_url || res.data?.image_url;
+      if (res.success && imageUrl) {
+        setArteImageUrl(imageUrl);
+        setArteGeneratedPrompt(artePrompt);
+        setArteDiscardTags([]);
+        setArteStep(null);
+      } else {
+        setArteModalError(res.error || 'Erro na prévia. Tente novamente.');
+        setArteStep(null);
+        setArteIsPreview(false);
+      }
+    } catch (e: any) {
+      setArteModalError(e?.message || 'Erro de rede');
+      setArteStep(null);
+      setArteIsPreview(false);
     }
   };
 
@@ -2171,31 +2245,84 @@ export default function EditorClient() {
                           fullWidth
                         />
 
+                        {/* Iteração Guiada — aparece quando há prompt */}
+                        {artePrompt.trim() && (
+                          <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                              Refinar cena
+                            </Typography>
+                            <Stack direction="row" spacing={0.75}>
+                              <TextField
+                                size="small" fullWidth
+                                value={arteRefinement}
+                                onChange={(e) => setArteRefinement(e.target.value)}
+                                placeholder="Ex: mais sombrio, sem pessoas, use laranja dominante..."
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleRefinePrompt(); } }}
+                                inputProps={{ style: { fontSize: 12 } }}
+                                disabled={arteRefining}
+                              />
+                              <LoadingButton
+                                loading={arteRefining}
+                                disabled={!arteRefinement.trim()}
+                                onClick={handleRefinePrompt}
+                                size="small" variant="outlined"
+                                sx={{ minWidth: 36, px: 1, flexShrink: 0 }}
+                              >
+                                {!arteRefining && <IconSparkles size={15} />}
+                              </LoadingButton>
+                            </Stack>
+                          </Box>
+                        )}
+
                         {/* Error */}
                         {arteModalError && (
                           <Alert severity="error" sx={{ py: 0.5, fontSize: 12 }}>{arteModalError}</Alert>
                         )}
 
-                        {/* Generate */}
-                        <LoadingButton
-                          fullWidth variant="contained" size="small"
-                          loading={arteStep === 'generating'}
-                          disabled={!artePrompt.trim() || arteStep === 'loading_prompt'}
-                          onClick={handleGenerateArteWithPrompt}
-                          sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
-                        >
-                          {arteImageUrl ? 'Regenerar Imagem' : 'Gerar Imagem com IA'}
-                        </LoadingButton>
+                        {/* Generate + Preview */}
+                        <Stack direction="row" spacing={0.75}>
+                          <LoadingButton
+                            fullWidth variant="contained" size="small"
+                            loading={arteStep === 'generating' && !arteIsPreview}
+                            disabled={!artePrompt.trim() || arteStep !== null}
+                            onClick={handleGenerateArteWithPrompt}
+                            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
+                          >
+                            {arteImageUrl ? 'Regenerar' : 'Gerar Imagem'}
+                          </LoadingButton>
+                          <LoadingButton
+                            loading={arteStep === 'generating' && arteIsPreview}
+                            disabled={!artePrompt.trim() || arteStep !== null}
+                            onClick={handlePreviewArte}
+                            size="small" variant="outlined"
+                            title="Prévia rápida com Flash (menor qualidade)"
+                            sx={{ minWidth: 40, px: 1, flexShrink: 0, borderColor: '#E85219', color: '#E85219' }}
+                          >
+                            {!(arteStep === 'generating' && arteIsPreview) && <IconBolt size={15} />}
+                          </LoadingButton>
+                        </Stack>
 
                         {/* Generated image preview */}
                         {arteImageUrl && (
                           <Box>
-                            <Box
-                              component="img"
-                              src={arteImageUrl}
-                              alt="Arte gerada"
-                              sx={{ width: '100%', borderRadius: 1.5, border: 1, borderColor: 'divider', display: 'block' }}
-                            />
+                            <Box sx={{ position: 'relative' }}>
+                              <Box
+                                component="img"
+                                src={arteImageUrl}
+                                alt="Arte gerada"
+                                sx={{ width: '100%', borderRadius: 1.5, border: 1, borderColor: 'divider', display: 'block' }}
+                              />
+                              {arteIsPreview && (
+                                <Box sx={{
+                                  position: 'absolute', top: 6, right: 6,
+                                  bgcolor: 'rgba(0,0,0,0.65)', color: '#fff',
+                                  fontSize: 10, fontWeight: 700, px: 0.75, py: 0.25, borderRadius: 0.75,
+                                  letterSpacing: 0.5,
+                                }}>
+                                  PRÉVIA
+                                </Box>
+                              )}
+                            </Box>
                             <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                               <Button size="small" variant="contained" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />}>
                                 Usar

@@ -1,4 +1,5 @@
 import { query } from '../db';
+import { generateCompletion } from './ai/claudeService';
 
 export type PreferenceContext = {
   editorial: {
@@ -579,10 +580,35 @@ export async function syncCreativeFeedbackToProfile(
     );
     const existing = clientRows[0]?.profile || {};
 
+    // ── Perfil Estético Persistente ───────────────────────────────────────
+    // Sintetiza um briefing visual estruturado a partir do histórico de aprovações.
+    // Gerado quando há ≥2 prompts aprovados e ainda não existe perfil,
+    // ou quando há ≥5 aprovações (atualização periódica).
+    let aestheticProfile: string | undefined;
+    const existingProfile: string | undefined = existing.creative_aesthetic_profile;
+    const shouldBuildProfile = goodPrompts.length >= 2 && (!existingProfile || goodPrompts.length >= 5);
+
+    if (shouldBuildProfile) {
+      try {
+        const promptList = goodPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n\n');
+        const avoidHint = avoidPatterns.length
+          ? `\nPatterns previously rejected by this client: ${avoidPatterns.join(', ')}.`
+          : '';
+        const res = await generateCompletion({
+          prompt: `Analyze these approved creative scene descriptions for an advertising client and synthesize a concise visual aesthetic profile (max 350 words) that an art director can use as reference.\n\nFocus on: preferred lighting style, color palette, composition approach, mood/atmosphere, subject matter tendencies, and any recurring visual metaphors.\n\nApproved creative scenes:\n${promptList}${avoidHint}\n\nOutput: a single concise paragraph in English, written as a reference briefing for an art director. No labels, no lists — flowing prose.`,
+          systemPrompt: 'You are a creative director synthesizing a client visual identity profile from a history of approved advertising images.',
+          temperature: 0.3,
+          maxTokens: 450,
+        });
+        aestheticProfile = res.text.trim() || undefined;
+      } catch { /* non-blocking */ }
+    }
+
     const nextProfile = {
       ...existing,
       good_creative_prompts: goodPrompts,
       creative_avoid_patterns: avoidPatterns,
+      ...(aestheticProfile ? { creative_aesthetic_profile: aestheticProfile } : {}),
     };
 
     await query(
