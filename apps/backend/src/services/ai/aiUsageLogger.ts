@@ -95,10 +95,10 @@ export function estimateTokens(text: string): number {
 // Leonardo is billed per image generated (not per token).
 
 const LEONARDO_PRICING_USD: Record<string, number> = {
-  'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf7': 0.012, // Phoenix
+  'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3': 0.012, // Phoenix 1.0
   'b24e16ff-06e3-43eb-8d33-4416c2d75876': 0.008, // Lightning XL
   'aa77f04e-3eec-4034-9c07-d0f619684628': 0.012, // Kino XL
-  '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3': 0.008, // Diffusion XL
+  '1e60896f-3c26-4296-8ecc-53e2afecc132': 0.008, // Diffusion XL
 };
 
 export async function logLeonardoUsage(params: {

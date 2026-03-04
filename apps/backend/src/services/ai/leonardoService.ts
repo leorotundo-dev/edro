@@ -4,15 +4,20 @@ const LEONARDO_BASE_URL = 'https://cloud.leonardo.ai/api/rest/v1';
 
 // Leonardo model IDs
 export const LEONARDO_MODELS = {
-  /** Phoenix — flagship, highest quality */
-  phoenix: 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf7',
-  /** Lightning XL — fast, good quality */
+  /** Phoenix 1.0 — flagship, highest quality */
+  phoenix: 'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3',
+  /** Lightning XL — fast, SDXL-based (alchemy not supported) */
   lightningXL: 'b24e16ff-06e3-43eb-8d33-4416c2d75876',
   /** Kino XL — cinematic look */
   kinoXL: 'aa77f04e-3eec-4034-9c07-d0f619684628',
   /** Diffusion XL — creative/artistic */
-  diffusionXL: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3',
+  diffusionXL: '1e60896f-3c26-4296-8ecc-53e2afecc132',
 } as const;
+
+/** Models that do NOT support alchemy (SDXL Lightning architecture) */
+const NO_ALCHEMY_MODELS = new Set([
+  'b24e16ff-06e3-43eb-8d33-4416c2d75876', // Lightning XL
+]);
 
 export type LeonardoModelId = (typeof LEONARDO_MODELS)[keyof typeof LEONARDO_MODELS] | string;
 
@@ -79,10 +84,8 @@ export async function generateImageWithLeonardo(params: {
       width,
       height,
       num_images: numImages,
-      negative_prompt: params.negativePrompt || undefined,
-      photoReal: false,
-      alchemy: true,
-      highResolution: false,
+      ...(params.negativePrompt ? { negative_prompt: params.negativePrompt } : {}),
+      ...(NO_ALCHEMY_MODELS.has(modelId) ? {} : { alchemy: true }),
     }),
   });
 
