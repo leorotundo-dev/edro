@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPost, apiDelete, apiPatch, buildApiUrl } from '@/lib/api';
+import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -22,10 +22,11 @@ import {
   IconClipboard,
   IconDatabase,
   IconRefresh,
+  IconSparkles,
   IconTrendingUp,
 } from '@tabler/icons-react';
 
-import AIAssistant, { ChatMessage, ProviderOption } from './components/AIAssistant';
+import { useJarvis } from '@/contexts/JarvisContext';
 import type { IntelligenceStats } from './components/ContextPanel';
 import type { HealthData, SourceHealth } from './components/HealthMonitor';
 import OutputsList, { Briefing, Copy } from './components/OutputsList';
@@ -36,6 +37,7 @@ type PlanningClientProps = {
 
 export default function PlanningClient({ clientId }: PlanningClientProps) {
   const router = useRouter();
+  const { open: openJarvis } = useJarvis();
 
   // Intelligence Context
   const [intelligenceStats, setIntelligenceStats] = useState<IntelligenceStats | null>(null);
@@ -53,13 +55,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
   // Intelligence Score
   const [intelligenceScore, setIntelligenceScore] = useState<number | null>(null);
-
-  // AI Chat
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [providers, setProviders] = useState<ProviderOption[]>([]);
-  const [provider, setProvider] = useState('openai');
 
   // Load Intelligence Context (30s timeout)
   const loadContext = useCallback(async () => {
@@ -119,20 +114,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     }
   }, [clientId]);
 
-  // Load AI Providers
-  const loadProviders = useCallback(async () => {
-    try {
-      const res = await apiGet<{ data?: { providers?: ProviderOption[] } }>(`/planning/providers`);
-      const list = res?.data?.providers || [];
-      if (list.length) {
-        setProviders(list);
-        if (!list.find((p) => p.id === provider)) setProvider(list[0].id);
-      }
-    } catch {
-      // silent
-    }
-  }, [provider]);
-
   // Bootstrap + initial load
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +127,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
       loadContext();
       loadHealth();
       loadOutputs();
-      loadProviders();
       apiGet<{ intelligence_score?: number }>(`/clients/${clientId}/suggestions`)
         .then((res) => { if (!cancelled) setIntelligenceScore(Number(res?.intelligence_score || 0)); })
         .catch(() => {});
@@ -155,95 +135,6 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
-
-  // Upload file to library and return ID for chat attachment
-  const uploadFileForChat = async (file: File): Promise<string | null> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return null;
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      const res = await fetch(buildApiUrl(`/clients/${clientId}/library/upload`), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data?.data?.id || data?.id || null;
-    } catch {
-      return null;
-    }
-  };
-
-  // Send Chat Message (55s timeout, always agent mode)
-  const sendChatMessage = async (message: string, files?: File[]) => {
-    setChatLoading(true);
-
-    const fileNames = files?.map((f) => f.name) || [];
-    const userContent =
-      fileNames.length > 0 ? `${message}${message ? '\n' : ''}📎 ${fileNames.join(', ')}` : message;
-
-    setChatMessages((prev) => [
-      ...prev,
-      { role: 'user', content: userContent, timestamp: new Date().toISOString() },
-    ]);
-
-    // Upload files first, get attachment IDs
-    let attachmentIds: string[] = [];
-    if (files?.length) {
-      const results = await Promise.all(files.map(uploadFileForChat));
-      attachmentIds = results.filter((id): id is string => id !== null);
-    }
-
-    try {
-      const res = await Promise.race([
-        apiPost<{
-          data?: {
-            response?: string;
-            conversationId?: string;
-            provider?: string;
-            action?: any;
-          };
-        }>(`/clients/${clientId}/planning/chat`, {
-          message,
-          provider,
-          mode: 'agent',
-          conversationId,
-          ...(attachmentIds.length > 0 && { attachmentIds }),
-        }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 55000)),
-      ]);
-
-      if (res?.data?.conversationId) setConversationId(res.data.conversationId);
-      if (res?.data?.response) {
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: res.data!.response!,
-            timestamp: new Date().toISOString(),
-            provider: res.data!.provider,
-            action: res.data!.action,
-          } as ChatMessage,
-        ]);
-      }
-
-      // Refresh outputs whenever the agent took an action
-      if (res?.data?.action) void loadOutputs();
-    } catch (err: any) {
-      const errorMsg =
-        err?.message === 'timeout'
-          ? 'A IA demorou demais. Tente novamente.'
-          : err?.message || 'Erro ao conversar com a IA.';
-      setChatMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: errorMsg, timestamp: new Date().toISOString() },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
 
   const sources = healthData?.sources as Record<string, SourceHealth> | undefined;
 
@@ -371,25 +262,43 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         </CardContent>
       </Card>
 
-      {/* Chat — full width, tall */}
-      <Box sx={{ flex: 1, minHeight: 520 }}>
-        <AIAssistant
-          messages={chatMessages}
-          providers={providers}
-          selectedProvider={provider}
-          mode="command"
-          loading={chatLoading}
-          onSendMessage={sendChatMessage}
-          onChangeProvider={setProvider}
-          onChangeMode={() => {}}
-          onNewConversation={() => {
-            setChatMessages([]);
-            setConversationId(null);
-          }}
-          contextLoaded={!!intelligenceStats}
-          clientId={clientId}
-        />
-      </Box>
+      {/* Jarvis CTA */}
+      <Card
+        sx={{
+          borderRadius: '12px',
+          border: '1px dashed',
+          borderColor: '#E8521940',
+          bgcolor: '#E852190A',
+          boxShadow: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.15s',
+          '&:hover': { borderColor: '#E85219', bgcolor: '#E852191A' },
+        }}
+        onClick={() => openJarvis(clientId)}
+      >
+        <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: '50%', bgcolor: '#E85219', flexShrink: 0 }}>
+            <IconBrain size={22} color="#fff" />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.25 }}>
+              Abrir Jarvis
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Crie briefings, gere pautas, analise clipping e controle a plataforma por chat.
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<IconSparkles size={14} />}
+            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c94215' }, flexShrink: 0 }}
+            onClick={(e) => { e.stopPropagation(); openJarvis(clientId); }}
+          >
+            Conversar
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Outputs — briefings & copies below chat */}
       <OutputsList
