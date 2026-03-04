@@ -1,5 +1,6 @@
 import { env } from '../env';
 import { generateImage } from './ai/geminiService';
+import { generateCompletion } from './ai/claudeService';
 
 type AdCreativeRequest = {
   copy: string;
@@ -55,24 +56,105 @@ ABSOLUTE PROHIBITIONS: No text. No words. No letters. No numbers. No logos. No w
 
 SCENE:`;
 
+// ── System prompt do Art Director ───────────────────────────────────────────
+const ART_DIRECTOR_SYSTEM = `\
+You are a senior art director at a leading Brazilian advertising agency.
+Your job: translate advertising copy into a concrete, cinematic scene description for AI image generation (Gemini / Imagen 3).
+
+RULES:
+1. The image must be COMPLETELY TEXT-FREE — never describe text, signs, or legible elements.
+2. Find the VISUAL METAPHOR that genuinely bridges the post topic with the brand's identity.
+   - The post topic is the IMAGE SUBJECT (what the image IS ABOUT).
+   - The brand's industry is the VISUAL ENVIRONMENT / AESTHETIC REGISTER (where or how it feels), NOT the subject.
+   - Example: a road company celebrating Advertising Day → the image is about creativity and connection,
+     using wide open roads, horizon lines, and infrastructure as a metaphor for possibility —
+     NOT a construction worker or road signs.
+3. Write ONE coherent English paragraph. Physical objects, light quality, composition, color palette.
+4. Translate abstract concepts into concrete visual constructions:
+   - "creativity" → a single light beam cutting through fog, color pigments dissolving in water,
+     a brushstroke of light across a surface
+   - "connection" → two converging road lines meeting at a horizon, hands almost touching,
+     two rivers merging
+   - "frontier" → a dramatic landscape at the boundary between two different environments
+5. Specify compositional space: end with a note about negative space for text overlay.
+6. Max 200 words. Output ONLY the scene description — no labels, no preamble, no explanation.
+7. Write in English.`;
+
 /**
- * Monta a parte descritiva (ação/conceito) do prompt com base nos parâmetros.
+ * Art Director IA: usa Claude para traduzir os campos estruturados do copy em uma
+ * narrativa de cena concreta e integrada, pronta para ser usada como prompt do Gemini.
+ *
+ * Cria a ponte semântica entre o tema do post e a identidade visual da marca,
+ * substituindo a abordagem de template estático.
+ *
+ * Fallback: se Claude não estiver disponível, retorna buildCreativePrompt().
+ */
+export async function generateArtDirectorPrompt(
+  params: Omit<AdCreativeRequest, 'customPrompt' | 'referenceImageUrls' | 'imageModel' | 'aspectRatio' | 'negativePrompt'>
+): Promise<string> {
+  const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    // Fallback gracioso se Claude não estiver configurado
+    return buildCreativePrompt(params);
+  }
+
+  const headline = params.headline || '';
+  const bodyText = params.bodyText || params.copy.slice(0, 300);
+  const brand = params.brand || '';
+  const segment = params.segment || '';
+  const colors = params.colors?.length ? params.colors.join(', ') : '';
+  const format = params.format;
+  const visualCtx = params.visualContext ? params.visualContext.slice(0, 400) : '';
+  const avoidBlock = params.avoidPatterns?.length
+    ? `\nPreviously rejected patterns to avoid: ${params.avoidPatterns.join(', ')}.`
+    : '';
+  const approvedBlock = params.approvedExamples?.length
+    ? `\nApproved aesthetic style reference: ${params.approvedExamples.slice(0, 2).join(' | ')}.`
+    : '';
+
+  const userPrompt = `Create a scene description for an AI-generated background image:
+
+POST HEADLINE (primary visual concept): "${headline}"
+POST BODY (thematic context): "${bodyText}"
+BRAND: "${brand}"${segment ? ` — sector: ${segment}` : ''}
+FORMAT: ${format}${colors ? `\nBRAND COLORS: ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${approvedBlock}${avoidBlock}
+
+The image will be a full-bleed background. The designer overlays headline and copy on top — leave compositional space for text.
+
+Output: one English paragraph, scene description only.`;
+
+  try {
+    const result = await generateCompletion({
+      prompt: userPrompt,
+      systemPrompt: ART_DIRECTOR_SYSTEM,
+      temperature: 0.75,
+      maxTokens: 350,
+    });
+
+    const scene = result.text.trim();
+    if (!scene) return buildCreativePrompt(params);
+
+    // Injeta o DNA visual técnico antes da narrativa do DA
+    return `${VISUAL_DNA_BASE}\n${scene}`;
+  } catch {
+    // Fallback silencioso — nunca quebra o fluxo
+    return buildCreativePrompt(params);
+  }
+}
+
+/**
+ * Monta a parte descritiva (ação/conceito) do prompt com base em template estático.
+ * Usado como fallback quando o Art Director IA não está disponível.
  *
  * Hierarquia semântica:
  *  ① POST TOPIC (headline + bodyText) — o que a imagem deve mostrar, peso máximo
  *  ② BRAND CONTEXT (brand, segment, colors, visualContext) — identidade visual, peso secundário
- *     O segmento da empresa NÃO é o assunto da imagem: é apenas contexto de marca.
- *     Ex: empresa de rodovias que posta sobre "Dia do Publicitário" → imagem deve ser
- *     sobre publicidade/criatividade, não sobre estradas ou obras.
- *
- * A base técnica (VISUAL_DNA_BASE) é injetada separadamente em generateAdCreative.
  */
 export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPrompt' | 'referenceImageUrls'>): string {
   const colorHint = params.colors?.length
     ? `Apply brand accent color ${params.colors[0]} as tonal influence in lighting and environment.`
     : '';
 
-  // ① POST TOPIC — âncora visual primária (peso máximo)
   const headlineAnchor = params.headline
     ? `IMAGE SUBJECT — visualize this concept as a scene, do NOT render it as text: "${params.headline}".`
     : '';
@@ -83,7 +165,6 @@ export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPromp
     ? `Visual concept (do NOT render as text): ${params.copy.slice(0, 140)}.`
     : '';
 
-  // ② BRAND CONTEXT — estilo e identidade, NÃO o assunto da cena
   const brandContext = [
     params.brand || params.segment
       ? `BRAND CONTEXT (style reference only — this is NOT the image subject): brand "${params.brand || ''}"${params.segment ? `, sector: ${params.segment}` : ''}.`

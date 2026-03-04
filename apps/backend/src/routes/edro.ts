@@ -14,7 +14,7 @@ import {
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
-import { buildCreativePrompt, generateAdCreative } from '../services/adCreativeService';
+import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
@@ -3266,9 +3266,12 @@ export default async function edroRoutes(app: FastifyInstance) {
       }
     }
 
-    // ── Modo prompt_only: retorna o prompt sem chamar o Gemini ──────────
+    // ── Modo prompt_only: Art Director IA gera narrativa de cena ────────
+    // Usa Claude para criar uma ponte semântica entre o tema do post e a
+    // identidade visual da marca. Fallback automático para buildCreativePrompt
+    // se Claude não estiver disponível.
     if (body.prompt_only) {
-      const previewPrompt = buildCreativePrompt({
+      const artDirectorParams = {
         copy: selectedCopy.output,
         headline: body.headline || undefined,
         bodyText: body.body_text || undefined,
@@ -3280,7 +3283,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         visualContext: visualContext || undefined,
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
-      });
+      };
+      const previewPrompt = await generateArtDirectorPrompt(artDirectorParams);
       return reply.send({
         success: true,
         prompt: previewPrompt,
