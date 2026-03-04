@@ -230,7 +230,9 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
     }
     try {
       const sceneNarrative = params.customPrompt || buildScenePrompt(params);
-      const finalPrompt = `${VISUAL_DNA_BASE}\n${sceneNarrative}`;
+      // Leonardo is SD-based: shorter prefix, full scene narrative takes priority
+      const LEONARDO_PREFIX = 'Cinematic advertising photograph, pure background image, absolutely no text no words no letters no logos no watermarks, photorealistic, commercial quality. SCENE:';
+      const finalPrompt = `${LEONARDO_PREFIX} ${sceneNarrative}`;
       const modelId = resolveLeonardoModelId(params.imageModel);
       const t0 = Date.now();
       const result = await generateImageWithLeonardo({
