@@ -156,7 +156,36 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
       {/* ── Post Image ── */}
       <div className="w-full relative" style={{ aspectRatio: postAspectRatio, background: '#efefef' }}>
         {currentImage && (!currentImage.startsWith('data:') || currentImage.startsWith('data:image/png') || currentImage.startsWith('data:image/jpeg') || currentImage.startsWith('data:image/webp')) ? (
-          <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
+          <div className="w-full h-full relative overflow-hidden">
+            <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
+            {(resolvedHeadline || resolvedBody) && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.42) 55%, transparent 100%)',
+                padding: '40px 18px 18px',
+              }}>
+                {resolvedHeadline && (
+                  <p style={{
+                    color: '#fff', fontWeight: 700, fontSize: 15, lineHeight: 1.3, margin: 0,
+                    marginBottom: resolvedBody ? 5 : 0,
+                    textShadow: '0 1px 6px rgba(0,0,0,0.6)',
+                    display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>
+                    {resolvedHeadline}
+                  </p>
+                )}
+                {resolvedBody && (
+                  <p style={{
+                    color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.45, margin: 0,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>
+                    {resolvedBody}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         ) : resolvedHeadline ? (
           <div
             className="w-full h-full relative flex flex-col items-center justify-center overflow-hidden"

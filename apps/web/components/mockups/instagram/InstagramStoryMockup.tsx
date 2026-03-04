@@ -59,11 +59,39 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
     >
       {/* ── Background ── */}
       {resolvedImage ? (
-        <img
-          src={resolvedImage}
-          alt="Story"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        <>
+          <img
+            src={resolvedImage}
+            alt="Story"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          {(resolvedHeadline || resolvedBody) && (
+            <div style={{
+              position: 'absolute', bottom: 80, left: 0, right: 0, zIndex: 5,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.45) 60%, transparent 100%)',
+              padding: '40px 24px 24px',
+              textAlign: 'center',
+            }}>
+              {resolvedHeadline && (
+                <p style={{
+                  color: '#fff', fontWeight: 800, fontSize: 20, lineHeight: 1.25,
+                  letterSpacing: '-0.02em', margin: '0 0 8px',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                }}>
+                  {resolvedHeadline}
+                </p>
+              )}
+              {resolvedBody && (
+                <p style={{
+                  color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 1.45, margin: 0,
+                  textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                }}>
+                  {resolvedBody}
+                </p>
+              )}
+            </div>
+          )}
+        </>
       ) : resolvedHeadline ? (
         /* AI text overlay as background */
         <div style={{
