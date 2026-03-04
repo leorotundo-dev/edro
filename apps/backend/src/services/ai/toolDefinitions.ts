@@ -114,6 +114,20 @@ export const TOOLS: ToolDefinition[] = [
     required: ['event_id'],
     category: 'read',
   },
+  {
+    name: 'add_calendar_event',
+    description: 'Adiciona uma data comemorativa ou evento personalizado ao calendário do cliente. Use quando o usuário pedir para adicionar, incluir ou marcar uma data no calendário. Se o evento veio de search_events, passe o event_id para associar o evento global ao cliente.',
+    parameters: {
+      title: { type: 'string', description: 'Título do evento (ex: "Dia do Pi", "Lançamento do Produto X")' },
+      event_date: { type: 'string', description: 'Data no formato YYYY-MM-DD' },
+      description: { type: 'string', description: 'Descrição ou oportunidade de conteúdo para esta data' },
+      category: { type: 'string', description: 'Categoria (ex: comemorativo, marketing, produto, institucional)' },
+      event_id: { type: 'string', description: 'ID do evento global retornado por search_events — se fornecido, associa o evento existente ao cliente' },
+      notes: { type: 'string', description: 'Notas sobre por que este evento é relevante para o cliente' },
+    },
+    required: ['title', 'event_date'],
+    category: 'write',
+  },
 
   // ── Clipping & Monitoramento ──
   {

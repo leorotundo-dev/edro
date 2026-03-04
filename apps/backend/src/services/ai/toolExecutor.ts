@@ -70,6 +70,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_upcoming_events: toolListUpcomingEvents,
   search_events: toolSearchEvents,
   get_event_relevance: toolGetEventRelevance,
+  add_calendar_event: toolAddCalendarEvent,
   search_clipping: toolSearchClipping,
   get_clipping_item: toolGetClippingItem,
   list_clipping_sources: toolListClippingSources,
@@ -308,6 +309,66 @@ async function toolGetEventRelevance(args: any, ctx: ToolContext): Promise<ToolR
     return { success: true, data: { ...ev[0], relevance_score: null, note: 'No custom relevance calculated for this client' } };
   }
   return { success: true, data: rows[0] };
+}
+
+async function toolAddCalendarEvent(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { title, event_date, description, category, event_id, notes } = args;
+
+  if (!title || !event_date) {
+    return { success: false, error: 'title e event_date são obrigatórios.' };
+  }
+
+  // Validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date)) {
+    return { success: false, error: 'event_date deve estar no formato YYYY-MM-DD.' };
+  }
+
+  // Path A: associar evento global existente ao cliente via override
+  if (event_id) {
+    await query(
+      `INSERT INTO calendar_event_overrides
+         (tenant_id, calendar_event_id, client_id, force_include, notes)
+       VALUES ($1::uuid, $2, $3, true, $4)
+       ON CONFLICT (tenant_id, calendar_event_id, client_id)
+       DO UPDATE SET force_include = true, notes = EXCLUDED.notes, updated_at = now()`,
+      [ctx.tenantId, event_id, ctx.clientId, notes || null],
+    );
+    return {
+      success: true,
+      data: {
+        message: `"${title}" adicionado ao calendário do cliente.`,
+        event_id,
+        date: event_date,
+        type: 'override',
+      },
+    };
+  }
+
+  // Path B: criar evento personalizado em calendar_events (requer edroClientId UUID)
+  if (!ctx.edroClientId) {
+    return { success: false, error: 'Cliente não localizado no sistema de calendário. Tente fornecer o event_id do evento.' };
+  }
+
+  const { rows } = await query(
+    `INSERT INTO calendar_events (client_id, title, description, event_date, category, source)
+     VALUES ($1::uuid, $2, $3, $4::date, $5, 'jarvis')
+     ON CONFLICT DO NOTHING
+     RETURNING id, title, event_date, category`,
+    [ctx.edroClientId, title, description || null, event_date, category || 'comemorativo'],
+  );
+
+  if (!rows[0]) {
+    return { success: false, error: 'Não foi possível criar o evento (possível duplicata).' };
+  }
+
+  return {
+    success: true,
+    data: {
+      message: `"${title}" criado no calendário do cliente para ${event_date}.`,
+      event: rows[0],
+      type: 'custom',
+    },
+  };
 }
 
 // ── Clipping & Monitoramento ───────────────────────────────────

@@ -310,6 +310,7 @@ CAPACIDADES:
 - Buscar notícias e clipping relevante
 - Ver tendências e menções em redes sociais
 - Consultar calendario de datas e eventos
+- Adicionar datas comemorativas ou eventos ao calendário do cliente
 - Buscar na biblioteca de conhecimento do cliente
 - Listar e gerenciar campanhas
 - Ver e agir sobre oportunidades detectadas pela IA
