@@ -2043,6 +2043,94 @@ export default async function edroRoutes(app: FastifyInstance) {
       /* audit is non-blocking */
     }
 
+    // ── Semantic Review Loop ─────────────────────────────────────────────────
+    // Avalia o copy gerado com o olhar do editor-chefe e corrige automaticamente
+    // até atingir qualidade >= 7.5/10. Máx 2 iterações — totalmente invisível ao usuário.
+    // ─────────────────────────────────────────────────────────────────────────
+    const REVIEW_SCORE_THRESHOLD = 7.5;
+    const MAX_REVIEW_ITERATIONS = 2;
+    let semanticReviewScore: number | null = null;
+    let semanticReviewWarnings: string[] = [];
+    let semanticReviewIterations = 0;
+
+    try {
+      if (tenantId) {
+        const briefingCtx = [
+          briefing.title,
+          (briefing.payload as any)?.objetivo || (briefing.payload as any)?.objective || '',
+        ].filter(Boolean).join(' — ');
+        const brandCtx = knowledgeBlock || '';
+
+        for (let ri = 0; ri < MAX_REVIEW_ITERATIONS; ri++) {
+          const reviewText = typeof output === 'string' ? output : JSON.stringify(output);
+          if (!reviewText || reviewText.length < 50) break;
+
+          // Score the current output
+          const reviewPrompt = `Você é o editor-chefe de uma agência de comunicação premium.
+Analise o copy abaixo e avalie a qualidade em relação ao briefing e DNA do cliente.
+${briefingCtx ? `\nBRIEFING: ${briefingCtx}` : ''}
+${brandCtx ? `\nDNA DO CLIENTE:\n${brandCtx}` : ''}
+
+COPY PARA AVALIAÇÃO:
+${reviewText}
+
+Retorne APENAS JSON válido:
+{"overall_score":<número 0-10>,"summary":"<1-2 frases>","warnings":["<problema 1>","<problema 2>"]}
+
+Critério: >= 7.5 = aprovado, < 7.5 = requer refinamento.`;
+
+          const reviewResult = await generateCopy({
+            prompt: reviewPrompt,
+            taskType: 'final_review',
+            temperature: 0.25,
+            maxTokens: 400,
+            usageContext: { tenant_id: tenantId, feature: 'review_loop' },
+          });
+
+          let reviewParsed: { overall_score: number; warnings: string[] } = { overall_score: 8, warnings: [] };
+          try {
+            const s = reviewResult.output.indexOf('{');
+            const e = reviewResult.output.lastIndexOf('}');
+            if (s >= 0 && e > s) reviewParsed = JSON.parse(reviewResult.output.slice(s, e + 1));
+          } catch { /* use defaults — assume passing */ }
+
+          semanticReviewScore = reviewParsed.overall_score ?? 8;
+          semanticReviewWarnings = Array.isArray(reviewParsed.warnings) ? reviewParsed.warnings : [];
+          semanticReviewIterations = ri + 1;
+
+          if (semanticReviewScore >= REVIEW_SCORE_THRESHOLD || semanticReviewWarnings.length === 0 || ri === MAX_REVIEW_ITERATIONS - 1) break;
+
+          // Rewrite with targeted corrections
+          const correctionPrompt = `Você é um redator sênior de agência de comunicação premium.
+O copy abaixo foi avaliado com score ${semanticReviewScore}/10. Corrija os seguintes problemas:
+${semanticReviewWarnings.map((w) => `- ${w}`).join('\n')}
+${briefingCtx ? `\nBRIEFING: ${briefingCtx}` : ''}
+${brandCtx ? `\nDNA DO CLIENTE:\n${brandCtx}` : ''}
+
+COPY ORIGINAL:
+${reviewText}
+
+Reescreva mantendo exatamente a mesma estrutura (headline, body, CTA, legenda, hashtags) e idioma. Retorne apenas o copy reescrito, sem explicações ou comentários.`;
+
+          const corrected = await generateCopy({
+            prompt: correctionPrompt,
+            taskType: 'social_post',
+            temperature: 0.45,
+            maxTokens: 1500,
+            usageContext: { tenant_id: tenantId, feature: 'review_loop_correction' },
+          });
+
+          if (corrected?.output) {
+            output = corrected.output;
+            request.log?.info({ score: semanticReviewScore, iteration: ri + 1, warnings: semanticReviewWarnings.length }, 'review_loop_corrected');
+          }
+        }
+      }
+    } catch {
+      /* review loop é totalmente não-bloqueante — falha silenciosa */
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // AgentTagger — classifica a copy com metadata comportamental (Gemini Flash, não-bloqueante)
     let behavioralTags: Awaited<ReturnType<typeof tagCopy>> | null = null;
     try {
@@ -2093,6 +2181,14 @@ export default async function edroRoutes(app: FastifyInstance) {
         status:              policyResult.status,
         policies_triggered:  policyResult.policies_triggered,
         rationale:           policyResult.rationale,
+      };
+    }
+    if (semanticReviewScore !== null) {
+      edroPayload.review_loop = {
+        final_score:  semanticReviewScore,
+        iterations:   semanticReviewIterations,
+        warnings:     semanticReviewWarnings,
+        passed:       semanticReviewScore >= REVIEW_SCORE_THRESHOLD,
       };
     }
     const hasEdroPayload = Object.keys(edroPayload).length > 0;
