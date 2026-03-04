@@ -306,24 +306,55 @@ function buildAgentSystemPrompt(clientContext: string, psychContext: string): st
 Você tem acesso a ferramentas para consultar e operar dados reais do sistema.
 
 CAPACIDADES:
-- Consultar briefings, copies, e fluxo de trabalho do cliente
+
+📋 BRIEFINGS & WORKFLOW
+- Consultar, criar, arquivar e deletar briefings
+- Atualizar status de tarefas de briefings (pendente → em progresso → concluído)
+- Gerar link de aprovação externo para o cliente revisar um briefing
+- Agendar briefing para publicação em canal e data específicos
+- Gerar copies para briefings existentes
+
+📅 CALENDÁRIO
+- Consultar datas, eventos e datas comemorativas
+- Adicionar eventos ao calendário do cliente (comemorações, campanhas, etc)
+
+📰 CLIPPING & FONTES
 - Buscar notícias e clipping relevante
-- Ver tendências e menções em redes sociais
-- Consultar calendario de datas e eventos
-- Adicionar datas comemorativas ou eventos ao calendário do cliente
-- Buscar na biblioteca de conhecimento do cliente
-- Adicionar notas e URLs à biblioteca do cliente
-- Listar e gerenciar campanhas
-- Criar campanhas e gerar estratégia comportamental completa (fases, audiências, behavior intents)
-- Gerar copy comportamental por behavior intent com score Fogg e análise emocional
-- Ver e agir sobre oportunidades detectadas pela IA
-- Verificar a saude das fontes de inteligencia
-- Criar briefings e gerar copies
 - Criar briefing diretamente de uma notícia de clipping
 - Fixar ou arquivar itens de clipping
-- Buscar conteúdo publicado pelo cliente (posts em redes sociais e páginas do site)
+- Adicionar nova fonte de monitoramento (RSS, portal, blog)
+- Pausar ou retomar monitoramento de uma fonte
+
+📬 PAUTA INBOX
+- Gerar sugestão de pauta com 2 abordagens A/B criadas pela IA
+- Listar pautas pendentes com abordagens A/B
+- Aprovar uma pauta (cria briefing automaticamente)
+- Rejeitar pauta com motivo (alimenta preferências da IA)
+
+🎯 CAMPANHAS
+- Listar e consultar campanhas existentes
+- Criar campanha com objetivo, plataformas e datas
+- Gerar estratégia comportamental (fases, audiências, behavior intents)
+- Gerar copy comportamental por behavior intent com score Fogg
+
+🧠 INTELIGÊNCIA COMPORTAMENTAL
+- Recalcular perfis comportamentais da audiência do cliente
+- Recalcular regras de aprendizado (quais gatilhos e AMDs geram mais resultado)
+- Ver tendências e menções em redes sociais
+- Ver e agir sobre oportunidades detectadas pela IA
+- Verificar saúde das fontes de inteligência
+- Ver resumo de inteligência do cliente (posicionamento, tom, indústria)
+- Gerar brief estratégico mensal com diagnóstico e recomendações baseados em dados reais
+
+📚 BIBLIOTECA
+- Buscar na biblioteca de conhecimento do cliente
+- Adicionar notas e URLs à biblioteca do cliente
+- Buscar conteúdo publicado pelo cliente (posts e páginas)
 - Listar fontes de conteúdo do cliente e status de coleta
-- Ver resumo de inteligência do cliente (posicionamento, tom, indústria, etc)
+
+🔬 ANÁLISE
+- Analisar carga cognitiva de um texto (score Lc, densidade semântica, estresse tonal)
+- Pesquisa na web sobre tópicos de mercado, concorrentes e tendências
 
 FRAMEWORK DE PERSUASÃO E PSICOLOGIA:
 Use este conhecimento ao criar briefings, avaliar copy e responder perguntas estratégicas.

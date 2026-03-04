@@ -10,6 +10,9 @@ import {
   createCopyVersion,
   getBriefingById,
   listBriefings,
+  deleteBriefing,
+  archiveBriefing,
+  updateTaskStatus,
 } from '../../repositories/edroBriefingRepository';
 import { getClientById } from '../../repos/clientsRepo';
 import { generateCopy } from './copyService';
@@ -20,9 +23,14 @@ import { generateCampaignStrategy } from './agentPlanner';
 import { generateBehavioralDraft } from './agentWriter';
 import { auditDraftContent } from './agentAuditor';
 import { tagCopy } from './agentTagger';
-import { loadBehaviorProfiles } from '../behaviorClusteringService';
-import { loadLearningRules } from '../learningEngine';
+import { loadBehaviorProfiles, recomputeClientBehaviorProfiles } from '../behaviorClusteringService';
+import { loadLearningRules, recomputeClientLearningRules } from '../learningEngine';
 import { createLibraryItem } from '../../library/libraryRepo';
+import { generatePautaSuggestions } from '../pautaSuggestionService';
+import { recordPreferenceFeedback } from '../preferenceEngine';
+import { analyzeCognitiveLoad } from '../cognitiveLoadService';
+import { generateWithProvider } from './copyOrchestrator';
+import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -106,6 +114,28 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   web_search: toolWebSearch,
   web_extract: toolWebExtract,
   web_research: toolWebResearch,
+  // Grupo 1 — Lifecycle de Briefings
+  delete_briefing: toolDeleteBriefing,
+  archive_briefing: toolArchiveBriefing,
+  generate_approval_link: toolGenerateApprovalLink,
+  schedule_briefing: toolScheduleBriefing,
+  // Grupo 2 — Workflow
+  update_task: toolUpdateTask,
+  generate_strategic_brief: toolGenerateStrategicBrief,
+  // Grupo 3 — Inteligência Comportamental
+  compute_behavior_profiles: toolComputeBehaviorProfiles,
+  compute_learning_rules: toolComputeLearningRules,
+  // Grupo 4 — Pauta Inbox
+  generate_pauta: toolGeneratePauta,
+  list_pauta_inbox: toolListPautaInbox,
+  approve_pauta: toolApprovePauta,
+  reject_pauta: toolRejectPauta,
+  // Grupo 5 — Fontes de Clipping
+  add_clipping_source: toolAddClippingSource,
+  pause_clipping_source: toolPauseClippingSource,
+  resume_clipping_source: toolResumeClippingSource,
+  // Grupo 6 — Análise
+  analyze_cognitive_load: toolAnalyzeCognitiveLoad,
 };
 
 export async function executeTool(
@@ -1418,4 +1448,348 @@ async function toolWebResearch(args: any, ctx: ToolContext): Promise<ToolResult>
   } catch (err: any) {
     return { success: false, error: `Web research falhou: ${err.message}` };
   }
+}
+
+// ── GRUPO 1: Lifecycle de Briefings ──────────────────────────────
+
+async function toolDeleteBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { briefing_id } = args;
+  if (!briefing_id) return { success: false, error: 'briefing_id é obrigatório.' };
+  const deleted = await deleteBriefing(briefing_id);
+  if (!deleted) return { success: false, error: 'Briefing não encontrado.' };
+  return { success: true, data: { message: 'Briefing deletado permanentemente.' } };
+}
+
+async function toolArchiveBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { briefing_id } = args;
+  if (!briefing_id) return { success: false, error: 'briefing_id é obrigatório.' };
+  const briefing = await archiveBriefing(briefing_id);
+  if (!briefing) return { success: false, error: 'Briefing não encontrado.' };
+  return { success: true, data: { message: 'Briefing arquivado com sucesso.', briefing } };
+}
+
+async function toolGenerateApprovalLink(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { briefing_id, client_name, expires_in_days } = args;
+  if (!briefing_id) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomBytes(8).toString('hex');
+  const days = Math.min(expires_in_days ?? 7, 30);
+  const expiresAt = new Date(Date.now() + days * 86400000);
+
+  await query(
+    `INSERT INTO edro_approval_tokens (briefing_id, token, client_name, expires_at, tenant_id)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT DO NOTHING`,
+    [briefing_id, token, client_name ?? null, expiresAt, ctx.tenantId]
+  );
+
+  const approvalUrl = `${process.env.WEB_URL ?? 'https://app.edro.digital'}/edro/aprovacao-externa?token=${token}`;
+  return { success: true, data: { approvalUrl, expiresAt: expiresAt.toISOString(), token, expires_in_days: days } };
+}
+
+async function toolScheduleBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { briefing_id, copy_id, channel, scheduled_for } = args;
+  if (!briefing_id || !copy_id || !channel || !scheduled_for) {
+    return { success: false, error: 'briefing_id, copy_id, channel e scheduled_for são obrigatórios.' };
+  }
+
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO edro_publish_schedule (briefing_id, copy_version_id, channel, scheduled_for, tenant_id, status)
+     VALUES ($1,$2,$3,$4,$5,'pending')
+     RETURNING id`,
+    [briefing_id, copy_id, channel, scheduled_for, ctx.tenantId]
+  );
+
+  return {
+    success: true,
+    data: { message: `Briefing agendado para ${channel} em ${scheduled_for}.`, scheduleId: rows[0]?.id, scheduledFor: scheduled_for, channel },
+  };
+}
+
+// ── GRUPO 2: Workflow e Planejamento ────────────────────────────
+
+async function toolUpdateTask(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { task_id, status } = args;
+  if (!task_id || !status) return { success: false, error: 'task_id e status são obrigatórios.' };
+
+  const task = await updateTaskStatus({ taskId: task_id, status });
+  if (!task) return { success: false, error: 'Tarefa não encontrada.' };
+  return { success: true, data: { message: `Tarefa atualizada para "${status}".`, task } };
+}
+
+async function toolGenerateStrategicBrief(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (!ctx.edroClientId) return { success: false, error: 'Cliente não encontrado no contexto.' };
+
+  const targetMonth = args.month || new Date().getMonth() + 2;
+  const targetYear = args.year || new Date().getFullYear();
+  const periodFrom = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+  const [metricsRes, calendarRes, opportunitiesRes, clientRes] = await Promise.all([
+    query<{ total: string; completed: string; completion_rate: string }>(
+      `SELECT COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE status = 'done') AS completed,
+         ROUND(COUNT(*) FILTER (WHERE status = 'done')::numeric / NULLIF(COUNT(*), 0) * 100) AS completion_rate
+       FROM edro_briefings WHERE client_id = $1 AND created_at >= $2`,
+      [ctx.edroClientId, periodFrom]
+    ),
+    query<{ title: string; event_date: string }>(
+      `SELECT title, event_date::text FROM calendar_events
+       WHERE client_id = $1 AND EXTRACT(MONTH FROM event_date) = $2 AND EXTRACT(YEAR FROM event_date) = $3
+       ORDER BY event_date LIMIT 10`,
+      [ctx.edroClientId, targetMonth, targetYear]
+    ).catch(() => ({ rows: [] as { title: string; event_date: string }[] })),
+    query<{ title: string; priority: string }>(
+      `SELECT title, priority FROM ai_opportunities
+       WHERE client_id = $1 AND status = 'active'
+       ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END LIMIT 6`,
+      [ctx.edroClientId]
+    ).catch(() => ({ rows: [] as { title: string; priority: string }[] })),
+    query<{ name: string; segment_primary: string | null }>(
+      `SELECT name, segment_primary FROM clients WHERE id = $1 LIMIT 1`,
+      [ctx.clientId]
+    ),
+  ]);
+
+  const m = metricsRes.rows[0];
+  const client = clientRes.rows[0];
+  const monthName = new Date(targetYear, targetMonth - 1).toLocaleDateString('pt-BR', { month: 'long' });
+  const calendarBlock = calendarRes.rows.map((e) => `• ${e.event_date?.slice(0, 10)}: ${e.title}`).join('\n') || 'Nenhum evento mapeado.';
+  const oppsBlock = opportunitiesRes.rows.map((o) => `• [${o.priority.toUpperCase()}] ${o.title}`).join('\n') || 'Nenhuma oportunidade.';
+
+  const prompt = `Você é o estrategista-chefe da Edro Studio. Prepare o PLANEJAMENTO ESTRATÉGICO MENSAL para ${client?.name ?? 'o cliente'} — referente a ${monthName}/${targetYear}.
+
+## DADOS DOS ÚLTIMOS 60 DIAS
+- Briefings: ${m?.total || 0} total, ${m?.completed || 0} concluídos (${m?.completion_rate || 0}% conclusão)
+
+## CALENDÁRIO ${monthName.toUpperCase()}/${targetYear}
+${calendarBlock}
+
+## OPORTUNIDADES IA
+${oppsBlock}
+
+Entregue um planejamento executivo com: 1) Diagnóstico (3 pontos), 2) Objetivos do mês, 3) Estratégia de conteúdo, 4) Top 5 datas para ativar, 5) Copy Guidelines, 6) KPIs com metas, 7) Alerta de risco. Máximo 700 palavras.`;
+
+  const result = await generateWithProvider('claude', { prompt, temperature: 0.6, maxTokens: 2000 });
+  return {
+    success: true,
+    data: {
+      brief: result.output,
+      client_name: client?.name,
+      period: { month: targetMonth, year: targetYear, label: `${monthName}/${targetYear}` },
+      data_used: { calendar_events: calendarRes.rows.length, ai_opportunities: opportunitiesRes.rows.length },
+    },
+  };
+}
+
+// ── GRUPO 3: Inteligência Comportamental ────────────────────────
+
+async function toolComputeBehaviorProfiles(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const profiles = await recomputeClientBehaviorProfiles(ctx.tenantId, ctx.clientId);
+  const topCluster = profiles[0] ?? null;
+  return {
+    success: true,
+    data: {
+      message: `${profiles.length} perfis comportamentais recalculados.`,
+      profiles_count: profiles.length,
+      top_cluster: topCluster ? `${topCluster.cluster_label} (confiança: ${topCluster.confidence_score?.toFixed(2)})` : null,
+    },
+  };
+}
+
+async function toolComputeLearningRules(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const rules = await recomputeClientLearningRules(ctx.tenantId, ctx.clientId);
+  const topRule = rules[0] ?? null;
+  return {
+    success: true,
+    data: {
+      message: `${rules.length} regras de aprendizado recalculadas.`,
+      rules_count: rules.length,
+      top_rule: topRule ? `${topRule.rule_name} (uplift: +${(topRule.uplift_value ?? 0).toFixed(1)}%)` : null,
+    },
+  };
+}
+
+// ── GRUPO 4: Pauta Inbox ──────────────────────────────────────────
+
+async function toolGeneratePauta(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { title, source_text, platforms, topic_category } = args;
+  if (!title) return { success: false, error: 'title é obrigatório.' };
+
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO pauta_suggestions (client_id, tenant_id, title, status, source_type, topic_category)
+     VALUES ($1,$2,$3,'pending','manual',$4)
+     RETURNING id`,
+    [ctx.clientId, ctx.tenantId, title, topic_category ?? null]
+  );
+
+  const pautaId = rows[0]?.id;
+  if (!pautaId) return { success: false, error: 'Erro ao criar pauta.' };
+
+  // Fire-and-forget AI generation
+  const source = {
+    type: 'manual' as const,
+    id: pautaId,
+    title,
+    summary: source_text ?? title,
+    date: new Date().toISOString().slice(0, 10),
+  };
+  generatePautaSuggestions({ client_id: ctx.clientId, tenant_id: ctx.tenantId, sources: [source] }).catch(() => {});
+
+  return {
+    success: true,
+    data: { message: 'Pauta enfileirada — abordagens A/B serão geradas em breve.', pauta_id: pautaId },
+  };
+}
+
+async function toolListPautaInbox(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const status = args.status ?? null;
+  const limit = Math.min(args.limit ?? 10, 50);
+
+  const { rows } = await query<any>(
+    `SELECT id, title, status, topic_category, suggested_deadline, approach_a, approach_b, created_at
+     FROM pauta_suggestions
+     WHERE client_id=$1 AND tenant_id=$2
+       ${status ? `AND status=$3` : ''}
+     ORDER BY created_at DESC LIMIT ${limit}`,
+    status ? [ctx.clientId, ctx.tenantId, status] : [ctx.clientId, ctx.tenantId]
+  );
+
+  return { success: true, data: { pautas: rows, total: rows.length }, metadata: { row_count: rows.length } };
+}
+
+async function toolApprovePauta(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { pauta_id, approach } = args;
+  if (!pauta_id) return { success: false, error: 'pauta_id é obrigatório.' };
+
+  const { rows } = await query<any>(
+    `SELECT * FROM pauta_suggestions WHERE id=$1 AND client_id=$2 AND tenant_id=$3 LIMIT 1`,
+    [pauta_id, ctx.clientId, ctx.tenantId]
+  );
+  const pauta = rows[0];
+  if (!pauta) return { success: false, error: 'Pauta não encontrada.' };
+
+  const chosenApproach = approach === 'B' ? (pauta.approach_b ?? {}) : (pauta.approach_a ?? {});
+  const title = chosenApproach.title ?? pauta.title ?? 'Briefing';
+
+  const briefing = await createBriefing({
+    mainClientId: ctx.edroClientId ?? undefined,
+    title,
+    payload: { ...chosenApproach, pauta_id, approach: approach ?? 'A' },
+    source: 'pauta_inbox',
+  });
+
+  if (briefing?.id) {
+    await createBriefingStages(briefing.id);
+  }
+
+  // Record preference feedback (non-blocking)
+  recordPreferenceFeedback({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    payload: {
+      feedback_type: 'pauta',
+      action: 'approved',
+      pauta_id,
+      pauta_approach: approach ?? 'A',
+      pauta_source_type: pauta.source_type ?? null,
+      pauta_topic_category: pauta.topic_category ?? null,
+      pauta_platforms: chosenApproach.platforms ?? null,
+    } as any,
+  }).catch(() => {});
+
+  await query(
+    `UPDATE pauta_suggestions SET status='approved' WHERE id=$1`,
+    [pauta_id]
+  );
+
+  return {
+    success: true,
+    data: { message: `Pauta aprovada (Abordagem ${approach ?? 'A'}). Briefing criado.`, briefing_id: briefing?.id },
+  };
+}
+
+async function toolRejectPauta(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { pauta_id, reason, tags } = args;
+  if (!pauta_id) return { success: false, error: 'pauta_id é obrigatório.' };
+
+  recordPreferenceFeedback({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    payload: {
+      feedback_type: 'pauta',
+      action: 'rejected',
+      pauta_id,
+      rejection_reason: reason ?? null,
+      rejection_tags: tags ?? null,
+    } as any,
+  }).catch(() => {});
+
+  await query(`UPDATE pauta_suggestions SET status='rejected' WHERE id=$1`, [pauta_id]);
+
+  return { success: true, data: { message: 'Pauta rejeitada. Feedback registrado para melhorar futuras sugestões.' } };
+}
+
+// ── GRUPO 5: Fontes de Clipping ────────────────────────────────
+
+async function toolAddClippingSource(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { name, url, type, include_keywords } = args;
+  if (!name || !url) return { success: false, error: 'name e url são obrigatórios.' };
+
+  const keywords = Array.isArray(include_keywords) ? include_keywords : [];
+
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO clipping_sources (tenant_id, client_id, name, url, type, include_keywords, scope, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,'CLIENT',true)
+     RETURNING id`,
+    [ctx.tenantId, ctx.clientId, name, url, type ?? 'NEWS', keywords.length ? keywords : null]
+  );
+
+  return {
+    success: true,
+    data: { message: `Fonte "${name}" adicionada ao monitoramento.`, source_id: rows[0]?.id },
+  };
+}
+
+async function toolPauseClippingSource(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { source_id } = args;
+  if (!source_id) return { success: false, error: 'source_id é obrigatório.' };
+
+  await query(
+    `UPDATE clipping_sources SET is_active=false WHERE id=$1 AND tenant_id=$2`,
+    [source_id, ctx.tenantId]
+  );
+  return { success: true, data: { message: 'Monitoramento da fonte pausado.' } };
+}
+
+async function toolResumeClippingSource(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { source_id } = args;
+  if (!source_id) return { success: false, error: 'source_id é obrigatório.' };
+
+  await query(
+    `UPDATE clipping_sources SET is_active=true WHERE id=$1 AND tenant_id=$2`,
+    [source_id, ctx.tenantId]
+  );
+  return { success: true, data: { message: 'Monitoramento da fonte retomado.' } };
+}
+
+// ── GRUPO 6: Análise e Relatórios ──────────────────────────────
+
+async function toolAnalyzeCognitiveLoad(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { text, platform } = args;
+  if (!text) return { success: false, error: 'text é obrigatório.' };
+
+  const analysis = analyzeCognitiveLoad(text, platform ?? null);
+
+  return {
+    success: true,
+    data: {
+      lc_score: analysis.lc,
+      density: analysis.components.ds,
+      tonal_stress: analysis.components.sigma,
+      platform_ideal_range: analysis.threshold ? `${analysis.threshold.min}–${analysis.threshold.max} (${analysis.threshold.label})` : null,
+      is_optimal: analysis.passed,
+      status: analysis.status,
+      diagnosis: analysis.diagnosis,
+    },
+  };
 }

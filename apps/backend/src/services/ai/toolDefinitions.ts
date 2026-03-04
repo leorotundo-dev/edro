@@ -427,6 +427,176 @@ export const TOOLS: ToolDefinition[] = [
     required: ['query'],
     category: 'read',
   },
+
+  // ── GRUPO 1: Lifecycle de Briefings ──────────────────────────
+  {
+    name: 'delete_briefing',
+    description: 'Deleta permanentemente um briefing. Use apenas quando o usuário confirmar explicitamente que quer deletar.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing a deletar' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
+    name: 'archive_briefing',
+    description: 'Arquiva um briefing (não deleta — pode ser restaurado). Use quando o usuário quiser guardar mas tirar do fluxo ativo.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing a arquivar' },
+    },
+    required: ['briefing_id'],
+    category: 'write',
+  },
+  {
+    name: 'generate_approval_link',
+    description: 'Gera um link de aprovação para o cliente revisar e aprovar o briefing externamente. O link expira em N dias.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing' },
+      client_name: { type: 'string', description: 'Nome do cliente (para personalizar o link)' },
+      expires_in_days: { type: 'number', description: 'Dias até expirar (default: 7, máx: 30)' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
+    name: 'schedule_briefing',
+    description: 'Agenda um briefing para publicação em uma data/canal específico. Requer que o briefing já tenha uma copy aprovada.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing' },
+      copy_id: { type: 'string', description: 'UUID da copy version a publicar' },
+      channel: { type: 'string', description: 'Canal de publicação (ex: instagram, linkedin, email)' },
+      scheduled_for: { type: 'string', description: 'Data/hora no formato YYYY-MM-DDTHH:MM:SS' },
+    },
+    required: ['briefing_id', 'copy_id', 'channel', 'scheduled_for'],
+    category: 'write',
+  },
+
+  // ── GRUPO 2: Workflow e Planejamento ─────────────────────────
+  {
+    name: 'update_task',
+    description: 'Atualiza o status de uma tarefa de um briefing. Use quando o usuário disser que concluiu uma etapa, aprovou algo ou quer marcar como feito.',
+    parameters: {
+      task_id: { type: 'string', description: 'UUID da tarefa' },
+      status: { type: 'string', description: 'Novo status', enum: ['pending', 'in_progress', 'done', 'cancelled'] },
+    },
+    required: ['task_id', 'status'],
+    category: 'write',
+  },
+  {
+    name: 'generate_strategic_brief',
+    description: 'Gera um brief estratégico mensal para o cliente com diagnóstico, objetivos e recomendações baseados em dados reais do sistema.',
+    parameters: {
+      month: { type: 'number', description: 'Mês (1-12, default: próximo mês)' },
+      year: { type: 'number', description: 'Ano (default: ano atual)' },
+    },
+    required: [],
+    category: 'action',
+  },
+
+  // ── GRUPO 3: Inteligência Comportamental ─────────────────────
+  {
+    name: 'compute_behavior_profiles',
+    description: 'Recalcula os perfis comportamentais da audiência do cliente com base nas métricas mais recentes das campanhas. Use quando o cliente tiver novos dados de performance.',
+    parameters: {},
+    required: [],
+    category: 'action',
+  },
+  {
+    name: 'compute_learning_rules',
+    description: 'Recalcula as regras de aprendizado do cliente (quais AMDs e gatilhos geram uplift) com base nos dados mais recentes.',
+    parameters: {},
+    required: [],
+    category: 'action',
+  },
+
+  // ── GRUPO 4: Pauta Inbox ──────────────────────────────────────
+  {
+    name: 'generate_pauta',
+    description: 'Gera uma sugestão de pauta (briefing de conteúdo com 2 abordagens A/B) para o cliente. A IA cria as abordagens em segundo plano.',
+    parameters: {
+      title: { type: 'string', description: 'Tema ou título da pauta' },
+      source_text: { type: 'string', description: 'Contexto, notícia ou ideia base para a pauta' },
+      platforms: { type: 'array', description: 'Plataformas alvo (instagram, linkedin, etc)', items: { type: 'string' } },
+      topic_category: { type: 'string', description: 'Categoria do conteúdo (ex: institucional, produto, educativo)' },
+    },
+    required: ['title'],
+    category: 'action',
+  },
+  {
+    name: 'list_pauta_inbox',
+    description: 'Lista as sugestões de pauta pendentes do cliente com abordagens A e B geradas pela IA.',
+    parameters: {
+      status: { type: 'string', description: 'Filtrar por status', enum: ['pending', 'approved', 'rejected'] },
+      limit: { type: 'number', description: 'Máximo de resultados (default: 10)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'approve_pauta',
+    description: 'Aprova uma sugestão de pauta — cria automaticamente um briefing e registra feedback de preferência. Use approach A ou B.',
+    parameters: {
+      pauta_id: { type: 'string', description: 'UUID da sugestão de pauta' },
+      approach: { type: 'string', description: 'Qual abordagem aprovar (A ou B)', enum: ['A', 'B'] },
+    },
+    required: ['pauta_id'],
+    category: 'action',
+  },
+  {
+    name: 'reject_pauta',
+    description: 'Rejeita uma sugestão de pauta com motivo. O feedback alimenta o sistema de preferências para melhorar futuras sugestões.',
+    parameters: {
+      pauta_id: { type: 'string', description: 'UUID da sugestão de pauta' },
+      reason: { type: 'string', description: 'Motivo da rejeição (opcional mas recomendado)' },
+      tags: { type: 'array', description: 'Tags do motivo (ex: off_topic, tom_errado, ja_feito)', items: { type: 'string' } },
+    },
+    required: ['pauta_id'],
+    category: 'write',
+  },
+
+  // ── GRUPO 5: Fontes de Clipping ───────────────────────────────
+  {
+    name: 'add_clipping_source',
+    description: 'Adiciona uma nova fonte de monitoramento de notícias (RSS, URL de blog, portal de notícias) para o cliente.',
+    parameters: {
+      name: { type: 'string', description: 'Nome da fonte (ex: "Valor Econômico", "Blog Concorrente X")' },
+      url: { type: 'string', description: 'URL do feed RSS ou página' },
+      type: { type: 'string', description: 'Tipo da fonte', enum: ['RSS', 'NEWS', 'SOCIAL'] },
+      include_keywords: { type: 'array', description: 'Palavras-chave para filtrar conteúdo relevante', items: { type: 'string' } },
+    },
+    required: ['name', 'url'],
+    category: 'write',
+  },
+  {
+    name: 'pause_clipping_source',
+    description: 'Pausa o monitoramento de uma fonte de clipping (para de coletar novas notícias).',
+    parameters: {
+      source_id: { type: 'string', description: 'UUID da fonte de monitoramento' },
+    },
+    required: ['source_id'],
+    category: 'write',
+  },
+  {
+    name: 'resume_clipping_source',
+    description: 'Retoma o monitoramento de uma fonte de clipping pausada.',
+    parameters: {
+      source_id: { type: 'string', description: 'UUID da fonte de monitoramento' },
+    },
+    required: ['source_id'],
+    category: 'write',
+  },
+
+  // ── GRUPO 6: Análise e Relatórios ─────────────────────────────
+  {
+    name: 'analyze_cognitive_load',
+    description: 'Analisa a carga cognitiva de um texto para uma plataforma específica. Retorna score Lc, densidade semântica, estresse tonal e se está dentro do range ideal para a plataforma.',
+    parameters: {
+      text: { type: 'string', description: 'Texto a analisar (copy, post, email)' },
+      platform: { type: 'string', description: 'Plataforma alvo (instagram, linkedin, tiktok, email, etc)' },
+    },
+    required: ['text'],
+    category: 'action',
+  },
 ];
 
 // ── Provider Format Converters ──────────────────────────────────
