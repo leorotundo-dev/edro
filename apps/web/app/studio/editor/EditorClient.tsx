@@ -1384,11 +1384,36 @@ export default function EditorClient() {
         })()}
 
         <>
-        {/* Main + Sidebar grid */}
-        <Grid container spacing={3}>
-          {/* Main panel */}
-          <Grid size={{ xs: 12, lg: 9 }}>
+        <Grid container>
+          <Grid size={{ xs: 12 }}>
             <Stack spacing={3}>
+              {/* Inventário de peças — strip compacto */}
+              {inventoryProgress.items.length > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflowX: 'auto', pb: 0.5 }}>
+                  <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                      Peças
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {inventoryProgress.done}/{inventoryProgress.total}
+                    </Typography>
+                  </Stack>
+                  <Divider orientation="vertical" flexItem sx={{ height: 20, my: 'auto' }} />
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {inventoryProgress.items.map((item) => (
+                      <Chip
+                        key={item.id}
+                        size="small"
+                        label={`${item.platform || 'Plataforma'} · ${item.format || 'Formato'}`}
+                        onClick={() => setActiveFormatId(item.id)}
+                        color={item.hasCopy ? 'success' : 'default'}
+                        variant={item.id === activeFormatId ? 'filled' : 'outlined'}
+                        sx={{ cursor: 'pointer', flexShrink: 0 }}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
               <Grid container spacing={3}>
                 {/* Mockup preview */}
                 <Grid size={{ xs: 12, xl: 4 }}>
@@ -1422,17 +1447,6 @@ export default function EditorClient() {
                         >
                           {Object.entries(PIPELINE_LABELS).map(([v, l]) => (
                             <MenuItem key={v} value={v}>{l}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select size="small" label="Tom"
-                          value={tone}
-                          onChange={(e) => setTone(e.target.value)}
-                          sx={{ minWidth: 120, flex: '0 1 120px' }}
-                        >
-                          <MenuItem value="">Padrão</MenuItem>
-                          {TONE_OPTIONS.map((t) => (
-                            <MenuItem key={t} value={t}>{t}</MenuItem>
                           ))}
                         </TextField>
                         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
@@ -2230,64 +2244,6 @@ export default function EditorClient() {
             </Stack>
           </Grid>
 
-          {/* Sidebar */}
-          <Grid size={{ xs: 12, lg: 3 }}>
-            <Stack spacing={2}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Chip size="small" label="Inventário de peças" />
-                  <Typography variant="caption" color="text.secondary">
-                    {inventoryProgress.done}/{inventoryProgress.total}
-                  </Typography>
-                </Stack>
-                <LinearProgress
-                  variant="determinate"
-                  value={inventoryProgress.total ? Math.round((inventoryProgress.done / inventoryProgress.total) * 100) : 0}
-                  sx={{ height: 6, borderRadius: 3, mb: 2 }}
-                />
-                <Stack spacing={1}>
-                  {inventoryProgress.items.length ? (
-                    inventoryProgress.items.map((item) => (
-                      <Card
-                        key={item.id}
-                        variant={item.id === activeFormatId ? 'elevation' : 'outlined'}
-                        sx={{
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          ...(item.id === activeFormatId ? { borderColor: 'primary.main', boxShadow: 2 } : {}),
-                        }}
-                        onClick={() => setActiveFormatId(item.id)}
-                      >
-                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center">
-                            <Box>
-                              <Typography variant="body2" fontWeight={600}>
-                                {item.platform || 'Plataforma'} &middot; {item.format || 'Formato'}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {item.production_type ? item.production_type : 'Tipo não informado'}
-                              </Typography>
-                            </Box>
-                            <Chip
-                              size="small"
-                              color={item.hasCopy ? 'success' : 'default'}
-                              label={item.hasCopy ? 'Feito' : 'Pendente'}
-                            />
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      Nenhum formato selecionado.
-                    </Typography>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-            </Stack>
-          </Grid>
         </Grid>
 
         {/* Footer actions */}
