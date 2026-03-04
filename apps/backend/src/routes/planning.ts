@@ -312,10 +312,15 @@ CAPACIDADES:
 - Consultar calendario de datas e eventos
 - Adicionar datas comemorativas ou eventos ao calendário do cliente
 - Buscar na biblioteca de conhecimento do cliente
+- Adicionar notas e URLs à biblioteca do cliente
 - Listar e gerenciar campanhas
+- Criar campanhas e gerar estratégia comportamental completa (fases, audiências, behavior intents)
+- Gerar copy comportamental por behavior intent com score Fogg e análise emocional
 - Ver e agir sobre oportunidades detectadas pela IA
 - Verificar a saude das fontes de inteligencia
 - Criar briefings e gerar copies
+- Criar briefing diretamente de uma notícia de clipping
+- Fixar ou arquivar itens de clipping
 - Buscar conteúdo publicado pelo cliente (posts em redes sociais e páginas do site)
 - Listar fontes de conteúdo do cliente e status de coleta
 - Ver resumo de inteligência do cliente (posicionamento, tom, indústria, etc)

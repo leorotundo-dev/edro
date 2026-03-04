@@ -16,6 +16,13 @@ import { generateCopy } from './copyService';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../tavilyService';
 import { logTavilyUsage } from './aiUsageLogger';
+import { generateCampaignStrategy } from './agentPlanner';
+import { generateBehavioralDraft } from './agentWriter';
+import { auditDraftContent } from './agentAuditor';
+import { tagCopy } from './agentTagger';
+import { loadBehaviorProfiles } from '../behaviorClusteringService';
+import { loadLearningRules } from '../learningEngine';
+import { createLibraryItem } from '../../library/libraryRepo';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -71,6 +78,14 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   search_events: toolSearchEvents,
   get_event_relevance: toolGetEventRelevance,
   add_calendar_event: toolAddCalendarEvent,
+  create_campaign: toolCreateCampaign,
+  generate_campaign_strategy: toolGenerateCampaignStrategy,
+  generate_behavioral_copy: toolGenerateBehavioralCopy,
+  add_library_note: toolAddLibraryNote,
+  add_library_url: toolAddLibraryUrl,
+  create_briefing_from_clipping: toolCreateBriefingFromClipping,
+  pin_clipping_item: toolPinClippingItem,
+  archive_clipping_item: toolArchiveClippingItem,
   search_clipping: toolSearchClipping,
   get_clipping_item: toolGetClippingItem,
   list_clipping_sources: toolListClippingSources,
@@ -369,6 +384,362 @@ async function toolAddCalendarEvent(args: any, ctx: ToolContext): Promise<ToolRe
       type: 'custom',
     },
   };
+}
+
+// ── Campanhas ─────────────────────────────────────────────────
+
+async function toolCreateCampaign(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { name, objective, platforms, start_date, end_date, budget_brl } = args;
+
+  if (!name || !objective || !start_date) {
+    return { success: false, error: 'name, objective e start_date são obrigatórios.' };
+  }
+
+  const platformList: string[] = Array.isArray(platforms) && platforms.length
+    ? platforms
+    : ['instagram'];
+
+  // Build minimal formats (1 Feed per platform)
+  const formatRows: any[] = [];
+  for (const platform of platformList) {
+    const { rows } = await query(
+      `INSERT INTO campaign_formats
+         (tenant_id, client_id, format_name, platform, production_type, status)
+       VALUES ($1, $2, $3, $4, 'digital', 'pending')
+       RETURNING id, format_name, platform`,
+      [ctx.tenantId, ctx.clientId, 'Feed', platform],
+    );
+    if (rows[0]) formatRows.push(rows[0]);
+  }
+
+  const { rows: [campaign] } = await query(
+    `INSERT INTO campaigns
+       (tenant_id, client_id, name, objective, budget_brl, start_date, end_date, status,
+        phases, audiences, behavior_intents)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'active','[]','[]','[]')
+     RETURNING id, name, objective, start_date, end_date, status`,
+    [ctx.tenantId, ctx.clientId, name, objective, budget_brl ?? null, start_date, end_date ?? null],
+  );
+
+  // Update formats to link to the campaign
+  if (formatRows.length > 0) {
+    await query(
+      `UPDATE campaign_formats SET campaign_id=$1 WHERE id = ANY($2::uuid[])`,
+      [campaign.id, formatRows.map((f) => f.id)],
+    );
+  }
+
+  return {
+    success: true,
+    data: {
+      message: `Campanha "${name}" criada. Use generate_campaign_strategy para gerar a estratégia comportamental.`,
+      campaign,
+      formats: formatRows,
+    },
+  };
+}
+
+async function toolGenerateCampaignStrategy(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { campaign_id } = args;
+  if (!campaign_id) return { success: false, error: 'campaign_id obrigatório.' };
+
+  const { rows: [campaign] } = await query(
+    `SELECT id, name, objective, client_id FROM campaigns WHERE id=$1 AND tenant_id=$2`,
+    [campaign_id, ctx.tenantId],
+  );
+  if (!campaign) return { success: false, error: 'Campanha não encontrada.' };
+
+  const { rows: [client] } = await query(
+    `SELECT segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2`,
+    [campaign.client_id, ctx.tenantId],
+  );
+  const personas: any[] = client?.profile?.personas ?? [];
+
+  let behaviorClusters: any[] = [];
+  let learningRules: any[] = [];
+  try {
+    [behaviorClusters, learningRules] = await Promise.all([
+      loadBehaviorProfiles(ctx.tenantId, campaign.client_id),
+      loadLearningRules(ctx.tenantId, campaign.client_id),
+    ]);
+  } catch { /* non-blocking */ }
+
+  const strategy = await generateCampaignStrategy({
+    campaignName: campaign.name,
+    campaignObjective: campaign.objective ?? '',
+    clientSegment: client?.segment_primary ?? '',
+    personas,
+    behaviorClusters: behaviorClusters.length ? behaviorClusters : undefined,
+    learningRules: learningRules.length ? learningRules : undefined,
+  });
+
+  await query(
+    `UPDATE campaigns
+     SET phases=$3::jsonb, audiences=$4::jsonb, behavior_intents=$5::jsonb, updated_at=now()
+     WHERE id=$1 AND tenant_id=$2`,
+    [campaign_id, ctx.tenantId, JSON.stringify(strategy.phases), JSON.stringify(strategy.audiences), JSON.stringify(strategy.behavior_intents)],
+  );
+
+  return {
+    success: true,
+    data: {
+      message: `Estratégia gerada para "${campaign.name}". ${strategy.behavior_intents.length} behavior intents criados.`,
+      phases: strategy.phases,
+      behavior_intents: strategy.behavior_intents,
+      concepts: strategy.concepts,
+    },
+  };
+}
+
+async function toolGenerateBehavioralCopy(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { campaign_id, behavior_intent_id, platform, format } = args;
+  if (!campaign_id || !behavior_intent_id || !platform) {
+    return { success: false, error: 'campaign_id, behavior_intent_id e platform são obrigatórios.' };
+  }
+
+  const { rows: [campaign] } = await query(
+    `SELECT id, name, objective, client_id, behavior_intents, audiences, phases
+     FROM campaigns WHERE id=$1 AND tenant_id=$2`,
+    [campaign_id, ctx.tenantId],
+  );
+  if (!campaign) return { success: false, error: 'Campanha não encontrada.' };
+
+  const { rows: [client] } = await query(
+    `SELECT name, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2`,
+    [campaign.client_id, ctx.tenantId],
+  );
+
+  const intents: any[] = campaign.behavior_intents || [];
+  const intent = intents.find((bi: any) => bi.id === behavior_intent_id);
+  if (!intent) return { success: false, error: 'Behavior intent não encontrado.' };
+
+  const audiences: any[] = campaign.audiences || [];
+  const audience = audiences.find((a: any) => a.id === intent.audience_id);
+  const clientProfile = client?.profile || {};
+  const personas: any[] = clientProfile.personas || [];
+  const matchingPersona = audience?.persona_id
+    ? personas.find((p: any) => p.id === audience.persona_id)
+    : null;
+
+  let learningRules: any[] = [];
+  try { learningRules = await loadLearningRules(ctx.tenantId, campaign.client_id); } catch { /* ok */ }
+
+  const rulesBlock = learningRules.length
+    ? `\n\nREGRAS DE APRENDIZADO:\n${learningRules.slice(0, 4).map((r: any) => `  - ${r.effective_pattern}`).join('\n')}`
+    : '';
+
+  const persona = {
+    name: matchingPersona?.name || audience?.persona_name || 'Público principal',
+    role: matchingPersona?.role,
+    momento_consciencia: audience?.momento_consciencia || intent.momento,
+    language_style: matchingPersona?.language_style || clientProfile.tone,
+    forbidden_terms: matchingPersona?.forbidden_terms || clientProfile.forbidden_terms || [],
+  };
+
+  const behaviorIntent = {
+    amd: intent.amd,
+    momento: intent.momento,
+    triggers: intent.triggers || [],
+    target_behavior: intent.target_behavior,
+    phase_id: intent.phase_id,
+  };
+
+  const draft = await generateBehavioralDraft({
+    platform,
+    format: format ?? 'Feed',
+    persona,
+    behaviorIntent,
+    campaignObjective: campaign.objective,
+    clientName: client?.name ?? '',
+    clientSegment: client?.segment_primary ?? '',
+    knowledgeBlock: rulesBlock,
+  });
+
+  let auditResult: any = null;
+  let tags: any = null;
+  try {
+    [auditResult, tags] = await Promise.all([
+      auditDraftContent({ draft, persona, behaviorIntent }),
+      tagCopy(draft.hook_text + ' ' + draft.content_text, platform),
+    ]);
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    data: {
+      message: 'Copy comportamental gerado e auditado.',
+      hook: draft.hook_text,
+      copy: draft.content_text,
+      cta: draft.cta_text,
+      rationale: draft.behavioral_rationale,
+      fogg_scores: auditResult ? {
+        motivacao: auditResult.fogg_motivation,
+        habilidade: auditResult.fogg_ability,
+        prompt: auditResult.fogg_prompt,
+      } : null,
+      emotional_tone: tags?.emotional_tone ?? null,
+      amd: intent.amd,
+      triggers: intent.triggers,
+    },
+  };
+}
+
+// ── Biblioteca de Conhecimento ────────────────────────────────
+
+async function toolAddLibraryNote(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { title, content, category, tags, use_in_ai } = args;
+  if (!title || !content) return { success: false, error: 'title e content são obrigatórios.' };
+
+  const item = await createLibraryItem({
+    tenant_id: ctx.tenantId,
+    client_id: ctx.clientId,
+    type: 'note',
+    title: title.slice(0, 200),
+    notes: content,
+    description: content.slice(0, 500),
+    category: category || 'referencia',
+    tags: Array.isArray(tags) ? tags : [],
+    weight: 'medium',
+    use_in_ai: use_in_ai !== false,
+    created_by: ctx.userEmail ?? 'jarvis',
+  });
+
+  return {
+    success: true,
+    data: {
+      message: `Nota "${title}" salva na biblioteca e disponível para uso na IA.`,
+      library_item_id: item.id,
+    },
+  };
+}
+
+async function toolAddLibraryUrl(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { url, category, tags } = args;
+  if (!url) return { success: false, error: 'url é obrigatória.' };
+
+  if (!isTavilyConfigured()) {
+    return { success: false, error: 'Extração de URL não configurada neste ambiente.' };
+  }
+
+  // Deduplicate
+  const { rows: existing } = await query<{ id: string }>(
+    `SELECT id FROM library_items WHERE client_id=$1 AND source_url=$2 LIMIT 1`,
+    [ctx.clientId, url],
+  );
+  if (existing.length > 0) {
+    return { success: true, data: { message: 'URL já estava na biblioteca.', library_item_id: existing[0].id, duplicate: true } };
+  }
+
+  const t0 = Date.now();
+  let extracted: { url: string; content: string; title?: string } | null = null;
+  try {
+    const result = await tavilyExtract([url], { timeoutMs: 15000 });
+    logTavilyUsage({ tenant_id: ctx.tenantId, operation: 'extract', unit_count: 1, feature: 'library_jarvis', duration_ms: Date.now() - t0, metadata: { client_id: ctx.clientId, url } });
+    extracted = result.results[0] ?? null;
+  } catch (err: any) {
+    return { success: false, error: `Falha ao extrair URL: ${err?.message}` };
+  }
+
+  if (!extracted?.content || extracted.content.length < 50) {
+    return { success: false, error: 'Conteúdo da URL muito curto ou vazio.' };
+  }
+
+  const item = await createLibraryItem({
+    tenant_id: ctx.tenantId,
+    client_id: ctx.clientId,
+    type: 'note',
+    title: (extracted.title || url).slice(0, 200),
+    description: extracted.content.slice(0, 500),
+    category: category || 'referencia',
+    tags: Array.isArray(tags) ? [...tags, 'importado', 'url'] : ['importado', 'url'],
+    weight: 'medium',
+    use_in_ai: true,
+    source_url: url,
+    notes: extracted.content.slice(0, 3000),
+    created_by: ctx.userEmail ?? 'jarvis',
+  });
+
+  return {
+    success: true,
+    data: {
+      message: `URL extraída e salva na biblioteca: "${extracted.title || url}".`,
+      library_item_id: item.id,
+    },
+  };
+}
+
+// ── Clipping Avançado ─────────────────────────────────────────
+
+async function toolCreateBriefingFromClipping(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { clipping_id, platform, format, notes } = args;
+  if (!clipping_id) return { success: false, error: 'clipping_id é obrigatório.' };
+
+  const { rows: [item] } = await query(
+    `SELECT id, title, snippet, published_at FROM clipping_items WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+    [clipping_id, ctx.tenantId],
+  );
+  if (!item) return { success: false, error: 'Item de clipping não encontrado.' };
+
+  const briefing = await createBriefing({
+    mainClientId: ctx.clientId,
+    title: item.title || 'Briefing de notícia',
+    payload: {
+      objective: 'engajamento',
+      platform: platform || 'instagram',
+      format: format || 'Feed',
+      notes: notes ? `${notes}\n\nNotícia original: ${item.snippet || ''}` : (item.snippet || ''),
+    },
+    source: 'clipping',
+    createdBy: ctx.userEmail ?? null,
+  });
+
+  await createBriefingStages(briefing.id, ctx.userEmail ?? null).catch(() => {});
+
+  return {
+    success: true,
+    data: {
+      message: `Briefing "${briefing.title}" criado a partir da notícia. Acesse em /studio para gerar o copy.`,
+      briefing_id: briefing.id,
+      title: briefing.title,
+      clipping_title: item.title,
+    },
+  };
+}
+
+async function toolPinClippingItem(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { clipping_id } = args;
+  if (!clipping_id) return { success: false, error: 'clipping_id é obrigatório.' };
+
+  await query(
+    `UPDATE clipping_items SET status='PINNED', updated_at=NOW() WHERE id=$1 AND tenant_id=$2`,
+    [clipping_id, ctx.tenantId],
+  );
+
+  await query(
+    `INSERT INTO clipping_item_actions (tenant_id, item_id, user_id, action, payload)
+     VALUES ($1,$2,$3,'PIN','{}')`,
+    [ctx.tenantId, clipping_id, ctx.userId ?? null],
+  );
+
+  return { success: true, data: { message: 'Item fixado com sucesso.', clipping_id } };
+}
+
+async function toolArchiveClippingItem(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { clipping_id } = args;
+  if (!clipping_id) return { success: false, error: 'clipping_id é obrigatório.' };
+
+  await query(
+    `UPDATE clipping_items SET status='ARCHIVED', updated_at=NOW() WHERE id=$1 AND tenant_id=$2`,
+    [clipping_id, ctx.tenantId],
+  );
+
+  await query(
+    `INSERT INTO clipping_item_actions (tenant_id, item_id, user_id, action, payload)
+     VALUES ($1,$2,$3,'ARCHIVE','{}')`,
+    [ctx.tenantId, clipping_id, ctx.userId ?? null],
+  );
+
+  return { success: true, data: { message: 'Item arquivado.', clipping_id } };
 }
 
 // ── Clipping & Monitoramento ───────────────────────────────────

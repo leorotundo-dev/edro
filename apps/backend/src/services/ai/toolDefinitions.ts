@@ -129,6 +129,101 @@ export const TOOLS: ToolDefinition[] = [
     category: 'write',
   },
 
+  // ── Campanhas ──
+  {
+    name: 'create_campaign',
+    description: 'Cria uma nova campanha de marketing para o cliente. Use quando o usuário pedir para criar uma campanha, projeto ou iniciativa de comunicação.',
+    parameters: {
+      name: { type: 'string', description: 'Nome da campanha' },
+      objective: { type: 'string', description: 'Objetivo da campanha (ex: awareness, engajamento, conversão, fidelização)' },
+      platforms: { type: 'array', description: 'Plataformas alvo (instagram, linkedin, tiktok, facebook, youtube)', items: { type: 'string' } },
+      start_date: { type: 'string', description: 'Data de início no formato YYYY-MM-DD' },
+      end_date: { type: 'string', description: 'Data de término no formato YYYY-MM-DD' },
+      budget_brl: { type: 'number', description: 'Orçamento em BRL (opcional)' },
+    },
+    required: ['name', 'objective', 'start_date'],
+    category: 'write',
+  },
+  {
+    name: 'generate_campaign_strategy',
+    description: 'Gera estratégia comportamental completa para uma campanha existente (fases, audiências, behavior intents com AMDs e gatilhos, conceitos criativos). Use após criar a campanha.',
+    parameters: {
+      campaign_id: { type: 'string', description: 'UUID da campanha' },
+    },
+    required: ['campaign_id'],
+    category: 'action',
+  },
+  {
+    name: 'generate_behavioral_copy',
+    description: 'Aciona AgentWriter + AgentAuditor para gerar copy comportamental para um behavior intent específico de uma campanha. Retorna draft, score Fogg, tom emocional e tags.',
+    parameters: {
+      campaign_id: { type: 'string', description: 'UUID da campanha' },
+      behavior_intent_id: { type: 'string', description: 'ID do behavior intent dentro da campanha' },
+      platform: { type: 'string', description: 'Plataforma (instagram, linkedin, tiktok, etc)' },
+      format: { type: 'string', description: 'Formato do conteúdo (ex: Feed, Reels, Carrossel)' },
+    },
+    required: ['campaign_id', 'behavior_intent_id', 'platform'],
+    category: 'action',
+  },
+
+  // ── Biblioteca de Conhecimento ──
+  {
+    name: 'add_library_note',
+    description: 'Adiciona uma nota ou informação à biblioteca de conhecimento do cliente. Use para salvar insights, briefings informais, decisões de marca, referências textuais.',
+    parameters: {
+      title: { type: 'string', description: 'Título da nota' },
+      content: { type: 'string', description: 'Conteúdo completo da nota' },
+      category: { type: 'string', description: 'Categoria (ex: brand, concorrencia, produto, mercado, referencia)' },
+      tags: { type: 'array', description: 'Tags para facilitar buscas', items: { type: 'string' } },
+      use_in_ai: { type: 'boolean', description: 'Se true (padrão), este conteúdo será usado nos prompts de geração de copy' },
+    },
+    required: ['title', 'content'],
+    category: 'write',
+  },
+  {
+    name: 'add_library_url',
+    description: 'Extrai e salva o conteúdo de uma URL na biblioteca do cliente (artigo, concorrente, referência). O conteúdo é extraído automaticamente e indexado para uso em IA.',
+    parameters: {
+      url: { type: 'string', description: 'URL completa a ser extraída e salva' },
+      category: { type: 'string', description: 'Categoria (ex: concorrencia, referencia, mercado)' },
+      tags: { type: 'array', description: 'Tags para facilitar buscas', items: { type: 'string' } },
+    },
+    required: ['url'],
+    category: 'write',
+  },
+
+  // ── Clipping Avançado ──
+  {
+    name: 'create_briefing_from_clipping',
+    description: 'Cria um briefing de conteúdo diretamente a partir de uma notícia/clipping. Use quando o usuário pedir para transformar uma notícia em post, conteúdo ou briefing.',
+    parameters: {
+      clipping_id: { type: 'string', description: 'UUID do item de clipping (retornado por search_clipping ou get_clipping_item)' },
+      platform: { type: 'string', description: 'Plataforma alvo (default: instagram)' },
+      format: { type: 'string', description: 'Formato do conteúdo (default: Feed)' },
+      notes: { type: 'string', description: 'Instruções adicionais para o briefing' },
+    },
+    required: ['clipping_id'],
+    category: 'write',
+  },
+  {
+    name: 'pin_clipping_item',
+    description: 'Fixa (destaca) um item de clipping para o cliente atual. Itens fixados aparecem em destaque no monitoramento.',
+    parameters: {
+      clipping_id: { type: 'string', description: 'UUID do item de clipping' },
+    },
+    required: ['clipping_id'],
+    category: 'write',
+  },
+  {
+    name: 'archive_clipping_item',
+    description: 'Arquiva um item de clipping. Use quando o usuário disser que uma notícia não é relevante, pode ser descartada ou arquivada.',
+    parameters: {
+      clipping_id: { type: 'string', description: 'UUID do item de clipping' },
+    },
+    required: ['clipping_id'],
+    category: 'write',
+  },
+
   // ── Clipping & Monitoramento ──
   {
     name: 'search_clipping',
