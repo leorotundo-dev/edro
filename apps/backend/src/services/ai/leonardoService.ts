@@ -53,10 +53,10 @@ function mimeToExt(mime: string): string {
 }
 
 export interface LeonardoImageResult {
+  /** First generated image URL (CDN) */
   imageUrl: string;
-  /** base64 PNG if downloaded; otherwise empty string */
-  base64: string;
-  mimeType: string;
+  /** All generated image URLs (CDN) — length = numImages requested */
+  imageUrls: string[];
   generationId: string;
 }
 
@@ -213,17 +213,10 @@ export async function generateImageWithLeonardo(params: {
     if (!gen) continue;
 
     if (gen.status === 'COMPLETE') {
-      const imageUrl = gen.generated_images?.[0]?.url;
-      if (!imageUrl) throw new Error('Leonardo: geração completa mas sem imagem');
-
-      // Download image and convert to base64 so the caller gets the same
-      // interface as geminiService (base64 + mimeType)
-      const imgRes = await fetch(imageUrl);
-      const buffer = await imgRes.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
-      const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-
-      return { imageUrl, base64, mimeType: contentType, generationId };
+      const images = gen.generated_images || [];
+      if (!images.length) throw new Error('Leonardo: geração completa mas sem imagem');
+      const imageUrls = images.map((img) => img.url);
+      return { imageUrl: imageUrls[0], imageUrls, generationId };
     }
 
     if (gen.status === 'FAILED') {

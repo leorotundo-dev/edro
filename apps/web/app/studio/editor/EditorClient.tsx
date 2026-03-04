@@ -170,6 +170,16 @@ const PROVIDER_LABELS: Record<string, string> = {
   claude: 'Claude',
 };
 
+const MODEL_NEGATIVE_DEFAULTS: Record<string, string> = {
+  'leonardo-phoenix':      'text, words, letters, logos, watermark, distortion, oversaturated, lens flare, CGI plastic look, deformed hands, ugly, low quality',
+  'leonardo-lightning-xl': 'text, words, letters, logos, watermark, blurry, low quality, pixelated, noise, artifacts, deformed anatomy',
+  'leonardo-kino-xl':      'text, words, letters, logos, watermark, flat lighting, overexposed, washed out, deformed, low quality',
+  'leonardo-diffusion-xl': 'text, words, letters, logos, watermark, blurry, noisy, deformed, low resolution',
+  'gemini-2.0-flash-exp-image-generation': 'text, words, letters, logos, watermarks',
+  'imagen-3.0-generate-001':               'text, words, letters, logos, watermarks, distortion, artifacts',
+  'imagen-3.0-fast-generate-001':          'text, words, letters, logos, watermarks',
+};
+
 const autoSelectPipeline = (dueAt?: string | null, clientTier?: string | null) => {
   const due = dueAt ? new Date(dueAt) : null;
   const hoursUntilDue = due ? (due.getTime() - Date.now()) / (1000 * 60 * 60) : 999;
@@ -481,6 +491,9 @@ export default function EditorClient() {
   const [arteRefining, setArteRefining] = useState(false);
   // Preview Rápido
   const [arteIsPreview, setArteIsPreview] = useState(false);
+  // Multi-variações — array de URLs retornadas pelo Leonardo
+  const [arteImageUrls, setArteImageUrls] = useState<string[]>([]);
+  const [selectedArteIndex, setSelectedArteIndex] = useState(0);
   // img2img — imagens da library do cliente como referência para Leonardo
   const [libraryImages, setLibraryImages] = useState<Array<{ id: string; title: string; file_mime: string; category?: string }>>([]);
   const [selectedLibraryImageId, setSelectedLibraryImageId] = useState<string | null>(null);
@@ -701,6 +714,17 @@ export default function EditorClient() {
       .catch(() => {})
       .finally(() => setLibraryImagesLoading(false));
   }, [imageProvider]);
+
+  // Auto-populate negative prompt when model changes (only if empty or still the previous default)
+  useEffect(() => {
+    const defaultNeg = MODEL_NEGATIVE_DEFAULTS[imageModel] || '';
+    if (!defaultNeg) return;
+    setImageNegativePrompt((prev) => {
+      const isKnownDefault = Object.values(MODEL_NEGATIVE_DEFAULTS).includes(prev);
+      if (prev === '' || isKnownDefault) return defaultNeg;
+      return prev; // user customized — don't override
+    });
+  }, [imageModel]);
 
   // Merge selectedOptionData with live-edited editorCopy for preview + approval
   const resolvedOption = useMemo<ParsedOption | null>(() => {
@@ -1198,7 +1222,7 @@ export default function EditorClient() {
   };
 
   // Fase 2: gera a imagem com o prompt (possivelmente editado pelo usuário)
-  const handleGenerateArteWithPrompt = async () => {
+  const handleGenerateArteWithPrompt = async (isPreview = false) => {
     const copyVersionId = resolveActiveCopyId();
     const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
     if (!briefingId || !copyVersionId) {
@@ -1209,7 +1233,7 @@ export default function EditorClient() {
     setArteModalError('');
     setArteStep('generating');
     try {
-      const res = await apiPost<{ success: boolean; image_url?: string; data?: { image_url?: string }; error?: string }>(
+      const res = await apiPost<{ success: boolean; image_url?: string; image_urls?: string[]; data?: { image_url?: string }; error?: string }>(
         `/edro/briefings/${briefingId}/generate-creative`,
         {
           copy_version_id: copyVersionId,
@@ -1225,22 +1249,25 @@ export default function EditorClient() {
           negative_prompt: imageNegativePrompt || undefined,
           init_image_library_item_id: (imageProvider === 'leonardo' && selectedLibraryImageId) ? selectedLibraryImageId : undefined,
           init_strength: (imageProvider === 'leonardo' && selectedLibraryImageId) ? initStrength : undefined,
+          // Preview: sempre 1 imagem; Leonardo normal: 3 variações
+          num_images: isPreview || imageProvider !== 'leonardo' ? 1 : 3,
         }
       );
-      const imageUrl = res.image_url || res.data?.image_url;
-      if (res.success && imageUrl) {
-        setArteImageUrl(imageUrl);
-        setArteGeneratedPrompt(artePrompt); // salva para feedback posterior
+      const urls = res.image_urls?.length ? res.image_urls : (res.image_url || res.data?.image_url ? [res.image_url || res.data?.image_url!] : []);
+      if (res.success && urls.length > 0) {
+        setArteImageUrls(urls);
+        setSelectedArteIndex(0);
+        setArteImageUrl(urls[0]);
+        setArteGeneratedPrompt(artePrompt);
         setArteDiscardTags([]);
         setArteStep(null);
         setArteModalError('');
-        setArteIsPreview(false);
-        // Persist so step 4 (Mockups) can load it
+        setArteIsPreview(isPreview);
         if (briefingId) {
-          apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl }).catch(() => null);
+          apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: urls[0] }).catch(() => null);
         }
       } else {
-        const msg = res.error || 'Gemini não retornou imagem. Tente novamente.';
+        const msg = res.error || 'Não retornou imagem. Tente novamente.';
         console.error('[arteIA] generate-creative error:', msg, res);
         setArteModalError(msg);
         setArteStep(null);
@@ -1279,46 +1306,8 @@ export default function EditorClient() {
     setArteRefining(false);
   };
 
-  // ── Preview Rápido — força Flash para prévia instantânea ──────────────
-  const handlePreviewArte = async () => {
-    const copyVersionId = resolveActiveCopyId();
-    const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-    if (!briefingId || !copyVersionId || !artePrompt.trim()) return;
-
-    setArteModalError('');
-    setArteStep('generating');
-    setArteIsPreview(true);
-    try {
-      const res = await apiPost<{ success: boolean; image_url?: string; data?: { image_url?: string }; error?: string }>(
-        `/edro/briefings/${briefingId}/generate-creative`,
-        {
-          copy_version_id: copyVersionId,
-          format: activeFormat?.format || 'instagram-feed',
-          brand_color: clientBrandColor || undefined,
-          client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
-          headline: editorCopy.headline || undefined,
-          body_text: editorCopy.body || undefined,
-          custom_prompt: artePrompt || undefined,
-          image_model: 'gemini-2.0-flash-exp-image-generation', // sempre Flash para prévia
-        }
-      );
-      const imageUrl = res.image_url || res.data?.image_url;
-      if (res.success && imageUrl) {
-        setArteImageUrl(imageUrl);
-        setArteGeneratedPrompt(artePrompt);
-        setArteDiscardTags([]);
-        setArteStep(null);
-      } else {
-        setArteModalError(res.error || 'Erro na prévia. Tente novamente.');
-        setArteStep(null);
-        setArteIsPreview(false);
-      }
-    } catch (e: any) {
-      setArteModalError(e?.message || 'Erro de rede');
-      setArteStep(null);
-      setArteIsPreview(false);
-    }
-  };
+  // ── Preview Rápido — 1 imagem, provider atual
+  const handlePreviewArte = () => handleGenerateArteWithPrompt(true);
 
   // ── Feedback de criativo — loop de aprendizado ──────────────────────
   const sendCreativeFeedback = async (
@@ -2427,7 +2416,7 @@ export default function EditorClient() {
                             fullWidth variant="contained" size="small"
                             loading={arteStep === 'generating' && !arteIsPreview}
                             disabled={!artePrompt.trim() || arteStep !== null}
-                            onClick={handleGenerateArteWithPrompt}
+                            onClick={() => handleGenerateArteWithPrompt()}
                             sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
                           >
                             {arteImageUrl ? 'Regenerar' : 'Gerar Imagem'}
@@ -2465,6 +2454,29 @@ export default function EditorClient() {
                                 </Box>
                               )}
                             </Box>
+                            {/* Variation picker — shown when multiple images were generated */}
+                            {arteImageUrls.length > 1 && (
+                              <Stack direction="row" spacing={0.75} sx={{ mt: 1, overflowX: 'auto', pb: 0.5 }}>
+                                {arteImageUrls.map((url, idx) => (
+                                  <Box
+                                    key={idx}
+                                    component="img"
+                                    src={url}
+                                    alt={`Variação ${idx + 1}`}
+                                    onClick={() => { setSelectedArteIndex(idx); setArteImageUrl(url); }}
+                                    sx={{
+                                      width: 64, height: 64, objectFit: 'cover', borderRadius: 1,
+                                      cursor: 'pointer', flexShrink: 0,
+                                      border: 2,
+                                      borderColor: selectedArteIndex === idx ? 'primary.main' : 'divider',
+                                      opacity: selectedArteIndex === idx ? 1 : 0.65,
+                                      transition: 'all 0.15s',
+                                      '&:hover': { opacity: 1, borderColor: 'primary.light' },
+                                    }}
+                                  />
+                                ))}
+                              </Stack>
+                            )}
                             <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap">
                               <Button size="small" variant="contained" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />}>
                                 Usar

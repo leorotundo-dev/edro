@@ -3445,6 +3445,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       init_image_library_item_id: z.string().uuid().optional(),
       /** img2img strength: 0.0 = full AI, 1.0 = copy of reference (default 0.35) */
       init_strength: z.coerce.number().min(0).max(1).optional(),
+      /** Number of image variations to generate (Leonardo only, 1-4, default 3) */
+      num_images: z.coerce.number().int().min(1).max(4).optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -3478,6 +3480,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     let approvedExamples: string[] = [];
     let avoidPatterns: string[] = [];
     let aestheticProfile: string | undefined;
+    let clientToneDescription: string | undefined;
+    let discardTags: string[] = [];
     if (resolvedClientId) {
       try {
         const profile = clientRow?.profile || {};
@@ -3490,7 +3494,32 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         aestheticProfile = typeof profile.creative_aesthetic_profile === 'string'
           ? profile.creative_aesthetic_profile
           : undefined;
+        clientToneDescription = typeof profile.tone_description === 'string'
+          ? profile.tone_description
+          : undefined;
       } catch { /* non-blocking */ }
+
+      // ── Últimos 3 descartes de criativos → inject como restrições no Art Director
+      if (tenantId) {
+        try {
+          const { rows: discardRows } = await query<{ tags: any }>(
+            `SELECT payload->'rejection_tags' as tags
+             FROM preference_feedback
+             WHERE tenant_id=$1 AND client_id=$2
+               AND payload->>'feedback_type' = 'creative'
+               AND payload->>'action' = 'rejected'
+               AND payload->'rejection_tags' IS NOT NULL
+             ORDER BY created_at DESC LIMIT 3`,
+            [tenantId, resolvedClientId]
+          );
+          discardTags = discardRows
+            .flatMap((r) => {
+              try { return Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags || '[]'); } catch { return []; }
+            })
+            .filter((t): t is string => typeof t === 'string' && t.length > 0)
+            .slice(0, 10);
+        } catch { /* non-blocking */ }
+      }
     }
 
     // ── Montar contexto visual do cliente ───────────────────────────────
@@ -3580,6 +3609,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
         aestheticProfile,
+        clientToneDescription,
+        discardTags: discardTags.length ? discardTags : undefined,
         provider: body.image_provider || undefined,
       };
       // generateArtDirectorPrompt returns an array of 3 scene narratives (no VISUAL_DNA_BASE)
@@ -3647,15 +3678,18 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         colors: body.brand_color ? [body.brand_color] : undefined,
         segment: clientSegment || undefined,
         style: body.style,
+        clientToneDescription,
         visualContext: visualContext || undefined,
         customPrompt: body.custom_prompt || undefined,
         referenceImageUrls,
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
+        discardTags: discardTags.length ? discardTags : undefined,
         imageModel: body.image_model || undefined,
         imageProvider: body.image_provider || undefined,
         aspectRatio: body.aspect_ratio || undefined,
         negativePrompt: body.negative_prompt || undefined,
+        numImages: body.image_provider === 'leonardo' ? (body.num_images ?? 3) : 1,
         tenantId: tenantId || undefined,
         initImageBuffer,
         initImageMime,
@@ -3689,6 +3723,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       return reply.send({
         success: true,
         image_url: result.image_url,
+        image_urls: result.image_urls,
         reference_image_url: initImageRefUrl || null,
         data: {
           image_url: result.image_url,

@@ -13,17 +13,23 @@ type AdCreativeRequest = {
   colors?: string[];
   style?: string;
   segment?: string;
+  /** Tone/voice description from client profile (e.g. "formal, técnico, sério") */
+  clientToneDescription?: string;
   visualContext?: string;
   customPrompt?: string;
   referenceImageUrls?: string[];
   approvedExamples?: string[];
   avoidPatterns?: string[];
+  /** Flattened rejection tags from last 3 discarded creatives (e.g. ["errou ambiente","cor errada"]) */
+  discardTags?: string[];
   imageModel?: string;
   /** 'gemini' (default) | 'leonardo' */
   imageProvider?: 'gemini' | 'leonardo';
   aspectRatio?: string;
   negativePrompt?: string;
   tenantId?: string;
+  /** Number of image variations to generate (Leonardo only, default 1) */
+  numImages?: number;
   /** Raw bytes of a reference image from client library (for Leonardo img2img) */
   initImageBuffer?: Buffer;
   /** MIME type of the init image */
@@ -35,6 +41,8 @@ type AdCreativeRequest = {
 type AdCreativeResponse = {
   success: boolean;
   image_url?: string;
+  /** All generated image URLs (Leonardo multi-image mode) */
+  image_urls?: string[];
   error?: string;
 };
 
@@ -101,7 +109,7 @@ RULES:
 
 type ArtDirectorParams = Omit<
   AdCreativeRequest,
-  'customPrompt' | 'referenceImageUrls' | 'imageModel' | 'aspectRatio' | 'negativePrompt'
+  'customPrompt' | 'referenceImageUrls' | 'imageModel' | 'aspectRatio' | 'negativePrompt' | 'numImages'
 > & {
   /** Perfil estético sintetizado do cliente — gerado a partir do histórico de aprovações */
   aestheticProfile?: string;
@@ -145,6 +153,12 @@ export async function generateArtDirectorPrompt(
   const aestheticBlock = params.aestheticProfile
     ? `\nCLIENT AESTHETIC PROFILE (synthesized from approved creatives — follow this):\n${params.aestheticProfile.slice(0, 500)}`
     : '';
+  const discardBlock = params.discardTags?.length
+    ? `\nRECENT DISCARD FEEDBACK — client explicitly rejected these in the last sessions (avoid at all costs): ${params.discardTags.join(', ')}.`
+    : '';
+  const toneBlock = params.clientToneDescription
+    ? `\nCLIENT TONE/VOICE: ${params.clientToneDescription.slice(0, 150)} — translate this tone into visual atmosphere.`
+    : '';
 
   const isSD = params.provider === 'leonardo';
 
@@ -154,7 +168,7 @@ export async function generateArtDirectorPrompt(
 POST HEADLINE (primary visual concept): "${headline}"
 POST BODY (thematic context): "${bodyText}"
 BRAND: "${brand}"${segment ? ` — sector: ${segment}` : ''}
-FORMAT: ${params.format}${colors ? `\nBRAND COLORS (use as tonal palette): ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${aestheticBlock}${approvedBlock}${avoidBlock}
+FORMAT: ${params.format}${colors ? `\nBRAND COLORS (use as tonal palette): ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${toneBlock}${aestheticBlock}${approvedBlock}${avoidBlock}${discardBlock}
 
 The image will be a full-bleed background with text overlay on top. Leave compositional space for text.
 
@@ -172,7 +186,7 @@ Each variation: comma-separated keywords, max 120 words, end with composition no
 POST HEADLINE (primary visual concept): "${headline}"
 POST BODY (thematic context): "${bodyText}"
 BRAND: "${brand}"${segment ? ` — sector: ${segment}` : ''}
-FORMAT: ${params.format}${colors ? `\nBRAND COLORS: ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${aestheticBlock}${approvedBlock}${avoidBlock}
+FORMAT: ${params.format}${colors ? `\nBRAND COLORS: ${colors}` : ''}${visualCtx ? `\nBRAND VISUAL REFERENCE: ${visualCtx}` : ''}${toneBlock}${aestheticBlock}${approvedBlock}${avoidBlock}${discardBlock}
 
 The image will be a full-bleed background — the designer overlays headline and copy on top.
 
@@ -297,11 +311,13 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
       }
 
       const t0 = Date.now();
+      const numImages = params.numImages ?? 1;
       const result = await generateImageWithLeonardo({
         prompt: finalPrompt,
         modelId,
         aspectRatio: params.aspectRatio,
         negativePrompt: params.negativePrompt,
+        numImages,
         initImageId,
         initStrength: params.initStrength,
       });
@@ -312,6 +328,7 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
           tenant_id: params.tenantId,
           model_id: modelId,
           model_alias: modelAlias,
+          num_images: numImages,
           feature: 'image_generation',
           duration_ms: durationMs,
           metadata: { format: params.format, aspect_ratio: params.aspectRatio },
@@ -319,7 +336,8 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
       }
       return {
         success: true,
-        image_url: `data:${result.mimeType};base64,${result.base64}`,
+        image_url: result.imageUrl,
+        image_urls: result.imageUrls,
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Erro ao gerar imagem com Leonardo.ai' };
