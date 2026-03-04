@@ -63,6 +63,7 @@ import {
   IconCalendarEvent,
   IconGlobe,
   IconUsersGroup,
+  IconFileText,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -383,6 +384,8 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   const [editEventName, setEditEventName] = useState('');
   const [editEventScore, setEditEventScore] = useState('');
 
+  const [eventBriefingMap, setEventBriefingMap] = useState<Record<string, string>>({});
+
   // ── Creative Inspirations ──────────────────────────────────────────────────
   type Inspiration = { id: string; title: string; snippet: string | null; url: string; source_lang: string };
   const [inspirations, setInspirations] = useState<Inspiration[]>([]);
@@ -539,6 +542,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setRelevanceByClientId({});
     setShowAllClients(false);
   }, [selectedClient, monthFilter]);
+
+  useEffect(() => {
+    apiGet<{ success: boolean; eventMap: Record<string, string> }>('/edro/briefings/event-map')
+      .then((res) => { if (res?.eventMap) setEventBriefingMap(res.eventMap); })
+      .catch(() => {});
+  }, []);
 
   const loadEventRelevance = useCallback(
     async (eventId: string) => {
@@ -1499,6 +1508,15 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                                 }`}
                               />
                               <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
+                                {eventBriefingMap[event.name.toLowerCase().trim()] && (
+                                  <Chip
+                                    size="small"
+                                    label="Briefing"
+                                    icon={<IconFileText size={11} />}
+                                    sx={{ bgcolor: 'success.light', color: 'success.dark', fontSize: '0.65rem', height: 20 }}
+                                    onClick={() => router.push(`/edro/${eventBriefingMap[event.name.toLowerCase().trim()]}`)}
+                                  />
+                                )}
                                 {isActioning ? (
                                   <CircularProgress size={14} />
                                 ) : (
@@ -1803,6 +1821,23 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         </>
                       )}
                     </Box>
+                    {(() => {
+                      const existingId = selectedEvent && eventBriefingMap[selectedEvent.name.toLowerCase().trim()];
+                      return existingId ? (
+                        <Alert
+                          severity="success"
+                          icon={<IconFileText size={15} />}
+                          action={
+                            <Button size="small" color="success" onClick={() => router.push(`/edro/${existingId}`)}>
+                              Ver
+                            </Button>
+                          }
+                          sx={{ py: 0.5 }}
+                        >
+                          Briefing já existe para este evento.
+                        </Alert>
+                      ) : null;
+                    })()}
                     <Button variant="contained" fullWidth onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}>
                       Criar Briefing
                     </Button>

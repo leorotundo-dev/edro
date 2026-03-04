@@ -32,6 +32,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import StatusChip from '@/components/shared/StatusChip';
 import UserAvatar from '@/components/shared/UserAvatar';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 import {
   IconDownload,
   IconPlus,
@@ -51,11 +52,16 @@ import {
   IconTrash,
   IconUsers,
   IconX,
+  IconLayoutList,
+  IconLayoutKanban,
 } from '@tabler/icons-react';
+import BriefingsKanban from './BriefingsKanban';
 
 type Briefing = {
   id: string;
   client_name: string | null;
+  client_logo_url?: string | null;
+  client_brand_color?: string | null;
   title: string;
   status: string;
   created_at: string;
@@ -144,6 +150,8 @@ export default function BriefingsClient() {
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [hoveredBriefing, setHoveredBriefing] = useState<Briefing | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [stageChangingId, setStageChangingId] = useState<string | null>(null);
   const showError = (message: string) => setSnackbar({ open: true, message });
 
   const loadBriefings = useCallback(async () => {
@@ -151,11 +159,15 @@ export default function BriefingsClient() {
     setError('');
     try {
       const params = new URLSearchParams();
-      if (filterStatus) params.set('status', filterStatus);
+      if (viewMode === 'list' && filterStatus) params.set('status', filterStatus);
       if (search) params.set('search', search);
       if (clientFilter) params.set('clientId', clientFilter);
-      params.set('limit', String(PAGE_SIZE));
-      params.set('offset', String(page * PAGE_SIZE));
+      if (viewMode === 'kanban') {
+        params.set('limit', '500');
+      } else {
+        params.set('limit', String(PAGE_SIZE));
+        params.set('offset', String(page * PAGE_SIZE));
+      }
 
       const response = await apiGet<{ success: boolean; data: Briefing[]; total: number }>(
         `/edro/briefings?${params.toString()}`
@@ -167,7 +179,7 @@ export default function BriefingsClient() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, search, clientFilter, page]);
+  }, [filterStatus, search, clientFilter, page, viewMode]);
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -327,6 +339,18 @@ export default function BriefingsClient() {
       showError(err?.message || 'Erro ao avançar briefings.');
     } finally {
       setBulkLoading(false);
+    }
+  };
+
+  const handleStageChange = async (briefingId: string, newStage: string) => {
+    setStageChangingId(briefingId);
+    try {
+      await apiPatch(`/edro/briefings/${briefingId}/stages/${newStage}`, { status: 'in_progress' });
+      setBriefings((prev) => prev.map((b) => (b.id === briefingId ? { ...b, status: newStage } : b)));
+    } catch (err: any) {
+      showError(err?.message || 'Não foi possível mover o briefing. Verifique se a etapa anterior está concluída.');
+    } finally {
+      setStageChangingId(null);
     }
   };
 
@@ -548,20 +572,38 @@ export default function BriefingsClient() {
           </Typography>
         </Stack>
 
-        <ToggleButtonGroup
-          value={filterStatus}
-          exclusive
-          onChange={(_, v) => { if (v !== null) { setFilterStatus(v); setPage(0); } }}
-          size="small"
-          sx={{ flexWrap: 'wrap', gap: '4px' }}
-        >
-          <ToggleButton value="">Todos</ToggleButton>
-          {Object.keys(STATUS_LABELS).map((status) => (
-            <ToggleButton key={status} value={status}>
-              {STATUS_LABELS[status]}
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
+          {viewMode === 'list' && (
+            <ToggleButtonGroup
+              value={filterStatus}
+              exclusive
+              onChange={(_, v) => { if (v !== null) { setFilterStatus(v); setPage(0); } }}
+              size="small"
+              sx={{ flexWrap: 'wrap', gap: '4px' }}
+            >
+              <ToggleButton value="">Todos</ToggleButton>
+              {Object.keys(STATUS_LABELS).map((status) => (
+                <ToggleButton key={status} value={status}>
+                  {STATUS_LABELS[status]}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          )}
+          {viewMode === 'kanban' && <Box sx={{ flex: 1 }} />}
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, v) => { if (v) setViewMode(v); }}
+            size="small"
+          >
+            <ToggleButton value="list" title="Vista em Lista">
+              <IconLayoutList size={16} />
             </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+            <ToggleButton value="kanban" title="Vista Kanban">
+              <IconLayoutKanban size={16} />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
 
         {selectedIds.size > 0 && (
           <Card
@@ -620,7 +662,20 @@ export default function BriefingsClient() {
           </Card>
         )}
 
-        {briefings.length === 0 && !loading ? (
+        {viewMode === 'kanban' ? (
+          loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <BriefingsKanban
+              briefings={briefings}
+              onBriefingClick={handleBriefingClick}
+              onStageChange={handleStageChange}
+              stageChangingId={stageChangingId}
+            />
+          )
+        ) : briefings.length === 0 && !loading ? (
           <Card variant="outlined">
             <CardContent sx={{ textAlign: 'center', py: 6, px: 3, background: 'radial-gradient(ellipse at 50% 0%, rgba(232,82,25,0.05) 0%, transparent 70%)', borderRadius: 2 }}>
               <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: '#fdeee8', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5, mx: 'auto', color: '#E85219' }}>
@@ -679,7 +734,12 @@ export default function BriefingsClient() {
                             <Stack direction="row" spacing={2} flexWrap="wrap" mt={0.5}>
                               {briefing.client_name && (
                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <IconBuilding size={14} />
+                                  <EdroAvatar
+                                    src={briefing.client_logo_url}
+                                    name={briefing.client_name}
+                                    size={20}
+                                    sx={briefing.client_brand_color ? { bgcolor: `${briefing.client_brand_color}33` } : undefined}
+                                  />
                                   <Typography variant="body2" color="text.secondary">
                                     {briefing.client_name}
                                   </Typography>
@@ -746,7 +806,7 @@ export default function BriefingsClient() {
           </Stack>
         )}
 
-        {totalPages > 1 && (
+        {viewMode === 'list' && totalPages > 1 && (
           <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
             <IconButton
               size="small"

@@ -1324,4 +1324,27 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       })),
     });
   });
+
+  // GET /clients/:clientId/post-metrics — briefing_post_metrics para o cliente
+  app.get('/clients/:clientId/post-metrics', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+
+    const { rows } = await query<any>(
+      `SELECT m.id, m.briefing_id, b.title AS briefing_title, b.due_at,
+         m.platform, m.format, m.post_url, m.published_at, m.match_source,
+         m.reach, m.impressions, m.engagement, m.engagement_rate,
+         m.likes, m.comments, m.saves, m.shares, m.synced_at
+       FROM briefing_post_metrics m
+       JOIN edro_briefings b ON b.id = m.briefing_id
+       WHERE m.client_id = $1 AND m.tenant_id = $2
+       ORDER BY m.published_at DESC NULLS LAST
+       LIMIT 100`,
+      [clientId, tenantId]
+    );
+
+    return reply.send({ success: true, data: rows });
+  });
 }

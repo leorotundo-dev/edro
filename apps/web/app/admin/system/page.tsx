@@ -401,9 +401,9 @@ export default function AdminSystemPage() {
         <CardContent>
           <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1" gutterBottom>Reportei Insights Job</Typography>
+              <Typography variant="subtitle1" gutterBottom>Reportei Insights + Métricas de Posts</Typography>
               <Typography variant="body2" color="text.secondary">
-                Coleta métricas do Reportei e salva insights para cada cliente.
+                Coleta métricas agregadas do Reportei e sincroniza métricas de posts publicados vinculados a briefings entregues.
               </Typography>
             </Box>
             <LoadingButton

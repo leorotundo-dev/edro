@@ -257,6 +257,8 @@ export async function listBriefings(params?: {
   const { rows } = await query<EdroBriefing>(
     `
       SELECT b.*, c.name AS client_name,
+        cl.profile->>'logo_url'        AS client_logo_url,
+        cl.profile->'brand_colors'->>0 AS client_brand_color,
         COALESCE(
           (
             SELECT stage
@@ -276,6 +278,7 @@ export async function listBriefings(params?: {
         ) AS current_stage
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
+      LEFT JOIN clients cl ON cl.id = b.main_client_id
       ${whereClause}
       ORDER BY b.created_at DESC
       LIMIT $${values.length - 1} OFFSET $${values.length}

@@ -11,7 +11,7 @@ import { listClients, listCalendars, listFlowRuns } from './repos/readRepo';
 import { createMonthlyCalendar, createFlowRun } from './repos/calendarRepo';
 import { createPostAssetsFromCalendar, setPostStatus, listPostAssets } from './repos/governanceRepo';
 import { calendarToCSV, calendarToIclipsPayload } from './exports/exporters';
-import { runDailyInsightsJob } from './jobs/cron';
+import { runDailyInsightsJob, syncDeliveredBriefingMetricsCron } from './jobs/cron';
 import { runPublishWorkerOnce } from './jobs/publishWorker';
 import { runAutopilotJob } from './jobs/autopilot';
 import { runExperimentResultsJob } from './jobs/experiments';
@@ -484,7 +484,9 @@ export async function buildServer() {
     '/api/admin/jobs/insights',
     { preHandler: [authGuard, tenantGuard(), requirePerm('admin:jobs')] },
     async (request: any) => {
-      await runDailyInsightsJob((request.user as any).tenant_id);
+      const tenantId = (request.user as any).tenant_id;
+      await runDailyInsightsJob(tenantId);
+      syncDeliveredBriefingMetricsCron(tenantId).catch(() => {});
       return { ok: true };
     }
   );

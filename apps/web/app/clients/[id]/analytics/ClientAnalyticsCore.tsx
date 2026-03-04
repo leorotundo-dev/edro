@@ -22,8 +22,10 @@ import {
   IconBrandMeta, IconCalendarEvent, IconTarget, IconCoin,
   IconBulb, IconRefresh, IconTrendingUp, IconTrendingDown,
   IconHeartbeat, IconDna, IconSearch, IconRobot,
+  IconPhoto, IconExternalLink,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,15 @@ type AmdPerfRow = {
   persona_id: string | null; persona_name: string | null;
   amd: string; momento: string | null; format: string | null;
   achieved: number; tracked: number; rate: number;
+};
+
+type ClientPostMetric = {
+  id: string; briefing_id: string; briefing_title: string; due_at: string | null;
+  platform: string; format: string | null; post_url: string | null;
+  published_at: string | null; match_source: string;
+  reach: number | null; impressions: number | null; engagement: number | null;
+  engagement_rate: number | null; likes: number | null; comments: number | null;
+  saves: number | null; shares: number | null;
 };
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -274,6 +285,11 @@ export default function ClientAnalyticsCore({
   const [amdPerf, setAmdPerf] = useState<AmdPerfRow[]>([]);
   const [amdPerfLoading, setAmdPerfLoading] = useState(false);
 
+  const [postMetrics, setPostMetrics] = useState<ClientPostMetric[]>([]);
+  const [postMetricsLoading, setPostMetricsLoading] = useState(false);
+
+  const [clientIdentity, setClientIdentity] = useState<{ name: string; logo_url: string | null; brand_color: string | null } | null>(null);
+
   useEffect(() => {
     if (typeof forcedTab === 'number') {
       setTab(forcedTab);
@@ -356,6 +372,27 @@ export default function ClientAnalyticsCore({
     setAmdPerf(res?.data ?? []);
   });
 
+  const loadPostMetrics = () => wrap(setPostMetricsLoading, async () => {
+    const res = await apiGet<{ data: ClientPostMetric[] }>(`/clients/${clientId}/post-metrics`);
+    setPostMetrics(res?.data ?? []);
+  });
+
+  // Fetch client name + logo once on mount
+  useEffect(() => {
+    if (!clientId || clientIdentity) return;
+    apiGet<{ data: { name: string; profile?: { logo_url?: string | null; brand_colors?: string[] | null } } }>(`/clients/${clientId}`)
+      .then((res) => {
+        if (res?.data) {
+          setClientIdentity({
+            name: res.data.name,
+            logo_url: res.data.profile?.logo_url ?? null,
+            brand_color: res.data.profile?.brand_colors?.[0] ?? null,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!clientId) return;
     if (activeTab === 0 && !healthScore && !healthLoading) {
@@ -368,7 +405,10 @@ export default function ClientAnalyticsCore({
     if (activeTab === 9 && !amdPerf.length && !amdPerfLoading) {
       void loadAmdPerf();
     }
-  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, amdPerf.length, amdPerfLoading]);
+    if (activeTab === 10 && !postMetrics.length && !postMetricsLoading) {
+      void loadPostMetrics();
+    }
+  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, amdPerf.length, amdPerfLoading, postMetrics.length, postMetricsLoading]);
 
   const tabs = [
     { label: 'Health Score', icon: <IconHeartbeat size={18} /> },
@@ -381,15 +421,27 @@ export default function ClientAnalyticsCore({
     { label: 'ROI Retainer', icon: <IconCoin size={18} /> },
     { label: 'Cal. Preditivo', icon: <IconCalendarEvent size={18} /> },
     { label: 'O que funcionou', icon: <IconTarget size={18} /> },
+    { label: 'Posts Publicados', icon: <IconPhoto size={18} /> },
   ];
 
   return (
     <Box>
       {!compact && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-          <IconSparkles size={28} stroke={1.5} color="#7c3aed" />
+          {clientIdentity ? (
+            <EdroAvatar
+              src={clientIdentity.logo_url}
+              name={clientIdentity.name}
+              size={44}
+              sx={clientIdentity.brand_color ? { bgcolor: `${clientIdentity.brand_color}33` } : undefined}
+            />
+          ) : (
+            <IconSparkles size={28} stroke={1.5} color="#7c3aed" />
+          )}
           <Box>
-            <Typography variant="h5" fontWeight={700}>Analytics Avancado</Typography>
+            <Typography variant="h5" fontWeight={700}>
+              {clientIdentity?.name ?? 'Analytics Avançado'}
+            </Typography>
             <Typography variant="body2" color="text.secondary">
               Inteligência de dados, IA estratégica e métricas de valor.
             </Typography>
@@ -1180,6 +1232,132 @@ export default function ClientAnalyticsCore({
               </Stack>
             </>
           )}
+        </Box>
+      )}
+
+      {/* ── TAB 10: Posts Publicados (briefing_post_metrics) ────────────────── */}
+      {activeTab === 10 && (
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>Posts Publicados</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Métricas reais dos posts vinculados a briefings entregues via Reportei
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined" size="small"
+              startIcon={postMetricsLoading ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+              onClick={loadPostMetrics} disabled={postMetricsLoading}
+            >
+              {postMetricsLoading ? 'Carregando...' : 'Atualizar'}
+            </Button>
+          </Stack>
+
+          {!postMetricsLoading && postMetrics.length === 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Nenhuma métrica de post ainda. Abra um briefing entregue e clique em <strong>Sincronizar</strong> no card de Performance para buscar dados do Reportei.
+            </Alert>
+          )}
+
+          {postMetrics.length > 0 && (() => {
+            // Group by format for summary
+            const byFormat: Record<string, { count: number; totalEngRate: number; totalReach: number }> = {};
+            for (const m of postMetrics) {
+              const key = m.format ?? 'N/D';
+              if (!byFormat[key]) byFormat[key] = { count: 0, totalEngRate: 0, totalReach: 0 };
+              byFormat[key].count++;
+              byFormat[key].totalEngRate += m.engagement_rate ?? 0;
+              byFormat[key].totalReach += m.reach ?? 0;
+            }
+
+            return (
+              <>
+                {/* Format summary */}
+                <Stack direction="row" spacing={1.5} sx={{ mb: 3, flexWrap: 'wrap', gap: 1.5 }}>
+                  {Object.entries(byFormat).sort((a, b) => b[1].count - a[1].count).map(([fmt, s]) => (
+                    <Card key={fmt} variant="outlined" sx={{ minWidth: 150, flex: '1 1 150px' }}>
+                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: '0.65rem' }}>{fmt}</Typography>
+                        <Typography variant="h6" fontWeight={800}>{s.count} posts</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Eng médio: <strong>{s.count ? (s.totalEngRate / s.count).toFixed(1) : 0}%</strong>
+                        </Typography>
+                        <br />
+                        <Typography variant="caption" color="text.secondary">
+                          Alcance médio: <strong>{s.count ? Math.round(s.totalReach / s.count).toLocaleString('pt-BR') : 0}</strong>
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+
+                {/* Post list */}
+                <Stack spacing={1.5}>
+                  {postMetrics.map((m) => {
+                    const pubDate = m.published_at
+                      ? new Date(m.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' })
+                      : null;
+                    const engColor = (m.engagement_rate ?? 0) >= 5 ? '#13DEB9' : (m.engagement_rate ?? 0) >= 2 ? '#FFAE1F' : '#8c8c8c';
+
+                    return (
+                      <Card key={m.id} variant="outlined">
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Stack direction="row" spacing={2} alignItems="flex-start" flexWrap="wrap">
+                            {/* Engagement rate highlight */}
+                            <Box sx={{ minWidth: 56, textAlign: 'center' }}>
+                              <Typography variant="h6" fontWeight={800} sx={{ color: engColor, lineHeight: 1 }}>
+                                {m.engagement_rate != null ? `${m.engagement_rate}%` : '—'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>Eng.</Typography>
+                            </Box>
+
+                            {/* Chips + briefing link */}
+                            <Box sx={{ flex: 1, minWidth: 200 }}>
+                              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+                                <Chip label={m.platform} size="small" sx={{ fontSize: '0.6rem', height: 18 }} />
+                                {m.format && <Chip label={m.format} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />}
+                                {pubDate && <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{pubDate}</Typography>}
+                              </Stack>
+                              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.78rem', lineHeight: 1.3 }}>
+                                {m.briefing_title}
+                              </Typography>
+                            </Box>
+
+                            {/* KPIs */}
+                            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
+                              {[
+                                { label: 'Alcance', value: m.reach },
+                                { label: 'Impressões', value: m.impressions },
+                                { label: 'Curtidas', value: m.likes },
+                                { label: 'Saves', value: m.saves },
+                                { label: 'Coments.', value: m.comments },
+                              ].map(({ label, value }) => value != null ? (
+                                <Box key={label} sx={{ textAlign: 'center', minWidth: 52 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.58rem', display: 'block' }}>{label}</Typography>
+                                  <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.75rem' }}>{value.toLocaleString('pt-BR')}</Typography>
+                                </Box>
+                              ) : null)}
+                            </Stack>
+
+                            {/* Link */}
+                            {m.post_url && (
+                              <Box
+                                component="a" href={m.post_url} target="_blank" rel="noopener noreferrer"
+                                sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', gap: 0.25, fontSize: '0.7rem', alignSelf: 'center' }}
+                              >
+                                <IconExternalLink size={13} /> Post
+                              </Box>
+                            )}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </Stack>
+              </>
+            );
+          })()}
         </Box>
       )}
     </Box>

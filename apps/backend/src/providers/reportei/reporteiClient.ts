@@ -25,6 +25,24 @@ export class ReporteiClient {
     return !!cfg.baseUrl && !!cfg.token;
   }
 
+  async getPosts(
+    accountId: string,
+    params: { platform: string; since: string; until: string },
+    overrides?: Partial<ReporteiConfig>
+  ): Promise<any[]> {
+    const pathTemplate =
+      process.env.REPORTEI_POSTS_PATH ?? '/v1/accounts/{accountId}/posts';
+    const path = pathTemplate.replace('{accountId}', accountId);
+    const qs = new URLSearchParams({
+      platform: params.platform,
+      since: params.since,
+      until: params.until,
+    });
+    const raw = await this.get(`${path}?${qs}`, overrides);
+    if (Array.isArray(raw)) return raw;
+    return raw?.posts ?? raw?.data ?? raw?.items ?? [];
+  }
+
   async get(path: string, overrides?: Partial<ReporteiConfig>) {
     const cfg = this.resolveConfig(overrides);
     if (!cfg.baseUrl || !cfg.token) {

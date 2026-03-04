@@ -81,6 +81,7 @@ import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
+import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -741,6 +742,61 @@ export default async function edroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: clients });
   });
 
+  // ── Mapa evento → briefing (para badge no calendário) ────────
+  app.get('/edro/briefings/event-map', async (request, reply) => {
+    const tenantId = (request.user as any)?.tenant_id;
+    const { rows } = await query<{ event_key: string; briefing_id: string }>(
+      `
+      SELECT LOWER(TRIM(payload->>'event')) AS event_key, id AS briefing_id
+      FROM   edro_briefings
+      WHERE  tenant_id = $1
+        AND  payload->>'event' IS NOT NULL
+        AND  status NOT IN ('archived')
+      LIMIT  1000
+      `,
+      [tenantId]
+    );
+    const eventMap: Record<string, string> = {};
+    for (const row of rows) {
+      if (row.event_key && !eventMap[row.event_key]) {
+        eventMap[row.event_key] = row.briefing_id;
+      }
+    }
+    return reply.send({ success: true, eventMap });
+  });
+
+  // ── Pendências por cliente (agregado para dashboard) ──────────
+  app.get('/edro/briefings/pending-by-client', async (request, reply) => {
+    const tenantId = (request.user as any)?.tenant_id;
+    const { rows } = await query<any>(
+      `
+      SELECT
+        COALESCE(b.main_client_id::text, b.client_id::text)  AS client_key,
+        COALESCE(cl.name, ec.name, 'Sem cliente')            AS client_name,
+        b.main_client_id                                      AS client_id,
+        MAX(cl.profile->>'logo_url')                          AS client_logo_url,
+        MAX(cl.profile->'brand_colors'->>0)                   AS client_brand_color,
+        COUNT(*) FILTER (WHERE b.status = 'aprovacao')                                        AS aprovacao,
+        COUNT(*) FILTER (WHERE b.status IN ('producao','revisao'))                            AS em_producao,
+        COUNT(*) FILTER (WHERE b.due_at < NOW() AND b.status NOT IN ('done','archived'))      AS atrasados,
+        COUNT(*)                                                                               AS total_active
+      FROM edro_briefings b
+      LEFT JOIN clients     cl ON cl.id = b.main_client_id
+      LEFT JOIN edro_clients ec ON ec.id = b.client_id
+      WHERE b.tenant_id = $1
+        AND b.status NOT IN ('done','archived')
+      GROUP BY client_key, client_name, b.main_client_id
+      HAVING
+        COUNT(*) FILTER (WHERE b.status IN ('aprovacao','producao','revisao')) > 0
+        OR COUNT(*) FILTER (WHERE b.due_at < NOW() AND b.status NOT IN ('done','archived')) > 0
+      ORDER BY atrasados DESC, aprovacao DESC
+      LIMIT 20
+      `,
+      [tenantId]
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
   // ── Briefing Templates ────────────────────────────────────────
   app.get('/edro/templates', async (_request, reply) => {
     const { rows } = await query<any>(
@@ -1067,6 +1123,8 @@ export default async function edroRoutes(app: FastifyInstance) {
             competitors: profile.competitors || [],
             website: kb.website || null,
             social_profiles: kb.social_profiles || {},
+            logo_url: profile.logo_url ?? null,
+            brand_colors: profile.brand_colors ?? null,
           };
           // Full compiled client knowledge — mirrors exactly what goes into the copy prompt
           const ck = buildClientKnowledgeFromRow(clientRow);
@@ -1238,6 +1296,31 @@ export default async function edroRoutes(app: FastifyInstance) {
 
     const advanced = results.filter((r) => r.ok).length;
     return reply.send({ success: true, advanced, total: ids.length, results });
+  });
+
+  // POST /edro/briefings/:id/sync-metrics — on-demand Reportei post sync
+  app.post('/edro/briefings/:id/sync-metrics', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId = (request.user as any)?.tenant_id ?? null;
+    const result = await syncBriefingMetrics(id, tenantId);
+    return reply.send({ success: true, ...result });
+  });
+
+  // GET /edro/briefings/:id/metrics — post performance linked to briefing
+  app.get('/edro/briefings/:id/metrics', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const { rows } = await query<any>(
+      `SELECT m.*,
+         (SELECT AVG(m2.engagement_rate) FROM briefing_post_metrics m2
+          WHERE m2.client_id=m.client_id AND m2.platform=m.platform
+            AND m2.format=m.format AND m2.id!=m.id) AS vs_avg_rate,
+         (SELECT AVG(m2.reach) FROM briefing_post_metrics m2
+          WHERE m2.client_id=m.client_id AND m2.platform=m.platform
+            AND m2.format=m.format AND m2.id!=m.id) AS vs_avg_reach
+       FROM briefing_post_metrics m WHERE m.briefing_id=$1 ORDER BY m.platform`,
+      [id]
+    );
+    return reply.send({ success: true, data: rows });
   });
 
   app.get('/edro/briefings/:id/stages', async (request, reply) => {

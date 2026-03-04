@@ -17,7 +17,14 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogActions from '@mui/material/DialogActions';
+import IconButton from '@mui/material/IconButton';
+import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 import {
   IconArchive,
   IconBuilding,
@@ -45,6 +52,9 @@ import {
   IconLayoutKanban,
   IconLink,
   IconTrophy,
+  IconX,
+  IconCopy,
+  IconSend,
 } from '@tabler/icons-react';
 
 type ClientContext = {
@@ -61,6 +71,8 @@ type ClientContext = {
   competitors: string[];
   website: string | null;
   social_profiles: Record<string, string>;
+  logo_url?: string | null;
+  brand_colors?: string[] | null;
 };
 
 type ClientKnowledgeData = {
@@ -76,6 +88,23 @@ type ClientKnowledgeData = {
   brand_promise: string | null;
   differentiators: string | null;
   description: string | null;
+};
+
+type PostMetric = {
+  id: string;
+  platform: string;
+  post_id: string | null;
+  post_url: string | null;
+  published_at: string | null;
+  format: string | null;
+  reach: number | null;
+  impressions: number | null;
+  engagement_rate: number | null;
+  likes: number | null;
+  saves: number | null;
+  match_source: string;
+  vs_avg_rate: number | null;
+  vs_avg_reach: number | null;
 };
 
 type Briefing = {
@@ -316,6 +345,7 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [abTests, setAbTests] = useState<any[]>([]);
   const [abCreating, setAbCreating] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
+  const [approvalLinkDialog, setApprovalLinkDialog] = useState<{ open: boolean; url: string; loading: boolean }>({ open: false, url: '', loading: false });
   const [copySuccess, setCopySuccess] = useState(false);
   const [clientContext, setClientContext] = useState<ClientContext | null>(null);
   const [searching, setSearching] = useState(false);
@@ -325,6 +355,8 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
   const [adaptSuccess, setAdaptSuccess] = useState('');
   const [clientKnowledge, setClientKnowledge] = useState<ClientKnowledgeData | null>(null);
   const [showComposition, setShowComposition] = useState(false);
+  const [postMetrics, setPostMetrics] = useState<PostMetric[]>([]);
+  const [metricsSyncing, setMetricsSyncing] = useState(false);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -353,12 +385,29 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
       apiGet<{ data: any[] }>(`/edro/briefings/${briefingId}/ab-tests`)
         .then((res) => setAbTests(res?.data ?? []))
         .catch(() => {});
+      apiGet<{ data: PostMetric[] }>(`/edro/briefings/${briefingId}/metrics`)
+        .then((res) => setPostMetrics(res?.data ?? []))
+        .catch(() => {});
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar briefing.');
     } finally {
       setLoading(false);
     }
   }, [briefingId]);
+
+  const handleSyncMetrics = async () => {
+    setMetricsSyncing(true);
+    try {
+      await apiPost(`/edro/briefings/${briefingId}/sync-metrics`, {});
+      const res = await apiGet<{ data: PostMetric[] }>(`/edro/briefings/${briefingId}/metrics`);
+      setPostMetrics(res?.data ?? []);
+      setSnackbar({ open: true, message: 'Métricas sincronizadas com sucesso!', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'Falha ao sincronizar métricas.', severity: 'error' });
+    } finally {
+      setMetricsSyncing(false);
+    }
+  };
 
   const handleResearch = async () => {
     setSearching(true);
@@ -723,11 +772,31 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                                 </Button>
                               )}
                               {ws.key === 'aprovacao' && copies.length > 0 && (
-                                <Button fullWidth size="small" variant="contained" color="warning" sx={{ fontSize: 11, py: 0.25 }}
-                                  onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
-                                >
-                                  Aprovar
-                                </Button>
+                                <>
+                                  <Button fullWidth size="small" variant="contained" color="warning" sx={{ fontSize: 11, py: 0.25 }}
+                                    onClick={() => router.push(`/edro/${briefingId}/aprovacao`)}
+                                  >
+                                    Aprovação Interna
+                                  </Button>
+                                  <Button fullWidth size="small" variant="outlined" color="warning" sx={{ fontSize: 11, py: 0.25 }}
+                                    startIcon={<IconSend size={12} />}
+                                    onClick={async () => {
+                                      setApprovalLinkDialog((prev) => ({ ...prev, open: true, loading: true }));
+                                      try {
+                                        const res = await apiPost<{ success: boolean; data: { approvalUrl: string } }>(
+                                          `/edro/briefings/${briefingId}/approval-link`,
+                                          { expiresInDays: 7 }
+                                        );
+                                        setApprovalLinkDialog({ open: true, url: res?.data?.approvalUrl || '', loading: false });
+                                      } catch {
+                                        setApprovalLinkDialog({ open: false, url: '', loading: false });
+                                        showError('Erro ao gerar link de aprovação.');
+                                      }
+                                    }}
+                                  >
+                                    Enviar ao Cliente
+                                  </Button>
+                                </>
                               )}
                               {ws.key === 'producao' && (
                                 <Button fullWidth size="small" variant="contained" sx={{ fontSize: 11, py: 0.25, bgcolor: 'secondary.main' }}
@@ -827,14 +896,27 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
                   if (ctxItems.length === 0) return null;
                   return (
                     <>
-                      <Divider sx={{ my: 2 }}>
-                        <Chip
-                          label={`Contexto do Cliente — ${clientContext.name}`}
-                          size="small"
-                          icon={<IconBuilding size={13} />}
-                          sx={{ fontSize: 11, bgcolor: '#f1f5f9', fontWeight: 600 }}
+                      <Divider sx={{ mt: 2, mb: 1.5 }} />
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.5 }}>
+                        <EdroAvatar
+                          src={clientContext.logo_url}
+                          name={clientContext.name}
+                          size={36}
+                          sx={clientContext.brand_colors?.[0]
+                            ? { bgcolor: `${clientContext.brand_colors[0]}33` }
+                            : undefined}
                         />
-                      </Divider>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                            {clientContext.name}
+                          </Typography>
+                          {clientContext.segment_primary && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+                              {clientContext.segment_primary}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
                       <Stack spacing={0}>
                         {ctxItems.map((item, idx) => (
                           <Box key={item.label}>
@@ -1233,6 +1315,131 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
           {/* RIGHT — Sidebar: Client Context + Research + Tasks + Timeline */}
           <Grid size={{ xs: 12, lg: 4 }}>
 
+            {/* Performance Card — visível quando briefing foi entregue */}
+            {briefing && ['entrega', 'iclips_out', 'done'].includes(briefing.status) && (
+              <Card
+                variant="outlined"
+                sx={{
+                  mb: 3,
+                  borderColor: 'success.light',
+                  background: 'linear-gradient(135deg, rgba(34,197,94,0.07) 0%, transparent 70%)',
+                }}
+              >
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconTrophy size={16} color="#22c55e" />
+                      <Typography variant="subtitle1" fontWeight={700} color="success.dark">
+                        Performance do Conteúdo
+                      </Typography>
+                    </Stack>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="success"
+                      startIcon={metricsSyncing ? <CircularProgress size={12} color="inherit" /> : <IconRefresh size={13} />}
+                      onClick={handleSyncMetrics}
+                      disabled={metricsSyncing}
+                      sx={{ fontSize: 10, py: 0.25 }}
+                    >
+                      {metricsSyncing ? 'Buscando…' : 'Sincronizar'}
+                    </Button>
+                  </Stack>
+
+                  {postMetrics.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, lineHeight: 1.5 }}>
+                      Nenhuma métrica vinculada ainda. Clique em <strong>Sincronizar</strong> para buscar o post publicado mais próximo da data de entrega via Reportei.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1.5}>
+                      {postMetrics.map((m) => {
+                        const pct = (a: number | null, b: number | null) => {
+                          if (a == null || b == null || b === 0) return null;
+                          return Math.round(((a - b) / b) * 100);
+                        };
+                        const rateDiff = pct(m.engagement_rate, m.vs_avg_rate);
+                        const reachDiff = pct(m.reach, m.vs_avg_reach);
+                        const pubDate = m.published_at
+                          ? new Date(m.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                          : null;
+
+                        return (
+                          <Box key={m.id}>
+                            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.75 }}>
+                              <Chip label={m.platform} size="small" sx={{ fontSize: '0.65rem', height: 18 }} />
+                              {m.format && <Chip label={m.format} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 18 }} />}
+                              <Chip label={m.match_source} size="small" color={m.match_source === 'manual' ? 'warning' : 'default'} sx={{ fontSize: '0.6rem', height: 18 }} />
+                              {pubDate && (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', ml: 'auto !important' }}>
+                                  {pubDate}
+                                </Typography>
+                              )}
+                            </Stack>
+
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+                              {[
+                                { label: 'Alcance', value: m.reach },
+                                { label: 'Impressões', value: m.impressions ?? null },
+                                { label: 'Eng.%', value: m.engagement_rate != null ? `${m.engagement_rate}%` : null },
+                                { label: 'Curtidas', value: m.likes },
+                                { label: 'Saves', value: m.saves },
+                              ].map(({ label, value }) => value != null && (
+                                <Box key={label} sx={{ textAlign: 'center', minWidth: 52 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', display: 'block' }}>{label}</Typography>
+                                  <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.78rem' }}>{typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</Typography>
+                                </Box>
+                              ))}
+                            </Stack>
+
+                            {(rateDiff != null || reachDiff != null) && (
+                              <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                {rateDiff != null && (
+                                  <Typography variant="caption" color={rateDiff >= 0 ? 'success.main' : 'error.main'} sx={{ fontSize: '0.65rem' }}>
+                                    {rateDiff >= 0 ? '↑' : '↓'} {Math.abs(rateDiff)}% eng vs média
+                                  </Typography>
+                                )}
+                                {reachDiff != null && (
+                                  <Typography variant="caption" color={reachDiff >= 0 ? 'success.main' : 'error.main'} sx={{ fontSize: '0.65rem' }}>
+                                    {reachDiff >= 0 ? '↑' : '↓'} {Math.abs(reachDiff)}% alcance vs média
+                                  </Typography>
+                                )}
+                              </Stack>
+                            )}
+
+                            {m.post_url && (
+                              <Box
+                                component="a"
+                                href={m.post_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{ fontSize: '0.65rem', color: 'primary.main', display: 'flex', alignItems: 'center', gap: 0.25, mt: 0.5 }}
+                              >
+                                <IconExternalLink size={11} /> Ver post
+                              </Box>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  )}
+
+                  {clientContext?.id && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      color="success"
+                      fullWidth
+                      endIcon={<IconChevronRight size={13} />}
+                      onClick={() => router.push(`/clients/${clientContext.id}/analytics`)}
+                      sx={{ mt: 1.5, fontSize: 11 }}
+                    >
+                      Ver Analytics Completo
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Referências Web (Tavily) */}
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
@@ -1439,6 +1646,60 @@ export default function BriefingDetailClient({ briefingId }: { briefingId: strin
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Dialog: link de aprovação externa */}
+      <Dialog open={approvalLinkDialog.open} onClose={() => setApprovalLinkDialog({ open: false, url: '', loading: false })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconSend size={18} />
+            <Typography fontWeight={700}>Link de Aprovação para o Cliente</Typography>
+          </Stack>
+          <IconButton size="small" onClick={() => setApprovalLinkDialog({ open: false, url: '', loading: false })}>
+            <IconX size={16} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {approvalLinkDialog.loading ? (
+            <Stack alignItems="center" py={3}>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary" mt={1.5}>Gerando link seguro...</Typography>
+            </Stack>
+          ) : (
+            <Stack spacing={2}>
+              <Typography variant="body2" color="text.secondary">
+                Compartilhe este link com o cliente para aprovação externa. O link expira em 7 dias.
+              </Typography>
+              <TextField
+                value={approvalLinkDialog.url}
+                fullWidth
+                size="small"
+                inputProps={{ readOnly: true }}
+                InputProps={{
+                  endAdornment: (
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        navigator.clipboard.writeText(approvalLinkDialog.url);
+                        setSnackbar({ open: true, message: 'Link copiado!', severity: 'success' });
+                      }}
+                    >
+                      <IconCopy size={16} />
+                    </IconButton>
+                  ),
+                }}
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setApprovalLinkDialog({ open: false, url: '', loading: false })}>Fechar</Button>
+          {!approvalLinkDialog.loading && approvalLinkDialog.url && (
+            <Button variant="contained" startIcon={<IconLink size={15} />} onClick={() => window.open(approvalLinkDialog.url, '_blank', 'noopener')}>
+              Abrir prévia
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </AppShell>
   );
 }

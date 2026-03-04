@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import StatusChip from '@/components/shared/StatusChip';
+import EdroAvatar from '@/components/shared/EdroAvatar';
 import { apiGet } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -39,6 +40,7 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconClock,
+  IconPlus,
 } from '@tabler/icons-react';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -58,6 +60,18 @@ type Task = {
   type: string;
   assigned_to: string;
   status: string;
+};
+
+type PendingByClient = {
+  client_key: string;
+  client_name: string;
+  client_id: string | null;
+  client_logo_url?: string | null;
+  client_brand_color?: string | null;
+  aprovacao: number;
+  em_producao: number;
+  atrasados: number;
+  total_active: number;
 };
 
 type CalendarEvent = {
@@ -297,6 +311,7 @@ export default function DashboardClient() {
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventWithDate[]>([]);
   const [priorityTags, setPriorityTags] = useState<string[]>([]);
   const [showNonRelevant, setShowNonRelevant] = useState(true);
+  const [pendingByClient, setPendingByClient] = useState<PendingByClient[]>([]);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -305,18 +320,20 @@ export default function DashboardClient() {
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const [metricsRes, briefingsRes, tasksRes, calendarRes] = await Promise.all([
+      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes] = await Promise.all([
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
         apiGet<{ success?: boolean; month: string; days: Record<string, CalendarEvent[]> }>(
           `/calendar/events/${currentMonth}${showNonRelevant ? '?include_non_relevant=true' : ''}`
         ).catch(() => null),
+        apiGet<{ success: boolean; data: PendingByClient[] }>('/edro/briefings/pending-by-client').catch(() => null),
       ]);
 
       if (metricsRes?.data) setMetrics(metricsRes.data);
       if (briefingsRes?.data) setRecentBriefings(briefingsRes.data);
       if (tasksRes?.data) setTodayTasks(tasksRes.data);
+      if (pendingRes?.data) setPendingByClient(pendingRes.data);
 
       if (calendarRes?.days) {
         const todaysList = calendarRes.days[today] || [];
@@ -588,19 +605,32 @@ export default function DashboardClient() {
                               </Typography>
                             </Box>
                           </Stack>
-                          <Chip
-                            label={`Tier ${tierValue}`}
-                            size="small"
-                            variant={isRelevant ? 'filled' : 'outlined'}
-                            color={getTierColor(tierValue)}
-                            sx={{
-                              flexShrink: 0,
-                              minWidth: 74,
-                              justifyContent: 'center',
-                              fontWeight: 600,
-                              bgcolor: isRelevant ? undefined : 'transparent',
-                            }}
-                          />
+                          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+                            <Chip
+                              label={`Tier ${tierValue}`}
+                              size="small"
+                              variant={isRelevant ? 'filled' : 'outlined'}
+                              color={getTierColor(tierValue)}
+                              sx={{
+                                minWidth: 74,
+                                justifyContent: 'center',
+                                fontWeight: 600,
+                                bgcolor: isRelevant ? undefined : 'transparent',
+                              }}
+                            />
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<IconPlus size={13} />}
+                              onClick={() => {
+                                const today = new Date().toISOString().slice(0, 10);
+                                router.push(`/studio/brief?event=${encodeURIComponent(name)}&date=${today}&score=${safeScore}&source=calendar`);
+                              }}
+                              sx={{ fontSize: '0.68rem', py: 0.25, px: 0.75, whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'none' }}
+                            >
+                              Briefing
+                            </Button>
+                          </Stack>
                         </Box>
                       );
                     })
@@ -803,6 +833,16 @@ export default function DashboardClient() {
                           },
                         }}
                       />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<IconPlus size={14} />}
+                        onClick={() => router.push(`/studio/brief?event=${encodeURIComponent(event.name)}&date=${event.date}&score=${event.score}&source=calendar`)}
+                        sx={{ mt: 1.5, textTransform: 'none', fontSize: '0.72rem' }}
+                      >
+                        Criar Briefing
+                      </Button>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -1102,6 +1142,76 @@ export default function DashboardClient() {
                           </Box>
                         </Stack>
                         <Button size="small" onClick={() => router.push(`/edro/${task.briefing_id}`)}>Ver Briefing</Button>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* ── Pendências por Cliente ──────────────────────────── */}
+        {pendingByClient.length > 0 && (
+          <Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h5" color="primary.main">Pendências por Cliente</Typography>
+              <Button size="small" onClick={() => router.push('/edro?status=aprovacao')}>Ver aprovações</Button>
+            </Stack>
+            <Card variant="outlined">
+              <CardContent sx={{ p: 0 }}>
+                <Stack divider={<Divider flexItem />} spacing={0}>
+                  {pendingByClient.map((item) => (
+                    <Box
+                      key={item.client_key}
+                      sx={{
+                        px: 3, py: 1.75, cursor: item.client_id ? 'pointer' : 'default',
+                        transition: 'background 0.2s',
+                        '&:hover': item.client_id ? { bgcolor: 'action.hover' } : {},
+                      }}
+                      onClick={() => item.client_id && router.push(`/clients/${item.client_id}`)}
+                    >
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={2}
+                        alignItems={{ sm: 'center' }}
+                        justifyContent="space-between"
+                      >
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                          <EdroAvatar
+                            src={item.client_logo_url}
+                            name={item.client_name}
+                            size={24}
+                            sx={item.client_brand_color ? { bgcolor: `${item.client_brand_color}33` } : undefined}
+                          />
+                          <Typography fontWeight={600} variant="body2" noWrap>
+                            {item.client_name}
+                          </Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={1} flexShrink={0} flexWrap="wrap">
+                          {item.atrasados > 0 && (
+                            <Chip
+                              size="small"
+                              label={`${item.atrasados} atrasado${item.atrasados !== 1 ? 's' : ''}`}
+                              icon={<IconAlertTriangle size={13} />}
+                              sx={{ bgcolor: 'error.light', color: 'error.dark', fontWeight: 600, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {item.aprovacao > 0 && (
+                            <Chip
+                              size="small"
+                              label={`${item.aprovacao} aprovação`}
+                              sx={{ bgcolor: 'warning.light', color: 'warning.dark', fontWeight: 600, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {item.em_producao > 0 && (
+                            <Chip
+                              size="small"
+                              label={`${item.em_producao} produção`}
+                              sx={{ bgcolor: 'info.light', color: 'info.dark', fontWeight: 600, fontSize: '0.7rem' }}
+                            />
+                          )}
+                        </Stack>
                       </Stack>
                     </Box>
                   ))}
