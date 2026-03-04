@@ -1001,6 +1001,12 @@ export default function Page() {
           safeSet('edro_active_format', metadata.activeFormat);
         }
 
+        // Load creative image generated in step 3 (Editor)
+        const creativeUrl = payload?.briefing?.creative_image_url || null;
+        if (creativeUrl) {
+          setCreativeImageUrl(creativeUrl);
+        }
+
         const inventory = metadata?.inventory?.length
           ? metadata.inventory
           : safeParse<InventoryItem[]>(safeGet('edro_selected_inventory'), []);

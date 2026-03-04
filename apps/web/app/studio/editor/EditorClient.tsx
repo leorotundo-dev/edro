@@ -1157,6 +1157,10 @@ export default function EditorClient() {
         setArteModalOpen(false);
         setArteStep(null);
         setArteModalError('');
+        // Persist so step 4 (Mockups) can load it
+        if (briefingId) {
+          apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl }).catch(() => null);
+        }
       } else {
         const msg = res.error || 'Gemini não retornou imagem. Tente novamente.';
         console.error('[arteIA] generate-creative error:', msg, res);
