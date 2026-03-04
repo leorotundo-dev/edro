@@ -1417,7 +1417,7 @@ export default function EditorClient() {
               <Card sx={{ overflow: 'hidden' }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr 1fr' } }}>
                 {/* Mockup preview */}
-                <Box sx={{ p: 2, borderRight: { xl: '1px solid' }, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                   <CollaborativeInsights analysisJson={analysisJson} />
                   <LiveMockupPreview
                     platform={activeFormat?.platform}
@@ -1435,7 +1435,7 @@ export default function EditorClient() {
                   />
                 </Box>
                 {/* Copy options */}
-                <Box sx={{ p: 2, borderRight: { xl: '1px solid' }, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                       {/* ── Generation controls ── */}
                       <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
                         <TextField
