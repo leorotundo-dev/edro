@@ -34,6 +34,7 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconWorld,
+  IconPhoto,
 } from '@tabler/icons-react';
 
 type Totals = {
@@ -96,6 +97,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   claude: '#D97706',
   perplexity: '#20B2AA',
   tavily: '#0EA5E9',
+  leonardo: '#C026D3',
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -104,6 +106,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   claude: 'Claude',
   perplexity: 'Perplexity',
   tavily: 'Tavily',
+  leonardo: 'Leonardo.ai',
 };
 
 const TAVILY_FREE_TIER = 1000; // credits/month on free plan
@@ -169,6 +172,12 @@ export default function AiCostsPage() {
   const tavilyCostUsd = tavilyRows.reduce((s, r) => s + Number(r.cost_usd), 0);
   const tavilyCostBrl = tavilyRows.reduce((s, r) => s + Number(r.cost_brl), 0);
   const tavilyFreeTierPct = Math.min(100, Math.round((tavilyTotalCalls / TAVILY_FREE_TIER) * 100));
+
+  // Leonardo.ai summary derived from by_provider data
+  const leonardoRows = (data?.by_provider || []).filter((r) => r.provider === 'leonardo');
+  const leonardoTotalImages = leonardoRows.reduce((s, r) => s + Number(r.output_tokens), 0); // output_tokens = num_images
+  const leonardoCostUsd = leonardoRows.reduce((s, r) => s + Number(r.cost_usd), 0);
+  const leonardoCostBrl = leonardoRows.reduce((s, r) => s + Number(r.cost_brl), 0);
 
   const statCards = [
     {
@@ -402,6 +411,46 @@ export default function AiCostsPage() {
                 </Grid>
               </Grid>
             </DashboardCard>
+
+            {/* Leonardo.ai Image Generation summary */}
+            {leonardoRows.length > 0 && (
+              <DashboardCard title="Leonardo.ai — Geração de Imagens" sx={{ mb: 3 }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Stack alignItems="center" spacing={0.5}>
+                      <IconPhoto size={24} color="#C026D3" />
+                      <Typography variant="h5" fontWeight={700}>{leonardoTotalImages}</Typography>
+                      <Typography variant="caption" color="text.secondary">Imagens geradas</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                    <Stack alignItems="center" spacing={0.5}>
+                      <Typography variant="h6" fontWeight={700} color="#C026D3">{formatUsd(leonardoCostUsd)}</Typography>
+                      <Typography variant="caption" color="text.secondary">Custo USD</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                    <Stack alignItems="center" spacing={0.5}>
+                      <Typography variant="h6" fontWeight={700}>{formatBrl(leonardoCostBrl)}</Typography>
+                      <Typography variant="caption" color="text.secondary">Custo BRL</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Stack spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        Custo médio por imagem
+                      </Typography>
+                      <Typography variant="body1" fontWeight={700} color="#C026D3">
+                        {leonardoTotalImages > 0 ? formatUsd(leonardoCostUsd / leonardoTotalImages) : '–'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Modelos: {leonardoRows.map((r) => r.model).join(', ')}
+                      </Typography>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </DashboardCard>
+            )}
 
             {/* Recent calls */}
             <DashboardCard title="Chamadas Recentes" noPadding>

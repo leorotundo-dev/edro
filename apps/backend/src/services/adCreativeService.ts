@@ -2,6 +2,7 @@ import { env } from '../env';
 import { generateImage } from './ai/geminiService';
 import { generateImageWithLeonardo, resolveLeonardoModelId } from './ai/leonardoService';
 import { generateCompletion } from './ai/claudeService';
+import { logLeonardoUsage } from './ai/aiUsageLogger';
 
 type AdCreativeRequest = {
   copy: string;
@@ -22,6 +23,7 @@ type AdCreativeRequest = {
   imageProvider?: 'gemini' | 'leonardo';
   aspectRatio?: string;
   negativePrompt?: string;
+  tenantId?: string;
 };
 
 type AdCreativeResponse = {
@@ -230,12 +232,25 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
       const sceneNarrative = params.customPrompt || buildScenePrompt(params);
       const finalPrompt = `${VISUAL_DNA_BASE}\n${sceneNarrative}`;
       const modelId = resolveLeonardoModelId(params.imageModel);
+      const t0 = Date.now();
       const result = await generateImageWithLeonardo({
         prompt: finalPrompt,
         modelId,
         aspectRatio: params.aspectRatio,
         negativePrompt: params.negativePrompt,
       });
+      const durationMs = Date.now() - t0;
+      if (params.tenantId) {
+        const modelAlias = params.imageModel || 'leonardo-phoenix';
+        logLeonardoUsage({
+          tenant_id: params.tenantId,
+          model_id: modelId,
+          model_alias: modelAlias,
+          feature: 'image_generation',
+          duration_ms: durationMs,
+          metadata: { format: params.format, aspect_ratio: params.aspectRatio },
+        });
+      }
       return {
         success: true,
         image_url: `data:${result.mimeType};base64,${result.base64}`,

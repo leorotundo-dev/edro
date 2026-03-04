@@ -91,6 +91,49 @@ export function estimateTokens(text: string): number {
   return Math.ceil((text || '').length / 4);
 }
 
+// ── Leonardo.ai Usage Logger ─────────────────────────────────────
+// Leonardo is billed per image generated (not per token).
+
+const LEONARDO_PRICING_USD: Record<string, number> = {
+  'de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf7': 0.012, // Phoenix
+  'b24e16ff-06e3-43eb-8d33-4416c2d75876': 0.008, // Lightning XL
+  'aa77f04e-3eec-4034-9c07-d0f619684628': 0.012, // Kino XL
+  '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3': 0.008, // Diffusion XL
+};
+
+export async function logLeonardoUsage(params: {
+  tenant_id: string;
+  model_id: string;
+  model_alias?: string;
+  num_images?: number;
+  feature?: string;
+  duration_ms?: number;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  const { tenant_id, model_id, model_alias, feature, duration_ms, metadata } = params;
+  const numImages = params.num_images ?? 1;
+  const pricePerImage = LEONARDO_PRICING_USD[model_id] ?? 0.010;
+  const costUsd = pricePerImage * numImages;
+  const costBrl = costUsd * USD_TO_BRL;
+  const modelLabel = model_alias || model_id;
+
+  await query(
+    `INSERT INTO ai_usage_log
+      (tenant_id, provider, model, feature, input_tokens, output_tokens, cost_usd, cost_brl, duration_ms, metadata)
+     VALUES ($1, 'leonardo', $2, $3, 0, $4, $5, $6, $7, $8)`,
+    [
+      tenant_id,
+      modelLabel,
+      feature || 'image_generation',
+      numImages,
+      costUsd,
+      costBrl,
+      duration_ms || null,
+      JSON.stringify({ ...metadata, num_images: numImages, model_id }),
+    ]
+  ).catch(() => {}); // best-effort — never block on logging
+}
+
 // ── Tavily Usage Logger ─────────────────────────────────────────
 // Tavily is billed per API call, not per token.
 

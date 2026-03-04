@@ -3607,6 +3607,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         imageProvider: body.image_provider || undefined,
         aspectRatio: body.aspect_ratio || undefined,
         negativePrompt: body.negative_prompt || undefined,
+        tenantId: tenantId || undefined,
       });
 
       if (!result.success) {
