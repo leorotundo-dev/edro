@@ -3284,10 +3284,12 @@ export default async function edroRoutes(app: FastifyInstance) {
         approvedExamples: approvedExamples.length ? approvedExamples : undefined,
         avoidPatterns: avoidPatterns.length ? avoidPatterns : undefined,
       };
-      const previewPrompt = await generateArtDirectorPrompt(artDirectorParams);
+      // generateArtDirectorPrompt returns an array of 3 scene narratives (no VISUAL_DNA_BASE)
+      const variations = await generateArtDirectorPrompt(artDirectorParams);
       return reply.send({
         success: true,
-        prompt: previewPrompt,
+        prompt: variations[0],           // backward compat — first variation
+        prompt_variations: variations,   // all 3 for the picker UI
         visual_refs_count: visualRefsCount,
       });
     }

@@ -559,7 +559,7 @@ export async function syncCreativeFeedbackToProfile(
     );
 
     const goodPrompts = approvedRows
-      .map((r) => (r.creative_prompt || '').slice(0, 120).trim())
+      .map((r) => (r.creative_prompt || '').slice(0, 400).trim())
       .filter(Boolean);
 
     // Conta frequência das tags e retorna as top 4

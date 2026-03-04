@@ -459,6 +459,7 @@ export default function EditorClient() {
   const [arteImageUrl, setArteImageUrl] = useState<string | null>(null);
   const [arteStep, setArteStep] = useState<null | 'loading_prompt' | 'generating'>(null);
   const [artePrompt, setArtePrompt] = useState('');
+  const [arteVariations, setArteVariations] = useState<string[]>([]);
   const [arteRefsCount, setArteRefsCount] = useState(0);
   const [arteModalError, setArteModalError] = useState('');
   const [imageModel, setImageModel] = useState('gemini-2.0-flash-exp-image-generation');
@@ -1128,7 +1129,7 @@ export default function EditorClient() {
 
     setArteStep('loading_prompt');
     try {
-      const res = await apiPost<{ success: boolean; prompt?: string; visual_refs_count?: number; error?: string }>(
+      const res = await apiPost<{ success: boolean; prompt?: string; prompt_variations?: string[]; visual_refs_count?: number; error?: string }>(
         `/edro/briefings/${briefingId}/generate-creative`,
         {
           copy_version_id: copyVersionId,
@@ -1141,7 +1142,9 @@ export default function EditorClient() {
         }
       );
       if (res.success && res.prompt) {
-        setArtePrompt(res.prompt);
+        const variations = res.prompt_variations?.length ? res.prompt_variations : [res.prompt];
+        setArteVariations(variations);
+        setArtePrompt(variations[0]);
         setArteRefsCount(res.visual_refs_count || 0);
         setArteModalError('');
         setArteStep(null);
@@ -2130,6 +2133,24 @@ export default function EditorClient() {
                               Auto-gerar
                             </LoadingButton>
                           </Stack>
+
+                          {/* Variation picker — aparece após Auto-gerar */}
+                          {arteVariations.length > 1 && (
+                            <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap', gap: 0.75 }}>
+                              {(['Metáfora', 'Ambiente', 'Humano'] as const).map((label, idx) => (
+                                <Chip
+                                  key={label}
+                                  size="small"
+                                  label={label}
+                                  variant={artePrompt === arteVariations[idx] ? 'filled' : 'outlined'}
+                                  color={artePrompt === arteVariations[idx] ? 'primary' : 'default'}
+                                  onClick={() => arteVariations[idx] && setArtePrompt(arteVariations[idx])}
+                                  sx={{ cursor: 'pointer', fontSize: '0.68rem' }}
+                                />
+                              ))}
+                            </Stack>
+                          )}
+
                           <TextField
                             multiline minRows={5}
                             fullWidth size="small"
