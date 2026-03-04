@@ -3,6 +3,10 @@ import { generateImage } from './ai/geminiService';
 
 type AdCreativeRequest = {
   copy: string;
+  /** Headline do post — conceito visual primário, usado sem truncamento como âncora principal */
+  headline?: string;
+  /** Corpo do post — contexto temático secundário para informar a cena */
+  bodyText?: string;
   format: string;
   brand?: string;
   colors?: string[];
@@ -55,6 +59,13 @@ SCENE:`;
 
 /**
  * Monta a parte descritiva (ação/conceito) do prompt com base nos parâmetros.
+ *
+ * Hierarquia visual:
+ *  1. headline  → âncora primária do conceito visual (sem truncamento, peso máximo)
+ *  2. bodyText  → contexto temático secundário (truncado em 200 chars)
+ *  3. copy      → fallback quando headline/bodyText não fornecidos (truncado em 140 chars)
+ *  4. visualContext → branding do cliente (cores, diretrizes, posts anteriores)
+ *
  * A base técnica (VISUAL_DNA_BASE) é injetada separadamente em generateAdCreative.
  * Exportado para que o endpoint possa retornar o prompt completo no modo prompt_only.
  */
@@ -63,13 +74,24 @@ export function buildCreativePrompt(params: Omit<AdCreativeRequest, 'customPromp
     ? `Brand accent color: ${params.colors[0]}.`
     : '';
 
-  const copySnippet = params.copy.slice(0, 140);
+  // Headline: conceito visual primário — sem truncamento, é o driver da imagem
+  const headlineAnchor = params.headline
+    ? `PRIMARY VISUAL CONCEPT — translate this idea into imagery, do NOT render it as text: "${params.headline}".`
+    : '';
+
+  // Body: contexto temático secundário — informa a cena, não precisa ser literal
+  const bodyContext = params.bodyText
+    ? `Thematic context to inform the scene (do NOT render as text): ${params.bodyText.slice(0, 200)}.`
+    : !params.headline && params.copy
+    ? `Visual concept (do NOT render as text): ${params.copy.slice(0, 140)}.`
+    : '';
 
   const actionBlock = [
     `Social media advertising background image for ${params.format} format. No text anywhere.`,
-    `Visual concept inspired by this idea (do NOT render any of this as text in the image): ${copySnippet}.`,
-    params.brand ? `Brand aesthetic: ${params.brand}.` : '',
-    params.segment ? `Industry sector visual context: ${params.segment}.` : '',
+    headlineAnchor,
+    bodyContext,
+    params.brand ? `Brand: ${params.brand}.` : '',
+    params.segment ? `Industry sector: ${params.segment}.` : '',
     colorHint,
     params.visualContext
       ? `Client brand aesthetic reference:\n${params.visualContext}`

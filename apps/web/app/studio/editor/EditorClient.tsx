@@ -1135,6 +1135,8 @@ export default function EditorClient() {
           format: activeFormat?.format || 'instagram-feed',
           brand_color: clientBrandColor || undefined,
           client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
+          headline: editorCopy.headline || undefined,
+          body_text: editorCopy.body || undefined,
           prompt_only: true,
         }
       );
@@ -1172,7 +1174,9 @@ export default function EditorClient() {
           format: activeFormat?.format || 'instagram-feed',
           brand_color: clientBrandColor || undefined,
           client_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined,
-          custom_prompt: artePrompt,
+          headline: editorCopy.headline || undefined,
+          body_text: editorCopy.body || undefined,
+          custom_prompt: artePrompt || undefined,
           image_model: imageModel,
           aspect_ratio: imageModel.startsWith('imagen-') ? imageAspectRatio : undefined,
           negative_prompt: imageNegativePrompt || undefined,

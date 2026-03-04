@@ -3149,6 +3149,10 @@ export default async function edroRoutes(app: FastifyInstance) {
       aspect_ratio: z.string().optional(),
       /** Negative prompt for Imagen 3 */
       negative_prompt: z.string().optional(),
+      /** Headline do post (campo estruturado) — conceito visual primário */
+      headline: z.string().optional(),
+      /** Corpo do post (campo estruturado) — contexto temático secundário */
+      body_text: z.string().optional(),
     });
 
     const params = paramsSchema.parse(request.params);
@@ -3266,6 +3270,8 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (body.prompt_only) {
       const previewPrompt = buildCreativePrompt({
         copy: selectedCopy.output,
+        headline: body.headline || undefined,
+        bodyText: body.body_text || undefined,
         format: body.format,
         brand: briefing.client_name || undefined,
         colors: body.brand_color ? [body.brand_color] : undefined,
@@ -3286,6 +3292,8 @@ export default async function edroRoutes(app: FastifyInstance) {
     try {
       const result = await generateAdCreative({
         copy: selectedCopy.output,
+        headline: body.headline || undefined,
+        bodyText: body.body_text || undefined,
         format: body.format,
         brand: briefing.client_name || undefined,
         colors: body.brand_color ? [body.brand_color] : undefined,
