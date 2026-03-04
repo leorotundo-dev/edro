@@ -79,8 +79,6 @@ const CLIENT_TABS = [
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas',    path: '/metricas' },
   { label: 'Perfil',      path: '/perfil' },
-  { label: 'Campanhas',   path: '/campaigns' },
-  { label: 'Planning',    path: '/planning' },
   { label: 'Dark Funnel', path: '/dark-funnel' },
 ];
 
