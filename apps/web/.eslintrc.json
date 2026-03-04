@@ -13,7 +13,8 @@
       "files": ["components/mockups/**/*.tsx", "components/mockups/**/*.ts"],
       "rules": {
         "react/forbid-dom-props": "off",
-        "react/forbid-component-props": "off"
+        "react/forbid-component-props": "off",
+        "react/no-inline-styles": "off"
       }
     }
   ]
