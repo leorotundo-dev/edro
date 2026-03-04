@@ -1457,33 +1457,70 @@ export default function EditorClient() {
                 <Grid size={{ xs: 12, xl: 8 }}>
                   <Card>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
-                        <Box>
-                          <Chip size="small" label="Opcoes de copy" />
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            {formatLabel}
+                      {/* ── Generation controls ── */}
+                      <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
+                        <TextField
+                          select size="small" label="Pipeline"
+                          value={pipeline}
+                          onChange={(e) => setPipeline(e.target.value as any)}
+                          sx={{ minWidth: 200, flex: '1 1 180px' }}
+                        >
+                          {Object.entries(PIPELINE_LABELS).map(([v, l]) => (
+                            <MenuItem key={v} value={v}>{l}</MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select size="small" label="Tom"
+                          value={tone}
+                          onChange={(e) => setTone(e.target.value)}
+                          sx={{ minWidth: 120, flex: '0 1 120px' }}
+                        >
+                          <MenuItem value="">Padrão</MenuItem>
+                          {TONE_OPTIONS.map((t) => (
+                            <MenuItem key={t} value={t}>{t}</MenuItem>
+                          ))}
+                        </TextField>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => setCount((c) => Math.max(1, c - 1))} disabled={count <= 1 || generating}>
+                            <IconMinus size={14} />
+                          </IconButton>
+                          <Typography variant="body2" fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                            {count}
                           </Typography>
-                        </Box>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-                          <Typography variant="caption" color="text.secondary">
-                            {options.length ? `${options.length} opcoes` : 'Sem opcoes'}
-                          </Typography>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setShowVersionHistory(true)}
-                            disabled={!activeFormat?.id}
-                          >
-                            History
-                          </Button>
-                          {reporteiBadges.length ? (
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                              {reporteiBadges.map((badge) => (
-                                <Chip key={badge} size="small" label={badge} />
-                              ))}
-                            </Stack>
-                          ) : null}
+                          <IconButton size="small" onClick={() => setCount((c) => Math.min(5, c + 1))} disabled={count >= 5 || generating}>
+                            <IconPlus size={14} />
+                          </IconButton>
                         </Stack>
+                        <LoadingButton
+                          variant="contained" size="small"
+                          loading={generating}
+                          onClick={handleGenerate}
+                          startIcon={!generating ? <IconRefresh size={14} /> : null}
+                          sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600, flexShrink: 0 }}
+                        >
+                          {options.length ? 'Regenerar' : 'Gerar copy'}
+                        </LoadingButton>
+                        <Button
+                          size="small" variant="outlined"
+                          onClick={() => setShowVersionHistory(true)}
+                          disabled={!activeFormat?.id}
+                          sx={{ flexShrink: 0 }}
+                        >
+                          History
+                        </Button>
+                      </Stack>
+                      <Divider sx={{ mb: 2 }} />
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" spacing={1} sx={{ mb: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatLabel}{options.length ? ` · ${options.length} opç${options.length === 1 ? 'ão' : 'ões'}` : ''}
+                        </Typography>
+                        {reporteiBadges.length ? (
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                            {reporteiBadges.map((badge) => (
+                              <Chip key={badge} size="small" label={badge} />
+                            ))}
+                          </Stack>
+                        ) : null}
                       </Stack>
                       {reporteiLabel ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{reporteiLabel}</Typography> : null}
                       {reporteiKpisLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiKpisLine}</Typography> : null}
@@ -2125,63 +2162,6 @@ export default function EditorClient() {
           {/* Sidebar */}
           <Grid size={{ xs: 12, lg: 3 }}>
             <Stack spacing={2}>
-            <Card>
-              <CardContent>
-                <Chip size="small" label="Gerar copy" sx={{ mb: 1.5 }} />
-                <Stack spacing={1.5}>
-                  <TextField
-                    select
-                    size="small"
-                    label="Pipeline"
-                    value={pipeline}
-                    onChange={(e) => setPipeline(e.target.value as any)}
-                    fullWidth
-                  >
-                    {Object.entries(PIPELINE_LABELS).map(([v, l]) => (
-                      <MenuItem key={v} value={v}>{l}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
-                    label="Tom de voz"
-                    value={tone}
-                    onChange={(e) => setTone(e.target.value)}
-                    fullWidth
-                  >
-                    <MenuItem value="">Padrão</MenuItem>
-                    {TONE_OPTIONS.map((t) => (
-                      <MenuItem key={t} value={t}>{t}</MenuItem>
-                    ))}
-                  </TextField>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                      Opções
-                    </Typography>
-                    <IconButton size="small" onClick={() => setCount((c) => Math.max(1, c - 1))} disabled={count <= 1 || generating}>
-                      <IconMinus size={14} />
-                    </IconButton>
-                    <Typography variant="body2" fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
-                      {count}
-                    </Typography>
-                    <IconButton size="small" onClick={() => setCount((c) => Math.min(5, c + 1))} disabled={count >= 5 || generating}>
-                      <IconPlus size={14} />
-                    </IconButton>
-                  </Stack>
-                  <LoadingButton
-                    fullWidth
-                    variant="contained"
-                    size="small"
-                    loading={generating}
-                    onClick={handleGenerate}
-                    startIcon={!generating ? <IconRefresh size={14} /> : null}
-                    sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' }, textTransform: 'none', fontWeight: 600 }}
-                  >
-                    {options.length ? 'Regenerar' : 'Gerar copy'}
-                  </LoadingButton>
-                </Stack>
-              </CardContent>
-            </Card>
             <Card>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
