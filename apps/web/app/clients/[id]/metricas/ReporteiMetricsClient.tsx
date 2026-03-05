@@ -67,6 +67,8 @@ type MetricsData = {
   top_briefings: TopBriefing[];
   available_platforms: string[];
   synced_at: string | null;
+  is_stale?: boolean;
+  days_since_sync?: number | null;
 };
 
 type BenchmarkData = {
@@ -95,11 +97,36 @@ const METRIC_LABELS: Record<string, string> = {
   'ma:ctr':              'CTR',
   'ma:cpc':              'CPC',
   'ma:roas':             'ROAS',
-  'ga:sessions':         'Sessões',
-  'ga:new_users':        'Novos Usuários',
-  'ga:pageviews':        'Visualizações',
-  'ga:bounce_rate':      'Taxa de Rejeição',
-  'ga:avg_session':      'Duração Média',
+  'ga:sessions':              'Sessões',
+  'ga:new_users':             'Novos Usuários',
+  'ga:pageviews':             'Visualizações',
+  'ga:bounce_rate':           'Taxa de Rejeição',
+  'ga:avg_session':           'Duração Média',
+  // Google Analytics 4 (correct prefix)
+  'ga_4:sessions':            'Sessões',
+  'ga_4:new_users':           'Novos Usuários',
+  'ga_4:pageviews':           'Visualizações',
+  'ga_4:bounce_rate':         'Taxa de Rejeição',
+  'ga_4:avg_session_duration':'Duração Média',
+  // Meta Ads
+  'fb_ads:impressions':       'Impressões',
+  'fb_ads:reach':             'Alcance',
+  'fb_ads:clicks':            'Cliques',
+  'fb_ads:ctr':               'CTR',
+  'fb_ads:cpc':               'CPC',
+  'fb_ads:spend':             'Investimento',
+  'fb_ads:conversions':       'Conversões',
+  // Google Ads
+  'ga_ads:impressions':       'Impressões',
+  'ga_ads:clicks':            'Cliques',
+  'ga_ads:ctr':               'CTR',
+  'ga_ads:cpc':               'CPC',
+  'ga_ads:cost':              'Custo',
+  'ga_ads:conversions':       'Conversões',
+  // LinkedIn
+  'li:unique_impressions':    'Impressões Únicas',
+  'li:engagement':            'Engajamento',
+  'li:followers_count':       'Seguidores',
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -323,6 +350,13 @@ export default function ReporteiMetricsClient({ clientId }: Props) {
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {!loading && data?.is_stale && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Dados de {data.days_since_sync} dia{(data.days_since_sync ?? 0) !== 1 ? 's' : ''} atrás.
+          A integração com {PLATFORM_LABELS[platform] ?? platform} pode precisar ser reconectada no Reportei.
+        </Alert>
+      )}
 
       {loading ? (
         <Stack alignItems="center" py={8}><CircularProgress /></Stack>

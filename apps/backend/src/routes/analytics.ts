@@ -1482,6 +1482,11 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       [clientId]
     ).catch(() => ({ rows: [] }));
 
+    // Staleness: warn if last sync was more than 10 days ago
+    const syncedAt = snapshot?.synced_at ? new Date(snapshot.synced_at) : null;
+    const daysSinceSync = syncedAt ? Math.floor((Date.now() - syncedAt.getTime()) / 86400000) : null;
+    const isStale = daysSinceSync !== null && daysSinceSync > 10;
+
     return reply.send({
       snapshot: snapshot?.metrics ?? null,
       snapshot_meta: snapshot ? { platform: snapshot.platform, period_start: snapshot.period_start, period_end: snapshot.period_end, synced_at: snapshot.synced_at } : null,
@@ -1489,6 +1494,8 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       top_briefings: topBriefings,
       available_platforms: availPlatforms.map((r: any) => r.platform),
       synced_at: snapshot?.synced_at ?? null,
+      days_since_sync: daysSinceSync,
+      is_stale: isStale,
       client_id: clientId,
       window: win,
       platform,

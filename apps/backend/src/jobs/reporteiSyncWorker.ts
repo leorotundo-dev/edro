@@ -346,6 +346,22 @@ async function syncClientMetrics(
   return { snapshots, errors };
 }
 
+async function updateConnectorStatus(tenantId: string, clientId: string, ok: boolean, error: string | null) {
+  if (ok) {
+    await query(
+      `UPDATE connectors SET last_sync_ok=true, last_sync_at=NOW(), last_error=NULL
+       WHERE tenant_id=$1 AND client_id=$2 AND provider='reportei'`,
+      [tenantId, clientId]
+    ).catch(() => {});
+  } else {
+    await query(
+      `UPDATE connectors SET last_sync_ok=false, last_error=$3
+       WHERE tenant_id=$1 AND client_id=$2 AND provider='reportei'`,
+      [tenantId, clientId, error]
+    ).catch(() => {});
+  }
+}
+
 export async function runReporteiSyncWorkerOnce() {
   if (running) return;
   if (!shouldRunToday()) return;
@@ -373,8 +389,10 @@ export async function runReporteiSyncWorkerOnce() {
       try {
         const result = await syncClientMetrics(client.id, client.tenant_id, token, client.name);
         console.log(`[reporteiSync] ${client.name}: ${result.snapshots} snapshots${result.errors.length ? ` | errors: ${result.errors.join(', ')}` : ''}`);
+        await updateConnectorStatus(client.tenant_id, client.id, result.snapshots > 0, result.errors.join('; ') || null);
       } catch (e: any) {
         console.error(`[reporteiSync] ${client.name} failed:`, e.message);
+        await updateConnectorStatus(client.tenant_id, client.id, false, e.message).catch(() => {});
       }
     }
 
@@ -402,5 +420,7 @@ export async function triggerClientSync(clientId: string, tenantId: string): Pro
     [clientId]
   ).catch(() => ({ rows: [] }));
 
-  return syncClientMetrics(clientId, tenantId, token, rows[0]?.name);
+  const result = await syncClientMetrics(clientId, tenantId, token, rows[0]?.name);
+  await updateConnectorStatus(tenantId, clientId, result.snapshots > 0, result.errors.join('; ') || null);
+  return result;
 }

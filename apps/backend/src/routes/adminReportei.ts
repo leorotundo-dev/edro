@@ -417,7 +417,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
             const testMetric = slug === 'instagram_business' ? 'ig:impressions'
               : slug === 'linkedin' ? 'li:impressions'
               : slug === 'facebook_ads' ? 'fb_ads:impressions'
-              : slug === 'google_analytics_4' ? 'ga4:sessions'
+              : slug === 'google_analytics_4' ? 'ga_4:sessions'
               : slug === 'google_adwords' ? 'ga_ads:impressions'
               : 'ig:impressions';
 
