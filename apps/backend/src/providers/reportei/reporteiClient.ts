@@ -156,6 +156,7 @@ export class ReporteiClient {
     const body = {
       ...params,
       metrics: params.metrics.map(m => ({
+        id: m.id,
         reference_key: m.id,
         metrics: m.metrics,
         component: m.component,
