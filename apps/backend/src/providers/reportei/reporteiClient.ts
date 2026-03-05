@@ -81,7 +81,7 @@ export class ReporteiClient {
 
     console.log(`[reportei] POST ${url} token_len=${cfg.token.length} token_start=${cfg.token.slice(0, 6)}`);
 
-    // First attempt: Bearer header only
+    // Attempt 1: Authorization: Bearer (standard API v2)
     let response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -92,16 +92,26 @@ export class ReporteiClient {
       body: JSON.stringify(body),
     });
 
-    // Fallback: also send token as query param if 401
+    // Attempt 2: Authorization: Token (connect.reportei.com style)
     if (response.status === 401) {
-      console.log(`[reportei] Bearer 401 — retrying with ?api_key query param`);
-      response = await fetch(urlWithToken, {
+      console.log(`[reportei] Bearer 401 — retrying with Token header`);
+      response = await fetch(url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${cfg.token}`,
+          Authorization: `Token ${cfg.token}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        body: JSON.stringify(body),
+      });
+    }
+
+    // Attempt 3: token as query param, no auth header
+    if (response.status === 401) {
+      console.log(`[reportei] Token 401 — retrying with ?api_key`);
+      response = await fetch(urlWithToken, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(body),
       });
     }
