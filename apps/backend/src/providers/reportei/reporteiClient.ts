@@ -35,9 +35,12 @@ export class ReporteiClient {
   }
 
   private resolveConfig(overrides?: Partial<ReporteiConfig>): Required<ReporteiConfig> {
+    const rawToken = overrides?.token ?? this.cfg.token;
+    // Strip "Bearer " prefix if the env var was set with it included
+    const token = rawToken.replace(/^Bearer\s+/i, '').trim();
     return {
       baseUrl: overrides?.baseUrl ?? this.cfg.baseUrl ?? DEFAULT_BASE_URL,
-      token: overrides?.token ?? this.cfg.token,
+      token,
     };
   }
 

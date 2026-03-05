@@ -318,12 +318,23 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
       const connector = await getReporteiConnector(tenantId, clientId);
 
       if (!connector) return { error: 'No Reportei connector for this client.' };
-      const token = connector.token || process.env.REPORTEI_TOKEN || '';
-      if (!token) return { error: 'No token.' };
+      const rawToken = connector.token || process.env.REPORTEI_TOKEN || '';
+      if (!rawToken) return { error: 'No token (REPORTEI_TOKEN not set).' };
       if (!connector.integrationId) return { error: 'integration_id missing in connector.' };
+
+      // Strip Bearer prefix defensively
+      const token = rawToken.replace(/^Bearer\s+/i, '').trim();
 
       const end = new Date().toISOString().slice(0, 10);
       const start = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+      const diag = {
+        integration_id: connector.integrationId,
+        platforms: connector.platforms ?? null,
+        token_prefix: token.slice(0, 8) + '...',
+        token_length: token.length,
+        start, end,
+      };
 
       try {
         const raw = await new ReporteiClient().getMetricsData({
@@ -337,9 +348,9 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
             { id: 'ig:followers_count',      metrics: ['value'], component: 'number_v1' },
           ],
         }, { token, baseUrl: connector.baseUrl });
-        return { integration_id: connector.integrationId, start, end, raw };
+        return { ...diag, raw };
       } catch (e: any) {
-        return { error: e.message };
+        return { ...diag, error: e.message };
       }
     }
   );
