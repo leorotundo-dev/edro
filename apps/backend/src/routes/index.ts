@@ -39,6 +39,8 @@ import behaviorProfilesRoutes from './behaviorProfiles';
 import learningRulesRoutes from './learningRules';
 import adminReporteiRoutes from './adminReportei';
 import freelancersRoutes from './freelancers';
+import financialRoutes from './financial';
+import portalClientRoutes from './portalClient';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -82,4 +84,6 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(learningRulesRoutes, { prefix: '/api' });
   app.register(adminReporteiRoutes, { prefix: '/api' });
   app.register(freelancersRoutes, { prefix: '/api' });
+  app.register(financialRoutes, { prefix: '/api' });
+  app.register(portalClientRoutes, { prefix: '/api' });
 }

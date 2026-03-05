@@ -80,6 +80,7 @@ const CLIENT_TABS = [
   { label: 'Monitoramento',  path: '/monitoramento' },
   { label: 'Inteligência',  path: '/inteligencia' },
   { label: 'Métricas',      path: '/metricas' },
+  { label: 'Financeiro',    path: '/financeiro' },
   { label: 'Perfil',        path: '/perfil' },
 ];
 

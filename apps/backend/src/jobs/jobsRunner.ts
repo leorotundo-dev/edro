@@ -13,6 +13,8 @@ import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
 import { runArchiveStaleBriefingsOnce } from './archiveStaleBriefingsWorker';
 import { runReporteiSyncWorkerOnce } from './reporteiSyncWorker';
 import { runPerformanceAlertWorkerOnce } from './performanceAlertWorker';
+import { runClientHealthWorkerOnce } from './clientHealthWorker';
+import { runOperationalAgentOnce } from './operationalAgentWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -77,4 +79,8 @@ export function startJobsRunner() {
   startWorkerLoop('reporteiSync', runReporteiSyncWorkerOnce, 6500, 300_000);
   // Performance alerts — runs every Monday, detects drops/spikes vs previous period
   startWorkerLoop('performanceAlerts', runPerformanceAlertWorkerOnce, 7000, 120_000);
+  // Client Health Score — runs every Monday, computes 0-100 health per client
+  startWorkerLoop('clientHealth', runClientHealthWorkerOnce, 7500, 120_000);
+  // Operational Agent — runs every 30min (self-throttled), monitors stalls/budgets/deadlines
+  startWorkerLoop('operationalAgent', runOperationalAgentOnce, 8000, 120_000);
 }

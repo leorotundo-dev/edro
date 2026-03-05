@@ -19,6 +19,7 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
+  IconBulb,
   IconCalendar,
   IconCheck,
   IconClock,
@@ -91,6 +92,15 @@ type ActiveTimer = {
   freelancer_id: string;
   briefing_id: string;
   started_at: string;
+};
+
+type ScopeEstimate = {
+  estimated_hours: number;
+  estimated_cost_brl: number | null;
+  complexity: 'simple' | 'medium' | 'complex' | 'premium';
+  confidence: number;
+  rationale: string;
+  similar_jobs_count: number;
 };
 
 type Props = {
@@ -215,6 +225,10 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
   const [saving, setSaving]   = useState(false);
   const newItemRef            = useRef<HTMLInputElement>(null);
 
+  // Scope estimate
+  const [estimate,         setEstimate]         = useState<ScopeEstimate | null>(null);
+  const [estimateLoading,  setEstimateLoading]  = useState(false);
+
   // Timer state
   const [freelancers,      setFreelancers]      = useState<FreelancerProfile[]>([]);
   const [selectedFl,       setSelectedFl]       = useState<string>('');
@@ -227,18 +241,31 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
 
   // Load briefing detail when drawer opens
   useEffect(() => {
-    if (!briefingId) { setData(null); return; }
+    if (!briefingId) { setData(null); setEstimate(null); return; }
     setLoading(true);
+    setEstimate(null);
     apiGet<{ success: boolean; data: { briefing: BriefingDetail } }>(
       `/edro/briefings/${briefingId}`
     )
       .then((res) => {
         const b = res.data.briefing;
-        setData({
+        const briefing = {
           ...b,
           labels:    Array.isArray(b.labels)    ? b.labels    : [],
           checklist: Array.isArray(b.checklist) ? b.checklist : [],
-        });
+        };
+        setData(briefing);
+
+        // Fetch scope estimate in background (non-blocking)
+        setEstimateLoading(true);
+        apiPost<ScopeEstimate>('/financial/estimate', {
+          title:      b.title,
+          labels:     Array.isArray(b.labels) ? b.labels : [],
+          briefingId,
+        })
+          .then((est) => setEstimate(est))
+          .catch(() => {})
+          .finally(() => setEstimateLoading(false));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -479,6 +506,46 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
                 '& textarea': { p: 0 },
               }}
             />
+
+            {/* Scope estimate chip */}
+            {(estimateLoading || estimate) && (
+              <Box>
+                {estimateLoading ? (
+                  <Chip
+                    icon={<IconBulb size={12} />}
+                    label="Calculando estimativa..."
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.72rem', color: 'text.disabled', borderColor: 'divider' }}
+                  />
+                ) : estimate ? (
+                  <Tooltip title={estimate.rationale} arrow>
+                    <Chip
+                      icon={<IconBulb size={12} />}
+                      label={[
+                        `~${estimate.estimated_hours}h`,
+                        estimate.estimated_cost_brl != null
+                          ? `R$ ${estimate.estimated_cost_brl.toFixed(0)}`
+                          : null,
+                        estimate.complexity,
+                        estimate.similar_jobs_count > 0
+                          ? `${estimate.similar_jobs_count} jobs`
+                          : 'IA',
+                      ].filter(Boolean).join(' · ')}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontSize: '0.72rem',
+                        color: 'primary.main',
+                        borderColor: 'primary.light',
+                        bgcolor: 'primary.50',
+                        '& .MuiChip-icon': { color: 'primary.main' },
+                      }}
+                    />
+                  </Tooltip>
+                ) : null}
+              </Box>
+            )}
 
             {/* Stage + Due date + Owner row */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

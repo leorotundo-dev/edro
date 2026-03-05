@@ -6,6 +6,9 @@ import {
   IconLayoutKanban,
   IconPalette,
   IconShieldCheck,
+  IconCurrencyDollar,
+  IconUsersGroup,
+  IconReceipt2,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -71,6 +74,30 @@ const MenuItems: MenuGroupType[] = [
         title: 'Creative Studio',
         icon: IconPalette,
         href: '/studio',
+      },
+    ],
+  },
+  {
+    subheader: 'Financeiro',
+    requiredGroupRole: ['admin', 'manager'],
+    items: [
+      {
+        id: 'financeiro',
+        title: 'Financeiro',
+        icon: IconCurrencyDollar,
+        href: '/financeiro',
+      },
+      {
+        id: 'equipe',
+        title: 'Equipe',
+        icon: IconUsersGroup,
+        href: '/admin/equipe',
+      },
+      {
+        id: 'pagamentos',
+        title: 'Pagamentos',
+        icon: IconReceipt2,
+        href: '/admin/pagamentos',
       },
     ],
   },
