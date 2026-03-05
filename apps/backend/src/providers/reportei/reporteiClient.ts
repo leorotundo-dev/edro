@@ -152,8 +152,16 @@ export class ReporteiClient {
    */
   async getMetricsData(params: ReporteiGetDataParams, overrides?: Partial<ReporteiConfig>): Promise<any> {
     const cfg = this.resolveConfig(overrides);
-    // Some Reportei API versions require the token in the request body as well
-    return this.post('/metrics/get-data', { ...params, token: cfg.token }, overrides);
+    // Reportei API v2 expects `reference_key` (not `id`) in each metric object
+    const body = {
+      ...params,
+      metrics: params.metrics.map(m => ({
+        reference_key: m.id,
+        metrics: m.metrics,
+        component: m.component,
+      })),
+    };
+    return this.post('/metrics/get-data', body, overrides);
   }
 }
 
