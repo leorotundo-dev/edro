@@ -5,25 +5,22 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconCalendar, IconClipboardList, IconLayoutKanban, IconTargetArrow } from '@tabler/icons-react';
+import { IconCalendar, IconClipboardList, IconTargetArrow } from '@tabler/icons-react';
 import ClientBriefingsClient from '../briefings/ClientBriefingsClient';
 import CampaignsClient from '../campaigns/CampaignsClient';
 import ClientCalendarClient from '../calendar/ClientCalendarClient';
-import PlanningClient from '../planning/PlanningClient';
 
-type SubTab = 'briefings' | 'campanhas' | 'calendario' | 'planejamento';
+type SubTab = 'briefings' | 'campanhas' | 'calendario';
 
 const SUB_TABS = [
-  { value: 'briefings' as const,    label: 'Briefings',    icon: <IconClipboardList size={16} /> },
-  { value: 'campanhas' as const,    label: 'Campanhas',    icon: <IconTargetArrow size={16} /> },
-  { value: 'calendario' as const,   label: 'Calendário',   icon: <IconCalendar size={16} /> },
-  { value: 'planejamento' as const, label: 'Planejamento', icon: <IconLayoutKanban size={16} /> },
+  { value: 'briefings' as const,  label: 'Briefings',  icon: <IconClipboardList size={16} /> },
+  { value: 'campanhas' as const,  label: 'Campanhas',  icon: <IconTargetArrow size={16} /> },
+  { value: 'calendario' as const, label: 'Calendário', icon: <IconCalendar size={16} /> },
 ];
 
 function parseSubTab(value: string | null): SubTab {
   if (value === 'campanhas') return 'campanhas';
   if (value === 'calendario') return 'calendario';
-  if (value === 'planejamento') return 'planejamento';
   return 'briefings';
 }
 
@@ -64,10 +61,9 @@ export default function ConteudoPage() {
         ))}
       </Tabs>
 
-      {tab === 'briefings'    && <ClientBriefingsClient clientId={clientId} />}
-      {tab === 'campanhas'    && <CampaignsClient clientId={clientId} />}
-      {tab === 'calendario'   && <ClientCalendarClient clientId={clientId} />}
-      {tab === 'planejamento' && <PlanningClient clientId={clientId} />}
+      {tab === 'briefings'  && <ClientBriefingsClient clientId={clientId} />}
+      {tab === 'campanhas'  && <CampaignsClient clientId={clientId} />}
+      {tab === 'calendario' && <ClientCalendarClient clientId={clientId} />}
     </Box>
   );
 }

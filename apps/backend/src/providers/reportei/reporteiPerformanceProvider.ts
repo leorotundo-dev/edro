@@ -1,29 +1,74 @@
 import type { PerformanceProvider, PerformanceBreakdown, TimeWindow, KPI } from '../contracts';
 import type { ClientProfile, Platform } from '../../types';
-import { ReporteiClient } from './reporteiClient';
+import { ReporteiClient, PLATFORM_METRICS } from './reporteiClient';
 import { getReporteiConnector } from './reporteiConnector';
 
-function normalizeKPI(metric: string, value: any): KPI | null {
-  const v = Number(value);
-  if (Number.isNaN(v)) return null;
-
-  const map: Record<string, KPI['metric']> = {
-    impressions: 'impressions',
-    reach: 'reach',
-    engagement: 'engagements',
-    engagement_rate: 'engagement_rate',
-    clicks: 'clicks',
-    ctr: 'ctr',
-    cpc: 'cpc',
-    cpm: 'cpm',
-    conversions: 'conversions',
-    cost: 'cost',
+// ── Window → date range ───────────────────────────────────────────────────────
+function windowToDates(window: string): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date(end);
+  const match = window.match(/^(\d+)d$/);
+  if (match) {
+    start.setDate(start.getDate() - parseInt(match[1], 10));
+  } else {
+    start.setDate(start.getDate() - 30);
+  }
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
   };
+}
 
-  const m = map[metric] ?? null;
-  if (!m) return null;
+// ── Map metric id to KPI metric name ─────────────────────────────────────────
+const METRIC_MAP: Record<string, KPI['metric']> = {
+  'ig:impressions':          'impressions',
+  'ig:reach':                'reach',
+  'ig:feed_engagement':      'engagements',
+  'ig:feed_engagement_rate': 'engagement_rate',
+  'ig:followers_count':      'reach',
+  'ig:new_followers_count':  'reach',
+  'li:impressions':          'impressions',
+  'li:unique_impressions':   'reach',
+  'li:engagement':           'engagements',
+  'li:engagement_rate':      'engagement_rate',
+  'li:followers_count':      'reach',
+  'fb:impressions':          'impressions',
+  'fb:reach':                'reach',
+  'fb:clicks':               'clicks',
+  'fb:ctr':                  'ctr',
+  'fb:cpc':                  'cpc',
+  'fb:spend':                'cost',
+  'fb:conversions':          'conversions',
+};
 
-  return { metric: m, value: v };
+function extractKPIs(metricsData: any[]): KPI[] {
+  const kpis: KPI[] = [];
+  for (const item of metricsData ?? []) {
+    const refKey: string = item.id ?? item.reference_key ?? '';
+    const mapped = METRIC_MAP[refKey];
+    if (!mapped) continue;
+    const value = item.data?.value ?? item.value ?? null;
+    if (value == null || isNaN(Number(value))) continue;
+    kpis.push({ metric: mapped, value: Number(value) });
+  }
+  return kpis;
+}
+
+function buildBreakdown(
+  platform: Platform,
+  window: TimeWindow,
+  kpis: KPI[],
+  raw: any
+): PerformanceBreakdown {
+  return {
+    platform,
+    window,
+    by_format: [{ format: 'all', score: 50, kpis, notes: [] }],
+    by_tag: [],
+    editorial_insights: [],
+    observed_at: new Date().toISOString(),
+    raw,
+  };
 }
 
 export class ReporteiPerformanceProvider implements PerformanceProvider {
@@ -45,75 +90,43 @@ export class ReporteiPerformanceProvider implements PerformanceProvider {
         ? await getReporteiConnector(tenantId, params.client.id)
         : null;
 
-    const baseUrl = connector?.baseUrl || process.env.REPORTEI_BASE_URL || '';
     const token = connector?.token || process.env.REPORTEI_TOKEN || '';
-
-    if (!this.client.ok({ baseUrl, token })) {
-      return {
-        platform: params.platform,
-        window: params.window,
-        by_format: [],
-        by_tag: [],
-        observed_at: new Date().toISOString(),
-        raw: { warning: 'Reportei not configured' },
-      };
+    if (!token) {
+      return buildBreakdown(params.platform, params.window, [], { warning: 'Reportei token not configured' });
     }
 
-    const reporteiAccountId =
-      connector?.accountId || (params.client as any).reportei_account_id;
-    if (!reporteiAccountId) {
-      return {
-        platform: params.platform,
-        window: params.window,
-        by_format: [],
-        by_tag: [],
-        observed_at: new Date().toISOString(),
-        raw: { warning: 'client missing reportei_account_id' },
-      };
+    const integrationId =
+      connector?.integrationId ||
+      (params.client as any).reportei_integration_id ||
+      (params.client as any).reportei_account_id;
+
+    if (!integrationId) {
+      return buildBreakdown(params.platform, params.window, [], { warning: 'client missing reportei integration_id' });
     }
+
+    const metricDefs = PLATFORM_METRICS[params.platform];
+    if (!metricDefs?.length) {
+      return buildBreakdown(params.platform, params.window, [], { warning: `No metric definitions for platform: ${params.platform}` });
+    }
+
+    const overrides = { baseUrl: connector?.baseUrl, token };
+    const { start, end } = windowToDates(params.window as string);
 
     let raw: any;
     try {
-      raw = await this.client.get(
-        `/v1/accounts/${reporteiAccountId}/performance?platform=${params.platform}&window=${params.window}`,
-        { baseUrl, token }
+      raw = await this.client.getMetricsData(
+        { integration_id: Number(integrationId), start, end, metrics: metricDefs },
+        overrides
       );
     } catch (error: any) {
-      return {
-        platform: params.platform,
-        window: params.window,
-        by_format: [],
-        by_tag: [],
-        observed_at: new Date().toISOString(),
-        raw: { warning: 'Reportei request failed', error: error?.message ?? String(error) },
-      };
+      return buildBreakdown(params.platform, params.window, [], {
+        warning: 'Reportei request failed',
+        error: error?.message ?? String(error),
+      });
     }
 
-    const by_format = (raw.by_format ?? []).map((item: any) => ({
-      format: String(item.format),
-      score: Number(item.score ?? 50),
-      kpis: Object.entries(item.kpis ?? {})
-        .map(([key, value]) => normalizeKPI(key, value))
-        .filter(Boolean) as KPI[],
-      notes: item.notes ?? [],
-    }));
-
-    const by_tag = (raw.by_tag ?? []).map((item: any) => ({
-      tag: String(item.tag).toLowerCase(),
-      score: Number(item.score ?? 50),
-      kpis: Object.entries(item.kpis ?? {})
-        .map(([key, value]) => normalizeKPI(key, value))
-        .filter(Boolean) as KPI[],
-    }));
-
-    return {
-      platform: params.platform,
-      window: params.window,
-      by_format,
-      by_tag,
-      editorial_insights: raw.editorial_insights ?? [],
-      observed_at: new Date().toISOString(),
-      raw,
-    };
+    const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.metrics ?? []);
+    const kpis = extractKPIs(metricsArray);
+    return buildBreakdown(params.platform, params.window, kpis, raw);
   }
 }

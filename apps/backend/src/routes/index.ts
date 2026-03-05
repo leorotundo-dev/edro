@@ -37,6 +37,7 @@ import metaOAuthRoutes from './metaOAuth';
 import darkFunnelRoutes from './darkFunnel';
 import behaviorProfilesRoutes from './behaviorProfiles';
 import learningRulesRoutes from './learningRules';
+import adminReporteiRoutes from './adminReportei';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -78,4 +79,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(darkFunnelRoutes, { prefix: '/api' });
   app.register(behaviorProfilesRoutes, { prefix: '/api' });
   app.register(learningRulesRoutes, { prefix: '/api' });
+  app.register(adminReporteiRoutes, { prefix: '/api' });
 }

@@ -24,6 +24,7 @@ const ADMIN_SUBMENU_ITEMS: AdminSubmenuItem[] = [
   { label: 'Automações', value: 'automacoes', kind: 'route', href: '/admin/automations' },
   { label: 'Import Events', value: 'import-events', kind: 'route', href: '/admin/events/import' },
   { label: 'Recco Engine', value: 'recco-engine', kind: 'route', href: '/admin/recco-engine' },
+  { label: 'Reportei', value: 'reportei', kind: 'route', href: '/admin/reportei' },
   { label: 'Settings', value: 'settings', kind: 'route', href: '/settings' },
 ];
 

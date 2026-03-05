@@ -1,34 +1,27 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBrain, IconBulb, IconClipboard, IconEye, IconSearch, IconTrendingUp } from '@tabler/icons-react';
-import ClientClippingClient from '../clipping/ClientClippingClient';
+import { IconBrain, IconBulb, IconDna } from '@tabler/icons-react';
 import ClientInsightsClient from '../insights/ClientInsightsClient';
 import ClientLearningClient from './ClientLearningClient';
-import DarkFunnelPage from '../dark-funnel/page';
+import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
 
-type SubTabValue = 'clipping' | 'social' | 'perplexity' | 'insights' | 'aprendizado' | 'dark-funnel';
+type SubTabValue = 'insights' | 'aprendizado' | 'dna';
 
 const SUB_TABS = [
-  { value: 'clipping' as const,     label: 'Clipping',         icon: <IconClipboard size={16} /> },
-  { value: 'social' as const,       label: 'Social Listening', icon: <IconTrendingUp size={16} /> },
-  { value: 'perplexity' as const,   label: 'Perplexity AI',    icon: <IconSearch size={16} /> },
-  { value: 'insights' as const,     label: 'Insights',         icon: <IconBulb size={16} /> },
-  { value: 'aprendizado' as const,  label: 'Aprendizado',      icon: <IconBrain size={16} /> },
-  { value: 'dark-funnel' as const,  label: 'Dark Funnel',      icon: <IconEye size={16} /> },
+  { value: 'insights' as const,    label: 'Insights',     icon: <IconBulb size={16} /> },
+  { value: 'aprendizado' as const, label: 'Aprendizado',  icon: <IconBrain size={16} /> },
+  { value: 'dna' as const,         label: 'DNA de Marca', icon: <IconDna size={16} /> },
 ];
 
 function parseSubTab(value: string | null): SubTabValue {
-  if (value === 'social') return 'social';
-  if (value === 'perplexity') return 'perplexity';
-  if (value === 'insights') return 'insights';
   if (value === 'aprendizado') return 'aprendizado';
-  if (value === 'dark-funnel') return 'dark-funnel';
-  return 'clipping';
+  if (value === 'dna') return 'dna';
+  return 'insights';
 }
 
 export default function InteligenciaPage() {
@@ -42,16 +35,10 @@ export default function InteligenciaPage() {
     setTab(parseSubTab(searchParams.get('sub')));
   }, [searchParams]);
 
-  const clippingTab = useMemo(() => {
-    if (tab === 'social') return 'social';
-    if (tab === 'perplexity') return 'perplexity';
-    return 'clipping';
-  }, [tab]);
-
   const changeTab = (value: SubTabValue) => {
     setTab(value);
     const next = new URLSearchParams(searchParams.toString());
-    if (value === 'clipping') {
+    if (value === 'insights') {
       next.delete('sub');
     } else {
       next.set('sub', value);
@@ -74,14 +61,12 @@ export default function InteligenciaPage() {
         ))}
       </Tabs>
 
-      {tab === 'dark-funnel' ? (
-        <DarkFunnelPage />
-      ) : tab === 'aprendizado' ? (
+      {tab === 'aprendizado' ? (
         <ClientLearningClient clientId={clientId} />
-      ) : tab === 'insights' ? (
-        <ClientInsightsClient clientId={clientId} />
+      ) : tab === 'dna' ? (
+        <BrandVoiceSection clientId={clientId} />
       ) : (
-        <ClientClippingClient clientId={clientId} forceTab={clippingTab} />
+        <ClientInsightsClient clientId={clientId} />
       )}
     </Box>
   );

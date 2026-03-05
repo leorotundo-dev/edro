@@ -1,69 +1,181 @@
-type ReporteiConfig = {
-  baseUrl: string;
+// Reportei API v2 client
+// Docs: https://developers.reportei.com
+// Base URL: https://app.reportei.com/api/v2
+
+export type ReporteiConfig = {
+  baseUrl?: string;
   token: string;
 };
 
+export type ReporteiMetricRequest = {
+  id: string;             // reference_key, e.g. "ig:impressions"
+  metrics: string[];      // sub-metrics, e.g. ["value"]
+  component: 'number_v1' | 'chart_v1' | 'datatable_v1';
+};
+
+export type ReporteiGetDataParams = {
+  integration_id: number; // Reportei integration ID (integer)
+  start: string;          // YYYY-MM-DD
+  end: string;            // YYYY-MM-DD
+  metrics: ReporteiMetricRequest[];
+  comparison_start?: string;
+  comparison_end?: string;
+};
+
+const DEFAULT_BASE_URL = 'https://app.reportei.com/api/v2';
+
 export class ReporteiClient {
-  private cfg: ReporteiConfig;
+  private cfg: Required<ReporteiConfig>;
 
   constructor() {
     this.cfg = {
-      baseUrl: process.env.REPORTEI_BASE_URL || '',
+      baseUrl: process.env.REPORTEI_BASE_URL || DEFAULT_BASE_URL,
       token: process.env.REPORTEI_TOKEN || '',
     };
   }
 
-  private resolveConfig(overrides?: Partial<ReporteiConfig>) {
+  private resolveConfig(overrides?: Partial<ReporteiConfig>): Required<ReporteiConfig> {
     return {
-      baseUrl: overrides?.baseUrl ?? this.cfg.baseUrl,
+      baseUrl: overrides?.baseUrl ?? this.cfg.baseUrl ?? DEFAULT_BASE_URL,
       token: overrides?.token ?? this.cfg.token,
     };
   }
 
-  ok(overrides?: Partial<ReporteiConfig>) {
-    const cfg = this.resolveConfig(overrides);
-    return !!cfg.baseUrl && !!cfg.token;
+  ok(overrides?: Partial<ReporteiConfig>): boolean {
+    return !!this.resolveConfig(overrides).token;
   }
 
-  async getPosts(
-    accountId: string,
-    params: { platform: string; since: string; until: string },
-    overrides?: Partial<ReporteiConfig>
-  ): Promise<any[]> {
-    const pathTemplate =
-      process.env.REPORTEI_POSTS_PATH ?? '/v1/accounts/{accountId}/posts';
-    const path = pathTemplate.replace('{accountId}', accountId);
-    const qs = new URLSearchParams({
-      platform: params.platform,
-      since: params.since,
-      until: params.until,
-    });
-    const raw = await this.get(`${path}?${qs}`, overrides);
-    if (Array.isArray(raw)) return raw;
-    return raw?.posts ?? raw?.data ?? raw?.items ?? [];
-  }
+  // ── Generic HTTP helpers ──────────────────────────────────────────────────
 
-  async get(path: string, overrides?: Partial<ReporteiConfig>) {
+  async get(path: string, overrides?: Partial<ReporteiConfig>): Promise<any> {
     const cfg = this.resolveConfig(overrides);
-    if (!cfg.baseUrl || !cfg.token) {
-      throw new Error('Reportei not configured');
-    }
+    if (!cfg.token) throw new Error('Reportei token not configured');
 
-    const url = `${cfg.baseUrl.replace(/\/$/, '')}${path}`;
+    const base = cfg.baseUrl.replace(/\/$/, '');
+    const url = `${base}${path}`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${cfg.token}`,
         'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
     });
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(`Reportei GET ${path} failed: ${response.status} ${text}`);
+      throw new Error(`Reportei GET ${path} → ${response.status}: ${text}`);
     }
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
+    try { return JSON.parse(text); } catch { return text; }
+  }
+
+  async post(path: string, body: unknown, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    const cfg = this.resolveConfig(overrides);
+    if (!cfg.token) throw new Error('Reportei token not configured');
+
+    const base = cfg.baseUrl.replace(/\/$/, '');
+    const url = `${base}${path}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Reportei POST ${path} → ${response.status}: ${text}`);
     }
+    try { return JSON.parse(text); } catch { return text; }
+  }
+
+  // ── Reportei API v2 endpoints ─────────────────────────────────────────────
+
+  /** Verify token and get company info */
+  async getCompanySettings(overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.get('/companies/settings', overrides);
+  }
+
+  /** List projects (paginated) */
+  async getProjects(params?: { page?: number; per_page?: number; q?: string }, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.page)     qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.q)        qs.set('q', params.q);
+    return this.get(`/projects${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  /** Get a specific project */
+  async getProject(projectId: string | number, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.get(`/projects/${projectId}`, overrides);
+  }
+
+  /** List integrations, optionally filtered by project */
+  async getIntegrations(params?: { project_id?: number; name?: string; slug?: string; page?: number }, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set('project_id', String(params.project_id));
+    if (params?.name)       qs.set('name', params.name);
+    if (params?.slug)       qs.set('slug', params.slug);
+    if (params?.page)       qs.set('page', String(params.page));
+    return this.get(`/integrations${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  /** Get a specific integration */
+  async getIntegration(integrationId: number, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.get(`/integrations/${integrationId}`, overrides);
+  }
+
+  /**
+   * List available metrics for an integration.
+   * Requires integration_slug (e.g. "instagram", "facebook_ads")
+   */
+  async getAvailableMetrics(integrationSlug: string, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.get(`/metrics?integration_slug=${encodeURIComponent(integrationSlug)}`, overrides);
+  }
+
+  /**
+   * Fetch aggregated metric values for an integration + date range.
+   * Rate limit: 30 req/min.
+   */
+  async getMetricsData(params: ReporteiGetDataParams, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.post('/metrics/get-data', params, overrides);
   }
 }
+
+// ── Preset metric sets by platform slug ──────────────────────────────────────
+// reference_key format: "{platform_slug}:{metric_name}"
+// These are common slugs — actual available metrics depend on the integration.
+
+export const INSTAGRAM_METRICS: ReporteiMetricRequest[] = [
+  { id: 'ig:impressions',            metrics: ['value'], component: 'number_v1' },
+  { id: 'ig:reach',                  metrics: ['value'], component: 'number_v1' },
+  { id: 'ig:followers_count',        metrics: ['value'], component: 'number_v1' },
+  { id: 'ig:new_followers_count',    metrics: ['value'], component: 'number_v1' },
+  { id: 'ig:feed_engagement',        metrics: ['value'], component: 'number_v1' },
+  { id: 'ig:feed_engagement_rate',   metrics: ['value'], component: 'number_v1' },
+];
+
+export const LINKEDIN_METRICS: ReporteiMetricRequest[] = [
+  { id: 'li:impressions',            metrics: ['value'], component: 'number_v1' },
+  { id: 'li:unique_impressions',     metrics: ['value'], component: 'number_v1' },
+  { id: 'li:engagement',             metrics: ['value'], component: 'number_v1' },
+  { id: 'li:engagement_rate',        metrics: ['value'], component: 'number_v1' },
+  { id: 'li:followers_count',        metrics: ['value'], component: 'number_v1' },
+];
+
+export const META_ADS_METRICS: ReporteiMetricRequest[] = [
+  { id: 'fb:impressions',            metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:reach',                  metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:clicks',                 metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:ctr',                    metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:cpc',                    metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:spend',                  metrics: ['value'], component: 'number_v1' },
+  { id: 'fb:conversions',            metrics: ['value'], component: 'number_v1' },
+];
+
+export const PLATFORM_METRICS: Record<string, ReporteiMetricRequest[]> = {
+  Instagram:   INSTAGRAM_METRICS,
+  LinkedIn:    LINKEDIN_METRICS,
+  MetaAds:     META_ADS_METRICS,
+  FacebookAds: META_ADS_METRICS,
+};

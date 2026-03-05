@@ -46,10 +46,10 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <IconWorldSearch size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
         <Typography variant="h6" color="text.secondary" gutterBottom>
-          Perplexity AI não configurado
+          Pesquisa Web não configurada
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Configure a PERPLEXITY_API_KEY na aba de Connectors do cliente para ativar pesquisa em tempo real.
+          Configure a TAVILY_API_KEY no servidor para ativar pesquisa web em tempo real.
         </Typography>
       </Box>
     );
@@ -66,7 +66,7 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
       });
       setResult(res.data);
     } catch {
-      setResult({ content: 'Erro ao buscar. Verifique a API key do Perplexity.', citations: [] });
+      setResult({ content: 'Erro ao buscar. Tente novamente.', citations: [] });
     } finally {
       setSearching(false);
     }
@@ -128,7 +128,7 @@ function PerplexitySearchPanel({ clientId }: { clientId: string }) {
       {(searching || trendingLoading) && !result && (
         <Stack alignItems="center" spacing={1} sx={{ py: 4 }}>
           <CircularProgress size={28} />
-          <Typography variant="body2" color="text.secondary">Pesquisando com Perplexity AI...</Typography>
+          <Typography variant="body2" color="text.secondary">Pesquisando na web...</Typography>
         </Stack>
       )}
 
@@ -230,7 +230,7 @@ export default function ClientClippingClient({ clientId, forceTab }: ClientClipp
             label={
               <Stack direction="row" alignItems="center" spacing={0.5}>
                 <IconWorldSearch size={16} />
-                <span>Perplexity AI</span>
+                <span>Pesquisa Web</span>
               </Stack>
             }
             value="perplexity"

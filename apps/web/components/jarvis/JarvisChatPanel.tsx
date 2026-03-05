@@ -191,32 +191,21 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
 // ── Main component ────────────────────────────────────────────────────
 
 export default function JarvisChatPanel() {
-  const { clientId, clientName, conversationId, setConversationId, bump, isOpen } = useJarvis();
+  const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen } = useJarvis();
   const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Keep a ref to always have the latest clientId (avoids stale closures in event handlers)
+  const clientIdRef = useRef(clientId);
+  useEffect(() => { clientIdRef.current = clientId; }, [clientId]);
+
   // Auto-scroll to bottom
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
-
-  // Listen for home page send events and studio send events
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const msg = (e as CustomEvent).detail?.message as string;
-      if (msg) sendMessage(msg);
-    };
-    window.addEventListener('jarvis-home-send', handler);
-    window.addEventListener('jarvis-studio-send', handler);
-    return () => {
-      window.removeEventListener('jarvis-home-send', handler);
-      window.removeEventListener('jarvis-studio-send', handler);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Load conversation when conversationId changes externally
   useEffect(() => {
@@ -233,9 +222,10 @@ export default function JarvisChatPanel() {
     }).catch(() => {});
   }, [conversationId, clientId]);
 
-  const sendMessage = useCallback(async (text?: string) => {
+  const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
     const msg = (text ?? input).trim();
-    if (!msg || loading || !clientId) return;
+    const cid = clientIdOverride ?? clientIdRef.current;
+    if (!msg || loading || !cid) return;
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date().toISOString() }]);
@@ -252,7 +242,7 @@ export default function JarvisChatPanel() {
       }
 
       const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
-        `/clients/${clientId}/planning/chat`,
+        `/clients/${cid}/planning/chat`,
         { message: msg, conversationId, mode: 'agent', context_page: pathname, studio_context: studioContext }
       );
 
@@ -275,7 +265,32 @@ export default function JarvisChatPanel() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, clientId, conversationId, pathname, setConversationId, isOpen, bump]);
+  }, [input, loading, conversationId, pathname, setConversationId, isOpen, bump]);
+
+  // Keep a ref to always call the latest sendMessage from event handlers
+  const sendMessageRef = useRef(sendMessage);
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+
+  // Listen for home page send events and studio send events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      const msg = detail.message as string | undefined;
+      const evtClientId = detail.clientId as string | undefined;
+      // Override clientIdRef immediately so sendMessage uses the right client
+      if (evtClientId) {
+        clientIdRef.current = evtClientId;
+        setClientId(evtClientId);
+      }
+      if (msg) sendMessageRef.current(msg, evtClientId);
+    };
+    window.addEventListener('jarvis-home-send', handler);
+    window.addEventListener('jarvis-studio-send', handler);
+    return () => {
+      window.removeEventListener('jarvis-home-send', handler);
+      window.removeEventListener('jarvis-studio-send', handler);
+    };
+  }, [setClientId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }

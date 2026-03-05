@@ -1622,6 +1622,7 @@ export default function EditorClient() {
                                 : '';
                               window.dispatchEvent(new CustomEvent('jarvis-studio-send', {
                                 detail: {
+                                  clientId: jarvisClientId,
                                   message: copyText
                                     ? `Estou no editor de copy para "${briefing?.title || 'um briefing'}". Aqui está o copy atual:\n\n${copyText}\n\nRefina este copy para ser mais persuasivo e impactante, mantendo a voz do cliente.`
                                     : `Estou no editor de copy para "${briefing?.title || 'um briefing'}". Me ajuda a criar um copy impactante para ${activeFormat?.platform || 'esta plataforma'}.`,

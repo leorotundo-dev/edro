@@ -1,89 +1,51 @@
 import { query } from '../db';
-import { ReporteiClient } from '../providers/reportei/reporteiClient';
+import { ReporteiClient, INSTAGRAM_METRICS, PLATFORM_METRICS } from '../providers/reportei/reporteiClient';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 
-// ── Format family grouping ────────────────────────────────────────────────────
-const FORMAT_FAMILIES: Record<string, string> = {
-  reel: 'video',
-  video: 'video',
-  reels: 'video',
-  carousel: 'carousel',
-  album: 'carousel',
-  slideshow: 'carousel',
-  image: 'image',
-  photo: 'image',
-  foto: 'image',
-  story: 'story',
-  stories: 'story',
-  text: 'text',
-  article: 'text',
-  artigo: 'text',
+// ── Normalize platform name to Reportei Connect platform key ──────────────────
+const PLATFORM_MAP: Record<string, string> = {
+  instagram: 'Instagram',
+  ig: 'Instagram',
+  linkedin: 'LinkedIn',
+  metaads: 'MetaAds',
+  meta: 'MetaAds',
+  facebookads: 'MetaAds',
 };
 
-function formatFamily(f?: string | null): string {
-  if (!f) return '';
-  return FORMAT_FAMILIES[f.toLowerCase().trim()] ?? f.toLowerCase().trim();
+function normalizePlatform(channel: string): string {
+  const key = channel.toLowerCase().replace(/[^a-z]/g, '');
+  return PLATFORM_MAP[key] ?? channel;
 }
 
-// ── Auto-match scoring ────────────────────────────────────────────────────────
-function matchScore(dueAt: Date, post: any, briefingFormat: string): number {
-  const publishedAt = post.published_at
-    ? new Date(post.published_at)
-    : post.timestamp
-    ? new Date(post.timestamp)
-    : post.created_time
-    ? new Date(post.created_time)
-    : null;
-
-  let score = 0;
-
-  if (publishedAt && !isNaN(publishedAt.getTime())) {
-    const diffDays = Math.abs(dueAt.getTime() - publishedAt.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffDays <= 1) score += 3;
-    else if (diffDays <= 3) score += 2;
-    else if (diffDays <= 7) score += 1;
-  }
-
-  const postFormat: string = post.format ?? post.media_type ?? post.type ?? '';
-  if (briefingFormat && postFormat) {
-    const bf = briefingFormat.toLowerCase().trim();
-    const pf = postFormat.toLowerCase().trim();
-    if (bf === pf) {
-      score += 2;
-    } else if (formatFamily(bf) === formatFamily(pf)) {
-      score += 1;
-    }
-  }
-
-  return score;
+// ── Extract a numeric value from Reportei metric response ────────────────────
+function pickValue(item: any): number | null {
+  const v = item?.data?.value ?? item?.value ?? null;
+  if (v == null || isNaN(Number(v))) return null;
+  return Number(v);
 }
 
-// ── Field mapping (flexible — handles various Reportei schemas) ───────────────
-function mapPostFields(raw: any, briefingId: string, tenantId: string | null, clientId: string | null, platform: string): Record<string, any> {
-  const n = (v: any) => (v != null && !isNaN(Number(v)) ? Number(v) : null);
-  return {
-    briefing_id:     briefingId,
-    tenant_id:       tenantId,
-    client_id:       clientId,
-    platform,
-    post_id:         raw.id ?? raw.post_id ?? raw.media_id ?? null,
-    post_url:        raw.permalink ?? raw.url ?? raw.link ?? null,
-    published_at:    raw.published_at ?? raw.timestamp ?? raw.created_time ?? null,
-    format:          raw.format ?? raw.media_type ?? raw.type ?? null,
-    reach:           n(raw.reach ?? raw.metrics?.reach),
-    impressions:     n(raw.impressions ?? raw.metrics?.impressions),
-    engagement:      n(raw.engagement ?? raw.engagements ?? raw.metrics?.engagement),
-    engagement_rate: n(raw.engagement_rate ?? raw.metrics?.engagement_rate),
-    likes:           n(raw.likes ?? raw.like_count ?? raw.metrics?.likes),
-    comments:        n(raw.comments ?? raw.comment_count ?? raw.metrics?.comments),
-    saves:           n(raw.saves ?? raw.saved ?? raw.metrics?.saves),
-    shares:          n(raw.shares ?? raw.share_count ?? raw.metrics?.shares),
-    raw:             JSON.stringify(raw),
-    match_source:    'auto',
+// ── Map reference_key suffix to field name ────────────────────────────────────
+function refKeyToField(refKey: string): string | null {
+  const suffix = refKey.includes(':') ? refKey.split(':')[1] : refKey;
+  const map: Record<string, string> = {
+    impressions:           'impressions',
+    reach:                 'reach',
+    unique_impressions:    'reach',
+    feed_engagement:       'engagement',
+    engagement:            'engagement',
+    feed_engagement_rate:  'engagement_rate',
+    engagement_rate:       'engagement_rate',
+    clicks:                'clicks',
+    spend:                 'cost',
+    ctr:                   'ctr',
+    conversions:           'conversions',
+    followers_count:       'followers',
+    new_followers_count:   'new_followers',
   };
+  return map[suffix] ?? null;
 }
 
-// ── Public: sync metrics for a single briefing ────────────────────────────────
+// ── Public: sync aggregated metrics for a single briefing ────────────────────
 export async function syncBriefingMetrics(
   briefingId: string,
   tenantId: string | null
@@ -97,21 +59,18 @@ export async function syncBriefingMetrics(
   const briefing = briefingRows[0];
   if (!briefing) return { synced: 0, platforms: [], errors: ['briefing_not_found'] };
 
-  const dueAt: Date = briefing.due_at
-    ? new Date(briefing.due_at)
-    : new Date();
+  const dueAt: Date = briefing.due_at ? new Date(briefing.due_at) : new Date();
 
+  // Use ±7 day window around due date
   const sinceDate = new Date(dueAt);
   sinceDate.setDate(sinceDate.getDate() - 7);
   const untilDate = new Date(dueAt);
   untilDate.setDate(untilDate.getDate() + 7);
-  const since = sinceDate.toISOString().slice(0, 10);
-  const until = untilDate.toISOString().slice(0, 10);
+  const start = sinceDate.toISOString().slice(0, 10);
+  const end   = untilDate.toISOString().slice(0, 10);
 
   const payload = briefing.payload ?? {};
-  const briefingFormat: string = payload.format ?? payload.content_format ?? '';
 
-  // Collect platforms from briefing channels
   const channels: string[] = Array.isArray(payload.channels)
     ? payload.channels
     : typeof payload.channels === 'string'
@@ -126,64 +85,69 @@ export async function syncBriefingMetrics(
     ? await getReporteiConnector(effectiveTenantId, mainClientId)
     : null;
 
-  if (!connector?.accountId) {
+  const token = connector?.token || process.env.REPORTEI_TOKEN || '';
+  if (!token) {
     return { synced: 0, platforms: [], errors: ['reportei_not_configured'] };
+  }
+
+  const integrationId = connector?.integrationId;
+  if (!integrationId) {
+    return { synced: 0, platforms: [], errors: ['reportei_integration_id_not_configured'] };
   }
 
   const client = new ReporteiClient();
   const overrides = {
-    baseUrl: connector.baseUrl,
-    token: connector.token,
+    baseUrl: connector?.baseUrl,
+    token,
   };
 
   const synced: string[] = [];
   const errors: string[] = [];
 
-  for (const channel of channels.length > 0 ? channels : ['Instagram']) {
+  for (const rawChannel of channels.length > 0 ? channels : ['Instagram']) {
+    const platform = normalizePlatform(rawChannel);
     try {
-      const posts = await client.getPosts(connector.accountId, { platform: channel, since, until }, overrides);
-      if (!posts.length) continue;
+      const metricDefs = PLATFORM_METRICS[platform] ?? INSTAGRAM_METRICS;
+      const raw = await client.getMetricsData(
+        { integration_id: Number(integrationId), start, end, metrics: metricDefs },
+        overrides
+      );
 
-      // Pick best-matching post
-      let best: any = null;
-      let bestScore = 0;
-      for (const post of posts) {
-        const s = matchScore(dueAt, post, briefingFormat);
-        if (s > bestScore) {
-          bestScore = s;
-          best = post;
-        }
+      const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.metrics ?? []);
+      if (!metricsArray.length) continue;
+
+      // Build field map from response
+      const fields: Record<string, number | null> = {};
+      for (const item of metricsArray) {
+        const refKey: string = item.reference_key ?? item.id ?? '';
+        const field = refKeyToField(refKey);
+        if (field) fields[field] = pickValue(item);
       }
-
-      if (!best || bestScore < 1) continue;
-
-      const fields = mapPostFields(best, briefingId, effectiveTenantId, mainClientId, channel);
 
       await query(
         `INSERT INTO briefing_post_metrics
-           (briefing_id, tenant_id, client_id, platform, post_id, post_url,
-            published_at, format, reach, impressions, engagement, engagement_rate,
-            likes, comments, saves, shares, raw, synced_at, match_source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,NOW(),$18)
+           (briefing_id, tenant_id, client_id, platform, published_at,
+            reach, impressions, engagement, engagement_rate,
+            raw, synced_at, match_source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,NOW(),$11)
          ON CONFLICT (briefing_id, platform) DO UPDATE SET
-           post_id=EXCLUDED.post_id, post_url=EXCLUDED.post_url,
-           published_at=EXCLUDED.published_at, format=EXCLUDED.format,
+           published_at=EXCLUDED.published_at,
            reach=EXCLUDED.reach, impressions=EXCLUDED.impressions,
            engagement=EXCLUDED.engagement, engagement_rate=EXCLUDED.engagement_rate,
-           likes=EXCLUDED.likes, comments=EXCLUDED.comments,
-           saves=EXCLUDED.saves, shares=EXCLUDED.shares,
            raw=EXCLUDED.raw, synced_at=NOW(), match_source=EXCLUDED.match_source`,
         [
-          fields.briefing_id, fields.tenant_id, fields.client_id, fields.platform,
-          fields.post_id, fields.post_url, fields.published_at, fields.format,
-          fields.reach, fields.impressions, fields.engagement, fields.engagement_rate,
-          fields.likes, fields.comments, fields.saves, fields.shares,
-          fields.raw, fields.match_source,
+          briefingId, effectiveTenantId, mainClientId, platform, dueAt.toISOString().slice(0, 10),
+          fields.reach ?? null,
+          fields.impressions ?? null,
+          fields.engagement ?? null,
+          fields.engagement_rate ?? null,
+          JSON.stringify({ source: 'reportei_connect', start, end, raw }),
+          'auto_aggregated',
         ]
       );
-      synced.push(channel);
+      synced.push(platform);
     } catch (err: any) {
-      errors.push(`${channel}: ${err?.message ?? 'unknown'}`);
+      errors.push(`${platform}: ${err?.message ?? 'unknown'}`);
     }
   }
 

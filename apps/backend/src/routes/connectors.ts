@@ -343,13 +343,24 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         }
       }
 
-      // Reportei — verifica se dashboard_url ou reportei_account_id estão preenchidos
+      // Reportei — verifica se integration_id está preenchido e testa o token
       if (provider === 'reportei') {
-        const hasId = connPayload.reportei_account_id || connPayload.reportei_company_id;
-        if (!hasId) return reply.send({ ok: false, error: 'account_id_not_configured' });
-        // Sem API pública testável — consideramos configurado se ID presente
-        await saveHealth(true);
-        return reply.send({ ok: true, message: 'credentials_saved', account_id: hasId });
+        const integrationId =
+          connPayload.integration_id ||
+          connPayload.reportei_account_id ||
+          connPayload.reportei_company_id;
+        if (!integrationId) return reply.send({ ok: false, error: 'integration_id_not_configured' });
+        const reporteiToken = secrets.token || secrets.api_key || process.env.REPORTEI_TOKEN || '';
+        if (!reporteiToken) return reply.send({ ok: false, error: 'token_not_configured' });
+        try {
+          const { ReporteiClient } = await import('../providers/reportei/reporteiClient');
+          const company = await new ReporteiClient().getCompanySettings({ token: reporteiToken });
+          await saveHealth(true);
+          return reply.send({ ok: true, integration_id: integrationId, company: company?.company?.name });
+        } catch (err: any) {
+          await saveHealth(false, err.message);
+          return reply.send({ ok: false, error: err.message });
+        }
       }
 
       // Outros providers — sem endpoint de teste padronizado; não altera last_sync_ok

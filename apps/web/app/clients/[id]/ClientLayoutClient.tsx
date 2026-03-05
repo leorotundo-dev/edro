@@ -75,16 +75,12 @@ type AnalysisResult = {
 };
 
 const CLIENT_TABS = [
-  { label: 'Overview',     path: '' },
-  { label: 'Planning',     path: '/planning' },
-  { label: 'Briefings',    path: '/briefings' },
-  { label: 'Conteúdo',    path: '/conteudo' },
-  { label: 'Clipping',     path: '/clipping' },
-  { label: 'Campanhas',    path: '/campaigns' },
-  { label: 'Inteligência', path: '/inteligencia' },
-  { label: 'Métricas',    path: '/metricas' },
-  { label: 'Perfil',      path: '/perfil' },
-  { label: 'Dark Funnel', path: '/dark-funnel' },
+  { label: 'Overview',       path: '' },
+  { label: 'Conteúdo',      path: '/conteudo' },
+  { label: 'Monitoramento',  path: '/monitoramento' },
+  { label: 'Inteligência',  path: '/inteligencia' },
+  { label: 'Métricas',      path: '/metricas' },
+  { label: 'Perfil',        path: '/perfil' },
 ];
 
 function formatMarkdown(text: string): string {

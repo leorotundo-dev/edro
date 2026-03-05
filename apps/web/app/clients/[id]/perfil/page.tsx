@@ -154,6 +154,32 @@ export default function PerfilPage() {
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [identityForm, setIdentityForm] = useState({ segment_primary: '', segment_secondary: '', city: '', uf: '', country: '' });
   const [savingIdentity, setSavingIdentity] = useState(false);
+
+  const [editingContent, setEditingContent] = useState(false);
+  const [contentForm, setContentForm] = useState({ pillars: '', keywords: '' });
+  const [savingContent, setSavingContent] = useState(false);
+
+  const openContentEdit = () => {
+    setContentForm({
+      pillars: (client?.content_pillars || []).join(', '),
+      keywords: (client?.keywords || []).join(', '),
+    });
+    setEditingContent(true);
+  };
+
+  const saveContent = async () => {
+    setSavingContent(true);
+    try {
+      await apiPatch(`/clients/${clientId}`, {
+        content_pillars: contentForm.pillars ? contentForm.pillars.split(/[,;]/).map((s) => s.trim()).filter(Boolean) : [],
+        keywords: contentForm.keywords ? contentForm.keywords.split(/[,;]/).map((s) => s.trim()).filter(Boolean) : [],
+      });
+      setEditingContent(false);
+      await loadClient();
+    } finally {
+      setSavingContent(false);
+    }
+  };
   const [webIntelLoading, setWebIntelLoading] = useState(false);
   const [webIntelQueued, setWebIntelQueued] = useState(false);
 
@@ -694,12 +720,51 @@ export default function PerfilPage() {
         <Stack spacing={3}>
           <Card variant="outlined">
             <CardContent>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                <Avatar sx={{ bgcolor: '#f5f3ff', color: '#7c3aed', width: 36, height: 36 }}>
-                  <IconBulb size={20} />
-                </Avatar>
-                <Typography variant="h6" fontWeight={700}>Pilares e palavras-chave</Typography>
+              <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Avatar sx={{ bgcolor: '#f5f3ff', color: '#7c3aed', width: 36, height: 36 }}>
+                    <IconBulb size={20} />
+                  </Avatar>
+                  <Typography variant="h6" fontWeight={700}>Pilares e palavras-chave</Typography>
+                </Stack>
+                {!editingContent ? (
+                  <Tooltip title="Editar pilares e palavras-chave">
+                    <IconButton size="small" onClick={openContentEdit}>
+                      <IconEdit size={16} />
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Stack direction="row" spacing={0.5}>
+                    <IconButton size="small" color="success" onClick={saveContent} disabled={savingContent}>
+                      {savingContent ? <CircularProgress size={14} /> : <IconCheck size={16} />}
+                    </IconButton>
+                    <IconButton size="small" onClick={() => setEditingContent(false)} disabled={savingContent}>
+                      <IconX size={16} />
+                    </IconButton>
+                  </Stack>
+                )}
               </Stack>
+
+              <Collapse in={editingContent} unmountOnExit>
+                <Stack spacing={1.5} sx={{ mb: 2 }}>
+                  <TextField
+                    fullWidth size="small" label="Pilares de conteúdo"
+                    placeholder="Ex: Educação, Bastidores, Cases"
+                    value={contentForm.pillars}
+                    onChange={(e) => setContentForm((f) => ({ ...f, pillars: e.target.value }))}
+                    helperText="Separe por vírgula"
+                  />
+                  <TextField
+                    fullWidth size="small" label="Palavras-chave"
+                    placeholder="Ex: leilão, imóveis, oportunidade"
+                    value={contentForm.keywords}
+                    onChange={(e) => setContentForm((f) => ({ ...f, keywords: e.target.value }))}
+                    helperText="Separe por vírgula"
+                  />
+                </Stack>
+                <Divider sx={{ mb: 2 }} />
+              </Collapse>
+
               <Stack spacing={1.5}>
                 <Box>
                   <Typography variant="caption" color="text.secondary">Pilares</Typography>

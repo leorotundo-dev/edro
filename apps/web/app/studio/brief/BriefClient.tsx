@@ -988,20 +988,23 @@ export default function BriefClient() {
           {context?.date ? <Chip size="small" variant="outlined" label={context.date} /> : null}
           <Button
             size="small"
+            variant="outlined"
             startIcon={<IconBrain size={15} />}
             onClick={() => {
               openJarvis(activeClientId || undefined);
               window.dispatchEvent(new CustomEvent('jarvis-studio-send', {
-                detail: { message: activeClientId
-                  ? `Estou preenchendo um briefing${form.event ? ` para "${form.event}"` : ''}${form.title ? ` com o título "${form.title}"` : ''}. Me ajuda a completar os campos estratégicos: objetivo, mensagem principal, tom de voz, AMD e momento de consciência.`
-                  : 'Abri o Studio Brief. Como posso te ajudar a criar um briefing de alto impacto?' }
+                detail: {
+                  clientId: activeClientId,
+                  message: activeClientId
+                    ? `Estou preenchendo um briefing${form.event ? ` para "${form.event}"` : ''}${form.title ? ` com o título "${form.title}"` : ''}. Me ajuda a completar os campos estratégicos: objetivo, mensagem principal, tom de voz, AMD e momento de consciência.`
+                    : 'Abri o Studio Brief. Como posso te ajudar a criar um briefing de alto impacto?',
+                },
               }));
             }}
             sx={{
-              bgcolor: '#E85219', color: '#fff',
-              '&:hover': { bgcolor: '#c94215' },
-              borderRadius: 2, textTransform: 'none', fontSize: '0.78rem', fontWeight: 600,
-              px: 1.5, py: 0.4,
+              textTransform: 'none', fontSize: '0.78rem', fontWeight: 600,
+              borderColor: '#E85219', color: '#E85219',
+              '&:hover': { borderColor: '#c94215', bgcolor: '#E8521908' },
             }}
           >
             Jarvis
