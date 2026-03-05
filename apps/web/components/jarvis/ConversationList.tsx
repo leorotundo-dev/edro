@@ -46,12 +46,12 @@ export default function ConversationList({ clientId, onSelect, onBack }: Props) 
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!clientId) return;
     setLoading(true);
     try {
-      const res = await apiGet<{ data: { conversations: Conversation[] } }>(
-        `/clients/${clientId}/planning/conversations`
-      );
+      const url = clientId
+        ? `/clients/${clientId}/planning/conversations`
+        : `/planning/conversations?limit=30`;
+      const res = await apiGet<{ data: { conversations: Conversation[] } }>(url);
       setConversations(res.data?.conversations ?? []);
     } catch {
       setConversations([]);
@@ -64,8 +64,10 @@ export default function ConversationList({ clientId, onSelect, onBack }: Props) 
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!clientId) return;
-    await apiDelete(`/clients/${clientId}/planning/conversations/${id}`).catch(() => {});
+    const url = clientId
+      ? `/clients/${clientId}/planning/conversations/${id}`
+      : `/planning/conversations/${id}`;
+    await apiDelete(url).catch(() => {});
     setConversations(prev => prev.filter(c => c.id !== id));
   };
 

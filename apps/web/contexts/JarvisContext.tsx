@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import { apiGet } from '@/lib/api';
 
 type JarvisContextValue = {
   isOpen: boolean;
@@ -9,6 +10,7 @@ type JarvisContextValue = {
   close: () => void;
   toggle: () => void;
   clientId: string | null;
+  clientName: string | null;
   setClientId: (id: string) => void;
   conversationId: string | null;
   setConversationId: (id: string | null) => void;
@@ -29,6 +31,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [clientId, setClientIdState] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -38,6 +41,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     const urlClientId = match?.[1] ?? null;
     if (urlClientId) {
       setClientIdState(urlClientId);
+      try { localStorage.setItem('edro_active_client_id', urlClientId); } catch { /* ignore */ }
       return;
     }
     // Fallback: localStorage
@@ -46,6 +50,14 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       if (stored) setClientIdState(stored);
     } catch { /* ignore */ }
   }, [pathname]);
+
+  // Load client name whenever clientId changes
+  useEffect(() => {
+    if (!clientId) { setClientName(null); return; }
+    apiGet<{ data?: { client?: { name?: string }; name?: string } }>(`/clients/${clientId}`)
+      .then(res => setClientName(res?.data?.client?.name ?? res?.data?.name ?? null))
+      .catch(() => setClientName(null));
+  }, [clientId]);
 
   const open = useCallback((id?: string) => {
     if (id) setClientIdState(id);
@@ -76,7 +88,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   return (
     <JarvisContext.Provider value={{
       isOpen, open, close, toggle,
-      clientId, setClientId,
+      clientId, clientName, setClientId,
       conversationId, setConversationId,
       unreadCount, bump, clearUnread,
     }}>

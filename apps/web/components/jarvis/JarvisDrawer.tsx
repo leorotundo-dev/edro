@@ -24,7 +24,7 @@ type Conversation = {
 };
 
 export default function JarvisDrawer() {
-  const { isOpen, close, clientId, setConversationId, conversationId } = useJarvis();
+  const { isOpen, close, clientId, clientName, setConversationId, conversationId } = useJarvis();
   const [showHistory, setShowHistory] = useState(false);
 
   const handleNewConversation = () => {
@@ -76,7 +76,7 @@ export default function JarvisDrawer() {
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-            Jarvis
+            Jarvis{clientName ? ` · ${clientName}` : ''}
           </Typography>
           {conversationId && (
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>

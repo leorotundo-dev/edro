@@ -7,7 +7,6 @@ import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
-import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import { IconSend, IconBrain, IconUser } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
@@ -23,32 +22,158 @@ type ChatMessage = {
   artifacts?: Artifact[];
 };
 
-const QUICK_ACTIONS = [
-  'Quais briefings estão em aberto?',
-  'Gera um brief estratégico deste mês',
-  'Quais pautas estão pendentes?',
-  'Analisa a inteligência do cliente',
-];
+// ── Typing animation ─────────────────────────────────────────────────
+
+function TypingDots() {
+  return (
+    <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center', py: 0.75, px: 0.5 }}>
+      {[0, 1, 2].map(i => (
+        <Box
+          key={i}
+          sx={{
+            width: 7, height: 7, borderRadius: '50%', bgcolor: EDRO_ORANGE,
+            animation: 'jarvisTyping 1.2s infinite ease-in-out',
+            animationDelay: `${i * 0.18}s`,
+            '@keyframes jarvisTyping': {
+              '0%, 80%, 100%': { transform: 'scale(0.6)', opacity: 0.35 },
+              '40%': { transform: 'scale(1)', opacity: 1 },
+            },
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
+
+// ── Markdown renderer ────────────────────────────────────────────────
+
+function renderInline(text: string): React.ReactNode[] {
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+  return tokens.map((token, i) => {
+    if (token.startsWith('**') && token.endsWith('**') && token.length > 4)
+      return <strong key={i}>{token.slice(2, -2)}</strong>;
+    if (token.startsWith('*') && token.endsWith('*') && token.length > 2)
+      return <em key={i}>{token.slice(1, -1)}</em>;
+    if (token.startsWith('`') && token.endsWith('`') && token.length > 2)
+      return (
+        <Box key={i} component="code" sx={{ bgcolor: 'action.hover', px: 0.5, py: 0.1, borderRadius: 0.5, fontSize: '0.76rem', fontFamily: 'monospace' }}>
+          {token.slice(1, -1)}
+        </Box>
+      );
+    return token;
+  });
+}
+
+function MarkdownText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const result: React.ReactNode[] = [];
+  let listBuffer: { type: 'ul' | 'ol'; items: string[] } | null = null;
+
+  const flushList = (key: string) => {
+    if (!listBuffer) return;
+    const { type, items } = listBuffer;
+    result.push(
+      <Box key={key} component={type} sx={{ pl: 2.5, my: 0.5 }}>
+        {items.map((item, i) => (
+          <Typography key={i} component="li" variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+            {renderInline(item)}
+          </Typography>
+        ))}
+      </Box>
+    );
+    listBuffer = null;
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+
+    // Ordered list
+    const olMatch = trimmed.match(/^\d+\.\s+(.+)/);
+    if (olMatch) {
+      if (!listBuffer || listBuffer.type !== 'ol') { flushList(`pre-ol-${idx}`); listBuffer = { type: 'ol', items: [] }; }
+      listBuffer.items.push(olMatch[1]);
+      return;
+    }
+
+    // Bullet list
+    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      if (!listBuffer || listBuffer.type !== 'ul') { flushList(`pre-ul-${idx}`); listBuffer = { type: 'ul', items: [] }; }
+      listBuffer.items.push(trimmed.slice(2));
+      return;
+    }
+
+    flushList(`flush-${idx}`);
+
+    if (trimmed.startsWith('### ')) {
+      result.push(<Typography key={idx} variant="body2" sx={{ fontWeight: 700, mt: 0.75, mb: 0.25 }}>{renderInline(trimmed.slice(4))}</Typography>);
+      return;
+    }
+    if (trimmed.startsWith('## ')) {
+      result.push(<Typography key={idx} variant="subtitle2" sx={{ fontWeight: 700, mt: 1, mb: 0.25 }}>{renderInline(trimmed.slice(3))}</Typography>);
+      return;
+    }
+    if (trimmed.startsWith('# ')) {
+      result.push(<Typography key={idx} variant="subtitle1" sx={{ fontWeight: 700, mt: 1.5, mb: 0.5 }}>{renderInline(trimmed.slice(2))}</Typography>);
+      return;
+    }
+    if (!trimmed) {
+      result.push(<Box key={idx} sx={{ height: 6 }} />);
+      return;
+    }
+
+    result.push(
+      <Typography key={idx} variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+        {renderInline(line)}
+      </Typography>
+    );
+  });
+
+  flushList('end');
+  return <>{result}</>;
+}
+
+// ── Context-aware quick actions ───────────────────────────────────────
+
+function getQuickActions(pathname: string, hasClient: boolean): string[] {
+  if (hasClient && pathname.includes('/clients/')) {
+    return [
+      'Quais briefings estão em aberto?',
+      'Gera um brief estratégico para este mês',
+      'Analisa oportunidades e riscos',
+      'Quais pautas estão pendentes?',
+    ];
+  }
+  if (pathname.includes('/calendar')) {
+    return [
+      'Quais são os melhores eventos do mês?',
+      'Sugere pautas para as próximas semanas',
+      'Cria briefings para os Tier A desta semana',
+    ];
+  }
+  if (pathname.includes('/edro')) {
+    return [
+      'Mostra briefings atrasados',
+      'Quais estão aguardando aprovação?',
+      'Resumo do pipeline de hoje',
+    ];
+  }
+  return [
+    'Quais briefings estão em aberto?',
+    'Mostra pendências por cliente',
+    'Quais são as próximas datas relevantes?',
+    'Recalcula a inteligência dos clientes',
+  ];
+}
+
+// ── Main component ────────────────────────────────────────────────────
 
 export default function JarvisChatPanel() {
-  const { clientId, conversationId, setConversationId, bump, isOpen } = useJarvis();
+  const { clientId, clientName, conversationId, setConversationId, bump, isOpen } = useJarvis();
   const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [clientName, setClientName] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Load client name
-  useEffect(() => {
-    if (!clientId) { setClientName(null); return; }
-    apiGet<{ data?: { client?: { name?: string }; name?: string } }>(`/clients/${clientId}`)
-      .then(res => {
-        const name = res?.data?.client?.name ?? res?.data?.name ?? null;
-        setClientName(name);
-      })
-      .catch(() => {});
-  }, [clientId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -66,7 +191,7 @@ export default function JarvisChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When conversationId changes externally (loading old convo), load messages
+  // Load conversation when conversationId changes externally
   useEffect(() => {
     if (!conversationId || !clientId) return;
     apiGet<{ data?: { conversation?: { messages?: any[] } } }>(
@@ -86,8 +211,7 @@ export default function JarvisChatPanel() {
     if (!msg || loading || !clientId) return;
 
     setInput('');
-    const userMsg: ChatMessage = { role: 'user', content: msg, timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date().toISOString() }]);
     setLoading(true);
 
     try {
@@ -97,20 +221,14 @@ export default function JarvisChatPanel() {
       );
 
       const data = res?.data;
-      const assistantMsg: ChatMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: data?.response ?? 'Sem resposta.',
         timestamp: new Date().toISOString(),
         artifacts: data?.artifacts?.length ? data.artifacts : undefined,
-      };
+      }]);
 
-      setMessages(prev => [...prev, assistantMsg]);
-
-      if (data?.conversationId && !conversationId) {
-        setConversationId(data.conversationId);
-      }
-
-      // Bump unread if drawer was closed while waiting (unlikely but safe)
+      if (data?.conversationId && !conversationId) setConversationId(data.conversationId);
       if (!isOpen) bump();
     } catch {
       setMessages(prev => [...prev, {
@@ -124,18 +242,18 @@ export default function JarvisChatPanel() {
   }, [input, loading, clientId, conversationId, pathname, setConversationId, isOpen, bump]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
   const noClient = !clientId;
+  const quickActions = getQuickActions(pathname ?? '', !noClient);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+
       {/* Messages */}
       <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+
         {messages.length === 0 && !loading && (
           <Box sx={{ textAlign: 'center', pt: 2 }}>
             <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: `${EDRO_ORANGE}15`, mb: 2 }}>
@@ -145,15 +263,12 @@ export default function JarvisChatPanel() {
               {clientName ? `Jarvis · ${clientName}` : 'Jarvis'}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {noClient
-                ? 'Navegue até um cliente para começar.'
-                : 'O que fazemos hoje?'}
+              {noClient ? 'Navegue até um cliente para começar.' : 'O que fazemos hoje?'}
             </Typography>
 
-            {/* Quick actions */}
             {!noClient && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, justifyContent: 'center', mt: 2 }}>
-                {QUICK_ACTIONS.map(qa => (
+                {quickActions.map(qa => (
                   <Chip
                     key={qa}
                     label={qa}
@@ -171,15 +286,10 @@ export default function JarvisChatPanel() {
 
         {messages.map((msg, i) => (
           <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
-            <Avatar
-              sx={{
-                width: 28, height: 28, flexShrink: 0, fontSize: '0.7rem', fontWeight: 700,
-                bgcolor: msg.role === 'user' ? 'primary.main' : EDRO_ORANGE,
-              }}
-            >
+            <Avatar sx={{ width: 28, height: 28, flexShrink: 0, fontSize: '0.7rem', fontWeight: 700, bgcolor: msg.role === 'user' ? 'primary.main' : EDRO_ORANGE }}>
               {msg.role === 'user' ? <IconUser size={14} /> : <IconBrain size={14} />}
             </Avatar>
-            <Box sx={{ maxWidth: '80%', minWidth: 0 }}>
+            <Box sx={{ maxWidth: '85%', minWidth: 0 }}>
               <Box
                 sx={{
                   px: 1.5, py: 1,
@@ -191,11 +301,14 @@ export default function JarvisChatPanel() {
                   boxShadow: msg.role === 'assistant' ? 1 : 0,
                 }}
               >
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.82rem' }}>
-                  {msg.content}
-                </Typography>
+                {msg.role === 'user' ? (
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.82rem' }}>
+                    {msg.content}
+                  </Typography>
+                ) : (
+                  <MarkdownText text={msg.content} />
+                )}
               </Box>
-              {/* Artifacts */}
               {msg.artifacts?.map((artifact, ai) => (
                 <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
               ))}
@@ -208,9 +321,8 @@ export default function JarvisChatPanel() {
             <Avatar sx={{ width: 28, height: 28, bgcolor: EDRO_ORANGE }}>
               <IconBrain size={14} />
             </Avatar>
-            <Box sx={{ px: 1.5, py: 1, borderRadius: '4px 12px 12px 12px', bgcolor: 'background.paper', border: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CircularProgress size={12} sx={{ color: EDRO_ORANGE }} />
-              <Typography variant="caption" color="text.secondary">Pensando…</Typography>
+            <Box sx={{ px: 1.5, py: 0.5, borderRadius: '4px 12px 12px 12px', bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+              <TypingDots />
             </Box>
           </Box>
         )}
