@@ -93,7 +93,7 @@ export default function MetricasPage() {
         sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
       >
         {SUB_TABS.map((t) => (
-          <Tab key={t.value} label={t.label} icon={t.icon} iconPosition="start" sx={{ fontSize: '0.85rem' }} />
+          <Tab key={t.value} value={t.value} label={t.label} icon={t.icon} iconPosition="start" sx={{ fontSize: '0.85rem' }} />
         ))}
       </Tabs>
       {tab === 0 && <ClientPerformanceClient clientId={clientId} />}
