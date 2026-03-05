@@ -398,25 +398,52 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
           continue;
         }
 
-        try {
-          const raw = await rc.getMetricsData({
-            integration_id: integrationId,
-            start, end,
-            metrics: [{ id: 'ig:impressions', metrics: ['value'], component: 'number_v1' }],
-          }, { token });
-
-          if (raw?.data?.code || raw?.data?.exception) {
-            const msg = raw.data.exception?.message ?? raw.data.code ?? 'unknown_error';
-            results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'expired', message: msg });
-          } else {
-            results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'ok', message: 'OK' });
+        // Test all platforms in connector, not just Instagram
+        const allPlatformIds: Array<{ slug: string; id: number }> = [];
+        if (Object.keys(platformsMap).length > 0) {
+          for (const [slug, id] of Object.entries(platformsMap)) {
+            allPlatformIds.push({ slug, id: Number(id) });
           }
-        } catch (e: any) {
-          results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'error', message: e.message });
+        } else {
+          allPlatformIds.push({ slug: 'instagram_business', id: integrationId });
         }
 
-        // Avoid rate limiting
-        await new Promise(r => setTimeout(r, 1200));
+        const platformResults: string[] = [];
+        let anyExpired = false;
+        let anyError = false;
+
+        for (const { slug, id } of allPlatformIds) {
+          try {
+            const testMetric = slug === 'instagram_business' ? 'ig:impressions'
+              : slug === 'linkedin' ? 'li:impressions'
+              : slug === 'facebook_ads' ? 'fb:impressions'
+              : slug === 'google_analytics_4' ? 'ga4:sessions'
+              : slug === 'google_adwords' ? 'ga_ads:impressions'
+              : 'ig:impressions';
+
+            const raw = await rc.getMetricsData({
+              integration_id: id,
+              start, end,
+              metrics: [{ id: testMetric, metrics: ['value'], component: 'number_v1' }],
+            }, { token });
+
+            if (raw?.data?.code || raw?.data?.exception) {
+              const msg = raw.data.exception?.message ?? raw.data.code ?? 'unknown_error';
+              platformResults.push(`${slug}: ${msg}`);
+              anyExpired = true;
+            } else {
+              platformResults.push(`${slug}: OK`);
+            }
+          } catch (e: any) {
+            platformResults.push(`${slug}: ${e.message}`);
+            anyError = true;
+          }
+          await new Promise(r => setTimeout(r, 1200));
+        }
+
+        const status = anyExpired ? 'expired' : anyError ? 'error' : 'ok';
+        const message = platformResults.join(' | ');
+        results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status, message });
       }
 
       return reply.send({ total: results.length, results });
