@@ -1483,10 +1483,12 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
     ).catch(() => ({ rows: [] }));
 
     return reply.send({
-      snapshot,
-      prev_snapshot: prevSnapshot,
+      snapshot: snapshot?.metrics ?? null,
+      snapshot_meta: snapshot ? { platform: snapshot.platform, period_start: snapshot.period_start, period_end: snapshot.period_end, synced_at: snapshot.synced_at } : null,
+      prev_snapshot: prevSnapshot?.metrics ?? null,
       top_briefings: topBriefings,
       available_platforms: availPlatforms.map((r: any) => r.platform),
+      synced_at: snapshot?.synced_at ?? null,
       client_id: clientId,
       window: win,
       platform,

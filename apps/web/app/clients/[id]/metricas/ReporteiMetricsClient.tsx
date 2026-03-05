@@ -260,9 +260,10 @@ export default function ReporteiMetricsClient({ clientId }: Props) {
     );
   }
 
-  const snapshotKeys = data ? Object.keys(data.snapshot) : [];
+  const snapshotMetrics: Snapshot = data?.snapshot ?? {};
+  const snapshotKeys = Object.keys(snapshotMetrics);
   const kpiEntries = snapshotKeys
-    .filter((k) => data!.snapshot[k].value != null)
+    .filter((k) => snapshotMetrics[k]?.value != null)
     .slice(0, 12);
 
   return (
@@ -318,7 +319,7 @@ export default function ReporteiMetricsClient({ clientId }: Props) {
             <Grid container spacing={2} mb={4}>
               {kpiEntries.map((key) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={key}>
-                  <KpiCard metricKey={key} data={data!.snapshot[key]} />
+                  <KpiCard metricKey={key} data={snapshotMetrics[key]} />
                 </Grid>
               ))}
             </Grid>
