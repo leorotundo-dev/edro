@@ -21,14 +21,17 @@ import Typography from '@mui/material/Typography';
 import {
   IconCalendar,
   IconCheck,
+  IconClock,
   IconExternalLink,
   IconLabel,
+  IconPlayerPlay,
+  IconPlayerStop,
   IconPlus,
   IconTrash,
   IconUser,
   IconX,
 } from '@tabler/icons-react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 // ── Label presets ────────────────────────────────────────────────────────────
 
@@ -74,6 +77,20 @@ type BriefingDetail = {
   client_name?: string | null;
   client_logo_url?: string | null;
   client_brand_color?: string | null;
+};
+
+type FreelancerProfile = {
+  id: string;
+  display_name: string;
+  specialty: string | null;
+  hourly_rate_brl: string | null;
+};
+
+type ActiveTimer = {
+  id: string;
+  freelancer_id: string;
+  briefing_id: string;
+  started_at: string;
 };
 
 type Props = {
@@ -198,6 +215,16 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
   const [saving, setSaving]   = useState(false);
   const newItemRef            = useRef<HTMLInputElement>(null);
 
+  // Timer state
+  const [freelancers,      setFreelancers]      = useState<FreelancerProfile[]>([]);
+  const [selectedFl,       setSelectedFl]       = useState<string>('');
+  const [activeTimer,      setActiveTimer]       = useState<ActiveTimer | null>(null);
+  const [elapsedSeconds,   setElapsedSeconds]   = useState(0);
+  const [timerLoading,     setTimerLoading]     = useState(false);
+  const [totalMinutes,     setTotalMinutes]     = useState<number>(0);
+  const [stopDialogOpen,   setStopDialogOpen]   = useState(false);
+  const [stopDescription,  setStopDescription]  = useState('');
+
   // Load briefing detail when drawer opens
   useEffect(() => {
     if (!briefingId) { setData(null); return; }
@@ -216,6 +243,109 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [briefingId]);
+
+  // Load freelancer list once
+  useEffect(() => {
+    apiGet<FreelancerProfile[]>('/freelancers')
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : (rows as any)?.data ?? [];
+        setFreelancers(list);
+        if (list.length === 1) setSelectedFl(list[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  // When briefing changes: load active timer + total hours
+  useEffect(() => {
+    if (!briefingId || !selectedFl) return;
+    apiGet<{ timers: ActiveTimer[] }>(`/freelancers/${selectedFl}/timer/active`)
+      .then((res) => {
+        const timer = res.timers?.find((t) => t.briefing_id === briefingId) ?? null;
+        setActiveTimer(timer);
+        if (timer) {
+          setElapsedSeconds(Math.floor((Date.now() - new Date(timer.started_at).getTime()) / 1000));
+        } else {
+          setElapsedSeconds(0);
+        }
+      })
+      .catch(() => {});
+
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    apiGet<{ entries: { minutes: number }[] }>(`/freelancers/${selectedFl}/time-entries?month=${month}`)
+      .then((res) => {
+        const total = (res.entries ?? [])
+          .filter((e: any) => e.briefing_id === briefingId || true) // all for now
+          .reduce((s: number, e: any) => s + (e.minutes ?? 0), 0);
+        // filter to this briefing
+        apiGet<{ entries: { minutes: number; briefing_id: string }[] }>(`/freelancers/${selectedFl}/time-entries`)
+          .then((r) => {
+            const sum = (r.entries ?? [])
+              .filter((e) => (e as any).briefing_id === briefingId)
+              .reduce((s, e) => s + (e.minutes ?? 0), 0);
+            setTotalMinutes(sum);
+          })
+          .catch(() => {});
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefingId, selectedFl]);
+
+  // Tick elapsed seconds while timer is running
+  useEffect(() => {
+    if (!activeTimer) return;
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [activeTimer]);
+
+  const handleTimerStart = async () => {
+    if (!selectedFl || !briefingId) return;
+    setTimerLoading(true);
+    try {
+      const res = await apiPost<{ timer: ActiveTimer }>('/freelancers/timer/start', {
+        freelancer_id: selectedFl,
+        briefing_id: briefingId,
+      });
+      setActiveTimer(res.timer);
+      setElapsedSeconds(0);
+    } catch { /* silent */ } finally {
+      setTimerLoading(false);
+    }
+  };
+
+  const handleTimerStop = async () => {
+    if (!selectedFl || !briefingId || !activeTimer) return;
+    setTimerLoading(true);
+    try {
+      const res = await apiPost<{ entry: { minutes: number } }>('/freelancers/timer/stop', {
+        freelancer_id: selectedFl,
+        briefing_id: briefingId,
+        description: stopDescription.trim() || null,
+      });
+      setActiveTimer(null);
+      setElapsedSeconds(0);
+      setStopDialogOpen(false);
+      setStopDescription('');
+      if (res.entry) setTotalMinutes((m) => m + (res.entry.minutes ?? 0));
+    } catch { /* silent */ } finally {
+      setTimerLoading(false);
+    }
+  };
+
+  function formatElapsed(secs: number) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  function formatTotalMinutes(mins: number) {
+    if (!mins) return '0min';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m > 0 ? m + 'min' : ''}`.trim() : `${m}min`;
+  }
 
   // Debounced title save
   const debouncedTitle = useDebounce(data?.title ?? '', 800);
@@ -502,6 +632,143 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
                 </IconButton>
               </Stack>
             </Box>
+
+            {/* Timer / Timesheet */}
+            {freelancers.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={0.75} mb={1.25}>
+                    <IconClock size={14} />
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">
+                      Horas
+                    </Typography>
+                    {totalMinutes > 0 && (
+                      <Typography variant="caption" color="text.disabled" sx={{ ml: 'auto !important' }}>
+                        Total: {formatTotalMinutes(totalMinutes)}
+                      </Typography>
+                    )}
+                  </Stack>
+
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    {/* Freelancer select */}
+                    <Select
+                      size="small"
+                      value={selectedFl}
+                      onChange={(e) => setSelectedFl(e.target.value)}
+                      displayEmpty
+                      sx={{ fontSize: '0.8rem', flex: 1 }}
+                    >
+                      <MenuItem value="" disabled><em>Freelancer</em></MenuItem>
+                      {freelancers.map((fl) => (
+                        <MenuItem key={fl.id} value={fl.id} sx={{ fontSize: '0.8rem' }}>
+                          {fl.display_name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+
+                    {/* Timer display when running */}
+                    {activeTimer && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontVariantNumeric: 'tabular-nums',
+                          fontFamily: 'monospace',
+                          fontSize: '0.85rem',
+                          color: 'warning.main',
+                          minWidth: 56,
+                          textAlign: 'right',
+                        }}
+                      >
+                        {formatElapsed(elapsedSeconds)}
+                      </Typography>
+                    )}
+
+                    {/* Start / Stop button */}
+                    {!activeTimer ? (
+                      <Tooltip title="Iniciar timer">
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            disabled={!selectedFl || timerLoading}
+                            onClick={handleTimerStart}
+                            sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: 1.5,
+                                  '&:hover': { bgcolor: 'primary.dark' },
+                                  '&:disabled': { bgcolor: 'action.disabledBackground' } }}
+                          >
+                            {timerLoading ? <CircularProgress size={14} color="inherit" /> : <IconPlayerPlay size={14} />}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip title="Parar timer">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={timerLoading}
+                          onClick={() => setStopDialogOpen(true)}
+                          sx={{ bgcolor: 'error.main', color: 'white', borderRadius: 1.5,
+                                '&:hover': { bgcolor: 'error.dark' } }}
+                        >
+                          {timerLoading ? <CircularProgress size={14} color="inherit" /> : <IconPlayerStop size={14} />}
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
+
+                  {/* Stop description dialog (inline) */}
+                  {stopDialogOpen && (
+                    <Box
+                      sx={{
+                        mt: 1.5,
+                        p: 1.5,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1.5,
+                        bgcolor: 'background.paper',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={600} mb={0.75} display="block">
+                        Descrição do trabalho (opcional)
+                      </Typography>
+                      <InputBase
+                        value={stopDescription}
+                        onChange={(e) => setStopDescription(e.target.value)}
+                        placeholder="Ex: Revisão de copy do anúncio..."
+                        fullWidth
+                        sx={{
+                          fontSize: '0.82rem',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          px: 1,
+                          py: 0.5,
+                          mb: 1,
+                        }}
+                      />
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <IconButton size="small" onClick={() => setStopDialogOpen(false)}>
+                          <IconX size={13} />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={handleTimerStop}
+                          disabled={timerLoading}
+                          sx={{ bgcolor: 'error.main', color: 'white', borderRadius: 1,
+                                '&:hover': { bgcolor: 'error.dark' } }}
+                        >
+                          {timerLoading
+                            ? <CircularProgress size={12} color="inherit" />
+                            : <IconPlayerStop size={13} />}
+                        </IconButton>
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
+              </>
+            )}
           </Stack>
         )}
       </Box>

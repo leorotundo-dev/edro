@@ -9,7 +9,7 @@
  */
 
 import { query } from '../db';
-import { ReporteiClient, PLATFORM_METRICS } from '../providers/reportei/reporteiClient';
+import { ReporteiClient, PLATFORM_METRICS, ReporteiMetricRequest } from '../providers/reportei/reporteiClient';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { syncAllClientsLearningRules } from '../services/reporteiLearningSync';
 

@@ -38,6 +38,7 @@ import darkFunnelRoutes from './darkFunnel';
 import behaviorProfilesRoutes from './behaviorProfiles';
 import learningRulesRoutes from './learningRules';
 import adminReporteiRoutes from './adminReportei';
+import freelancersRoutes from './freelancers';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -80,4 +81,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(behaviorProfilesRoutes, { prefix: '/api' });
   app.register(learningRulesRoutes, { prefix: '/api' });
   app.register(adminReporteiRoutes, { prefix: '/api' });
+  app.register(freelancersRoutes, { prefix: '/api' });
 }
