@@ -33,12 +33,15 @@ import {
   IconDotsVertical,
   IconEdit,
   IconMapPin,
+  IconMessageCircle,
   IconPlayerPlay,
   IconPlus,
   IconSearch,
+  IconSortAscending,
   IconSparkles,
   IconTrash,
 } from '@tabler/icons-react';
+import { useJarvis } from '@/contexts/JarvisContext';
 
 type Client = {
   id: string;
@@ -57,12 +60,16 @@ type Client = {
   profile?: { brand_colors?: string[]; platforms?: string[] } | null;
 };
 
+type SortMode = 'urgency' | 'az' | 'ia';
+
 export default function ClientsListClient() {
   const router = useRouter();
   const confirm = useConfirm();
+  const { open: openJarvis } = useJarvis();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('urgency');
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuClient, setMenuClient] = useState<Client | null>(null);
 
@@ -70,9 +77,7 @@ export default function ClientsListClient() {
     setLoading(true);
     try {
       const response = await apiGet<Client[]>('/clients');
-      setClients(
-        (response || []).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
-      );
+      setClients(response || []);
     } catch {
       setClients([]);
     } finally {
@@ -84,15 +89,28 @@ export default function ClientsListClient() {
     loadClients();
   }, [loadClients]);
 
-  const filteredClients = clients.filter((client) => {
-    if (!search) return true;
-    const query = search.toLowerCase();
-    return (
-      client.name?.toLowerCase().includes(query) ||
-      client.segment_primary?.toLowerCase().includes(query) ||
-      client.city?.toLowerCase().includes(query)
-    );
-  });
+  const filteredClients = clients
+    .filter((client) => {
+      if (!search) return true;
+      const query = search.toLowerCase();
+      return (
+        client.name?.toLowerCase().includes(query) ||
+        client.segment_primary?.toLowerCase().includes(query) ||
+        client.city?.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (sortMode === 'urgency') {
+        const urgA = (a.urgent_tasks ?? 0) * 10 + (a.pending_posts ?? 0);
+        const urgB = (b.urgent_tasks ?? 0) * 10 + (b.pending_posts ?? 0);
+        if (urgB !== urgA) return urgB - urgA;
+        return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+      }
+      if (sortMode === 'ia') {
+        return (b.intelligence_score ?? 0) - (a.intelligence_score ?? 0);
+      }
+      return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+    });
 
   const getStatusBadge = (status?: string) => {
     if (status === 'active') {
@@ -153,25 +171,42 @@ export default function ClientsListClient() {
 
       <Card variant="outlined">
         <CardContent>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-            <Chip size="small" label="Busca rápida" />
-            <Chip size="small" variant="outlined" label={`${filteredClients.length} clientes`} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              placeholder="Nome, segmento ou cidade"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconSearch size={16} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ maxWidth: 400 }}
+            />
+            <Stack direction="row" spacing={0.75} alignItems="center" flexShrink={0}>
+              <IconSortAscending size={16} style={{ opacity: 0.5 }} />
+              {([
+                { id: 'urgency', label: 'Urgência' },
+                { id: 'az',      label: 'A–Z' },
+                { id: 'ia',      label: 'IA Score' },
+              ] as { id: SortMode; label: string }[]).map(opt => (
+                <Chip
+                  key={opt.id}
+                  label={opt.label}
+                  size="small"
+                  variant={sortMode === opt.id ? 'filled' : 'outlined'}
+                  color={sortMode === opt.id ? 'primary' : 'default'}
+                  onClick={() => setSortMode(opt.id)}
+                  sx={{ cursor: 'pointer', fontWeight: sortMode === opt.id ? 700 : 400 }}
+                />
+              ))}
+              <Chip size="small" variant="outlined" label={`${filteredClients.length}`} />
+            </Stack>
           </Stack>
-          <TextField
-            fullWidth
-            placeholder="Nome, segmento ou cidade"
-            label="Buscar cliente"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <IconSearch size={16} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ maxWidth: 520 }}
-          />
         </CardContent>
       </Card>
 
@@ -350,29 +385,43 @@ export default function ClientsListClient() {
                     </Stack>
                   )}
 
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={0.75} alignItems="center">
                     <Button
-                      fullWidth
+                      size="small"
                       variant="contained"
-                      startIcon={<IconCalendar size={16} />}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        router.push(`/clients/${client.id}/calendar`);
-                      }}
+                      startIcon={<IconMessageCircle size={14} />}
+                      onClick={(e) => { e.stopPropagation(); openJarvis(client.id); }}
+                      sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c94215' }, fontSize: '0.72rem', py: 0.5, flex: 1 }}
                     >
-                      Calendário
+                      Jarvis
                     </Button>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      startIcon={<IconSparkles size={16} />}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        router.push(`/studio/brief?clientId=${client.id}`);
-                      }}
-                    >
-                      Criar
-                    </Button>
+                    <Tooltip title="Criar pauta">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/studio/brief?clientId=${client.id}`); }}
+                        sx={{ border: '1px solid', borderColor: 'divider' }}
+                      >
+                        <IconSparkles size={16} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Calendário">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/clients/${client.id}/calendar`); }}
+                        sx={{ border: '1px solid', borderColor: 'divider' }}
+                      >
+                        <IconCalendar size={16} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Planning">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/clients/${client.id}/planning`); }}
+                        sx={{ border: '1px solid', borderColor: 'divider' }}
+                      >
+                        <IconBrain size={16} />
+                      </IconButton>
+                    </Tooltip>
                   </Stack>
 
                   {client.urgent_tasks ? (

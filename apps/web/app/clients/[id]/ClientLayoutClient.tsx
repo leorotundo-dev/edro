@@ -23,7 +23,8 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconCheck, IconChevronLeft, IconDeviceFloppy, IconPlus, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
+import { IconBrain, IconCheck, IconChevronLeft, IconDeviceFloppy, IconPlus, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
+import { useJarvis } from '@/contexts/JarvisContext';
 
 type ClientBasic = {
   id: string;
@@ -75,7 +76,11 @@ type AnalysisResult = {
 
 const CLIENT_TABS = [
   { label: 'Overview',     path: '' },
+  { label: 'Planning',     path: '/planning' },
+  { label: 'Briefings',    path: '/briefings' },
   { label: 'Conteúdo',    path: '/conteudo' },
+  { label: 'Clipping',     path: '/clipping' },
+  { label: 'Campanhas',    path: '/campaigns' },
   { label: 'Inteligência', path: '/inteligencia' },
   { label: 'Métricas',    path: '/metricas' },
   { label: 'Perfil',      path: '/perfil' },
@@ -120,6 +125,7 @@ function formatMarkdown(text: string): string {
 export default function ClientLayoutClient({ children, clientId }: ClientLayoutClientProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { open: openJarvis } = useJarvis();
 
   const [client, setClient] = useState<ClientBasic | null>(null);
   const [loading, setLoading] = useState(true);
@@ -296,6 +302,20 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
             <Stack direction="row" spacing={1}>
               <Button
                 variant="contained"
+                startIcon={<IconBrain size={16} />}
+                onClick={() => openJarvis(clientId)}
+                sx={{
+                  textTransform: 'none',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  backdropFilter: 'blur(4px)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                }}
+              >
+                Jarvis
+              </Button>
+              <Button
+                variant="contained"
                 startIcon={<IconPlus size={16} />}
                 component={Link}
                 href={`/studio/brief?clientId=${clientId}`}
@@ -321,7 +341,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                   '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
                 }}
               >
-                Analisar com IA
+                Analisar
               </Button>
               <Button
                 variant="outlined"
@@ -330,7 +350,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
                 href={`/clients/${clientId}`}
                 sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
               >
-                Editar cliente
+                Editar
               </Button>
             </Stack>
           </Stack>
