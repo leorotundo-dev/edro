@@ -383,13 +383,17 @@ export default function DashboardClient() {
                       const scoreValue = Number((event as any)?.score ?? 0);
                       const safeScore = Number.isFinite(scoreValue) ? Math.max(0, Math.min(100, Math.round(scoreValue))) : 0;
                       const tierValue = String((event as any)?.tier || (safeScore >= 80 ? 'A' : safeScore >= 55 ? 'B' : 'C'));
+                      const todayStr = new Date().toISOString().slice(0, 10);
                       return (
                         <Box
                           key={String((event as any)?.id || `${name}-${idx}`)}
+                          onClick={() => router.push('/calendar')}
                           sx={{
                             py: 1, display: 'flex', alignItems: 'center',
                             justifyContent: 'space-between', gap: 1.5,
                             borderBottom: '1px solid', borderColor: 'divider',
+                            cursor: 'pointer', transition: 'background 0.15s',
+                            '&:hover': { bgcolor: 'action.hover' },
                           }}
                         >
                           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
@@ -407,9 +411,9 @@ export default function DashboardClient() {
                             size="small"
                             variant="outlined"
                             startIcon={<IconPlus size={12} />}
-                            onClick={() => {
-                              const today = new Date().toISOString().slice(0, 10);
-                              router.push(`/studio/brief?event=${encodeURIComponent(name)}&date=${today}&score=${safeScore}&source=calendar`);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/studio/brief?event=${encodeURIComponent(name)}&date=${todayStr}&score=${safeScore}&source=calendar`);
                             }}
                             sx={{ fontSize: '0.65rem', py: 0.2, px: 0.75, whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'none' }}
                           >
@@ -440,7 +444,15 @@ export default function DashboardClient() {
                 {upcomingEvents.length > 0 ? (
                   <Stack spacing={1.5}>
                     {upcomingEvents.map((event) => (
-                      <Box key={`${event.id}-${event.date}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Box
+                        key={`${event.id}-${event.date}`}
+                        onClick={() => router.push(`/studio/brief?event=${encodeURIComponent(event.name)}&date=${event.date}&score=${event.score}&source=calendar`)}
+                        sx={{
+                          display: 'flex', alignItems: 'center', gap: 1.5,
+                          cursor: 'pointer', borderRadius: 2, px: 1, py: 0.5, mx: -1,
+                          transition: 'background 0.15s', '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                      >
                         <Box sx={{ textAlign: 'center', minWidth: 38, flexShrink: 0 }}>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1 }}>
                             {new Date(event.date).toLocaleDateString('pt-BR', { month: 'short' })}
