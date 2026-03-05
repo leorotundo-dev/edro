@@ -110,6 +110,9 @@ export default function ReporteiAdminPage() {
   const [debugResult, setDebugResult] = useState<Record<string, any> | null>(null);
   const [debugClientId, setDebugClientId] = useState<string | null>(null);
   const [debugLoading, setDebugLoading] = useState(false);
+  type VerifyResult = { client_id: string; client_name: string; status: 'ids_valid' | 'stale_ids'; platforms: Record<string, { stored_id: number; found_in_reportei: boolean; reportei_name: string | null; reportei_slug: string | null }> };
+  const [verifyResults, setVerifyResults] = useState<VerifyResult[] | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -179,6 +182,17 @@ export default function ReporteiAdminPage() {
   const runCleanup = async () => {
     const res = await apiPost('/admin/reportei/cleanup-snapshots', {});
     setCleanupMsg(`${res.deleted} snapshots inválidos removidos`);
+  };
+
+  const runVerifyIds = async () => {
+    setVerifying(true);
+    setVerifyResults(null);
+    try {
+      const res = await apiPost('/admin/reportei/verify-ids', {});
+      setVerifyResults(res.clients ?? []);
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const runDebugSync = async (clientId: string) => {
@@ -286,6 +300,16 @@ export default function ReporteiAdminPage() {
           >
             {autoLinking ? 'Vinculando…' : 'Auto-vincular todas as plataformas'}
           </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            color="warning"
+            startIcon={verifying ? <CircularProgress size={14} color="inherit" /> : <IconAlertCircle size={16} />}
+            onClick={runVerifyIds}
+            disabled={verifying}
+          >
+            {verifying ? 'Verificando IDs…' : 'Verificar IDs no Reportei'}
+          </Button>
         </Stack>
 
         {cleanupMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCleanupMsg(null)}>{cleanupMsg}</Alert>}
@@ -305,7 +329,7 @@ export default function ReporteiAdminPage() {
             </Stack>
             {checkResults.filter(r => r.status !== 'ok' && r.status !== 'no_integration').length > 0 && (
               <Alert severity="warning" sx={{ mb: 1 }}>
-                Os clientes abaixo precisam ter a integração reconectada no Reportei (app.reportei.com → projeto → Integrações → Reconectar Instagram):
+                Os clientes abaixo têm integrações com problema. Acesse app.reportei.com → projeto → Integrações → reconecte a plataforma indicada. Depois execute "Auto-vincular" para atualizar os IDs.
               </Alert>
             )}
             <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
@@ -338,6 +362,54 @@ export default function ReporteiAdminPage() {
                       </TableCell>
                     </TableRow>
                   )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {/* Verify IDs results */}
+        {verifyResults && (
+          <Box mb={3}>
+            <Alert
+              severity={verifyResults.some(r => r.status === 'stale_ids') ? 'error' : 'success'}
+              sx={{ mb: 1 }}
+            >
+              {verifyResults.some(r => r.status === 'stale_ids')
+                ? `${verifyResults.filter(r => r.status === 'stale_ids').length} cliente(s) com IDs desatualizados — os IDs armazenados não existem mais no Reportei. Execute "Auto-vincular" para corrigir.`
+                : 'Todos os IDs armazenados existem no Reportei.'}
+            </Alert>
+            <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Cliente</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Plataformas</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {verifyResults.map(r => (
+                    <TableRow key={r.client_id}>
+                      <TableCell><Typography variant="body2" fontWeight={500}>{r.client_name}</Typography></TableCell>
+                      <TableCell>
+                        <Chip size="small" label={r.status === 'stale_ids' ? 'IDs desatualizados' : 'OK'} color={r.status === 'stale_ids' ? 'error' : 'success'} />
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" gap={0.5} flexWrap="wrap">
+                          {Object.entries(r.platforms).map(([slug, info]) => (
+                            <Chip
+                              key={slug}
+                              size="small"
+                              label={`${slug.replace('_business','').replace('_',' ')} #${info.stored_id} ${info.found_in_reportei ? `✓ ${info.reportei_name ?? ''}` : '✗ NÃO ENCONTRADO'}`}
+                              color={info.found_in_reportei ? 'success' : 'error'}
+                              variant="outlined"
+                            />
+                          ))}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>

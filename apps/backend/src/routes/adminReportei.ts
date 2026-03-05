@@ -416,7 +416,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
           try {
             const testMetric = slug === 'instagram_business' ? 'ig:impressions'
               : slug === 'linkedin' ? 'li:impressions'
-              : slug === 'facebook_ads' ? 'fb:impressions'
+              : slug === 'facebook_ads' ? 'fb_ads:impressions'
               : slug === 'google_analytics_4' ? 'ga4:sessions'
               : slug === 'google_adwords' ? 'ga_ads:impressions'
               : 'ig:impressions';
@@ -447,6 +447,76 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ total: results.length, results });
+    }
+  );
+
+  // ── POST /admin/reportei/verify-ids ─────────────────────────────────────
+  // Fetch LIVE integrations from Reportei API and compare to stored IDs.
+  // Reveals stale IDs (integration deleted/replaced) vs truly expired tokens.
+  app.post(
+    '/admin/reportei/verify-ids',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const token = process.env.REPORTEI_TOKEN || '';
+      if (!token) return reply.send({ error: 'REPORTEI_TOKEN not set' });
+
+      const rc = new ReporteiClient();
+
+      // Fetch ALL current integrations from Reportei
+      let liveIntegrations: any[] = [];
+      try {
+        const res = await rc.getIntegrations({ per_page: 100 }, { token });
+        liveIntegrations = res?.data ?? [];
+      } catch (e: any) {
+        return reply.send({ error: `Failed to fetch Reportei integrations: ${e.message}` });
+      }
+
+      const liveById = new Map(liveIntegrations.map((i: any) => [Number(i.id), i]));
+
+      // Fetch stored connectors
+      const { rows: connectors } = await query<any>(
+        `SELECT c.id as client_id, c.name as client_name, cn.payload
+         FROM clients c
+         INNER JOIN connectors cn ON cn.client_id = c.id AND cn.provider = 'reportei'
+         WHERE c.tenant_id=$1
+         ORDER BY c.name ASC`,
+        [tenantId]
+      );
+
+      const results = connectors.map((row: any) => {
+        const payload = row.payload ?? {};
+        const platformsMap: Record<string, number> = payload.platforms ?? {};
+        const platformChecks: Record<string, { stored_id: number; found_in_reportei: boolean; reportei_name: string | null; reportei_slug: string | null }> = {};
+
+        for (const [slug, id] of Object.entries(platformsMap)) {
+          const numId = Number(id);
+          const live = liveById.get(numId);
+          platformChecks[slug] = {
+            stored_id: numId,
+            found_in_reportei: !!live,
+            reportei_name: live?.name ?? null,
+            reportei_slug: live?.slug ?? null,
+          };
+        }
+
+        const allFound = Object.values(platformChecks).every(p => p.found_in_reportei);
+        const anyNotFound = Object.values(platformChecks).some(p => !p.found_in_reportei);
+
+        return {
+          client_id: row.client_id,
+          client_name: row.client_name,
+          status: anyNotFound ? 'stale_ids' : 'ids_valid',
+          platforms: platformChecks,
+        };
+      });
+
+      return reply.send({
+        total_live_integrations: liveIntegrations.length,
+        live_integrations: liveIntegrations.map((i: any) => ({ id: i.id, name: i.name, slug: i.slug })),
+        clients: results,
+        stale_count: results.filter((r: any) => r.status === 'stale_ids').length,
+      });
     }
   );
 

@@ -188,13 +188,13 @@ export const LINKEDIN_METRICS: ReporteiMetricRequest[] = [
 ];
 
 export const META_ADS_METRICS: ReporteiMetricRequest[] = [
-  { id: 'fb:impressions',            metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:reach',                  metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:clicks',                 metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:ctr',                    metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:cpc',                    metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:spend',                  metrics: ['value'], component: 'number_v1' },
-  { id: 'fb:conversions',            metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:impressions',        metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:reach',              metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:clicks',             metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:ctr',                metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:cpc',                metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:spend',              metrics: ['value'], component: 'number_v1' },
+  { id: 'fb_ads:conversions',        metrics: ['value'], component: 'number_v1' },
 ];
 
 export const GOOGLE_ADS_METRICS: ReporteiMetricRequest[] = [
