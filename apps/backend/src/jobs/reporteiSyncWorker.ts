@@ -15,6 +15,10 @@ import { syncAllClientsLearningRules } from '../services/reporteiLearningSync';
 
 const WINDOWS = ['7d', '30d', '90d'];
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// In-memory cache of real metric defs fetched from Reportei per slug.
+// Populated once per worker run, shared across all client syncs.
+const metricDefsCache: Map<string, ReporteiMetricRequest[]> = new Map();
 const SLUG_TO_PLATFORM: Record<string, string> = {
   instagram_business: 'Instagram',
   linkedin:           'LinkedIn',
@@ -28,6 +32,38 @@ const PLATFORM_TO_SLUG: Record<string, string> = Object.fromEntries(
 
 function normName(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Fetch real metric definitions from Reportei for a given platform slug.
+ * Results are cached per slug for the lifetime of this worker run.
+ * Falls back to hardcoded PLATFORM_METRICS if the API call fails.
+ */
+async function resolveMetricDefs(
+  rc: ReporteiClient,
+  overrides: { token: string; baseUrl?: string },
+  slug: string,
+  platform: string
+): Promise<ReporteiMetricRequest[]> {
+  if (metricDefsCache.has(slug)) return metricDefsCache.get(slug)!;
+
+  const hardcoded = PLATFORM_METRICS[platform] ?? [];
+  const desiredKeys = hardcoded.map(m => m.id); // reference_keys from our preset
+
+  try {
+    const live = await rc.fetchMetricDefs(slug, desiredKeys, overrides);
+    if (live && live.length > 0) {
+      console.log(`[reporteiSync] ${platform}: fetched ${live.length} metric defs from Reportei API`);
+      metricDefsCache.set(slug, live);
+      return live;
+    }
+  } catch (e: any) {
+    console.log(`[reporteiSync] ${platform}: could not fetch metric defs (${e.message}), using hardcoded`);
+  }
+
+  // Fall back to hardcoded reference_keys
+  metricDefsCache.set(slug, hardcoded);
+  return hardcoded;
 }
 
 /**
@@ -231,7 +267,7 @@ async function syncClientMetrics(
   const refreshedIds: Record<string, number> = {};
 
   for (const { integrationId: origId, platform, slug } of toSync) {
-    const metricDefs = PLATFORM_METRICS[platform];
+    const metricDefs = await resolveMetricDefs(rc, overrides, slug, platform);
     if (!metricDefs?.length) continue;
 
     for (const window of WINDOWS) {
@@ -318,6 +354,9 @@ export async function runReporteiSyncWorkerOnce() {
   try {
     const token = process.env.REPORTEI_TOKEN || '';
     if (!token) return;
+
+    // Clear cached metric defs so we fetch fresh definitions each run
+    metricDefsCache.clear();
 
     await ensureSnapshotsTable();
 

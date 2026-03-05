@@ -8,7 +8,8 @@ export type ReporteiConfig = {
 };
 
 export type ReporteiMetricRequest = {
-  id: string;             // reference_key, e.g. "ig:impressions"
+  id: string;             // UUID from GET /metrics (preferred) or reference_key as fallback
+  reference_key?: string; // e.g. "ig:impressions" — set when id is a UUID
   metrics: string[];      // sub-metrics, e.g. ["value"]
   component: 'number_v1' | 'chart_v1' | 'datatable_v1';
 };
@@ -137,10 +138,46 @@ export class ReporteiClient {
 
   /**
    * List available metrics for an integration.
-   * Requires integration_slug (e.g. "instagram", "facebook_ads")
+   * Requires integration_slug (e.g. "instagram_business", "facebook_ads")
    */
   async getAvailableMetrics(integrationSlug: string, overrides?: Partial<ReporteiConfig>): Promise<any> {
     return this.get(`/metrics?integration_slug=${encodeURIComponent(integrationSlug)}`, overrides);
+  }
+
+  /**
+   * Fetch real metric definitions for a slug and map them to ReporteiMetricRequest[].
+   * Returns null if the API call fails (caller should fall back to hardcoded defs).
+   *
+   * Reportei returns UUIDs as metric `id` — these are required in get-data calls.
+   * We filter to only metrics whose reference_key matches one of our desired keys.
+   */
+  async fetchMetricDefs(
+    slug: string,
+    desiredKeys: string[],
+    overrides?: Partial<ReporteiConfig>
+  ): Promise<ReporteiMetricRequest[] | null> {
+    try {
+      const res = await this.getAvailableMetrics(slug, overrides);
+      const items: any[] = res?.data ?? (Array.isArray(res) ? res : []);
+      if (!items.length) return null;
+
+      const keySet = new Set(desiredKeys);
+      const defs: ReporteiMetricRequest[] = [];
+      for (const item of items) {
+        const refKey: string = item.reference_key ?? item.id ?? '';
+        if (!refKey || !keySet.has(refKey)) continue;
+        const uuid: string = item.id ?? refKey;
+        // Use the first available sub-metric; Reportei commonly exposes "value"
+        const subMetrics: string[] = Array.isArray(item.metrics) && item.metrics.length
+          ? item.metrics.slice(0, 1)
+          : ['value'];
+        const component = item.component ?? 'number_v1';
+        defs.push({ id: uuid, metrics: subMetrics, component });
+      }
+      return defs.length ? defs : null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -151,13 +188,13 @@ export class ReporteiClient {
    * We include it in both places for compatibility.
    */
   async getMetricsData(params: ReporteiGetDataParams, overrides?: Partial<ReporteiConfig>): Promise<any> {
-    const cfg = this.resolveConfig(overrides);
-    // Reportei API v2 expects `reference_key` (not `id`) in each metric object
+    // Reportei API v2: `id` = UUID from /metrics endpoint, `reference_key` = the string key
+    // When using hardcoded defs (id IS the reference_key), send it in both fields.
     const body = {
       ...params,
       metrics: params.metrics.map(m => ({
         id: m.id,
-        reference_key: m.id,
+        reference_key: m.reference_key ?? m.id,
         metrics: m.metrics,
         component: m.component,
       })),
@@ -207,11 +244,11 @@ export const GOOGLE_ADS_METRICS: ReporteiMetricRequest[] = [
 ];
 
 export const GOOGLE_ANALYTICS_METRICS: ReporteiMetricRequest[] = [
-  { id: 'ga4:sessions',          metrics: ['value'], component: 'number_v1' },
-  { id: 'ga4:new_users',         metrics: ['value'], component: 'number_v1' },
-  { id: 'ga4:pageviews',         metrics: ['value'], component: 'number_v1' },
-  { id: 'ga4:bounce_rate',       metrics: ['value'], component: 'number_v1' },
-  { id: 'ga4:avg_session_duration', metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_4:sessions',             metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_4:new_users',            metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_4:pageviews',            metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_4:bounce_rate',          metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_4:avg_session_duration', metrics: ['value'], component: 'number_v1' },
 ];
 
 export const PLATFORM_METRICS: Record<string, ReporteiMetricRequest[]> = {
