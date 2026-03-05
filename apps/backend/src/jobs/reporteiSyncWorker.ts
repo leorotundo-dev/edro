@@ -14,6 +14,7 @@ import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { syncAllClientsLearningRules } from '../services/reporteiLearningSync';
 
 const WINDOWS = ['7d', '30d', '90d'];
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const SLUG_TO_PLATFORM: Record<string, string> = {
   instagram_business: 'Instagram',
   linkedin:           'LinkedIn',
@@ -171,6 +172,8 @@ async function syncClientMetrics(
       } catch (e: any) {
         errors.push(`${platform}/${window}: ${e.message}`);
       }
+      // Respect Reportei rate limits between requests
+      await sleep(1500);
     }
   }
 
