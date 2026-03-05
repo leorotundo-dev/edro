@@ -74,15 +74,14 @@ export class ReporteiClient {
     const cfg = this.resolveConfig(overrides);
     if (!cfg.token) throw new Error('Reportei token not configured');
 
-    const base = cfg.baseUrl.replace(/\/$/, '');
-    // Try both with and without token as query param (different Reportei API versions differ)
-    const url = `${base}${path}`;
-    const urlWithToken = `${url}?api_key=${encodeURIComponent(cfg.token)}`;
+    // connect.reportei.com is an embed product, not the data API.
+    // Always use app.reportei.com/api/v2 for metrics/get-data.
+    const correctBase = cfg.baseUrl.includes('connect.reportei.com')
+      ? DEFAULT_BASE_URL
+      : cfg.baseUrl.replace(/\/$/, '');
+    const url = `${correctBase}${path}`;
 
-    console.log(`[reportei] POST ${url} token_len=${cfg.token.length} token_start=${cfg.token.slice(0, 6)}`);
-
-    // Attempt 1: Authorization: Bearer (standard API v2)
-    let response = await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${cfg.token}`,
@@ -92,32 +91,7 @@ export class ReporteiClient {
       body: JSON.stringify(body),
     });
 
-    // Attempt 2: Authorization: Token (connect.reportei.com style)
-    if (response.status === 401) {
-      console.log(`[reportei] Bearer 401 — retrying with Token header`);
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Token ${cfg.token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-    }
-
-    // Attempt 3: token as query param, no auth header
-    if (response.status === 401) {
-      console.log(`[reportei] Token 401 — retrying with ?api_key`);
-      response = await fetch(urlWithToken, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }
-
     const text = await response.text();
-    console.log(`[reportei] POST ${path} → ${response.status}`);
     if (!response.ok) {
       throw new Error(`Reportei POST ${path} → ${response.status}: ${text}`);
     }
