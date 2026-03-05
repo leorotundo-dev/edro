@@ -140,9 +140,14 @@ export class ReporteiClient {
   /**
    * Fetch aggregated metric values for an integration + date range.
    * Rate limit: 30 req/min.
+   *
+   * Reportei v2 may require the token both as Bearer header AND in the body.
+   * We include it in both places for compatibility.
    */
   async getMetricsData(params: ReporteiGetDataParams, overrides?: Partial<ReporteiConfig>): Promise<any> {
-    return this.post('/metrics/get-data', params, overrides);
+    const cfg = this.resolveConfig(overrides);
+    // Some Reportei API versions require the token in the request body as well
+    return this.post('/metrics/get-data', { ...params, token: cfg.token }, overrides);
   }
 }
 
