@@ -116,8 +116,9 @@ async function syncClientMetrics(
           comparison_end: compEnd,
         }, overrides);
 
-        const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.metrics ?? []);
-        if (!metricsArray.length) continue;
+        console.log(`[reporteiSync] raw keys=${Object.keys(raw ?? {}).join(',')} sample=${JSON.stringify(raw).slice(0, 300)}`);
+        const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.metrics ?? raw?.items ?? []);
+        if (!metricsArray.length) { console.log(`[reporteiSync] empty array for ${platform}/${window}`); continue; }
 
         // Build flat metrics object: { "ig:impressions": { value: 45000, comparison: 38000, delta_pct: 18.4 } }
         const metricsObj: Record<string, any> = {};
