@@ -226,9 +226,23 @@ export default function ReporteiMetricsClient({ clientId }: Props) {
 
   const handleSync = async () => {
     setSyncing(true);
+    setError(null);
     try {
-      await apiPost(`/clients/${clientId}/metrics/reportei/sync`, {});
-      await load(window, platform);
+      const res = await apiPost<{ success: boolean; snapshots?: number; errors?: string[] }>(
+        `/clients/${clientId}/metrics/reportei/sync`, {}
+      );
+      if (res?.errors?.length) {
+        const msg = res.errors[0];
+        if (msg === 'no_integration_id' || msg === 'REPORTEI_TOKEN not set') {
+          setNoConnector(true);
+          return;
+        }
+        setError(`Sync: ${res.errors.join(', ')}`);
+      } else if (res?.snapshots === 0) {
+        setError('Nenhum dado retornado pelo Reportei. Verifique se a integração está configurada em Admin → Reportei.');
+      } else {
+        await load(window, platform);
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Erro ao sincronizar');
     } finally {
