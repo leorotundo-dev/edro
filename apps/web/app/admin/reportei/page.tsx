@@ -26,14 +26,8 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
-import Accordion from '@mui/material/Accordion';
-import AccordionDetails from '@mui/material/AccordionDetails';
-import AccordionSummary from '@mui/material/AccordionSummary';
 import {
   IconBell,
-  IconBrain,
-  IconBug,
-  IconChevronDown,
   IconLink,
   IconRefresh,
   IconCheck,
@@ -102,18 +96,6 @@ export default function ReporteiAdminPage() {
   const [alerts, setAlerts] = useState<PerfAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [runningAlerts, setRunningAlerts] = useState(false);
-  const [runningLearning, setRunningLearning] = useState(false);
-  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
-  type CheckResult = { client_id: string; client_name: string; integration_id: number | null; status: 'ok' | 'expired' | 'error' | 'no_integration'; message: string };
-  const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [debugResult, setDebugResult] = useState<Record<string, any> | null>(null);
-  const [debugClientId, setDebugClientId] = useState<string | null>(null);
-  const [debugLoading, setDebugLoading] = useState(false);
-  type VerifyResult = { client_id: string; client_name: string; status: 'ids_valid' | 'stale_ids'; platforms: Record<string, { stored_id: number; found_in_reportei: boolean; reportei_name: string | null; reportei_slug: string | null }> };
-  const [verifyResults, setVerifyResults] = useState<VerifyResult[] | null>(null);
-  const [verifying, setVerifying] = useState(false);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -159,54 +141,6 @@ export default function ReporteiAdminPage() {
     }
   };
 
-  const runLearning = async () => {
-    setRunningLearning(true);
-    try {
-      await apiPost('/admin/reportei/run-learning', {});
-    } finally {
-      setRunningLearning(false);
-    }
-  };
-
-  const runCheckAll = async () => {
-    setChecking(true);
-    setCheckResults(null);
-    try {
-      const res = await apiPost('/admin/reportei/check-all', {});
-      setCheckResults(res.results ?? []);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const runCleanup = async () => {
-    const res = await apiPost('/admin/reportei/cleanup-snapshots', {});
-    setCleanupMsg(`${res.deleted} snapshots inválidos removidos`);
-  };
-
-  const runVerifyIds = async () => {
-    setVerifying(true);
-    setVerifyResults(null);
-    try {
-      const res = await apiPost('/admin/reportei/verify-ids', {});
-      setVerifyResults(res.clients ?? []);
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const runDebugSync = async (clientId: string) => {
-    setDebugLoading(true);
-    setDebugClientId(clientId);
-    setDebugResult(null);
-    try {
-      const res = await apiPost(`/admin/reportei/debug-sync/${clientId}`, {});
-      setDebugResult(res);
-    } finally {
-      setDebugLoading(false);
-    }
-  };
-
   const saveManualLink = async () => {
     if (!manualDialog || selectedIntegration === '') return;
     setSaving(true);
@@ -236,34 +170,15 @@ export default function ReporteiAdminPage() {
             <IconChartBar size={24} />
             <Typography variant="h5" fontWeight={700}>Reportei — Intelligence</Typography>
           </Stack>
-          <Stack direction="row" gap={1}>
-            <Button
-              size="small"
-              variant="outlined"
-              color="error"
-              onClick={runCleanup}
-            >
-              Limpar snapshots inválidos
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<IconBrain size={16} />}
-              onClick={runLearning}
-              disabled={runningLearning}
-            >
-              {runningLearning ? 'Rodando…' : 'Gerar regras de aprendizado'}
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<IconRefresh size={16} />}
-              onClick={load}
-              disabled={loading}
-            >
-              Atualizar
-            </Button>
-          </Stack>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<IconRefresh size={16} />}
+            onClick={load}
+            disabled={loading}
+          >
+            Atualizar
+          </Button>
         </Stack>
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
@@ -276,145 +191,13 @@ export default function ReporteiAdminPage() {
           <Button
             size="small"
             variant="contained"
-            color="info"
-            startIcon={checking ? <CircularProgress size={14} color="inherit" /> : <IconAlertCircle size={16} />}
-            onClick={runCheckAll}
-            disabled={checking}
-          >
-            {checking ? 'Verificando… (pode demorar)' : 'Verificar todos os clientes'}
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => runAutoLink(true)}
-            disabled={autoLinking}
-          >
-            Simular auto-link
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
             startIcon={<IconLink size={16} />}
             onClick={() => runAutoLink(false)}
             disabled={autoLinking}
           >
             {autoLinking ? 'Vinculando…' : 'Auto-vincular todas as plataformas'}
           </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            color="warning"
-            startIcon={verifying ? <CircularProgress size={14} color="inherit" /> : <IconAlertCircle size={16} />}
-            onClick={runVerifyIds}
-            disabled={verifying}
-          >
-            {verifying ? 'Verificando IDs…' : 'Verificar IDs no Reportei'}
-          </Button>
         </Stack>
-
-        {cleanupMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCleanupMsg(null)}>{cleanupMsg}</Alert>}
-
-        {/* Check-all results */}
-        {checkResults && (
-          <Box mb={3}>
-            <Stack direction="row" gap={1} mb={1} flexWrap="wrap">
-              <Chip size="small" color="success" label={`✓ ${checkResults.filter(r => r.status === 'ok').length} OK`} />
-              <Chip size="small" color="error" label={`⚠ ${checkResults.filter(r => r.status === 'expired').length} expirados`} />
-              {checkResults.filter(r => r.status === 'error').length > 0 && (
-                <Chip size="small" color="warning" label={`! ${checkResults.filter(r => r.status === 'error').length} com erro`} />
-              )}
-              {checkResults.filter(r => r.status === 'no_integration').length > 0 && (
-                <Chip size="small" color="default" label={`${checkResults.filter(r => r.status === 'no_integration').length} sem integração`} />
-              )}
-            </Stack>
-            {checkResults.filter(r => r.status !== 'ok' && r.status !== 'no_integration').length > 0 && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                Os clientes abaixo têm integrações com problema. Acesse app.reportei.com → projeto → Integrações → reconecte a plataforma indicada. Depois execute "Auto-vincular" para atualizar os IDs.
-              </Alert>
-            )}
-            <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Cliente</TableCell>
-                    <TableCell>Status Instagram</TableCell>
-                    <TableCell>Mensagem</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {checkResults.filter(r => r.status !== 'ok').map(r => (
-                    <TableRow key={r.client_id}>
-                      <TableCell><Typography variant="body2" fontWeight={500}>{r.client_name}</Typography></TableCell>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          label={r.status === 'expired' ? 'Expirado' : r.status === 'no_integration' ? 'Sem link' : 'Erro'}
-                          color={r.status === 'expired' ? 'error' : r.status === 'no_integration' ? 'default' : 'warning'}
-                        />
-                      </TableCell>
-                      <TableCell><Typography variant="caption" color="text.secondary">{r.message}</Typography></TableCell>
-                    </TableRow>
-                  ))}
-                  {checkResults.every(r => r.status === 'ok') && (
-                    <TableRow>
-                      <TableCell colSpan={3}>
-                        <Typography variant="body2" color="success.main">Todas as integrações estão funcionando!</Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
-
-        {/* Verify IDs results */}
-        {verifyResults && (
-          <Box mb={3}>
-            <Alert
-              severity={verifyResults.some(r => r.status === 'stale_ids') ? 'error' : 'success'}
-              sx={{ mb: 1 }}
-            >
-              {verifyResults.some(r => r.status === 'stale_ids')
-                ? `${verifyResults.filter(r => r.status === 'stale_ids').length} cliente(s) com IDs desatualizados — os IDs armazenados não existem mais no Reportei. Execute "Auto-vincular" para corrigir.`
-                : 'Todos os IDs armazenados existem no Reportei.'}
-            </Alert>
-            <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Cliente</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Plataformas</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {verifyResults.map(r => (
-                    <TableRow key={r.client_id}>
-                      <TableCell><Typography variant="body2" fontWeight={500}>{r.client_name}</Typography></TableCell>
-                      <TableCell>
-                        <Chip size="small" label={r.status === 'stale_ids' ? 'IDs desatualizados' : 'OK'} color={r.status === 'stale_ids' ? 'error' : 'success'} />
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" gap={0.5} flexWrap="wrap">
-                          {Object.entries(r.platforms).map(([slug, info]) => (
-                            <Chip
-                              key={slug}
-                              size="small"
-                              label={`${slug.replace('_business','').replace('_',' ')} #${info.stored_id} ${info.found_in_reportei ? `✓ ${info.reportei_name ?? ''}` : '✗ NÃO ENCONTRADO'}`}
-                              color={info.found_in_reportei ? 'success' : 'error'}
-                              variant="outlined"
-                            />
-                          ))}
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
 
         {/* Auto-link results */}
         {autoLinkResults && (
@@ -537,18 +320,6 @@ export default function ReporteiAdminPage() {
                         >
                           {row.linked ? 'Alterar' : 'Vincular'}
                         </Button>
-                        {row.linked && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="warning"
-                            startIcon={debugLoading && debugClientId === row.client_id ? <CircularProgress size={12} /> : <IconBug size={14} />}
-                            onClick={() => runDebugSync(row.client_id)}
-                            disabled={debugLoading}
-                          >
-                            Debug
-                          </Button>
-                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -559,62 +330,6 @@ export default function ReporteiAdminPage() {
           </TableContainer>
         )}
 
-        {/* Debug result panel */}
-        {debugResult && (
-          <Box mt={3}>
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<IconChevronDown size={16} />}>
-                <Stack direction="row" alignItems="center" gap={1}>
-                  <IconBug size={16} />
-                  <Typography variant="subtitle2">
-                    Debug Sync — {data?.clients.find(c => c.client_id === debugClientId)?.client_name}
-                  </Typography>
-                  {debugResult.api_call?.error ? (
-                    <Chip size="small" label="API Error" color="error" />
-                  ) : debugResult.db?.total_snapshots > 0 ? (
-                    <Chip size="small" label={`${debugResult.db.total_snapshots} snapshots no DB`} color="success" />
-                  ) : (
-                    <Chip size="small" label="0 snapshots no DB" color="warning" />
-                  )}
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  {/* Connector info */}
-                  <Box>
-                    <Typography variant="caption" fontWeight={700} color="text.secondary">CONNECTOR</Typography>
-                    <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5 }}>
-                      {JSON.stringify(debugResult.connector, null, 2)}
-                    </Box>
-                  </Box>
-                  {/* API response */}
-                  <Box>
-                    <Typography variant="caption" fontWeight={700} color="text.secondary">
-                      REPORTEI API RESPONSE {debugResult.api_call?.error ? '❌' : '✅'}
-                    </Typography>
-                    {debugResult.api_call?.error && (
-                      <Alert severity="error" sx={{ mt: 0.5, mb: 1 }}>{debugResult.api_call.error}</Alert>
-                    )}
-                    <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5, maxHeight: 300 }}>
-                      {JSON.stringify(debugResult.api_call?.raw_full, null, 2)}
-                    </Box>
-                  </Box>
-                  {/* DB state */}
-                  <Box>
-                    <Typography variant="caption" fontWeight={700} color="text.secondary">
-                      DB — {debugResult.db?.total_snapshots} snapshots salvos
-                    </Typography>
-                    {debugResult.db?.recent?.length > 0 && (
-                      <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5 }}>
-                        {JSON.stringify(debugResult.db.recent, null, 2)}
-                      </Box>
-                    )}
-                  </Box>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-          </Box>
-        )}
         </>)}
 
         {tab === 1 && (
