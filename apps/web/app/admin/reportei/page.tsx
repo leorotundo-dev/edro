@@ -103,6 +103,7 @@ export default function ReporteiAdminPage() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [runningAlerts, setRunningAlerts] = useState(false);
   const [runningLearning, setRunningLearning] = useState(false);
+  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
   const [debugResult, setDebugResult] = useState<Record<string, any> | null>(null);
   const [debugClientId, setDebugClientId] = useState<string | null>(null);
   const [debugLoading, setDebugLoading] = useState(false);
@@ -161,6 +162,11 @@ export default function ReporteiAdminPage() {
     }
   };
 
+  const runCleanup = async () => {
+    const res = await apiPost('/admin/reportei/cleanup-snapshots', {});
+    setCleanupMsg(`${res.deleted} snapshots inválidos removidos`);
+  };
+
   const runDebugSync = async (clientId: string) => {
     setDebugLoading(true);
     setDebugClientId(clientId);
@@ -203,6 +209,14 @@ export default function ReporteiAdminPage() {
             <Typography variant="h5" fontWeight={700}>Reportei — Intelligence</Typography>
           </Stack>
           <Stack direction="row" gap={1}>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              onClick={runCleanup}
+            >
+              Limpar snapshots inválidos
+            </Button>
             <Button
               size="small"
               variant="outlined"
@@ -249,6 +263,8 @@ export default function ReporteiAdminPage() {
             {autoLinking ? 'Vinculando…' : 'Auto-vincular todas as plataformas'}
           </Button>
         </Stack>
+
+        {cleanupMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCleanupMsg(null)}>{cleanupMsg}</Alert>}
 
         {/* Auto-link results */}
         {autoLinkResults && (

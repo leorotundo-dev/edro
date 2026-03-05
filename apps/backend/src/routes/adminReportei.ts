@@ -355,6 +355,24 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── POST /admin/reportei/cleanup-snapshots ───────────────────────────────
+  // Delete snapshots that contain Reportei error payloads (code/exception keys)
+  app.post(
+    '/admin/reportei/cleanup-snapshots',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query<any>(
+        `DELETE FROM reportei_metric_snapshots
+         WHERE tenant_id=$1
+           AND (metrics ? 'code' OR metrics ? 'exception')
+         RETURNING id, client_id, platform, time_window`,
+        [tenantId]
+      ).catch(() => ({ rows: [] }));
+      return reply.send({ deleted: rows.length, rows });
+    }
+  );
+
   // ── POST /admin/reportei/debug-sync/:clientId ────────────────────────────
   // Full diagnostic: calls Reportei API and returns raw response + DB state
   app.post(

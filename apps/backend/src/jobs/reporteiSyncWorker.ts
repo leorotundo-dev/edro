@@ -122,6 +122,12 @@ async function syncClientMetrics(
         const rawSample = JSON.stringify(raw).slice(0, 600);
         console.log(`[reporteiSync] raw ${platform}/${window} keys=${rawKeys.join(',')} sample=${rawSample}`);
 
+        // Detect Reportei error responses (returned as 200 with error body)
+        if (raw?.data?.code || raw?.data?.exception) {
+          const msg = raw.data.exception?.message ?? raw.data.code ?? 'unknown_error';
+          throw new Error(`Reportei API error: ${msg}`);
+        }
+
         const metricsObj: Record<string, any> = {};
 
         if (raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
