@@ -29,9 +29,13 @@ export interface EdroBriefing {
   meeting_url?: string | null;
   due_at?: Date | null;
   source?: string | null;
+  labels?: string[];
+  checklist?: Array<{ id: string; text: string; done: boolean }>;
   created_at: Date;
   updated_at: Date;
   client_name?: string | null;
+  client_logo_url?: string | null;
+  client_brand_color?: string | null;
   current_stage?: string | null;
 }
 

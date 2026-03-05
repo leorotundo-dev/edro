@@ -56,6 +56,7 @@ import {
   IconLayoutKanban,
 } from '@tabler/icons-react';
 import BriefingsKanban from './BriefingsKanban';
+import BriefingCardDrawer from './BriefingCardDrawer';
 
 type Briefing = {
   id: string;
@@ -68,6 +69,8 @@ type Briefing = {
   due_at: string | null;
   traffic_owner: string | null;
   source: string | null;
+  labels?: string[];
+  checklist?: Array<{ id: string; text: string; done: boolean }>;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -152,6 +155,8 @@ export default function BriefingsClient() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [stageChangingId, setStageChangingId] = useState<string | null>(null);
+  const [drawerBriefingId, setDrawerBriefingId] = useState<string | null>(null);
+  const [filterOwner, setFilterOwner] = useState<string>('');
   const showError = (message: string) => setSnackbar({ open: true, message });
 
   const loadBriefings = useCallback(async () => {
@@ -215,7 +220,15 @@ export default function BriefingsClient() {
   };
 
   const handleBriefingClick = (id: string) => {
-    router.push(`/edro/${id}`);
+    if (viewMode === 'kanban') {
+      setDrawerBriefingId(id);
+    } else {
+      router.push(`/edro/${id}`);
+    }
+  };
+
+  const handleDrawerUpdate = (id: string, patch: Partial<Briefing>) => {
+    setBriefings((prev) => prev.map((b) => b.id === id ? { ...b, ...patch } : b));
   };
 
   const handleExport = async (format: 'csv' | 'json') => {
@@ -668,12 +681,47 @@ export default function BriefingsClient() {
               <CircularProgress />
             </Box>
           ) : (
-            <BriefingsKanban
-              briefings={briefings}
-              onBriefingClick={handleBriefingClick}
-              onStageChange={handleStageChange}
-              stageChangingId={stageChangingId}
-            />
+            <>
+              {/* Owner filter chips */}
+              {(() => {
+                const owners = Array.from(new Set(briefings.map((b) => b.traffic_owner).filter(Boolean))) as string[];
+                if (!owners.length) return null;
+                return (
+                  <Stack direction="row" spacing={0.75} alignItems="center" mb={1.5} flexWrap="wrap">
+                    <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>Responsável:</Typography>
+                    <Chip
+                      size="small"
+                      label="Todos"
+                      onClick={() => setFilterOwner('')}
+                      variant={filterOwner === '' ? 'filled' : 'outlined'}
+                      color={filterOwner === '' ? 'primary' : 'default'}
+                    />
+                    {owners.map((owner) => (
+                      <Chip
+                        key={owner}
+                        size="small"
+                        avatar={<Avatar sx={{ width: 18, height: 18, fontSize: '0.55rem' }}>{owner[0].toUpperCase()}</Avatar>}
+                        label={owner.split(' ')[0]}
+                        onClick={() => setFilterOwner(filterOwner === owner ? '' : owner)}
+                        variant={filterOwner === owner ? 'filled' : 'outlined'}
+                        color={filterOwner === owner ? 'primary' : 'default'}
+                      />
+                    ))}
+                  </Stack>
+                );
+              })()}
+              <BriefingsKanban
+                briefings={filterOwner ? briefings.filter((b) => b.traffic_owner === filterOwner) : briefings}
+                onBriefingClick={handleBriefingClick}
+                onStageChange={handleStageChange}
+                stageChangingId={stageChangingId}
+              />
+              <BriefingCardDrawer
+                briefingId={drawerBriefingId}
+                onClose={() => setDrawerBriefingId(null)}
+                onUpdate={handleDrawerUpdate}
+              />
+            </>
           )
         ) : briefings.length === 0 && !loading ? (
           <Card variant="outlined">

@@ -11,7 +11,10 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
+import Popover from '@mui/material/Popover';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -19,11 +22,15 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconCalendar,
+  IconCheck,
   IconCurrencyDollar,
   IconExternalLink,
+  IconLabel,
   IconRefresh,
   IconTarget,
+  IconX,
 } from '@tabler/icons-react';
+import { getLabelPreset, LABEL_PRESETS } from '@/app/edro/BriefingCardDrawer';
 
 type ClientRow = {
   id: string;
@@ -39,6 +46,7 @@ type CampaignRow = {
   end_date?: string | null;
   budget_brl?: number | null;
   created_at?: string | null;
+  labels?: string[];
 };
 
 const STATUS_ORDER = ['draft', 'active', 'paused', 'completed', 'archived'];
@@ -80,6 +88,8 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [drawerCampaign, setDrawerCampaign] = useState<CampaignRow | null>(null);
+  const [labelAnchor, setLabelAnchor] = useState<HTMLElement | null>(null);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -290,10 +300,24 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                           borderLeft: `3px solid ${cfg.color}`,
                           opacity: movingId === campaign.id ? 0.5 : 1,
                         }}
-                        onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${campaign.id}`)}
+                        onClick={() => setDrawerCampaign(campaign)}
                       >
                         <CardContent sx={{ p: '12px !important' }}>
                           <Stack spacing={1}>
+                            {/* Label dots */}
+                            {(campaign.labels ?? []).length > 0 && (
+                              <Stack direction="row" spacing={0.4} flexWrap="wrap">
+                                {(campaign.labels ?? []).slice(0, 3).map((key) => {
+                                  const preset = getLabelPreset(key);
+                                  if (!preset) return null;
+                                  return (
+                                    <Tooltip key={key} title={preset.label}>
+                                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: preset.color }} />
+                                    </Tooltip>
+                                  );
+                                })}
+                              </Stack>
+                            )}
                             {/* Name */}
                             <Typography variant="subtitle2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
                               {campaign.name}
@@ -383,6 +407,165 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
           })}
         </Box>
       </Stack>
+
+      {/* Campaign drawer */}
+      <Drawer
+        anchor="right"
+        open={Boolean(drawerCampaign)}
+        onClose={() => setDrawerCampaign(null)}
+        PaperProps={{ sx: { width: { xs: '100vw', sm: 440 }, p: 3 } }}
+      >
+        {drawerCampaign && (
+          <Stack spacing={2.5}>
+            {/* Header */}
+            <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+              <Box flex={1}>
+                <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                  {drawerCampaign.name}
+                </Typography>
+                {drawerCampaign.objective && (
+                  <Typography variant="caption" color="text.secondary">{drawerCampaign.objective}</Typography>
+                )}
+              </Box>
+              <Stack direction="row" spacing={0.5}>
+                <Tooltip title="Abrir studio">
+                  <IconButton
+                    size="small"
+                    onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${drawerCampaign.id}`)}
+                  >
+                    <IconExternalLink size={16} />
+                  </IconButton>
+                </Tooltip>
+                <IconButton size="small" onClick={() => setDrawerCampaign(null)}>
+                  <IconX size={16} />
+                </IconButton>
+              </Stack>
+            </Stack>
+
+            <Divider />
+
+            {/* Status chip */}
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Status</Typography>
+              <Chip
+                size="small"
+                label={getStatusCfg(drawerCampaign.status ?? 'draft').label}
+                sx={{ bgcolor: getStatusCfg(drawerCampaign.status ?? 'draft').bg, color: getStatusCfg(drawerCampaign.status ?? 'draft').color, fontWeight: 600 }}
+              />
+            </Box>
+
+            {/* Dates */}
+            {(drawerCampaign.start_date || drawerCampaign.end_date) && (
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <IconCalendar size={14} color="#94a3b8" />
+                <Typography variant="body2" color="text.secondary">
+                  {formatDate(drawerCampaign.start_date) || '?'} → {formatDate(drawerCampaign.end_date) || '?'}
+                </Typography>
+              </Stack>
+            )}
+
+            {/* Budget */}
+            {drawerCampaign.budget_brl && (
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <IconCurrencyDollar size={14} color="#94a3b8" />
+                <Typography variant="body2" color="text.secondary">{formatCurrency(drawerCampaign.budget_brl)}</Typography>
+              </Stack>
+            )}
+
+            <Divider />
+
+            {/* Labels */}
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.75}>Labels</Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.5} alignItems="center">
+                {(drawerCampaign.labels ?? []).map((key) => {
+                  const preset = getLabelPreset(key);
+                  if (!preset) return null;
+                  return (
+                    <Chip
+                      key={key}
+                      label={preset.label}
+                      size="small"
+                      onDelete={async () => {
+                        const next = (drawerCampaign.labels ?? []).filter((k) => k !== key);
+                        const updated = { ...drawerCampaign, labels: next };
+                        setDrawerCampaign(updated);
+                        setCampaigns((prev) => prev.map((c) => c.id === drawerCampaign.id ? updated : c));
+                        await apiPatch(`/campaigns/${drawerCampaign.id}`, { labels: next });
+                      }}
+                      sx={{ bgcolor: preset.color + '22', color: preset.color, fontWeight: 600, fontSize: '0.7rem', borderLeft: `3px solid ${preset.color}`, borderRadius: 1 }}
+                    />
+                  );
+                })}
+                <Tooltip title="Adicionar label">
+                  <IconButton size="small" onClick={(e) => setLabelAnchor(e.currentTarget)}>
+                    <IconLabel size={14} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
+
+            {/* Move to next status */}
+            {(() => {
+              const currentIdx = STATUS_ORDER.indexOf(drawerCampaign.status ?? '');
+              const nextStatus = currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1 ? STATUS_ORDER[currentIdx + 1] : null;
+              if (!nextStatus) return null;
+              const nextCfg = getStatusCfg(nextStatus);
+              return (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={movingId === drawerCampaign.id}
+                  onClick={() => { moveStatus(drawerCampaign, nextStatus); setDrawerCampaign(null); }}
+                  sx={{ color: nextCfg.color, borderColor: nextCfg.color + '88', '&:hover': { bgcolor: nextCfg.color + '12' } }}
+                >
+                  → Mover para {nextCfg.label}
+                </Button>
+              );
+            })()}
+          </Stack>
+        )}
+      </Drawer>
+
+      {/* Label popover for campaigns drawer */}
+      <Popover
+        open={Boolean(labelAnchor)}
+        anchorEl={labelAnchor}
+        onClose={() => setLabelAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Box sx={{ p: 1.5, minWidth: 180 }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" mb={1} display="block">Labels</Typography>
+          <Stack spacing={0.5}>
+            {LABEL_PRESETS.map((preset) => {
+              const active = (drawerCampaign?.labels ?? []).includes(preset.key);
+              return (
+                <Stack
+                  key={preset.key}
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
+                  onClick={async () => {
+                    if (!drawerCampaign) return;
+                    const next = active
+                      ? (drawerCampaign.labels ?? []).filter((k) => k !== preset.key)
+                      : [...(drawerCampaign.labels ?? []), preset.key];
+                    const updated = { ...drawerCampaign, labels: next };
+                    setDrawerCampaign(updated);
+                    setCampaigns((prev) => prev.map((c) => c.id === drawerCampaign.id ? updated : c));
+                    await apiPatch(`/campaigns/${drawerCampaign.id}`, { labels: next });
+                  }}
+                  sx={{ cursor: 'pointer', borderRadius: 1, px: 1, py: 0.5, bgcolor: active ? preset.color + '22' : 'transparent', '&:hover': { bgcolor: preset.color + '11' } }}
+                >
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: preset.color, flexShrink: 0 }} />
+                  <Typography variant="body2" sx={{ flex: 1 }}>{preset.label}</Typography>
+                  {active && <IconCheck size={14} color={preset.color} />}
+                </Stack>
+              );
+            })}
+          </Stack>
+        </Box>
+      </Popover>
     </AppShell>
   );
 }

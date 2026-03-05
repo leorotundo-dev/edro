@@ -1159,6 +1159,42 @@ export default async function edroRoutes(app: FastifyInstance) {
     });
   });
 
+  // PATCH /edro/briefings/:id — update title, due_at, traffic_owner, labels, checklist
+  app.patch('/edro/briefings/:id', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      title:         z.string().min(1).optional(),
+      due_at:        z.string().nullable().optional(),
+      traffic_owner: z.string().nullable().optional(),
+      labels:        z.array(z.string()).optional(),
+      checklist:     z.array(z.object({
+        id:   z.string(),
+        text: z.string(),
+        done: z.boolean(),
+      })).optional(),
+      status:        z.string().optional(),
+    }).parse(request.body ?? {});
+
+    const sets: string[] = [];
+    const vals: any[] = [id];
+
+    if (body.title         !== undefined) { vals.push(body.title);                          sets.push(`title=$${vals.length}`); }
+    if (body.due_at        !== undefined) { vals.push(body.due_at);                         sets.push(`due_at=$${vals.length}`); }
+    if (body.traffic_owner !== undefined) { vals.push(body.traffic_owner);                  sets.push(`traffic_owner=$${vals.length}`); }
+    if (body.labels        !== undefined) { vals.push(JSON.stringify(body.labels));         sets.push(`labels=$${vals.length}::jsonb`); }
+    if (body.checklist     !== undefined) { vals.push(JSON.stringify(body.checklist));      sets.push(`checklist=$${vals.length}::jsonb`); }
+    if (body.status        !== undefined) { vals.push(body.status);                         sets.push(`status=$${vals.length}`); }
+
+    if (!sets.length) return reply.send({ success: true });
+
+    const { rows } = await query<any>(
+      `UPDATE edro_briefings SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 RETURNING *`,
+      vals
+    );
+    if (!rows.length) return reply.status(404).send({ success: false, error: 'not_found' });
+    return reply.send({ success: true, data: rows[0] });
+  });
+
   // PATCH /edro/briefings/:id/link-client — vincula o briefing a um cliente da tabela clients
   app.patch('/edro/briefings/:id/link-client', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);

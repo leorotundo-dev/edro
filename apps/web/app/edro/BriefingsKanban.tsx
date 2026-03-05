@@ -1,15 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import { IconCalendar } from '@tabler/icons-react';
+import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import { IconCalendar, IconCheck } from '@tabler/icons-react';
 import EdroAvatar from '@/components/shared/EdroAvatar';
+import { getLabelPreset } from './BriefingCardDrawer';
+
+type ChecklistItem = { id: string; text: string; done: boolean };
 
 type Briefing = {
   id: string;
@@ -22,18 +27,20 @@ type Briefing = {
   due_at: string | null;
   traffic_owner: string | null;
   source: string | null;
+  labels?: string[];
+  checklist?: ChecklistItem[];
 };
 
 const KANBAN_COLUMNS = [
-  { key: 'briefing', label: 'Briefing', color: '#e3f2fd' },
-  { key: 'iclips_in', label: 'iClips Entrada', color: '#f3e5f5' },
-  { key: 'alinhamento', label: 'Alinhamento', color: '#fff3e0' },
-  { key: 'copy_ia', label: 'Copy IA', color: '#fce4ec' },
-  { key: 'aprovacao', label: 'Aprovação', color: '#ffe0b2' },
-  { key: 'producao', label: 'Produção', color: '#e8f5e9' },
-  { key: 'revisao', label: 'Revisão', color: '#e0f7fa' },
-  { key: 'iclips_out', label: 'iClips Saída', color: '#f9fbe7' },
-  { key: 'done', label: 'Concluído', color: '#f1f8e9' },
+  { key: 'briefing',    label: 'Briefing',      color: '#e3f2fd' },
+  { key: 'iclips_in',  label: 'iClips Entrada', color: '#f3e5f5' },
+  { key: 'alinhamento',label: 'Alinhamento',    color: '#fff3e0' },
+  { key: 'copy_ia',    label: 'Copy IA',        color: '#fce4ec' },
+  { key: 'aprovacao',  label: 'Aprovação',      color: '#ffe0b2' },
+  { key: 'producao',   label: 'Produção',       color: '#e8f5e9' },
+  { key: 'revisao',    label: 'Revisão',        color: '#e0f7fa' },
+  { key: 'iclips_out', label: 'iClips Saída',   color: '#f9fbe7' },
+  { key: 'done',       label: 'Concluído',      color: '#f1f8e9' },
 ];
 
 function formatShortDate(value?: string | null) {
@@ -41,6 +48,11 @@ function formatShortDate(value?: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function ownerInitials(name: string | null | undefined) {
+  if (!name) return '';
+  return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
 type Props = {
@@ -51,7 +63,7 @@ type Props = {
 };
 
 export default function BriefingsKanban({ briefings, onBriefingClick, onStageChange, stageChangingId }: Props) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingId,       setDraggingId]       = useState<string | null>(null);
   const [dropTargetColumn, setDropTargetColumn] = useState<string | null>(null);
 
   const grouped = KANBAN_COLUMNS.reduce<Record<string, Briefing[]>>((acc, col) => {
@@ -73,7 +85,7 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
       }}
     >
       {KANBAN_COLUMNS.map((col) => {
-        const cards = grouped[col.key] || [];
+        const cards  = grouped[col.key] || [];
         const isTarget = dropTargetColumn === col.key;
 
         return (
@@ -132,8 +144,12 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
               {cards.map((briefing) => {
                 const isChanging = stageChangingId === briefing.id;
                 const isDragging = draggingId === briefing.id;
-                const dueDate = formatShortDate(briefing.due_at);
-                const isOverdue = briefing.due_at ? new Date(briefing.due_at) < new Date() : false;
+                const dueDate    = formatShortDate(briefing.due_at);
+                const isOverdue  = briefing.due_at ? new Date(briefing.due_at) < new Date() : false;
+                const labels     = briefing.labels ?? [];
+                const checklist  = briefing.checklist ?? [];
+                const doneCount  = checklist.filter((i) => i.done).length;
+                const allDone    = checklist.length > 0 && doneCount === checklist.length;
 
                 return (
                   <Card
@@ -161,6 +177,34 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
                           <CircularProgress size={14} />
                         </Box>
                       )}
+
+                      {/* Label dots */}
+                      {labels.length > 0 && (
+                        <Stack direction="row" spacing={0.4} mb={0.5} flexWrap="wrap">
+                          {labels.slice(0, 3).map((key) => {
+                            const preset = getLabelPreset(key);
+                            if (!preset) return null;
+                            return (
+                              <Tooltip key={key} title={preset.label} placement="top">
+                                <Box sx={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: '50%',
+                                  bgcolor: preset.color,
+                                  flexShrink: 0,
+                                }} />
+                              </Tooltip>
+                            );
+                          })}
+                          {labels.length > 3 && (
+                            <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>
+                              +{labels.length - 3}
+                            </Typography>
+                          )}
+                        </Stack>
+                      )}
+
+                      {/* Title */}
                       <Typography
                         variant="body2"
                         fontWeight={600}
@@ -177,6 +221,8 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
                       >
                         {briefing.title}
                       </Typography>
+
+                      {/* Client */}
                       {briefing.client_name && (
                         <Stack direction="row" spacing={0.4} alignItems="center" mb={0.4}>
                           <EdroAvatar
@@ -190,15 +236,41 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
                           </Typography>
                         </Stack>
                       )}
-                      {dueDate && (
+
+                      {/* Due date + owner avatar */}
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
                         <Stack direction="row" spacing={0.4} alignItems="center">
-                          <IconCalendar size={11} color={isOverdue ? '#f44336' : 'gray'} />
+                          {dueDate && (
+                            <>
+                              <IconCalendar size={11} color={isOverdue ? '#f44336' : 'gray'} />
+                              <Typography
+                                variant="caption"
+                                color={isOverdue ? 'error' : 'text.secondary'}
+                                sx={{ fontSize: '0.68rem' }}
+                              >
+                                {dueDate}
+                              </Typography>
+                            </>
+                          )}
+                        </Stack>
+                        {briefing.traffic_owner && (
+                          <Tooltip title={briefing.traffic_owner}>
+                            <Avatar sx={{ width: 18, height: 18, fontSize: '0.55rem', bgcolor: 'primary.main' }}>
+                              {ownerInitials(briefing.traffic_owner)}
+                            </Avatar>
+                          </Tooltip>
+                        )}
+                      </Stack>
+
+                      {/* Checklist badge */}
+                      {checklist.length > 0 && (
+                        <Stack direction="row" alignItems="center" spacing={0.3} mt={0.4}>
+                          <IconCheck size={10} color={allDone ? '#4caf50' : 'gray'} />
                           <Typography
                             variant="caption"
-                            color={isOverdue ? 'error' : 'text.secondary'}
-                            sx={{ fontSize: '0.68rem' }}
+                            sx={{ fontSize: '0.65rem', color: allDone ? 'success.main' : 'text.secondary' }}
                           >
-                            {dueDate}
+                            {doneCount}/{checklist.length}
                           </Typography>
                         </Stack>
                       )}

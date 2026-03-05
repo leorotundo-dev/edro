@@ -447,6 +447,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
       phases: z.array(z.record(z.any())).optional(),
       audiences: z.array(z.record(z.any())).optional(),
       behavior_intents: z.array(z.record(z.any())).optional(),
+      labels: z.array(z.string()).optional(),
     });
     const body = bodySchema.parse(request.body);
 
@@ -468,6 +469,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     if (body.phases !== undefined) addField('phases', JSON.stringify(body.phases));
     if (body.audiences !== undefined) addField('audiences', JSON.stringify(body.audiences));
     if (body.behavior_intents !== undefined) addField('behavior_intents', JSON.stringify(body.behavior_intents));
+    if (body.labels !== undefined) addField('labels', JSON.stringify(body.labels));
 
     if (!sets.length) {
       return reply.status(400).send({ error: 'no_fields_to_update' });
