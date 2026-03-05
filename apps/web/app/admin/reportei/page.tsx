@@ -26,9 +26,14 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import Accordion from '@mui/material/Accordion';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import AccordionSummary from '@mui/material/AccordionSummary';
 import {
   IconBell,
   IconBrain,
+  IconBug,
+  IconChevronDown,
   IconLink,
   IconRefresh,
   IconCheck,
@@ -98,6 +103,9 @@ export default function ReporteiAdminPage() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [runningAlerts, setRunningAlerts] = useState(false);
   const [runningLearning, setRunningLearning] = useState(false);
+  const [debugResult, setDebugResult] = useState<Record<string, any> | null>(null);
+  const [debugClientId, setDebugClientId] = useState<string | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,6 +158,18 @@ export default function ReporteiAdminPage() {
       await apiPost('/admin/reportei/run-learning', {});
     } finally {
       setRunningLearning(false);
+    }
+  };
+
+  const runDebugSync = async (clientId: string) => {
+    setDebugLoading(true);
+    setDebugClientId(clientId);
+    setDebugResult(null);
+    try {
+      const res = await apiPost(`/admin/reportei/debug-sync/${clientId}`, {});
+      setDebugResult(res);
+    } finally {
+      setDebugLoading(false);
     }
   };
 
@@ -340,16 +360,30 @@ export default function ReporteiAdminPage() {
                       <Typography variant="body2">{row.project_name ?? '—'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => {
-                          setManualDialog(row);
-                          setSelectedIntegration(row.integration_id ?? '');
-                        }}
-                      >
-                        {row.linked ? 'Alterar' : 'Vincular'}
-                      </Button>
+                      <Stack direction="row" gap={0.5}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            setManualDialog(row);
+                            setSelectedIntegration(row.integration_id ?? '');
+                          }}
+                        >
+                          {row.linked ? 'Alterar' : 'Vincular'}
+                        </Button>
+                        {row.linked && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            startIcon={debugLoading && debugClientId === row.client_id ? <CircularProgress size={12} /> : <IconBug size={14} />}
+                            onClick={() => runDebugSync(row.client_id)}
+                            disabled={debugLoading}
+                          >
+                            Debug
+                          </Button>
+                        )}
+                      </Stack>
                     </TableCell>
                   </TableRow>
                   );
@@ -357,6 +391,63 @@ export default function ReporteiAdminPage() {
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+
+        {/* Debug result panel */}
+        {debugResult && (
+          <Box mt={3}>
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<IconChevronDown size={16} />}>
+                <Stack direction="row" alignItems="center" gap={1}>
+                  <IconBug size={16} />
+                  <Typography variant="subtitle2">
+                    Debug Sync — {data?.clients.find(c => c.client_id === debugClientId)?.client_name}
+                  </Typography>
+                  {debugResult.api_call?.error ? (
+                    <Chip size="small" label="API Error" color="error" />
+                  ) : debugResult.db?.total_snapshots > 0 ? (
+                    <Chip size="small" label={`${debugResult.db.total_snapshots} snapshots no DB`} color="success" />
+                  ) : (
+                    <Chip size="small" label="0 snapshots no DB" color="warning" />
+                  )}
+                </Stack>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  {/* Connector info */}
+                  <Box>
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">CONNECTOR</Typography>
+                    <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5 }}>
+                      {JSON.stringify(debugResult.connector, null, 2)}
+                    </Box>
+                  </Box>
+                  {/* API response */}
+                  <Box>
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">
+                      REPORTEI API RESPONSE {debugResult.api_call?.error ? '❌' : '✅'}
+                    </Typography>
+                    {debugResult.api_call?.error && (
+                      <Alert severity="error" sx={{ mt: 0.5, mb: 1 }}>{debugResult.api_call.error}</Alert>
+                    )}
+                    <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5, maxHeight: 300 }}>
+                      {JSON.stringify(debugResult.api_call?.raw_full, null, 2)}
+                    </Box>
+                  </Box>
+                  {/* DB state */}
+                  <Box>
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">
+                      DB — {debugResult.db?.total_snapshots} snapshots salvos
+                    </Typography>
+                    {debugResult.db?.recent?.length > 0 && (
+                      <Box component="pre" sx={{ fontSize: '0.72rem', bgcolor: 'action.hover', p: 1.5, borderRadius: 1, overflow: 'auto', mt: 0.5 }}>
+                        {JSON.stringify(debugResult.db.recent, null, 2)}
+                      </Box>
+                    )}
+                  </Box>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
         )}
         </>)}
 

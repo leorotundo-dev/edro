@@ -355,6 +355,89 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── POST /admin/reportei/debug-sync/:clientId ────────────────────────────
+  // Full diagnostic: calls Reportei API and returns raw response + DB state
+  app.post(
+    '/admin/reportei/debug-sync/:clientId',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply: any) => {
+      const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const token = process.env.REPORTEI_TOKEN || '';
+      if (!token) return reply.send({ error: 'REPORTEI_TOKEN not set' });
+
+      const connector = await getReporteiConnector(tenantId, clientId);
+      if (!connector) return reply.send({ error: 'No Reportei connector for this client' });
+
+      const integrationId =
+        connector.platforms?.['instagram_business'] ??
+        (connector.integrationId ? Number(connector.integrationId) : null);
+
+      if (!integrationId) return reply.send({ error: 'No integration_id found in connector', connector });
+
+      const rc = new ReporteiClient();
+      const end = new Date().toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+      let raw: any = null;
+      let apiError: string | null = null;
+      try {
+        raw = await rc.getMetricsData({
+          integration_id: Number(integrationId),
+          start, end,
+          metrics: [
+            { id: 'ig:impressions',          metrics: ['value'], component: 'number_v1' },
+            { id: 'ig:reach',                metrics: ['value'], component: 'number_v1' },
+            { id: 'ig:feed_engagement_rate', metrics: ['value'], component: 'number_v1' },
+          ],
+          comparison_start: new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
+          comparison_end: new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10),
+        }, { token, baseUrl: connector.baseUrl });
+      } catch (e: any) {
+        apiError = e.message;
+      }
+
+      // DB state
+      const { rows: dbSnapshots } = await query<any>(
+        `SELECT platform, time_window, synced_at, jsonb_object_keys(metrics) as metric_key
+         FROM reportei_metric_snapshots
+         WHERE client_id=$1
+         ORDER BY synced_at DESC
+         LIMIT 20`,
+        [clientId]
+      ).catch(() => ({ rows: [] }));
+
+      const { rows: dbCount } = await query<any>(
+        `SELECT COUNT(*) as total FROM reportei_metric_snapshots WHERE client_id=$1`,
+        [clientId]
+      ).catch(() => ({ rows: [{ total: 0 }] }));
+
+      return reply.send({
+        connector: {
+          integration_id: connector.integrationId,
+          platforms: connector.platforms,
+          has_token: !!connector.token,
+          base_url: connector.baseUrl,
+        },
+        api_call: {
+          integration_id: integrationId,
+          start, end,
+          error: apiError,
+          raw_top_level_keys: raw ? Object.keys(raw) : null,
+          raw_data_type: raw?.data ? (Array.isArray(raw.data) ? 'array' : typeof raw.data) : null,
+          raw_data_keys: raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
+            ? Object.keys(raw.data)
+            : null,
+          raw_full: raw,
+        },
+        db: {
+          total_snapshots: Number(dbCount[0]?.total ?? 0),
+          recent: dbSnapshots,
+        },
+      });
+    }
+  );
+
   // ── POST /admin/reportei/run-learning ──────────────────────────────────────
   // Triggers learning rule generation from existing snapshots
   app.post(

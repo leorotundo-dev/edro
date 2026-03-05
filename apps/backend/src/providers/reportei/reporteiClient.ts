@@ -197,9 +197,28 @@ export const META_ADS_METRICS: ReporteiMetricRequest[] = [
   { id: 'fb:conversions',            metrics: ['value'], component: 'number_v1' },
 ];
 
+export const GOOGLE_ADS_METRICS: ReporteiMetricRequest[] = [
+  { id: 'ga_ads:impressions',   metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_ads:clicks',        metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_ads:ctr',           metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_ads:cpc',           metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_ads:cost',          metrics: ['value'], component: 'number_v1' },
+  { id: 'ga_ads:conversions',   metrics: ['value'], component: 'number_v1' },
+];
+
+export const GOOGLE_ANALYTICS_METRICS: ReporteiMetricRequest[] = [
+  { id: 'ga4:sessions',          metrics: ['value'], component: 'number_v1' },
+  { id: 'ga4:new_users',         metrics: ['value'], component: 'number_v1' },
+  { id: 'ga4:pageviews',         metrics: ['value'], component: 'number_v1' },
+  { id: 'ga4:bounce_rate',       metrics: ['value'], component: 'number_v1' },
+  { id: 'ga4:avg_session_duration', metrics: ['value'], component: 'number_v1' },
+];
+
 export const PLATFORM_METRICS: Record<string, ReporteiMetricRequest[]> = {
-  Instagram:   INSTAGRAM_METRICS,
-  LinkedIn:    LINKEDIN_METRICS,
-  MetaAds:     META_ADS_METRICS,
-  FacebookAds: META_ADS_METRICS,
+  Instagram:       INSTAGRAM_METRICS,
+  LinkedIn:        LINKEDIN_METRICS,
+  MetaAds:         META_ADS_METRICS,
+  FacebookAds:     META_ADS_METRICS,
+  GoogleAds:       GOOGLE_ADS_METRICS,
+  GoogleAnalytics: GOOGLE_ANALYTICS_METRICS,
 };

@@ -117,11 +117,15 @@ async function syncClientMetrics(
           comparison_end: compEnd,
         }, overrides);
 
-        // Reportei API v2 returns: { data: { "ig:impressions": { values: 123, comparison: { values: 120, difference: 2.5, absoluteDifference: 3 } } } }
+        // Log raw response for debugging
+        const rawKeys = Object.keys(raw ?? {});
+        const rawSample = JSON.stringify(raw).slice(0, 600);
+        console.log(`[reporteiSync] raw ${platform}/${window} keys=${rawKeys.join(',')} sample=${rawSample}`);
+
         const metricsObj: Record<string, any> = {};
 
         if (raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
-          // Object format (v2 standard)
+          // Object format (v2 standard): { data: { "ig:impressions": { values: N, comparison: {...} } } }
           for (const [key, val] of Object.entries(raw.data as Record<string, any>)) {
             metricsObj[key] = {
               value: val?.values ?? val?.value ?? null,
@@ -129,8 +133,19 @@ async function syncClientMetrics(
               delta_pct: val?.comparison?.difference ?? null,
             };
           }
+        } else if (Array.isArray(raw?.data)) {
+          // Array inside data key
+          for (const item of raw.data) {
+            const key: string = item.id ?? item.reference_key ?? '';
+            if (!key) continue;
+            metricsObj[key] = {
+              value: item.data?.value ?? item.values ?? item.value ?? null,
+              comparison: item.data?.comparison ?? item.comparison ?? null,
+              delta_pct: item.data?.delta_pct ?? item.delta_pct ?? null,
+            };
+          }
         } else {
-          // Fallback: array format (legacy)
+          // Fallback: array at root or nested
           const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.metrics ?? raw?.items ?? []);
           for (const item of metricsArray) {
             const key: string = item.id ?? item.reference_key ?? '';
@@ -143,7 +158,10 @@ async function syncClientMetrics(
           }
         }
 
-        if (Object.keys(metricsObj).length === 0) continue;
+        if (Object.keys(metricsObj).length === 0) {
+          console.log(`[reporteiSync] empty metricsObj for ${platform}/${window} — raw was: ${rawSample}`);
+          continue;
+        }
 
         // Save snapshot
         await query(
