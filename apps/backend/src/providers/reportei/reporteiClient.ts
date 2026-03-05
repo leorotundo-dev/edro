@@ -75,8 +75,14 @@ export class ReporteiClient {
     if (!cfg.token) throw new Error('Reportei token not configured');
 
     const base = cfg.baseUrl.replace(/\/$/, '');
+    // Try both with and without token as query param (different Reportei API versions differ)
     const url = `${base}${path}`;
-    const response = await fetch(url, {
+    const urlWithToken = `${url}?api_key=${encodeURIComponent(cfg.token)}`;
+
+    console.log(`[reportei] POST ${url} token_len=${cfg.token.length} token_start=${cfg.token.slice(0, 6)}`);
+
+    // First attempt: Bearer header only
+    let response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${cfg.token}`,
@@ -85,7 +91,23 @@ export class ReporteiClient {
       },
       body: JSON.stringify(body),
     });
+
+    // Fallback: also send token as query param if 401
+    if (response.status === 401) {
+      console.log(`[reportei] Bearer 401 — retrying with ?api_key query param`);
+      response = await fetch(urlWithToken, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    }
+
     const text = await response.text();
+    console.log(`[reportei] POST ${path} → ${response.status}`);
     if (!response.ok) {
       throw new Error(`Reportei POST ${path} → ${response.status}: ${text}`);
     }
