@@ -355,6 +355,74 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── POST /admin/reportei/check-all ───────────────────────────────────────
+  // Test Reportei API for all linked clients and return health status
+  app.post(
+    '/admin/reportei/check-all',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const token = process.env.REPORTEI_TOKEN || '';
+      if (!token) return reply.send({ error: 'REPORTEI_TOKEN not set' });
+
+      const { rows: connectors } = await query<any>(
+        `SELECT c.id as client_id, c.name as client_name, cn.payload
+         FROM clients c
+         INNER JOIN connectors cn ON cn.client_id = c.id AND cn.provider = 'reportei'
+         WHERE c.tenant_id=$1
+         ORDER BY c.name ASC`,
+        [tenantId]
+      );
+
+      const rc = new ReporteiClient();
+      const end = new Date().toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+      const results: Array<{
+        client_id: string;
+        client_name: string;
+        integration_id: number | null;
+        status: 'ok' | 'expired' | 'error' | 'no_integration';
+        message: string;
+      }> = [];
+
+      for (const row of connectors) {
+        const payload = row.payload ?? {};
+        const platformsMap: Record<string, number> = payload.platforms ?? {};
+        const integrationId: number | null =
+          platformsMap['instagram_business'] ??
+          (payload.integration_id ? Number(payload.integration_id) : null);
+
+        if (!integrationId) {
+          results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: null, status: 'no_integration', message: 'Sem integration_id configurado' });
+          continue;
+        }
+
+        try {
+          const raw = await rc.getMetricsData({
+            integration_id: integrationId,
+            start, end,
+            metrics: [{ id: 'ig:impressions', metrics: ['value'], component: 'number_v1' }],
+          }, { token });
+
+          if (raw?.data?.code || raw?.data?.exception) {
+            const msg = raw.data.exception?.message ?? raw.data.code ?? 'unknown_error';
+            results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'expired', message: msg });
+          } else {
+            results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'ok', message: 'OK' });
+          }
+        } catch (e: any) {
+          results.push({ client_id: row.client_id, client_name: row.client_name, integration_id: integrationId, status: 'error', message: e.message });
+        }
+
+        // Avoid rate limiting
+        await new Promise(r => setTimeout(r, 1200));
+      }
+
+      return reply.send({ total: results.length, results });
+    }
+  );
+
   // ── POST /admin/reportei/cleanup-snapshots ───────────────────────────────
   // Delete snapshots that contain Reportei error payloads (code/exception keys)
   app.post(

@@ -104,6 +104,9 @@ export default function ReporteiAdminPage() {
   const [runningAlerts, setRunningAlerts] = useState(false);
   const [runningLearning, setRunningLearning] = useState(false);
   const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
+  type CheckResult = { client_id: string; client_name: string; integration_id: number | null; status: 'ok' | 'expired' | 'error' | 'no_integration'; message: string };
+  const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null);
+  const [checking, setChecking] = useState(false);
   const [debugResult, setDebugResult] = useState<Record<string, any> | null>(null);
   const [debugClientId, setDebugClientId] = useState<string | null>(null);
   const [debugLoading, setDebugLoading] = useState(false);
@@ -159,6 +162,17 @@ export default function ReporteiAdminPage() {
       await apiPost('/admin/reportei/run-learning', {});
     } finally {
       setRunningLearning(false);
+    }
+  };
+
+  const runCheckAll = async () => {
+    setChecking(true);
+    setCheckResults(null);
+    try {
+      const res = await apiPost('/admin/reportei/check-all', {});
+      setCheckResults(res.results ?? []);
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -244,7 +258,17 @@ export default function ReporteiAdminPage() {
         </Tabs>
 
         {tab === 0 && (<>
-        <Stack direction="row" gap={1} mb={3}>
+        <Stack direction="row" gap={1} mb={3} flexWrap="wrap">
+          <Button
+            size="small"
+            variant="contained"
+            color="info"
+            startIcon={checking ? <CircularProgress size={14} color="inherit" /> : <IconAlertCircle size={16} />}
+            onClick={runCheckAll}
+            disabled={checking}
+          >
+            {checking ? 'Verificando… (pode demorar)' : 'Verificar todos os clientes'}
+          </Button>
           <Button
             size="small"
             variant="outlined"
@@ -265,6 +289,60 @@ export default function ReporteiAdminPage() {
         </Stack>
 
         {cleanupMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCleanupMsg(null)}>{cleanupMsg}</Alert>}
+
+        {/* Check-all results */}
+        {checkResults && (
+          <Box mb={3}>
+            <Stack direction="row" gap={1} mb={1} flexWrap="wrap">
+              <Chip size="small" color="success" label={`✓ ${checkResults.filter(r => r.status === 'ok').length} OK`} />
+              <Chip size="small" color="error" label={`⚠ ${checkResults.filter(r => r.status === 'expired').length} expirados`} />
+              {checkResults.filter(r => r.status === 'error').length > 0 && (
+                <Chip size="small" color="warning" label={`! ${checkResults.filter(r => r.status === 'error').length} com erro`} />
+              )}
+              {checkResults.filter(r => r.status === 'no_integration').length > 0 && (
+                <Chip size="small" color="default" label={`${checkResults.filter(r => r.status === 'no_integration').length} sem integração`} />
+              )}
+            </Stack>
+            {checkResults.filter(r => r.status !== 'ok' && r.status !== 'no_integration').length > 0 && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                Os clientes abaixo precisam ter a integração reconectada no Reportei (app.reportei.com → projeto → Integrações → Reconectar Instagram):
+              </Alert>
+            )}
+            <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Cliente</TableCell>
+                    <TableCell>Status Instagram</TableCell>
+                    <TableCell>Mensagem</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {checkResults.filter(r => r.status !== 'ok').map(r => (
+                    <TableRow key={r.client_id}>
+                      <TableCell><Typography variant="body2" fontWeight={500}>{r.client_name}</Typography></TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={r.status === 'expired' ? 'Expirado' : r.status === 'no_integration' ? 'Sem link' : 'Erro'}
+                          color={r.status === 'expired' ? 'error' : r.status === 'no_integration' ? 'default' : 'warning'}
+                        />
+                      </TableCell>
+                      <TableCell><Typography variant="caption" color="text.secondary">{r.message}</Typography></TableCell>
+                    </TableRow>
+                  ))}
+                  {checkResults.every(r => r.status === 'ok') && (
+                    <TableRow>
+                      <TableCell colSpan={3}>
+                        <Typography variant="body2" color="success.main">Todas as integrações estão funcionando!</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
 
         {/* Auto-link results */}
         {autoLinkResults && (
