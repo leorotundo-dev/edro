@@ -39,6 +39,8 @@ import {
   IconTrendingUp,
 } from '@tabler/icons-react';
 
+type PlatformEntry = { integration_id: number; name: string | null; slug: string };
+
 type ClientRow = {
   client_id: string;
   client_name: string;
@@ -47,6 +49,7 @@ type ClientRow = {
   integration_name: string | null;
   integration_slug: string | null;
   project_name: string | null;
+  platforms: Record<string, PlatformEntry>;
   last_sync_ok: boolean | null;
   last_error: string | null;
 };
@@ -67,9 +70,7 @@ type StatusData = {
 type AutoLinkResult = {
   client_id: string;
   client_name: string;
-  matched_integration_id: number | null;
-  matched_name: string | null;
-  score: number;
+  platforms: Record<string, { id: number; name: string; score: number }>;
   action: 'linked' | 'skipped' | 'no_match';
 };
 
@@ -125,10 +126,7 @@ export default function ReporteiAdminPage() {
     setAutoLinking(true);
     setAutoLinkResults(null);
     try {
-      const res = await apiPost('/admin/reportei/auto-link', {
-        slug_filter: 'instagram_business',
-        dry_run: dryRun,
-      });
+      const res = await apiPost('/admin/reportei/auto-link', { dry_run: dryRun });
       setAutoLinkResults(res.results ?? []);
       if (!dryRun) load();
     } finally {
@@ -228,7 +226,7 @@ export default function ReporteiAdminPage() {
             onClick={() => runAutoLink(false)}
             disabled={autoLinking}
           >
-            {autoLinking ? 'Vinculando…' : 'Auto-vincular Instagram'}
+            {autoLinking ? 'Vinculando…' : 'Auto-vincular todas as plataformas'}
           </Button>
         </Stack>
 
@@ -244,8 +242,7 @@ export default function ReporteiAdminPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell>Cliente Edro</TableCell>
-                    <TableCell>Match Reportei</TableCell>
-                    <TableCell>Score</TableCell>
+                    <TableCell>Plataformas vinculadas</TableCell>
                     <TableCell>Ação</TableCell>
                   </TableRow>
                 </TableHead>
@@ -253,8 +250,23 @@ export default function ReporteiAdminPage() {
                   {autoLinkResults.map(r => (
                     <TableRow key={r.client_id}>
                       <TableCell>{r.client_name}</TableCell>
-                      <TableCell>{r.matched_name ?? '—'}</TableCell>
-                      <TableCell>{r.score}</TableCell>
+                      <TableCell>
+                        {Object.keys(r.platforms).length === 0 ? (
+                          <Typography variant="caption" color="text.secondary">sem match</Typography>
+                        ) : (
+                          <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                            {Object.entries(r.platforms).map(([slug, info]) => (
+                              <Chip
+                                key={slug}
+                                size="small"
+                                label={`${slug.replace('_', ' ')} · ${info.score}`}
+                                color="success"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Stack>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -280,14 +292,15 @@ export default function ReporteiAdminPage() {
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
                   <TableCell><Typography variant="caption" fontWeight={700}>Cliente</Typography></TableCell>
                   <TableCell><Typography variant="caption" fontWeight={700}>Status</Typography></TableCell>
-                  <TableCell><Typography variant="caption" fontWeight={700}>Integration ID</Typography></TableCell>
-                  <TableCell><Typography variant="caption" fontWeight={700}>Integração Reportei</Typography></TableCell>
+                  <TableCell><Typography variant="caption" fontWeight={700}>Plataformas</Typography></TableCell>
                   <TableCell><Typography variant="caption" fontWeight={700}>Projeto</Typography></TableCell>
                   <TableCell><Typography variant="caption" fontWeight={700}>Ações</Typography></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(data?.clients ?? []).map(row => (
+                {(data?.clients ?? []).map(row => {
+                  const platformEntries = Object.entries(row.platforms ?? {});
+                  return (
                   <TableRow key={row.client_id} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>{row.client_name}</Typography>
@@ -304,14 +317,23 @@ export default function ReporteiAdminPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption" color="text.secondary">
-                        {row.integration_id ?? '—'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{row.integration_name ?? '—'}</Typography>
-                      {row.integration_slug && (
-                        <Typography variant="caption" color="text.secondary">{row.integration_slug}</Typography>
+                      {platformEntries.length > 0 ? (
+                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                          {platformEntries.map(([slug, info]) => (
+                            <Chip
+                              key={slug}
+                              size="small"
+                              label={slug.replace('_', ' ')}
+                              title={info.name ?? undefined}
+                              color="primary"
+                              variant="outlined"
+                            />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          {row.integration_id ? `ID ${row.integration_id}` : '—'}
+                        </Typography>
                       )}
                     </TableCell>
                     <TableCell>
@@ -330,7 +352,8 @@ export default function ReporteiAdminPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

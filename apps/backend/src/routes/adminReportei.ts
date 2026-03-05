@@ -123,6 +123,14 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
           ? reporteiProjects.find((p: any) => p.id === integration.project_id)
           : null;
 
+        // Build per-platform summary from stored platforms map
+        const platformsMap: Record<string, number> = conn?.payload?.platforms ?? {};
+        const platformsSummary: Record<string, { integration_id: number; name: string | null; slug: string }> = {};
+        for (const [slug, id] of Object.entries(platformsMap)) {
+          const found = reporteiIntegrations.find((i: any) => i.id === Number(id));
+          platformsSummary[slug] = { integration_id: Number(id), name: found?.name ?? null, slug };
+        }
+
         return {
           client_id: c.id,
           client_name: c.name,
@@ -132,6 +140,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
           integration_slug: integration?.slug ?? null,
           project_id: integration?.project_id ?? null,
           project_name: project?.name ?? null,
+          platforms: platformsSummary,
           last_sync_ok: conn?.last_sync_ok ?? null,
           last_error: conn?.last_error ?? null,
         };
@@ -153,103 +162,108 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
 
   // ── POST /admin/reportei/auto-link ────────────────────────────────────────
   // Auto-match Edro clients to Reportei integrations by name similarity.
-  // Only links instagram_business integrations by default.
+  // Matches ALL known platform slugs and builds a platforms map per client.
   app.post(
     '/admin/reportei/auto-link',
     { preHandler: [authGuard, tenantGuard()] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
-      const { slug_filter, dry_run } = z
-        .object({
-          slug_filter: z.string().default('instagram_business'),
-          dry_run: z.boolean().default(false),
-        })
+      const { dry_run } = z
+        .object({ dry_run: z.boolean().default(false) })
         .parse(request.body ?? {});
 
       const token = process.env.REPORTEI_TOKEN || '';
       if (!token) return { error: 'REPORTEI_TOKEN not configured' };
+
+      const KNOWN_SLUGS = ['instagram_business', 'linkedin', 'facebook_ads', 'google_analytics_4', 'google_adwords'];
 
       const { rows: edroClients } = await query<any>(
         `SELECT id, name FROM clients WHERE tenant_id=$1 ORDER BY name ASC`,
         [tenantId]
       );
 
-      const client = new ReporteiClient();
+      const rc = new ReporteiClient();
       const overrides = { token };
 
-      const [pRes, iRes] = await Promise.all([
-        client.getProjects({ per_page: 100 }, overrides),
-        client.getIntegrations({ per_page: 100 }, overrides),
-      ]);
-
+      const iRes = await rc.getIntegrations({ per_page: 100 }, overrides);
       const integrations: any[] = iRes?.data ?? [];
-      const filtered = slug_filter
-        ? integrations.filter((i: any) => i.slug === slug_filter)
-        : integrations;
+
+      // Group integrations by slug for fast lookup
+      const bySlug: Record<string, any[]> = {};
+      for (const i of integrations) {
+        if (!bySlug[i.slug]) bySlug[i.slug] = [];
+        bySlug[i.slug].push(i);
+      }
 
       const results: Array<{
         client_id: string;
         client_name: string;
-        matched_integration_id: number | null;
-        matched_name: string | null;
-        score: number;
+        platforms: Record<string, { id: number; name: string; score: number }>;
         action: 'linked' | 'skipped' | 'no_match';
       }> = [];
 
       for (const edroClient of edroClients) {
-        let bestScore = 0;
-        let bestIntegration: any = null;
+        const platforms: Record<string, { id: number; name: string; score: number }> = {};
 
-        for (const integration of filtered) {
-          const score = nameScore(edroClient.name, integration.name);
-          if (score > bestScore) {
-            bestScore = score;
-            bestIntegration = integration;
+        for (const slug of KNOWN_SLUGS) {
+          const candidates = bySlug[slug] ?? [];
+          let bestScore = 0;
+          let bestIntegration: any = null;
+          for (const integration of candidates) {
+            const score = nameScore(edroClient.name, integration.name);
+            if (score > bestScore) {
+              bestScore = score;
+              bestIntegration = integration;
+            }
+          }
+          if (bestIntegration && bestScore >= 50) {
+            platforms[slug] = { id: bestIntegration.id, name: bestIntegration.name, score: bestScore };
           }
         }
 
-        if (!bestIntegration || bestScore < 50) {
-          results.push({
-            client_id: edroClient.id,
-            client_name: edroClient.name,
-            matched_integration_id: null,
-            matched_name: null,
-            score: bestScore,
-            action: 'no_match',
-          });
+        const hasAnyMatch = Object.keys(platforms).length > 0;
+        if (!hasAnyMatch) {
+          results.push({ client_id: edroClient.id, client_name: edroClient.name, platforms: {}, action: 'no_match' });
           continue;
         }
 
         if (!dry_run) {
+          // Build platforms map (slug → id) and set primary integration_id = Instagram or first match
+          const platformsMap: Record<string, number> = {};
+          for (const [slug, info] of Object.entries(platforms)) {
+            platformsMap[slug] = info.id;
+          }
+          const primaryId =
+            platformsMap['instagram_business'] ??
+            Object.values(platformsMap)[0];
+
+          const patch = JSON.stringify({ integration_id: primaryId, platforms: platformsMap });
+
           await query(
             `INSERT INTO connectors (tenant_id, client_id, provider, payload)
              VALUES ($1,$2,'reportei',$3::jsonb)
              ON CONFLICT (tenant_id, client_id, provider)
              DO UPDATE SET payload = connectors.payload || $3::jsonb, updated_at=now()`,
-            [tenantId, edroClient.id, JSON.stringify({ integration_id: bestIntegration.id })]
-          ).catch(() => {
-            // Fallback: only update, don't insert
-            return query(
+            [tenantId, edroClient.id, patch]
+          ).catch(() =>
+            query(
               `UPDATE connectors SET payload = payload || $3::jsonb, updated_at=now()
                WHERE tenant_id=$1 AND client_id=$2 AND provider='reportei'`,
-              [tenantId, edroClient.id, JSON.stringify({ integration_id: bestIntegration.id })]
-            );
-          });
+              [tenantId, edroClient.id, patch]
+            )
+          );
         }
 
         results.push({
           client_id: edroClient.id,
           client_name: edroClient.name,
-          matched_integration_id: bestIntegration.id,
-          matched_name: bestIntegration.name,
-          score: bestScore,
+          platforms,
           action: dry_run ? 'skipped' : 'linked',
         });
       }
 
       return {
         dry_run,
-        slug_filter,
         total: results.length,
         linked: results.filter(r => r.action === 'linked').length,
         no_match: results.filter(r => r.action === 'no_match').length,

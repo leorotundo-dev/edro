@@ -74,27 +74,40 @@ async function syncClientMetrics(
   token: string
 ): Promise<{ snapshots: number; errors: string[] }> {
   const connector = await getReporteiConnector(tenantId, clientId);
-  if (!connector?.integrationId) return { snapshots: 0, errors: ['no_integration_id'] };
+  const hasAnyId = connector?.integrationId || (connector?.platforms && Object.keys(connector.platforms).length > 0);
+  if (!connector || !hasAnyId) return { snapshots: 0, errors: ['no_integration_id'] };
 
-  const integrationId = Number(connector.integrationId);
-  const client = new ReporteiClient();
+  const rc = new ReporteiClient();
   const overrides = { token, baseUrl: connector.baseUrl };
 
-  // Detect platform from connector integration slug (fetch integration if needed)
-  // Use all platforms that have metric definitions
-  const platformsToSync = Object.entries(PLATFORM_METRICS).map(([platform]) => platform);
+  // Build list of (integrationId, platform) pairs to sync.
+  // Prefer the per-platform map; fall back to the single integrationId for all platforms.
+  const toSync: Array<{ integrationId: number; platform: string }> = [];
+  if (connector.platforms && Object.keys(connector.platforms).length > 0) {
+    for (const [slug, id] of Object.entries(connector.platforms)) {
+      const platform = SLUG_TO_PLATFORM[slug];
+      if (platform && PLATFORM_METRICS[platform]?.length) {
+        toSync.push({ integrationId: Number(id), platform });
+      }
+    }
+  }
+  // If no platforms map yet, fall back to primary integrationId × Instagram only
+  if (toSync.length === 0 && connector.integrationId) {
+    const fallbackId = Number(connector.integrationId);
+    toSync.push({ integrationId: fallbackId, platform: 'Instagram' });
+  }
 
   let snapshots = 0;
   const errors: string[] = [];
 
-  for (const platform of platformsToSync) {
+  for (const { integrationId, platform } of toSync) {
     const metricDefs = PLATFORM_METRICS[platform];
     if (!metricDefs?.length) continue;
 
     for (const window of WINDOWS) {
       const { start, end, compStart, compEnd } = windowToDates(window);
       try {
-        const raw = await client.getMetricsData({
+        const raw = await rc.getMetricsData({
           integration_id: integrationId,
           start,
           end,

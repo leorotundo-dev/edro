@@ -8,6 +8,12 @@ export type ReporteiConnectorConfig = {
   integrationId?: string;
   /** Reportei project ID — optional, for listing integrations */
   projectId?: string;
+  /**
+   * Per-platform integration IDs.
+   * Keys are Reportei slugs: 'instagram_business', 'linkedin', 'facebook_ads', etc.
+   * Populated by auto-link or manual multi-platform linking.
+   */
+  platforms?: Record<string, number>;
   rawPayload?: Record<string, any>;
 };
 
@@ -94,11 +100,18 @@ export async function getReporteiConnector(
   const baseUrl = pickBaseUrl(payload, secrets);
   const token = pickToken(payload, secrets);
 
+  // Multi-platform map stored as { instagram_business: 2655450, linkedin: 123456, ... }
+  const platforms: Record<string, number> | undefined =
+    payload?.platforms && typeof payload.platforms === 'object' && !Array.isArray(payload.platforms)
+      ? payload.platforms
+      : undefined;
+
   return {
     integrationId: integrationId ? String(integrationId) : undefined,
     projectId: projectId ? String(projectId) : undefined,
     baseUrl: baseUrl ? String(baseUrl) : undefined,
     token: token ? String(token) : undefined,
+    platforms,
     rawPayload: payload,
   };
 }
