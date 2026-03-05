@@ -135,6 +135,29 @@ function MarkdownText({ text }: { text: string }) {
 // ── Context-aware quick actions ───────────────────────────────────────
 
 function getQuickActions(pathname: string, hasClient: boolean): string[] {
+  if (pathname.includes('/studio/brief')) {
+    return [
+      'Sugere um título impactante para este brief',
+      'Qual o melhor AMD e momento de consciência?',
+      'Escreve a mensagem central em 3 linhas',
+      'Recomenda tom de voz para este cliente',
+    ];
+  }
+  if (pathname.includes('/studio/editor')) {
+    return [
+      'Refina o copy atual para ser mais persuasivo',
+      'Cria uma versão mais curta e direta',
+      'Adapta o texto para LinkedIn',
+      'Sugere um CTA mais forte',
+    ];
+  }
+  if (pathname.includes('/studio')) {
+    return [
+      'Cria um briefing para o próximo evento',
+      'Sugere pautas de alto impacto',
+      'Quais briefings estão pendentes de produção?',
+    ];
+  }
   if (hasClient && pathname.includes('/clients/')) {
     return [
       'Quais briefings estão em aberto?',
@@ -180,14 +203,18 @@ export default function JarvisChatPanel() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Listen for home page send events
+  // Listen for home page send events and studio send events
   useEffect(() => {
     const handler = (e: Event) => {
       const msg = (e as CustomEvent).detail?.message as string;
       if (msg) sendMessage(msg);
     };
     window.addEventListener('jarvis-home-send', handler);
-    return () => window.removeEventListener('jarvis-home-send', handler);
+    window.addEventListener('jarvis-studio-send', handler);
+    return () => {
+      window.removeEventListener('jarvis-home-send', handler);
+      window.removeEventListener('jarvis-studio-send', handler);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -215,9 +242,18 @@ export default function JarvisChatPanel() {
     setLoading(true);
 
     try {
+      // Inject studio context when on studio pages
+      let studioContext: string | undefined;
+      if (pathname?.includes('/studio/')) {
+        try {
+          const raw = localStorage.getItem('edro_studio_context');
+          if (raw) studioContext = raw;
+        } catch { /* ignore */ }
+      }
+
       const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
         `/clients/${clientId}/planning/chat`,
-        { message: msg, conversationId, mode: 'agent', context_page: pathname }
+        { message: msg, conversationId, mode: 'agent', context_page: pathname, studio_context: studioContext }
       );
 
       const data = res?.data;

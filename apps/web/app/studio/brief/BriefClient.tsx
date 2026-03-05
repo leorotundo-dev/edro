@@ -30,6 +30,7 @@ import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import {
   IconBookmark,
+  IconBrain,
   IconBuildingSkyscraper,
   IconCalendarEvent,
   IconChevronLeft,
@@ -48,6 +49,7 @@ import {
   IconUserPlus,
   IconX,
 } from '@tabler/icons-react';
+import { useJarvis } from '@/contexts/JarvisContext';
 
 type ClientRow = {
   id: string;
@@ -223,6 +225,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
 export default function BriefClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { open: openJarvis } = useJarvis();
 
   const queryClientId = searchParams.get('clientId') || '';
   const queryClientName = searchParams.get('client') || '';
@@ -293,6 +296,43 @@ export default function BriefClient() {
     campaign_phase_id: queryCampaignPhaseId,
     behavior_intent_id: queryBehaviorIntentId,
   });
+
+  // Write studio context to localStorage so Jarvis can read it
+  useEffect(() => {
+    if (!activeClientId) return;
+    try {
+      const client = clients.find(c => c.id === activeClientId);
+      localStorage.setItem('edro_studio_context', JSON.stringify({
+        page: 'studio_brief',
+        client_id: activeClientId,
+        client_name: client?.name,
+        client_segment: client?.segment_primary,
+        form: {
+          title: form.title,
+          objective: form.objective,
+          event: form.event,
+          date: form.date,
+          tone: form.tone,
+          message: form.message,
+          amd: form.amd,
+          momento_consciencia: form.momento_consciencia,
+          notes: form.notes,
+        },
+      }));
+    } catch { /* ignore */ }
+  }, [form, activeClientId, clients]);
+
+  // Listen for Jarvis studio-fill events to auto-populate form
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const fields = (e as CustomEvent).detail as Partial<typeof form>;
+      if (fields && typeof fields === 'object') {
+        setForm(prev => ({ ...prev, ...fields }));
+      }
+    };
+    window.addEventListener('jarvis-studio-fill', handler);
+    return () => window.removeEventListener('jarvis-studio-fill', handler);
+  }, []);
 
   const suggestDeadline = (eventDateStr: string) => {
     const parsedDate = new Date(eventDateStr);
@@ -942,10 +982,30 @@ export default function BriefClient() {
             Preencha as informações estratégicas para iniciar a produção.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} flexWrap="wrap">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <Chip size="small" variant="outlined" label={`Clientes: ${selectedClientsCount || (selectedClient ? 1 : 0)}`} />
           {context?.event ? <Chip size="small" variant="outlined" label={context.event} /> : null}
           {context?.date ? <Chip size="small" variant="outlined" label={context.date} /> : null}
+          <Button
+            size="small"
+            startIcon={<IconBrain size={15} />}
+            onClick={() => {
+              openJarvis(activeClientId || undefined);
+              window.dispatchEvent(new CustomEvent('jarvis-studio-send', {
+                detail: { message: activeClientId
+                  ? `Estou preenchendo um briefing${form.event ? ` para "${form.event}"` : ''}${form.title ? ` com o título "${form.title}"` : ''}. Me ajuda a completar os campos estratégicos: objetivo, mensagem principal, tom de voz, AMD e momento de consciência.`
+                  : 'Abri o Studio Brief. Como posso te ajudar a criar um briefing de alto impacto?' }
+              }));
+            }}
+            sx={{
+              bgcolor: '#E85219', color: '#fff',
+              '&:hover': { bgcolor: '#c94215' },
+              borderRadius: 2, textTransform: 'none', fontSize: '0.78rem', fontWeight: 600,
+              px: 1.5, py: 0.4,
+            }}
+          >
+            Jarvis
+          </Button>
         </Stack>
       </Stack>
 
