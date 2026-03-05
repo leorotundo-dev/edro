@@ -116,21 +116,33 @@ async function syncClientMetrics(
           comparison_end: compEnd,
         }, overrides);
 
-        console.log(`[reporteiSync] raw keys=${Object.keys(raw ?? {}).join(',')} sample=${JSON.stringify(raw).slice(0, 300)}`);
-        const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.metrics ?? raw?.items ?? []);
-        if (!metricsArray.length) { console.log(`[reporteiSync] empty array for ${platform}/${window}`); continue; }
-
-        // Build flat metrics object: { "ig:impressions": { value: 45000, comparison: 38000, delta_pct: 18.4 } }
+        // Reportei API v2 returns: { data: { "ig:impressions": { values: 123, comparison: { values: 120, difference: 2.5, absoluteDifference: 3 } } } }
         const metricsObj: Record<string, any> = {};
-        for (const item of metricsArray) {
-          const key: string = item.id ?? item.reference_key ?? '';
-          if (!key) continue;
-          metricsObj[key] = {
-            value: item.data?.value ?? item.value ?? null,
-            comparison: item.data?.comparison ?? item.comparison ?? null,
-            delta_pct: item.data?.delta_pct ?? item.delta_pct ?? null,
-          };
+
+        if (raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+          // Object format (v2 standard)
+          for (const [key, val] of Object.entries(raw.data as Record<string, any>)) {
+            metricsObj[key] = {
+              value: val?.values ?? val?.value ?? null,
+              comparison: val?.comparison?.values ?? null,
+              delta_pct: val?.comparison?.difference ?? null,
+            };
+          }
+        } else {
+          // Fallback: array format (legacy)
+          const metricsArray: any[] = Array.isArray(raw) ? raw : (raw?.metrics ?? raw?.items ?? []);
+          for (const item of metricsArray) {
+            const key: string = item.id ?? item.reference_key ?? '';
+            if (!key) continue;
+            metricsObj[key] = {
+              value: item.data?.value ?? item.values ?? item.value ?? null,
+              comparison: item.data?.comparison ?? item.comparison ?? null,
+              delta_pct: item.data?.delta_pct ?? item.delta_pct ?? null,
+            };
+          }
         }
+
+        if (Object.keys(metricsObj).length === 0) continue;
 
         // Save snapshot
         await query(
