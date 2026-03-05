@@ -53,7 +53,7 @@ function scoreOnTimePct(paidOnTimePct: number): number {
 
 async function computeHealthScores() {
   // Get all active tenants
-  const tenantsRes = await pool.query(`SELECT id FROM tenants WHERE status = 'active'`);
+  const tenantsRes = await pool.query(`SELECT id FROM tenants`);
 
   for (const tenant of tenantsRes.rows) {
     const tenantId = tenant.id;

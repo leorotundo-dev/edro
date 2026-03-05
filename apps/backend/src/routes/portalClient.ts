@@ -64,7 +64,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
              b.copy_approved_at, b.copy_approval_comment,
              b.labels
       FROM edro_briefings b
-      WHERE (b.main_client_id = $1 OR b.client_id = $1)
+      WHERE b.main_client_id = $1
     `;
     const params: any[] = [clientId];
 
@@ -91,7 +91,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
       `SELECT b.id, b.title, b.status, b.due_at, b.updated_at,
               b.copy_approved_at, b.copy_approval_comment, b.labels
        FROM edro_briefings b
-       WHERE b.id = $1 AND (b.main_client_id = $2 OR b.client_id = $2)`,
+       WHERE b.id = $1 AND b.main_client_id = $2`,
       [id, clientId],
     );
     if (!jobRes.rows.length) return reply.status(404).send({ error: 'Job not found' });
@@ -117,7 +117,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
 
     // Verify ownership
     const check = await pool.query(
-      `SELECT id FROM edro_briefings WHERE id = $1 AND (main_client_id = $2 OR client_id = $2)`,
+      `SELECT id FROM edro_briefings WHERE id = $1 AND main_client_id = $2`,
       [id, clientId],
     );
     if (!check.rows.length) return reply.status(404).send({ error: 'Job not found' });
@@ -162,7 +162,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
 
     // Verify ownership
     const check = await pool.query(
-      `SELECT id FROM edro_briefings WHERE id = $1 AND (main_client_id = $2 OR client_id = $2)`,
+      `SELECT id FROM edro_briefings WHERE id = $1 AND main_client_id = $2`,
       [id, clientId],
     );
     if (!check.rows.length) return reply.status(404).send({ error: 'Job not found' });

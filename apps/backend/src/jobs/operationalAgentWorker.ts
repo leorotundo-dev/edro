@@ -46,13 +46,13 @@ async function notify(event: string, data: object) {
 
 async function checkStalledJobs() {
   const res = await pool.query(`
-    SELECT b.id, b.title, b.tenant_id, b.traffic_owner, b.updated_at,
-           t.id AS tenant_id
+    SELECT b.id, b.title, b.traffic_owner, b.updated_at,
+           c.tenant_id
     FROM edro_briefings b
-    JOIN tenants t ON t.id = b.tenant_id
+    JOIN clients c ON c.id = b.main_client_id
     WHERE b.status NOT IN ('done', 'cancelled', 'archived')
       AND b.updated_at < NOW() - INTERVAL '3 days'
-      AND b.tenant_id IS NOT NULL
+      AND b.main_client_id IS NOT NULL
   `);
 
   for (const job of res.rows) {
@@ -153,12 +153,14 @@ async function checkLongTimers() {
 
 async function checkDeadlines() {
   const res = await pool.query(`
-    SELECT b.id, b.title, b.due_at, b.tenant_id, b.traffic_owner
+    SELECT b.id, b.title, b.due_at, b.traffic_owner,
+           c.tenant_id
     FROM edro_briefings b
+    JOIN clients c ON c.id = b.main_client_id
     WHERE b.status NOT IN ('done', 'cancelled', 'archived')
       AND b.due_at IS NOT NULL
       AND b.due_at BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
-      AND b.tenant_id IS NOT NULL
+      AND b.main_client_id IS NOT NULL
   `);
 
   for (const b of res.rows) {

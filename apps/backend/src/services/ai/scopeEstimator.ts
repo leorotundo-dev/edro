@@ -196,7 +196,7 @@ export async function estimateScope(input: ScopeEstimateInput): Promise<ScopeEst
       `INSERT INTO job_estimations
          (briefing_id, estimated_hours, estimated_cost_brl, complexity, factors)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT (briefing_id) DO NOTHING`,
       [
         input.briefingId,
         result.estimated_hours,
