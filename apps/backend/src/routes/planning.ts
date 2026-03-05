@@ -250,6 +250,57 @@ async function buildClientContext(tenantId: string, clientId: string): Promise<s
   return parts.join('\n');
 }
 
+async function loadPerformanceContext(clientId: string): Promise<string> {
+  try {
+    // Fetch the most recent 30d snapshot for each platform
+    const { rows } = await query<any>(
+      `SELECT platform, metrics, synced_at
+       FROM reportei_metric_snapshots
+       WHERE client_id = $1 AND time_window = '30d'
+         AND synced_at > NOW() - INTERVAL '14 days'
+       ORDER BY platform, synced_at DESC`,
+      [clientId]
+    );
+
+    if (!rows.length) return '';
+
+    // De-dup: one row per platform
+    const byPlatform: Record<string, { metrics: Record<string, any>; synced_at: string }> = {};
+    for (const row of rows) {
+      if (!byPlatform[row.platform]) byPlatform[row.platform] = row;
+    }
+
+    const METRIC_LABELS: Record<string, string> = {
+      'ig:impressions': 'impressões', 'ig:reach': 'alcance', 'ig:engagement_rate': 'engajamento',
+      'ig:followers_gained': 'novos seguidores', 'li:impressions': 'impressões LinkedIn',
+      'li:engagement_rate': 'engajamento LinkedIn', 'ma:roas': 'ROAS', 'ma:ctr': 'CTR',
+      'ga:sessions': 'sessões site', 'ga:new_users': 'novos usuários',
+    };
+
+    const parts: string[] = ['\nPERFORMANCE REAL — ÚLTIMOS 30 DIAS (dados Reportei):'];
+
+    for (const [platform, data] of Object.entries(byPlatform)) {
+      const notable: string[] = [];
+      for (const [k, v] of Object.entries(data.metrics as Record<string, any>)) {
+        if (!(k in METRIC_LABELS)) continue;
+        if (v.value == null) continue;
+        const label = METRIC_LABELS[k];
+        const valStr = v.value >= 1000 ? `${(v.value / 1000).toFixed(1)}K` : String(v.value);
+        const delta = v.delta_pct != null ? ` (${v.delta_pct > 0 ? '+' : ''}${v.delta_pct.toFixed(1)}% vs anterior)` : '';
+        notable.push(`${label}: ${valStr}${delta}`);
+      }
+      if (notable.length) {
+        parts.push(`  ${platform}: ${notable.slice(0, 5).join(' | ')}`);
+      }
+    }
+
+    parts.push('  → Use esses dados ao sugerir estratégias, formatos e frequência de publicação.');
+    return parts.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 async function loadPsychContext(tenantId: string, clientId: string): Promise<string> {
   try {
     const [clusters, rules] = await Promise.all([
@@ -301,7 +352,7 @@ GUIDELINES:
 - Consider the client's industry and market context`;
 }
 
-function buildAgentSystemPrompt(clientContext: string, psychContext: string): string {
+function buildAgentSystemPrompt(clientContext: string, psychContext: string, perfContext?: string): string {
   return `Você é o Jarvis, assistente de inteligência do sistema EDRO.
 Você tem acesso a ferramentas para consultar e operar dados reais do sistema.
 
@@ -406,7 +457,7 @@ REGRAS:
 - Não invente dados — use apenas o que as ferramentas retornarem
 
 CONTEXTO DO CLIENTE:
-${clientContext || 'Sem contexto disponível.'}`;
+${clientContext || 'Sem contexto disponível.'}${psychContext || ''}${perfContext || ''}`;
 }
 
 function parseDueAt(value?: string) {
@@ -528,16 +579,18 @@ export default async function planningRoutes(app: FastifyInstance) {
     }
     const { message, provider, conversationId, mode, attachmentIds } = body;
 
-    // ── 1. Quick client context + psych context (best-effort, 2s max) ──────────────
+    // ── 1. Quick client context + psych context + performance context (best-effort, 3s max) ──
     let clientContext = '';
     let psychContext = '';
+    let perfContext = '';
     try {
-      [clientContext, psychContext] = await Promise.race([
+      [clientContext, psychContext, perfContext] = await Promise.race([
         Promise.all([
           buildClientContext(tenantId, clientId),
           loadPsychContext(tenantId, clientId),
+          loadPerformanceContext(clientId),
         ]),
-        new Promise<[string, string]>((resolve) => setTimeout(() => resolve(['', '']), 2000)),
+        new Promise<[string, string, string]>((resolve) => setTimeout(() => resolve(['', '', '']), 3000)),
       ]);
     } catch { /* ignore */ }
 
@@ -630,7 +683,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: loopMessages,
-            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext),
+            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext),
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,

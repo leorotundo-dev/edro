@@ -13,9 +13,12 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -24,12 +27,16 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import {
+  IconBell,
+  IconBrain,
   IconLink,
   IconRefresh,
   IconCheck,
   IconX,
   IconAlertCircle,
   IconChartBar,
+  IconTrendingDown,
+  IconTrendingUp,
 } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -66,6 +73,17 @@ type AutoLinkResult = {
   action: 'linked' | 'skipped' | 'no_match';
 };
 
+type PerfAlert = {
+  id: string;
+  client_id: string;
+  type: 'perf_drop' | 'perf_spike';
+  severity: 'warning' | 'info';
+  title: string;
+  body: string;
+  payload: Record<string, any>;
+  sent_at: string;
+};
+
 export default function ReporteiAdminPage() {
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +92,11 @@ export default function ReporteiAdminPage() {
   const [manualDialog, setManualDialog] = useState<ClientRow | null>(null);
   const [selectedIntegration, setSelectedIntegration] = useState<number | ''>('');
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState(0);
+  const [alerts, setAlerts] = useState<PerfAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [runningAlerts, setRunningAlerts] = useState(false);
+  const [runningLearning, setRunningLearning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,7 +108,18 @@ export default function ReporteiAdminPage() {
     }
   }, []);
 
+  const loadAlerts = useCallback(async () => {
+    setAlertsLoading(true);
+    try {
+      const res = await apiGet<{ alerts: PerfAlert[] }>('/admin/reportei/alerts');
+      setAlerts(res?.alerts ?? []);
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (tab === 1) loadAlerts(); }, [tab, loadAlerts]);
 
   const runAutoLink = async (dryRun: boolean) => {
     setAutoLinking(true);
@@ -99,6 +133,25 @@ export default function ReporteiAdminPage() {
       if (!dryRun) load();
     } finally {
       setAutoLinking(false);
+    }
+  };
+
+  const runAlerts = async () => {
+    setRunningAlerts(true);
+    try {
+      await apiPost('/admin/reportei/run-alerts', {});
+      await loadAlerts();
+    } finally {
+      setRunningAlerts(false);
+    }
+  };
+
+  const runLearning = async () => {
+    setRunningLearning(true);
+    try {
+      await apiPost('/admin/reportei/run-learning', {});
+    } finally {
+      setRunningLearning(false);
     }
   };
 
@@ -122,16 +175,25 @@ export default function ReporteiAdminPage() {
   const igIntegrations = integrations.filter(i => i.slug === 'instagram_business');
 
   return (
-    <AppShell>
+    <AppShell title="Reportei — Intelligence">
       <AdminSubmenu value="reportei" />
 
       <Box sx={{ maxWidth: 1100, mx: 'auto', px: 2 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Stack direction="row" alignItems="center" gap={1}>
             <IconChartBar size={24} />
-            <Typography variant="h5" fontWeight={700}>Reportei — Configuração de Clientes</Typography>
+            <Typography variant="h5" fontWeight={700}>Reportei — Intelligence</Typography>
           </Stack>
           <Stack direction="row" gap={1}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<IconBrain size={16} />}
+              onClick={runLearning}
+              disabled={runningLearning}
+            >
+              {runningLearning ? 'Rodando…' : 'Gerar regras de aprendizado'}
+            </Button>
             <Button
               size="small"
               variant="outlined"
@@ -141,24 +203,33 @@ export default function ReporteiAdminPage() {
             >
               Atualizar
             </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => runAutoLink(true)}
-              disabled={autoLinking}
-            >
-              Simular auto-link
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<IconLink size={16} />}
-              onClick={() => runAutoLink(false)}
-              disabled={autoLinking}
-            >
-              {autoLinking ? 'Vinculando…' : 'Auto-vincular Instagram'}
-            </Button>
           </Stack>
+        </Stack>
+
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+          <Tab label="Clientes" icon={<IconChartBar size={16} />} iconPosition="start" />
+          <Tab label="Alertas de Performance" icon={<IconBell size={16} />} iconPosition="start" />
+        </Tabs>
+
+        {tab === 0 && (<>
+        <Stack direction="row" gap={1} mb={3}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => runAutoLink(true)}
+            disabled={autoLinking}
+          >
+            Simular auto-link
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<IconLink size={16} />}
+            onClick={() => runAutoLink(false)}
+            disabled={autoLinking}
+          >
+            {autoLinking ? 'Vinculando…' : 'Auto-vincular Instagram'}
+          </Button>
         </Stack>
 
         {/* Auto-link results */}
@@ -263,6 +334,96 @@ export default function ReporteiAdminPage() {
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+        </>)}
+
+        {tab === 1 && (
+          <Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Alertas de Performance Automáticos
+              </Typography>
+              <Stack direction="row" gap={1}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<IconRefresh size={16} />}
+                  onClick={loadAlerts}
+                  disabled={alertsLoading}
+                >
+                  Atualizar
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="warning"
+                  onClick={runAlerts}
+                  disabled={runningAlerts}
+                >
+                  {runningAlerts ? 'Rodando detecção…' : 'Detectar alertas agora'}
+                </Button>
+              </Stack>
+            </Stack>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Alertas são gerados automaticamente toda segunda-feira.
+              Quedas {'>'} 20% geram alerta de queda; picos {'>'} 50% geram alerta de alta.
+            </Alert>
+            {alertsLoading ? (
+              <Stack alignItems="center" py={6}><CircularProgress /></Stack>
+            ) : alerts.length === 0 ? (
+              <Alert severity="success">Nenhum alerta de performance detectado recentemente.</Alert>
+            ) : (
+              <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell><Typography variant="caption" fontWeight={700}>Tipo</Typography></TableCell>
+                      <TableCell><Typography variant="caption" fontWeight={700}>Título</Typography></TableCell>
+                      <TableCell><Typography variant="caption" fontWeight={700}>Plataforma</Typography></TableCell>
+                      <TableCell align="right"><Typography variant="caption" fontWeight={700}>Delta</Typography></TableCell>
+                      <TableCell><Typography variant="caption" fontWeight={700}>Data</Typography></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {alerts.map((a) => (
+                      <TableRow key={a.id} hover>
+                        <TableCell>
+                          {a.type === 'perf_drop' ? (
+                            <Chip size="small" icon={<IconTrendingDown size={12} />} label="Queda" color="error" />
+                          ) : (
+                            <Chip size="small" icon={<IconTrendingUp size={12} />} label="Pico" color="success" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={500}>{a.title}</Typography>
+                          <Typography variant="caption" color="text.secondary">{a.body}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" label={a.payload?.platform ?? '—'} />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            fontWeight={600}
+                            color={a.type === 'perf_drop' ? 'error.main' : 'success.main'}
+                          >
+                            {a.payload?.delta_pct != null
+                              ? `${a.payload.delta_pct > 0 ? '+' : ''}${a.payload.delta_pct.toFixed(1)}%`
+                              : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(a.sent_at).toLocaleDateString('pt-BR')}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
         )}
       </Box>
 

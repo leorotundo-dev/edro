@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { buildContentIntelligenceReport } from '../services/contentIntelligenceService';
 import { GeminiService } from '../services/ai/geminiService';
 import { OpenAIService } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
@@ -1426,5 +1427,169 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
     );
 
     return reply.send({ success: true, data: rows });
+  });
+
+  // ── GET /clients/:clientId/metrics/reportei ─────────────────────────────
+  // Real performance metrics from Reportei snapshots (FASE 2)
+  app.get('/clients/:clientId/metrics/reportei', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+    const { window: win = '30d', platform = 'Instagram' } = req.query as { window?: string; platform?: string };
+
+    // 1. Latest snapshot
+    const { rows: snapshots } = await query<any>(
+      `SELECT platform, time_window, period_start, period_end, metrics, synced_at
+       FROM reportei_metric_snapshots
+       WHERE client_id=$1 AND time_window=$2 AND platform=$3
+       ORDER BY synced_at DESC
+       LIMIT 1`,
+      [clientId, win, platform]
+    ).catch(() => ({ rows: [] }));
+
+    const snapshot = snapshots[0] ?? null;
+
+    // 2. Previous snapshot (for delta if Reportei didn't send comparison)
+    const { rows: prevSnapshots } = await query<any>(
+      `SELECT metrics, period_start, period_end FROM reportei_metric_snapshots
+       WHERE client_id=$1 AND time_window=$2 AND platform=$3
+       ORDER BY synced_at DESC
+       LIMIT 1 OFFSET 1`,
+      [clientId, win, platform]
+    ).catch(() => ({ rows: [] }));
+
+    const prevSnapshot = prevSnapshots[0] ?? null;
+
+    // 3. Top performing briefings via briefing_post_metrics
+    const { rows: topBriefings } = await query<any>(
+      `SELECT b.title, b.due_at,
+              m.reach, m.impressions, m.engagement, m.engagement_rate,
+              m.likes, m.comments, m.saves, m.platform
+       FROM briefing_post_metrics m
+       JOIN edro_briefings b ON b.id = m.briefing_id
+       WHERE m.client_id=$1 AND m.tenant_id=$2 AND m.platform=$3
+         AND m.published_at >= NOW() - INTERVAL '90 days'
+       ORDER BY COALESCE(m.engagement_rate, 0) DESC
+       LIMIT 5`,
+      [clientId, tenantId, platform]
+    ).catch(() => ({ rows: [] }));
+
+    // 4. Available platforms for this client
+    const { rows: availPlatforms } = await query<any>(
+      `SELECT DISTINCT platform FROM reportei_metric_snapshots
+       WHERE client_id=$1 ORDER BY platform`,
+      [clientId]
+    ).catch(() => ({ rows: [] }));
+
+    return reply.send({
+      snapshot,
+      prev_snapshot: prevSnapshot,
+      top_briefings: topBriefings,
+      available_platforms: availPlatforms.map((r: any) => r.platform),
+      client_id: clientId,
+      window: win,
+      platform,
+    });
+  });
+
+  // ── POST /clients/:clientId/metrics/reportei/sync ──────────────────────
+  // Manual trigger to sync Reportei metrics for this client immediately
+  app.post('/clients/:clientId/metrics/reportei/sync', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+    const { triggerClientSync } = await import('../jobs/reporteiSyncWorker');
+    const result = await triggerClientSync(clientId, tenantId);
+    return reply.send({ success: true, ...result });
+  });
+
+  // ── GET /clients/:clientId/metrics/benchmark ────────────────────────────
+  // Compare this client's metrics vs portfolio average (FASE 5)
+  app.get('/clients/:clientId/metrics/benchmark', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const tenantId = (req.user as any).tenant_id as string;
+    const { platform = 'Instagram', window: win = '30d' } = req.query as { platform?: string; window?: string };
+
+    // Get this client's latest metrics
+    const { rows: own } = await query<any>(
+      `SELECT metrics FROM reportei_metric_snapshots
+       WHERE client_id=$1 AND platform=$2 AND time_window=$3
+       ORDER BY synced_at DESC LIMIT 1`,
+      [clientId, platform, win]
+    ).catch(() => ({ rows: [] }));
+
+    // Get all clients in this tenant for comparison
+    const { rows: all } = await query<any>(
+      `SELECT client_id, metrics FROM reportei_metric_snapshots
+       WHERE tenant_id=$1 AND platform=$2 AND time_window=$3
+         AND synced_at >= NOW() - INTERVAL '14 days'
+       ORDER BY synced_at DESC`,
+      [tenantId, platform, win]
+    ).catch(() => ({ rows: [] }));
+
+    if (!all.length) return reply.send({ available: false });
+
+    // Aggregate portfolio averages per metric key
+    const totals: Record<string, { sum: number; count: number }> = {};
+    for (const row of all) {
+      const m = row.metrics ?? {};
+      for (const [key, val] of Object.entries(m)) {
+        const v = (val as any)?.value;
+        if (v == null || isNaN(Number(v))) continue;
+        if (!totals[key]) totals[key] = { sum: 0, count: 0 };
+        totals[key].sum += Number(v);
+        totals[key].count++;
+      }
+    }
+    const portfolioAvg: Record<string, number> = {};
+    for (const [key, t] of Object.entries(totals)) {
+      portfolioAvg[key] = t.count > 0 ? +(t.sum / t.count).toFixed(2) : 0;
+    }
+
+    const ownMetrics = own[0]?.metrics ?? {};
+    const comparison: Array<{ metric: string; client: number | null; portfolio_avg: number; delta_pct: number | null; percentile: number }> = [];
+
+    for (const [key, avg] of Object.entries(portfolioAvg)) {
+      const clientVal = (ownMetrics[key] as any)?.value ?? null;
+      const delta = clientVal != null && avg > 0 ? +((clientVal - avg) / avg * 100).toFixed(1) : null;
+
+      // Simple percentile: count how many clients are below this client
+      const clientValues = all
+        .map((r: any) => (r.metrics?.[key] as any)?.value)
+        .filter((v: any) => v != null && !isNaN(Number(v)))
+        .map(Number);
+      const below = clientValues.filter((v: number) => v < (clientVal ?? 0)).length;
+      const percentile = clientValues.length > 1 ? Math.round((below / (clientValues.length - 1)) * 100) : 50;
+
+      comparison.push({ metric: key, client: clientVal, portfolio_avg: avg, delta_pct: delta, percentile });
+    }
+
+    return reply.send({
+      available: true,
+      platform,
+      window: win,
+      portfolio_size: new Set(all.map((r: any) => r.client_id)).size,
+      comparison,
+    });
+  });
+
+  // ── GET /clients/:clientId/metrics/content-intelligence ─────────────────────
+  // FASE 7: briefing topic → performance correlation
+  app.get('/clients/:clientId/metrics/content-intelligence', {
+    preHandler: [tenantGuard(), authGuard],
+  }, async (request: any, reply: any) => {
+    const { clientId } = request.params as { clientId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const platform = (request.query as any)?.platform ?? 'Instagram';
+    try {
+      const report = await buildContentIntelligenceReport(clientId, tenantId, platform);
+      return reply.send(report);
+    } catch (e: any) {
+      return reply.status(500).send({ error: e.message });
+    }
   });
 }

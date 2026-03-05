@@ -11,6 +11,8 @@ import { runCalendarEnrichmentWorkerOnce } from './calendarEnrichmentWorker';
 import { runClippingTavilyWorkerOnce } from './clippingTavilyWorker';
 import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
 import { runArchiveStaleBriefingsOnce } from './archiveStaleBriefingsWorker';
+import { runReporteiSyncWorkerOnce } from './reporteiSyncWorker';
+import { runPerformanceAlertWorkerOnce } from './performanceAlertWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -71,4 +73,8 @@ export function startJobsRunner() {
   startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500, 120_000);
   // Auto-archive stale briefings (due_at passado) — roda 1× por dia, snapshot do copy gerado
   startWorkerLoop('archiveStale', runArchiveStaleBriefingsOnce, 6000);
+  // Reportei sync — runs every Monday, fetches 7d/30d/90d metrics for all clients
+  startWorkerLoop('reporteiSync', runReporteiSyncWorkerOnce, 6500, 300_000);
+  // Performance alerts — runs every Monday, detects drops/spikes vs previous period
+  startWorkerLoop('performanceAlerts', runPerformanceAlertWorkerOnce, 7000, 120_000);
 }

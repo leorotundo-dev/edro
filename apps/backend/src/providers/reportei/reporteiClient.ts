@@ -111,12 +111,13 @@ export class ReporteiClient {
   }
 
   /** List integrations, optionally filtered by project */
-  async getIntegrations(params?: { project_id?: number; name?: string; slug?: string; page?: number }, overrides?: Partial<ReporteiConfig>): Promise<any> {
+  async getIntegrations(params?: { project_id?: number; name?: string; slug?: string; page?: number; per_page?: number }, overrides?: Partial<ReporteiConfig>): Promise<any> {
     const qs = new URLSearchParams();
     if (params?.project_id) qs.set('project_id', String(params.project_id));
     if (params?.name)       qs.set('name', params.name);
     if (params?.slug)       qs.set('slug', params.slug);
     if (params?.page)       qs.set('page', String(params.page));
+    if (params?.per_page)   qs.set('per_page', String(params.per_page));
     return this.get(`/integrations${qs.toString() ? '?' + qs : ''}`, overrides);
   }
 

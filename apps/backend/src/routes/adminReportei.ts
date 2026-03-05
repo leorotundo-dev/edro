@@ -5,6 +5,8 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { ReporteiClient } from '../providers/reportei/reporteiClient';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { query } from '../db';
+import { syncAllClientsLearningRules } from '../services/reporteiLearningSync';
+import { runPerformanceAlertWorkerOnce } from '../jobs/performanceAlertWorker';
 
 // ── Name normalization for auto-matching ──────────────────────────────────────
 function normName(s: string): string {
@@ -325,6 +327,59 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
       } catch (e: any) {
         return { error: e.message };
       }
+    }
+  );
+
+  // ── POST /admin/reportei/run-learning ──────────────────────────────────────
+  // Triggers learning rule generation from existing snapshots
+  app.post(
+    '/admin/reportei/run-learning',
+    { preHandler: [tenantGuard(), authGuard] },
+    async (_request: any, reply: any) => {
+      try {
+        const result = await syncAllClientsLearningRules();
+        return reply.send({ ok: true, ...result });
+      } catch (e: any) {
+        return reply.status(500).send({ error: e.message });
+      }
+    }
+  );
+
+  // ── POST /admin/reportei/run-alerts ───────────────────────────────────────
+  // Force-run performance alert detection
+  app.post(
+    '/admin/reportei/run-alerts',
+    { preHandler: [tenantGuard(), authGuard] },
+    async (_request: any, reply: any) => {
+      try {
+        const prev = process.env.PERF_ALERT_FORCE;
+        (process.env as any).PERF_ALERT_FORCE = 'true';
+        await runPerformanceAlertWorkerOnce();
+        (process.env as any).PERF_ALERT_FORCE = prev ?? '';
+        return reply.send({ ok: true });
+      } catch (e: any) {
+        return reply.status(500).send({ error: e.message });
+      }
+    }
+  );
+
+  // ── GET /admin/reportei/alerts ────────────────────────────────────────────
+  // List recent performance alerts for the tenant
+  app.get(
+    '/admin/reportei/alerts',
+    { preHandler: [tenantGuard(), authGuard] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const limit = Number((request.query as any)?.limit ?? 50);
+      const { rows } = await query<any>(
+        `SELECT id, client_id, type, severity, title, body, payload, sent_at
+         FROM notification_logs
+         WHERE tenant_id = $1 AND type IN ('perf_drop', 'perf_spike')
+         ORDER BY sent_at DESC
+         LIMIT $2`,
+        [tenantId, limit]
+      ).catch(() => ({ rows: [] }));
+      return reply.send({ alerts: rows });
     }
   );
 }

@@ -21,9 +21,11 @@ import ValorPage from './ValorPage';
 import MarcaPage from './MarcaPage';
 import EstrategiaPage from './EstrategiaPage';
 import ClientAnalyticsCore from '../analytics/ClientAnalyticsCore';
+import ReporteiMetricsClient from './ReporteiMetricsClient';
 
 const SUB_TABS = [
   { label: 'Performance', icon: <IconChartBar size={16} />,     value: 0 },
+  { label: 'Reportei',    icon: <IconChartDots size={16} />,    value: 7 },
   { label: 'Relatórios',  icon: <IconFileAnalytics size={16} />, value: 1 },
   { label: 'Operacional', icon: <IconHeartbeat size={16} />,    value: 2 },
   { label: 'Valor',       icon: <IconTrophy size={16} />,       value: 3 },
@@ -32,10 +34,11 @@ const SUB_TABS = [
   { label: 'Analytics',   icon: <IconChartDots size={16} />,    value: 6 },
 ];
 
-type MetricsSub = 'performance' | 'relatorios' | 'operacional' | 'valor' | 'marca' | 'estrategia' | 'analytics';
+type MetricsSub = 'performance' | 'reportei' | 'relatorios' | 'operacional' | 'valor' | 'marca' | 'estrategia' | 'analytics';
 
 const SUB_BY_TAB: Record<number, MetricsSub> = {
   0: 'performance',
+  7: 'reportei',
   1: 'relatorios',
   2: 'operacional',
   3: 'valor',
@@ -46,6 +49,7 @@ const SUB_BY_TAB: Record<number, MetricsSub> = {
 
 function parseTabFromSearch(sub: string | null): number {
   if (sub === 'performance') return 0;
+  if (sub === 'reportei') return 7;
   if (sub === 'relatorios') return 1;
   if (sub === 'operacional') return 2;
   if (sub === 'valor') return 3;
@@ -93,6 +97,7 @@ export default function MetricasPage() {
         ))}
       </Tabs>
       {tab === 0 && <ClientPerformanceClient clientId={clientId} />}
+      {tab === 7 && <ReporteiMetricsClient clientId={clientId} />}
       {tab === 1 && <ClientReportsPage />}
       {tab === 2 && <OperacionalPage clientId={clientId} />}
       {tab === 3 && <ValorPage clientId={clientId} />}
