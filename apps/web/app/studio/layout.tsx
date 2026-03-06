@@ -27,6 +27,32 @@ type StudioLayoutProps = {
   children: React.ReactNode;
 };
 
+function PipelineLink() {
+  const [href, setHref] = useState<string>('/edro');
+  useEffect(() => {
+    const id = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    setHref(id ? `/studio/pipeline/${id}` : '/edro');
+  }, []);
+  return (
+    <Box
+      component={Link}
+      href={href}
+      sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        px: 2, py: 1, borderRadius: 3, textDecoration: 'none',
+        border: '1px solid rgba(93,135,255,0.3)',
+        bgcolor: 'rgba(93,135,255,0.06)',
+        color: '#5D87FF',
+        transition: 'background-color 0.2s',
+        '&:hover': { bgcolor: 'rgba(93,135,255,0.12)' },
+      }}
+    >
+      <Box component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✦</Box>
+      <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Pipeline IA</Typography>
+    </Box>
+  );
+}
+
 const ICON_MAP: Record<string, React.ElementType> = {
   edit_note: IconEditCircle,
   devices: IconDevices,
@@ -225,6 +251,31 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
               </Box>
             );
           })}
+        </Box>
+
+        {/* Pipeline IA link */}
+        <Box sx={{ px: 2, pb: 1 }}>
+          <PipelineLink />
+        </Box>
+
+        {/* Livro de Receitas link */}
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Box
+            component={Link}
+            href="/studio/recipes"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              px: 2, py: 1, borderRadius: 3, textDecoration: 'none',
+              border: '1px solid rgba(248,168,0,0.2)',
+              bgcolor: 'rgba(248,168,0,0.04)',
+              color: '#F8A800',
+              transition: 'background-color 0.2s',
+              '&:hover': { bgcolor: 'rgba(248,168,0,0.08)' },
+            }}
+          >
+            <Box component="span" className="material-symbols-rounded" sx={{ fontSize: 18 }}>menu_book</Box>
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Livro de Receitas</Typography>
+          </Box>
         </Box>
 
         {/* Progress */}
