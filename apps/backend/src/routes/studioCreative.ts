@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { query } from '../db/db';
 import {
   generateAdCreative,
   generateArtDirectorPrompt,
@@ -295,5 +296,582 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       brand_colors: clientBrandColors,
       brand_tokens: clientBrandTokens,
     });
+  });
+
+  // ── Director AI — analyzes creative alignment with briefing ──────────────
+  const directorSchema = z.object({
+    briefing_title: z.string().min(1),
+    briefing_payload: z.record(z.any()).optional(),
+    step: z.enum(['briefing', 'copy', 'trigger', 'arte', 'final']),
+    content: z.string().min(1),
+  });
+
+  const TRIGGER_DEFINITIONS = [
+    { id: 'G01', name: 'Escassez', description: 'Urgência por quantidade ou tempo limitado' },
+    { id: 'G02', name: 'Autoridade', description: 'Credibilidade, números, especialistas' },
+    { id: 'G03', name: 'Prova Social', description: 'Depoimentos, comunidade, aprovação coletiva' },
+    { id: 'G04', name: 'Reciprocidade', description: 'Dar valor antes de pedir' },
+    { id: 'G05', name: 'Curiosidade', description: 'Lacuna de informação, intriga, mistério' },
+    { id: 'G06', name: 'Identidade', description: 'Pertencimento, "você é assim", estilo de vida' },
+    { id: 'G07', name: 'Dor/Solução', description: 'Nomear o problema e apresentar alívio' },
+  ];
+
+  app.post('/studio/creative/director-analyze', async (request: any, reply) => {
+    const body = directorSchema.parse(request.body);
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+      const objective = body.briefing_payload?.objective
+        || body.briefing_payload?.goal
+        || body.briefing_title;
+      const audience = body.briefing_payload?.audience || body.briefing_payload?.target_audience || '';
+      const tone = body.briefing_payload?.tone || '';
+      const contentContext = JSON.stringify(body.content).slice(0, 600);
+
+      // ── Briefing step: recommend pipeline + triggers ──────────────────────────
+      if (body.step === 'briefing') {
+        const prompt = `You are a creative director preparing to generate advertising copy.
+
+BRIEFING:
+Title: ${body.briefing_title}
+Objective: ${objective}
+${audience ? `Audience: ${audience}` : ''}
+${tone ? `Tone: ${tone}` : ''}
+Context: ${contentContext}
+
+AVAILABLE PSYCHOLOGICAL TRIGGERS:
+${TRIGGER_DEFINITIONS.map((t) => `${t.id}: ${t.name} — ${t.description}`).join('\n')}
+
+Based on the briefing, recommend:
+1. The best copy pipeline (simple/standard/premium/collaborative/adversarial) with a brief reason
+2. Rank ALL 7 triggers by relevance for this specific campaign, with a short reason each
+
+Return ONLY a JSON object with no markdown:
+{
+  "recommendation": "<1 sentence in Portuguese recommending the pipeline type and why>",
+  "confidence": "high",
+  "trigger_recommendations": [
+    { "id": "G01", "score": <0-100>, "reason": "<why this fits or doesn't fit, 1 short sentence PT-BR>" },
+    ...all 7 triggers ranked by score desc...
+  ]
+}`;
+
+        const result = await generateCompletion({ prompt, maxTokens: 600, temperature: 0.3 });
+        let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        const parsed = JSON.parse(raw);
+        return reply.send({ success: true, ...parsed });
+      }
+
+      // ── Copy/Trigger/Arte steps: evaluate alignment ───────────────────────────
+      const stepLabels: Record<string, string> = {
+        copy: 'texto de copy/legenda',
+        trigger: 'gatilho psicológico escolhido',
+        arte: 'direção de arte + descrição de imagem',
+        final: 'peça criativa final',
+      };
+      const prompt = `You are a creative director reviewing a ${stepLabels[body.step] || body.step} for an advertising campaign.
+
+CAMPAIGN BRIEFING:
+Objective: ${objective}
+${audience ? `Target Audience: ${audience}` : ''}
+
+CREATIVE BEING REVIEWED (${body.step}):
+${body.content.slice(0, 600)}
+
+Evaluate whether this creative element is aligned with the briefing objective.
+Return ONLY a JSON object with no markdown:
+{
+  "score": <number 0-10>,
+  "aligned": <boolean, true if score >= 7>,
+  "message": "<1 sentence in Portuguese about alignment>",
+  "suggestions": ["<0-2 short actionable suggestions in Portuguese if not fully aligned>"]
+}`;
+
+      const result = await generateCompletion({ prompt, maxTokens: 300, temperature: 0.3 });
+      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      return reply.send({ success: true, insight: { ...parsed, step: body.step } });
+    } catch {
+      return reply.send({ success: false });
+    }
+  });
+
+  // ── Video Script — generate scene breakdown from approved copy ────────────
+  const videoScriptSchema = z.object({
+    copy_title: z.string().min(1),
+    copy_body: z.string().optional(),
+    copy_cta: z.string().optional(),
+    platform: z.string().optional(),
+    format: z.string().optional(),
+    duration_seconds: z.number().default(30),
+  });
+
+  app.post('/studio/creative/video-script', async (request: any, reply) => {
+    const body = videoScriptSchema.parse(request.body);
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+      const totalSec = body.duration_seconds;
+      const hookSec = Math.round(totalSec * 0.15);
+      const devSec = Math.round(totalSec * 0.65);
+      const ctaSec = totalSec - hookSec - devSec;
+
+      const prompt = `You are a video scriptwriter for social media.
+
+APPROVED COPY:
+Title/Headline: ${body.copy_title}
+${body.copy_body ? `Body: ${body.copy_body}` : ''}
+${body.copy_cta ? `CTA: ${body.copy_cta}` : ''}
+${body.platform ? `Platform: ${body.platform}` : ''}
+${body.format ? `Format: ${body.format}` : ''}
+Total duration: ${totalSec}s
+
+Create a video script with exactly 3 scenes adapted to this duration:
+- Hook (0-${hookSec}s): Attention-grabbing opening
+- Development (${hookSec}-${hookSec + devSec}s): Core message delivery
+- CTA (${hookSec + devSec}-${totalSec}s): Call to action
+
+Return ONLY a JSON object, no markdown:
+{
+  "scenes": [
+    {
+      "id": "hook",
+      "label": "Hook",
+      "duration_label": "0-${hookSec}s",
+      "narration": "<spoken text in PT-BR, max 2 sentences>",
+      "visual": "<visual description: camera angle, subject, action, mood>",
+      "duration_seconds": ${hookSec}
+    },
+    {
+      "id": "dev",
+      "label": "Desenvolvimento",
+      "duration_label": "${hookSec}-${hookSec + devSec}s",
+      "narration": "<spoken text in PT-BR, max 3 sentences>",
+      "visual": "<visual description>",
+      "duration_seconds": ${devSec}
+    },
+    {
+      "id": "cta",
+      "label": "CTA",
+      "duration_label": "${hookSec + devSec}-${totalSec}s",
+      "narration": "<CTA spoken text in PT-BR, 1 sentence>",
+      "visual": "<visual description with brand elements>",
+      "duration_seconds": ${ctaSec}
+    }
+  ],
+  "total_seconds": ${totalSec},
+  "style_note": "<1 sentence about overall visual style and tone>"
+}`;
+
+      const result = await generateCompletion({ prompt, maxTokens: 800, temperature: 0.5 });
+      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      return reply.send({ success: true, data: parsed });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Agente Crítico — quality gate: scores copy against brief + brand voice ──
+  const criticaSchema = z.object({
+    copy:              z.string().min(1),
+    briefing_title:    z.string().optional(),
+    briefing_payload:  z.record(z.any()).optional(),
+    format:            z.string().optional(),
+    platform:          z.string().optional(),
+    trigger:           z.string().optional(),
+    tone:              z.string().optional(),
+    amd:               z.string().optional(),
+  });
+
+  app.post('/studio/creative/critique', async (request: any, reply) => {
+    const body = criticaSchema.parse(request.body);
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+
+      const prompt = `Você é um Agente Crítico especializado em qualidade de copy publicitário.
+Analise o copy abaixo contra os critérios fornecidos e retorne um JSON de avaliação.
+
+COPY:
+${body.copy}
+
+CRITÉRIOS:
+- Briefing: ${body.briefing_title ?? 'não informado'}
+- Objetivo: ${body.briefing_payload?.objective ?? 'não informado'}
+- Plataforma: ${body.platform ?? 'não informada'} / Formato: ${body.format ?? 'não informado'}
+- Gatilho psicológico alvo: ${body.trigger ?? 'nenhum'}
+- Tom de voz: ${body.tone ?? 'não definido'}
+- Ação Mais Desejada (AMD): ${body.amd ?? 'não definida'}
+
+Avalie 5 dimensões de 0 a 100 (sem decimais).
+Limiar de aprovação geral: 72/100.
+
+Retorne SOMENTE um JSON válido:
+{
+  "overall": <número 0-100>,
+  "passed": <boolean true se overall >= 72>,
+  "dimensions": [
+    { "label": "Alinhamento ao Briefing", "score": <0-100>, "note": "<problema específico se score<72, senão null>" },
+    { "label": "Voz da Marca", "score": <0-100>, "note": "<problema ou null>" },
+    { "label": "Fit com AMD", "score": <0-100>, "note": "<problema ou null>" },
+    { "label": "Consistência do Gatilho", "score": <0-100>, "note": "<problema ou null>" },
+    { "label": "Carga Cognitiva", "score": <0-100>, "note": "<problema ou null>" }
+  ],
+  "issues": ["<problema 1 em PT-BR>", "<problema 2>"],
+  "suggestions": ["<sugestão 1 acionável em PT-BR>", "<sugestão 2>"]
+}`;
+
+      const result = await generateCompletion({ prompt, maxTokens: 600, temperature: 0.2 });
+      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      return reply.send({ success: true, data: parsed });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Agente Redator — 5-plugin chain ──────────────────────────────────────
+  const copyChainSchema = z.object({
+    briefing:      z.object({ title: z.string().optional(), payload: z.any().optional() }).optional(),
+    clientProfile: z.any().optional(),
+    trigger:       z.string().optional(),
+    tone:          z.string().optional(),
+    amd:           z.string().optional(),
+    platform:      z.string().optional(),
+    format:        z.string().optional(),
+    taskType:      z.string().optional(),
+    count:         z.coerce.number().int().min(1).max(3).default(3),
+    // Plugin-level overrides (from frontend parameter controls)
+    brandVoiceOverride: z.object({
+      tom:              z.string().optional(),
+      palavras_proibidas: z.array(z.string()).optional(),
+      persona:          z.string().optional(),
+      estilo:           z.string().optional(),
+      emocao_alvo:      z.string().optional(),
+    }).optional(),
+    strategyOverride: z.object({
+      structure:   z.string().optional(),
+      hooks:       z.array(z.string()).optional(),
+      angles:      z.array(z.string()).optional(),
+      key_tension: z.string().optional(),
+    }).optional(),
+    appealsOverride: z.array(z.enum(['dor', 'logica', 'prova_social'])).optional(),
+  });
+
+  app.post('/studio/creative/copy-chain', async (request: any, reply) => {
+    const body = copyChainSchema.parse(request.body);
+    try {
+      const { runAgentRedator, AgentRedatorParams } = await import('../services/ai/agentRedator') as any;
+      const params = {
+        briefing:      body.briefing,
+        clientProfile: body.clientProfile,
+        trigger:       body.trigger,
+        tone:          body.tone,
+        amd:           body.amd,
+        platform:      body.platform,
+        format:        body.format,
+        taskType:      body.taskType,
+        count:         body.count,
+        brandVoiceOverride: body.brandVoiceOverride,
+        strategyOverride:   body.strategyOverride,
+        appealsOverride:    body.appealsOverride,
+      };
+      const result = await runAgentRedator(params);
+      return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Agente Diretor de Arte — 6-plugin chain ──────────────────────────────
+  const arteChainSchema = z.object({
+    copy:          z.string().optional(),
+    briefing:      z.object({ title: z.string().optional(), payload: z.any().optional() }).optional(),
+    clientProfile: z.any().optional(),
+    trigger:       z.string().optional(),
+    platform:      z.string().optional(),
+    format:        z.string().optional(),
+    aspectRatio:   z.string().optional(),
+    camera:        z.string().optional(),
+    lighting:      z.string().optional(),
+    composition:   z.string().optional(),
+    brandVisualOverride: z.object({
+      primaryColor:   z.string().optional(),
+      styleKeywords:  z.array(z.string()).optional(),
+      moodKeywords:   z.array(z.string()).optional(),
+      avoidElements:  z.array(z.string()).optional(),
+      loraId:         z.string().nullable().optional(),
+      loraScale:      z.number().optional(),
+      referenceStyle: z.string().optional(),
+    }).optional(),
+    payloadOverride: z.object({
+      prompt:            z.string().optional(),
+      negativePrompt:    z.string().optional(),
+      model:             z.string().optional(),
+      guidanceScale:     z.number().optional(),
+      numInferenceSteps: z.number().optional(),
+    }).optional(),
+    generateMultiFormat: z.boolean().optional(),
+  });
+
+  app.post('/studio/creative/arte-chain', async (request: any, reply) => {
+    const body = arteChainSchema.parse(request.body);
+    try {
+      const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
+      const result = await runAgentDiretorArte(body);
+      return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Plugin 4 DA: Arte Visual Critique ─────────────────────────────────────
+  const arteSchema = z.object({
+    image_url:      z.string(),
+    copy_text:      z.string().optional(),
+    briefing_title: z.string().optional(),
+    platform:       z.string().optional(),
+    trigger:        z.string().optional(),
+  });
+
+  app.post('/studio/creative/critique-arte', async (request: any, reply) => {
+    const body = arteSchema.parse(request.body);
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+
+      const prompt = `Você é um Diretor de Arte especializado em crítica visual de peças publicitárias digitais.
+Analise a imagem na URL abaixo (considere-a como descrita pelos parâmetros de contexto) e avalie a qualidade visual.
+
+CONTEXTO:
+- URL da imagem: ${body.image_url}
+- Plataforma: ${body.platform ?? 'não informada'}
+- Gatilho psicológico: ${body.trigger ?? 'nenhum'}
+- Copy vinculada: ${body.copy_text ? body.copy_text.slice(0, 300) : 'não informada'}
+- Briefing: ${body.briefing_title ?? 'não informado'}
+
+Avalie 4 dimensões visuais de 0 a 100 (sem decimais).
+Limiar de aprovação: 72/100.
+
+Retorne SOMENTE um JSON válido:
+{
+  "overall": <número 0-100>,
+  "passed": <boolean true se overall >= 72>,
+  "dimensions": [
+    { "label": "Qualidade de Renderização", "score": <0-100>, "note": "<problema específico se score<72, senão null>" },
+    { "label": "Contraste do Texto",        "score": <0-100>, "note": "<problema ou null>" },
+    { "label": "Hierarquia Visual",         "score": <0-100>, "note": "<problema ou null>" },
+    { "label": "Coerência Copy↔Imagem",     "score": <0-100>, "note": "<problema ou null>" }
+  ],
+  "issues": ["<problema visual 1 em PT-BR>", "<problema 2>"],
+  "suggestions": ["<sugestão acionável 1 em PT-BR>", "<sugestão 2>"]
+}`;
+
+      const result = await generateCompletion({ prompt, maxTokens: 500, temperature: 0.2 });
+      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      return reply.send({ success: true, data: parsed });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Pipeline Session — save/restore canvas state across refreshes ─────────
+
+  app.get('/studio/pipeline/:briefingId/session', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { briefingId } = request.params as { briefingId: string };
+    const { rows } = await query(
+      `SELECT state FROM pipeline_sessions WHERE briefing_id = $1 AND tenant_id = $2`,
+      [briefingId, tenantId]
+    );
+    return reply.send({ success: true, state: rows[0]?.state ?? {} });
+  });
+
+  app.patch('/studio/pipeline/:briefingId/session', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { briefingId } = request.params as { briefingId: string };
+    const state = request.body as Record<string, any>;
+    await query(
+      `INSERT INTO pipeline_sessions (briefing_id, tenant_id, state, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (briefing_id) DO UPDATE
+         SET state = EXCLUDED.state, updated_at = NOW()`,
+      [briefingId, tenantId, JSON.stringify(state)]
+    );
+    return reply.send({ success: true });
+  });
+
+  // ── Biblioteca de Peças — save/list generated creatives ──────────────────
+
+  const bibliotecaSchema = z.object({
+    client_id:     z.string().uuid().optional(),
+    briefing_id:   z.string().uuid().optional(),
+    platform:      z.string().optional(),
+    format:        z.string().optional(),
+    trigger_id:    z.string().optional(),
+    copy_title:    z.string().optional(),
+    copy_body:     z.string().optional(),
+    copy_cta:      z.string().optional(),
+    copy_legenda:  z.string().optional(),
+    image_url:     z.string().optional(),
+    recipe_name:   z.string().optional(),
+    pipeline_type: z.string().optional(),
+  });
+
+  app.post('/studio/biblioteca', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const body = bibliotecaSchema.parse(request.body);
+    const { rows } = await query(
+      `INSERT INTO studio_creatives
+         (tenant_id, client_id, briefing_id, platform, format, trigger_id,
+          copy_title, copy_body, copy_cta, copy_legenda, image_url, recipe_name, pipeline_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING id, created_at`,
+      [
+        tenantId,
+        body.client_id ?? null, body.briefing_id ?? null,
+        body.platform ?? null, body.format ?? null, body.trigger_id ?? null,
+        body.copy_title ?? null, body.copy_body ?? null, body.copy_cta ?? null,
+        body.copy_legenda ?? null, body.image_url ?? null,
+        body.recipe_name ?? null, body.pipeline_type ?? 'standard',
+      ]
+    );
+    return reply.send({ success: true, data: rows[0] });
+  });
+
+  app.get('/studio/biblioteca', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { client_id, platform, trigger_id, status, limit = '20', offset = '0' } = request.query as Record<string, string>;
+    const conditions: string[] = ['tenant_id = $1'];
+    const params: any[] = [tenantId];
+    if (client_id)  { conditions.push(`client_id = $${params.push(client_id)}`); }
+    if (platform)   { conditions.push(`platform = $${params.push(platform)}`); }
+    if (trigger_id) { conditions.push(`trigger_id = $${params.push(trigger_id)}`); }
+    if (status)     { conditions.push(`status = $${params.push(status)}`); }
+    const whereClause = conditions.join(' AND ');
+    const whereParams = [...params]; // snapshot before adding LIMIT/OFFSET
+    const { rows } = await query(
+      `SELECT * FROM studio_creatives
+       WHERE ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${params.push(parseInt(limit, 10) || 20)}
+       OFFSET $${params.push(parseInt(offset, 10) || 0)}`,
+      params
+    );
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*)::int AS total FROM studio_creatives WHERE ${whereClause}`,
+      whereParams
+    );
+    return reply.send({ success: true, data: rows, total: countRows[0]?.total ?? 0 });
+  });
+
+  app.patch('/studio/biblioteca/:id', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { id } = request.params as { id: string };
+    const { status } = request.body as { status: string };
+    await query(
+      `UPDATE studio_creatives SET status = $1 WHERE id = $2 AND tenant_id = $3`,
+      [status, id, tenantId]
+    );
+    return reply.send({ success: true });
+  });
+
+  app.delete('/studio/biblioteca/:id', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { id } = request.params as { id: string };
+    await query(`DELETE FROM studio_creatives WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    return reply.send({ success: true });
+  });
+
+  // ── Publicar no Meta (Instagram / Facebook) ──────────────────────────────
+
+  app.post('/studio/creative/publish-meta', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { client_id, image_url, caption, briefing_id, creative_id } = request.body as {
+      client_id: string;
+      image_url: string;
+      caption: string;
+      briefing_id?: string;
+      creative_id?: string;
+    };
+
+    if (!client_id || !image_url || !caption) {
+      return reply.status(400).send({ success: false, error: 'client_id, image_url, and caption are required' });
+    }
+
+    // Fetch Meta connector for this client
+    const { rows: connectorRows } = await query(
+      `SELECT payload, secrets_enc FROM connectors WHERE tenant_id = $1 AND client_id = $2 AND provider = 'meta' AND status = 'active' LIMIT 1`,
+      [tenantId, client_id]
+    );
+    if (!connectorRows.length) {
+      return reply.status(400).send({ success: false, error: 'Meta connector not found for this client. Connect via OAuth first.' });
+    }
+
+    const connector = connectorRows[0];
+    const payload = connector.payload as Record<string, any>;
+    const accessToken = connector.secrets_enc; // stored as plaintext for now (encrypted in production)
+
+    const META_GRAPH_VERSION = 'v18.0';
+    const igUserId = payload.instagram_business_id as string | undefined;
+    const pageId = payload.page_id as string | undefined;
+
+    let postId: string | null = null;
+    let platform: string;
+
+    try {
+      if (igUserId) {
+        // Instagram: two-step (create container → publish)
+        platform = 'Instagram';
+        const createRes = await fetch(
+          `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/media`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_url, caption, access_token: accessToken }),
+          }
+        );
+        const createData = await createRes.json() as { id?: string; error?: any };
+        if (!createData.id) throw new Error(`Instagram media create failed: ${JSON.stringify(createData.error)}`);
+
+        const publishRes = await fetch(
+          `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/media_publish`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ creation_id: createData.id, access_token: accessToken }),
+          }
+        );
+        const publishData = await publishRes.json() as { id?: string; error?: any };
+        if (!publishData.id) throw new Error(`Instagram publish failed: ${JSON.stringify(publishData.error)}`);
+        postId = publishData.id;
+      } else if (pageId) {
+        // Facebook Page photo post
+        platform = 'Facebook';
+        const res = await fetch(
+          `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}/photos`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: image_url, caption, access_token: accessToken }),
+          }
+        );
+        const data = await res.json() as { id?: string; post_id?: string; error?: any };
+        if (!data.id && !data.post_id) throw new Error(`Facebook post failed: ${JSON.stringify(data.error)}`);
+        postId = data.post_id ?? data.id ?? null;
+      } else {
+        return reply.status(400).send({ success: false, error: 'No Instagram or Facebook page configured in this connector.' });
+      }
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+
+    // Mark creative as published if creative_id provided
+    if (creative_id) {
+      await query(
+        `UPDATE studio_creatives SET status = 'published' WHERE id = $1 AND tenant_id = $2`,
+        [creative_id, tenantId]
+      ).catch(() => {});
+    }
+
+    return reply.send({ success: true, post_id: postId, platform });
   });
 }

@@ -9,6 +9,7 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconReceipt2,
+  IconPhoto,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -74,6 +75,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Creative Studio',
         icon: IconPalette,
         href: '/studio',
+      },
+      {
+        id: 'biblioteca',
+        title: 'Biblioteca de Peças',
+        icon: IconPhoto,
+        href: '/studio/biblioteca',
       },
     ],
   },

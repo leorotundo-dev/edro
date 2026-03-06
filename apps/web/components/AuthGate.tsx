@@ -8,7 +8,7 @@ type AuthGateProps = {
 };
 
 const PUBLIC_PATHS = new Set(['/login']);
-const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta'];
+const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta', '/portal/approval'];
 
 export default function AuthGate({ children }: AuthGateProps) {
   const router = useRouter();

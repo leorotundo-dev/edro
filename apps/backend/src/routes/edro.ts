@@ -3311,6 +3311,28 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     return reply.send({ success: true, data: { action: body.action } });
   });
 
+  // Public endpoint — confirm pipeline approval by review_token (no auth required)
+  app.get('/edro/public/creative-approval', async (request, reply) => {
+    const { token, action } = z.object({
+      token:  z.string().uuid(),
+      action: z.enum(['approved', 'rejected']),
+    }).parse(request.query);
+
+    const { rows } = await query(
+      `UPDATE briefing_approvals
+       SET status = $1, reviewed_at = NOW(), updated_at = NOW()
+       WHERE review_token = $2 AND status = 'pending'
+       RETURNING id, briefing_id`,
+      [action, token]
+    );
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Link inválido, expirado ou já respondido.' });
+    }
+
+    return reply.send({ success: true, action });
+  });
+
   // ── Intelligence Refresh ──────────────────────────────────────
   app.post('/edro/intelligence/refresh-all', async (request, reply) => {
     const user = resolveUser(request);
@@ -4590,5 +4612,143 @@ Retorne APENAS JSON válido (sem markdown):
     } catch (err: any) {
       return reply.status(500).send({ success: false, error: err.message ?? 'brief_message_failed' });
     }
+  });
+
+  // ── Pipeline Approval — send creative for client approval ─────────────────
+  app.post('/edro/briefings/:briefingId/send-approval', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { briefingId } = request.params as { briefingId: string };
+    const { client_email, message, include_copy, include_arte, copy_text, image_url } = request.body as {
+      client_email: string;
+      message?: string;
+      include_copy?: boolean;
+      include_arte?: boolean;
+      copy_text?: string;
+      image_url?: string;
+    };
+
+    if (!client_email) {
+      return reply.status(400).send({ success: false, error: 'client_email required' });
+    }
+
+    // Fetch briefing title for the email
+    const { rows: briefingRows } = await query(
+      `SELECT title FROM edro_briefings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [briefingId, tenantId]
+    );
+    const briefingTitle = briefingRows[0]?.title ?? 'Nova criação';
+
+    // Persist approval record with review_token
+    const { rows: approvalRows } = await query(
+      `INSERT INTO briefing_approvals (briefing_id, tenant_id, client_email, message, status, sent_at, copy_text, image_url, review_token)
+       VALUES ($1, $2, $3, $4, 'pending', NOW(), $5, $6, gen_random_uuid())
+       ON CONFLICT (briefing_id) DO UPDATE
+         SET client_email = EXCLUDED.client_email,
+             message = EXCLUDED.message,
+             status = 'pending',
+             sent_at = NOW(),
+             updated_at = NOW(),
+             copy_text = EXCLUDED.copy_text,
+             image_url = EXCLUDED.image_url,
+             review_token = gen_random_uuid()
+       RETURNING review_token`,
+      [briefingId, tenantId, client_email, message || null, copy_text || null, image_url || null]
+    );
+    const reviewToken = approvalRows[0]?.review_token;
+
+    // Send approval email
+    try {
+      const { sendEmail } = await import('../services/emailService');
+      const { env: envVars } = await import('../env');
+      const webBase = (envVars.WEB_URL || 'https://app.edro.digital').replace(/\/$/, '');
+      const approveUrl = `${webBase}/portal/approval/${reviewToken}?action=approved`;
+      const rejectUrl  = `${webBase}/portal/approval/${reviewToken}?action=rejected`;
+      const sentAt = new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const arteSectionHtml = include_arte && image_url
+        ? `<div style="text-align:center;margin:20px 0"><img src="${image_url}" alt="Arte" style="max-width:480px;width:100%;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15)"/></div>`
+        : '';
+      const copySectionHtml = include_copy !== false && copy_text
+        ? `<div style="background:#f8f9fa;border-left:4px solid #E85219;padding:16px 20px;border-radius:0 8px 8px 0;margin:16px 0;color:#1a1a1a;font-size:15px;line-height:1.6">${copy_text.replace(/\n/g, '<br>')}</div>`
+        : '';
+      const messageSectionHtml = message
+        ? `<p style="color:#555;font-size:14px;font-style:italic;border:1px solid #e0e0e0;padding:12px 16px;border-radius:6px;margin:16px 0">"${message}"</p>`
+        : '';
+      const emailHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;margin:0;padding:20px">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);overflow:hidden">
+  <div style="background:#0d0d0d;padding:24px 28px">
+    <p style="color:#E85219;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 6px">Edro.Digital · Creative Studio</p>
+    <h1 style="color:#fff;font-size:22px;margin:0;font-weight:700">${briefingTitle}</h1>
+    <p style="color:#888;font-size:13px;margin:6px 0 0">Enviado em ${sentAt}</p>
+  </div>
+  <div style="padding:28px">
+    <p style="color:#1a1a1a;font-size:16px;margin:0 0 16px">Olá,</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;margin:0 0 20px">Uma nova peça criativa está aguardando sua aprovação.</p>
+    ${messageSectionHtml}
+    ${arteSectionHtml}
+    ${copySectionHtml}
+    <div style="text-align:center;margin:28px 0 8px">
+      <a href="${approveUrl}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:700;margin:0 8px">✓ Aprovar</a>
+      <a href="${rejectUrl}" style="display:inline-block;background:#fff;color:#dc2626;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:700;border:2px solid #dc2626;margin:0 8px">✕ Recusar</a>
+    </div>
+    <p style="text-align:center;color:#aaa;font-size:12px;margin:12px 0 0">Ao clicar, sua resposta será registrada automaticamente.</p>
+  </div>
+  <div style="background:#f8f8f8;padding:16px 28px;border-top:1px solid #eee;text-align:center">
+    <p style="color:#aaa;font-size:12px;margin:0">Edro.Digital Creative Studio · Responda a este e-mail para enviar feedback.</p>
+  </div>
+</div>
+</body>
+</html>`;
+      await sendEmail({
+        to: client_email,
+        subject: `Peça para aprovação: ${briefingTitle}`,
+        html: emailHtml,
+      });
+    } catch {
+      // Email is best-effort — don't fail the request if SMTP is not configured
+    }
+
+    return reply.send({ success: true, status: 'pending', sent_at: new Date().toISOString() });
+  });
+
+  app.get('/edro/briefings/:briefingId/approval-status', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { briefingId } = request.params as { briefingId: string };
+
+    const { rows } = await query(
+      `SELECT status, sent_at, reviewed_at, reviewer_notes
+       FROM briefing_approvals
+       WHERE briefing_id = $1 AND tenant_id = $2`,
+      [briefingId, tenantId]
+    );
+    if (!rows.length) return reply.send({ success: true, status: 'idle' });
+    return reply.send({ success: true, ...rows[0] });
+  });
+
+  // ── Pipeline Schedule — register a planned publication ────────────────────
+  app.post('/studio/creative/schedule', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const { briefing_id, platform, scheduled_at, copy_text, image_url } = request.body as {
+      briefing_id?: string;
+      platform: string;
+      scheduled_at: string;
+      copy_text?: string;
+      image_url?: string;
+    };
+
+    if (!platform || !scheduled_at) {
+      return reply.status(400).send({ success: false, error: 'platform and scheduled_at required' });
+    }
+
+    const { rows } = await query(
+      `INSERT INTO scheduled_publications
+         (tenant_id, briefing_id, platform, scheduled_at, copy_text, image_url, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')
+       RETURNING id, scheduled_at`,
+      [tenantId, briefing_id || null, platform, scheduled_at, copy_text || null, image_url || null]
+    );
+    return reply.send({ success: true, data: rows[0] });
   });
 }
