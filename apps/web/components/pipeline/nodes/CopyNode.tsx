@@ -15,7 +15,7 @@ import {
   IconTextScan2, IconMinus, IconPlus, IconRefresh, IconCheck,
   IconBolt, IconTarget, IconBrain, IconSparkles, IconChevronDown, IconAlertTriangle,
   IconLayersLinked, IconTestPipe, IconMovie, IconShieldCheck,
-  IconRobot,
+  IconRobot, IconDevices,
 } from '@tabler/icons-react';
 import { useState, useMemo } from 'react';
 import NodeShell from '../NodeShell';
@@ -108,6 +108,15 @@ function OptionQualityBadge({ opt }: { opt: { title: string; body: string; cta: 
   );
 }
 
+const PLATFORM_OPTIONS = [
+  { id: 'Instagram',  icon: '📸', charLimit: 2200 },
+  { id: 'LinkedIn',   icon: '💼', charLimit: 3000 },
+  { id: 'Facebook',   icon: '👥', charLimit: 63206 },
+  { id: 'Twitter/X',  icon: '🐦', charLimit: 280 },
+  { id: 'TikTok',     icon: '🎵', charLimit: 2200 },
+  { id: 'WhatsApp',   icon: '💬', charLimit: 65536 },
+];
+
 export default function CopyNode() {
   const {
     copyGenerating, copyOptions, selectedCopyIdx, setSelectedCopyIdx,
@@ -116,6 +125,7 @@ export default function CopyNode() {
     tone, setTone, amd, setAmd, copyIsStale,
     addOptionalNode, activeNodeIds,
     copyChainResult, copyChainStep, handleGenerateCopyChain,
+    targetPlatforms, setTargetPlatforms,
   } = usePipeline();
 
   const [pipeline, setPipeline] = useState('standard');
@@ -276,6 +286,49 @@ export default function CopyNode() {
                   }}
                 />
               ))}
+            </Stack>
+          </Box>
+
+          {/* Platform selector — Otimizador de Canal */}
+          <Box>
+            <Stack direction="row" spacing={0.5} alignItems="center" mb={0.6}>
+              <IconDevices size={11} color="#888" />
+              <Typography sx={{ fontSize: '0.58rem', color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Plataformas-alvo
+              </Typography>
+              <Typography sx={{ fontSize: '0.52rem', color: '#444', ml: 'auto' }}>
+                Otimizador de Canal adapta o texto
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.4} flexWrap="wrap" gap={0.4}>
+              {PLATFORM_OPTIONS.map((p) => {
+                const active = targetPlatforms.includes(p.id);
+                return (
+                  <Box
+                    key={p.id}
+                    onClick={() => {
+                      setTargetPlatforms(
+                        active && targetPlatforms.length > 1
+                          ? targetPlatforms.filter((x) => x !== p.id)
+                          : !active ? [...targetPlatforms, p.id] : targetPlatforms
+                      );
+                    }}
+                    sx={{
+                      px: 0.75, py: 0.4, borderRadius: 1.5, cursor: 'pointer',
+                      border: '1px solid', transition: 'all 0.15s',
+                      borderColor: active ? '#5D87FF' : '#1e1e1e',
+                      bgcolor: active ? 'rgba(93,135,255,0.1)' : 'transparent',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '0.6rem', color: active ? '#5D87FF' : '#555', fontWeight: active ? 700 : 400, whiteSpace: 'nowrap' }}>
+                      {p.icon} {p.id}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.48rem', color: '#444', textAlign: 'center' }}>
+                      {p.charLimit >= 10000 ? '∞' : `${p.charLimit}c`}
+                    </Typography>
+                  </Box>
+                );
+              })}
             </Stack>
           </Box>
 

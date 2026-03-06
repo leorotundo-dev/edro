@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { IconBulb } from '@tabler/icons-react';
+import { usePipeline } from '../PipelineContext';
 
 // Best-practice copy tips per platform/format
 const FORMAT_TIPS: Record<string, { label: string; tips: string[] }> = {
@@ -54,12 +55,9 @@ function resolveHints(platform?: string, format?: string) {
   return FORMAT_TIPS[key] || FORMAT_TIPS[`${(platform || '').toLowerCase()}_feed`] || FORMAT_TIPS['default'];
 }
 
-interface Props {
-  data: { platform?: string; format?: string };
-}
-
-export default function FormatHintsNode({ data }: Props) {
-  const hints = resolveHints(data.platform, data.format);
+export default function FormatHintsNode() {
+  const { activeFormat } = usePipeline();
+  const hints = resolveHints(activeFormat?.platform, activeFormat?.format);
 
   return (
     <Box sx={{

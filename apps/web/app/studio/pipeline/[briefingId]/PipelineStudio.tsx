@@ -138,21 +138,26 @@ const edgeTypes = {
 // Only briefing shown at start — copy appears after user confirms briefing
 function buildInitialNodes(): Node[] {
   return [
-    { id: 'briefing',  type: 'briefing',  position: { x: 40, y: 180 }, data: {} },
-    { id: 'clientDNA', type: 'clientDNA', position: { x: 40, y: 480 }, data: {} },
+    { id: 'briefing',  type: 'briefing',  position: { x: 40,  y: 160 }, data: {} },
+    { id: 'clientDNA', type: 'clientDNA', position: { x: 40,  y: 440 }, data: {} },
   ];
 }
 
 // Optional node positions for AddNodePanel injection
+// Layout — 3 camadas (Gemini architecture):
+//   CAMADA 1 — CRIAÇÃO      (y: 160)   Briefing→Trigger→Copy→Arte→Export
+//   CAMADA 1.5 — CONTEXTO   (y: 440-860) ClientDNA, LearningRules, BrandVoice...
+//   CAMADA 2 — QA + DISTRIB (y: 560-760) Crítica, Approval, Schedule, MultiFormat
+//   CAMADA 3 — ANALYTICS    (y: 980)   Performance, LearningFeedback
 const OPTIONAL_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
-  critica:          { x: 720,  y: 360 },
-  multiFormat:      { x: 1080, y: 360 },
-  abTest:           { x: 1080, y: 580 },
-  videoScript:      { x: 1360, y: 360 },
-  approval:         { x: 200,  y: 740 },
-  schedule:         { x: 560,  y: 740 },
-  performance:      { x: 200,  y: 1000 },
-  learningFeedback: { x: 600,  y: 1000 },
+  critica:          { x: 1120, y: 360 },
+  multiFormat:      { x: 1440, y: 400 },
+  abTest:           { x: 1120, y: 580 },
+  videoScript:      { x: 1440, y: 580 },
+  approval:         { x: 200,  y: 760 },
+  schedule:         { x: 580,  y: 760 },
+  performance:      { x: 200,  y: 980 },
+  learningFeedback: { x: 600,  y: 980 },
 };
 
 function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
@@ -288,6 +293,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // Creative settings
   const [tone, setTone] = useState('');
   const [amd, setAmd] = useState('');
+
+  // Target platforms — selected in CopyNode for the Otimizador de Canal step
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(['Instagram']);
 
   // Funnel phase
   const [funnelPhase, setFunnelPhase] = useState<FunnelPhase>('awareness');
@@ -532,7 +540,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
           force_provider: provider || undefined,
           instructions: [
             activeFormat?.format ? `Formato selecionado: ${activeFormat.format}` : '',
-            activeFormat?.platform ? `Plataforma: ${activeFormat.platform}` : '',
+            targetPlatforms.length ? `Plataformas-alvo: ${targetPlatforms.join(', ')}. Adapte o texto aos limites de caracteres e linguagem de cada plataforma.` : '',
             selectedTrigger ? `Gatilho psicológico obrigatório: ${selectedTrigger} — ${TRIGGER_NAMES[selectedTrigger] || ''}. O copy deve ser escrito para ativar EXPLICITAMENTE este gatilho.` : '',
             tone ? `Tom de voz: ${tone}.` : '',
             amd ? `Ação Mais Desejada (AMD): ${AMD_LABELS[amd] || amd}. O copy deve ser otimizado para gerar esta ação específica.` : '',
@@ -541,7 +549,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
           ].filter(Boolean).join('\n'),
           metadata: {
             format: activeFormat?.format || null,
-            platform: activeFormat?.platform || null,
+            platform: targetPlatforms[0] || activeFormat?.platform || null,
+            platforms: targetPlatforms,
             trigger: selectedTrigger || null,
             tone: tone || null,
             amd: amd || null,
@@ -573,9 +582,10 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     setNodes((prev) => {
       const ids = new Set(prev.map((n) => n.id));
       const additions: Node[] = [];
-      // Agente Crítico — auto-injects below CopyNode
-      if (!ids.has('critica')) additions.push({ id: 'critica', type: 'critica', position: { x: 720, y: 360 }, data: { entering: true } });
-      if (!ids.has('arte'))    additions.push({ id: 'arte',    type: 'arte',    position: { x: 1080, y: 120 }, data: { entering: true } });
+      // CAMADA 2 — QA: Crítica auto-injeta como checkpoint entre Copy→Arte e Distribuição
+      if (!ids.has('critica')) additions.push({ id: 'critica', type: 'critica', position: { x: 1120, y: 360 }, data: { entering: true } });
+      // CAMADA 1 (continua) — Arte em paralelo visual com a Crítica
+      if (!ids.has('arte'))    additions.push({ id: 'arte',    type: 'arte',    position: { x: 1080, y: 160 }, data: { entering: true } });
       return additions.length ? [...prev, ...additions] : prev;
     });
   }, [setNodes]);
@@ -607,7 +617,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
         trigger: selectedTrigger,
         tone,
         amd,
-        platform: activeFormat?.platform,
+        platform: targetPlatforms[0] || activeFormat?.platform,
+        platforms: targetPlatforms,
         format: activeFormat?.format,
         taskType: 'social_post',
         count: 3,
@@ -696,15 +707,16 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     setNodes((prev) => {
       const ids = new Set(prev.map((n) => n.id));
       const additions: Node[] = [];
-      if (!ids.has('copy'))          additions.push({ id: 'copy',          type: 'copy',          position: { x: 720,  y: 120 }, data: { entering: true } });
-      if (!ids.has('learningRules')) additions.push({ id: 'learningRules', type: 'learningRules', position: { x: 40,   y: 480 }, data: { rules: [], loading: true } });
-      if (!ids.has('formatHints'))   additions.push({ id: 'formatHints',   type: 'formatHints',   position: { x: 40,   y: 700 }, data: { platform: activeFormat?.platform, format: activeFormat?.format } });
-      // Armário de Ingredientes — persona, brand voice, prompt DNA
-      if (!ids.has('personasDNA'))   additions.push({ id: 'personasDNA',   type: 'personasDNA',   position: { x: 290,  y: 480 }, data: {
+      // CAMADA 1 — CRIAÇÃO
+      if (!ids.has('copy'))          additions.push({ id: 'copy',          type: 'copy',          position: { x: 720,  y: 160 }, data: { entering: true } });
+      // CAMADA 1.5 — CONTEXTO (alimenta o CopyNode via edges)
+      if (!ids.has('learningRules')) additions.push({ id: 'learningRules', type: 'learningRules', position: { x: 40,   y: 660 }, data: { rules: [], loading: true } });
+      if (!ids.has('formatHints'))   additions.push({ id: 'formatHints',   type: 'formatHints',   position: { x: 40,   y: 880 }, data: {} });
+      if (!ids.has('personasDNA'))   additions.push({ id: 'personasDNA',   type: 'personasDNA',   position: { x: 290,  y: 440 }, data: {
         personas:  clientProfile.personas ?? [],
         audience:  clientProfile.audience ?? null,
       }});
-      if (!ids.has('brandVoice'))    additions.push({ id: 'brandVoice',    type: 'brandVoice',    position: { x: 560,  y: 480 }, data: {
+      if (!ids.has('brandVoice'))    additions.push({ id: 'brandVoice',    type: 'brandVoice',    position: { x: 560,  y: 440 }, data: {
         brand_voice:        clientProfile.brand_voice,
         must_mentions:      clientProfile.must_mentions,
         rejection_patterns: clientProfile.rejection_patterns,
@@ -712,7 +724,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
         emoji_usage:        clientProfile.emoji_usage,
         risk_tolerance:     clientProfile.risk_tolerance,
       }});
-      if (!ids.has('promptDNA'))     additions.push({ id: 'promptDNA',     type: 'promptDNA',     position: { x: 290,  y: 700 }, data: {} });
+      if (!ids.has('promptDNA'))     additions.push({ id: 'promptDNA',     type: 'promptDNA',     position: { x: 290,  y: 660 }, data: {} });
       return additions.length ? [...prev, ...additions] : prev;
     });
   }, [setNodes, activeFormat, clientProfile]);
@@ -885,6 +897,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     briefing, activeFormat, clientBrandColor,
     briefingConfirmed, confirmBriefing,
     tone, setTone, amd, setAmd,
+    targetPlatforms, setTargetPlatforms,
     funnelPhase, setFunnelPhase,
     ocasiao, setOcasiao, ocasiaoConfirmed, confirmOcasiao,
     copyGenerating, copyOptions, selectedCopyIdx, setSelectedCopyIdx,

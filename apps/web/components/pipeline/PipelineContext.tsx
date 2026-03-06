@@ -71,6 +71,10 @@ export interface PipelineContextValue {
   amd: string;
   setAmd: (a: string) => void;
 
+  // Target platforms — selected in CopyNode, used by Otimizador de Canal + MultiFormat
+  targetPlatforms: string[];
+  setTargetPlatforms: (platforms: string[]) => void;
+
   // Copy
   copyGenerating: boolean;
   copyOptions: ParsedOption[];

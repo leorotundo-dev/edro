@@ -188,6 +188,7 @@ export default function CriticaNode() {
 
   function buildArteHeuristic(): CriticaResult {
     // Client-side fallback when endpoint is unavailable
+    // Scores são estimativas — endpoint real retorna análise de visão computacional
     const base = 65;
     return {
       overall: base,
@@ -197,9 +198,14 @@ export default function CriticaNode() {
         { label: 'Contraste do Texto',        score: 62, note: 'Verificar legibilidade sobre a imagem' },
         { label: 'Hierarquia Visual',         score: 70 },
         { label: 'Coerência Copy↔Imagem',     score: 55, note: 'Garantir que imagem reforça a mensagem' },
+        { label: 'Conformidade de Cores',     score: 60, note: 'Verificar se cores hex da marca foram aplicadas' },
+        { label: 'Originalidade',             score: 72, note: 'Nenhuma cópia exata detectada — estimativa' },
       ],
       issues:      ['Endpoint de crítica visual não disponível — estimativa heurística'],
-      suggestions: ['Verifique contraste de texto sobre o fundo', 'Confirme que o elemento principal está em foco'],
+      suggestions: [
+        'Verifique se as cores hex da marca estão presentes na composição',
+        'Confirme que o elemento principal está em foco e sem textura de referência externa',
+      ],
     };
   }
 

@@ -2,7 +2,6 @@
 import { Handle, Position } from '@xyflow/react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -46,7 +45,7 @@ const TONE_OPTIONS = [
 ];
 
 export default function BriefingNode() {
-  const { briefing, activeFormat, clientBrandColor, briefingConfirmed, confirmBriefing, nodeStatus, suggestedRecipes, applyRecipe, learningRulesCount, tone, setTone, amd, setAmd } = usePipeline();
+  const { briefing, clientBrandColor, confirmBriefing, nodeStatus, suggestedRecipes, applyRecipe, learningRulesCount, tone, setTone, amd, setAmd } = usePipeline();
 
   const status = nodeStatus.briefing;
   const isLoading = !briefing;
@@ -58,18 +57,6 @@ export default function BriefingNode() {
       </Typography>
       {briefing?.client_name && (
         <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{briefing.client_name}</Typography>
-      )}
-      {activeFormat && (
-        <Stack direction="row" spacing={0.5} flexWrap="wrap">
-          {activeFormat.platform && (
-            <Chip size="small" label={activeFormat.platform}
-              sx={{ height: 18, fontSize: '0.58rem', bgcolor: 'rgba(19,222,185,0.12)', color: '#13DEB9', border: 'none' }} />
-          )}
-          {activeFormat.format && (
-            <Chip size="small" label={activeFormat.format}
-              sx={{ height: 18, fontSize: '0.58rem', bgcolor: 'rgba(19,222,185,0.12)', color: '#13DEB9', border: 'none' }} />
-          )}
-        </Stack>
       )}
     </Stack>
   );
@@ -102,8 +89,6 @@ export default function BriefingNode() {
                 <Stack spacing={0.6}>
                   <MiseItem ok={true} label="Briefing" value={briefing.title} />
                   <MiseItem ok={!!briefing.client_name} label="Cliente" value={briefing.client_name ?? 'Não identificado'} />
-                  <MiseItem ok={!!activeFormat?.platform} label="Plataforma" value={activeFormat?.platform ?? 'Não selecionada'} />
-                  <MiseItem ok={!!activeFormat?.format} label="Formato" value={activeFormat?.format ?? 'Não selecionado'} />
                   <MiseItem ok={clientBrandColor !== '#F5C518'} label="DNA da marca" value={clientBrandColor !== '#F5C518' ? clientBrandColor : 'Carregando…'} />
                   <MiseItem
                     ok={learningRulesCount === null ? null : learningRulesCount > 0}
