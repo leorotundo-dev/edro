@@ -24,7 +24,28 @@ import {
   IconFileTypePdf, IconPhoto, IconPlus, IconTrash, IconUpload,
   IconWand, IconWorld, IconX,
 } from '@tabler/icons-react';
-import { apiPatch, apiPost } from '@/lib/api';
+import { apiPatch, buildApiUrl } from '@/lib/api';
+
+function getToken() {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('edro_token') || '';
+}
+
+async function uploadBrandAsset(clientId: string, file: File, assetType: string): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('assetType', assetType);
+  const url = buildApiUrl(`/clients/${clientId}/brand-assets/upload`);
+  const token = getToken();
+  const res = await fetch(url, {
+    method: 'POST',
+    body: form,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.url as string;
+}
 
 type BrandTokens = {
   typography?: string;
@@ -116,17 +137,8 @@ function FileUploadField({ clientId, assetType, label, accept, currentUrl, onUpl
     setUploading(true);
     setError('');
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('assetType', assetType);
-      const res = await fetch(`/api/clients/${clientId}/brand-assets/upload`, {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      onUploaded(data.url);
+      const url = await uploadBrandAsset(clientId, file, assetType);
+      onUploaded(url);
     } catch (err: any) {
       setError(err?.message || 'Falha no upload');
     } finally {
@@ -203,15 +215,8 @@ function ReferenceImagesField({ clientId, images, onChange }: {
     try {
       const urls: string[] = [];
       for (const file of files.slice(0, 6)) {
-        const form = new FormData();
-        form.append('file', file);
-        form.append('assetType', 'reference_image');
-        const res = await fetch(`/api/clients/${clientId}/brand-assets/upload`, {
-          method: 'POST', body: form, credentials: 'include',
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        urls.push(data.url);
+        const url = await uploadBrandAsset(clientId, file, 'reference_image');
+        urls.push(url);
       }
       onChange([...images, ...urls].slice(0, 12));
     } catch (err: any) {
@@ -309,8 +314,10 @@ export default function BrandTokensCard({ clientId, initialTokens, initialWebsit
     setSuccess('');
     try {
       // Save brand_tokens + knowledge_base (website + socials) in one patch
-      const currentClient = await fetch(`/api/clients/${clientId}`, { credentials: 'include' })
-        .then((r) => r.json()).catch(() => ({}));
+      const token = getToken();
+      const currentClient = await fetch(buildApiUrl(`/clients/${clientId}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then((r) => r.json()).catch(() => ({}));
       const currentKb = currentClient?.client?.profile?.knowledge_base || currentClient?.profile?.knowledge_base || {};
       await apiPatch(`/clients/${clientId}`, {
         brand_tokens: tokens,
