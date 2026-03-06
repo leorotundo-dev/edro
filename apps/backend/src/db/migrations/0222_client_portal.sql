@@ -28,12 +28,13 @@ CREATE TABLE IF NOT EXISTS agent_action_log (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID REFERENCES tenants(id),
   trigger_key TEXT NOT NULL,
+  fired_date  DATE NOT NULL DEFAULT CURRENT_DATE,
   fired_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   metadata    JSONB
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS agent_action_log_dedup_idx
-  ON agent_action_log (trigger_key, date_trunc('day', fired_at));
+  ON agent_action_log (trigger_key, fired_date);
 
 -- Client health scores (gerado semanalmente pelo clientHealthWorker)
 CREATE TABLE IF NOT EXISTS client_health_scores (
