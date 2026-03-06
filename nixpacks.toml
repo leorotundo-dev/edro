@@ -4,7 +4,7 @@ nixPkgs = ['nodejs_20', 'pnpm']
 [phases.install]
 cmds = [
   'npm install -g pnpm@9',
-  'pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile'
+  'if [ "$RAILWAY_SERVICE_NAME" = "edro-web" ]; then pnpm install --filter "@edro/web..." --no-frozen-lockfile; elif [ "$RAILWAY_SERVICE_NAME" = "edro-web-freelancer" ]; then pnpm install --filter "@edro/web-freelancer..." --no-frozen-lockfile; elif [ "$RAILWAY_SERVICE_NAME" = "edro-web-cliente" ]; then pnpm install --filter "@edro/web-cliente..." --no-frozen-lockfile; else pnpm install --filter "@edro/backend..." --no-frozen-lockfile; fi'
 ]
 
 [phases.build]
