@@ -631,6 +631,7 @@ type PageProps = { embedded?: boolean };
 export default function Page({ embedded }: PageProps = {}) {
   const [mockups, setMockups] = useState<MockupItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [focusedMockupId, setFocusedMockupId] = useState<string | null>(null);
   const [displayMap, setDisplayMap] = useState<Record<string, string>>({});
   const [context, setContext] = useState<Record<string, any>>({});
   const [catalogRatios, setCatalogRatios] = useState<Record<string, number>>({});
@@ -1292,7 +1293,7 @@ export default function Page({ embedded }: PageProps = {}) {
         briefEvent = ctx.event || '';
       } catch { /* ignore */ }
 
-      const activeMockup = displayMockups[0];
+      const activeMockup = displayMockups.find((m) => m.id === focusedMockupId) ?? displayMockups[0];
       const platform = activeMockup?.platform || safeGet('edro_active_platform') || '';
       const format = activeMockup?.format || '';
 
@@ -2666,7 +2667,7 @@ export default function Page({ embedded }: PageProps = {}) {
                   <Box
                     component="button"
                     data-mockup-id={item.id}
-                    onClick={() => toggleSelect(item.id)}
+                    onClick={() => { toggleSelect(item.id); setFocusedMockupId(item.id); }}
                     sx={{
                       position: 'relative',
                       display: 'flex',
@@ -2684,6 +2685,12 @@ export default function Page({ embedded }: PageProps = {}) {
                         ? {
                             outline: '2px solid',
                             outlineColor: 'primary.main',
+                            outlineOffset: 8,
+                          }
+                        : focusedMockupId === item.id
+                        ? {
+                            outline: '2px dashed',
+                            outlineColor: 'secondary.main',
                             outlineOffset: 8,
                           }
                         : {
