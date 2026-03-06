@@ -570,7 +570,7 @@ function InvoicesTab() {
                     {inv.description}
                   </TableCell>
                   <TableCell>{inv.period_month ?? '—'}</TableCell>
-                  <TableCell align="right" fontWeight={600}>{brl(inv.amount_brl)}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>{brl(inv.amount_brl)}</TableCell>
                   <TableCell>{fmtDate(inv.due_date)}</TableCell>
                   <TableCell>
                     <Chip
