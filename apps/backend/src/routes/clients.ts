@@ -12,7 +12,10 @@ import { syncRejectionPatternsToProfile } from '../services/rejectionPatternServ
 import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
 import { OpenAIService } from '../services/ai/openaiService';
-import { query } from '../db';
+import { query, pool } from '../db';
+import { upsertUser, createLoginCode } from '../repositories/edroUserRepository';
+import { sendEmail } from '../services/emailService';
+import { makeHash } from '../utils/hash';
 import { enqueueJob } from '../jobs/jobQueue';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
@@ -1218,6 +1221,62 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
       return reply.send(client);
     }
+  );
+
+  // POST /clients/:id/portal/invite — cria user, vincula portal_user_id, envia magic link
+  app.post(
+    '/clients/:id/portal/invite',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const { email } = z.object({ email: z.string().email() }).parse(request.body);
+      const tenantId = (request.user as any).tenant_id;
+      const loginSecret = process.env.JWT_SECRET ?? 'secret';
+
+      // Verify client belongs to this tenant
+      const clientCheck = await query<{ id: string; name: string }>(
+        `SELECT id, name FROM clients WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      if (!clientCheck.rows.length) return reply.status(404).send({ error: 'client_not_found' });
+      const clientName = clientCheck.rows[0].name;
+
+      // Upsert edro_user with role='client'
+      const normalized = email.trim().toLowerCase();
+      const user = await upsertUser({ email: normalized, role: 'client' });
+
+      // Link portal_user_id
+      await pool.query(
+        `UPDATE clients SET portal_user_id = $1 WHERE id = $2`,
+        [user.id, id],
+      );
+
+      // Generate OTP magic link
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const codeHash = makeHash(`portal:${loginSecret}:${normalized}:${code}`);
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await createLoginCode({ email: normalized, codeHash, expiresAt });
+
+      const portalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL
+        ? `${process.env.NEXT_PUBLIC_CLIENTE_URL.replace(/\/$/, '')}/login`
+        : '/cliente/login';
+
+      await sendEmail({
+        to: normalized,
+        subject: `Seu acesso ao Portal do Cliente — ${clientName}`,
+        text: `Olá!\n\nVocê foi convidado para o Portal do Cliente da Edro Digital.\n\nSeu código de acesso é: ${code}\n\nAcesse: ${portalUrl}\n\nEste código expira em 15 minutos.\n\n— Edro Digital`,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <h2 style="color:#1e293b">Bem-vindo ao Portal do Cliente</h2>
+          <p style="color:#475569">Olá! Você foi convidado para acompanhar os projetos de <strong>${clientName}</strong> na Edro Digital.</p>
+          <p style="color:#475569">Use o código abaixo para acessar o portal:</p>
+          <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${code}</div>
+          <p style="color:#475569"><a href="${portalUrl}" style="color:#E85219;font-weight:600">Acessar Portal →</a></p>
+          <p style="color:#94a3b8;font-size:.875rem">Expira em 15 minutos.</p>
+        </div>`,
+      });
+
+      return reply.send({ ok: true, user_id: user.id });
+    },
   );
 
   app.delete(

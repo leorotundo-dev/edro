@@ -117,7 +117,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       `SELECT fp.*, eu.email
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
-       WHERE eu.tenant_id = $1
+       JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
        ORDER BY fp.display_name`,
       [tenantId],
     );
@@ -332,7 +332,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        FROM freelancer_payables fp2
        JOIN freelancer_profiles fpr ON fpr.id = fp2.freelancer_id
        JOIN edro_users eu ON eu.id = fpr.user_id
-       WHERE eu.tenant_id = $1 ${qs}
+       JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
+       WHERE 1=1 ${qs}
        ORDER BY fpr.display_name`,
       vals,
     );
@@ -348,7 +349,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       `SELECT fp.id, fp.hourly_rate_brl, fp.display_name
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
-       WHERE eu.tenant_id = $1 AND fp.is_active = true AND fp.hourly_rate_brl IS NOT NULL`,
+       JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
+       WHERE fp.is_active = true AND fp.hourly_rate_brl IS NOT NULL`,
       [tenantId],
     );
 

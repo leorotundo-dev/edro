@@ -747,11 +747,11 @@ export default async function edroRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id;
     const { rows } = await query<{ event_key: string; briefing_id: string }>(
       `
-      SELECT LOWER(TRIM(payload->>'event')) AS event_key, id AS briefing_id
-      FROM   edro_briefings
-      WHERE  tenant_id = $1
-        AND  payload->>'event' IS NOT NULL
-        AND  status NOT IN ('archived')
+      SELECT LOWER(TRIM(eb.payload->>'event')) AS event_key, eb.id AS briefing_id
+      FROM   edro_briefings eb
+      JOIN   clients cl ON cl.id = eb.main_client_id AND cl.tenant_id = $1
+      WHERE  eb.payload->>'event' IS NOT NULL
+        AND  eb.status NOT IN ('archived')
       LIMIT  1000
       `,
       [tenantId]
@@ -783,7 +783,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       FROM edro_briefings b
       LEFT JOIN clients     cl ON cl.id = b.main_client_id
       LEFT JOIN edro_clients ec ON ec.id = b.client_id
-      WHERE b.tenant_id = $1
+      WHERE cl.tenant_id = $1
         AND b.status NOT IN ('done','archived')
       GROUP BY client_key, client_name, b.main_client_id
       HAVING
@@ -1173,6 +1173,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         done: z.boolean(),
       })).optional(),
       status:        z.string().optional(),
+      recurrence:    z.any().optional(),
     }).parse(request.body ?? {});
 
     const sets: string[] = [];
@@ -1184,6 +1185,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (body.labels        !== undefined) { vals.push(JSON.stringify(body.labels));         sets.push(`labels=$${vals.length}::jsonb`); }
     if (body.checklist     !== undefined) { vals.push(JSON.stringify(body.checklist));      sets.push(`checklist=$${vals.length}::jsonb`); }
     if (body.status        !== undefined) { vals.push(body.status);                         sets.push(`status=$${vals.length}`); }
+    if (body.recurrence    !== undefined) { vals.push(JSON.stringify(body.recurrence));     sets.push(`recurrence=$${vals.length}::jsonb`); }
 
     if (!sets.length) return reply.send({ success: true });
 
@@ -1192,7 +1194,32 @@ export default async function edroRoutes(app: FastifyInstance) {
       vals
     );
     if (!rows.length) return reply.status(404).send({ success: false, error: 'not_found' });
-    return reply.send({ success: true, data: rows[0] });
+    const updated = rows[0];
+
+    // WhatsApp notification when job moves to review
+    if (body.status === 'review' && updated.main_client_id) {
+      try {
+        const clientRes = await query<{ whatsapp_phone: string | null; tenant_id: string }>(
+          `SELECT whatsapp_phone, tenant_id FROM clients WHERE id = $1`,
+          [updated.main_client_id],
+        );
+        const c = clientRes.rows[0];
+        if (c?.whatsapp_phone) {
+          const { notifyEvent } = await import('../services/notificationService');
+          await notifyEvent({
+            event: 'approval.requested',
+            tenantId: c.tenant_id,
+            userId: '',
+            title: `Nova peça para aprovação: ${updated.title}`,
+            body: `Acesse edro.digital/cliente para revisar e aprovar.`,
+            recipientPhone: c.whatsapp_phone,
+            payload: { briefingId: updated.id },
+          }).catch(() => {});
+        }
+      } catch { /* non-blocking */ }
+    }
+
+    return reply.send({ success: true, data: updated });
   });
 
   // PATCH /edro/briefings/:id/link-client — vincula o briefing a um cliente da tabela clients
@@ -3808,8 +3835,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     if (!clientId) {
       try {
         const { rows } = await query<{ main_client_id: string | null; payload: any }>(
-          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
-          [briefingId, tenantId]
+          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 LIMIT 1`,
+          [briefingId]
         );
         const bRow = rows[0];
         clientId =
@@ -3881,8 +3908,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       let clientId: string | null = body.client_id || null;
       if (!clientId) {
         const { rows } = await query<{ main_client_id: string | null; payload: any }>(
-          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
-          [briefingId, tenantId]
+          `SELECT main_client_id, payload FROM edro_briefings WHERE id=$1 LIMIT 1`,
+          [briefingId]
         );
         const bRow = rows[0];
         clientId = bRow?.main_client_id || resolveClientIdFromPayload(bRow?.payload || {}) || null;

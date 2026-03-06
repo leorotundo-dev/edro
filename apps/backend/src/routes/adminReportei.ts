@@ -654,6 +654,38 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── POST /admin/reports/monthly/generate ─────────────────────────────────
+  // Manually trigger monthly report generation for all active clients
+  app.post(
+    '/admin/reports/monthly/generate',
+    { preHandler: [tenantGuard(), authGuard] },
+    async (request: any, reply: any) => {
+      const body = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(request.body);
+      const { generateMonthlyReportsForAll } = await import('../jobs/monthlyReportsWorker');
+      const result = await generateMonthlyReportsForAll(body.month);
+      return reply.send({ ...result, month: body.month });
+    }
+  );
+
+  // ── GET /admin/reports/monthly ────────────────────────────────────────────
+  // List all generated reports for the tenant
+  app.get(
+    '/admin/reports/monthly',
+    { preHandler: [tenantGuard(), authGuard] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query(
+        `SELECT r.*, c.name as client_name
+         FROM client_monthly_reports r
+         JOIN clients c ON c.id = r.client_id
+         WHERE r.tenant_id = $1
+         ORDER BY r.period_month DESC, c.name`,
+        [tenantId],
+      );
+      return reply.send({ reports: rows });
+    }
+  );
+
   // ── GET /admin/reportei/alerts ────────────────────────────────────────────
   // List recent performance alerts for the tenant
   app.get(

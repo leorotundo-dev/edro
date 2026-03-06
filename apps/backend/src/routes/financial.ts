@@ -308,6 +308,21 @@ export default async function financialRoutes(app: FastifyInstance) {
     });
   });
 
+  // Public view endpoint (no auth required — token acts as auth)
+  app.get('/financial/proposals/view/:token', async (request: any, reply) => {
+    const { token } = request.params as any;
+    const res = await pool.query(
+      `SELECT p.id, p.title, p.items, p.subtotal_brl, p.discount_brl, p.total_brl,
+              p.validity_days, p.notes, p.status, p.sent_at, c.name as client_name
+       FROM proposals p
+       LEFT JOIN clients c ON c.id = p.client_id
+       WHERE p.accept_token = $1`,
+      [token],
+    );
+    if (!res.rows.length) return reply.status(404).send({ error: 'Proposta não encontrada' });
+    return reply.send({ proposal: res.rows[0] });
+  });
+
   // Public accept endpoint (no auth required — token acts as auth)
   app.post('/financial/proposals/accept/:token', async (request: any, reply) => {
     const { token } = request.params as any;
@@ -650,19 +665,52 @@ export default async function financialRoutes(app: FastifyInstance) {
     return reply.send(estimate);
   });
 
-  // ── Client Health Score ───────────────────────────────────────────────────
+  // ── Productivity analytics ─────────────────────────────────────────────────
+  // GET /financial/productivity?month=YYYY-MM
+  // Returns: by_freelancer[] and by_client[] aggregated from time_entries
+  app.get('/financial/productivity', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const { tenantId } = request;
+    const { month } = request.query as { month?: string };
+    const m = month ?? new Date().toISOString().slice(0, 7);
 
-  app.get('/clients/:id/health-score', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
-    const { id } = request.params as any;
-    const res = await pool.query(
-      `SELECT score, trend, factors, period_date
-       FROM client_health_scores
-       WHERE client_id = $1
-       ORDER BY period_date DESC
-       LIMIT 1`,
-      [id],
-    );
-    if (!res.rows.length) return reply.send({ score: null });
-    return reply.send({ score: res.rows[0] });
+    const [byFl, byClient] = await Promise.all([
+      pool.query(
+        `SELECT fp.id as freelancer_id, fp.display_name, fp.hourly_rate_brl,
+                SUM(te.minutes) as total_minutes,
+                ROUND(SUM(te.minutes)::numeric / 60 * COALESCE(fp.hourly_rate_brl::numeric, 0), 2) as total_cost
+         FROM time_entries te
+         JOIN freelancer_profiles fp ON fp.id = te.freelancer_id
+         WHERE fp.user_id IN (
+           SELECT user_id FROM edro_users WHERE tenant_id = $1
+         )
+         AND to_char(te.started_at, 'YYYY-MM') = $2
+         GROUP BY fp.id, fp.display_name, fp.hourly_rate_brl
+         ORDER BY total_minutes DESC`,
+        [tenantId, m],
+      ),
+      pool.query(
+        `SELECT c.name as client_name, c.id as client_id,
+                SUM(te.minutes) as total_minutes,
+                ROUND(SUM(te.minutes)::numeric / 60 * COALESCE(fp.hourly_rate_brl::numeric, 0), 2) as total_cost
+         FROM time_entries te
+         JOIN freelancer_profiles fp ON fp.id = te.freelancer_id
+         LEFT JOIN edro_briefings b ON b.id = te.briefing_id
+         LEFT JOIN clients c ON c.id = b.main_client_id
+         WHERE fp.user_id IN (
+           SELECT user_id FROM edro_users WHERE tenant_id = $1
+         )
+         AND to_char(te.started_at, 'YYYY-MM') = $2
+         GROUP BY c.id, c.name
+         ORDER BY total_minutes DESC`,
+        [tenantId, m],
+      ),
+    ]);
+
+    return reply.send({
+      month: m,
+      by_freelancer: byFl.rows,
+      by_client: byClient.rows,
+    });
   });
+
 }

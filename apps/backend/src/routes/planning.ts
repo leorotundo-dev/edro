@@ -1989,10 +1989,9 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     const result = await query(
       `SELECT pc.id, pc.title, pc.provider, pc.status, pc.created_at, pc.updated_at,
               (SELECT COUNT(*) FROM jsonb_array_elements(pc.messages)) as message_count,
-              ec.name as client_name, c.id as client_text_id
+              ec.name as client_name
        FROM planning_conversations pc
        LEFT JOIN edro_clients ec ON ec.id = pc.client_id
-       LEFT JOIN clients c ON c.edro_id = pc.client_id
        WHERE pc.tenant_id = $1 AND pc.user_id = $2
        ORDER BY pc.updated_at DESC
        LIMIT $3`,
