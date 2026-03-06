@@ -487,6 +487,9 @@ export default function EditorClient() {
   const [artDirMode, setArtDirMode] = useState(false);
   const [artDirGatilho, setArtDirGatilho] = useState('');
   const [artDirOrchestrating, setArtDirOrchestrating] = useState(false);
+  const [artDirLayout, setArtDirLayout] = useState<{
+    eyebrow: string; headline: string; accentWord: string; accentColor: string; cta: string; body: string; overlayStrength: number;
+  } | null>(null);
   const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
   const [imageNegativePrompt, setImageNegativePrompt] = useState('');
   // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
@@ -1364,6 +1367,7 @@ export default function EditorClient() {
         num_variants: withImage ? 3 : undefined,
       });
       if (res?.success && res.layout) {
+        setArtDirLayout(res.layout);
         setEditorCopy((prev) => ({
           ...prev,
           headline: res.layout!.headline || prev.headline,
@@ -1620,6 +1624,7 @@ export default function EditorClient() {
                     brandName={briefing?.client_name}
                     brandColor={clientBrandColor || undefined}
                     arteImageUrl={arteImageUrl}
+                    artDirectorLayout={artDirLayout}
                     align="left"
                     showHeader={false}
                   />

@@ -27,6 +27,16 @@ type CopyOption = {
   slides?: CarouselSlide[];
 };
 
+type ArtDirectorLayout = {
+  eyebrow?: string;
+  headline?: string;
+  accentWord?: string;
+  accentColor?: string;
+  cta?: string;
+  body?: string;
+  overlayStrength?: number;
+};
+
 type LiveMockupPreviewProps = {
   platform?: string | null;
   format?: string | null;
@@ -38,6 +48,7 @@ type LiveMockupPreviewProps = {
   brandName?: string | null;
   brandColor?: string;
   arteImageUrl?: string | null;
+  artDirectorLayout?: ArtDirectorLayout | null;
   align?: 'left' | 'center';
   className?: string;
   showHeader?: boolean;
@@ -278,6 +289,7 @@ export default function LiveMockupPreview({
   brandName,
   brandColor,
   arteImageUrl,
+  artDirectorLayout,
   align = 'center',
   className,
   showHeader = true,
@@ -657,7 +669,46 @@ export default function LiveMockupPreview({
           className={`pointer-events-none flex items-center w-full ${align === 'left' ? 'justify-start' : 'justify-center'}`}
           style={{ transform: `scale(${phoneZoom})`, transformOrigin: align === 'left' ? 'top left' : 'top center' }}
         >
-          {renderResolved()}
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            {renderResolved()}
+            {artDirectorLayout && arteImageUrl && (
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '38%',
+                background: `linear-gradient(to bottom, transparent, rgba(0,0,0,${artDirectorLayout.overlayStrength ?? 0.82}))`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                padding: '0 14px 14px',
+                borderRadius: '0 0 10px 10px',
+                pointerEvents: 'none',
+              }}>
+                {artDirectorLayout.eyebrow && (
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 3, fontFamily: 'Inter,-apple-system,sans-serif' }}>
+                    {artDirectorLayout.eyebrow}
+                  </div>
+                )}
+                {artDirectorLayout.headline && (
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: 7, fontFamily: 'Inter,-apple-system,sans-serif' }}>
+                    {artDirectorLayout.accentWord
+                      ? <>
+                          {artDirectorLayout.headline.replace(artDirectorLayout.accentWord, '')}
+                          <span style={{ color: artDirectorLayout.accentColor || '#ff5c00' }}>{artDirectorLayout.accentWord}</span>
+                        </>
+                      : artDirectorLayout.headline}
+                  </div>
+                )}
+                {artDirectorLayout.cta && (
+                  <div style={{ display: 'inline-block', background: artDirectorLayout.accentColor || '#ff5c00', color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 3, width: 'fit-content', fontFamily: 'Inter,-apple-system,sans-serif' }}>
+                    {artDirectorLayout.cta.toUpperCase()}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
