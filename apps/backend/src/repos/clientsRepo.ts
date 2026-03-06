@@ -17,6 +17,19 @@ type TrendProfile = {
   sources?: string[];
 };
 
+type BrandTokens = {
+  /** Typography style description, e.g. "sans-serif moderno, limpo" */
+  typography?: string;
+  /** Image/photo style, e.g. "fotografia real, cinematic, high contrast" */
+  imageStyle?: string;
+  /** Emotional mood words, e.g. ["confiança", "agilidade", "premium"] */
+  moodWords?: string[];
+  /** Visual elements to avoid, e.g. ["CGI exagerado", "sorrisos forçados"] */
+  avoidElements?: string[];
+  /** Reference style brands/campaigns, e.g. ["Apple 2024", "Nubank"] */
+  referenceStyles?: string[];
+};
+
 type ClientProfilePatch = {
   segment_secondary?: string[];
   tone_profile?: string;
@@ -29,6 +42,8 @@ type ClientProfilePatch = {
   negative_keywords?: string[];
   knowledge_base?: Record<string, any>;
   brand_colors?: string[];
+  /** Structured brand design tokens for AI Art Director context */
+  brand_tokens?: BrandTokens;
 };
 
 type ClientPayload = {
@@ -70,6 +85,7 @@ function normalizeProfile(current: any, patch: ClientProfilePatch) {
   if (patch.negative_keywords !== undefined) next.negative_keywords = patch.negative_keywords;
   if (patch.knowledge_base !== undefined) next.knowledge_base = patch.knowledge_base;
   if (patch.brand_colors !== undefined) next.brand_colors = patch.brand_colors;
+  if (patch.brand_tokens !== undefined) next.brand_tokens = patch.brand_tokens;
 
   next.calendar_profile = {
     ...calendarDefaults,
@@ -105,7 +121,19 @@ export async function getClientById(tenantId: string, id: string) {
 
 export async function listClients(tenantId: string) {
   const { rows } = await query<any>(
-    `SELECT * FROM clients WHERE tenant_id=$1 ORDER BY updated_at DESC NULLS LAST, name ASC`,
+    `SELECT c.*,
+            hs.score AS health_score,
+            hs.trend AS health_trend
+     FROM clients c
+     LEFT JOIN LATERAL (
+       SELECT score, trend
+       FROM client_health_scores
+       WHERE client_id = c.id
+       ORDER BY period_date DESC
+       LIMIT 1
+     ) hs ON true
+     WHERE c.tenant_id=$1
+     ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`,
     [tenantId]
   );
   return rows;

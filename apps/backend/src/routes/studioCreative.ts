@@ -59,6 +59,12 @@ const orchestrateSchema = z.object({
   /** Image provider for the with_image step */
   image_provider: z.enum(['gemini', 'leonardo', 'fal']).default('fal'),
   image_model: z.string().optional(),
+  /** Number of image variants to generate (1–4, default 3) */
+  num_variants: z.number().min(1).max(4).default(3).optional(),
+  /** Reference image URL or base64 data URI for IP-Adapter style guidance */
+  reference_image_url: z.string().optional(),
+  /** How strongly the reference image influences generation (0.0–1.0, default 0.15) */
+  reference_image_strength: z.number().min(0).max(1).default(0.15).optional(),
 });
 
 const refineSchema = z.object({
@@ -178,16 +184,37 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
 
     // Enrich brand from client record if provided
     let brand = body.brand || {};
+    let clientBrandColors: string[] = [];
+    let clientBrandTokens: any = null;
+    let learningContext: string | undefined;
+
     if (body.client_id && tenantId) {
       try {
         const { getClientById } = await import('../repos/clientsRepo');
         const client = await getClientById(tenantId, body.client_id);
         if (client) {
+          const profile = (client as any).profile || {};
+          clientBrandColors = Array.isArray(profile.brand_colors) ? profile.brand_colors : [];
+          clientBrandTokens = profile.brand_tokens || null;
           brand = {
             name: brand.name || (client as any).name || '',
             segment: brand.segment || (client as any).segment_primary || '',
-            primaryColor: brand.primaryColor || (client as any).primary_color || '',
+            primaryColor: brand.primaryColor || clientBrandColors[0] || '',
           };
+        }
+      } catch { /* non-blocking */ }
+
+      // Load learning rules and format as context for the orchestrator
+      try {
+        const { loadLearningRules } = await import('../services/learningEngine');
+        const rules = await loadLearningRules(tenantId, body.client_id);
+        if (rules.length > 0) {
+          const topRules = rules
+            .sort((a: any, b: any) => b.uplift_value - a.uplift_value)
+            .slice(0, 5);
+          learningContext = topRules
+            .map((r: any) => `• ${r.effective_pattern} (↑${Number(r.uplift_value).toFixed(1)}% ${r.uplift_metric})`)
+            .join('\n');
         }
       } catch { /* non-blocking */ }
     }
@@ -198,11 +225,14 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       brand,
       format: body.format,
       platform: body.platform,
+      learningContext,
+      brandTokens: clientBrandTokens,
     });
 
     // If with_image requested, generate the background image
     if (body.with_image) {
-      const imageResult = await generateAdCreative({
+      const numVariants = body.num_variants ?? 3;
+      let imageResult = await generateAdCreative({
         copy: body.copy,
         format: body.format,
         customPrompt: orchestrated.imgPrompt.positive,
@@ -210,17 +240,51 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         aspectRatio: orchestrated.imgPrompt.aspectRatio,
         imageProvider: body.image_provider as any,
         imageModel: body.image_model,
-        numImages: 1,
+        numImages: numVariants,
+        referenceImageUrl: body.reference_image_url,
+        referenceImageStrength: body.reference_image_strength,
         tenantId,
       });
+
+      // Agente Crítico: avalia a primeira imagem gerada e faz 1 retry se necessário
+      let critiqueResult = null;
+      if (imageResult.success && imageResult.image_url) {
+        try {
+          const { critiqueGeneratedImage } = await import('../services/ai/artCriticService');
+          critiqueResult = await critiqueGeneratedImage({
+            imageUrl: imageResult.image_url,
+            gatilho: body.gatilho,
+            aspectRatio: orchestrated.imgPrompt.aspectRatio,
+          });
+
+          if (!critiqueResult.pass && critiqueResult.additionalNegative) {
+            const retryResult = await generateAdCreative({
+              copy: body.copy,
+              format: body.format,
+              customPrompt: orchestrated.imgPrompt.positive,
+              negativePrompt: `${orchestrated.imgPrompt.negative}, ${critiqueResult.additionalNegative}`,
+              aspectRatio: orchestrated.imgPrompt.aspectRatio,
+              imageProvider: body.image_provider as any,
+              imageModel: body.image_model,
+              numImages: numVariants,
+              referenceImageUrl: body.reference_image_url,
+              referenceImageStrength: body.reference_image_strength,
+              tenantId,
+            });
+            if (retryResult.success) imageResult = retryResult;
+          }
+        } catch { /* critic é best-effort — falha silenciosamente */ }
+      }
 
       return reply.send({
         success: true,
         layout: orchestrated.layout,
         imgPrompt: orchestrated.imgPrompt,
+        brand_colors: clientBrandColors,
         image_url: imageResult.image_url,
         image_urls: imageResult.image_urls,
         image_error: imageResult.success ? undefined : imageResult.error,
+        critique: critiqueResult,
       });
     }
 
@@ -228,6 +292,8 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       success: true,
       layout: orchestrated.layout,
       imgPrompt: orchestrated.imgPrompt,
+      brand_colors: clientBrandColors,
+      brand_tokens: clientBrandTokens,
     });
   });
 }

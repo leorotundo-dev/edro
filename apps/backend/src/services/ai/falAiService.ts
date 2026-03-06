@@ -32,6 +32,10 @@ export async function generateImageWithFal(params: {
   numImages?: number;
   guidanceScale?: number;
   numInferenceSteps?: number;
+  /** Reference image URL or base64 data URI for IP-Adapter style guidance */
+  referenceImageUrl?: string;
+  /** How strongly the reference image influences generation (0.0–1.0, default 0.15) */
+  referenceImageStrength?: number;
 }): Promise<FalImageResult> {
   const apiKey = env.FAL_API_KEY;
   if (!apiKey) throw new Error('FAL_API_KEY não configurada');
@@ -57,6 +61,12 @@ export async function generateImageWithFal(params: {
 
   if (params.negativePrompt) {
     body.negative_prompt = params.negativePrompt;
+  }
+
+  // IP-Adapter style guidance via reference image
+  if (params.referenceImageUrl) {
+    body.image_prompt = params.referenceImageUrl;
+    body.image_prompt_strength = params.referenceImageStrength ?? 0.15;
   }
 
   const res = await fetch(FAL_BASE_URL, {

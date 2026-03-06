@@ -94,6 +94,85 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
   };
 }
 
+// ── Vision (Multimodal) Support ────────────────────────────────
+
+/**
+ * Generate a completion with an image input (multimodal).
+ * The image is passed as a URL — Claude fetches it directly.
+ */
+export async function generateCompletionWithVision(params: {
+  prompt: string;
+  imageUrl: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<AiCompletionResult> {
+  const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY_NOT_SET');
+
+  const model = env.ANTHROPIC_MODEL;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': API_VERSION,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: params.maxTokens ?? 800,
+        system: params.systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'url', url: params.imageUrl },
+              },
+              {
+                type: 'text',
+                text: params.prompt,
+              },
+            ],
+          },
+        ],
+        temperature: params.temperature ?? 0.3,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('Claude Vision API timed out after 60s');
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Claude Vision error: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as AnthropicResponse;
+  const textContent = data.content.find((block) => block.type === 'text');
+  const text = textContent?.text?.trim() || '';
+  if (!text) throw new Error('Claude Vision returned empty response');
+
+  return {
+    text,
+    usage: {
+      input_tokens: data.usage?.input_tokens || 0,
+      output_tokens: data.usage?.output_tokens || 0,
+    },
+    model: data.model || model,
+  };
+}
+
 // ── Tool Use Support ───────────────────────────────────────────
 
 export type ClaudeMessage = {

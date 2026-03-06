@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiPost } from '@/lib/api';
+import { renderHeadlineAccented } from '@/lib/renderHeadlineAccented';
 import { InstagramFeedMockup } from '@/components/mockups/instagram/InstagramFeedMockup';
 import { InstagramStoryMockup } from '@/components/mockups/instagram/InstagramStoryMockup';
 import { InstagramProfileMockup } from '@/components/mockups/instagram/InstagramProfileMockup';
@@ -658,11 +659,22 @@ export default function Page({ embedded }: PageProps = {}) {
   const [showArtDirectorPanel, setShowArtDirectorPanel] = useState(false);
   const [artDirectorGatilho, setArtDirectorGatilho] = useState('');
   const [artDirectorBrandColor, setArtDirectorBrandColor] = useState('#F5C518');
+  const [artDirectorBrandColors, setArtDirectorBrandColors] = useState<string[]>([]);
   const [artDirectorOrchestrating, setArtDirectorOrchestrating] = useState(false);
   const [artDirectorLayout, setArtDirectorLayout] = useState<{
     eyebrow: string; headline: string; accentWord: string; accentColor: string;
     cta: string; body: string; overlayStrength: number;
   } | null>(null);
+  const [artDirectorVariants, setArtDirectorVariants] = useState<string[]>([]);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const [artDirectorCritique, setArtDirectorCritique] = useState<{
+    pass: boolean; score: number; issues: string[];
+  } | null>(null);
+  const [artDirectorBrandTokensActive, setArtDirectorBrandTokensActive] = useState(false);
+  const [artDirectorRefImage, setArtDirectorRefImage] = useState<string>('');
+  const [artDirectorRefStrength, setArtDirectorRefStrength] = useState(0.15);
+  const [artDirectorRefUploading, setArtDirectorRefUploading] = useState(false);
+  const artDirectorRefInputRef = useRef<HTMLInputElement>(null);
   const [exportError, setExportError] = useState('');
   const [editedCopy, setEditedCopy] = useState<{ headline: string; body: string; cta: string }>({
     headline: '',
@@ -1390,6 +1402,19 @@ export default function Page({ embedded }: PageProps = {}) {
     setShowAiPanel(false);
   };
 
+  const handleRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArtDirectorRefUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setArtDirectorRefImage(reader.result as string);
+      setArtDirectorRefUploading(false);
+    };
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
   const handleArtDirectorOrchestrate = async (withImage: boolean) => {
     setArtDirectorOrchestrating(true);
     try {
@@ -1398,8 +1423,11 @@ export default function Page({ embedded }: PageProps = {}) {
         success: boolean;
         layout?: typeof artDirectorLayout;
         imgPrompt?: { positive: string; negative: string; aspectRatio: string };
+        brand_colors?: string[];
+        brand_tokens?: Record<string, any> | null;
         image_url?: string;
         image_urls?: string[];
+        critique?: { pass: boolean; score: number; issues: string[] } | null;
       }>('/studio/creative/orchestrate', {
         copy,
         gatilho: artDirectorGatilho || undefined,
@@ -1409,19 +1437,34 @@ export default function Page({ embedded }: PageProps = {}) {
         client_id: clientId,
         with_image: withImage,
         image_provider: 'fal',
+        num_variants: 3,
+        reference_image_url: artDirectorRefImage || undefined,
+        reference_image_strength: artDirectorRefImage ? artDirectorRefStrength : undefined,
       });
       if (res?.success && res.layout) {
         setArtDirectorLayout(res.layout);
       }
-      if (withImage && (res?.image_url || res?.image_urls?.length)) {
-        const url = res.image_urls?.[0] || res.image_url || '';
-        if (url) {
-          setCreativeImageUrl(url);
-          const briefingId = safeGet('edro_briefing_id');
-          if (briefingId) {
-            apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: url }).catch(() => null);
-          }
+      if (res?.brand_colors?.length) {
+        setArtDirectorBrandColors(res.brand_colors);
+        if (artDirectorBrandColor === '#F5C518') {
+          setArtDirectorBrandColor(res.brand_colors[0]);
         }
+      }
+      setArtDirectorBrandTokensActive(Boolean(res?.brand_tokens && Object.keys(res.brand_tokens).length > 0));
+      if (res?.critique) {
+        setArtDirectorCritique(res.critique);
+      }
+      if (withImage && res?.image_urls?.length) {
+        setArtDirectorVariants(res.image_urls);
+        setSelectedVariantIdx(0);
+        const firstUrl = res.image_urls[0];
+        setCreativeImageUrl(firstUrl);
+        const briefingId = safeGet('edro_briefing_id');
+        if (briefingId) {
+          apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: firstUrl }).catch(() => null);
+        }
+      } else if (withImage && res?.image_url) {
+        setCreativeImageUrl(res.image_url);
       }
     } catch {
       // silently fail
@@ -1682,19 +1725,40 @@ export default function Page({ embedded }: PageProps = {}) {
         baseProps.adImage = creativeImageUrl;
       }
 
-      // Art Director layout override — applies eyebrow/accentWord/accentColor when set
+      // Art Director layout override — applies eyebrow/accentWord/accentColor when set.
+      // The headline is pre-rendered as a ReactNode with the accent word highlighted,
+      // so ALL mockup components get the visual emphasis without needing individual changes.
+      // Components that already handle accentWord (Instagram, Facebook, LinkedIn) receive
+      // an empty accentWord and short-circuit their own renderHeadlineAccented call,
+      // rendering the already-processed ReactNode correctly.
       if (artDirectorLayout) {
-        if (artDirectorLayout.eyebrow) baseProps.eyebrow = artDirectorLayout.eyebrow;
-        if (artDirectorLayout.headline) {
-          baseProps.headline = artDirectorLayout.headline;
-          baseProps.arteHeadline = artDirectorLayout.headline;
-          baseProps.title = artDirectorLayout.headline;
+        if (artDirectorLayout.eyebrow) {
+          baseProps.eyebrow = artDirectorLayout.eyebrow;
+          // Universal fallback: components that use subheadline/subtitle as their secondary slot
+          baseProps.subheadline = artDirectorLayout.eyebrow;
+          baseProps.subtitle = artDirectorLayout.eyebrow;
         }
-        if (artDirectorLayout.accentWord) baseProps.accentWord = artDirectorLayout.accentWord;
-        if (artDirectorLayout.accentColor) baseProps.accentColor = artDirectorLayout.accentColor;
+        if (artDirectorLayout.headline) {
+          // Pre-render with accent word so ALL components (740+) benefit without individual changes
+          const renderedHeadline = renderHeadlineAccented(
+            artDirectorLayout.headline,
+            artDirectorLayout.accentWord || undefined,
+            artDirectorLayout.accentColor || undefined,
+          );
+          baseProps.headline = renderedHeadline;
+          baseProps.arteHeadline = renderedHeadline;
+          baseProps.title = renderedHeadline;
+          baseProps.name = renderedHeadline;
+        }
+        // Clear accentWord/accentColor: headline is already pre-rendered,
+        // prevents double-processing in social components that handle these props internally
+        baseProps.accentWord = '';
+        baseProps.accentColor = '';
         if (artDirectorLayout.body) {
           baseProps.body = artDirectorLayout.body;
           baseProps.arteBody = artDirectorLayout.body;
+          baseProps.description = artDirectorLayout.body;
+          baseProps.postText = artDirectorLayout.body;
         }
         if (artDirectorLayout.cta) {
           baseProps.cta = artDirectorLayout.cta;
@@ -1994,6 +2058,17 @@ export default function Page({ embedded }: PageProps = {}) {
 
                 {showArtDirectorPanel && (
                   <Box sx={{ border: '1px solid', borderColor: 'secondary.light', borderRadius: 1.5, p: 1.5, bgcolor: 'rgba(156,39,176,0.03)' }}>
+                    {/* Hidden reference image input */}
+                    <Box
+                      ref={artDirectorRefInputRef}
+                      component="input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-label="Upload imagem de referência visual"
+                      onChange={handleRefImageUpload}
+                      sx={{ display: 'none' }}
+                    />
+
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 600, display: 'block', mb: 1 }}>
                       Gatilho Psicológico
                     </Typography>
@@ -2019,7 +2094,7 @@ export default function Page({ embedded }: PageProps = {}) {
                       ))}
                     </Stack>
 
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: artDirectorBrandColors.length ? 0.75 : 1.5 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', whiteSpace: 'nowrap' }}>
                         Cor acento
                       </Typography>
@@ -2033,6 +2108,86 @@ export default function Page({ embedded }: PageProps = {}) {
                       <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace' }}>
                         {artDirectorBrandColor}
                       </Typography>
+                    </Stack>
+                    {artDirectorBrandColors.length > 0 && (
+                      <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap', gap: 0.5 }}>
+                        {artDirectorBrandColors.map((c) => (
+                          <Box
+                            key={c}
+                            onClick={() => setArtDirectorBrandColor(c)}
+                            title={c}
+                            sx={{
+                              width: 20, height: 20, borderRadius: '50%',
+                              bgcolor: c, cursor: 'pointer',
+                              border: artDirectorBrandColor === c ? '2px solid' : '1.5px solid rgba(0,0,0,0.15)',
+                              borderColor: artDirectorBrandColor === c ? 'primary.main' : 'rgba(0,0,0,0.15)',
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Brand tokens active badge */}
+                    {artDirectorBrandTokensActive && (
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+                        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'success.main' }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'success.main', fontWeight: 600 }}>
+                          Brand tokens ativos
+                        </Typography>
+                      </Stack>
+                    )}
+
+                    {/* Reference image widget */}
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', whiteSpace: 'nowrap' }}>
+                        Ref. visual
+                      </Typography>
+                      {artDirectorRefImage ? (
+                        <Stack direction="row" alignItems="center" spacing={0.5}>
+                          <Box
+                            sx={{ width: 32, height: 32, borderRadius: 0.75, overflow: 'hidden', border: '1.5px solid', borderColor: 'secondary.main', flexShrink: 0 }}
+                          >
+                            <Box component="img" src={artDirectorRefImage} alt="ref" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          </Box>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            sx={{ fontSize: '0.6rem', minWidth: 0, p: 0.25, opacity: 0.5 }}
+                            onClick={() => setArtDirectorRefImage('')}
+                          >
+                            ✕
+                          </Button>
+                          <Box sx={{ flex: 1, minWidth: 60 }}>
+                            <Typography variant="caption" sx={{ fontSize: '0.58rem', color: 'text.secondary' }}>
+                              Influência
+                            </Typography>
+                            <Box
+                              component="input"
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={artDirectorRefStrength}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setArtDirectorRefStrength(Number(e.target.value))}
+                              sx={{ width: '100%', accentColor: 'secondary.main' }}
+                            />
+                            <Typography variant="caption" sx={{ fontSize: '0.58rem', color: 'text.secondary' }}>
+                              {(artDirectorRefStrength * 100).toFixed(0)}%
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="secondary"
+                          disabled={artDirectorRefUploading}
+                          onClick={() => artDirectorRefInputRef.current?.click()}
+                          sx={{ fontSize: '0.62rem', py: 0.25, px: 1 }}
+                        >
+                          {artDirectorRefUploading ? '...' : '+ Upload'}
+                        </Button>
+                      )}
                     </Stack>
 
                     <Stack direction="row" spacing={0.75} sx={{ mb: 1 }}>
@@ -2060,6 +2215,26 @@ export default function Page({ embedded }: PageProps = {}) {
                       </LoadingButton>
                     </Stack>
 
+                    {/* Variant thumbnails */}
+                    {artDirectorVariants.length > 0 && (
+                      <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap', gap: 0.75 }}>
+                        {artDirectorVariants.map((url, i) => (
+                          <Box
+                            key={i}
+                            onClick={() => { setSelectedVariantIdx(i); setCreativeImageUrl(url); }}
+                            sx={{
+                              width: 56, height: 56, borderRadius: 1, overflow: 'hidden', cursor: 'pointer',
+                              border: selectedVariantIdx === i ? '2.5px solid' : '1.5px solid',
+                              borderColor: selectedVariantIdx === i ? 'secondary.main' : 'divider',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Box component="img" src={url} alt={`Variante ${i + 1}`} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+
                     {artDirectorLayout && (
                       <Box sx={{ bgcolor: 'rgba(0,0,0,0.04)', borderRadius: 1, p: 1 }}>
                         {artDirectorLayout.eyebrow && (
@@ -2070,17 +2245,41 @@ export default function Page({ embedded }: PageProps = {}) {
                         <Typography variant="caption" sx={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.3, mb: 0.5 }}>
                           {artDirectorLayout.headline}
                           {artDirectorLayout.accentWord && (
-                            <span style={{ color: artDirectorLayout.accentColor }}> [{artDirectorLayout.accentWord}]</span>
+                            <Box component="span" sx={{ color: artDirectorLayout.accentColor }}> [{artDirectorLayout.accentWord}]</Box>
                           )}
                         </Typography>
                         {artDirectorLayout.cta && (
                           <Chip label={artDirectorLayout.cta} size="small" sx={{ fontSize: '0.62rem', height: 18 }} />
                         )}
+
+                        {/* Critique badge */}
+                        {artDirectorCritique && (
+                          <Box sx={{ mt: 0.75 }}>
+                            <Chip
+                              label={artDirectorCritique.pass ? `✓ PASS ${artDirectorCritique.score}/10` : `✗ FAIL ${artDirectorCritique.score}/10`}
+                              size="small"
+                              color={artDirectorCritique.pass ? 'success' : 'error'}
+                              sx={{ fontSize: '0.6rem', height: 18, mb: artDirectorCritique.issues.length ? 0.5 : 0 }}
+                            />
+                            {artDirectorCritique.issues.map((issue, i) => (
+                              <Typography key={i} variant="caption" sx={{ display: 'block', fontSize: '0.6rem', color: 'error.main', lineHeight: 1.4 }}>
+                                · {issue}
+                              </Typography>
+                            ))}
+                          </Box>
+                        )}
+
                         <Button
                           size="small"
                           color="inherit"
                           sx={{ fontSize: '0.62rem', mt: 0.5, p: 0, minWidth: 0, textTransform: 'none', opacity: 0.5 }}
-                          onClick={() => setArtDirectorLayout(null)}
+                          onClick={() => {
+                            setArtDirectorLayout(null);
+                            setArtDirectorVariants([]);
+                            setArtDirectorCritique(null);
+                            setArtDirectorRefImage('');
+                            setArtDirectorBrandTokensActive(false);
+                          }}
                         >
                           Limpar
                         </Button>

@@ -16,12 +16,24 @@ export interface BrandInput {
   segment?: string;
 }
 
+export interface BrandTokens {
+  typography?: string;
+  imageStyle?: string;
+  moodWords?: string[];
+  avoidElements?: string[];
+  referenceStyles?: string[];
+}
+
 export interface OrchestrateParams {
   copy: string;
   gatilho?: Gatilho;
   brand?: BrandInput;
   format?: string;
   platform?: string;
+  /** Formatted string of top learning rules for this client (from LearningEngine) */
+  learningContext?: string;
+  /** Structured brand design tokens from client profile */
+  brandTokens?: BrandTokens | null;
 }
 
 export interface ArtDirectorLayout {
@@ -78,7 +90,7 @@ You orchestrate both the visual composition AND the text layout of advertising c
 You must respond with a valid JSON object matching the exact schema given — no prose, no markdown, just JSON.`;
 
 function buildUserPrompt(params: OrchestrateParams): string {
-  const { copy, gatilho, brand, format, platform } = params;
+  const { copy, gatilho, brand, format, platform, learningContext, brandTokens } = params;
   const brandName = brand?.name || '';
   const brandColor = brand?.primaryColor || '#F5C518';
   const segment = brand?.segment || '';
@@ -102,7 +114,14 @@ PLATFORM: ${platform || 'Instagram'}
 PSYCHOLOGICAL TRIGGER: ${gatilhoLabel}
 
 ${gatilhoDirective}
-
+${learningContext ? `\nHISTORICAL PERFORMANCE INSIGHTS FOR THIS CLIENT (validated data):\n${learningContext}\n\nUse these patterns to inform your layout decisions — prefer triggers, AMDs, and emotional angles that have empirically performed well for this brand.\n` : ''}
+${brandTokens ? `\nBRAND DESIGN TOKENS (apply rigorously to both image and text decisions):
+- Typography: ${brandTokens.typography || 'not defined'}
+- Image Style: ${brandTokens.imageStyle || 'not defined'}
+- Mood Words: ${(brandTokens.moodWords || []).join(', ') || 'not defined'}
+- Avoid Elements: ${(brandTokens.avoidElements || []).join(', ') || 'none'}
+- Reference Styles: ${(brandTokens.referenceStyles || []).join(', ') || 'none'}
+` : ''}
 YOUR JOB — produce a JSON object with two top-level keys: "imgPrompt" and "layout".
 
 "imgPrompt" is the background image generation prompt:

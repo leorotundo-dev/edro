@@ -29,7 +29,7 @@ type AdCreativeRequest = {
   aspectRatio?: string;
   negativePrompt?: string;
   tenantId?: string;
-  /** Number of image variations to generate (Leonardo only, default 1) */
+  /** Number of image variations to generate (default 1) */
   numImages?: number;
   /** Raw bytes of a reference image from client library (for Leonardo img2img) */
   initImageBuffer?: Buffer;
@@ -37,6 +37,10 @@ type AdCreativeRequest = {
   initImageMime?: string;
   /** 0.0–1.0 how strongly to follow the init image (default 0.35) */
   initStrength?: number;
+  /** Reference image URL or base64 data URI for IP-Adapter style guidance (fal.ai) */
+  referenceImageUrl?: string;
+  /** 0.0–1.0 how strongly the reference image influences generation (default 0.15) */
+  referenceImageStrength?: number;
 };
 
 type AdCreativeResponse = {
@@ -358,6 +362,8 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
         negativePrompt: params.negativePrompt,
         aspectRatio: params.aspectRatio,
         numImages: params.numImages ?? 1,
+        referenceImageUrl: params.referenceImageUrl,
+        referenceImageStrength: params.referenceImageStrength,
       });
       return {
         success: true,

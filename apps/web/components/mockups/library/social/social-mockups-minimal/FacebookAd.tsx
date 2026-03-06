@@ -1,5 +1,6 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
+import { renderHeadlineAccented } from '../../../../../lib/renderHeadlineAccented';
 
 interface FacebookAdProps {
   brandName?: string;
@@ -8,6 +9,12 @@ interface FacebookAdProps {
   headline?: string;
   description?: string;
   ctaText?: string;
+  /** Art Director: short teaser text above headline */
+  eyebrow?: string;
+  /** Art Director: word to highlight in headline */
+  accentWord?: string;
+  /** Art Director: color for the accent word */
+  accentColor?: string;
 }
 
 export const FacebookAd: React.FC<FacebookAdProps> = ({
@@ -17,6 +24,9 @@ export const FacebookAd: React.FC<FacebookAdProps> = ({
   headline = 'Your headline goes here',
   description = 'Description text that explains your offer or product.',
   ctaText = 'Learn More',
+  eyebrow,
+  accentWord,
+  accentColor,
 }) => {
   return (
     <div className="w-full max-w-[500px] bg-white rounded-lg shadow-sm border border-gray-200">
@@ -44,7 +54,12 @@ export const FacebookAd: React.FC<FacebookAdProps> = ({
 
       {/* Ad Content */}
       <div className="p-4 bg-gray-50 border-t border-gray-200">
-        <h3 className="font-semibold text-base text-gray-900 mb-1">{headline}</h3>
+        {eyebrow && (
+          <p className="text-xs font-semibold tracking-widest uppercase text-gray-400 mb-1">{eyebrow}</p>
+        )}
+        <h3 className="font-semibold text-base text-gray-900 mb-1">
+          {renderHeadlineAccented(headline, accentWord, accentColor)}
+        </h3>
         <p className="text-sm text-gray-600 mb-3">{description}</p>
         <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md text-sm flex items-center justify-center gap-2">
           {ctaText}
