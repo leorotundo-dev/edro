@@ -15,6 +15,8 @@ import { runReporteiSyncWorkerOnce } from './reporteiSyncWorker';
 import { runPerformanceAlertWorkerOnce } from './performanceAlertWorker';
 import { runClientHealthWorkerOnce } from './clientHealthWorker';
 import { runOperationalAgentOnce } from './operationalAgentWorker';
+import { runBriefingSchedulerOnce } from './briefingSchedulerWorker';
+import { runMonthlyReportsWorkerOnce } from './monthlyReportsWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -83,4 +85,8 @@ export function startJobsRunner() {
   startWorkerLoop('clientHealth', runClientHealthWorkerOnce, 7500, 120_000);
   // Operational Agent — runs every 30min (self-throttled), monitors stalls/budgets/deadlines
   startWorkerLoop('operationalAgent', runOperationalAgentOnce, 8000, 120_000);
+  // Briefing Scheduler — creates recurring jobs (self-throttled to 1min)
+  startWorkerLoop('briefingScheduler', runBriefingSchedulerOnce, 8500, 60_000);
+  // Monthly Reports — generates PDFs on day 1 of each month (self-throttled)
+  startWorkerLoop('monthlyReports', runMonthlyReportsWorkerOnce, 9000, 300_000);
 }

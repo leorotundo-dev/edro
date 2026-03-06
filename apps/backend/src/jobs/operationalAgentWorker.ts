@@ -35,10 +35,28 @@ async function tryFire(triggerKey: string, tenantId: string | null, metadata: ob
   }
 }
 
-async function notify(event: string, data: object) {
+async function notify(event: string, tenantId: string | null, title: string, body: string, payload: object, clientPhone?: string | null) {
+  if (!tenantId) return;
   try {
     const { notifyEvent } = await import('../services/notificationService');
-    await notifyEvent(event, data);
+    const adminWhatsApp = process.env.ADMIN_WHATSAPP;
+    const admins = await pool.query(
+      `SELECT eu.id, eu.email FROM edro_users eu
+       JOIN tenant_users tu ON tu.user_id = eu.id
+       WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'owner') LIMIT 5`,
+      [tenantId],
+    );
+    await Promise.allSettled(admins.rows.map((a) =>
+      notifyEvent({ event, tenantId, userId: a.id, title, body,
+        recipientEmail: a.email,
+        recipientPhone: adminWhatsApp || undefined,
+        payload }),
+    ));
+    // Also notify client via WhatsApp if phone provided
+    if (clientPhone) {
+      await notifyEvent({ event, tenantId, userId: '', title, body,
+        recipientPhone: clientPhone, payload }).catch(() => {});
+    }
   } catch { /* notification service may not be configured */ }
 }
 
@@ -59,13 +77,12 @@ async function checkStalledJobs() {
     const key = `job_stalled:${job.id}`;
     const fired = await tryFire(key, job.tenant_id, { briefing_id: job.id, title: job.title });
     if (fired) {
-      await notify('job_stalled', {
-        tenantId: job.tenant_id,
-        briefingId: job.id,
-        title: job.title,
-        trafficOwner: job.traffic_owner,
-        staleDays: Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000),
-      });
+      const staleDays = Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000);
+      await notify('job_stalled', job.tenant_id,
+        `Job parado: ${job.title}`,
+        `Sem movimentação há ${staleDays} dias.`,
+        { briefingId: job.id, trafficOwner: job.traffic_owner, staleDays },
+      );
     }
   }
 }
@@ -85,15 +102,11 @@ async function checkBudgetAlerts() {
     const key = `budget_alert:${b.id}`;
     const fired = await tryFire(key, b.tenant_id, { client: b.client_name, platform: b.platform, pct });
     if (fired) {
-      await notify('budget_alert', {
-        tenantId: b.tenant_id,
-        clientId: b.client_id,
-        clientName: b.client_name,
-        platform: b.platform,
-        consumedPct: pct,
-        realizedBrl: b.realized_brl,
-        plannedBrl: b.planned_brl,
-      });
+      await notify('budget_alert', b.tenant_id,
+        `Budget ${b.platform}: ${pct}% consumido — ${b.client_name}`,
+        `R$ ${parseFloat(b.realized_brl).toFixed(2)} de R$ ${parseFloat(b.planned_brl).toFixed(2)}`,
+        { clientId: b.client_id, platform: b.platform, consumedPct: pct },
+      );
     }
   }
 }
@@ -111,14 +124,11 @@ async function checkOverdueInvoices() {
     const key = `invoice_overdue:${inv.id}`;
     const fired = await tryFire(key, inv.tenant_id, { invoice_id: inv.id, client: inv.client_name });
     if (fired) {
-      await notify('invoice_overdue', {
-        tenantId: inv.tenant_id,
-        invoiceId: inv.id,
-        clientId: inv.client_id,
-        clientName: inv.client_name,
-        amountBrl: inv.amount_brl,
-        dueDateStr: inv.due_date,
-      });
+      await notify('invoice_overdue', inv.tenant_id,
+        `Fatura vencida: ${inv.client_name}`,
+        `R$ ${parseFloat(inv.amount_brl).toFixed(2)} — venceu em ${inv.due_date?.toString().slice(0, 10)}`,
+        { invoiceId: inv.id, clientId: inv.client_id },
+      );
     }
   }
 }
@@ -126,11 +136,11 @@ async function checkOverdueInvoices() {
 async function checkLongTimers() {
   const res = await pool.query(`
     SELECT at2.*, fp.display_name, fp.user_id,
-           b.title AS briefing_title, eu.tenant_id
+           b.title AS briefing_title, cl.tenant_id
     FROM active_timers at2
     JOIN freelancer_profiles fp ON fp.id = at2.freelancer_id
     JOIN edro_briefings b ON b.id = at2.briefing_id
-    JOIN edro_users eu ON eu.id = fp.user_id
+    LEFT JOIN clients cl ON cl.id = b.main_client_id
     WHERE at2.started_at < NOW() - INTERVAL '4 hours'
   `);
 
@@ -139,14 +149,11 @@ async function checkLongTimers() {
     const key = `long_timer:${t.id}`;
     const fired = await tryFire(key, t.tenant_id, { freelancer: t.display_name, hours });
     if (fired) {
-      await notify('long_timer', {
-        tenantId: t.tenant_id,
-        freelancerId: t.freelancer_id,
-        displayName: t.display_name,
-        briefingId: t.briefing_id,
-        briefingTitle: t.briefing_title,
-        hours,
-      });
+      await notify('long_timer', t.tenant_id,
+        `Timer longo: ${t.display_name}`,
+        `${hours}h em "${t.briefing_title}"`,
+        { freelancerId: t.freelancer_id, briefingId: t.briefing_id, hours },
+      );
     }
   }
 }
@@ -168,14 +175,11 @@ async function checkDeadlines() {
     const hoursLeft = Math.floor((new Date(b.due_at).getTime() - Date.now()) / 3600000);
     const fired = await tryFire(key, b.tenant_id, { briefing_id: b.id, hours_left: hoursLeft });
     if (fired) {
-      await notify('deadline_alert', {
-        tenantId: b.tenant_id,
-        briefingId: b.id,
-        title: b.title,
-        trafficOwner: b.traffic_owner,
-        hoursLeft,
-        dueAt: b.due_at,
-      });
+      await notify('deadline_alert', b.tenant_id,
+        `Prazo em ${hoursLeft}h: ${b.title}`,
+        `Responsável: ${b.traffic_owner || 'não definido'}`,
+        { briefingId: b.id, trafficOwner: b.traffic_owner, hoursLeft },
+      );
     }
   }
 }

@@ -187,15 +187,25 @@ async function computeHealthScores() {
               [tenantId, `client_risk:${clientId}`, JSON.stringify({ score, client_name: client.name })],
             );
 
-            // Fire notification (best-effort)
+            // Fire notification to tenant admins (best-effort)
             const { notifyEvent } = await import('../services/notificationService');
-            await notifyEvent('client_risk', {
-              tenantId,
-              clientId,
-              clientName: client.name,
-              score,
-              trend,
-            }).catch(() => {});
+            const admins = await pool.query(
+              `SELECT eu.id, eu.email FROM edro_users eu
+               JOIN tenant_users tu ON tu.user_id = eu.id
+               WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'owner') LIMIT 5`,
+              [tenantId],
+            );
+            await Promise.allSettled(admins.rows.map((a) =>
+              notifyEvent({
+                event: 'client_risk',
+                tenantId,
+                userId: a.id,
+                title: `Cliente em risco: ${client.name}`,
+                body: `Score ${score}/100 (${trend})`,
+                recipientEmail: a.email,
+                payload: { clientId, score, trend },
+              }),
+            ));
           } catch {
             // Dedup index blocks duplicate — already fired today
           }
