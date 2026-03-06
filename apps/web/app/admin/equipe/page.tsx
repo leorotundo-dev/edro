@@ -319,7 +319,7 @@ export default function EquipePage() {
                           const pct = (row.minutes / maxMins) * 100;
                           return (
                             <TableRow key={row.name}>
-                              <TableCell fontWeight={600}>{row.name}</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
                               <TableCell align="right">{fmtH(row.minutes)}</TableCell>
                               <TableCell align="right">{brl(row.cost)}</TableCell>
                               <TableCell>
@@ -366,7 +366,7 @@ export default function EquipePage() {
                             (p.client_name ?? '').toLowerCase().includes(row.client.toLowerCase()) ||
                             row.client.toLowerCase().includes((p.client_name ?? '').toLowerCase())
                           );
-                          const receita = plRow ? parseFloat(plRow.receita_brl ?? '0') : 0;
+                          const receita = plRow ? (typeof plRow.receita === 'number' ? plRow.receita : 0) : 0;
                           const margem = receita - row.cost;
                           return (
                             <TableRow key={row.client} hover>
