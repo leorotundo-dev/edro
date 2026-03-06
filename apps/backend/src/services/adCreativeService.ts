@@ -1,6 +1,7 @@
 import { env } from '../env';
 import { generateImage } from './ai/geminiService';
 import { generateImageWithLeonardo, uploadInitImageToLeonardo, resolveLeonardoModelId } from './ai/leonardoService';
+import { generateImageWithFal, isFalConfigured } from './ai/falAiService';
 import { generateCompletion } from './ai/claudeService';
 import { logLeonardoUsage } from './ai/aiUsageLogger';
 
@@ -23,8 +24,8 @@ type AdCreativeRequest = {
   /** Flattened rejection tags from last 3 discarded creatives (e.g. ["errou ambiente","cor errada"]) */
   discardTags?: string[];
   imageModel?: string;
-  /** 'gemini' (default) | 'leonardo' */
-  imageProvider?: 'gemini' | 'leonardo';
+  /** 'gemini' (default) | 'leonardo' | 'fal' */
+  imageProvider?: 'gemini' | 'leonardo' | 'fal';
   aspectRatio?: string;
   negativePrompt?: string;
   tenantId?: string;
@@ -344,6 +345,30 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
     }
   }
 
+  // ── fal.ai (Flux Pro 1.1) ────────────────────────────────────────────
+  if (provider === 'fal') {
+    if (!isFalConfigured()) {
+      return { success: false, error: 'FAL_API_KEY não configurada' };
+    }
+    try {
+      const sceneNarrative = params.customPrompt || buildScenePrompt(params);
+      const finalPrompt = `${VISUAL_DNA_BASE}\n${sceneNarrative}`;
+      const result = await generateImageWithFal({
+        prompt: finalPrompt,
+        negativePrompt: params.negativePrompt,
+        aspectRatio: params.aspectRatio,
+        numImages: params.numImages ?? 1,
+      });
+      return {
+        success: true,
+        image_url: result.imageUrl,
+        image_urls: result.imageUrls,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao gerar imagem com fal.ai' };
+    }
+  }
+
   // ── Gemini (default) ────────────────────────────────────────────────
   if (!env.GEMINI_API_KEY) {
     return { success: false, error: 'GEMINI_API_KEY não configurada' };
@@ -372,7 +397,7 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
 }
 
 export function isAdCreativeConfigured(): boolean {
-  return Boolean(env.GEMINI_API_KEY || env.LEONARDO_API_KEY);
+  return Boolean(env.GEMINI_API_KEY || env.LEONARDO_API_KEY || env.FAL_API_KEY);
 }
 
 /**

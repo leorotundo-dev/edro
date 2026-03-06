@@ -15,10 +15,32 @@ interface InstagramStoryMockupProps {
   body?: string;
   /** Background/accent color for text overlay */
   arteBgColor?: string;
+  /** Short teaser text above headline (Art Director) */
+  eyebrow?: string;
+  /** Word or phrase in headline to highlight with accentColor */
+  accentWord?: string;
+  /** Color for the accent word highlight */
+  accentColor?: string;
   /** Number of story segments to show in progress bar */
   totalSegments?: number;
   /** Current active segment (0-based) */
   activeSegment?: number;
+}
+
+/** Renders a headline with an optional accent word highlighted in a different color */
+function renderHeadlineAccented(text: string, accentWord?: string, accentColor?: string): React.ReactNode {
+  if (!accentWord || !accentColor) return text;
+  const lower = text.toLowerCase();
+  const accentLower = accentWord.toLowerCase();
+  const idx = lower.indexOf(accentLower);
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ color: accentColor }}>{text.slice(idx, idx + accentWord.length)}</span>
+      {text.slice(idx + accentWord.length)}
+    </>
+  );
 }
 
 export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
@@ -33,6 +55,9 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
   arteBody,
   body,
   arteBgColor,
+  eyebrow,
+  accentWord,
+  accentColor,
   totalSegments = 3,
   activeSegment = 0,
 }) => {
@@ -40,7 +65,7 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
   const resolvedImage = storyImage || image || '';
   const resolvedHeadline = arteHeadline || headline;
   const resolvedBody = arteBody || body;
-  const accentColor = arteBgColor || '#E1306C';
+  const resolvedAccentColor = accentColor || arteBgColor || '#E1306C';
 
   const segments = Math.max(1, totalSegments);
 
@@ -65,20 +90,29 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
             alt="Story"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
-          {(resolvedHeadline || resolvedBody) && (
+          {(resolvedHeadline || resolvedBody || eyebrow) && (
             <div style={{
               position: 'absolute', bottom: 80, left: 0, right: 0, zIndex: 5,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.45) 60%, transparent 100%)',
-              padding: '40px 24px 24px',
+              background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 65%, transparent 100%)',
+              padding: '48px 24px 24px',
               textAlign: 'center',
             }}>
+              {eyebrow && (
+                <p style={{
+                  color: 'rgba(255,255,255,0.70)', fontWeight: 600, fontSize: 10,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  margin: '0 0 8px', textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                }}>
+                  {eyebrow}
+                </p>
+              )}
               {resolvedHeadline && (
                 <p style={{
                   color: '#fff', fontWeight: 800, fontSize: 20, lineHeight: 1.25,
                   letterSpacing: '-0.02em', margin: '0 0 8px',
                   textShadow: '0 2px 8px rgba(0,0,0,0.6)',
                 }}>
-                  {resolvedHeadline}
+                  {renderHeadlineAccented(resolvedHeadline, accentWord, accentColor)}
                 </p>
               )}
               {resolvedBody && (
@@ -96,16 +130,25 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
         /* AI text overlay as background */
         <div style={{
           position: 'absolute', inset: 0,
-          background: `linear-gradient(160deg, #0f172a 0%, ${accentColor}55 100%)`,
+          background: `linear-gradient(160deg, #0f172a 0%, ${resolvedAccentColor}55 100%)`,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '80px 28px 100px',
           textAlign: 'center',
         }}>
+          {eyebrow && (
+            <p style={{
+              color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: 10,
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              margin: '0 0 14px',
+            }}>
+              {eyebrow}
+            </p>
+          )}
           {/* Accent bar */}
           <div style={{
             width: 40, height: 3, borderRadius: 2,
-            background: accentColor,
+            background: resolvedAccentColor,
             marginBottom: 18, opacity: 0.9,
           }} />
           <p style={{
@@ -114,7 +157,7 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
             textShadow: '0 2px 10px rgba(0,0,0,0.5)',
             margin: '0 0 12px',
           }}>
-            {resolvedHeadline}
+            {renderHeadlineAccented(resolvedHeadline || '', accentWord, accentColor)}
           </p>
           {resolvedBody && (
             <p style={{
@@ -172,7 +215,7 @@ export const InstagramStoryMockup: React.FC<InstagramStoryMockupProps> = ({
                 {profileImage ? (
                   <img src={profileImage} alt={displayUsername} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ width: '100%', height: '100%', background: accentColor }} />
+                  <div style={{ width: '100%', height: '100%', background: resolvedAccentColor }} />
                 )}
               </div>
             </div>

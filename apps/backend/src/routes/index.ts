@@ -41,6 +41,8 @@ import adminReporteiRoutes from './adminReportei';
 import freelancersRoutes from './freelancers';
 import financialRoutes from './financial';
 import portalClientRoutes from './portalClient';
+import artworksRoutes from './artworks';
+import studioCreativeRoutes from './studioCreative';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -86,4 +88,6 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(freelancersRoutes, { prefix: '/api' });
   app.register(financialRoutes, { prefix: '/api' });
   app.register(portalClientRoutes, { prefix: '/api' });
+  app.register(artworksRoutes, { prefix: '/api' });
+  app.register(studioCreativeRoutes, { prefix: '/api' });
 }

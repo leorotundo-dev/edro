@@ -35,7 +35,7 @@ export function resolveLeonardoModelId(modelId?: string): string {
 /** Map aspect ratio string → Leonardo width/height */
 function resolveSize(aspectRatio?: string): { width: number; height: number } {
   switch (aspectRatio) {
-    case '9:16': return { width: 576,  height: 1024 };
+    case '9:16': return { width: 1080, height: 1920 };
     case '4:5':  return { width: 864,  height: 1080 };
     case '3:4':  return { width: 768,  height: 1024 };
     case '4:3':  return { width: 1024, height: 768  };

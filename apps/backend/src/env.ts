@@ -79,6 +79,7 @@ const envSchema = z.object({
   WHATSAPP_API_VERSION: z.string().optional(),
   PERPLEXITY_API_KEY: z.string().optional(),
   LEONARDO_API_KEY: z.string().optional(),
+  FAL_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);

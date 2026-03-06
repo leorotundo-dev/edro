@@ -17,6 +17,12 @@ interface InstagramFeedMockupProps {
   /** Alias for arteBody — passed by Studio AI system */
   body?: string;
   arteBgColor?: string;
+  /** Short teaser text above headline (Art Director) */
+  eyebrow?: string;
+  /** Word or phrase in headline to highlight with accentColor */
+  accentWord?: string;
+  /** Color for the accent word highlight */
+  accentColor?: string;
   likes?: number;
   caption?: string;
   comments?: Array<{ username: string; text: string }>;
@@ -61,6 +67,22 @@ function renderCaption(username: string, text: string) {
   );
 }
 
+/** Renders a headline with an optional accent word highlighted in a different color */
+function renderHeadlineAccented(text: string, accentWord?: string, accentColor?: string): React.ReactNode {
+  if (!accentWord || !accentColor) return text;
+  const lower = text.toLowerCase();
+  const accentLower = accentWord.toLowerCase();
+  const idx = lower.indexOf(accentLower);
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ color: accentColor }}>{text.slice(idx, idx + accentWord.length)}</span>
+      {text.slice(idx + accentWord.length)}
+    </>
+  );
+}
+
 export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   username = 'youraccount',
   name,
@@ -75,6 +97,9 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
   headline,
   body,
   arteBgColor,
+  eyebrow,
+  accentWord,
+  accentColor,
   likes = 3452,
   caption = 'Enhance your Instagram with our UI Mockup Download for your instagram creativity. @instagram #templates #bold #fun #aesthetic #newpost',
   comments = [],
@@ -158,12 +183,21 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
         {currentImage && (!currentImage.startsWith('data:') || currentImage.startsWith('data:image/png') || currentImage.startsWith('data:image/jpeg') || currentImage.startsWith('data:image/webp')) ? (
           <div className="w-full h-full relative overflow-hidden">
             <img src={currentImage} alt="Post" className="w-full h-full object-cover" />
-            {(resolvedHeadline || resolvedBody) && (
+            {(resolvedHeadline || resolvedBody || eyebrow) && (
               <div style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.42) 55%, transparent 100%)',
+                background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.42) 60%, transparent 100%)',
                 padding: '40px 18px 18px',
               }}>
+                {eyebrow && (
+                  <p style={{
+                    color: 'rgba(255,255,255,0.70)', fontWeight: 600, fontSize: 10,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                    margin: '0 0 5px', textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                  }}>
+                    {eyebrow}
+                  </p>
+                )}
                 {resolvedHeadline && (
                   <p style={{
                     color: '#fff', fontWeight: 700, fontSize: 15, lineHeight: 1.3, margin: 0,
@@ -171,7 +205,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
                     textShadow: '0 1px 6px rgba(0,0,0,0.6)',
                     display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
                   }}>
-                    {resolvedHeadline}
+                    {renderHeadlineAccented(resolvedHeadline, accentWord, accentColor)}
                   </p>
                 )}
                 {resolvedBody && (
@@ -191,10 +225,20 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
             className="w-full h-full relative flex flex-col items-center justify-center overflow-hidden"
             style={{ background: `linear-gradient(145deg, #0f172a 0%, ${arteBgColor || '#d35400'}55 100%)` }}
           >
+            {/* Eyebrow */}
+            {eyebrow && (
+              <p style={{
+                color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: 10,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                margin: '0 0 10px', textAlign: 'center',
+              }}>
+                {eyebrow}
+              </p>
+            )}
             {/* Accent bar */}
             <div style={{
               width: 48, height: 3, borderRadius: 2,
-              background: arteBgColor || '#d35400',
+              background: accentColor || arteBgColor || '#d35400',
               marginBottom: 14, opacity: 0.9,
             }} />
             {/* Headline */}
@@ -205,7 +249,7 @@ export const InstagramFeedMockup: React.FC<InstagramFeedMockupProps> = ({
                 textShadow: '0 2px 8px rgba(0,0,0,0.45)',
               }}
             >
-              {resolvedHeadline}
+              {renderHeadlineAccented(resolvedHeadline, accentWord, accentColor)}
             </p>
             {/* Body */}
             {resolvedBody ? (

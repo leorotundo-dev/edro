@@ -28,6 +28,7 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
+import LinearProgress from '@mui/material/LinearProgress';
 import {
   IconZoomIn,
   IconZoomOut,
@@ -41,6 +42,8 @@ import {
   IconLink,
   IconSparkles,
   IconCopy,
+  IconWand,
+  IconCheck,
 } from '@tabler/icons-react';
 
 type InventoryItem = {
@@ -640,6 +643,26 @@ export default function Page({ embedded }: PageProps = {}) {
   const [imagePrompt, setImagePrompt] = useState('');
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [showCopyEditor, setShowCopyEditor] = useState(false);
+  // AI Generation panel
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'leonardo'>('gemini');
+  const [aiModel, setAiModel] = useState('leonardo-phoenix');
+  const [aiPromptVariations, setAiPromptVariations] = useState<string[]>([]);
+  const [aiSelectedVariation, setAiSelectedVariation] = useState(0);
+  const [aiCustomPrompt, setAiCustomPrompt] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGeneratedImages, setAiGeneratedImages] = useState<string[]>([]);
+  const [aiElapsedSec, setAiElapsedSec] = useState(0);
+  const aiTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Art Director panel
+  const [showArtDirectorPanel, setShowArtDirectorPanel] = useState(false);
+  const [artDirectorGatilho, setArtDirectorGatilho] = useState('');
+  const [artDirectorBrandColor, setArtDirectorBrandColor] = useState('#F5C518');
+  const [artDirectorOrchestrating, setArtDirectorOrchestrating] = useState(false);
+  const [artDirectorLayout, setArtDirectorLayout] = useState<{
+    eyebrow: string; headline: string; accentWord: string; accentColor: string;
+    cta: string; body: string; overlayStrength: number;
+  } | null>(null);
   const [exportError, setExportError] = useState('');
   const [editedCopy, setEditedCopy] = useState<{ headline: string; body: string; cta: string }>({
     headline: '',
@@ -1276,6 +1299,137 @@ export default function Page({ embedded }: PageProps = {}) {
     }
   };
 
+  // ── AI Generation helpers ──────────────────────────────────────────────
+  const getAiPayloadBase = () => {
+    const activeMockup = displayMockups[0];
+    const platform = activeMockup?.platform || safeGet('edro_active_platform') || 'Instagram';
+    const format = activeMockup?.format || 'Feed 1:1';
+    const clientId = safeGet('edro_active_client_id') || undefined;
+    let copy = '';
+    let headline = '';
+    try {
+      const ctx = JSON.parse(safeGet('edro_studio_context') || '{}');
+      copy = ctx.message || ctx.event || ctx.title || '';
+      headline = ctx.title || ctx.event || '';
+    } catch { /* ignore */ }
+    if (!copy && activeMockup) {
+      copy = getCopyFor(platform, format, context);
+    }
+    const fields = extractCopyFields(copy);
+    return { platform, format, clientId, copy, headline: headline || fields.headline, bodyText: fields.body };
+  };
+
+  const handleAiGetVariations = async () => {
+    setGeneratingPrompt(true);
+    setAiPromptVariations([]);
+    setAiCustomPrompt('');
+    try {
+      const { platform, format, clientId, copy, headline, bodyText } = getAiPayloadBase();
+      const res = await apiPost<{ success: boolean; prompt_variations: string[] }>('/studio/creative/generate', {
+        copy,
+        headline,
+        body_text: bodyText,
+        format,
+        platform,
+        client_id: clientId,
+        image_provider: aiProvider,
+        prompt_only: true,
+      });
+      if (res?.prompt_variations?.length) {
+        setAiPromptVariations(res.prompt_variations);
+        setAiSelectedVariation(0);
+        setAiCustomPrompt(res.prompt_variations[0]);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingPrompt(false);
+    }
+  };
+
+  const handleAiGenerateImage = async () => {
+    setAiGenerating(true);
+    setAiGeneratedImages([]);
+    setAiElapsedSec(0);
+    if (aiTimerRef.current) clearInterval(aiTimerRef.current);
+    aiTimerRef.current = setInterval(() => setAiElapsedSec((s) => s + 1), 1000);
+    try {
+      const { platform, format, clientId, copy, headline, bodyText } = getAiPayloadBase();
+      const aspectRatio = format.includes('9:16') ? '9:16' : format.includes('16:9') ? '16:9' : format.includes('4:5') ? '4:5' : '1:1';
+      const res = await apiPost<{ success: boolean; image_url?: string; image_urls?: string[] }>('/studio/creative/generate', {
+        copy,
+        headline,
+        body_text: bodyText,
+        format,
+        platform,
+        client_id: clientId,
+        image_provider: aiProvider,
+        image_model: aiProvider === 'leonardo' ? aiModel : undefined,
+        aspect_ratio: aspectRatio,
+        num_images: aiProvider === 'leonardo' ? 3 : 1,
+        custom_prompt: aiCustomPrompt || undefined,
+      });
+      if (res?.success) {
+        const urls = res.image_urls?.length ? res.image_urls : res.image_url ? [res.image_url] : [];
+        setAiGeneratedImages(urls);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setAiGenerating(false);
+      if (aiTimerRef.current) { clearInterval(aiTimerRef.current); aiTimerRef.current = null; }
+    }
+  };
+
+  const handleAiUseImage = (url: string) => {
+    setCreativeImageUrl(url);
+    const briefingId = safeGet('edro_briefing_id');
+    if (briefingId) {
+      apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: url }).catch(() => null);
+    }
+    setShowAiPanel(false);
+  };
+
+  const handleArtDirectorOrchestrate = async (withImage: boolean) => {
+    setArtDirectorOrchestrating(true);
+    try {
+      const { platform, format, clientId, copy } = getAiPayloadBase();
+      const res = await apiPost<{
+        success: boolean;
+        layout?: typeof artDirectorLayout;
+        imgPrompt?: { positive: string; negative: string; aspectRatio: string };
+        image_url?: string;
+        image_urls?: string[];
+      }>('/studio/creative/orchestrate', {
+        copy,
+        gatilho: artDirectorGatilho || undefined,
+        brand: { primaryColor: artDirectorBrandColor },
+        format,
+        platform,
+        client_id: clientId,
+        with_image: withImage,
+        image_provider: 'fal',
+      });
+      if (res?.success && res.layout) {
+        setArtDirectorLayout(res.layout);
+      }
+      if (withImage && (res?.image_url || res?.image_urls?.length)) {
+        const url = res.image_urls?.[0] || res.image_url || '';
+        if (url) {
+          setCreativeImageUrl(url);
+          const briefingId = safeGet('edro_briefing_id');
+          if (briefingId) {
+            apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: url }).catch(() => null);
+          }
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setArtDirectorOrchestrating(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
@@ -1526,6 +1680,26 @@ export default function Page({ embedded }: PageProps = {}) {
         baseProps.storyImage = creativeImageUrl;
         baseProps.videoThumbnail = creativeImageUrl;
         baseProps.adImage = creativeImageUrl;
+      }
+
+      // Art Director layout override — applies eyebrow/accentWord/accentColor when set
+      if (artDirectorLayout) {
+        if (artDirectorLayout.eyebrow) baseProps.eyebrow = artDirectorLayout.eyebrow;
+        if (artDirectorLayout.headline) {
+          baseProps.headline = artDirectorLayout.headline;
+          baseProps.arteHeadline = artDirectorLayout.headline;
+          baseProps.title = artDirectorLayout.headline;
+        }
+        if (artDirectorLayout.accentWord) baseProps.accentWord = artDirectorLayout.accentWord;
+        if (artDirectorLayout.accentColor) baseProps.accentColor = artDirectorLayout.accentColor;
+        if (artDirectorLayout.body) {
+          baseProps.body = artDirectorLayout.body;
+          baseProps.arteBody = artDirectorLayout.body;
+        }
+        if (artDirectorLayout.cta) {
+          baseProps.cta = artDirectorLayout.cta;
+          baseProps.ctaText = artDirectorLayout.cta;
+        }
       }
 
       const fontScale = Math.max(0.85, Math.min(1.05, frame.width / 520));
@@ -1806,12 +1980,299 @@ export default function Page({ embedded }: PageProps = {}) {
                   style={{ display: 'none' }}
                   onChange={handleCreativeImageUpload}
                 />
+                {/* Art AI — toggle panel */}
+                <Button
+                  size="small"
+                  variant={showArtDirectorPanel ? 'contained' : 'outlined'}
+                  startIcon={<IconWand size={14} />}
+                  color="secondary"
+                  onClick={() => { setShowArtDirectorPanel((v) => !v); setShowAiPanel(false); }}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  Art AI
+                </Button>
+
+                {showArtDirectorPanel && (
+                  <Box sx={{ border: '1px solid', borderColor: 'secondary.light', borderRadius: 1.5, p: 1.5, bgcolor: 'rgba(156,39,176,0.03)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 600, display: 'block', mb: 1 }}>
+                      Gatilho Psicológico
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                      {[
+                        { id: 'G01', label: 'G01 Perda' },
+                        { id: 'G02', label: 'G02 Específico' },
+                        { id: 'G03', label: 'G03 Zeigarnik' },
+                        { id: 'G04', label: 'G04 Âncora' },
+                        { id: 'G05', label: 'G05 Social' },
+                        { id: 'G06', label: 'G06 Pratfall' },
+                        { id: 'G07', label: 'G07 Dark' },
+                      ].map((g) => (
+                        <Chip
+                          key={g.id}
+                          label={g.label}
+                          size="small"
+                          variant={artDirectorGatilho === g.id ? 'filled' : 'outlined'}
+                          color={artDirectorGatilho === g.id ? 'secondary' : 'default'}
+                          onClick={() => setArtDirectorGatilho((prev) => prev === g.id ? '' : g.id)}
+                          sx={{ fontSize: '0.65rem', cursor: 'pointer' }}
+                        />
+                      ))}
+                    </Stack>
+
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', whiteSpace: 'nowrap' }}>
+                        Cor acento
+                      </Typography>
+                      <Box
+                        component="input"
+                        type="color"
+                        value={artDirectorBrandColor}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setArtDirectorBrandColor(e.target.value)}
+                        sx={{ width: 36, height: 28, p: 0.25, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer' }}
+                      />
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace' }}>
+                        {artDirectorBrandColor}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={0.75} sx={{ mb: 1 }}>
+                      <LoadingButton
+                        size="small"
+                        variant="outlined"
+                        color="secondary"
+                        startIcon={<IconWand size={13} />}
+                        loading={artDirectorOrchestrating}
+                        onClick={() => handleArtDirectorOrchestrate(false)}
+                        sx={{ fontSize: '0.7rem', flex: 1 }}
+                      >
+                        Layout
+                      </LoadingButton>
+                      <LoadingButton
+                        size="small"
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<IconSparkles size={13} />}
+                        loading={artDirectorOrchestrating}
+                        onClick={() => handleArtDirectorOrchestrate(true)}
+                        sx={{ fontSize: '0.7rem', flex: 1 }}
+                      >
+                        Layout + Imagem
+                      </LoadingButton>
+                    </Stack>
+
+                    {artDirectorLayout && (
+                      <Box sx={{ bgcolor: 'rgba(0,0,0,0.04)', borderRadius: 1, p: 1 }}>
+                        {artDirectorLayout.eyebrow && (
+                          <Typography variant="caption" sx={{ display: 'block', fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.08em', textTransform: 'uppercase', mb: 0.25 }}>
+                            {artDirectorLayout.eyebrow}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" sx={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.3, mb: 0.5 }}>
+                          {artDirectorLayout.headline}
+                          {artDirectorLayout.accentWord && (
+                            <span style={{ color: artDirectorLayout.accentColor }}> [{artDirectorLayout.accentWord}]</span>
+                          )}
+                        </Typography>
+                        {artDirectorLayout.cta && (
+                          <Chip label={artDirectorLayout.cta} size="small" sx={{ fontSize: '0.62rem', height: 18 }} />
+                        )}
+                        <Button
+                          size="small"
+                          color="inherit"
+                          sx={{ fontSize: '0.62rem', mt: 0.5, p: 0, minWidth: 0, textTransform: 'none', opacity: 0.5 }}
+                          onClick={() => setArtDirectorLayout(null)}
+                        >
+                          Limpar
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
+                {/* Gerar com IA — toggle panel */}
+                <Button
+                  size="small"
+                  variant={showAiPanel ? 'contained' : 'outlined'}
+                  startIcon={<IconSparkles size={14} />}
+                  color="primary"
+                  onClick={() => { setShowAiPanel((v) => !v); setShowArtDirectorPanel(false); }}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  Gerar com IA
+                </Button>
+
+                {showAiPanel && (
+                  <Box sx={{ border: '1px solid', borderColor: 'primary.light', borderRadius: 1.5, p: 1.5, bgcolor: 'rgba(25,118,210,0.03)' }}>
+                    {/* Provider selector */}
+                    <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                      {(['gemini', 'leonardo'] as const).map((p) => (
+                        <Chip
+                          key={p}
+                          label={p === 'gemini' ? 'Gemini' : 'Leonardo'}
+                          size="small"
+                          variant={aiProvider === p ? 'filled' : 'outlined'}
+                          color={aiProvider === p ? 'primary' : 'default'}
+                          onClick={() => setAiProvider(p)}
+                          sx={{ fontSize: '0.7rem', cursor: 'pointer' }}
+                        />
+                      ))}
+                    </Stack>
+
+                    {/* Leonardo model selector */}
+                    {aiProvider === 'leonardo' && (
+                      <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', mb: 0.5, display: 'block' }}>
+                          Modelo
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {[
+                            { id: 'leonardo-phoenix', label: 'Phoenix' },
+                            { id: 'leonardo-lightning-xl', label: 'Lightning' },
+                            { id: 'leonardo-kino-xl', label: 'Kino' },
+                          ].map((m) => (
+                            <Chip
+                              key={m.id}
+                              label={m.label}
+                              size="small"
+                              variant={aiModel === m.id ? 'filled' : 'outlined'}
+                              color={aiModel === m.id ? 'secondary' : 'default'}
+                              onClick={() => setAiModel(m.id)}
+                              sx={{ fontSize: '0.68rem', cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {/* Art Director variations */}
+                    <LoadingButton
+                      size="small"
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<IconWand size={13} />}
+                      loading={generatingPrompt}
+                      onClick={handleAiGetVariations}
+                      sx={{ fontSize: '0.72rem', mb: aiPromptVariations.length ? 1 : 0 }}
+                    >
+                      Gerar variações de cena (IA)
+                    </LoadingButton>
+
+                    {aiPromptVariations.length > 0 && (
+                      <Stack spacing={0.5} sx={{ mb: 1 }}>
+                        {aiPromptVariations.map((v, i) => (
+                          <Box
+                            key={i}
+                            onClick={() => { setAiSelectedVariation(i); setAiCustomPrompt(v); }}
+                            sx={{
+                              p: 0.75,
+                              borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: aiSelectedVariation === i ? 'primary.main' : 'divider',
+                              bgcolor: aiSelectedVariation === i ? 'rgba(25,118,210,0.07)' : 'background.default',
+                              cursor: 'pointer',
+                              fontSize: '0.66rem',
+                              lineHeight: 1.4,
+                              color: 'text.secondary',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ fontSize: '0.64rem', fontWeight: 700, color: 'primary.main', display: 'block', mb: 0.25 }}>
+                              {['A — Metafórica', 'B — Ambiental', 'C — Humana'][i] || `Opção ${i + 1}`}
+                            </Typography>
+                            {v.slice(0, 160)}{v.length > 160 ? '…' : ''}
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Editable scene prompt */}
+                    <TextField
+                      size="small"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      maxRows={5}
+                      value={aiCustomPrompt}
+                      onChange={(e) => setAiCustomPrompt(e.target.value)}
+                      placeholder="Descreva a cena ou edite a variação acima..."
+                      InputProps={{ sx: { fontSize: '0.72rem' } }}
+                      sx={{ mb: 1 }}
+                    />
+
+                    {/* Generate button + timer */}
+                    <LoadingButton
+                      size="small"
+                      fullWidth
+                      variant="contained"
+                      color="primary"
+                      startIcon={<IconSparkles size={13} />}
+                      loading={aiGenerating}
+                      onClick={handleAiGenerateImage}
+                      sx={{ fontSize: '0.75rem', mb: 0.5 }}
+                    >
+                      {aiGenerating
+                        ? `Gerando${aiProvider === 'leonardo' ? ` (${aiElapsedSec}s)` : '…'}`
+                        : 'Gerar Imagem'}
+                    </LoadingButton>
+                    {aiGenerating && (
+                      <LinearProgress sx={{ borderRadius: 1, height: 3 }} />
+                    )}
+
+                    {/* Generated images grid */}
+                    {aiGeneratedImages.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', display: 'block', mb: 0.5 }}>
+                          {aiGeneratedImages.length > 1 ? `${aiGeneratedImages.length} variações geradas — clique para usar` : 'Imagem gerada — clique para usar'}
+                        </Typography>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 0.75 }}>
+                          {aiGeneratedImages.map((url, i) => (
+                            <Box
+                              key={i}
+                              onClick={() => handleAiUseImage(url)}
+                              sx={{
+                                position: 'relative',
+                                borderRadius: 1,
+                                overflow: 'hidden',
+                                cursor: 'pointer',
+                                border: '2px solid transparent',
+                                '&:hover': { borderColor: 'primary.main' },
+                                '&:hover .use-btn': { opacity: 1 },
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={url}
+                                alt={`Variação ${i + 1}`}
+                                sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+                              />
+                              <Box
+                                className="use-btn"
+                                sx={{
+                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.55)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  opacity: 0, transition: 'opacity 0.15s',
+                                }}
+                              >
+                                <IconCheck size={22} color="#fff" />
+                              </Box>
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
                 <LoadingButton
                   size="small"
                   variant="outlined"
                   startIcon={<IconUpload size={14} />}
                   onClick={() => fileInputRef.current?.click()}
                   loading={uploadingImage}
+                  sx={{ fontSize: '0.72rem' }}
                 >
                   Upload Imagem
                 </LoadingButton>
@@ -1830,12 +2291,12 @@ export default function Page({ embedded }: PageProps = {}) {
                   size="small"
                   variant="outlined"
                   onClick={handleGenerateImagePrompt}
-                  loading={generatingPrompt}
+                  loading={generatingPrompt && !showAiPanel}
                   startIcon={<IconSparkles size={14} />}
-                  color="primary"
-                  sx={{ fontSize: '0.72rem' }}
+                  color="inherit"
+                  sx={{ fontSize: '0.68rem', color: 'text.secondary' }}
                 >
-                  Gerar prompt Midjourney/DALL-E
+                  Prompt para Midjourney/DALL-E
                 </LoadingButton>
                 {imagePrompt && (
                   <Box sx={{ p: 1, bgcolor: 'rgba(232,82,25,0.06)', borderRadius: 1, border: '1px solid rgba(232,82,25,0.2)' }}>
