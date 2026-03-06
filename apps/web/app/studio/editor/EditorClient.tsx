@@ -482,7 +482,11 @@ export default function EditorClient() {
   const [arteRefsCount, setArteRefsCount] = useState(0);
   const [arteModalError, setArteModalError] = useState('');
   const [imageModel, setImageModel] = useState('gemini-2.0-flash-exp-image-generation');
-  const [imageProvider, setImageProvider] = useState<'gemini' | 'leonardo'>('gemini');
+  const [imageProvider, setImageProvider] = useState<'gemini' | 'leonardo' | 'fal'>('gemini');
+  // Art Director mode
+  const [artDirMode, setArtDirMode] = useState(false);
+  const [artDirGatilho, setArtDirGatilho] = useState('');
+  const [artDirOrchestrating, setArtDirOrchestrating] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
   const [imageNegativePrompt, setImageNegativePrompt] = useState('');
   // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
@@ -1270,14 +1274,14 @@ export default function EditorClient() {
           headline: editorCopy.headline || undefined,
           body_text: editorCopy.body || undefined,
           custom_prompt: artePrompt || undefined,
-          image_model: imageProvider === 'leonardo' ? undefined : imageModel,
+          image_model: (imageProvider === 'leonardo' || imageProvider === 'fal') ? undefined : imageModel,
           image_provider: imageProvider !== 'gemini' ? imageProvider : undefined,
-          aspect_ratio: (imageProvider === 'leonardo' || imageModel.startsWith('imagen-')) ? imageAspectRatio : undefined,
+          aspect_ratio: (imageProvider === 'leonardo' || imageProvider === 'fal' || imageModel.startsWith('imagen-')) ? imageAspectRatio : undefined,
           negative_prompt: imageNegativePrompt || undefined,
           init_image_library_item_id: (imageProvider === 'leonardo' && selectedLibraryImageId) ? selectedLibraryImageId : undefined,
           init_strength: (imageProvider === 'leonardo' && selectedLibraryImageId) ? initStrength : undefined,
-          // Preview: sempre 1 imagem; Leonardo normal: 3 variações
-          num_images: isPreview || imageProvider !== 'leonardo' ? 1 : 3,
+          // Preview: sempre 1 imagem; Leonardo/Fal normal: 3 variações
+          num_images: isPreview || (imageProvider !== 'leonardo' && imageProvider !== 'fal') ? 1 : 3,
         }
       );
       const urls = res.image_urls?.length ? res.image_urls : (res.image_url || res.data?.image_url ? [res.image_url || res.data?.image_url!] : []);
@@ -1335,6 +1339,49 @@ export default function EditorClient() {
 
   // ── Preview Rápido — 1 imagem, provider atual
   const handlePreviewArte = () => handleGenerateArteWithPrompt(true);
+
+  // ── Art Director — chama orchestrate e atualiza mockup ────────────────
+  const handleArtDirectorGenerate = async (withImage: boolean) => {
+    const clientId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined;
+    const copy = editorCopy.headline || '';
+    setArtDirOrchestrating(true);
+    try {
+      const res = await apiPost<{
+        success: boolean;
+        layout?: { eyebrow: string; headline: string; accentWord: string; accentColor: string; cta: string; body: string; overlayStrength: number };
+        image_url?: string;
+        image_urls?: string[];
+        brand_colors?: string[];
+      }>('/studio/creative/orchestrate', {
+        copy,
+        gatilho: artDirGatilho || undefined,
+        brand: { primaryColor: clientBrandColor || '#E85219' },
+        format: activeFormat?.format || 'Feed 1:1',
+        platform: activeFormat?.platform || 'Instagram',
+        client_id: clientId,
+        with_image: withImage,
+        image_provider: 'fal',
+        num_variants: withImage ? 3 : undefined,
+      });
+      if (res?.success && res.layout) {
+        setEditorCopy((prev) => ({
+          ...prev,
+          headline: res.layout!.headline || prev.headline,
+          cta: res.layout!.cta || prev.cta,
+        }));
+      }
+      if (withImage) {
+        const urls = res?.image_urls?.length ? res.image_urls : (res?.image_url ? [res.image_url] : []);
+        if (urls.length) {
+          setArteImageUrls(urls);
+          setArteImageUrl(urls[0]);
+          setSelectedArteIndex(0);
+        }
+      }
+    } catch { /* silently fail */ } finally {
+      setArtDirOrchestrating(false);
+    }
+  };
 
   // ── Feedback de criativo — loop de aprendizado ──────────────────────
   const sendCreativeFeedback = async (
@@ -2251,19 +2298,38 @@ export default function EditorClient() {
 
                       <Stack spacing={1.5}>
                         {/* Provider */}
+                        <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }}>
+                          <Chip
+                            size="small" label="Imagem"
+                            variant={!artDirMode ? 'filled' : 'outlined'}
+                            color={!artDirMode ? 'primary' : 'default'}
+                            onClick={() => setArtDirMode(false)}
+                            sx={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                          />
+                          <Chip
+                            size="small" label="Art Director"
+                            variant={artDirMode ? 'filled' : 'outlined'}
+                            color={artDirMode ? 'secondary' : 'default'}
+                            onClick={() => setArtDirMode(true)}
+                            sx={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                          />
+                        </Stack>
+
                         <TextField
                           select size="small" label="Provedor de imagem"
                           value={imageProvider}
                           onChange={(e) => {
-                            const p = e.target.value as 'gemini' | 'leonardo';
+                            const p = e.target.value as 'gemini' | 'leonardo' | 'fal';
                             setImageProvider(p);
                             if (p === 'leonardo') setImageModel('leonardo-phoenix');
+                            else if (p === 'fal') setImageModel('fal-flux-pro');
                             else setImageModel('gemini-2.0-flash-exp-image-generation');
                           }}
                           fullWidth
                         >
                           <MenuItem value="gemini">Google Gemini / Imagen</MenuItem>
                           <MenuItem value="leonardo">Leonardo.ai</MenuItem>
+                          <MenuItem value="fal">Fal.ai / Flux</MenuItem>
                         </TextField>
 
                         {/* Model — Gemini */}
@@ -2292,6 +2358,21 @@ export default function EditorClient() {
                             <MenuItem value="leonardo-lightning-xl">Lightning XL — Rápido</MenuItem>
                             <MenuItem value="leonardo-kino-xl">Kino XL — Cinematográfico</MenuItem>
                             <MenuItem value="leonardo-diffusion-xl">Diffusion XL — Criativo</MenuItem>
+                          </TextField>
+                        )}
+
+                        {/* Model — Fal.ai */}
+                        {imageProvider === 'fal' && (
+                          <TextField
+                            select size="small" label="Modelo Fal.ai"
+                            value={imageModel}
+                            onChange={(e) => setImageModel(e.target.value)}
+                            fullWidth
+                          >
+                            <MenuItem value="fal-flux-pro">Flux Pro — Alta qualidade</MenuItem>
+                            <MenuItem value="fal-flux-schnell">Flux Schnell — Rápido</MenuItem>
+                            <MenuItem value="fal-flux-realism">Flux Realism — Fotorrealismo</MenuItem>
+                            <MenuItem value="fal-flux-dev">Flux Dev — Criativo</MenuItem>
                           </TextField>
                         )}
 
@@ -2374,8 +2455,54 @@ export default function EditorClient() {
                           </TextField>
                         )}
 
-                        {/* Prompt */}
-                        <Box>
+                        {/* Art Director Mode */}
+                        {artDirMode && (
+                          <Box sx={{ border: '1px solid', borderColor: 'secondary.light', borderRadius: 1.5, p: 1.25, bgcolor: 'rgba(156,39,176,0.03)' }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 600, display: 'block', mb: 0.75 }}>
+                              Gatilho Psicológico
+                            </Typography>
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                              {[
+                                { id: 'G01', label: 'G01 Perda' },
+                                { id: 'G02', label: 'G02 Específico' },
+                                { id: 'G03', label: 'G03 Zeigarnik' },
+                                { id: 'G04', label: 'G04 Âncora' },
+                                { id: 'G05', label: 'G05 Social' },
+                                { id: 'G06', label: 'G06 Pratfall' },
+                                { id: 'G07', label: 'G07 Dark' },
+                              ].map((g) => (
+                                <Chip
+                                  key={g.id} label={g.label} size="small"
+                                  variant={artDirGatilho === g.id ? 'filled' : 'outlined'}
+                                  color={artDirGatilho === g.id ? 'secondary' : 'default'}
+                                  onClick={() => setArtDirGatilho((prev) => prev === g.id ? '' : g.id)}
+                                  sx={{ fontSize: '0.65rem', cursor: 'pointer' }}
+                                />
+                              ))}
+                            </Stack>
+                            <Stack direction="row" spacing={0.75}>
+                              <LoadingButton
+                                size="small" variant="outlined" color="secondary" fullWidth
+                                loading={artDirOrchestrating}
+                                onClick={() => handleArtDirectorGenerate(false)}
+                                sx={{ fontSize: '0.7rem' }}
+                              >
+                                Layout
+                              </LoadingButton>
+                              <LoadingButton
+                                size="small" variant="contained" color="secondary" fullWidth
+                                loading={artDirOrchestrating}
+                                onClick={() => handleArtDirectorGenerate(true)}
+                                sx={{ fontSize: '0.7rem' }}
+                              >
+                                Layout + Imagem
+                              </LoadingButton>
+                            </Stack>
+                          </Box>
+                        )}
+
+                        {/* Prompt — shown only in Imagem mode */}
+                        {!artDirMode && <Box>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem' }}>
                               Prompt
@@ -2417,19 +2544,19 @@ export default function EditorClient() {
                             disabled={arteStep === 'generating'}
                             inputProps={{ style: { fontFamily: 'monospace', fontSize: 12 } }}
                           />
-                        </Box>
+                        </Box>}
 
-                        {/* Negative prompt */}
-                        <TextField
+                        {/* Negative prompt — Imagem mode only */}
+                        {!artDirMode && <TextField
                           size="small" label="Prompt negativo (opcional)"
                           value={imageNegativePrompt}
                           onChange={(e) => setImageNegativePrompt(e.target.value)}
                           placeholder="Ex: texto, palavras, logos, watermark, distorção..."
                           fullWidth
-                        />
+                        />}
 
                         {/* Iteração Guiada — aparece quando há prompt */}
-                        {artePrompt.trim() && (
+                        {!artDirMode && artePrompt.trim() && (
                           <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
                               Refinar cena
@@ -2462,8 +2589,8 @@ export default function EditorClient() {
                           <Alert severity="error" sx={{ py: 0.5, fontSize: 12 }}>{arteModalError}</Alert>
                         )}
 
-                        {/* Generate + Preview */}
-                        <Stack direction="row" spacing={0.75}>
+                        {/* Generate + Preview — Imagem mode only */}
+                        {!artDirMode && <Stack direction="row" spacing={0.75}>
                           <LoadingButton
                             fullWidth variant="contained" size="small"
                             loading={arteStep === 'generating' && !arteIsPreview}
@@ -2483,7 +2610,7 @@ export default function EditorClient() {
                           >
                             {!(arteStep === 'generating' && arteIsPreview) && <IconBolt size={15} />}
                           </LoadingButton>
-                        </Stack>
+                        </Stack>}
 
                         {/* Generated image preview */}
                         {arteImageUrl && (
