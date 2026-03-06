@@ -11,6 +11,7 @@ import { syncReporteiInsightsForClient } from '../services/reporteiInsights';
 import { syncRejectionPatternsToProfile } from '../services/rejectionPatternService';
 import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
+import { saveFile, readFile } from '../library/storage';
 import { OpenAIService } from '../services/ai/openaiService';
 import { query, pool } from '../db';
 import { upsertUser, createLoginCode } from '../repositories/edroUserRepository';
@@ -1292,4 +1293,60 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       return reply.status(204).send();
     }
   );
+
+  // ── Brand asset upload ─────────────────────────────────────────────────────
+  // POST /clients/:id/brand-assets/upload
+  // Accepts multipart: file + field "assetType" (logo | reference_image | guidelines)
+  // Returns { url, key, assetType }
+  app.post(
+    '/clients/:id/brand-assets/upload',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const data = await request.file({ limits: { fileSize: 20 * 1024 * 1024 } });
+      if (!data) return reply.status(400).send({ error: 'no_file' });
+
+      const assetType: string = (data.fields as any)?.assetType?.value || 'reference_image';
+      const allowedTypes = ['logo', 'reference_image', 'guidelines'];
+      if (!allowedTypes.includes(assetType)) return reply.status(400).send({ error: 'invalid_asset_type' });
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
+
+      const safeName = data.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const key = `brand-assets/${tenantId}/${id}/${assetType}/${Date.now()}_${safeName}`;
+      await saveFile(buffer, key);
+
+      const apiBase = (process.env.S3_PUBLIC_URL ?? process.env.API_URL ?? '').replace(/\/$/, '');
+      const url = apiBase
+        ? `${apiBase}/api/clients/brand-assets/file/${encodeURIComponent(key)}`
+        : `/api/clients/brand-assets/file/${encodeURIComponent(key)}`;
+
+      return reply.status(201).send({ url, key, assetType });
+    }
+  );
+
+  // GET /clients/brand-assets/file/:key — serve brand asset file (no auth, keys are opaque)
+  app.get('/clients/brand-assets/file/:key', async (request: any, reply) => {
+    const rawKey = decodeURIComponent((request.params as any).key || '');
+    if (!rawKey.startsWith('brand-assets/')) return reply.status(403).send({ error: 'forbidden' });
+    try {
+      const buf = await readFile(rawKey);
+      const ext = rawKey.split('.').pop()?.toLowerCase() || '';
+      const ct = ext === 'pdf' ? 'application/pdf'
+        : ext === 'svg' ? 'image/svg+xml'
+        : ext === 'png' ? 'image/png'
+        : ext === 'webp' ? 'image/webp'
+        : 'image/jpeg';
+      return reply.type(ct).header('Cache-Control', 'public, max-age=31536000').send(buf);
+    } catch {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+  });
 }

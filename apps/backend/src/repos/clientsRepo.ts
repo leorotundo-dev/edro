@@ -28,6 +28,12 @@ type BrandTokens = {
   avoidElements?: string[];
   /** Reference style brands/campaigns, e.g. ["Apple 2024", "Nubank"] */
   referenceStyles?: string[];
+  /** Logo image URL (uploaded brand asset) */
+  logoUrl?: string;
+  /** Brand guidelines PDF URL */
+  guidelinesUrl?: string;
+  /** Reference campaign images for IP-Adapter (array of URLs) */
+  referenceImages?: string[];
 };
 
 type ClientProfilePatch = {

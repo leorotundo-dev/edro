@@ -428,6 +428,8 @@ export default function PerfilPage() {
           <BrandTokensCard
             clientId={clientId}
             initialTokens={profile?.brand_tokens || null}
+            initialWebsite={kb.website || ''}
+            initialSocialProfiles={kb.social_profiles || {}}
             onSaved={(tokens) => {
               setClient((prev) =>
                 prev ? { ...prev, profile: { ...(prev.profile || {}), brand_tokens: tokens } } : prev
