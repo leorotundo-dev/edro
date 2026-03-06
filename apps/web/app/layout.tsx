@@ -12,8 +12,15 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata = {
-  title: 'Edro Editorial Board',
-  description: 'Edro Editorial Board',
+  title: 'Edro Studio',
+  description: 'Gestão editorial e operacional de agência',
+  manifest: '/manifest.json',
+  themeColor: '#E85219',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent' as const,
+    title: 'Edro Studio',
+  },
 };
 
 export default function RootLayout({

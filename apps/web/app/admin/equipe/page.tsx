@@ -26,7 +26,13 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconClock, IconPlus, IconUserCheck } from '@tabler/icons-react';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import { IconChartBar, IconClock, IconCurrencyDollar, IconPlus, IconUserCheck } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 type FreelancerProfile = {
@@ -81,12 +87,26 @@ function TimerDot({ startedAt }: { startedAt: string }) {
 }
 
 export default function EquipePage() {
+  const [tab, setTab] = useState(0);
+
   const [freelancers, setFreelancers] = useState<FreelancerProfile[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [drawerFl, setDrawerFl]       = useState<FreelancerProfile | null>(null);
   const [flEntries, setFlEntries]     = useState<any[]>([]);
   const [flHours, setFlHours]         = useState<{ [id: string]: number }>({});
+
+  // Analytics state
+  const [analyticsMonth, setAnalyticsMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [analyticsData, setAnalyticsData] = useState<{
+    byFreelancer: { name: string; minutes: number; cost: number }[];
+    byClient: { client: string; minutes: number; cost: number }[];
+    pl: { receita: number; custo: number; margem: number }[];
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // New freelancer dialog
   const [newOpen,    setNewOpen]    = useState(false);
@@ -128,6 +148,30 @@ export default function EquipePage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (tab !== 1) return;
+    setAnalyticsLoading(true);
+    Promise.all([
+      apiGet<{ by_freelancer: any[]; by_client: any[] }>(`/financial/productivity?month=${analyticsMonth}`).catch(() => ({ by_freelancer: [], by_client: [] })),
+      apiGet<{ rows: any[] }>(`/financial/pl?month=${analyticsMonth}`).catch(() => ({ rows: [] })),
+    ]).then(([prod, plRes]) => {
+      setAnalyticsData({
+        byFreelancer: (prod.by_freelancer ?? []).map((r: any) => ({
+          name: r.display_name,
+          minutes: parseInt(r.total_minutes ?? '0'),
+          cost: parseFloat(r.total_cost ?? '0'),
+        })),
+        byClient: (prod.by_client ?? []).map((r: any) => ({
+          client: r.client_name ?? 'Sem cliente',
+          minutes: parseInt(r.total_minutes ?? '0'),
+          cost: parseFloat(r.total_cost ?? '0'),
+        })),
+        pl: (plRes as any).rows ?? [],
+      });
+    }).finally(() => setAnalyticsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, analyticsMonth]);
 
   const openDrawer = async (fl: FreelancerProfile) => {
     setDrawerFl(fl);
@@ -172,10 +216,27 @@ export default function EquipePage() {
     }
   };
 
+  const totalHoursMonth = Object.values(flHours).reduce((s, m) => s + m, 0);
+  const totalCostMonth = freelancers.reduce((s, fl) => {
+    const mins = flHours[fl.id] ?? 0;
+    const rate = parseFloat(fl.hourly_rate_brl ?? '0');
+    return s + (mins / 60) * rate;
+  }, 0);
+  const activeCount = freelancers.filter((f) => f.is_active).length;
+  const timerCount = freelancers.filter((f) => (f.active_timers ?? []).length > 0).length;
+
+  const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtH = (mins: number) => {
+    if (!mins) return '0h';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  };
+
   return (
     <AppShell title="Equipe">
-      <Box sx={{ p: 3, maxWidth: 1100 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
+      <Box sx={{ p: 3, maxWidth: 1200 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
             <IconUserCheck size={22} />
             <Typography variant="h5" fontWeight={700}>Equipe</Typography>
@@ -185,11 +246,158 @@ export default function EquipePage() {
           </Button>
         </Stack>
 
+        {/* Summary cards */}
+        <Grid container spacing={2} mb={2}>
+          {[
+            { label: 'Freelancers ativos', value: String(activeCount), icon: <IconUserCheck size={20} /> },
+            { label: 'Timers rodando agora', value: String(timerCount), icon: <IconClock size={20} /> },
+            { label: `Horas em ${currentMonth}`, value: fmtH(totalHoursMonth), icon: <IconChartBar size={20} /> },
+            { label: 'Custo do mês', value: brl(totalCostMonth), icon: <IconCurrencyDollar size={20} /> },
+          ].map((c) => (
+            <Grid key={c.label} size={{ xs: 6, sm: 3 }}>
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.5 }}>
+                  <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                    <Box sx={{ color: 'primary.main' }}>{c.icon}</Box>
+                    <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                  </Stack>
+                  <Typography variant="h5" fontWeight={700}>{c.value}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Tab label="Equipe" />
+          <Tab label="Analytics do Mês" />
+        </Tabs>
+
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {loading ? (
+        {tab === 1 && (
+          <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+              <Typography variant="h6">Analytics de Produtividade</Typography>
+              <TextField
+                type="month"
+                size="small"
+                value={analyticsMonth}
+                onChange={(e) => setAnalyticsMonth(e.target.value)}
+                sx={{ width: 160 }}
+              />
+            </Stack>
+            {analyticsLoading ? (
+              <Stack alignItems="center" py={4}><CircularProgress /></Stack>
+            ) : !analyticsData ? null : (
+              <Stack spacing={3}>
+                {/* By freelancer */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700} color="text.secondary" mb={1}>
+                    Horas por Freelancer
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Freelancer</TableCell>
+                          <TableCell align="right">Horas</TableCell>
+                          <TableCell align="right">Custo</TableCell>
+                          <TableCell sx={{ width: 180 }}>Distribuição</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {analyticsData.byFreelancer.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} align="center">
+                              <Typography color="text.secondary" variant="body2" py={2}>Sem dados para {analyticsMonth}</Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {analyticsData.byFreelancer.map((row) => {
+                          const maxMins = Math.max(...analyticsData.byFreelancer.map((r) => r.minutes), 1);
+                          const pct = (row.minutes / maxMins) * 100;
+                          return (
+                            <TableRow key={row.name}>
+                              <TableCell fontWeight={600}>{row.name}</TableCell>
+                              <TableCell align="right">{fmtH(row.minutes)}</TableCell>
+                              <TableCell align="right">{brl(row.cost)}</TableCell>
+                              <TableCell>
+                                <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', height: 8 }}>
+                                  <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: 'primary.main', borderRadius: 1 }} />
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+
+                <Divider />
+
+                {/* By client */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700} color="text.secondary" mb={1}>
+                    Horas por Cliente
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Cliente</TableCell>
+                          <TableCell align="right">Horas investidas</TableCell>
+                          <TableCell align="right">Custo interno</TableCell>
+                          <TableCell align="right">Receita (P&L)</TableCell>
+                          <TableCell align="right">Margem</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {analyticsData.byClient.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center">
+                              <Typography color="text.secondary" variant="body2" py={2}>Sem dados</Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {analyticsData.byClient.map((row) => {
+                          const plRow = analyticsData.pl.find((p: any) =>
+                            (p.client_name ?? '').toLowerCase().includes(row.client.toLowerCase()) ||
+                            row.client.toLowerCase().includes((p.client_name ?? '').toLowerCase())
+                          );
+                          const receita = plRow ? parseFloat(plRow.receita_brl ?? '0') : 0;
+                          const margem = receita - row.cost;
+                          return (
+                            <TableRow key={row.client} hover>
+                              <TableCell>{row.client}</TableCell>
+                              <TableCell align="right">{fmtH(row.minutes)}</TableCell>
+                              <TableCell align="right">{brl(row.cost)}</TableCell>
+                              <TableCell align="right">{receita > 0 ? brl(receita) : '—'}</TableCell>
+                              <TableCell align="right">
+                                {receita > 0 ? (
+                                  <Chip
+                                    label={brl(margem)}
+                                    size="small"
+                                    color={margem >= 0 ? 'success' : 'error'}
+                                  />
+                                ) : '—'}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </Stack>
+            )}
+          </Box>
+        )}
+
+        {tab === 0 && loading ? (
           <Stack alignItems="center" py={6}><CircularProgress /></Stack>
-        ) : (
+        ) : tab === 0 && (
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>

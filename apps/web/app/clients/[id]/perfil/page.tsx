@@ -44,6 +44,7 @@ import {
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
 import ContentGapSection from '../analytics/sections/ContentGapSection';
 import BrandColorsCard from './BrandColorsCard';
+import BrandTokensCard from './BrandTokensCard';
 import PersonaManager from './PersonaManager';
 import IntelligenceScoreBar from './IntelligenceScoreBar';
 import ManualFieldsChecklist from './ManualFieldsChecklist';
@@ -83,6 +84,7 @@ type ClientData = {
   country?: string | null;
   uf?: string | null;
   city?: string | null;
+  whatsapp_phone?: string | null;
   keywords?: string[] | null;
   content_pillars?: string[] | null;
   profile?: {
@@ -152,7 +154,7 @@ export default function PerfilPage() {
   });
 
   const [editingIdentity, setEditingIdentity] = useState(false);
-  const [identityForm, setIdentityForm] = useState({ segment_primary: '', segment_secondary: '', city: '', uf: '', country: '' });
+  const [identityForm, setIdentityForm] = useState({ segment_primary: '', segment_secondary: '', city: '', uf: '', country: '', whatsapp_phone: '' });
   const [savingIdentity, setSavingIdentity] = useState(false);
 
   const [editingContent, setEditingContent] = useState(false);
@@ -235,6 +237,7 @@ export default function PerfilPage() {
       city: client?.city || '',
       uf: client?.uf || '',
       country: client?.country || '',
+      whatsapp_phone: client?.whatsapp_phone || '',
     });
     setEditingIdentity(true);
   };
@@ -250,6 +253,7 @@ export default function PerfilPage() {
         city: identityForm.city.trim() || null,
         uf: identityForm.uf.trim() || null,
         country: identityForm.country.trim() || null,
+        whatsapp_phone: identityForm.whatsapp_phone.trim() || null,
       });
       setEditingIdentity(false);
       await loadClient();
@@ -417,6 +421,16 @@ export default function PerfilPage() {
             onSaved={(colors) => {
               setClient((prev) =>
                 prev ? { ...prev, profile: { ...(prev.profile || {}), brand_colors: colors } } : prev
+              );
+            }}
+          />
+
+          <BrandTokensCard
+            clientId={clientId}
+            initialTokens={profile?.brand_tokens || null}
+            onSaved={(tokens) => {
+              setClient((prev) =>
+                prev ? { ...prev, profile: { ...(prev.profile || {}), brand_tokens: tokens } } : prev
               );
             }}
           />
@@ -592,6 +606,13 @@ export default function PerfilPage() {
                     <TextField fullWidth size="small" label="País"
                       value={identityForm.country}
                       onChange={(e) => setIdentityForm((f) => ({ ...f, country: e.target.value }))} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField fullWidth size="small" label="WhatsApp (com DDI)"
+                      placeholder="+5511999999999"
+                      value={identityForm.whatsapp_phone}
+                      onChange={(e) => setIdentityForm((f) => ({ ...f, whatsapp_phone: e.target.value }))}
+                      helperText="Notificações automáticas de aprovação e relatórios" />
                   </Grid>
                 </Grid>
                 <Divider sx={{ mb: 2 }} />

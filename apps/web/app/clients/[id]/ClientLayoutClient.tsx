@@ -23,7 +23,8 @@ import Stepper from '@mui/material/Stepper';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconBrain, IconCheck, IconChevronLeft, IconDeviceFloppy, IconPlus, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
+import TextField from '@mui/material/TextField';
+import { IconBrain, IconCheck, IconChevronLeft, IconDeviceFloppy, IconMail, IconPlus, IconRefresh, IconSparkles, IconUser, IconWorld, IconX } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 
 type ClientBasic = {
@@ -137,6 +138,13 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const [collabStep, setCollabStep] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Portal invite state
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteDone, setInviteDone] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+
   const loadClient = useCallback(async () => {
     try {
       const res = await apiGet(`/clients/${clientId}`);
@@ -210,6 +218,20 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
       // silently fail — user can retry
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendPortalInvite = async () => {
+    if (!inviteEmail) return;
+    setInviting(true);
+    setInviteError('');
+    try {
+      await apiPost(`/clients/${clientId}/portal/invite`, { email: inviteEmail });
+      setInviteDone(true);
+    } catch (err: any) {
+      setInviteError(err?.message || 'Falha ao enviar convite.');
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -298,6 +320,14 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
             </Stack>
             <Stack direction="row" spacing={1}>
               <Button
+                variant="outlined"
+                startIcon={<IconMail size={16} />}
+                onClick={() => { setInviteOpen(true); setInviteDone(false); setInviteError(''); }}
+                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' }, textTransform: 'none' }}
+              >
+                Convidar para Portal
+              </Button>
+              <Button
                 variant="contained"
                 startIcon={<IconBrain size={16} />}
                 onClick={() => openJarvis(clientId)}
@@ -378,6 +408,56 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
 
         {children}
       </Box>
+
+      {/* Portal Invite Dialog */}
+      <Dialog open={inviteOpen} onClose={() => !inviting && setInviteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconMail size={20} />
+            <Typography variant="h6" component="span">Convidar para o Portal</Typography>
+          </Stack>
+          <IconButton onClick={() => setInviteOpen(false)} disabled={inviting}><IconX size={18} /></IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 2 }}>
+          {inviteDone ? (
+            <Stack spacing={2} alignItems="center" py={2}>
+              <IconCheck size={40} color="#16a34a" />
+              <Typography variant="body1" fontWeight={600} color="success.main">Convite enviado!</Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center">
+                O cliente receberá um e-mail com o código de acesso ao portal.
+              </Typography>
+              <Button variant="outlined" onClick={() => setInviteOpen(false)}>Fechar</Button>
+            </Stack>
+          ) : (
+            <Stack spacing={2}>
+              <Typography variant="body2" color="text.secondary">
+                Digite o e-mail do contato do cliente. Ele receberá um código de acesso ao Portal do Cliente em <strong>edro.digital/cliente</strong>.
+              </Typography>
+              <TextField
+                label="E-mail do cliente"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                fullWidth
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && sendPortalInvite()}
+                error={!!inviteError}
+                helperText={inviteError}
+              />
+              <Button
+                variant="contained"
+                onClick={sendPortalInvite}
+                disabled={inviting || !inviteEmail}
+                startIcon={inviting ? <CircularProgress size={14} /> : <IconMail size={16} />}
+                sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
+              >
+                {inviting ? 'Enviando...' : 'Enviar Convite'}
+              </Button>
+            </Stack>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Analysis Dialog */}
       <Dialog

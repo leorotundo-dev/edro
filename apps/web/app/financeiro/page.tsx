@@ -34,10 +34,13 @@ import Typography from '@mui/material/Typography';
 import {
   IconBuildingBank,
   IconCheck,
+  IconClipboardList,
+  IconCopy,
   IconCurrencyDollar,
   IconFileText,
   IconPlus,
   IconSend,
+  IconTrash,
   IconTrendingUp,
   IconX,
 } from '@tabler/icons-react';
@@ -836,6 +839,408 @@ function MediaTab() {
   );
 }
 
+// ── Proposals Tab ──────────────────────────────────────────────────────────────
+
+type ProposalItem = { description: string; qty: number; unit_price: number; total: number };
+
+type Proposal = {
+  id: string;
+  client_id: string | null;
+  client_name?: string;
+  title: string;
+  items: ProposalItem[];
+  subtotal_brl: string;
+  discount_brl: string;
+  total_brl: string;
+  validity_days: number;
+  notes: string | null;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  sent_at: string | null;
+  accepted_at: string | null;
+  accept_token: string | null;
+};
+
+const PROPOSAL_STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
+  draft: 'default',
+  sent: 'info',
+  accepted: 'success',
+  rejected: 'error',
+  expired: 'default',
+};
+
+const PROPOSAL_STATUS_LABEL: Record<string, string> = {
+  draft: 'Rascunho',
+  sent: 'Enviada',
+  accepted: 'Aceita',
+  rejected: 'Recusada',
+  expired: 'Expirada',
+};
+
+function PropostasTab() {
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [clients,   setClients]   = useState<Client[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [openNew,   setOpenNew]   = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [linkDialog, setLinkDialog] = useState<{ url: string; title: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const [form, setForm] = useState({
+    client_id: '',
+    title: '',
+    validity_days: '15',
+    discount_brl: '0',
+    notes: '',
+  });
+  const [items, setItems] = useState<ProposalItem[]>([
+    { description: '', qty: 1, unit_price: 0, total: 0 },
+  ]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, cl] = await Promise.all([
+        apiGet<{ proposals: Proposal[] }>('/financial/proposals'),
+        apiGet<{ clients: Client[] }>('/clients?status=active&limit=200'),
+      ]);
+      setProposals(p.proposals ?? []);
+      setClients(cl.clients ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const updateItem = (i: number, field: keyof ProposalItem, val: string) => {
+    setItems((prev) => {
+      const next = prev.map((it, idx) => {
+        if (idx !== i) return it;
+        const updated = { ...it, [field]: field === 'description' ? val : parseFloat(val) || 0 };
+        updated.total = updated.qty * updated.unit_price;
+        return updated;
+      });
+      return next;
+    });
+  };
+
+  const subtotal = items.reduce((s, it) => s + it.total, 0);
+  const discount = parseFloat(form.discount_brl) || 0;
+  const total    = subtotal - discount;
+
+  const handleCreate = async () => {
+    setSaving(true);
+    try {
+      await apiPost('/financial/proposals', {
+        client_id:    form.client_id || null,
+        title:        form.title,
+        items:        items.filter((it) => it.description),
+        subtotal_brl: subtotal,
+        discount_brl: discount,
+        total_brl:    total,
+        validity_days: parseInt(form.validity_days) || 15,
+        notes:        form.notes || null,
+      });
+      setOpenNew(false);
+      setForm({ client_id: '', title: '', validity_days: '15', discount_brl: '0', notes: '' });
+      setItems([{ description: '', qty: 1, unit_price: 0, total: 0 }]);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSend = async (p: Proposal) => {
+    setSendingId(p.id);
+    try {
+      const res = await apiPost<{ accept_url: string }>(`/financial/proposals/${p.id}/send`, {});
+      setLinkDialog({ url: res.accept_url, title: p.title });
+      load();
+    } catch (e: any) {
+      alert(e.message ?? 'Erro ao enviar proposta');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const handleCopy = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <Box>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+        <Typography variant="h6">Propostas</Typography>
+        <Button variant="contained" startIcon={<IconPlus size={16} />} size="small" onClick={() => setOpenNew(true)}>
+          Nova Proposta
+        </Button>
+      </Stack>
+
+      {loading ? <CircularProgress /> : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Cliente</TableCell>
+                <TableCell>Título</TableCell>
+                <TableCell align="right">Total</TableCell>
+                <TableCell>Validade</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {proposals.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography color="text.secondary" variant="body2" py={3}>Nenhuma proposta criada</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+              {proposals.map((p) => (
+                <TableRow key={p.id} hover>
+                  <TableCell>{p.client_name ?? '—'}</TableCell>
+                  <TableCell sx={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.title}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>{brl(p.total_brl)}</TableCell>
+                  <TableCell>{p.validity_days}d</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={PROPOSAL_STATUS_LABEL[p.status] ?? p.status}
+                      color={PROPOSAL_STATUS_COLOR[p.status] ?? 'default'}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={0.5}>
+                      {p.status === 'draft' && (
+                        <Tooltip title="Gerar link e enviar ao cliente">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            disabled={sendingId === p.id}
+                            onClick={() => handleSend(p)}
+                          >
+                            {sendingId === p.id ? <CircularProgress size={14} /> : <IconSend size={14} />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {p.status === 'sent' && p.accept_token && (
+                        <Tooltip title="Copiar link de aceite">
+                          <IconButton
+                            size="small"
+                            onClick={() => setLinkDialog({
+                              url: `${typeof window !== 'undefined' ? window.location.origin : ''}/proposta/${p.accept_token}`,
+                              title: p.title,
+                            })}
+                          >
+                            <IconCopy size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* Link dialog */}
+      <Dialog open={Boolean(linkDialog)} onClose={() => setLinkDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Link de Aceite</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Envie este link para o cliente assinar a proposta <strong>{linkDialog?.title}</strong>:
+          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Alert severity="info" sx={{ flex: 1, py: 0.5, '& .MuiAlert-message': { wordBreak: 'break-all', fontSize: '0.8rem' } }}>
+              {linkDialog?.url}
+            </Alert>
+            <Tooltip title={copied ? 'Copiado!' : 'Copiar'}>
+              <IconButton onClick={() => linkDialog && handleCopy(linkDialog.url)} color={copied ? 'success' : 'default'}>
+                {copied ? <IconCheck size={18} /> : <IconCopy size={18} />}
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinkDialog(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* New Proposal Dialog */}
+      <Dialog open={openNew} onClose={() => setOpenNew(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Nova Proposta</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <Select
+                size="small"
+                value={form.client_id}
+                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+                displayEmpty
+                sx={{ flex: 1 }}
+              >
+                <MenuItem value="">Sem cliente (proposta genérica)</MenuItem>
+                {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+              </Select>
+              <TextField
+                size="small"
+                label="Título da proposta"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                sx={{ flex: 2 }}
+              />
+            </Stack>
+
+            {/* Items table */}
+            <Box>
+              <Typography variant="caption" fontWeight={700} color="text.secondary" mb={0.5} display="block">
+                Itens
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      <TableCell>Descrição</TableCell>
+                      <TableCell align="center" sx={{ width: 70 }}>Qtd</TableCell>
+                      <TableCell align="right" sx={{ width: 120 }}>Valor unit.</TableCell>
+                      <TableCell align="right" sx={{ width: 120 }}>Total</TableCell>
+                      <TableCell sx={{ width: 40 }} />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {items.map((it, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            placeholder="Descreva o serviço..."
+                            value={it.description}
+                            onChange={(e) => updateItem(i, 'description', e.target.value)}
+                            fullWidth
+                            variant="standard"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={it.qty}
+                            onChange={(e) => updateItem(i, 'qty', e.target.value)}
+                            inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                            variant="standard"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={it.unit_price || ''}
+                            onChange={(e) => updateItem(i, 'unit_price', e.target.value)}
+                            inputProps={{ style: { textAlign: 'right' } }}
+                            variant="standard"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" fontWeight={600}>{brl(it.total)}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))}
+                            disabled={items.length === 1}
+                          >
+                            <IconTrash size={13} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Button
+                size="small"
+                startIcon={<IconPlus size={13} />}
+                onClick={() => setItems((p) => [...p, { description: '', qty: 1, unit_price: 0, total: 0 }])}
+                sx={{ mt: 0.5 }}
+              >
+                Adicionar item
+              </Button>
+            </Box>
+
+            {/* Totals + config row */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+              <Stack spacing={1.5} sx={{ flex: 1 }}>
+                <TextField
+                  size="small"
+                  label="Desconto (R$)"
+                  type="number"
+                  value={form.discount_brl}
+                  onChange={(e) => setForm({ ...form, discount_brl: e.target.value })}
+                  fullWidth
+                />
+                <TextField
+                  size="small"
+                  label="Validade (dias)"
+                  type="number"
+                  value={form.validity_days}
+                  onChange={(e) => setForm({ ...form, validity_days: e.target.value })}
+                  fullWidth
+                />
+                <TextField
+                  size="small"
+                  label="Observações"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  multiline
+                  rows={2}
+                  fullWidth
+                />
+              </Stack>
+              <Paper variant="outlined" sx={{ p: 2, minWidth: 200 }}>
+                <Stack spacing={0.75}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="caption" color="text.secondary">Subtotal</Typography>
+                    <Typography variant="caption">{brl(subtotal)}</Typography>
+                  </Stack>
+                  {discount > 0 && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary">Desconto</Typography>
+                      <Typography variant="caption" color="error.main">− {brl(discount)}</Typography>
+                    </Stack>
+                  )}
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" fontWeight={700}>Total</Typography>
+                    <Typography variant="body2" fontWeight={700} color="primary">{brl(total)}</Typography>
+                  </Stack>
+                </Stack>
+              </Paper>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenNew(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={saving || !form.title}
+          >
+            {saving ? <CircularProgress size={18} /> : 'Criar Proposta'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -843,6 +1248,7 @@ const TABS = [
   { label: 'Contratos', icon: <IconFileText size={16} /> },
   { label: 'Faturas', icon: <IconCurrencyDollar size={16} /> },
   { label: 'Mídia', icon: <IconBuildingBank size={16} /> },
+  { label: 'Propostas', icon: <IconClipboardList size={16} /> },
 ];
 
 export default function FinanceiroPage() {
@@ -867,6 +1273,7 @@ export default function FinanceiroPage() {
       {tab === 1 && <ContractsTab />}
       {tab === 2 && <InvoicesTab />}
       {tab === 3 && <MediaTab />}
+      {tab === 4 && <PropostasTab />}
     </AppShell>
   );
 }

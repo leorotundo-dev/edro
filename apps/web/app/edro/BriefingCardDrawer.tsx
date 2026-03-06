@@ -15,6 +15,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Popover from '@mui/material/Popover';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -25,10 +26,13 @@ import {
   IconClock,
   IconExternalLink,
   IconLabel,
+  IconPhoto,
   IconPlayerPlay,
   IconPlayerStop,
   IconPlus,
+  IconRepeat,
   IconTrash,
+  IconUpload,
   IconUser,
   IconX,
 } from '@tabler/icons-react';
@@ -78,6 +82,7 @@ type BriefingDetail = {
   client_name?: string | null;
   client_logo_url?: string | null;
   client_brand_color?: string | null;
+  recurrence?: { freq: string; day_of_month?: number | null; day_of_week?: number | null; enabled: boolean; next_run_at?: string } | null;
 };
 
 type FreelancerProfile = {
@@ -216,6 +221,29 @@ function LabelPicker({
   );
 }
 
+// ── computeInitialNextRun ────────────────────────────────────────────────────
+
+function computeInitialNextRun(freq: string, dayOfMonth: number, dayOfWeek: number): string {
+  const now = new Date();
+  if (freq === 'monthly') {
+    const day = Math.min(dayOfMonth || 1, 28);
+    const d = new Date(now.getFullYear(), now.getMonth(), day);
+    if (d <= now) d.setMonth(d.getMonth() + 1);
+    return d.toISOString();
+  }
+  if (freq === 'biweekly') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 14);
+    return d.toISOString();
+  }
+  // weekly
+  const d = new Date(now);
+  const target = dayOfWeek ?? 1;
+  const diff = ((target - d.getDay() + 7) % 7) || 7;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString();
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Props) {
@@ -229,6 +257,15 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
   const [estimate,         setEstimate]         = useState<ScopeEstimate | null>(null);
   const [estimateLoading,  setEstimateLoading]  = useState(false);
 
+  // Recurrence state
+  const [recurrence, setRecurrence] = useState<{ freq: string; day_of_month: string; day_of_week: string; enabled: boolean } | null>(null);
+
+  // Artwork state
+  type ArtworkItem = { id: string; title: string; file_url: string; mime_type: string; version: number; status: string };
+  const [artworks,         setArtworks]         = useState<ArtworkItem[]>([]);
+  const [artUploading,     setArtUploading]     = useState(false);
+  const artInputRef = useRef<HTMLInputElement>(null);
+
   // Timer state
   const [freelancers,      setFreelancers]      = useState<FreelancerProfile[]>([]);
   const [selectedFl,       setSelectedFl]       = useState<string>('');
@@ -241,7 +278,7 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
 
   // Load briefing detail when drawer opens
   useEffect(() => {
-    if (!briefingId) { setData(null); setEstimate(null); return; }
+    if (!briefingId) { setData(null); setEstimate(null); setRecurrence(null); return; }
     setLoading(true);
     setEstimate(null);
     apiGet<{ success: boolean; data: { briefing: BriefingDetail } }>(
@@ -255,6 +292,15 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
           checklist: Array.isArray(b.checklist) ? b.checklist : [],
         };
         setData(briefing);
+
+        // Init recurrence state
+        const rec = b.recurrence;
+        setRecurrence(rec ? {
+          freq: rec.freq ?? 'monthly',
+          day_of_month: String(rec.day_of_month ?? 1),
+          day_of_week: String(rec.day_of_week ?? 1),
+          enabled: rec.enabled ?? false,
+        } : { freq: 'monthly', day_of_month: '1', day_of_week: '1', enabled: false });
 
         // Fetch scope estimate in background (non-blocking)
         setEstimateLoading(true);
@@ -270,6 +316,46 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [briefingId]);
+
+  // Load artworks when briefing changes
+  useEffect(() => {
+    if (!briefingId) { setArtworks([]); return; }
+    apiGet<{ artworks: ArtworkItem[] }>(`/artworks/briefing/${briefingId}`)
+      .then((res) => setArtworks(Array.isArray(res.artworks) ? res.artworks : []))
+      .catch(() => {});
+  }, [briefingId]);
+
+  const handleArtUpload = async (file: File) => {
+    if (!briefingId) return;
+    setArtUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('briefing_id', briefingId);
+      form.append('title', file.name.replace(/\.[^.]+$/, ''));
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const res = await fetch(`${apiBase}/api/artworks/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setArtworks((prev) => [{ id: data.id, title: file.name, file_url: data.file_url, mime_type: file.type, version: data.version, status: 'pending' }, ...prev]);
+      }
+    } catch { /* ignore */ } finally {
+      setArtUploading(false);
+    }
+  };
+
+  const saveRecurrence = async (rec: typeof recurrence) => {
+    if (!data?.id || !rec) return;
+    const nextRun = computeInitialNextRun(rec.freq, Number(rec.day_of_month), Number(rec.day_of_week));
+    await apiPatch(`/edro/briefings/${data.id}`, {
+      recurrence: { ...rec, day_of_month: Number(rec.day_of_month), day_of_week: Number(rec.day_of_week), next_run_at: nextRun },
+    }).catch(() => {});
+  };
 
   // Load freelancer list once
   useEffect(() => {
@@ -835,6 +921,148 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
                   )}
                 </Box>
               </>
+            )}
+          </Stack>
+        )}
+      </Box>
+
+      {/* Criativos */}
+      <Divider />
+      <Box>
+        <Stack direction="row" alignItems="center" spacing={0.75} mb={1.25}>
+          <IconPhoto size={14} />
+          <Typography variant="caption" fontWeight={700} color="text.secondary">
+            Criativos
+          </Typography>
+          <Box sx={{ ml: 'auto !important' }}>
+            <input
+              ref={artInputRef}
+              type="file"
+              accept="image/*,video/*,application/pdf"
+              aria-label="Upload de criativo"
+              title="Upload de criativo"
+              className="sr-only"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleArtUpload(f); e.target.value = ''; }}
+            />
+            <Tooltip title="Upload de arte">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => artInputRef.current?.click()}
+                  disabled={artUploading}
+                  sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: 1.5,
+                        '&:hover': { bgcolor: 'primary.dark' },
+                        '&:disabled': { bgcolor: 'action.disabledBackground' } }}
+                >
+                  {artUploading ? <CircularProgress size={12} color="inherit" /> : <IconUpload size={13} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        </Stack>
+
+        {artworks.length === 0 ? (
+          <Typography variant="caption" color="text.disabled">Nenhum criativo enviado.</Typography>
+        ) : (
+          <Stack spacing={1}>
+            {artworks.map((art) => {
+              const isImage = art.mime_type?.startsWith('image/');
+              const statusColor = art.status === 'approved' ? 'success' : art.status === 'revision' ? 'warning' : 'default';
+              const statusLabel = art.status === 'approved' ? 'Aprovado' : art.status === 'revision' ? 'Revisão' : 'Pendente';
+              return (
+                <Stack key={art.id} direction="row" spacing={1} alignItems="center"
+                  sx={{ p: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                  <Box sx={{ width: 40, height: 40, borderRadius: 1, overflow: 'hidden', flexShrink: 0,
+                             bgcolor: 'grey.100', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isImage ? (
+                      <Box component="img" src={art.file_url} alt={art.title}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Typography fontSize={18}>{art.mime_type === 'application/pdf' ? '📄' : '🎬'}</Typography>
+                    )}
+                  </Box>
+                  <Box flex={1} minWidth={0}>
+                    <Typography variant="caption" fontWeight={600} noWrap display="block">{art.title}</Typography>
+                    <Typography variant="caption" color="text.disabled">v{art.version}</Typography>
+                  </Box>
+                  <Chip label={statusLabel} size="small" color={statusColor as any} variant="outlined"
+                    sx={{ fontSize: '0.65rem', height: 18 }} />
+                </Stack>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+
+      {/* Recorrência */}
+      <Divider />
+      <Box sx={{ px: 2.5, py: 1.5 }}>
+        <Stack direction="row" alignItems="center" spacing={0.75} mb={recurrence?.enabled ? 1.5 : 0}>
+          <IconRepeat size={14} />
+          <Typography variant="caption" fontWeight={700} color="text.secondary">
+            Recorrência
+          </Typography>
+          <Box sx={{ ml: 'auto !important' }}>
+            <Switch
+              size="small"
+              checked={recurrence?.enabled ?? false}
+              onChange={(e) => {
+                const updated = { ...(recurrence ?? { freq: 'monthly', day_of_month: '1', day_of_week: '1' }), enabled: e.target.checked };
+                setRecurrence(updated);
+                saveRecurrence(updated);
+              }}
+            />
+          </Box>
+        </Stack>
+
+        {recurrence?.enabled && (
+          <Stack spacing={1}>
+            <Select
+              size="small"
+              value={recurrence.freq}
+              onChange={(e) => {
+                const updated = { ...recurrence, freq: e.target.value };
+                setRecurrence(updated);
+                saveRecurrence(updated);
+              }}
+              fullWidth
+              sx={{ fontSize: '0.85rem' }}
+            >
+              <MenuItem value="monthly">Mensal</MenuItem>
+              <MenuItem value="biweekly">Quinzenal</MenuItem>
+              <MenuItem value="weekly">Semanal</MenuItem>
+            </Select>
+
+            {recurrence.freq === 'monthly' && (
+              <TextField
+                size="small"
+                label="Todo dia"
+                type="number"
+                value={recurrence.day_of_month}
+                onChange={(e) => setRecurrence({ ...recurrence, day_of_month: e.target.value })}
+                onBlur={() => saveRecurrence(recurrence)}
+                inputProps={{ min: 1, max: 28 }}
+                fullWidth
+                sx={{ '& input': { fontSize: '0.85rem' } }}
+              />
+            )}
+
+            {recurrence.freq === 'weekly' && (
+              <Select
+                size="small"
+                value={recurrence.day_of_week}
+                onChange={(e) => {
+                  const updated = { ...recurrence, day_of_week: e.target.value };
+                  setRecurrence(updated);
+                  saveRecurrence(updated);
+                }}
+                fullWidth
+                sx={{ fontSize: '0.85rem' }}
+              >
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d, i) => (
+                  <MenuItem key={i} value={String(i)}>{d}</MenuItem>
+                ))}
+              </Select>
             )}
           </Stack>
         )}

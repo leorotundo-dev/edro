@@ -29,7 +29,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost<{ token: string }>('/auth/magic-link/verify', { token });
+      const data = await apiPost<{ token: string }>('/auth/magic-link/verify', { email, code: token, role: 'client' });
       setToken(data.token);
       window.location.href = '/';
     } catch (err: any) {

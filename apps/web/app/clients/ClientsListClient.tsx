@@ -33,6 +33,7 @@ import {
   IconCalendar,
   IconDotsVertical,
   IconEdit,
+  IconHeartRateMonitor,
   IconMapPin,
   IconMessageCircle,
   IconPlayerPlay,
@@ -56,6 +57,8 @@ type Client = {
   approval_rate?: number;
   urgent_tasks?: number;
   intelligence_score?: number;
+  health_score?: number | null;
+  health_trend?: string | null;
   updated_at?: string;
   logo_url?: string;
   profile?: { brand_colors?: string[]; platforms?: string[] } | null;
@@ -358,6 +361,29 @@ export default function ClientsListClient() {
                             '& .MuiLinearProgress-bar': { bgcolor: colorPath, borderRadius: 2 } }}
                         />
                       </Box>
+                    );
+                  })()}
+
+                  {client.health_score != null && (() => {
+                    const hs = client.health_score!;
+                    const [color, label] = hs >= 70
+                      ? ['success' as const, 'Saudável']
+                      : hs >= 40
+                      ? ['warning' as const, 'Atenção']
+                      : ['error' as const, 'Em risco'];
+                    const trendArrow = client.health_trend === 'up' ? ' ↑' : client.health_trend === 'down' ? ' ↓' : '';
+                    return (
+                      <Tooltip title={`Health Score: ${hs}/100${trendArrow}`} arrow>
+                        <Chip
+                          icon={<IconHeartRateMonitor size={13} />}
+                          label={`${label} ${hs}${trendArrow}`}
+                          size="small"
+                          color={color}
+                          variant="outlined"
+                          sx={{ fontSize: '0.72rem', cursor: 'default', alignSelf: 'flex-start' }}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/clients/${client.id}/financeiro`); }}
+                        />
+                      </Tooltip>
                     );
                   })()}
 

@@ -20,7 +20,7 @@ export default function LoginPage() {
       const res = await fetch(`${API}/api/auth/magic-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, role: 'staff' }),
       });
       if (!res.ok) throw new Error(await res.text());
       setStep('code');
@@ -36,10 +36,10 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/auth/verify`, {
+      const res = await fetch(`${API}/api/auth/magic-link/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, role: 'staff' }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
