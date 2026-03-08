@@ -13,7 +13,7 @@ import {
   IconPhoto, IconPackage, IconSearch, IconBrandInstagram,
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
   IconChevronRight, IconBolt, IconPaperclip, IconBulb,
-  IconWorld, IconBox, IconX, IconDownload, IconWand,
+  IconWorld, IconBox, IconX, IconDownload, IconWand, IconTrash,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -99,6 +99,30 @@ function detectIntent(text: string): Intent {
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+// ── Session persistence ─────────────────────────────────────────────────────
+
+type PersistedMessage = Omit<ChatMessage, 'quickActions'> & { quickActions: [] };
+
+function serializeMessages(msgs: ChatMessage[]): string {
+  // Strip quickActions (contain function refs) and transient typing states
+  const safe: PersistedMessage[] = msgs
+    .filter((m) => !m.isTyping)
+    .map((m) => ({ ...m, quickActions: [] }));
+  return JSON.stringify(safe);
+}
+
+function loadPersistedMessages(briefingId: string): ChatMessage[] | null {
+  try {
+    const raw = sessionStorage.getItem(`chat-agent-${briefingId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed as ChatMessage[];
+  } catch {
+    return null;
+  }
 }
 
 const COPY_CHAIN_STEPS = [
@@ -608,8 +632,15 @@ export default function ChatAgentPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initial greeting
+  // Initial greeting — restore from sessionStorage or show welcome
   useEffect(() => {
+    if (briefing?.id) {
+      const stored = loadPersistedMessages(briefing.id);
+      if (stored) {
+        setMessages(stored);
+        return;
+      }
+    }
     const welcome: ChatMessage = {
       id: uid(),
       role: 'agent',
@@ -620,6 +651,18 @@ export default function ChatAgentPanel() {
     };
     setMessages([welcome]);
   }, [briefing?.id]);
+
+  // Save chat thread to sessionStorage whenever messages change
+  const persistKey = briefing?.id ? `chat-agent-${briefing.id}` : null;
+  useEffect(() => {
+    if (!persistKey || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      try {
+        sessionStorage.setItem(persistKey, serializeMessages(messages));
+      } catch { /* quota exceeded or SSR */ }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [messages, persistKey]);
 
   // ── Helpers to update message in place ──────────────────────────────────────
 
@@ -1376,6 +1419,30 @@ export default function ChatAgentPanel() {
             <Chip size="small" label={briefing.client_name || briefing.title}
               sx={{ ml: 'auto', height: 18, fontSize: '0.52rem', bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF', border: 'none' }} />
           )}
+          {/* Clear chat history */}
+          <IconButton
+            size="small"
+            title="Limpar histórico do chat"
+            onClick={() => {
+              if (persistKey) sessionStorage.removeItem(persistKey);
+              const welcome: ChatMessage = {
+                id: uid(), role: 'agent',
+                text: briefing
+                  ? `Conversa reiniciada. Pronto para criar conteúdo para **${briefing.client_name || briefing.title}**.`
+                  : 'Conversa reiniciada. Como posso ajudar?',
+                quickActions: [],
+              };
+              setMessages([welcome]);
+            }}
+            sx={{
+              ml: briefing ? 0.5 : 'auto',
+              width: 22, height: 22,
+              color: '#444',
+              '&:hover': { color: '#EF4444', bgcolor: 'rgba(239,68,68,0.08)' },
+            }}
+          >
+            <IconTrash size={11} />
+          </IconButton>
         </Stack>
       </Box>
 
