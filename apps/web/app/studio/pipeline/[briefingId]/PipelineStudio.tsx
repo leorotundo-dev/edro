@@ -51,7 +51,7 @@ import PerformanceNode from '@/components/pipeline/nodes/PerformanceNode';
 import LearningFeedbackNode from '@/components/pipeline/nodes/LearningFeedbackNode';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
-import AddNodePanel from '@/components/pipeline/AddNodePanel';
+import CanvasToolbar from '@/components/pipeline/CanvasToolbar';
 import { apiGet, apiPost } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -308,6 +308,7 @@ function RightPanel() {
 
 function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // ── Core state ──────────────────────────────────────────────────────────────
+  const [interactionMode, setInteractionMode] = useState<'select' | 'hand'>('select');
   const [briefing, setBriefing] = useState<PipelineBriefing | null>(null);
   const [activeFormat, setActiveFormat] = useState<PipelineFormat | null>(null);
   const [clientBrandColor, setClientBrandColor] = useState('#F5C518');
@@ -1004,7 +1005,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
             minZoom={0.4}
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
-            style={{ background: '#0d0d0d' }}
+            panOnDrag={interactionMode === 'hand'}
+            selectionOnDrag={interactionMode === 'select'}
+            style={{ background: '#0d0d0d', cursor: interactionMode === 'hand' ? 'grab' : 'default' }}
           >
             <Background color="#1a1a1a" variant={BackgroundVariant.Dots} gap={20} size={1.5} />
             <Controls
@@ -1019,13 +1022,11 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
             />
           </ReactFlow>
 
-          {/* Add Node FAB (floating bottom-left) */}
-          <Box sx={{ position: 'absolute', bottom: 16, left: 16, zIndex: 10 }}>
-            <AddNodePanel
-              activeNodeIds={new Set(nodes.map((n) => n.id))}
-              onAddNode={addOptionalNode}
-            />
-          </Box>
+          {/* Canvas Toolbar — Lovart-style floating vertical pill */}
+          <CanvasToolbar
+            interactionMode={interactionMode}
+            setInteractionMode={setInteractionMode}
+          />
         </Box>
 
         {/* Right panel — 38% — Chat Agent (primary) + Preview tab */}
