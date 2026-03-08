@@ -325,7 +325,7 @@ export default function ChatAgentPanel() {
     copyChainStep, handleGenerateCopyChain, copyChainResult,
     arteChainStep, handleGenerateArteChain, arteChainResult,
     copyOptions, selectedCopyIdx, arteImageUrl,
-    briefingConfirmed, copyApproved,
+    briefingConfirmed, copyApproved, copyIsStale,
     visualReferences, setVisualReferences,
   } = usePipeline();
 
@@ -676,8 +676,6 @@ export default function ChatAgentPanel() {
   // ── Pipeline step watcher — update tool progress cards in real time ──────────
   useEffect(() => {
     if (!activeMsgId || copyChainStep === 0) return;
-    const stepName = COPY_CHAIN_STEPS[copyChainStep - 1];
-    if (!stepName) return;
     const pIdx = copyChainStep - 1;
     updatePlanRow(activeMsgId, `P${pIdx + 1}`, 'running');
     if (pIdx > 0) updatePlanRow(activeMsgId, `P${pIdx}`, 'done');
@@ -689,6 +687,113 @@ export default function ChatAgentPanel() {
     updatePlanRow(activeMsgId, `P${pIdx + 1}`, 'running');
     if (pIdx > 0) updatePlanRow(activeMsgId, `P${pIdx}`, 'done');
   }, [arteChainStep, activeMsgId, updatePlanRow]);
+
+  // ── State Watcher — proactive AI guidance when pipeline state changes ─────────
+
+  const prevBriefingConfirmed = useRef(false);
+  const prevCopyApproved = useRef(false);
+  const prevArteImageUrl = useRef<string | null>(null);
+  const prevCopyIsStale = useRef(false);
+
+  // Watch: briefingConfirmed → suggest copy
+  useEffect(() => {
+    if (!briefingConfirmed || prevBriefingConfirmed.current || isAgentBusy) return;
+    prevBriefingConfirmed.current = true;
+    setTimeout(() => {
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'agent',
+        text: `✅ Briefing confirmado!\n\nTom: **${tone || 'não definido'}** · AMD: **${amd || '—'}** · Funil: **${funnelPhase || '—'}**\n\nPronto para gerar a copy?`,
+        quickActions: [
+          { label: 'Gerar copy agora ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') },
+          { label: 'Gerar brand pack completo ↗', icon: <IconPackage size={11} />, color: '#13DEB9', onClick: () => sendSkill('brand_pack') },
+        ],
+      }]);
+    }, 500);
+  }, [briefingConfirmed]);
+
+  // Watch: copyApproved → suggest arte
+  useEffect(() => {
+    if (!copyApproved || prevCopyApproved.current || isAgentBusy) return;
+    prevCopyApproved.current = true;
+    setTimeout(() => {
+      const copy = copyOptions[selectedCopyIdx];
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'agent',
+        text: `🎯 Copy aprovada!\n\n"${copy?.title || '—'}"\n\nQual direção visual você quer seguir para a arte?`,
+        quickActions: [
+          { label: 'Gerar arte agora ↗', icon: <IconPalette size={11} />, color: '#5D87FF', onClick: () => sendSkill('arte') },
+          { label: 'Brand Pack — 5 formatos ↗', icon: <IconPackage size={11} />, color: '#13DEB9', onClick: () => sendSkill('brand_pack') },
+          { label: 'Buscar referências visuais ↗', icon: <IconSearch size={11} />, color: '#F8A800', onClick: () => sendSkill('visual_insights') },
+        ],
+      }]);
+    }, 500);
+  }, [copyApproved]);
+
+  // Watch: arteImageUrl → show approval loop (only for external changes, not from chat)
+  useEffect(() => {
+    if (!arteImageUrl || arteImageUrl === prevArteImageUrl.current || isAgentBusy) return;
+    prevArteImageUrl.current = arteImageUrl;
+    setTimeout(() => {
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'agent',
+        text: 'Arte gerada! Ficou como você esperava?',
+        imageUrl: arteImageUrl,
+        quickActions: [
+          { label: 'Ficou ótimo, usar esta arte ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => handleInput('Aprovado! Vou usar esta arte.') },
+          { label: 'Não ficou bom, regenerar ↗', icon: <IconRefresh size={11} />, color: '#5D87FF', onClick: () => triggerRejectionFlow() },
+          { label: 'Ajustar estilo ↗', icon: <IconAdjustments size={11} />, color: '#F8A800', onClick: () => handleInput('Quero ajustar o estilo visual') },
+        ],
+      }]);
+    }, 400);
+  }, [arteImageUrl]);
+
+  // Watch: copyIsStale → warn user
+  useEffect(() => {
+    if (!copyIsStale || prevCopyIsStale.current || !copyApproved || isAgentBusy) return;
+    prevCopyIsStale.current = true;
+    setTimeout(() => {
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'agent',
+        text: '⚠️ Os parâmetros do briefing foram alterados.\n\nA copy atual pode estar desatualizada. Recomendo regenerar para garantir alinhamento.',
+        quickActions: [
+          { label: 'Regenerar copy ↗', icon: <IconRefresh size={11} />, color: '#E85219', onClick: () => sendSkill('copy') },
+          { label: 'Manter como está', icon: <IconCheck size={11} />, color: '#555', onClick: () => { prevCopyIsStale.current = false; } },
+        ],
+      }]);
+    }, 300);
+  }, [copyIsStale]);
+
+  // Reset stale ref when copy is regenerated
+  useEffect(() => {
+    if (!copyIsStale) prevCopyIsStale.current = false;
+  }, [copyIsStale]);
+
+  // ── Rejection Capture — ask what was wrong before regenerating ──────────────
+
+  const triggerRejectionFlow = useCallback(() => {
+    const msgId = uid();
+    const REJECTION_REASONS = [
+      { label: 'Composição',    color: '#5D87FF' },
+      { label: 'Cores',         color: '#E85219' },
+      { label: 'Tipografia',    color: '#F8A800' },
+      { label: 'Conceito geral', color: '#A855F7' },
+      { label: 'Tudo diferente', color: '#EF4444' },
+    ];
+    setMessages((prev) => [...prev, {
+      id: msgId, role: 'agent',
+      text: 'O que não ficou bom? Vou usar essa informação para melhorar a próxima versão.',
+      quickActions: REJECTION_REASONS.map((r) => ({
+        label: r.label,
+        icon: <IconRefresh size={11} />,
+        color: r.color,
+        onClick: () => {
+          // Replace quick actions with "processing" state
+          updateMsg(msgId, { quickActions: [] });
+          handleInput(`Regenerar arte — o problema foi: ${r.label.toLowerCase()}. Ajuste este aspecto na próxima versão.`);
+        },
+      })),
+    }]);
+  }, [updateMsg, handleInput]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
