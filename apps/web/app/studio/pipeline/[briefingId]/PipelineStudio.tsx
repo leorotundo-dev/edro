@@ -8,6 +8,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import { IconRobot, IconEye } from '@tabler/icons-react';
 
 import {
   PipelineContext,
@@ -47,6 +50,7 @@ import ScheduleNode from '@/components/pipeline/nodes/ScheduleNode';
 import PerformanceNode from '@/components/pipeline/nodes/PerformanceNode';
 import LearningFeedbackNode from '@/components/pipeline/nodes/LearningFeedbackNode';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
+import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
 import AddNodePanel from '@/components/pipeline/AddNodePanel';
 import { apiGet, apiPost } from '@/lib/api';
 
@@ -250,6 +254,57 @@ function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
 interface PipelineStudioProps {
   briefingId: string;
 }
+
+// ── Right panel — tab switcher between Chat Agent and Live Preview ─────────────
+
+function RightPanel() {
+  const [activeTab, setActiveTab] = useState<'agent' | 'preview'>('agent');
+
+  return (
+    <Box sx={{ flex: '0 0 38%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Tab bar */}
+      <Stack direction="row" sx={{ borderBottom: '1px solid #1a1a1a', bgcolor: '#0a0a0a', flexShrink: 0 }}>
+        {[
+          { id: 'agent',   label: 'Agente IA', icon: <IconRobot size={12} />,  color: '#5D87FF' },
+          { id: 'preview', label: 'Preview',   icon: <IconEye size={12} />,    color: '#13DEB9' },
+        ].map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <Box
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'agent' | 'preview')}
+              sx={{
+                flex: 1, py: 0.875, px: 1.5, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.625,
+                borderBottom: active ? `2px solid ${tab.color}` : '2px solid transparent',
+                bgcolor: active ? `${tab.color}08` : 'transparent',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: `${tab.color}0c` },
+              }}
+            >
+              <Box sx={{ color: active ? tab.color : '#444', display: 'flex', alignItems: 'center' }}>
+                {tab.icon}
+              </Box>
+              <Typography sx={{
+                fontSize: '0.62rem', fontWeight: active ? 700 : 400,
+                color: active ? tab.color : '#555',
+              }}>
+                {tab.label}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Stack>
+
+      {/* Panel content */}
+      <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {activeTab === 'agent' ? <ChatAgentPanel /> : <PreviewPanel />}
+      </Box>
+    </Box>
+  );
+}
+
+// ── Pipeline studio inner ──────────────────────────────────────────────────────
 
 function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // ── Core state ──────────────────────────────────────────────────────────────
@@ -973,10 +1028,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
           </Box>
         </Box>
 
-        {/* Live Preview — 38% */}
-        <Box sx={{ flex: '0 0 38%', height: '100%', overflow: 'hidden' }}>
-          <PreviewPanel />
-        </Box>
+        {/* Right panel — 38% — Chat Agent (primary) + Preview tab */}
+        <RightPanel />
       </Box>
     </PipelineContext.Provider>
   );
