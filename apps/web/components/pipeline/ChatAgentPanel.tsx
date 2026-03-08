@@ -12,7 +12,8 @@ import {
   IconSend, IconSparkles, IconPalette, IconTypography,
   IconPhoto, IconPackage, IconSearch, IconBrandInstagram,
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
-  IconChevronRight, IconBolt,
+  IconChevronRight, IconBolt, IconPaperclip, IconBulb,
+  IconWorld, IconBox, IconX,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -292,15 +293,26 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
 
 function UserBubble({ msg }: { msg: ChatMessage }) {
   return (
-    <Stack alignItems="flex-end">
-      <Box sx={{
-        bgcolor: 'rgba(93,135,255,0.12)', border: '1px solid #5D87FF33',
-        borderRadius: 2, px: 1.5, py: 0.875, maxWidth: '80%',
-      }}>
-        <Typography sx={{ fontSize: '0.65rem', color: '#ccc', lineHeight: 1.5 }}>
-          {msg.text}
-        </Typography>
-      </Box>
+    <Stack alignItems="flex-end" spacing={0.5}>
+      {msg.imageUrl && (
+        <Box sx={{
+          borderRadius: 1.5, overflow: 'hidden',
+          border: '1px solid #5D87FF44', maxWidth: 160,
+        }}>
+          <Box component="img" src={msg.imageUrl} alt="referência visual"
+            sx={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 120 }} />
+        </Box>
+      )}
+      {msg.text && (
+        <Box sx={{
+          bgcolor: 'rgba(93,135,255,0.12)', border: '1px solid #5D87FF33',
+          borderRadius: 2, px: 1.5, py: 0.875, maxWidth: '80%',
+        }}>
+          <Typography sx={{ fontSize: '0.65rem', color: '#ccc', lineHeight: 1.5 }}>
+            {msg.text}
+          </Typography>
+        </Box>
+      )}
     </Stack>
   );
 }
@@ -314,6 +326,7 @@ export default function ChatAgentPanel() {
     arteChainStep, handleGenerateArteChain, arteChainResult,
     copyOptions, selectedCopyIdx, arteImageUrl,
     briefingConfirmed, copyApproved,
+    visualReferences, setVisualReferences,
   } = usePipeline();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -321,6 +334,28 @@ export default function ChatAgentPanel() {
   const [isAgentBusy, setIsAgentBusy] = useState(false);
   const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Capability toggles — affect agent behavior
+  const [capabilities, setCapabilities] = useState<Set<string>>(new Set());
+  const toggleCapability = (cap: string) =>
+    setCapabilities((prev) => { const s = new Set(prev); s.has(cap) ? s.delete(cap) : s.add(cap); return s; });
+
+  // @mention system
+  const mentionRegex = /(?:^|\s)@(\w*)$/;
+  const mentionMatch = mentionRegex.exec(input);
+  const mentionQuery = mentionMatch ? mentionMatch[1].toLowerCase() : null;
+  const MENTIONS = [
+    { id: 'briefing',    label: '@briefing',   desc: 'Injeta contexto do briefing atual',  color: '#7C3AED' },
+    { id: 'gatilho',     label: '@gatilho',    desc: `Gatilho ativo: ${selectedTrigger || 'nenhum'}`, color: '#E85219' },
+    { id: 'receita',     label: '@receita',    desc: 'Carrega receita salva',               color: '#F8A800' },
+    { id: 'copy',        label: '@copy',       desc: 'Injeta copy aprovada no contexto',    color: '#13DEB9' },
+    { id: 'referencia',  label: '@referencia', desc: 'Adiciona referência visual',          color: '#5D87FF' },
+  ];
+  const filteredMentions = mentionQuery !== null
+    ? MENTIONS.filter((m) => m.id.startsWith(mentionQuery))
+    : [];
+  const showMentions = filteredMentions.length > 0;
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -605,6 +640,39 @@ export default function ChatAgentPanel() {
     setInput('');
   };
 
+  const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    // Add as user message with image
+    setMessages((prev) => [...prev, {
+      id: uid(), role: 'user',
+      text: `📎 ${file.name}`,
+      imageUrl: objectUrl,
+    }]);
+    // Add to visual references context
+    setVisualReferences([...visualReferences, objectUrl]);
+    // Agent acknowledgement
+    setTimeout(() => {
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'agent',
+        text: `✅ Imagem **${file.name}** adicionada como referência visual.\n\nEla será usada pelo Agente Diretor de Arte na próxima geração.`,
+        quickActions: [{
+          label: 'Gerar arte com esta referência ↗',
+          icon: <IconPalette size={11} />,
+          color: '#5D87FF',
+          onClick: () => sendSkill('arte'),
+        }],
+      }]);
+    }, 400);
+    e.target.value = '';
+  };
+
+  const selectMention = (mention: typeof MENTIONS[0]) => {
+    // Replace @query in input with the full @mention + space
+    setInput((prev) => prev.replace(/@\w*$/, `${mention.label} `));
+  };
+
   // ── Pipeline step watcher — update tool progress cards in real time ──────────
   useEffect(() => {
     if (!activeMsgId || copyChainStep === 0) return;
@@ -704,7 +772,46 @@ export default function ChatAgentPanel() {
       </Box>
 
       {/* Input area */}
-      <Box sx={{ px: 1.5, py: 1.25, borderTop: '1px solid #1a1a1a', bgcolor: '#0d0d0d' }}>
+      <Box sx={{ px: 1.5, py: 1.25, borderTop: '1px solid #1a1a1a', bgcolor: '#0d0d0d', position: 'relative' }}>
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          title="Upload imagem como referência visual"
+          aria-label="Upload imagem como referência visual"
+          className="sr-only"
+          onChange={handleUploadFile}
+        />
+
+        {/* @mention dropdown */}
+        {showMentions && (
+          <Box sx={{
+            position: 'absolute', bottom: '100%', left: 12, right: 12, mb: 0.5,
+            bgcolor: '#111', border: '1px solid #2a2a2a', borderRadius: 1.5,
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.5)', zIndex: 50, overflow: 'hidden',
+          }}>
+            {filteredMentions.map((m) => (
+              <Stack key={m.id} direction="row" spacing={1} alignItems="center"
+                onClick={() => selectMention(m)}
+                sx={{
+                  px: 1.25, py: 0.75, cursor: 'pointer',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+                  borderBottom: '1px solid #1a1a1a',
+                  '&:last-child': { borderBottom: 'none' },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: m.color, minWidth: 90 }}>
+                  {m.label}
+                </Typography>
+                <Typography sx={{ fontSize: '0.55rem', color: '#555', flex: 1 }}>
+                  {m.desc}
+                </Typography>
+              </Stack>
+            ))}
+          </Box>
+        )}
+
         {isAgentBusy && (
           <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}>
             <CircularProgress size={9} sx={{ color: '#5D87FF' }} />
@@ -713,51 +820,106 @@ export default function ChatAgentPanel() {
             </Typography>
           </Stack>
         )}
-        <Stack direction="row" spacing={0.75} alignItems="flex-end">
-          <TextField
-            multiline
-            maxRows={3}
-            fullWidth
-            size="small"
-            placeholder="Descreva o que você quer criar…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            disabled={isAgentBusy}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                fontSize: '0.65rem',
-                bgcolor: '#141414',
-                '& fieldset': { borderColor: '#2a2a2a' },
-                '&:hover fieldset': { borderColor: '#3a3a3a' },
-                '&.Mui-focused fieldset': { borderColor: '#5D87FF55' },
-              },
-            }}
-          />
-          <IconButton
-            size="small"
-            onClick={handleSend}
-            disabled={isAgentBusy || !input.trim()}
-            sx={{
-              bgcolor: input.trim() && !isAgentBusy ? '#5D87FF' : '#1a1a1a',
-              border: '1px solid #2a2a2a',
-              width: 32, height: 32, flexShrink: 0,
-              '&:hover': { bgcolor: '#4a6fe0' },
-              '&.Mui-disabled': { bgcolor: '#141414', border: '1px solid #222' },
-              transition: 'background-color 0.15s',
-            }}
-          >
-            <IconSend size={13} color={input.trim() && !isAgentBusy ? '#fff' : '#444'} />
-          </IconButton>
-        </Stack>
-        <Typography sx={{ fontSize: '0.48rem', color: '#333', mt: 0.5, textAlign: 'center' }}>
-          Enter para enviar · Shift+Enter para nova linha
-        </Typography>
+
+        {/* Main input row */}
+        <Box sx={{
+          bgcolor: '#141414', border: '1px solid #2a2a2a', borderRadius: 2,
+          '&:focus-within': { borderColor: '#5D87FF44' },
+          transition: 'border-color 0.15s',
+        }}>
+          {/* Placeholder text + textarea */}
+          <Stack direction="row" spacing={0.5} alignItems="flex-end" sx={{ px: 1, pt: 0.75, pb: 0.5 }}>
+            {/* Upload button */}
+            <IconButton
+              size="small"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isAgentBusy}
+              sx={{
+                width: 28, height: 28, flexShrink: 0, mb: 0.25,
+                color: '#555',
+                '&:hover': { color: '#888', bgcolor: 'rgba(255,255,255,0.05)' },
+                '&.Mui-disabled': { color: '#333' },
+              }}
+            >
+              <IconPaperclip size={14} />
+            </IconButton>
+
+            <TextField
+              multiline maxRows={3} fullWidth size="small"
+              placeholder='Start with an idea, or type "@" to mention…'
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                if (e.key === 'Escape') setInput((p) => p.replace(/@\w*$/, ''));
+              }}
+              disabled={isAgentBusy}
+              variant="standard"
+              sx={{
+                '& .MuiInputBase-root': {
+                  fontSize: '0.65rem', color: '#ccc',
+                  '&:before, &:after': { display: 'none' },
+                },
+              }}
+            />
+
+            {/* Send button */}
+            <IconButton
+              size="small" onClick={handleSend}
+              disabled={isAgentBusy || !input.trim()}
+              sx={{
+                bgcolor: input.trim() && !isAgentBusy ? '#5D87FF' : 'transparent',
+                width: 28, height: 28, flexShrink: 0, mb: 0.25,
+                border: input.trim() && !isAgentBusy ? 'none' : '1px solid #333',
+                '&:hover': { bgcolor: '#4a6fe0' },
+                '&.Mui-disabled': { bgcolor: 'transparent', border: '1px solid #222' },
+                transition: 'background-color 0.15s',
+              }}
+            >
+              <IconSend size={12} color={input.trim() && !isAgentBusy ? '#fff' : '#444'} />
+            </IconButton>
+          </Stack>
+
+          {/* Capability toggles */}
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ px: 1, pb: 0.75 }}>
+            {[
+              { id: 'suggest', icon: <IconBulb size={12} />,   label: 'Sugestões', color: '#F8A800' },
+              { id: 'fast',    icon: <IconBolt size={12} />,   label: 'Fast',      color: '#13DEB9' },
+              { id: 'web',     icon: <IconWorld size={12} />,  label: 'Web',       color: '#5D87FF' },
+              { id: 'mockup',  icon: <IconBox size={12} />,    label: 'Mockup',    color: '#7C3AED' },
+            ].map((cap) => {
+              const active = capabilities.has(cap.id);
+              return (
+                <Box
+                  key={cap.id}
+                  onClick={() => toggleCapability(cap.id)}
+                  title={cap.label}
+                  sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 24, height: 24, borderRadius: '50%', cursor: 'pointer',
+                    bgcolor: active ? `${cap.color}20` : 'transparent',
+                    border: `1px solid ${active ? cap.color + '55' : '#2a2a2a'}`,
+                    color: active ? cap.color : '#444',
+                    transition: 'all 0.15s',
+                    '&:hover': { color: cap.color, borderColor: cap.color + '44', bgcolor: cap.color + '12' },
+                  }}
+                >
+                  {cap.icon}
+                </Box>
+              );
+            })}
+            {capabilities.size > 0 && (
+              <Box onClick={() => setCapabilities(new Set())} title="Limpar modos"
+                sx={{
+                  display: 'flex', alignItems: 'center', cursor: 'pointer',
+                  ml: 0.25, color: '#444', '&:hover': { color: '#888' },
+                }}
+              >
+                <IconX size={10} />
+              </Box>
+            )}
+          </Stack>
+        </Box>
       </Box>
     </Box>
   );
