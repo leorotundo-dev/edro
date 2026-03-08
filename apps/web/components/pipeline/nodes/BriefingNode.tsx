@@ -12,7 +12,7 @@ import Chip from '@mui/material/Chip';
 import {
   IconFileDescription, IconCheck, IconX, IconArrowRight,
   IconChefHat, IconPlus, IconMoodSmile, IconTarget,
-  IconFunnel, IconLayoutGrid,
+  IconFilter, IconLayoutGrid,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import NodeShell from '../NodeShell';
@@ -66,7 +66,7 @@ const INGREDIENT_CATALOG = [
     label: 'Fase do Funil',
     desc: 'Awareness, Consideração ou Conversão',
     color: '#13DEB9',
-    tabler: IconFunnel,
+    tabler: IconFilter,
   },
   {
     id: 'recipe',
