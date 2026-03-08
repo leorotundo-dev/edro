@@ -80,6 +80,7 @@ export type AgentDAParams = {
   payloadOverride?: Partial<FalApiPayload>;
   generateMultiFormat?: boolean;
   brandPack?: boolean;          // generate ALL 5 formats (Story/Feed/Portrait/LinkedIn/Banner)
+  visualReferences?: string[];  // reference image URLs from Visual Insights (feed into P2)
 };
 
 // ─── Plugin 1 — Brand Visual RAG ─────────────────────────────────────────────
@@ -182,6 +183,9 @@ ${daDirectives.length ? daDirectives.join('\n') : '(automática — IA decide)'}
 
 ${hasLora ? `LoRA da marca: DISPONÍVEL (ID: ${brandVisual.loraId}) — USE o modelo flux-lora` : 'LoRA: não disponível — use flux-pro'}
 
+${params.visualReferences && params.visualReferences.length > 0
+  ? `REFERÊNCIAS VISUAIS SELECIONADAS PELO CLIENTE (inspire-se no estilo destas imagens):\n${params.visualReferences.slice(0, 4).map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+  : ''}
 ${promptRefinements ? `REFINAMENTOS DO CRITIQUE LOOP (corrija estes pontos):\n${promptRefinements}` : ''}
 
 Regras para o prompt:

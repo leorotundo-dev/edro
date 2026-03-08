@@ -657,6 +657,7 @@ Regras:
     }).optional(),
     generateMultiFormat: z.boolean().optional(),
     brandPack: z.boolean().optional(),
+    visualReferences: z.array(z.string().url()).max(6).optional(),
   });
 
   app.post('/studio/creative/arte-chain', async (request: any, reply) => {
@@ -665,6 +666,71 @@ Regras:
       const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
       const result = await runAgentDiretorArte(body);
       return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Visual Insights — search reference images for DA context ────────────
+  const visualInsightsSchema = z.object({
+    category: z.string().min(2),
+    mood:     z.string().optional(),
+    platform: z.string().optional().default('Instagram'),
+  });
+
+  app.post('/studio/creative/visual-insights', async (request: any, reply) => {
+    const body = visualInsightsSchema.parse(request.body);
+    try {
+      const { tavilySearch } = await import('../services/tavilyService');
+
+      const query = `${body.category} ${body.mood ?? ''} advertising creative ${body.platform} 2024 site:behance.net OR site:dribbble.com OR site:pinterest.com OR site:instagram.com`.trim();
+
+      const apiKey = process.env.TAVILY_API_KEY;
+      if (!apiKey) return reply.status(503).send({ success: false, error: 'TAVILY_API_KEY não configurada' });
+
+      // Call Tavily with include_images=true for image URLs
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query,
+          search_depth: 'basic',
+          max_results: 6,
+          include_images: true,
+          include_answer: false,
+        }),
+        signal: AbortSignal.timeout(9000),
+      });
+
+      if (!res.ok) return reply.status(502).send({ success: false, error: 'Tavily search failed' });
+
+      const data = await res.json() as {
+        results?: Array<{ title: string; url: string; content?: string }>;
+        images?: string[];
+      };
+
+      // Prefer direct image URLs from Tavily's image search
+      const imageUrls: string[] = (data.images ?? [])
+        .filter((u: string) => /\.(jpg|jpeg|png|webp)(\?|$)/i.test(u) || u.includes('cdn') || u.includes('images'))
+        .slice(0, 6);
+
+      // Fallback: use page URLs from results if no images
+      const references = imageUrls.length >= 3
+        ? imageUrls.map((url, i) => ({
+            url,
+            title: data.results?.[i]?.title ?? `Referência ${i + 1}`,
+            description: '',
+            relevanceScore: 1 - i * 0.1,
+          }))
+        : (data.results ?? []).slice(0, 6).map((r, i) => ({
+            url: r.url,
+            title: r.title,
+            description: (r.content ?? '').slice(0, 120),
+            relevanceScore: 1 - i * 0.1,
+          }));
+
+      return reply.send({ success: true, references });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
     }

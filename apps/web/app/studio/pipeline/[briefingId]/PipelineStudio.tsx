@@ -273,6 +273,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   const [arteChainResult, setArteChainResult] = useState<ArteChainResult | null>(null);
   const [arteChainStep, setArteChainStep] = useState(0);
 
+  // Visual Insights — reference URLs selected by user in FormatHintsNode
+  const [visualReferences, setVisualReferences] = useState<string[]>([]);
+
   // Trigger
   const [selectedTrigger, setSelectedTrigger] = useState<string | null>(null);
   const [triggerConfirmed, setTriggerConfirmed] = useState(false);
@@ -666,12 +669,13 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       const copy = copyOptions[selectedCopyIdx];
       const copyText = copy ? [copy.title, copy.body, copy.cta].filter(Boolean).join(' ') : '';
       const res = await apiPost<{ success: boolean; data: ArteChainResult }>('/studio/creative/arte-chain', {
-        copy:          copyText,
+        copy:             copyText,
         briefing,
-        clientProfile: Object.keys(clientProfile).length > 0 ? clientProfile : null,
-        trigger:       selectedTrigger,
-        platform:      activeFormat?.platform,
-        format:        activeFormat?.format,
+        clientProfile:    Object.keys(clientProfile).length > 0 ? clientProfile : null,
+        trigger:          selectedTrigger,
+        platform:         activeFormat?.platform,
+        format:           activeFormat?.format,
+        visualReferences: visualReferences.length > 0 ? visualReferences : undefined,
         ...chainParams,
       });
       stepTimers.forEach(clearTimeout);
@@ -924,6 +928,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     arteChainResult,
     arteChainStep,
     handleGenerateArteChain,
+    visualReferences,
+    setVisualReferences,
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
