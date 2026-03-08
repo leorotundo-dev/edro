@@ -49,6 +49,7 @@ type ChatMessage = {
   quickActions?: QuickAction[];
   imageUrl?: string;
   isTyping?: boolean;
+  narration?: string; // live status line updated as steps run
 };
 
 type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'unknown';
@@ -94,6 +95,23 @@ const ARTE_CHAIN_STEPS = [
   'P4 Generator — Geração com Flux Pro',
   'P5 Critic — Avaliação estética',
   'P6 Formats — Multi-formato',
+];
+
+const COPY_NARRATIONS: string[] = [
+  'Lendo identidade de marca, voz e diretrizes do cliente…',
+  'Mapeando ângulos persuasivos e apelos emocionais para o funil…',
+  'Escrevendo 3 variantes de copy com abordagens distintas…',
+  'Auditando alinhamento com briefing, AMD e voz da marca…',
+  'Adaptando tom e formato por canal e tamanho de tela…',
+];
+
+const ARTE_NARRATIONS: string[] = [
+  'Analisando briefing visual, referências e restrições criativas…',
+  'Construindo o prompt de engenharia para o modelo de imagem…',
+  'Definindo composição, paleta, tipografia e hierarquia visual…',
+  'Gerando a arte com Flux Pro — pode levar alguns segundos…',
+  'Avaliando qualidade estética, coerência e impacto da imagem…',
+  'Adaptando para Story 9:16 · Feed 1:1 · LinkedIn 4:5 · Banner 16:9…',
 ];
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -241,6 +259,24 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
           </Typography>
           <PlanTable rows={msg.plan} />
         </Box>
+      )}
+
+      {/* Live narration line */}
+      {msg.narration && (
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ ml: 3.5 }}>
+          <CircularProgress size={8} sx={{ color: '#5D87FF', flexShrink: 0 }} />
+          <Typography sx={{
+            fontSize: '0.57rem', color: '#5D87FF',
+            fontFamily: 'monospace', lineHeight: 1.4,
+            '&::after': {
+              content: '"▌"',
+              animation: 'blink 1s step-end infinite',
+              '@keyframes blink': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0 } },
+            },
+          }}>
+            {msg.narration}
+          </Typography>
+        </Stack>
       )}
 
       {/* Tool execution cards */}
@@ -431,6 +467,7 @@ export default function ChatAgentPanel() {
 
       const selected = copyOptions[selectedCopyIdx];
       updateMsg(agentMsgId, {
+        narration: undefined,
         text: `✅ **Copy gerada com sucesso!** 3 opções disponíveis no nó Copy.\n\nDestaques da opção selecionada:\n"${selected?.title || 'Ver no nó Copy'}"`,
         quickActions: [
           {
@@ -454,6 +491,7 @@ export default function ChatAgentPanel() {
         ],
       });
     } catch {
+      updateMsg(agentMsgId, { narration: undefined });
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao gerar copy. Verifique as configurações.' });
     }
   }, [handleGenerateCopyChain, copyOptions, selectedCopyIdx, updateMsg, updateTool, updatePlanRow]);
@@ -501,6 +539,7 @@ export default function ChatAgentPanel() {
       steps.forEach((_, i) => updatePlanRow(agentMsgId, `P${i + 1}`, 'done'));
 
       updateMsg(agentMsgId, {
+        narration: undefined,
         text: brandPack
           ? '🎉 **Brand Pack completo gerado!** Story, Feed, Portrait, LinkedIn e Banner estão prontos no nó Arte.'
           : '✅ **Arte gerada!** Você pode ver e aprovar no nó Arte.',
@@ -528,6 +567,7 @@ export default function ChatAgentPanel() {
       });
     } catch {
       clearInterval(ticker);
+      updateMsg(agentMsgId, { narration: undefined });
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao gerar arte.' });
     }
   }, [handleGenerateArteChain, arteImageUrl, updateMsg, updateTool, updatePlanRow]);
@@ -787,20 +827,24 @@ export default function ChatAgentPanel() {
     setInput((prev) => prev.replace(/@\w*$/, `${mention.label} `));
   };
 
-  // ── Pipeline step watcher — update tool progress cards in real time ──────────
+  // ── Pipeline step watcher — update plan rows + live narration in real time ────
   useEffect(() => {
     if (!activeMsgId || copyChainStep === 0) return;
     const pIdx = copyChainStep - 1;
     updatePlanRow(activeMsgId, `P${pIdx + 1}`, 'running');
     if (pIdx > 0) updatePlanRow(activeMsgId, `P${pIdx}`, 'done');
-  }, [copyChainStep, activeMsgId, updatePlanRow]);
+    const narration = COPY_NARRATIONS[pIdx];
+    if (narration) updateMsg(activeMsgId, { narration });
+  }, [copyChainStep, activeMsgId, updatePlanRow, updateMsg]);
 
   useEffect(() => {
     if (!activeMsgId || arteChainStep === 0) return;
     const pIdx = arteChainStep - 1;
     updatePlanRow(activeMsgId, `P${pIdx + 1}`, 'running');
     if (pIdx > 0) updatePlanRow(activeMsgId, `P${pIdx}`, 'done');
-  }, [arteChainStep, activeMsgId, updatePlanRow]);
+    const narration = ARTE_NARRATIONS[pIdx];
+    if (narration) updateMsg(activeMsgId, { narration });
+  }, [arteChainStep, activeMsgId, updatePlanRow, updateMsg]);
 
   // ── State Watcher — proactive AI guidance when pipeline state changes ─────────
 
