@@ -14,7 +14,7 @@ import Slider from '@mui/material/Slider';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
   IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
-  IconColorSwatch, IconSparkles,
+  IconColorSwatch, IconSparkles, IconPencil,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -119,6 +119,8 @@ export default function ArteNode() {
   const [showStylePanel, setShowStylePanel] = useState(false);
   const [selectedMood, setSelectedMood] = useState('');
   const [styleStrength, setStyleStrength] = useState(0.45);
+  const [showInpaintPanel, setShowInpaintPanel] = useState(false);
+  const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -142,7 +144,7 @@ export default function ArteNode() {
     { id: 'cinematografico', label: 'Cinemático',  color: '#A855F7' },
   ];
 
-  const handleEditImage = async (mode: 'style' | 'variation') => {
+  const handleEditImage = async (mode: 'style' | 'variation' | 'inpaint') => {
     const currentUrl = arteImageUrls[selectedArteIdx] || arteImageUrl;
     if (!currentUrl) return;
     setEditLoading(true);
@@ -154,16 +156,17 @@ export default function ArteNode() {
         body: JSON.stringify({
           imageUrl: currentUrl,
           mode,
-          prompt: mode === 'style' ? selectedMood : undefined,
-          strength: styleStrength,
+          prompt: mode === 'style' ? selectedMood : mode === 'inpaint' ? inpaintPrompt : undefined,
+          strength: mode === 'inpaint' ? 0.85 : styleStrength,
           aspectRatio,
         }),
       });
       const data = await res.json();
       if (data.success && data.imageUrl) {
-        // Add to arteImageUrls via existing context if possible, else just use it
         useArte(data.imageUrl);
         setShowStylePanel(false);
+        setShowInpaintPanel(false);
+        setInpaintPrompt('');
       } else {
         setEditError(data.error || 'Erro ao editar imagem');
       }
@@ -772,7 +775,7 @@ export default function ArteNode() {
                   </Button>
                   {/* Style */}
                   <Button variant="outlined" size="small" fullWidth
-                    onClick={() => setShowStylePanel(p => !p)}
+                    onClick={() => { setShowStylePanel(p => !p); setShowInpaintPanel(false); }}
                     startIcon={<IconColorSwatch size={11} />}
                     endIcon={showStylePanel ? <IconChevronDown size={11} style={{ transform: 'rotate(180deg)' }} /> : <IconChevronDown size={11} />}
                     sx={{ borderColor: showStylePanel ? '#A855F766' : '#333',
@@ -782,7 +785,46 @@ export default function ArteNode() {
                   >
                     Ajustar estilo / mood
                   </Button>
+                  {/* Inpaint */}
+                  <Button variant="outlined" size="small" fullWidth
+                    onClick={() => { setShowInpaintPanel(p => !p); setShowStylePanel(false); }}
+                    startIcon={<IconPencil size={11} />}
+                    endIcon={showInpaintPanel ? <IconChevronDown size={11} style={{ transform: 'rotate(180deg)' }} /> : <IconChevronDown size={11} />}
+                    sx={{ borderColor: showInpaintPanel ? '#EC489966' : '#333',
+                      color: showInpaintPanel ? '#EC4899' : '#888', fontSize: '0.65rem',
+                      textTransform: 'none', justifyContent: 'flex-start', px: 1.25,
+                      bgcolor: showInpaintPanel ? 'rgba(236,72,153,0.06)' : 'transparent' }}
+                  >
+                    Descrever edição dirigida
+                  </Button>
                 </Stack>
+
+                {/* Inpaint panel — inline */}
+                {showInpaintPanel && (
+                  <Box sx={{ mt: 0.875, pt: 0.875, borderTop: '1px solid #EC489922' }}>
+                    <Typography sx={{ fontSize: '0.52rem', color: '#EC4899', mb: 0.625, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Edição Dirigida — descreva o que mudar
+                    </Typography>
+                    <TextField
+                      multiline rows={3} size="small" fullWidth
+                      placeholder={'Ex: "troque o fundo por uma cidade noturna", "remova o elemento da esquerda", "mude as cores para tons azuis"'}
+                      value={inpaintPrompt}
+                      onChange={(e) => setInpaintPrompt(e.target.value)}
+                      sx={{ mb: 0.75, '& .MuiInputBase-root': { fontSize: '0.6rem', bgcolor: '#0d0d0d' } }}
+                    />
+                    {editError && <Typography sx={{ fontSize: '0.52rem', color: 'error.main', mb: 0.5 }}>{editError}</Typography>}
+                    <Button variant="contained" size="small" fullWidth
+                      disabled={!inpaintPrompt.trim() || editLoading}
+                      onClick={() => handleEditImage('inpaint')}
+                      startIcon={editLoading ? <CircularProgress size={11} sx={{ color: '#fff' }} /> : <IconPencil size={11} />}
+                      sx={{ bgcolor: '#EC4899', color: '#fff', fontSize: '0.62rem', fontWeight: 700,
+                        textTransform: 'none', '&:hover': { bgcolor: '#db2777' },
+                        '&:disabled': { bgcolor: '#222', color: '#444' } }}
+                    >
+                      {editLoading ? 'Aplicando edição…' : 'Aplicar edição'}
+                    </Button>
+                  </Box>
+                )}
 
                 {/* Style panel — inline */}
                 {showStylePanel && (
