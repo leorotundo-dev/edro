@@ -138,6 +138,10 @@ export interface PipelineContextValue {
   // Learning rules count (for BriefingNode mise en place)
   learningRulesCount: number | null;
 
+  // Director AI — surfaced in PreviewPanel
+  directorInsights: { step: string; score: number; aligned: boolean; message: string; suggestions?: string[] }[];
+  directorAnalyzing: boolean;
+
   // Optional node management — lets any node add sibling nodes to the canvas
   activeNodeIds: string[];
   addOptionalNode: (nodeId: string) => void;

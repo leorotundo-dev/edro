@@ -32,7 +32,6 @@ import CopyNode from '@/components/pipeline/nodes/CopyNode';
 import TriggerNode from '@/components/pipeline/nodes/TriggerNode';
 import ArteNode from '@/components/pipeline/nodes/ArteNode';
 import ExportNode from '@/components/pipeline/nodes/ExportNode';
-import DirectorNode from '@/components/pipeline/nodes/DirectorNode';
 import ClientDNANode from '@/components/pipeline/nodes/ClientDNANode';
 import LearningRulesNode from '@/components/pipeline/nodes/LearningRulesNode';
 import FormatHintsNode from '@/components/pipeline/nodes/FormatHintsNode';
@@ -915,6 +914,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     saveRecipe,
     applyRecipe,
     learningRulesCount,
+    directorInsights,
+    directorAnalyzing,
     activeNodeIds: nodes.map((n) => n.id),
     addOptionalNode,
     copyChainResult,
@@ -956,18 +957,6 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
               style={{ background: '#111', border: '1px solid #222', borderRadius: 8 }}
             />
           </ReactFlow>
-
-          {/* Director panel (floating bottom-center) */}
-          <Box sx={{
-            position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 10,
-          }}>
-            <DirectorNode
-              insights={directorInsights}
-              analyzing={directorAnalyzing}
-              status={directorInsights.length > 0 ? 'active' : 'locked'}
-            />
-          </Box>
 
           {/* Add Node FAB (floating bottom-left) */}
           <Box sx={{ position: 'absolute', bottom: 16, left: 16, zIndex: 10 }}>
