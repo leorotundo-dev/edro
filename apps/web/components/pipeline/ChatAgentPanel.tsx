@@ -537,7 +537,28 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
       {msg.imageUrl && (
         <Box sx={{ ml: 3.5 }}>
           {msg.mockupType ? (
-            <MockupFrame imageUrl={msg.imageUrl} type={msg.mockupType} />
+            <Box>
+              <MockupFrame imageUrl={msg.imageUrl} type={msg.mockupType} />
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 0.75 }}>
+                <Box
+                  component="a"
+                  href={msg.imageUrl}
+                  download={`arte-mockup-${msg.mockupType}.jpg`}
+                  sx={{
+                    display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                    px: 1.25, py: 0.4,
+                    borderRadius: 1, border: '1px solid #ffffff18',
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                    color: '#aaa', fontSize: '0.55rem', textDecoration: 'none',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    '&:hover': { bgcolor: 'rgba(19,222,185,0.08)', borderColor: '#13DEB944', color: '#13DEB9' },
+                  }}
+                >
+                  <IconDownload size={11} />
+                  Baixar mockup
+                </Box>
+              </Box>
+            </Box>
           ) : (
             <Box sx={{ position: 'relative', borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944', maxWidth: 200,
               '&:hover .img-dl': { opacity: 1 } }}>
