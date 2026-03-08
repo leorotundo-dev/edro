@@ -670,6 +670,47 @@ Regras:
     }
   });
 
+  // ── Touch Edit — img2img style/variation via Fal.ai flux-dev ────────────
+  const editImageSchema = z.object({
+    imageUrl:    z.string().url(),
+    mode:        z.enum(['style', 'variation']),
+    prompt:      z.string().optional(),
+    strength:    z.number().min(0.1).max(0.95).default(0.45),
+    aspectRatio: z.string().optional().default('1:1'),
+  });
+
+  app.post('/studio/creative/edit-image', async (request: any, reply) => {
+    const body = editImageSchema.parse(request.body);
+    try {
+      const { generateImageWithFal } = await import('../services/ai/falAiService');
+
+      const moodPrompts: Record<string, string> = {
+        minimalista:     'minimal clean aesthetic, white space, simple elegant composition, muted tones',
+        dramatico:       'dramatic cinematic lighting, deep shadows, high contrast, moody atmosphere',
+        vibrante:        'vibrant bold colors, energetic dynamic composition, saturated vivid palette',
+        natural:         'natural soft light, organic textures, warm earthy tones, outdoor lifestyle',
+        cinematografico: 'cinematic widescreen, film grain, bokeh, golden hour, editorial photography',
+      };
+
+      const effectivePrompt = body.mode === 'style' && body.prompt
+        ? `${moodPrompts[body.prompt.toLowerCase()] ?? body.prompt}, high quality advertising creative`
+        : `high quality variation, photorealistic, advertising creative, professional composition`;
+
+      const result = await generateImageWithFal({
+        prompt: effectivePrompt,
+        aspectRatio: body.aspectRatio,
+        numImages: 1,
+        model: 'flux-dev',
+        referenceImageUrl: body.imageUrl,
+        referenceImageStrength: body.mode === 'variation' ? 0.7 : body.strength,
+      });
+
+      return reply.send({ success: true, imageUrl: result.imageUrl });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Plugin 4 DA: Arte Visual Critique ─────────────────────────────────────
   const arteSchema = z.object({
     image_url:      z.string(),

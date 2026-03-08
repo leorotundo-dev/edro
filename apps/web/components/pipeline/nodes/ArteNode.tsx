@@ -10,9 +10,11 @@ import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Slider from '@mui/material/Slider';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
   IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
+  IconColorSwatch, IconSparkles,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -113,6 +115,13 @@ export default function ArteNode() {
   const [promptOverride, setPromptOverride] = useState('');
   const [brandPackMode, setBrandPackMode] = useState(false);
 
+  // Touch Edit state
+  const [showStylePanel, setShowStylePanel] = useState(false);
+  const [selectedMood, setSelectedMood] = useState('');
+  const [styleStrength, setStyleStrength] = useState(0.45);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+
   // Build the visual directive string from DA selections
   const buildVisualDirective = (cam: string, light: string, comp: string, extra: string) => {
     const parts: string[] = [];
@@ -123,8 +132,47 @@ export default function ArteNode() {
     return parts.join(', ');
   };
   const status = nodeStatus.arte;
-
   const currentProvider = PROVIDERS.find(p => p.id === provider)!;
+
+  const STYLE_MOODS = [
+    { id: 'minimalista',     label: 'Minimalista', color: '#888' },
+    { id: 'dramatico',       label: 'Dramático',   color: '#FF4D4D' },
+    { id: 'vibrante',        label: 'Vibrante',    color: '#F97316' },
+    { id: 'natural',         label: 'Natural',     color: '#22C55E' },
+    { id: 'cinematografico', label: 'Cinemático',  color: '#A855F7' },
+  ];
+
+  const handleEditImage = async (mode: 'style' | 'variation') => {
+    const currentUrl = arteImageUrls[selectedArteIdx] || arteImageUrl;
+    if (!currentUrl) return;
+    setEditLoading(true);
+    setEditError('');
+    try {
+      const res = await fetch('/api/studio/creative/edit-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: currentUrl,
+          mode,
+          prompt: mode === 'style' ? selectedMood : undefined,
+          strength: styleStrength,
+          aspectRatio,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        // Add to arteImageUrls via existing context if possible, else just use it
+        useArte(data.imageUrl);
+        setShowStylePanel(false);
+      } else {
+        setEditError(data.error || 'Erro ao editar imagem');
+      }
+    } catch {
+      setEditError('Erro de conexão');
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const brandPackFormats = arteChainResult?.multiFormat ?? [];
 
@@ -657,12 +705,10 @@ export default function ArteNode() {
             </Box>
           )}
 
-          {/* Image variants */}
+          {/* Image variants + Quick Action Buttons (Lovart-style) */}
           {arteImageUrls.length > 0 && !arteGenerating && (
-            <Stack spacing={0.75}>
-              <Typography sx={{ fontSize: '0.6rem', color: '#555' }}>
-                {arteImageUrls.length} variante{arteImageUrls.length > 1 ? 's' : ''} — clique para selecionar:
-              </Typography>
+            <Stack spacing={0.875}>
+              {/* Thumbnails */}
               <Stack direction="row" spacing={0.5} flexWrap="wrap">
                 {arteImageUrls.map((url, i) => (
                   <Box key={i}
@@ -680,10 +726,10 @@ export default function ArteNode() {
                 ))}
               </Stack>
 
-              {/* Refinement input — iterate after seeing result */}
+              {/* Refinement input */}
               <TextField
                 size="small" fullWidth
-                placeholder="Iterar: ex. 'mais vibrante', 'menos texto', 'luz mais suave'…"
+                placeholder="Iterar: 'mais vibrante', 'menos texto', 'luz mais suave'…"
                 value={refinement}
                 onChange={(e) => setRefinement(e.target.value)}
                 InputProps={{
@@ -699,15 +745,93 @@ export default function ArteNode() {
                 sx={{ '& .MuiInputBase-root': { fontSize: '0.65rem' } }}
               />
 
-              <Button
-                variant="contained" size="small" fullWidth
-                onClick={() => useArte(arteImageUrls[selectedArteIdx])}
-                startIcon={<IconCheck size={13} />}
-                sx={{ bgcolor: '#13DEB9', color: '#000', fontWeight: 700, fontSize: '0.7rem',
-                  textTransform: 'none', '&:hover': { bgcolor: '#0fb89e' } }}
-              >
-                Usar esta Arte
-              </Button>
+              {/* ── Quick Action Row (Lovart-style) ── */}
+              <Box sx={{ p: 0.875, borderRadius: 1.5, border: '1px solid #13DEB922', bgcolor: 'rgba(19,222,185,0.03)' }}>
+                <Typography sx={{ fontSize: '0.5rem', color: '#555', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  O que fazer com esta arte?
+                </Typography>
+                <Stack spacing={0.5}>
+                  {/* Approve */}
+                  <Button variant="contained" size="small" fullWidth
+                    onClick={() => useArte(arteImageUrls[selectedArteIdx])}
+                    startIcon={<IconCheck size={11} />}
+                    sx={{ bgcolor: '#13DEB9', color: '#000', fontWeight: 700, fontSize: '0.65rem',
+                      textTransform: 'none', '&:hover': { bgcolor: '#0fb89e' }, justifyContent: 'flex-start', px: 1.25 }}
+                  >
+                    Ficou ótimo, usar esta arte
+                  </Button>
+                  {/* Variation */}
+                  <Button variant="outlined" size="small" fullWidth
+                    disabled={editLoading}
+                    onClick={() => handleEditImage('variation')}
+                    startIcon={editLoading ? <CircularProgress size={11} sx={{ color: '#888' }} /> : <IconRefresh size={11} />}
+                    sx={{ borderColor: '#333', color: '#888', fontSize: '0.65rem',
+                      textTransform: 'none', '&:hover': { borderColor: '#555', color: '#aaa' }, justifyContent: 'flex-start', px: 1.25 }}
+                  >
+                    {editLoading ? 'Gerando variação…' : 'Gerar variação similar'}
+                  </Button>
+                  {/* Style */}
+                  <Button variant="outlined" size="small" fullWidth
+                    onClick={() => setShowStylePanel(p => !p)}
+                    startIcon={<IconColorSwatch size={11} />}
+                    endIcon={showStylePanel ? <IconChevronDown size={11} style={{ transform: 'rotate(180deg)' }} /> : <IconChevronDown size={11} />}
+                    sx={{ borderColor: showStylePanel ? '#A855F766' : '#333',
+                      color: showStylePanel ? '#A855F7' : '#888', fontSize: '0.65rem',
+                      textTransform: 'none', justifyContent: 'flex-start', px: 1.25,
+                      bgcolor: showStylePanel ? 'rgba(168,85,247,0.06)' : 'transparent' }}
+                  >
+                    Ajustar estilo / mood
+                  </Button>
+                </Stack>
+
+                {/* Style panel — inline */}
+                {showStylePanel && (
+                  <Box sx={{ mt: 0.875, pt: 0.875, borderTop: '1px solid #A855F722' }}>
+                    <Typography sx={{ fontSize: '0.52rem', color: '#A855F7', mb: 0.625, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Mood
+                    </Typography>
+                    <Stack direction="row" spacing={0.4} flexWrap="wrap" gap={0.4} mb={0.875}>
+                      {STYLE_MOODS.map((mood) => (
+                        <Box key={mood.id} onClick={() => setSelectedMood(selectedMood === mood.id ? '' : mood.id)}
+                          sx={{
+                            px: 0.75, py: 0.3, borderRadius: 1, cursor: 'pointer', fontSize: '0.55rem',
+                            border: '1px solid', transition: 'all 0.12s',
+                            borderColor: selectedMood === mood.id ? mood.color : '#222',
+                            bgcolor: selectedMood === mood.id ? `${mood.color}18` : 'transparent',
+                            color: selectedMood === mood.id ? mood.color : '#555',
+                            fontWeight: selectedMood === mood.id ? 700 : 400,
+                          }}>
+                          {mood.label}
+                        </Box>
+                      ))}
+                    </Stack>
+                    <Stack direction="row" spacing={0.5} alignItems="center" mb={0.75}>
+                      <Typography sx={{ fontSize: '0.52rem', color: '#555', flexShrink: 0 }}>Intensidade</Typography>
+                      <Slider
+                        aria-label="Intensidade do estilo"
+                        size="small" min={20} max={65} step={5}
+                        value={Math.round(styleStrength * 100)}
+                        onChange={(_e, v) => setStyleStrength((v as number) / 100)}
+                        sx={{ flex: 1, mx: 0.75, color: '#A855F7', '& .MuiSlider-thumb': { width: 10, height: 10 } }}
+                      />
+                      <Typography sx={{ fontSize: '0.52rem', color: '#A855F7', fontWeight: 700, flexShrink: 0 }}>
+                        {Math.round(styleStrength * 100)}%
+                      </Typography>
+                    </Stack>
+                    {editError && <Typography sx={{ fontSize: '0.52rem', color: 'error.main', mb: 0.5 }}>{editError}</Typography>}
+                    <Button variant="contained" size="small" fullWidth
+                      disabled={!selectedMood || editLoading}
+                      onClick={() => handleEditImage('style')}
+                      startIcon={editLoading ? <CircularProgress size={11} sx={{ color: '#000' }} /> : <IconSparkles size={11} />}
+                      sx={{ bgcolor: '#A855F7', color: '#fff', fontSize: '0.62rem', fontWeight: 700,
+                        textTransform: 'none', '&:hover': { bgcolor: '#9333ea' },
+                        '&:disabled': { bgcolor: '#222', color: '#444' } }}
+                    >
+                      {editLoading ? 'Aplicando estilo…' : 'Aplicar estilo'}
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             </Stack>
           )}
         </Stack>
