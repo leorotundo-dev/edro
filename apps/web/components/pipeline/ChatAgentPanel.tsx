@@ -641,6 +641,10 @@ export default function ChatAgentPanel() {
   // Style Consistency — approved arte URL becomes the reference for next generations
   const [approvedStyleUrl, setApprovedStyleUrl] = useState<string | null>(null);
 
+  // Smart input suggestions — real-time intent detection as user types
+  const [inputFocused, setInputFocused] = useState(false);
+  const [inputSuggestionId, setInputSuggestionId] = useState<string | null>(null);
+
   // Capability toggles — affect agent behavior
   const [capabilities, setCapabilities] = useState<Set<string>>(new Set());
   const toggleCapability = (cap: string) =>
@@ -698,6 +702,17 @@ export default function ChatAgentPanel() {
     }, 300);
     return () => clearTimeout(timer);
   }, [messages, persistKey]);
+
+  // Debounced intent detection as user types → show suggestion pill
+  useEffect(() => {
+    if (!input.trim() || input.length < 3 || showMentions) { setInputSuggestionId(null); return; }
+    const timer = setTimeout(() => {
+      const detected = detectIntent(input);
+      const skill = SKILLS.find((s) => s.id === detected);
+      setInputSuggestionId(skill && detected !== 'unknown' ? detected : null);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [input, showMentions]);
 
   // ── Helpers to update message in place ──────────────────────────────────────
 
@@ -1400,6 +1415,21 @@ export default function ChatAgentPanel() {
     handleInput(labels[skillId] || skillId);
   }, [handleInput]);
 
+  // Global keyboard shortcuts — declared after sendSkill to satisfy scope rules
+  useEffect(() => {
+    const SHORTCUT_MAP: Record<string, string> = {
+      c: 'copy', a: 'arte', b: 'brand_pack',
+      v: 'edit_variation', s: 'edit_style', i: 'edit_inpaint', r: 'visual_insights',
+    };
+    const handler = (e: KeyboardEvent) => {
+      if (inputFocused || isAgentBusy || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const skill = SHORTCUT_MAP[e.key.toLowerCase()];
+      if (skill) { e.preventDefault(); sendSkill(skill); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [inputFocused, isAgentBusy, sendSkill]);
+
   const handleSend = () => {
     if (!input.trim()) return;
     handleInput(input.trim());
@@ -1634,31 +1664,53 @@ export default function ChatAgentPanel() {
       </Box>
 
       {/* Skills row */}
-      <Box sx={{ px: 1.5, py: 0.875, borderBottom: '1px solid #141414' }}>
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-          {SKILLS.map((skill) => (
-            <Chip
-              key={skill.id}
-              size="small"
-              label={skill.label}
-              icon={skill.icon as any}
-              onClick={() => !isAgentBusy && sendSkill(skill.id)}
-              disabled={isAgentBusy}
-              sx={{
-                height: 20, fontSize: '0.55rem', cursor: 'pointer',
-                bgcolor: `${skill.color}12`,
-                border: `1px solid ${skill.color}33`,
-                color: skill.color,
-                '& .MuiChip-icon': { color: skill.color, ml: '5px' },
-                '& .MuiChip-label': { pr: '7px' },
-                '&:hover': { bgcolor: `${skill.color}22`, borderColor: `${skill.color}66` },
-                '&.Mui-disabled': { opacity: 0.4 },
-                transition: 'all 0.15s',
-              }}
-            />
-          ))}
-        </Stack>
-      </Box>
+      {(() => {
+        const SKILL_KEYS: Record<string, string> = {
+          copy: 'C', arte: 'A', brand_pack: 'B',
+          edit_variation: 'V', edit_style: 'S', edit_inpaint: 'I', visual_insights: 'R',
+        };
+        return (
+          <Box sx={{ px: 1.5, py: 0.875, borderBottom: '1px solid #141414' }}>
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+              {SKILLS.map((skill) => {
+                const keyHint = SKILL_KEYS[skill.id];
+                return (
+                  <Box
+                    key={skill.id}
+                    onClick={() => !isAgentBusy && sendSkill(skill.id)}
+                    title={keyHint ? `${skill.label} — atalho: ${keyHint}` : skill.label}
+                    sx={{
+                      display: 'inline-flex', alignItems: 'center', gap: 0.375,
+                      height: 20, pl: '6px', pr: keyHint ? '4px' : '7px',
+                      borderRadius: 10, cursor: isAgentBusy ? 'default' : 'pointer',
+                      bgcolor: `${skill.color}12`, border: `1px solid ${skill.color}33`,
+                      opacity: isAgentBusy ? 0.4 : 1,
+                      '&:hover': isAgentBusy ? {} : { bgcolor: `${skill.color}22`, borderColor: `${skill.color}66` },
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Box sx={{ color: skill.color, display: 'flex', '& svg': { width: 10, height: 10 } }}>
+                      {skill.icon}
+                    </Box>
+                    <Typography sx={{ fontSize: '0.55rem', color: skill.color, lineHeight: 1 }}>
+                      {skill.label}
+                    </Typography>
+                    {keyHint && (
+                      <Box sx={{
+                        fontSize: '0.42rem', fontWeight: 800, color: `${skill.color}99`,
+                        bgcolor: `${skill.color}18`, borderRadius: 0.5,
+                        px: 0.375, lineHeight: '14px', fontFamily: 'monospace',
+                      }}>
+                        {keyHint}
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Box>
+        );
+      })()}
 
       {/* Message thread */}
       <Box sx={{ flex: 1, overflow: 'auto', px: 1.75, py: 1.5 }}>
@@ -1746,6 +1798,31 @@ export default function ChatAgentPanel() {
           </Stack>
         )}
 
+        {/* Smart suggestion pill — detected intent from partial input */}
+        {(() => {
+          const suggSkill = inputSuggestionId ? SKILLS.find((s) => s.id === inputSuggestionId) : null;
+          if (!suggSkill || isAgentBusy) return null;
+          return (
+            <Stack direction="row" spacing={0.5} alignItems="center" mb={0.75}
+              onClick={() => { setInput(''); setInputSuggestionId(null); sendSkill(suggSkill.id); }}
+              sx={{
+                alignSelf: 'flex-start', px: 1, py: 0.4, borderRadius: 1.5, cursor: 'pointer',
+                bgcolor: `${suggSkill.color}0d`, border: `1px solid ${suggSkill.color}30`,
+                '&:hover': { bgcolor: `${suggSkill.color}1a`, borderColor: `${suggSkill.color}55` },
+                transition: 'all 0.15s',
+              }}
+            >
+              <Box sx={{ color: suggSkill.color, display: 'flex', '& svg': { width: 10, height: 10 } }}>
+                {suggSkill.icon}
+              </Box>
+              <Typography sx={{ fontSize: '0.53rem', color: suggSkill.color, lineHeight: 1 }}>
+                Acionar <strong>{suggSkill.label}</strong>
+              </Typography>
+              <IconChevronRight size={9} color={suggSkill.color} />
+            </Stack>
+          );
+        })()}
+
         {/* Main input row */}
         <Box sx={{
           bgcolor: '#141414', border: '1px solid #2a2a2a', borderRadius: 2,
@@ -1771,9 +1848,11 @@ export default function ChatAgentPanel() {
 
             <TextField
               multiline maxRows={3} fullWidth size="small"
-              placeholder='Start with an idea, or type "@" to mention…'
+              placeholder='Descreva ou pressione C·A·B·V·I para atalhos…'
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 if (e.key === 'Escape') setInput((p) => p.replace(/@\w*$/, ''));
