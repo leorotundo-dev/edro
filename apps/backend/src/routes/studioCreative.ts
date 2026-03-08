@@ -1011,12 +1011,13 @@ Retorne SOMENTE um JSON válido:
 
   app.post('/studio/creative/publish-meta', async (request: any, reply) => {
     const tenantId = request.tenantId as string;
-    const { client_id, image_url, caption, briefing_id, creative_id } = request.body as {
+    const { client_id, image_url, caption, briefing_id, creative_id, campaign_format_id } = request.body as {
       client_id: string;
       image_url: string;
       caption: string;
       briefing_id?: string;
       creative_id?: string;
+      campaign_format_id?: string;
     };
 
     if (!client_id || !image_url || !caption) {
@@ -1095,6 +1096,22 @@ Retorne SOMENTE um JSON válido:
       await query(
         `UPDATE studio_creatives SET status = 'published' WHERE id = $1 AND tenant_id = $2`,
         [creative_id, tenantId]
+      ).catch(() => {});
+    }
+
+    // Store the media ID on the campaign format so metrics can be synced later
+    if (campaign_format_id && postId) {
+      await query(
+        `UPDATE campaign_formats
+         SET instagram_media_id = $1, instagram_post_url = $2, updated_at = now()
+         WHERE id = $3`,
+        [
+          postId,
+          igUserId
+            ? `https://www.instagram.com/p/${postId}/`
+            : `https://www.facebook.com/${postId}`,
+          campaign_format_id,
+        ]
       ).catch(() => {});
     }
 
