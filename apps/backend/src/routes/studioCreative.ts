@@ -1118,6 +1118,25 @@ Retorne SOMENTE um JSON válido:
     return reply.send({ success: true, post_id: postId, platform });
   });
 
+  // ── Text-to-Speech (voiceover para roteiros de vídeo) ────────────────────
+  const voiceoverSchema = z.object({
+    text:  z.string().min(1).max(4096),
+    voice: z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional(),
+    model: z.enum(['tts-1', 'tts-1-hd']).optional(),
+    speed: z.number().min(0.25).max(4.0).optional(),
+  });
+
+  app.post('/studio/creative/voiceover', async (request: any, reply) => {
+    const body = voiceoverSchema.parse(request.body);
+    try {
+      const { generateSpeech } = await import('../services/ai/openaiService');
+      const result = await generateSpeech(body);
+      return reply.send({ success: true, audioBase64: result.audioBase64, durationEstimateMs: result.durationEstimateMs });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Publicar no LinkedIn ──────────────────────────────────────────────────
   const publishLinkedInSchema = z.object({
     client_id:          z.string(),

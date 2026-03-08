@@ -102,3 +102,41 @@ export const OpenAIService = {
   generateCompletion,
   generateWithTools,
 };
+
+// ── Text-to-Speech ────────────────────────────────────────────────────────────
+
+export type TtsVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+
+/**
+ * Converts text to speech using OpenAI TTS.
+ * Returns the audio as a base64-encoded MP3 string.
+ * tts-1: fast (~1s), tts-1-hd: higher quality (~3s).
+ */
+export async function generateSpeech(params: {
+  text:    string;
+  voice?:  TtsVoice;
+  model?:  'tts-1' | 'tts-1-hd';
+  speed?:  number; // 0.25–4.0, default 1.0
+}): Promise<{ audioBase64: string; durationEstimateMs: number }> {
+  const text  = params.text.trim().slice(0, 4096); // OpenAI TTS limit
+  const voice = params.voice ?? 'nova';
+  const model = params.model ?? 'tts-1';
+  const speed = params.speed ?? 1.0;
+
+  const response = await client.audio.speech.create({
+    model,
+    voice,
+    input: text,
+    response_format: 'mp3',
+    speed,
+  });
+
+  const buffer       = Buffer.from(await response.arrayBuffer());
+  const audioBase64  = buffer.toString('base64');
+
+  // Rough duration estimate: ~150 words/min at speed 1.0
+  const wordCount          = text.split(/\s+/).length;
+  const durationEstimateMs = Math.round((wordCount / 150) * 60000 / speed);
+
+  return { audioBase64, durationEstimateMs };
+}

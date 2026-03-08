@@ -6,8 +6,10 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
-import { IconMovie, IconCheck, IconPlayerPlay } from '@tabler/icons-react';
-import { useState } from 'react';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import { IconMovie, IconCheck, IconMicrophone, IconDownload } from '@tabler/icons-react';
+import { useState, useRef } from 'react';
 import NodeShell from '../NodeShell';
 import { usePipeline } from '../PipelineContext';
 
@@ -32,28 +34,45 @@ const SCENE_COLORS: Record<string, string> = {
   cta:  '#13DEB9',
 };
 
+const VOICES = [
+  { id: 'nova',    label: 'Nova (feminina, suave)' },
+  { id: 'alloy',   label: 'Alloy (neutra)' },
+  { id: 'onyx',    label: 'Onyx (masculina, grave)' },
+  { id: 'echo',    label: 'Echo (masculina, clara)' },
+  { id: 'shimmer', label: 'Shimmer (feminina, clara)' },
+  { id: 'fable',   label: 'Fable (narrativa)' },
+];
+
 export default function VideoScriptNode() {
   const { nodeStatus, copyOptions, selectedCopyIdx, activeFormat } = usePipeline();
   const status = nodeStatus.copy === 'done' ? 'active' : 'locked';
 
   const [generating, setGenerating] = useState(false);
-  const [script, setScript] = useState<VideoScript | null>(null);
-  const [error, setError] = useState('');
-  const [duration, setDuration] = useState(30);
+  const [script, setScript]         = useState<VideoScript | null>(null);
+  const [error, setError]           = useState('');
+  const [duration, setDuration]     = useState(30);
+
+  // Voiceover state
+  const [voice, setVoice]               = useState('nova');
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [audioSrc, setAudioSrc]         = useState('');
+  const [voiceError, setVoiceError]     = useState('');
+  const audioRef                        = useRef<HTMLAudioElement>(null);
 
   const handleGenerate = async () => {
     const copy = copyOptions[selectedCopyIdx];
     if (!copy) return;
     setGenerating(true);
     setError('');
+    setAudioSrc(''); // reset audio when regenerating
     try {
       const { apiPost } = await import('@/lib/api');
       const res = await apiPost<{ success: boolean; data: VideoScript }>('/studio/creative/video-script', {
         copy_title: copy.title,
-        copy_body: copy.body,
-        copy_cta: copy.cta,
-        platform: activeFormat?.platform,
-        format: activeFormat?.format,
+        copy_body:  copy.body,
+        copy_cta:   copy.cta,
+        platform:   activeFormat?.platform,
+        format:     activeFormat?.format,
         duration_seconds: duration,
       });
       if (!res.success) throw new Error('Falha ao gerar roteiro.');
@@ -65,6 +84,38 @@ export default function VideoScriptNode() {
     }
   };
 
+  const handleGenerateVoiceover = async () => {
+    if (!script) return;
+    // Concatenate all scene narrations with short pauses
+    const fullText = script.scenes.map((s) => s.narration).join(' ... ');
+    setVoiceLoading(true);
+    setVoiceError('');
+    try {
+      const { apiPost } = await import('@/lib/api');
+      const res = await apiPost<{ success: boolean; audioBase64: string; error?: string }>(
+        '/studio/creative/voiceover',
+        { text: fullText, voice, model: 'tts-1' },
+      );
+      if (res.success && res.audioBase64) {
+        setAudioSrc(`data:audio/mpeg;base64,${res.audioBase64}`);
+      } else {
+        setVoiceError(res.error || 'Erro ao gerar narração.');
+      }
+    } catch (e: any) {
+      setVoiceError(e?.message || 'Erro ao gerar narração.');
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  const handleDownloadAudio = () => {
+    if (!audioSrc) return;
+    const a = document.createElement('a');
+    a.href = audioSrc;
+    a.download = 'naracao-video.mp3';
+    a.click();
+  };
+
   const collapsedSummary = (
     <Stack spacing={0.5}>
       <Stack direction="row" spacing={0.75} alignItems="center">
@@ -73,6 +124,12 @@ export default function VideoScriptNode() {
           Roteiro {script?.total_seconds}s gerado
         </Typography>
       </Stack>
+      {audioSrc && (
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <IconMicrophone size={11} color="#A855F7" />
+          <Typography sx={{ fontSize: '0.6rem', color: '#A855F7' }}>Narração pronta</Typography>
+        </Stack>
+      )}
       <Stack direction="row" spacing={0.5}>
         {script?.scenes.map((s) => (
           <Box key={s.id} sx={{
@@ -182,16 +239,75 @@ export default function VideoScriptNode() {
                   );
                 })}
               </Stack>
+
+              {/* ── Voiceover section ── */}
+              <Divider sx={{ borderColor: '#1e1e1e' }} />
+              <Stack spacing={0.75}>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <IconMicrophone size={11} color="#A855F7" />
+                  <Typography sx={{ fontSize: '0.6rem', color: '#A855F7', fontWeight: 600 }}>
+                    Narração em voz
+                  </Typography>
+                </Stack>
+
+                {/* Voice picker */}
+                <Select
+                  size="small"
+                  value={voice}
+                  onChange={(e) => setVoice(e.target.value)}
+                  disabled={voiceLoading}
+                  sx={{ fontSize: '0.62rem', '& .MuiSelect-select': { py: 0.5 } }}
+                >
+                  {VOICES.map((v) => (
+                    <MenuItem key={v.id} value={v.id} sx={{ fontSize: '0.62rem' }}>
+                      {v.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+
+                {voiceError && (
+                  <Typography sx={{ fontSize: '0.6rem', color: '#FF4D4D' }}>{voiceError}</Typography>
+                )}
+
+                {/* Audio player */}
+                {audioSrc && (
+                  <Box sx={{ borderRadius: 1, overflow: 'hidden', border: '1px solid #A855F733', bgcolor: '#0d0d0d', p: 0.75 }}>
+                    <Box component="audio" ref={audioRef} src={audioSrc} controls
+                      sx={{ width: '100%', display: 'block', height: 32 }} />
+                    <Box
+                      onClick={handleDownloadAudio}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, cursor: 'pointer',
+                        fontSize: '0.55rem', color: '#A855F7', '&:hover': { color: '#c084fc' } }}>
+                      <IconDownload size={11} /> Baixar MP3
+                    </Box>
+                  </Box>
+                )}
+
+                <Button
+                  variant="outlined" size="small" fullWidth
+                  onClick={handleGenerateVoiceover}
+                  disabled={voiceLoading}
+                  startIcon={voiceLoading ? <CircularProgress size={11} sx={{ color: '#A855F7' }} /> : <IconMicrophone size={11} />}
+                  sx={{
+                    textTransform: 'none', fontSize: '0.65rem',
+                    borderColor: '#A855F744', color: '#A855F7',
+                    '&:hover': { borderColor: '#A855F7', bgcolor: 'rgba(168,85,247,0.06)' },
+                  }}
+                >
+                  {voiceLoading ? 'Gerando narração…' : audioSrc ? 'Regenerar narração' : 'Gerar narração'}
+                </Button>
+              </Stack>
+
               <Button
                 variant="outlined" size="small" fullWidth
-                onClick={() => setScript(null)}
+                onClick={() => { setScript(null); setAudioSrc(''); }}
                 sx={{
                   textTransform: 'none', fontSize: '0.65rem',
                   borderColor: '#A855F744', color: '#A855F7',
                   '&:hover': { borderColor: '#A855F7', bgcolor: 'rgba(168,85,247,0.06)' },
                 }}
               >
-                Regenerar
+                Regenerar roteiro
               </Button>
             </>
           )}
