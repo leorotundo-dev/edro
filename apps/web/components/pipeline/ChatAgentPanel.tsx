@@ -395,9 +395,13 @@ export default function ChatAgentPanel() {
     }));
   }, []);
 
+  // Refs — track whether we've already asked clarifying questions this session
+  const hasAskedCopyClarification = useRef(false);
+  const hasAskedArteClarification = useRef(false);
+
   // ── Intent handlers ──────────────────────────────────────────────────────────
 
-  const executeCopy = useCallback(async (agentMsgId: string) => {
+  const executeCopy = useCallback(async (agentMsgId: string, opts?: { strategyOverride?: string }) => {
     // Build plan rows
     const planRows: PlanRow[] = COPY_CHAIN_STEPS.map((s, i) => ({
       step: `P${i + 1}`,
@@ -419,7 +423,7 @@ export default function ChatAgentPanel() {
     } : m));
 
     try {
-      await handleGenerateCopyChain({});
+      await handleGenerateCopyChain(opts?.strategyOverride ? { strategyOverride: opts.strategyOverride } : {});
 
       // Update tool to done
       updateTool(agentMsgId, toolId, { status: 'done', detail: '3 opções de copy criadas', progress: 100 });
@@ -454,7 +458,7 @@ export default function ChatAgentPanel() {
     }
   }, [handleGenerateCopyChain, copyOptions, selectedCopyIdx, updateMsg, updateTool, updatePlanRow]);
 
-  const executeArte = useCallback(async (agentMsgId: string, brandPack = false) => {
+  const executeArte = useCallback(async (agentMsgId: string, brandPack = false, opts?: { brandVisualOverride?: string }) => {
     const steps = brandPack ? ARTE_CHAIN_STEPS : ARTE_CHAIN_STEPS.slice(0, 5);
     const planRows: PlanRow[] = steps.map((s, i) => ({
       step: `P${i + 1}`,
@@ -491,7 +495,7 @@ export default function ChatAgentPanel() {
     }, 600);
 
     try {
-      await handleGenerateArteChain({ brandPack });
+      await handleGenerateArteChain({ brandPack, ...(opts?.brandVisualOverride ? { brandVisualOverride: opts.brandVisualOverride } : {}) });
       clearInterval(ticker);
       updateTool(agentMsgId, toolId, { status: 'done', detail: brandPack ? '5 formatos gerados' : 'Arte gerada com sucesso', progress: 100 });
       steps.forEach((_, i) => updatePlanRow(agentMsgId, `P${i + 1}`, 'done'));
@@ -582,13 +586,123 @@ export default function ChatAgentPanel() {
     // Brief typing delay
     await new Promise((r) => setTimeout(r, 600));
 
+    // Helper: spawn a new agent message and execute after clarification answer
+    const proceedWithCopy = (override: string) => {
+      const newMsgId = uid();
+      setMessages((prev) => [...prev,
+        { id: uid(), role: 'user', text: override },
+        { id: newMsgId, role: 'agent', isTyping: true },
+      ]);
+      setIsAgentBusy(true);
+      executeCopy(newMsgId, { strategyOverride: `Tom: ${override}` })
+        .finally(() => { setIsAgentBusy(false); setActiveMsgId(null); });
+    };
+
+    const proceedWithArte = (visualDir: string, isBrandPack = false) => {
+      const newMsgId = uid();
+      setMessages((prev) => [...prev,
+        { id: uid(), role: 'user', text: visualDir },
+        { id: newMsgId, role: 'agent', isTyping: true },
+      ]);
+      setIsAgentBusy(true);
+      executeArte(newMsgId, isBrandPack, { brandVisualOverride: `Estilo: ${visualDir}` })
+        .finally(() => { setIsAgentBusy(false); setActiveMsgId(null); });
+    };
+
     try {
       if (intent === 'copy') {
-        await executeCopy(agentMsgId);
+        // Clarifying question: ask about tone if not set and never asked before
+        if (!tone && !hasAskedCopyClarification.current) {
+          hasAskedCopyClarification.current = true;
+          const TONES = [
+            { label: 'Energético',    color: '#E85219' },
+            { label: 'Formal',        color: '#5D87FF' },
+            { label: 'Descontraído',  color: '#13DEB9' },
+            { label: 'Urgente',       color: '#F8A800' },
+          ];
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: 'Antes de escrever, qual é o tom que você quer para essa copy?',
+            quickActions: [
+              ...TONES.map((t) => ({
+                label: t.label,
+                icon: <IconTypography size={11} />,
+                color: t.color,
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); proceedWithCopy(t.label); },
+              })),
+              {
+                label: 'Qualquer tom (decidir depois)',
+                icon: <IconChevronRight size={11} />,
+                color: '#555',
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); executeCopy(agentMsgId); },
+              },
+            ],
+          });
+        } else {
+          await executeCopy(agentMsgId);
+        }
       } else if (intent === 'brand_pack') {
-        await executeArte(agentMsgId, true);
+        // Brand pack: ask visual direction if no references and never asked
+        if (!visualReferences.length && !hasAskedArteClarification.current) {
+          hasAskedArteClarification.current = true;
+          const DIRECTIONS = [
+            { label: 'Minimalista',    color: '#5D87FF' },
+            { label: 'Dramático',      color: '#EF4444' },
+            { label: 'Vibrante',       color: '#F8A800' },
+            { label: 'Fotorrealista',  color: '#13DEB9' },
+          ];
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: 'Para o Brand Pack, qual direção visual você quer seguir?',
+            quickActions: [
+              ...DIRECTIONS.map((d) => ({
+                label: d.label,
+                icon: <IconPalette size={11} />,
+                color: d.color,
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); proceedWithArte(d.label, true); },
+              })),
+              {
+                label: 'Gerar com parâmetros atuais',
+                icon: <IconChevronRight size={11} />,
+                color: '#555',
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); executeArte(agentMsgId, true); },
+              },
+            ],
+          });
+        } else {
+          await executeArte(agentMsgId, true);
+        }
       } else if (intent === 'arte') {
-        await executeArte(agentMsgId, false);
+        // Arte: ask visual direction if no references and never asked
+        if (!visualReferences.length && !hasAskedArteClarification.current) {
+          hasAskedArteClarification.current = true;
+          const DIRECTIONS = [
+            { label: 'Minimalista',    color: '#5D87FF' },
+            { label: 'Dramático',      color: '#EF4444' },
+            { label: 'Vibrante',       color: '#F8A800' },
+            { label: 'Fotorrealista',  color: '#13DEB9' },
+          ];
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: 'Qual direção visual você prefere para esta arte?',
+            quickActions: [
+              ...DIRECTIONS.map((d) => ({
+                label: d.label,
+                icon: <IconPalette size={11} />,
+                color: d.color,
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); proceedWithArte(d.label, false); },
+              })),
+              {
+                label: 'Gerar com parâmetros atuais',
+                icon: <IconChevronRight size={11} />,
+                color: '#555',
+                onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); executeArte(agentMsgId, false); },
+              },
+            ],
+          });
+        } else {
+          await executeArte(agentMsgId, false);
+        }
       } else if (intent === 'visual_insights') {
         await executeVisualInsights(agentMsgId);
       } else if (intent === 'briefing') {
@@ -621,7 +735,7 @@ export default function ChatAgentPanel() {
       setIsAgentBusy(false);
       setActiveMsgId(null);
     }
-  }, [isAgentBusy, executeCopy, executeArte, executeVisualInsights, updateMsg]);
+  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeVisualInsights, updateMsg]);
 
   const sendSkill = useCallback((skillId: string) => {
     const labels: Record<string, string> = {
