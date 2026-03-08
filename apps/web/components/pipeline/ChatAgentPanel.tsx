@@ -471,6 +471,9 @@ export default function ChatAgentPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Style Consistency — approved arte URL becomes the reference for next generations
+  const [approvedStyleUrl, setApprovedStyleUrl] = useState<string | null>(null);
+
   // Capability toggles — affect agent behavior
   const [capabilities, setCapabilities] = useState<Set<string>>(new Set());
   const toggleCapability = (cap: string) =>
@@ -603,10 +606,17 @@ export default function ChatAgentPanel() {
       status: 'pending',
     }));
 
+    // Show style consistency indicator if we have an approved reference
+    const styleText = approvedStyleUrl
+      ? (brandPack
+          ? 'Vou gerar o **Brand Pack completo** mantendo a consistência visual da arte aprovada:'
+          : 'Acionando o **Agente Diretor de Arte** — mantendo estilo da arte aprovada como referência:')
+      : (brandPack
+          ? 'Vou gerar o **Brand Pack completo** — 5 formatos em paralelo usando o Agente Diretor de Arte:'
+          : 'Acionando o **Agente Diretor de Arte** com 6 plugins especializados:');
+
     updateMsg(agentMsgId, {
-      text: brandPack
-        ? 'Vou gerar o **Brand Pack completo** — 5 formatos em paralelo usando o Agente Diretor de Arte:'
-        : 'Acionando o **Agente Diretor de Arte** com 6 plugins especializados:',
+      text: styleText,
       plan: planRows,
       tools: [],
       isTyping: false,
@@ -632,7 +642,15 @@ export default function ChatAgentPanel() {
     }, 600);
 
     try {
-      await handleGenerateArteChain({ brandPack, ...(opts?.brandVisualOverride ? { brandVisualOverride: opts.brandVisualOverride } : {}) });
+      // Merge approved style reference into visual references for consistency
+      const styleRefs = approvedStyleUrl
+        ? [approvedStyleUrl, ...visualReferences.filter((u) => u !== approvedStyleUrl)]
+        : visualReferences;
+      await handleGenerateArteChain({
+        brandPack,
+        ...(opts?.brandVisualOverride ? { brandVisualOverride: opts.brandVisualOverride } : {}),
+        ...(styleRefs.length ? { visualReferences: styleRefs } : {}),
+      });
       clearInterval(ticker);
       updateTool(agentMsgId, toolId, { status: 'done', detail: brandPack ? '5 formatos gerados' : 'Arte gerada com sucesso', progress: 100 });
       steps.forEach((_, i) => updatePlanRow(agentMsgId, `P${i + 1}`, 'done'));
@@ -649,7 +667,7 @@ export default function ChatAgentPanel() {
             label: 'Ficou ótimo, aprovar ✓',
             icon: <IconCheck size={11} />,
             color: '#13DEB9',
-            onClick: () => handleInput('Aprovado! Exportar agora.'),
+            onClick: () => { if (finalImageUrl) setApprovedStyleUrl(finalImageUrl); handleInput('Aprovado! Exportar agora.'); },
           },
           {
             label: 'Gerar variação similar ↗',
@@ -674,7 +692,7 @@ export default function ChatAgentPanel() {
       updateMsg(agentMsgId, { narration: undefined });
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao gerar arte.' });
     }
-  }, [handleGenerateArteChain, arteImageUrl, triggerCritique, updateMsg, updateTool, updatePlanRow]);
+  }, [handleGenerateArteChain, arteImageUrl, approvedStyleUrl, visualReferences, triggerCritique, updateMsg, updateTool, updatePlanRow]);
 
   const executeVisualInsights = useCallback(async (agentMsgId: string) => {
     const toolId = uid();
@@ -1040,7 +1058,7 @@ export default function ChatAgentPanel() {
         text: 'Arte gerada! Ficou como você esperava?',
         imageUrl: capturedUrl,
         quickActions: [
-          { label: 'Ficou ótimo, usar esta arte ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => handleInput('Aprovado! Vou usar esta arte.') },
+          { label: 'Ficou ótimo, usar esta arte ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => { setApprovedStyleUrl(capturedUrl); handleInput('Aprovado! Vou usar esta arte.'); } },
           { label: 'Não ficou bom, regenerar ↗', icon: <IconRefresh size={11} />, color: '#5D87FF', onClick: () => triggerRejectionFlow() },
           { label: 'Ajustar estilo ↗', icon: <IconAdjustments size={11} />, color: '#F8A800', onClick: () => handleInput('Quero ajustar o estilo visual') },
         ],
@@ -1218,6 +1236,27 @@ export default function ChatAgentPanel() {
               </Stack>
             ))}
           </Box>
+        )}
+
+        {/* Style consistency badge */}
+        {approvedStyleUrl && !isAgentBusy && (
+          <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}
+            sx={{ bgcolor: 'rgba(19,222,185,0.06)', border: '1px solid #13DEB922', borderRadius: 1.5, px: 1, py: 0.5 }}>
+            <Box sx={{
+              width: 20, height: 20, borderRadius: 0.75, overflow: 'hidden', flexShrink: 0,
+              border: '1px solid #13DEB944',
+            }}>
+              <Box component="img" src={approvedStyleUrl} alt="estilo aprovado"
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </Box>
+            <Typography sx={{ fontSize: '0.53rem', color: '#13DEB9', flex: 1, lineHeight: 1.3 }}>
+              Estilo consistente ativo — próximas artes seguirão esta referência
+            </Typography>
+            <Box onClick={() => setApprovedStyleUrl(null)} title="Remover referência"
+              sx={{ cursor: 'pointer', color: '#555', '&:hover': { color: '#888' }, display: 'flex' }}>
+              <IconX size={10} />
+            </Box>
+          </Stack>
         )}
 
         {isAgentBusy && (
