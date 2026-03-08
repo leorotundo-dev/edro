@@ -54,6 +54,8 @@ type CritiqueData = {
   suggestions?: string[];
 };
 
+type MockupType = 'phone' | 'print' | 'billboard';
+
 type ChatMessage = {
   id: string;
   role: 'user' | 'agent';
@@ -65,6 +67,7 @@ type ChatMessage = {
   isTyping?: boolean;
   narration?: string; // live status line updated as steps run
   critique?: CritiqueData; // visual analysis results
+  mockupType?: MockupType; // framed mockup display
 };
 
 type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'unknown';
@@ -201,6 +204,92 @@ function CritiqueCard({ data }: { data: CritiqueData }) {
           ))}
         </Box>
       )}
+    </Box>
+  );
+}
+
+function MockupFrame({ imageUrl, type }: { imageUrl: string; type: MockupType }) {
+  if (type === 'phone') {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{
+          position: 'relative', width: 130,
+          filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.7))',
+        }}>
+          {/* Phone shell */}
+          <Box sx={{
+            position: 'absolute', inset: 0,
+            border: '3px solid #2a2a2a',
+            borderRadius: '18px',
+            background: 'linear-gradient(145deg, #1a1a1a 0%, #111 100%)',
+            zIndex: 1, pointerEvents: 'none',
+          }}>
+            {/* Notch */}
+            <Box sx={{
+              position: 'absolute', top: 7, left: '50%', transform: 'translateX(-50%)',
+              width: 36, height: 6, borderRadius: 3, bgcolor: '#0a0a0a',
+            }} />
+            {/* Home bar */}
+            <Box sx={{
+              position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
+              width: 32, height: 3, borderRadius: 2, bgcolor: '#2a2a2a',
+            }} />
+            {/* Side button */}
+            <Box sx={{
+              position: 'absolute', right: -4, top: 40,
+              width: 3, height: 18, borderRadius: 2, bgcolor: '#222',
+            }} />
+          </Box>
+          {/* Screen content */}
+          <Box sx={{ pt: '18px', pb: '18px', px: '3px', borderRadius: '18px', overflow: 'hidden' }}>
+            <Box component="img" src={imageUrl} alt="mockup phone"
+              sx={{ width: '100%', display: 'block', borderRadius: '2px', objectFit: 'cover' }} />
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  if (type === 'print') {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{
+          p: 1.25, bgcolor: '#f8f8f0',
+          borderRadius: 0.5,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)',
+          filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.5))',
+          maxWidth: 200,
+        }}>
+          <Box component="img" src={imageUrl} alt="mockup print"
+            sx={{ width: '100%', display: 'block', borderRadius: 0.5 }} />
+          {/* Polaroid caption strip */}
+          <Box sx={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ width: 60, height: 3, bgcolor: '#e0e0d8', borderRadius: 1 }} />
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  // billboard
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ position: 'relative', maxWidth: 220, width: '100%' }}>
+        <Box sx={{
+          border: '4px solid #333',
+          borderRadius: 1,
+          overflow: 'hidden',
+          boxShadow: '0 6px 24px rgba(0,0,0,0.6)',
+        }}>
+          <Box component="img" src={imageUrl} alt="mockup billboard"
+            sx={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: '16/9' }} />
+        </Box>
+        {/* Billboard legs */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 0.25 }}>
+          <Box sx={{ width: 4, height: 16, bgcolor: '#333', borderRadius: 1 }} />
+          <Box sx={{ width: 4, height: 16, bgcolor: '#333', borderRadius: 1 }} />
+        </Box>
+      </Box>
     </Box>
   );
 }
@@ -377,14 +466,17 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
         </Stack>
       )}
 
-      {/* Image result */}
+      {/* Image result — plain or mockup frame */}
       {msg.imageUrl && (
-        <Box sx={{
-          ml: 3.5, borderRadius: 1.5, overflow: 'hidden',
-          border: '1px solid #13DEB944', maxWidth: 200,
-        }}>
-          <Box component="img" src={msg.imageUrl} alt="arte gerada"
-            sx={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+        <Box sx={{ ml: 3.5 }}>
+          {msg.mockupType ? (
+            <MockupFrame imageUrl={msg.imageUrl} type={msg.mockupType} />
+          ) : (
+            <Box sx={{ borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944', maxWidth: 200 }}>
+              <Box component="img" src={msg.imageUrl} alt="arte gerada"
+                sx={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+            </Box>
+          )}
         </Box>
       )}
 
@@ -670,16 +762,28 @@ export default function ChatAgentPanel() {
             onClick: () => { if (finalImageUrl) setApprovedStyleUrl(finalImageUrl); handleInput('Aprovado! Exportar agora.'); },
           },
           {
-            label: 'Gerar variação similar ↗',
-            icon: <IconRefresh size={11} />,
-            color: '#5D87FF',
-            onClick: () => handleInput('Gerar uma variação da arte'),
+            label: '📱 Celular',
+            icon: <IconPhoto size={11} />,
+            color: '#7C3AED',
+            onClick: () => updateMsg(agentMsgId, { mockupType: 'phone', quickActions: [] }),
           },
           {
-            label: 'Ajustar estilo ↗',
-            icon: <IconAdjustments size={11} />,
+            label: '🖨️ Print',
+            icon: <IconPhoto size={11} />,
+            color: '#5D87FF',
+            onClick: () => updateMsg(agentMsgId, { mockupType: 'print', quickActions: [] }),
+          },
+          {
+            label: '📺 Billboard',
+            icon: <IconPhoto size={11} />,
             color: '#F8A800',
-            onClick: () => handleInput('Quero ajustar o estilo visual'),
+            onClick: () => updateMsg(agentMsgId, { mockupType: 'billboard', quickActions: [] }),
+          },
+          {
+            label: 'Gerar variação ↗',
+            icon: <IconRefresh size={11} />,
+            color: '#555',
+            onClick: () => handleInput('Gerar uma variação da arte'),
           },
         ],
       });
@@ -1052,15 +1156,17 @@ export default function ChatAgentPanel() {
     if (!arteImageUrl || arteImageUrl === prevArteImageUrl.current || isAgentBusy) return;
     prevArteImageUrl.current = arteImageUrl;
     const capturedUrl = arteImageUrl;
+    const watcherMsgId = uid();
     setTimeout(() => {
       setMessages((prev) => [...prev, {
-        id: uid(), role: 'agent',
+        id: watcherMsgId, role: 'agent',
         text: 'Arte gerada! Ficou como você esperava?',
         imageUrl: capturedUrl,
         quickActions: [
           { label: 'Ficou ótimo, usar esta arte ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => { setApprovedStyleUrl(capturedUrl); handleInput('Aprovado! Vou usar esta arte.'); } },
-          { label: 'Não ficou bom, regenerar ↗', icon: <IconRefresh size={11} />, color: '#5D87FF', onClick: () => triggerRejectionFlow() },
-          { label: 'Ajustar estilo ↗', icon: <IconAdjustments size={11} />, color: '#F8A800', onClick: () => handleInput('Quero ajustar o estilo visual') },
+          { label: '📱 Celular', icon: <IconPhoto size={11} />, color: '#7C3AED', onClick: () => setMessages((p) => p.map((m) => m.id === watcherMsgId ? { ...m, mockupType: 'phone' as MockupType, quickActions: [] } : m)) },
+          { label: '🖨️ Print', icon: <IconPhoto size={11} />, color: '#5D87FF', onClick: () => setMessages((p) => p.map((m) => m.id === watcherMsgId ? { ...m, mockupType: 'print' as MockupType, quickActions: [] } : m)) },
+          { label: 'Regenerar ↗', icon: <IconRefresh size={11} />, color: '#555', onClick: () => triggerRejectionFlow() },
         ],
       }]);
       // Auto-trigger visual critique after approval loop
