@@ -145,6 +145,7 @@ export interface PipelineContextValue {
   // Optional node management — lets any node add sibling nodes to the canvas
   activeNodeIds: string[];
   addOptionalNode: (nodeId: string) => void;
+  addAnnotationNode: (shape: 'rect' | 'circle' | 'triangle' | 'star' | 'note', screenPos?: { x: number; y: number }) => void;
 
   // Agente Redator — 5-plugin chain
   copyChainResult: CopyChainResult | null;

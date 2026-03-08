@@ -14,6 +14,7 @@ import {
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
   IconChevronRight, IconBolt, IconPaperclip, IconBulb,
   IconWorld, IconBox, IconX, IconDownload, IconWand, IconTrash, IconPencil,
+  IconScissors, IconZoomIn,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -70,7 +71,7 @@ type ChatMessage = {
   mockupType?: MockupType; // framed mockup display
 };
 
-type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'edit_inpaint' | 'unknown';
+type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'edit_inpaint' | 'remove_bg' | 'upscale' | 'unknown';
 
 // ── Skill chips ────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ const SKILLS = [
   { id: 'edit_style',       label: 'Ajustar Estilo',     icon: <IconWand size={12} />,         color: '#F8A800' },
   { id: 'edit_inpaint',     label: 'Inpaint',            icon: <IconPencil size={12} />,       color: '#EC4899' },
   { id: 'visual_insights',  label: 'Referências',        icon: <IconSearch size={12} />,       color: '#F8A800' },
+  { id: 'remove_bg',        label: 'Remover fundo',      icon: <IconScissors size={12} />,     color: '#EF4444' },
+  { id: 'upscale',          label: 'Upscale 4×',         icon: <IconZoomIn size={12} />,       color: '#13DEB9' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -91,6 +94,8 @@ function detectIntent(text: string): Intent {
   if (/brand.?pack|todos os formatos|pack completo|5 formatos/.test(t)) return 'brand_pack';
   if (/varia[çc]|variação|similar|outra vers|gerar.*varia/.test(t)) return 'edit_variation';
   if (/ajustar estilo|mudar estilo|outro estilo|estilo visual|ajust.*visual/.test(t)) return 'edit_style';
+  if (/remov[ao].*(fundo|background|bg)|fundo transparente|png transparente|retirar.*fundo/.test(t)) return 'remove_bg';
+  if (/upscale|ampliar|aumentar.*(qualidade|resolucao|tamanho)|4x|alta.resolucao|hd\b/.test(t)) return 'upscale';
   if (/inpaint|remov[ao]\s|troque.*fundo|mude\s.*fundo|adicione.*imagem|retire\s|elimin[ae]|coloque\s.*fundo|editar zona|modificar área/.test(t)) return 'edit_inpaint';
   if (/arte|imagem|visual|foto|design|ilustra|criativ|gerar.*arte/.test(t)) return 'arte';
   if (/copy|texto|legenda|redator|escrev|campanha.*texto|capti/.test(t)) return 'copy';
@@ -894,6 +899,18 @@ export default function ChatAgentPanel() {
             color: '#555',
             onClick: () => handleInput('Gerar uma variação da arte'),
           },
+          {
+            label: '✂️ Remover fundo',
+            icon: <IconScissors size={11} />,
+            color: '#EF4444',
+            onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('remover fundo'); },
+          },
+          {
+            label: '⬆️ Upscale 4×',
+            icon: <IconZoomIn size={11} />,
+            color: '#13DEB9',
+            onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('upscale 4x'); },
+          },
         ],
       });
       // Auto-trigger visual critique after a short pause
@@ -1084,6 +1101,80 @@ export default function ChatAgentPanel() {
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao editar a arte.' });
     }
   }, [arteImageUrl, activeFormat, approvedStyleUrl, triggerCritique, updateMsg, updateTool, setIsAgentBusy]);
+
+  // ── Remove Background ────────────────────────────────────────────────────────
+
+  const executeRemoveBg = useCallback(async (agentMsgId: string) => {
+    const currentUrl = arteImageUrl;
+    if (!currentUrl) {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Gere uma arte primeiro para remover o fundo.' });
+      return;
+    }
+    updateMsg(agentMsgId, { narration: 'Removendo fundo via BiRefNet…', isTyping: true });
+    try {
+      const res = await fetch('/api/studio/creative/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        updateMsg(agentMsgId, {
+          text: '✅ **Fundo removido!** PNG com transparência pronto.',
+          imageUrl: data.imageUrl,
+          isTyping: false,
+          narration: undefined,
+          quickActions: [
+            { label: 'Usar esta versão ✓', icon: <IconCheck size={11} />, color: '#13DEB9',
+              onClick: () => { setApprovedStyleUrl(data.imageUrl); updateMsg(agentMsgId, { quickActions: [] }); } },
+            { label: '⬆️ Upscale agora', icon: <IconZoomIn size={11} />, color: '#13DEB9',
+              onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('upscale 4x'); } },
+          ],
+        });
+      } else {
+        updateMsg(agentMsgId, { isTyping: false, text: `Erro ao remover fundo: ${data.error || 'falha desconhecida'}` });
+      }
+    } catch {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Erro de conexão ao remover fundo.' });
+    }
+  }, [arteImageUrl, updateMsg, setApprovedStyleUrl]);
+
+  // ── Upscale ──────────────────────────────────────────────────────────────────
+
+  const executeUpscale = useCallback(async (agentMsgId: string) => {
+    const currentUrl = arteImageUrl;
+    if (!currentUrl) {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Gere uma arte primeiro para fazer upscale.' });
+      return;
+    }
+    updateMsg(agentMsgId, { narration: 'Aplicando upscale 4× via Clarity Upscaler (~30s)…', isTyping: true });
+    try {
+      const res = await fetch('/api/studio/creative/upscale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        updateMsg(agentMsgId, {
+          text: '✅ **Upscale 4× concluído!** Qualidade máxima.',
+          imageUrl: data.imageUrl,
+          isTyping: false,
+          narration: undefined,
+          quickActions: [
+            { label: 'Usar esta versão ✓', icon: <IconCheck size={11} />, color: '#13DEB9',
+              onClick: () => { setApprovedStyleUrl(data.imageUrl); updateMsg(agentMsgId, { quickActions: [] }); } },
+            { label: '✂️ Remover fundo', icon: <IconScissors size={11} />, color: '#EF4444',
+              onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('remover fundo'); } },
+          ],
+        });
+      } else {
+        updateMsg(agentMsgId, { isTyping: false, text: `Erro no upscale: ${data.error || 'falha desconhecida'}` });
+      }
+    } catch {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Erro de conexão no upscale.' });
+    }
+  }, [arteImageUrl, updateMsg, setApprovedStyleUrl]);
 
   // ── Image Analyzer — auto-critique after arte generation ────────────────────
 
@@ -1367,6 +1458,10 @@ export default function ChatAgentPanel() {
         // Try to extract the edit description directly from the user's message
         const extracted = extractInpaintPrompt(text);
         await executeEditImage(agentMsgId, 'inpaint', extracted || undefined);
+      } else if (intent === 'remove_bg') {
+        await executeRemoveBg(agentMsgId);
+      } else if (intent === 'upscale') {
+        await executeUpscale(agentMsgId);
       } else if (intent === 'visual_insights') {
         await executeVisualInsights(agentMsgId);
       } else if (intent === 'briefing') {
@@ -1399,7 +1494,7 @@ export default function ChatAgentPanel() {
       setIsAgentBusy(false);
       setActiveMsgId(null);
     }
-  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeEditImage, executeVisualInsights, updateMsg]);
+  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeEditImage, executeRemoveBg, executeUpscale, executeVisualInsights, updateMsg]);
 
   const sendSkill = useCallback((skillId: string) => {
     const labels: Record<string, string> = {
@@ -1420,6 +1515,7 @@ export default function ChatAgentPanel() {
     const SHORTCUT_MAP: Record<string, string> = {
       c: 'copy', a: 'arte', b: 'brand_pack',
       v: 'edit_variation', s: 'edit_style', i: 'edit_inpaint', r: 'visual_insights',
+      x: 'remove_bg', u: 'upscale',
     };
     const handler = (e: KeyboardEvent) => {
       if (inputFocused || isAgentBusy || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -1668,6 +1764,7 @@ export default function ChatAgentPanel() {
         const SKILL_KEYS: Record<string, string> = {
           copy: 'C', arte: 'A', brand_pack: 'B',
           edit_variation: 'V', edit_style: 'S', edit_inpaint: 'I', visual_insights: 'R',
+          remove_bg: 'X', upscale: 'U',
         };
         return (
           <Box sx={{ px: 1.5, py: 0.875, borderBottom: '1px solid #141414' }}>

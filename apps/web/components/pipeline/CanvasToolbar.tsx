@@ -58,10 +58,12 @@ const NODE_CATEGORIES = [
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type FlyoutId = 'select' | 'add' | 'shapes' | 'text' | 'draw' | null;
+type InteractionMode = 'select' | 'hand' | 'draw';
 
 interface CanvasToolbarProps {
-  interactionMode: 'select' | 'hand';
-  setInteractionMode: (mode: 'select' | 'hand') => void;
+  interactionMode: InteractionMode;
+  setInteractionMode: (mode: InteractionMode) => void;
+  addAnnotationNode: (shape: 'rect' | 'circle' | 'triangle' | 'star' | 'note', screenPos?: { x: number; y: number }) => void;
 }
 
 // ── Flyout wrapper ─────────────────────────────────────────────────────────────
@@ -153,7 +155,7 @@ function ToolBtn({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function CanvasToolbar({ interactionMode, setInteractionMode }: CanvasToolbarProps) {
+export default function CanvasToolbar({ interactionMode, setInteractionMode, addAnnotationNode }: CanvasToolbarProps) {
   const {
     handleGenerateArteChain, arteGenerating,
     addOptionalNode, activeNodeIds,
@@ -184,7 +186,9 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
 
       if (e.key === 'v' || e.key === 'V') { setInteractionMode('select'); setOpenFlyout(null); }
       if (e.key === 'h' || e.key === 'H') { setInteractionMode('hand');   setOpenFlyout(null); }
-      if (e.key === 'Escape')             { setOpenFlyout(null); }
+      if (e.key === 'd' || e.key === 'D') { setInteractionMode('draw');   setOpenFlyout(null); }
+      if (e.key === 'n' || e.key === 'N') { addAnnotationNode('note');    setOpenFlyout(null); }
+      if (e.key === 'Escape')             { setInteractionMode('select'); setOpenFlyout(null); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -218,6 +222,7 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
       {[
         { label: 'Select',    icon: <IconCursorText size={14} />, kbd: 'V', action: () => { setInteractionMode('select'); setOpenFlyout(null); }, active: interactionMode === 'select' },
         { label: 'Hand Tool', icon: <IconHandStop size={14} />,   kbd: 'H', action: () => { setInteractionMode('hand');   setOpenFlyout(null); }, active: interactionMode === 'hand' },
+        { label: 'Anotação',  icon: <IconPencil size={14} />,     kbd: 'D', action: () => { setInteractionMode('draw');   setOpenFlyout(null); }, active: interactionMode === 'draw' },
         { label: 'Mark',      icon: <IconMapPin size={14} />,     kbd: 'M', action: () => setOpenFlyout(null),           active: false },
       ].map((item) => (
         <Stack key={item.label} direction="row" spacing={1} alignItems="center"
@@ -249,21 +254,17 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
 
       {[
         { label: 'Upload Image', icon: <IconUpload size={14} />, action: handleUploadImage, color: '#5D87FF' },
-        { label: 'Upload Video', icon: <IconVideo size={14} />,  action: () => {},          color: '#888', disabled: true },
+        { label: 'Upload Video', icon: <IconVideo size={14} />,  action: handleVideoGen,    color: '#A855F7' },
       ].map((item) => (
         <Stack key={item.label} direction="row" spacing={1} alignItems="center"
           onClick={item.action}
           sx={{
-            px: 1.5, py: 0.875, cursor: item.disabled ? 'not-allowed' : 'pointer',
-            opacity: item.disabled ? 0.4 : 1,
-            '&:hover': item.disabled ? {} : { bgcolor: 'rgba(255,255,255,0.04)' },
+            px: 1.5, py: 0.875, cursor: 'pointer',
+            '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
           }}
         >
           <Box sx={{ color: item.color, display: 'flex' }}>{item.icon}</Box>
           <Typography sx={{ fontSize: '0.63rem', color: 'text.secondary', flex: 1 }}>{item.label}</Typography>
-          {item.disabled && (
-            <Typography sx={{ fontSize: '0.48rem', color: '#444' }}>em breve</Typography>
-          )}
         </Stack>
       ))}
 
@@ -308,71 +309,79 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
     </Flyout>
   );
 
-  const renderShapesFlyout = () => (
-    <Flyout top={88}>
-      <Box sx={{ px: 1.5, py: 0.875 }}>
-        <Typography sx={{ fontSize: '0.52rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.875 }}>
-          Shapes
-        </Typography>
-        <Stack direction="row" spacing={0.75} mb={1}>
-          {[
-            <IconSquare size={18} />,
-            <IconCircle size={18} />,
-            <IconTriangle size={18} />,
-            <IconStar size={18} />,
-          ].map((icon, i) => (
-            <Tooltip key={i} title="Em breve" placement="top">
-              <Box sx={{
-                width: 36, height: 36, borderRadius: 1.5, cursor: 'not-allowed',
-                border: '1px solid #2a2a2a', bgcolor: '#0d0d0d',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#444', opacity: 0.5,
-              }}>
-                {icon}
-              </Box>
-            </Tooltip>
-          ))}
-        </Stack>
-        <Typography sx={{ fontSize: '0.52rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>
-          Shape with Text
-        </Typography>
-        <Stack direction="row" spacing={0.75}>
-          {[
-            <IconSquare size={18} />,
-            <IconCircle size={18} />,
-          ].map((icon, i) => (
-            <Tooltip key={i} title="Em breve" placement="top">
-              <Box sx={{
-                width: 36, height: 36, borderRadius: 1.5, cursor: 'not-allowed',
-                border: '1px solid #2a2a2a', bgcolor: '#0d0d0d',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#444', opacity: 0.5,
-              }}>
-                {icon}
-              </Box>
-            </Tooltip>
-          ))}
-        </Stack>
-      </Box>
-    </Flyout>
-  );
+  const renderShapesFlyout = () => {
+    const SHAPES: { shape: 'rect' | 'circle' | 'triangle' | 'star'; icon: React.ReactNode; label: string; color: string }[] = [
+      { shape: 'rect',     icon: <IconSquare size={18} />,   label: 'Retângulo', color: 'rgba(255,220,60,0.7)' },
+      { shape: 'circle',   icon: <IconCircle size={18} />,   label: 'Círculo',   color: 'rgba(93,135,255,0.7)' },
+      { shape: 'triangle', icon: <IconTriangle size={18} />, label: 'Triângulo', color: 'rgba(249,115,22,0.7)' },
+      { shape: 'star',     icon: <IconStar size={18} />,     label: 'Destaque',  color: 'rgba(168,85,247,0.7)' },
+    ];
+    return (
+      <Flyout top={88}>
+        <Box sx={{ px: 1.5, py: 0.875 }}>
+          <Typography sx={{ fontSize: '0.52rem', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.875 }}>
+            Shapes — Anotações
+          </Typography>
+          <Stack direction="row" spacing={0.75} mb={0.5}>
+            {SHAPES.map(({ shape, icon, label, color }) => (
+              <Tooltip key={shape} title={label} placement="top">
+                <Box
+                  onClick={() => { addAnnotationNode(shape); setOpenFlyout(null); }}
+                  sx={{
+                    width: 36, height: 36, borderRadius: 1.5, cursor: 'pointer',
+                    border: `1px solid ${color.replace('0.7', '0.3')}`,
+                    bgcolor: color.replace('0.7', '0.08'),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color,
+                    transition: 'all 0.12s',
+                    '&:hover': { bgcolor: color.replace('0.7', '0.18'), transform: 'scale(1.08)' },
+                  }}
+                >
+                  {icon}
+                </Box>
+              </Tooltip>
+            ))}
+          </Stack>
+          <Typography sx={{ fontSize: '0.5rem', color: '#444', mt: 0.75 }}>
+            Clique para adicionar ao canvas · duplo clique para editar
+          </Typography>
+        </Box>
+      </Flyout>
+    );
+  };
 
   const renderDrawFlyout = () => (
     <Flyout top={176}>
-      {[
-        { label: 'Pencil', kbd: 'Shift+P' },
-        { label: 'Pen',    kbd: 'P' },
-      ].map((item) => (
-        <Tooltip key={item.label} title="Em breve" placement="right">
-          <Stack direction="row" spacing={1} alignItems="center"
-            sx={{ px: 1.5, py: 0.875, cursor: 'not-allowed', opacity: 0.45, '&:hover': {} }}
-          >
-            <IconPencil size={14} color="#666" />
-            <Typography sx={{ fontSize: '0.63rem', color: 'text.secondary', flex: 1 }}>{item.label}</Typography>
-            <Kbd>{item.kbd}</Kbd>
-          </Stack>
-        </Tooltip>
-      ))}
+      {/* Pencil — activates draw mode (crosshair cursor, click canvas to place note) */}
+      <Stack direction="row" spacing={1} alignItems="center"
+        onClick={() => { setInteractionMode('draw'); setOpenFlyout(null); }}
+        sx={{
+          px: 1.5, py: 0.875, cursor: 'pointer',
+          bgcolor: interactionMode === 'draw' ? 'rgba(93,135,255,0.08)' : 'transparent',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+        }}
+      >
+        <IconPencil size={14} color={interactionMode === 'draw' ? '#5D87FF' : '#666'} />
+        <Typography sx={{ fontSize: '0.63rem', color: interactionMode === 'draw' ? '#5D87FF' : 'text.secondary', flex: 1 }}>
+          Anotação
+        </Typography>
+        {interactionMode === 'draw' && <IconCheck size={10} color="#5D87FF" />}
+        <Kbd>D</Kbd>
+      </Stack>
+      {/* Add Note shortcut */}
+      <Stack direction="row" spacing={1} alignItems="center"
+        onClick={() => { addAnnotationNode('note'); setOpenFlyout(null); }}
+        sx={{
+          px: 1.5, py: 0.875, cursor: 'pointer',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+        }}
+      >
+        <IconVector size={14} color="#666" />
+        <Typography sx={{ fontSize: '0.63rem', color: 'text.secondary', flex: 1 }}>
+          Nova Nota
+        </Typography>
+        <Kbd>N</Kbd>
+      </Stack>
     </Flyout>
   );
 
@@ -410,7 +419,7 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
         <ToolBtn
           icon={<IconCursorText size={17} />}
           active={openFlyout === 'select' || (openFlyout === null && interactionMode !== null)}
-          tooltip={interactionMode === 'hand' ? 'Hand Tool (H)' : 'Select (V)'}
+          tooltip={interactionMode === 'hand' ? 'Hand Tool (H)' : interactionMode === 'draw' ? 'Anotação (D)' : 'Select (V)'}
           onClick={() => toggle('select')}
         />
 
@@ -452,8 +461,8 @@ export default function CanvasToolbar({ interactionMode, setInteractionMode }: C
         {/* DRAW */}
         <ToolBtn
           icon={<IconPencil size={17} />}
-          active={openFlyout === 'draw'}
-          tooltip="Draw"
+          active={openFlyout === 'draw' || interactionMode === 'draw'}
+          tooltip="Anotação  D"
           onClick={() => toggle('draw')}
         />
 

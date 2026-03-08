@@ -796,6 +796,37 @@ Regras:
     }
   });
 
+  // ── Remove Background — fal.ai BiRefNet ───────────────────────────────────
+  const removeBgSchema = z.object({ imageUrl: z.string().url() });
+
+  app.post('/studio/creative/remove-bg', async (request: any, reply) => {
+    const body = removeBgSchema.parse(request.body);
+    try {
+      const { removeBackgroundWithFal } = await import('../services/ai/falAiService');
+      const result = await removeBackgroundWithFal(body.imageUrl);
+      return reply.send({ success: true, imageUrl: result.imageUrl });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Upscale — fal.ai Clarity Upscaler ────────────────────────────────────
+  const upscaleSchema = z.object({
+    imageUrl:    z.string().url(),
+    scaleFactor: z.number().int().min(2).max(4).optional(),
+  });
+
+  app.post('/studio/creative/upscale', async (request: any, reply) => {
+    const body = upscaleSchema.parse(request.body);
+    try {
+      const { upscaleWithFal } = await import('../services/ai/falAiService');
+      const result = await upscaleWithFal(body.imageUrl, (body.scaleFactor ?? 4) as 2 | 4);
+      return reply.send({ success: true, imageUrl: result.imageUrl });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Plugin 4 DA: Arte Visual Critique ─────────────────────────────────────
   const arteSchema = z.object({
     image_url:      z.string(),

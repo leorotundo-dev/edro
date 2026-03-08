@@ -223,3 +223,68 @@ export async function generateImg2ImgWithFal(params: {
     seed:      images[0]?.seed,
   };
 }
+
+// ── Remove Background ──────────────────────────────────────────────────────────
+
+/**
+ * Removes the background from an image using fal.ai BiRefNet.
+ * Returns a PNG with transparent background.
+ */
+export async function removeBackgroundWithFal(imageUrl: string): Promise<{ imageUrl: string }> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+
+  const res = await fetch('https://fal.run/fal-ai/birefnet', {
+    method: 'POST',
+    headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_url: imageUrl }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown');
+    throw new Error(`fal.ai BiRefNet error (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as { image?: { url: string }; image_url?: string; error?: string };
+  if (data.error) throw new Error(`fal.ai BiRefNet error: ${data.error}`);
+
+  const url = data.image?.url ?? data.image_url;
+  if (!url) throw new Error('fal.ai BiRefNet: URL não retornada');
+  return { imageUrl: url };
+}
+
+// ── Upscale ────────────────────────────────────────────────────────────────────
+
+/**
+ * Upscales an image using fal.ai Clarity Upscaler (up to 4×).
+ * Preserves details and enhances quality via guided diffusion.
+ */
+export async function upscaleWithFal(imageUrl: string, scaleFactor: 2 | 4 = 4): Promise<{ imageUrl: string }> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+
+  const res = await fetch('https://fal.run/fal-ai/clarity-upscaler', {
+    method: 'POST',
+    headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      image_url:    imageUrl,
+      scale_factor: scaleFactor,
+      prompt:       'masterpiece, best quality, highres',
+      creativity:   0.35,
+      resemblance:  0.6,
+      dynamic:      6,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown');
+    throw new Error(`fal.ai Clarity Upscaler error (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as { image?: { url: string }; image_url?: string; error?: string };
+  if (data.error) throw new Error(`fal.ai Upscaler error: ${data.error}`);
+
+  const url = data.image?.url ?? data.image_url;
+  if (!url) throw new Error('fal.ai Clarity Upscaler: URL não retornada');
+  return { imageUrl: url };
+}

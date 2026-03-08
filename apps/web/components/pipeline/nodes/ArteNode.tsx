@@ -14,7 +14,7 @@ import Slider from '@mui/material/Slider';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
   IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
-  IconColorSwatch, IconSparkles, IconPencil,
+  IconColorSwatch, IconSparkles, IconPencil, IconScissors, IconZoomIn,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -123,6 +123,8 @@ export default function ArteNode() {
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [removeBgLoading, setRemoveBgLoading] = useState(false);
+  const [upscaleLoading, setUpscaleLoading]   = useState(false);
 
   // Build the visual directive string from DA selections
   const buildVisualDirective = (cam: string, light: string, comp: string, extra: string) => {
@@ -175,6 +177,42 @@ export default function ArteNode() {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const handleRemoveBg = async () => {
+    const currentUrl = arteImageUrls[selectedArteIdx] || arteImageUrl;
+    if (!currentUrl) return;
+    setRemoveBgLoading(true);
+    setEditError('');
+    try {
+      const res = await fetch('/api/studio/creative/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) useArte(data.imageUrl);
+      else setEditError(data.error || 'Erro ao remover fundo');
+    } catch { setEditError('Erro de conexão'); }
+    finally { setRemoveBgLoading(false); }
+  };
+
+  const handleUpscale = async () => {
+    const currentUrl = arteImageUrls[selectedArteIdx] || arteImageUrl;
+    if (!currentUrl) return;
+    setUpscaleLoading(true);
+    setEditError('');
+    try {
+      const res = await fetch('/api/studio/creative/upscale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) useArte(data.imageUrl);
+      else setEditError(data.error || 'Erro ao fazer upscale');
+    } catch { setEditError('Erro de conexão'); }
+    finally { setUpscaleLoading(false); }
   };
 
   const brandPackFormats = arteChainResult?.multiFormat ?? [];
@@ -772,6 +810,26 @@ export default function ArteNode() {
                       textTransform: 'none', '&:hover': { borderColor: '#555', color: '#aaa' }, justifyContent: 'flex-start', px: 1.25 }}
                   >
                     {editLoading ? 'Gerando variação…' : 'Gerar variação similar'}
+                  </Button>
+                  {/* Remove Background */}
+                  <Button variant="outlined" size="small" fullWidth
+                    disabled={removeBgLoading || editLoading || upscaleLoading}
+                    onClick={handleRemoveBg}
+                    startIcon={removeBgLoading ? <CircularProgress size={11} sx={{ color: '#EF4444' }} /> : <IconScissors size={11} />}
+                    sx={{ borderColor: '#EF444433', color: '#EF4444', fontSize: '0.65rem',
+                      textTransform: 'none', '&:hover': { borderColor: '#EF4444', bgcolor: 'rgba(239,68,68,0.05)' }, justifyContent: 'flex-start', px: 1.25 }}
+                  >
+                    {removeBgLoading ? 'Removendo fundo…' : 'Remover fundo'}
+                  </Button>
+                  {/* Upscale */}
+                  <Button variant="outlined" size="small" fullWidth
+                    disabled={upscaleLoading || editLoading || removeBgLoading}
+                    onClick={handleUpscale}
+                    startIcon={upscaleLoading ? <CircularProgress size={11} sx={{ color: '#13DEB9' }} /> : <IconZoomIn size={11} />}
+                    sx={{ borderColor: '#13DEB933', color: '#13DEB9', fontSize: '0.65rem',
+                      textTransform: 'none', '&:hover': { borderColor: '#13DEB9', bgcolor: 'rgba(19,222,185,0.05)' }, justifyContent: 'flex-start', px: 1.25 }}
+                  >
+                    {upscaleLoading ? 'Aplicando upscale (~30s)…' : 'Upscale 4×'}
                   </Button>
                   {/* Style */}
                   <Button variant="outlined" size="small" fullWidth

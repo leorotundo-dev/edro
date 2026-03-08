@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow, ReactFlowProvider, Background, MiniMap, Controls,
-  useNodesState, useEdgesState, type Node, type Edge,
+  useNodesState, useEdgesState, useReactFlow, type Node, type Edge,
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -49,6 +49,7 @@ import ApprovalNode from '@/components/pipeline/nodes/ApprovalNode';
 import ScheduleNode from '@/components/pipeline/nodes/ScheduleNode';
 import PerformanceNode from '@/components/pipeline/nodes/PerformanceNode';
 import LearningFeedbackNode from '@/components/pipeline/nodes/LearningFeedbackNode';
+import NoteNode from '@/components/pipeline/nodes/NoteNode';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
 import CanvasToolbar from '@/components/pipeline/CanvasToolbar';
@@ -126,6 +127,7 @@ const nodeTypes = {
   multiFormat:      MultiFormatNode,
   abTest:           ABTestNode,
   videoScript:      VideoScriptNode,
+  note:             NoteNode,
   approval:         ApprovalNode,
   schedule:         ScheduleNode,
   performance:      PerformanceNode,
@@ -308,7 +310,7 @@ function RightPanel() {
 
 function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // ── Core state ──────────────────────────────────────────────────────────────
-  const [interactionMode, setInteractionMode] = useState<'select' | 'hand'>('select');
+  const [interactionMode, setInteractionMode] = useState<'select' | 'hand' | 'draw'>('select');
   const [briefing, setBriefing] = useState<PipelineBriefing | null>(null);
   const [activeFormat, setActiveFormat] = useState<PipelineFormat | null>(null);
   const [clientBrandColor, setClientBrandColor] = useState('#F5C518');
@@ -951,6 +953,28 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     });
   }, [setNodes]);
 
+  // ── Add freeform annotation nodes (shapes / sticky notes) ─────────────────
+  const noteCounterRef = useRef(0);
+  const { screenToFlowPosition } = useReactFlow();
+  const addAnnotationNode = useCallback((shape: 'rect' | 'circle' | 'triangle' | 'star' | 'note', screenPos?: { x: number; y: number }) => {
+    noteCounterRef.current += 1;
+    const id = `note-${shape}-${noteCounterRef.current}-${Date.now()}`;
+    const scatter = () => (Math.random() - 0.5) * 60;
+    const pos = screenPos
+      ? screenToFlowPosition(screenPos)
+      : { x: 600 + scatter(), y: 380 + scatter() };
+    setNodes((prev) => [
+      ...prev,
+      { id, type: 'note', position: pos, data: { shape, text: '' } },
+    ]);
+  }, [setNodes, screenToFlowPosition]);
+
+  // In draw mode, clicking the pane places a note at cursor position
+  const handlePaneClick = useCallback((event: React.MouseEvent) => {
+    if (interactionMode !== 'draw') return;
+    addAnnotationNode('note', { x: event.clientX, y: event.clientY });
+  }, [interactionMode, addAnnotationNode]);
+
   // ── Context value ───────────────────────────────────────────────────────────
   const ctxValue: PipelineContextValue = {
     briefing, activeFormat, clientBrandColor,
@@ -978,6 +1002,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     directorAnalyzing,
     activeNodeIds: nodes.map((n) => n.id),
     addOptionalNode,
+    addAnnotationNode,
     copyChainResult,
     copyChainStep,
     handleGenerateCopyChain,
@@ -1005,9 +1030,13 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
             minZoom={0.4}
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
+            onPaneClick={handlePaneClick}
             panOnDrag={interactionMode === 'hand'}
             selectionOnDrag={interactionMode === 'select'}
-            style={{ background: '#0d0d0d', cursor: interactionMode === 'hand' ? 'grab' : 'default' }}
+            style={{
+              background: '#0d0d0d',
+              cursor: interactionMode === 'hand' ? 'grab' : interactionMode === 'draw' ? 'crosshair' : 'default',
+            }}
           >
             <Background color="#1a1a1a" variant={BackgroundVariant.Dots} gap={20} size={1.5} />
             <Controls
@@ -1026,6 +1055,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
           <CanvasToolbar
             interactionMode={interactionMode}
             setInteractionMode={setInteractionMode}
+            addAnnotationNode={addAnnotationNode}
           />
         </Box>
 
