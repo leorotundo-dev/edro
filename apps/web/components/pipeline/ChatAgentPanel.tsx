@@ -13,7 +13,7 @@ import {
   IconPhoto, IconPackage, IconSearch, IconBrandInstagram,
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
   IconChevronRight, IconBolt, IconPaperclip, IconBulb,
-  IconWorld, IconBox, IconX,
+  IconWorld, IconBox, IconX, IconDownload, IconWand,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -70,16 +70,17 @@ type ChatMessage = {
   mockupType?: MockupType; // framed mockup display
 };
 
-type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'unknown';
+type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'unknown';
 
 // ── Skill chips ────────────────────────────────────────────────────────────────
 
 const SKILLS = [
-  { id: 'copy',             label: 'Gerar Copy',        icon: <IconTypography size={12} />,     color: '#E85219' },
-  { id: 'arte',             label: 'Gerar Arte',         icon: <IconPalette size={12} />,         color: '#5D87FF' },
-  { id: 'brand_pack',       label: 'Brand Pack',         icon: <IconPackage size={12} />,         color: '#13DEB9' },
-  { id: 'visual_insights',  label: 'Visual Insights',    icon: <IconSearch size={12} />,          color: '#F8A800' },
-  { id: 'briefing',         label: 'Descrever Campanha', icon: <IconBolt size={12} />,            color: '#7C3AED' },
+  { id: 'copy',             label: 'Gerar Copy',        icon: <IconTypography size={12} />,  color: '#E85219' },
+  { id: 'arte',             label: 'Gerar Arte',         icon: <IconPalette size={12} />,      color: '#5D87FF' },
+  { id: 'brand_pack',       label: 'Brand Pack',         icon: <IconPackage size={12} />,      color: '#13DEB9' },
+  { id: 'edit_variation',   label: 'Variação',           icon: <IconRefresh size={12} />,      color: '#A855F7' },
+  { id: 'edit_style',       label: 'Ajustar Estilo',     icon: <IconWand size={12} />,         color: '#F8A800' },
+  { id: 'visual_insights',  label: 'Referências',        icon: <IconSearch size={12} />,       color: '#F8A800' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,8 @@ const SKILLS = [
 function detectIntent(text: string): Intent {
   const t = text.toLowerCase();
   if (/brand.?pack|todos os formatos|pack completo|5 formatos/.test(t)) return 'brand_pack';
+  if (/varia[çc]|variação|similar|outra vers|gerar.*varia/.test(t)) return 'edit_variation';
+  if (/ajustar estilo|mudar estilo|outro estilo|estilo visual|ajust.*visual/.test(t)) return 'edit_style';
   if (/arte|imagem|visual|foto|design|ilustra|criativ|gerar.*arte/.test(t)) return 'arte';
   if (/copy|texto|legenda|redator|escrev|campanha.*texto|capti/.test(t)) return 'copy';
   if (/referên|insight|buscar|pesquis|inspect/.test(t)) return 'visual_insights';
@@ -472,9 +475,22 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
           {msg.mockupType ? (
             <MockupFrame imageUrl={msg.imageUrl} type={msg.mockupType} />
           ) : (
-            <Box sx={{ borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944', maxWidth: 200 }}>
+            <Box sx={{ position: 'relative', borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944', maxWidth: 200,
+              '&:hover .img-dl': { opacity: 1 } }}>
               <Box component="img" src={msg.imageUrl} alt="arte gerada"
                 sx={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+              {/* Download overlay */}
+              <Box className="img-dl" component="a" href={msg.imageUrl} download="arte-edro.jpg"
+                sx={{
+                  position: 'absolute', top: 6, right: 6,
+                  width: 26, height: 26, borderRadius: '50%',
+                  bgcolor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: 0, transition: 'opacity 0.15s', cursor: 'pointer',
+                  '&:hover': { bgcolor: 'rgba(19,222,185,0.8)' },
+                }}>
+                <IconDownload size={12} color="#fff" />
+              </Box>
             </Box>
           )}
         </Box>
@@ -831,6 +847,102 @@ export default function ChatAgentPanel() {
     }
   }, [briefing, activeFormat, updateMsg, updateTool]);
 
+  // ── Edit Image — variation and style adjustment from chat ────────────────────
+
+  const EDIT_MOODS = [
+    { label: 'Minimalista',    color: '#5D87FF' },
+    { label: 'Dramático',      color: '#EF4444' },
+    { label: 'Vibrante',       color: '#F8A800' },
+    { label: 'Natural',        color: '#13DEB9' },
+    { label: 'Cinematográfico', color: '#A855F7' },
+  ];
+
+  const executeEditImage = useCallback(async (agentMsgId: string, mode: 'variation' | 'style', mood?: string) => {
+    if (!arteImageUrl) {
+      updateMsg(agentMsgId, {
+        isTyping: false,
+        text: 'Não há arte gerada para editar ainda. Gere uma arte primeiro.',
+        quickActions: [{ label: 'Gerar arte ↗', icon: <IconPalette size={11} />, color: '#5D87FF', onClick: () => sendSkill('arte') }],
+      });
+      return;
+    }
+
+    // For style: ask mood if not provided
+    if (mode === 'style' && !mood) {
+      updateMsg(agentMsgId, {
+        isTyping: false,
+        text: 'Qual direção de estilo você quer aplicar?',
+        quickActions: EDIT_MOODS.map((m) => ({
+          label: m.label,
+          icon: <IconWand size={11} />,
+          color: m.color,
+          onClick: () => {
+            updateMsg(agentMsgId, { quickActions: [] });
+            const newId = uid();
+            setMessages((prev) => [...prev,
+              { id: uid(), role: 'user', text: m.label },
+              { id: newId, role: 'agent', isTyping: true },
+            ]);
+            setIsAgentBusy(true);
+            executeEditImage(newId, 'style', m.label)
+              .finally(() => { setIsAgentBusy(false); setActiveMsgId(null); });
+          },
+        })),
+      });
+      return;
+    }
+
+    const toolId = uid();
+    updateMsg(agentMsgId, {
+      isTyping: false,
+      text: mode === 'variation'
+        ? 'Gerando uma variação similar mantendo a composição…'
+        : `Aplicando direção **${mood}** à arte atual…`,
+      tools: [{ id: toolId, name: `✏️ Edit Image — ${mode === 'variation' ? 'variação' : mood}`, status: 'running', detail: 'Processando com Flux…', progress: 0 }],
+    });
+
+    let prog = 0;
+    const ticker = setInterval(() => {
+      prog = Math.min(prog + Math.random() * 12, 90);
+      updateTool(agentMsgId, toolId, { progress: Math.round(prog) });
+    }, 500);
+
+    try {
+      const res = await fetch('/api/studio/creative/edit-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: arteImageUrl,
+          mode,
+          prompt: mood,
+          aspectRatio: activeFormat?.format?.includes('9:16') ? '9:16' : activeFormat?.format?.includes('4:5') ? '4:5' : '1:1',
+          strength: mode === 'variation' ? 0.7 : 0.4,
+        }),
+      });
+      clearInterval(ticker);
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        updateTool(agentMsgId, toolId, { status: 'done', detail: 'Edição concluída', progress: 100 });
+        updateMsg(agentMsgId, {
+          text: mode === 'variation' ? '✅ **Variação gerada!**' : `✅ **Estilo ${mood} aplicado!**`,
+          imageUrl: data.imageUrl,
+          quickActions: [
+            { label: 'Ficou ótimo, usar esta ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => { setApprovedStyleUrl(data.imageUrl); handleInput('Aprovado!'); } },
+            { label: '📱 Celular', icon: <IconPhoto size={11} />, color: '#7C3AED', onClick: () => updateMsg(agentMsgId, { mockupType: 'phone', quickActions: [] }) },
+            { label: 'Outra variação ↗', icon: <IconRefresh size={11} />, color: '#555', onClick: () => handleInput('Gerar uma variação da arte') },
+          ],
+        });
+        setTimeout(() => triggerCritique(data.imageUrl), 1200);
+      } else {
+        clearInterval(ticker);
+        updateTool(agentMsgId, toolId, { status: 'error', detail: data.error || 'Erro ao editar.' });
+      }
+    } catch {
+      clearInterval(ticker);
+      updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao editar a arte.' });
+    }
+  }, [arteImageUrl, activeFormat, approvedStyleUrl, triggerCritique, updateMsg, updateTool, setIsAgentBusy]);
+
   // ── Image Analyzer — auto-critique after arte generation ────────────────────
 
   const triggerCritique = useCallback(async (imageUrl: string) => {
@@ -1007,6 +1119,10 @@ export default function ChatAgentPanel() {
         } else {
           await executeArte(agentMsgId, false);
         }
+      } else if (intent === 'edit_variation') {
+        await executeEditImage(agentMsgId, 'variation');
+      } else if (intent === 'edit_style') {
+        await executeEditImage(agentMsgId, 'style');
       } else if (intent === 'visual_insights') {
         await executeVisualInsights(agentMsgId);
       } else if (intent === 'briefing') {
@@ -1039,13 +1155,15 @@ export default function ChatAgentPanel() {
       setIsAgentBusy(false);
       setActiveMsgId(null);
     }
-  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeVisualInsights, updateMsg]);
+  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeEditImage, executeVisualInsights, updateMsg]);
 
   const sendSkill = useCallback((skillId: string) => {
     const labels: Record<string, string> = {
       copy:            'Gerar copy para este briefing',
       arte:            'Gerar arte com os parâmetros atuais',
       brand_pack:      'Gerar brand pack — todos os 5 formatos',
+      edit_variation:  'Gerar uma variação da arte',
+      edit_style:      'Ajustar estilo visual da arte',
       visual_insights: 'Buscar referências visuais do mercado',
       briefing:        'Configurar briefing via agente',
     };
