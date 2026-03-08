@@ -79,6 +79,7 @@ export type AgentDAParams = {
   brandVisualOverride?: Partial<BrandVisualContext>;
   payloadOverride?: Partial<FalApiPayload>;
   generateMultiFormat?: boolean;
+  brandPack?: boolean;          // generate ALL 5 formats (Story/Feed/Portrait/LinkedIn/Banner)
 };
 
 // ─── Plugin 1 — Brand Visual RAG ─────────────────────────────────────────────
@@ -317,13 +318,17 @@ const MULTI_FORMAT_SIZES: Array<{ format: string; aspectRatio: string }> = [
   { format: 'Feed 1:1',       aspectRatio: '1:1'  },
   { format: 'Portrait 4:5',   aspectRatio: '4:5'  },
   { format: 'LinkedIn 4:3',   aspectRatio: '4:3'  },
+  { format: 'Banner 16:9',    aspectRatio: '16:9' },
 ];
 
 async function plugin6MultiFormat(
   payload: FalApiPayload,
   excludeAspectRatio: string,
+  brandPack?: boolean,
 ): Promise<MultiFormatResult[]> {
-  const targets = MULTI_FORMAT_SIZES.filter((f) => f.aspectRatio !== excludeAspectRatio).slice(0, 3);
+  const targets = brandPack
+    ? MULTI_FORMAT_SIZES
+    : MULTI_FORMAT_SIZES.filter((f) => f.aspectRatio !== excludeAspectRatio).slice(0, 3);
   const results = await Promise.allSettled(
     targets.map(async (target) => {
       const res = await generateImageWithFal({
@@ -390,9 +395,9 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
 
   // P6 — Multi-format (optional, non-blocking)
   let multiFormat: MultiFormatResult[] | undefined;
-  if (params.generateMultiFormat) {
+  if (params.generateMultiFormat || params.brandPack) {
     multiFormat = await t('p6_multi_format', () =>
-      plugin6MultiFormat(payload, payload.aspectRatio)
+      plugin6MultiFormat(payload, payload.aspectRatio, params.brandPack)
     );
   }
 

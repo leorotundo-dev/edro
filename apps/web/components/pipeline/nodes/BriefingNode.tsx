@@ -9,10 +9,11 @@ import Popover from '@mui/material/Popover';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
+import TextField from '@mui/material/TextField';
 import {
   IconFileDescription, IconCheck, IconX, IconArrowRight,
   IconChefHat, IconPlus, IconMoodSmile, IconTarget,
-  IconFilter, IconLayoutGrid,
+  IconFilter, IconLayoutGrid, IconRobot, IconSparkles,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import NodeShell from '../NodeShell';
@@ -106,6 +107,8 @@ export default function BriefingNode() {
     suggestedRecipes, applyRecipe, learningRulesCount,
     tone, setTone, amd, setAmd,
     funnelPhase, setFunnelPhase,
+    targetPlatforms, setTargetPlatforms,
+    setSelectedTrigger,
   } = usePipeline();
 
   const status = nodeStatus.briefing;
@@ -115,6 +118,55 @@ export default function BriefingNode() {
   const [activeIngredients, setActiveIngredients] = useState<string[]>([]);
   // Popover anchor
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+
+  // Design Agent Mode
+  const [agentMode, setAgentMode] = useState<'manual' | 'agent'>('manual');
+  const [agentText, setAgentText] = useState('');
+  const [agentParsing, setAgentParsing] = useState(false);
+  const [agentFeedback, setAgentFeedback] = useState<string | null>(null);
+
+  const TRIGGER_MAP: Record<string, string> = {
+    escassez: 'G01', urgencia: 'G01', limitado: 'G01',
+    autoridade: 'G02', especialista: 'G02', lider: 'G02',
+    prova: 'G03', social: 'G03', depoimento: 'G03',
+    reciprocidade: 'G04', gratis: 'G04', desconto: 'G04',
+    curiosidade: 'G05', segredo: 'G05', descubra: 'G05',
+    identidade: 'G06', pertencer: 'G06', comunidade: 'G06',
+    dor: 'G07', problema: 'G07', solucao: 'G07',
+  };
+
+  const handleParseAgent = async () => {
+    if (!agentText.trim()) return;
+    setAgentParsing(true);
+    setAgentFeedback(null);
+    try {
+      const { apiPost } = await import('@/lib/api');
+      const res = await apiPost<{ success: boolean; data: {
+        tone?: string; amd?: string; funnelPhase?: string;
+        platforms?: string[]; suggestedTrigger?: string;
+        ingredients?: string[]; briefingSummary?: string;
+      } }>('/studio/creative/parse-brief', {
+        text: agentText,
+        briefingTitle: briefing?.title,
+      });
+      if (res?.data) {
+        const d = res.data;
+        if (d.tone) { setTone(d.tone); if (!activeIngredients.includes('tone')) setActiveIngredients(p => [...p, 'tone']); }
+        if (d.amd) { setAmd(d.amd); if (!activeIngredients.includes('amd')) setActiveIngredients(p => [...p, 'amd']); }
+        if (d.funnelPhase) { setFunnelPhase(d.funnelPhase as any); if (!activeIngredients.includes('funnel')) setActiveIngredients(p => [...p, 'funnel']); }
+        if (d.platforms?.length) setTargetPlatforms(d.platforms);
+        if (d.suggestedTrigger) setSelectedTrigger(d.suggestedTrigger);
+        if (d.ingredients?.length) setActiveIngredients(d.ingredients);
+        const count = [d.tone, d.amd, d.funnelPhase, d.platforms?.length, d.suggestedTrigger].filter(Boolean).length;
+        setAgentFeedback(`✓ ${count} parâmetros extraídos${d.suggestedTrigger ? ` — Gatilho ${d.suggestedTrigger} sugerido` : ''}`);
+        setAgentMode('manual');
+      }
+    } catch {
+      setAgentFeedback('Erro ao interpretar o briefing. Tente novamente.');
+    } finally {
+      setAgentParsing(false);
+    }
+  };
 
   const addIngredient = (id: string) => {
     if (!activeIngredients.includes(id)) setActiveIngredients((p) => [...p, id]);
@@ -157,6 +209,59 @@ export default function BriefingNode() {
         collapsedSummary={collapsedSummary}
       >
         <Stack spacing={1.25}>
+          {/* ── Mode tab switcher ── */}
+          <Stack direction="row" spacing={0} sx={{ border: '1px solid #1e1e1e', borderRadius: 1.5, overflow: 'hidden' }}>
+            {(['manual', 'agent'] as const).map((mode) => (
+              <Box key={mode} onClick={() => setAgentMode(mode)}
+                sx={{
+                  flex: 1, py: 0.625, textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                  bgcolor: agentMode === mode ? (mode === 'agent' ? 'rgba(93,135,255,0.15)' : 'rgba(232,82,25,0.1)') : 'transparent',
+                  borderRight: mode === 'manual' ? '1px solid #1e1e1e' : 'none',
+                }}>
+                <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+                  {mode === 'agent' ? <IconRobot size={10} color={agentMode === 'agent' ? '#5D87FF' : '#444'} /> : <IconFileDescription size={10} color={agentMode === 'manual' ? '#E85219' : '#444'} />}
+                  <Typography sx={{ fontSize: '0.58rem', fontWeight: agentMode === mode ? 700 : 400,
+                    color: agentMode === mode ? (mode === 'agent' ? '#5D87FF' : '#E85219') : '#444' }}>
+                    {mode === 'manual' ? 'Manual' : 'Agente IA'}
+                  </Typography>
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+
+          {/* ── Agent Mode ── */}
+          {agentMode === 'agent' && (
+            <Stack spacing={0.875}>
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <IconSparkles size={11} color="#5D87FF" />
+                <Typography sx={{ fontSize: '0.58rem', color: '#5D87FF', fontWeight: 700 }}>
+                  Descreva a campanha em linguagem natural
+                </Typography>
+              </Stack>
+              <TextField
+                multiline rows={4} size="small" fullWidth
+                placeholder={'Ex: "Lançamento de tênis running para público jovem 25-35 anos, tom energético e motivador, foco em Instagram e TikTok, quero que as pessoas cliquem no link da bio"'}
+                value={agentText}
+                onChange={(e) => setAgentText(e.target.value)}
+                sx={{ '& .MuiInputBase-root': { fontSize: '0.62rem', bgcolor: '#0d0d0d' } }}
+              />
+              {agentFeedback && (
+                <Typography sx={{ fontSize: '0.6rem', color: agentFeedback.startsWith('✓') ? '#13DEB9' : '#EF4444', lineHeight: 1.4 }}>
+                  {agentFeedback}
+                </Typography>
+              )}
+              <Button variant="contained" size="small" fullWidth
+                onClick={handleParseAgent}
+                disabled={agentParsing || !agentText.trim()}
+                startIcon={agentParsing ? <CircularProgress size={11} sx={{ color: '#000' }} /> : <IconSparkles size={12} />}
+                sx={{ bgcolor: '#5D87FF', color: '#fff', fontWeight: 700, fontSize: '0.65rem',
+                  textTransform: 'none', '&:hover': { bgcolor: '#4a6fd4' } }}
+              >
+                {agentParsing ? 'Interpretando…' : 'Analisar e preencher'}
+              </Button>
+            </Stack>
+          )}
+
           {isLoading ? (
             <Stack direction="row" spacing={1} alignItems="center">
               <CircularProgress size={12} sx={{ color: '#E85219' }} />
@@ -164,7 +269,7 @@ export default function BriefingNode() {
                 Carregando briefing…
               </Typography>
             </Stack>
-          ) : (
+          ) : agentMode === 'manual' ? (
             <>
               {/* ── Mise en place ── */}
               <Box>
@@ -416,7 +521,7 @@ export default function BriefingNode() {
                 Tudo certo — iniciar Copy
               </Button>
             </>
-          )}
+          ) : null}
         </Stack>
       </NodeShell>
 

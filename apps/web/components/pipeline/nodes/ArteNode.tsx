@@ -12,7 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
-  IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna,
+  IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -111,6 +111,7 @@ export default function ArteNode() {
   const [showDAControls, setShowDAControls] = useState(false);
   const [bvOverride, setBvOverride] = useState<Partial<ArteBrandVisual>>({});
   const [promptOverride, setPromptOverride] = useState('');
+  const [brandPackMode, setBrandPackMode] = useState(false);
 
   // Build the visual directive string from DA selections
   const buildVisualDirective = (cam: string, light: string, comp: string, extra: string) => {
@@ -125,19 +126,40 @@ export default function ArteNode() {
 
   const currentProvider = PROVIDERS.find(p => p.id === provider)!;
 
+  const brandPackFormats = arteChainResult?.multiFormat ?? [];
+
   const collapsedSummary = arteImageUrl ? (
     <Stack spacing={0.5}>
-      <Box sx={{ width: '100%', height: 80, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944' }}>
-        <img src={arteImageUrl} alt="Arte selecionada"
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </Box>
-      <Stack direction="row" spacing={0.5}>
-        <Chip size="small" label={aspectRatio} sx={{ height: 18, fontSize: '0.58rem', bgcolor: '#1a1a1a', color: '#888' }} />
-        {selectedTrigger && (
-          <Chip size="small" label={`${selectedTrigger} ${TRIGGERS_LABEL[selectedTrigger] || ''}`}
-            sx={{ height: 18, fontSize: '0.58rem', bgcolor: `${TRIGGER_COLORS[selectedTrigger] || '#888'}22`, color: TRIGGER_COLORS[selectedTrigger] || '#888' }} />
-        )}
-      </Stack>
+      {brandPackMode && brandPackFormats.length > 0 ? (
+        <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+            {brandPackFormats.slice(0, 4).map((mf) => (
+              <Box key={mf.format} sx={{ borderRadius: 1, overflow: 'hidden', border: '1px solid #22C55E33', position: 'relative' }}>
+                <img src={mf.imageUrl} style={{ width: '100%', height: 48, objectFit: 'cover', display: 'block' }} alt={mf.format} />
+                <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, px: 0.5, py: 0.2, bgcolor: 'rgba(0,0,0,0.7)' }}>
+                  <Typography sx={{ fontSize: '0.42rem', color: '#22C55E', fontWeight: 700 }}>{mf.format}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+          <Chip size="small" label={`Brand Pack — ${brandPackFormats.length} formatos`}
+            sx={{ height: 16, fontSize: '0.52rem', bgcolor: 'rgba(34,197,94,0.12)', color: '#22C55E' }} />
+        </>
+      ) : (
+        <>
+          <Box sx={{ width: '100%', height: 80, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #13DEB944' }}>
+            <img src={arteImageUrl} alt="Arte selecionada"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </Box>
+          <Stack direction="row" spacing={0.5}>
+            <Chip size="small" label={aspectRatio} sx={{ height: 18, fontSize: '0.58rem', bgcolor: '#1a1a1a', color: '#888' }} />
+            {selectedTrigger && (
+              <Chip size="small" label={`${selectedTrigger} ${TRIGGERS_LABEL[selectedTrigger] || ''}`}
+                sx={{ height: 18, fontSize: '0.58rem', bgcolor: `${TRIGGER_COLORS[selectedTrigger] || '#888'}22`, color: TRIGGER_COLORS[selectedTrigger] || '#888' }} />
+            )}
+          </Stack>
+        </>
+      )}
     </Stack>
   ) : null;
 
@@ -490,67 +512,119 @@ export default function ArteNode() {
                   ⚠ {arteChainResult.critique.issues[0]}
                 </Typography>
               )}
-              {/* Multi-format results */}
+              {/* Multi-format / Brand Pack results */}
               {arteChainResult.multiFormat && arteChainResult.multiFormat.length > 0 && (
-                <Box sx={{ mt: 0.75, pt: 0.75, borderTop: '1px solid #22D3EE11' }}>
-                  <Typography sx={{ fontSize: '0.5rem', color: '#22D3EE', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>
-                    Multi-formato ({arteChainResult.multiFormat.length})
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
+                <Box sx={{ mt: 0.75, pt: 0.75, borderTop: '1px solid #22C55E22' }}>
+                  <Stack direction="row" alignItems="center" spacing={0.5} mb={0.75}>
+                    <IconPackage size={11} color="#22C55E" />
+                    <Typography sx={{ fontSize: '0.52rem', color: '#22C55E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', flex: 1 }}>
+                      Brand Pack — {arteChainResult.multiFormat.length} formatos
+                    </Typography>
+                  </Stack>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.625 }}>
                     {arteChainResult.multiFormat.map((mf) => (
-                      <Tooltip key={mf.format} title={`${mf.format} — ${mf.aspectRatio}`} placement="top">
+                      <Tooltip key={mf.format} title={`Usar ${mf.format}`} placement="top">
                         <Box
                           onClick={() => useArte(mf.imageUrl)}
-                          sx={{ width: 44, height: 44, borderRadius: 1, overflow: 'hidden', cursor: 'pointer',
-                            border: '1px solid #22D3EE33',
-                            '&:hover': { borderColor: '#22D3EE', boxShadow: '0 0 0 2px #22D3EE22' } }}
+                          sx={{ borderRadius: 1.5, overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                            border: '1px solid #22C55E33',
+                            '&:hover': { borderColor: '#22C55E', boxShadow: '0 0 0 2px #22C55E22' },
+                            '&:hover .pack-overlay': { opacity: 1 },
+                          }}
                         >
-                          <img src={mf.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={mf.format} />
+                          <img src={mf.imageUrl} style={{ width: '100%', height: 60, objectFit: 'cover', display: 'block' }} alt={mf.format} />
+                          <Box sx={{ px: 0.75, py: 0.375, bgcolor: '#0a0a0a', borderTop: '1px solid #22C55E22' }}>
+                            <Typography sx={{ fontSize: '0.48rem', color: '#22C55E', fontWeight: 700 }}>{mf.format}</Typography>
+                            <Typography sx={{ fontSize: '0.44rem', color: '#555' }}>{mf.aspectRatio}</Typography>
+                          </Box>
+                          <Box className="pack-overlay" sx={{
+                            position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.55)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            opacity: 0, transition: 'opacity 0.15s',
+                          }}>
+                            <IconDownload size={16} color="#22C55E" />
+                          </Box>
                         </Box>
                       </Tooltip>
                     ))}
-                  </Stack>
+                  </Box>
+                  <Button size="small" fullWidth variant="outlined"
+                    onClick={() => useArte(arteImageUrls[selectedArteIdx] || arteChainResult!.imageUrl)}
+                    sx={{ mt: 0.75, textTransform: 'none', fontSize: '0.58rem', borderColor: '#22C55E44', color: '#22C55E',
+                      '&:hover': { borderColor: '#22C55E', bgcolor: 'rgba(34,197,94,0.06)' } }}
+                    startIcon={<IconCheck size={11} />}
+                  >
+                    Aprovar Pack Completo
+                  </Button>
                 </Box>
               )}
             </Box>
           )}
 
           {/* Generation buttons */}
-          <Stack direction="row" spacing={0.75}>
-            {!useAgentDA && (
+          <Stack spacing={0.75}>
+            <Stack direction="row" spacing={0.75}>
+              {!useAgentDA && (
+                <Button
+                  variant="outlined" size="small" sx={{ flex: 1, textTransform: 'none', fontSize: '0.65rem',
+                    borderColor: '#333', color: 'text.secondary' }}
+                  onClick={() => handleGenerateArte(false, { aspectRatio, negativePrompt, provider, model, refinement: buildVisualDirective(camera, lighting, composition, '') })}
+                  disabled={arteGenerating}
+                  startIcon={<IconTemplate size={12} />}
+                >
+                  Só Layout
+                </Button>
+              )}
               <Button
-                variant="outlined" size="small" sx={{ flex: 1, textTransform: 'none', fontSize: '0.65rem',
-                  borderColor: '#333', color: 'text.secondary' }}
-                onClick={() => handleGenerateArte(false, { aspectRatio, negativePrompt, provider, model, refinement: buildVisualDirective(camera, lighting, composition, '') })}
+                variant="contained" size="small" sx={{ flex: 2, textTransform: 'none', fontSize: '0.65rem',
+                  bgcolor: useAgentDA ? '#22D3EE' : '#E85219', fontWeight: 700,
+                  '&:hover': { bgcolor: useAgentDA ? '#06b6d4' : '#c43e10' },
+                  color: useAgentDA ? '#000' : '#fff',
+                }}
+                onClick={() => {
+                  setBrandPackMode(false);
+                  if (useAgentDA) {
+                    handleGenerateArteChain({
+                      brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
+                      payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
+                    });
+                  } else {
+                    handleGenerateArte(true, { aspectRatio, negativePrompt, provider, model, refinement: buildVisualDirective(camera, lighting, composition, '') });
+                  }
+                }}
                 disabled={arteGenerating}
-                startIcon={<IconTemplate size={12} />}
+                startIcon={arteGenerating ? undefined : useAgentDA ? <IconRobot size={12} /> : <IconPhoto size={12} />}
               >
-                Só Layout
+                {arteGenerating && !brandPackMode
+                  ? (useAgentDA ? `Plugin ${arteChainStep}/6…` : 'Gerando…')
+                  : useAgentDA ? (arteChainResult ? 'Reexecutar DA' : 'Iniciar Agente DA')
+                  : 'Gerar Arte'}
               </Button>
-            )}
+            </Stack>
+
+            {/* Brand Pack button */}
             <Button
-              variant="contained" size="small" sx={{ flex: 2, textTransform: 'none', fontSize: '0.65rem',
-                bgcolor: useAgentDA ? '#22D3EE' : '#E85219', fontWeight: 700,
-                '&:hover': { bgcolor: useAgentDA ? '#06b6d4' : '#c43e10' },
-                color: useAgentDA ? '#000' : '#fff',
-              }}
+              variant="outlined" size="small" fullWidth
               onClick={() => {
-                if (useAgentDA) {
-                  handleGenerateArteChain({
-                    brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
-                    payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
-                  });
-                } else {
-                  handleGenerateArte(true, { aspectRatio, negativePrompt, provider, model, refinement: buildVisualDirective(camera, lighting, composition, '') });
-                }
+                setBrandPackMode(true);
+                setUseAgentDA(true);
+                handleGenerateArteChain({
+                  brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
+                  payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
+                  brandPack: true,
+                });
               }}
               disabled={arteGenerating}
-              startIcon={arteGenerating ? undefined : useAgentDA ? <IconRobot size={12} /> : <IconPhoto size={12} />}
+              startIcon={arteGenerating && brandPackMode ? <CircularProgress size={11} sx={{ color: '#22C55E' }} /> : <IconPackage size={12} />}
+              sx={{
+                textTransform: 'none', fontSize: '0.65rem', fontWeight: 700,
+                borderColor: '#22C55E55', color: '#22C55E',
+                bgcolor: 'rgba(34,197,94,0.05)',
+                '&:hover': { borderColor: '#22C55E', bgcolor: 'rgba(34,197,94,0.1)' },
+                '&:disabled': { borderColor: '#222', color: '#444' },
+              }}
             >
-              {arteGenerating
-                ? (useAgentDA ? `Plugin ${arteChainStep}/6 rodando…` : 'Gerando…')
-                : useAgentDA ? (arteChainResult ? 'Reexecutar Agente DA' : 'Iniciar Agente DA')
-                : 'Gerar Arte'}
+              {arteGenerating && brandPackMode ? `Gerando pack… Plugin ${arteChainStep}/6` : '🎨 Gerar Brand Pack — 5 formatos'}
             </Button>
           </Stack>
 

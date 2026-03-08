@@ -581,6 +581,52 @@ Retorne SOMENTE um JSON válido:
     }
   });
 
+  // ── Design Agent — parse natural language brief into structured params ────
+  const parseBriefSchema = z.object({
+    text: z.string().min(5),
+    briefingTitle: z.string().optional(),
+  });
+
+  app.post('/studio/creative/parse-brief', async (request: any, reply) => {
+    const body = parseBriefSchema.parse(request.body);
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+
+      const prompt = `Você é um estrategista de marketing digital. Analise o texto de briefing abaixo e extraia os parâmetros estruturados para uma campanha publicitária.
+
+BRIEFING LIVRE:
+"""
+${body.text}
+"""
+${body.briefingTitle ? `\nTítulo do briefing: ${body.briefingTitle}` : ''}
+
+Extraia e retorne SOMENTE um JSON válido (sem markdown) com os seguintes campos:
+
+{
+  "tone": "<tom de voz em 2-4 palavras, ex: 'jovem e energético', 'sofisticado e elegante'>",
+  "amd": "<ação mais desejada: 'clicar', 'comprar', 'cadastrar', 'ligar', 'visitar loja', 'seguir', 'compartilhar'>",
+  "funnelPhase": "<fase do funil: 'consciencia', 'consideracao', 'decisao', 'fidelizacao'>",
+  "platforms": ["<lista de plataformas mencionadas ou inferidas: Instagram, TikTok, Facebook, LinkedIn, YouTube>"],
+  "suggestedTrigger": "<gatilho mais adequado: G01=Escassez, G02=Autoridade, G03=Prova Social, G04=Reciprocidade, G05=Curiosidade, G06=Identidade, G07=Dor/Solução>",
+  "suggestedRecipe": "<receita de copy mais adequada: receptor_sonhador, receptor_logico, receptor_emocional, receptor_social, receptor_urgente>",
+  "ingredients": ["<lista de ingredientes ativos: tone, amd, funnel, trigger, recipe, platform>"],
+  "briefingSummary": "<resumo do objetivo da campanha em 1 frase em PT-BR>"
+}
+
+Regras:
+- Se não houver plataforma explícita, infira pelo contexto (produto jovem → Instagram/TikTok, B2B → LinkedIn)
+- O gatilho deve ser o que MELHOR se encaixa na proposta de valor descrita
+- ingredients deve conter apenas os campos que foram claramente identificados no texto`;
+
+      const result = await generateCompletion({ prompt, maxTokens: 500, temperature: 0.2 });
+      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      return reply.send({ success: true, ...parsed });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Agente Diretor de Arte — 6-plugin chain ──────────────────────────────
   const arteChainSchema = z.object({
     copy:          z.string().optional(),
@@ -610,6 +656,7 @@ Retorne SOMENTE um JSON válido:
       numInferenceSteps: z.number().optional(),
     }).optional(),
     generateMultiFormat: z.boolean().optional(),
+    brandPack: z.boolean().optional(),
   });
 
   app.post('/studio/creative/arte-chain', async (request: any, reply) => {

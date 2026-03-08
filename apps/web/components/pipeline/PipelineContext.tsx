@@ -243,6 +243,7 @@ export type ArteChainParams = {
   brandVisualOverride?: Partial<ArteBrandVisual>;
   payloadOverride?: Partial<ArteFalPayload>;
   generateMultiFormat?: boolean;
+  brandPack?: boolean;
 };
 
 export type CreativeRecipe = {
