@@ -40,6 +40,20 @@ type QuickAction = {
   color?: string;
 };
 
+type CritiqueDimension = {
+  label: string;
+  score: number;
+  note: string | null;
+};
+
+type CritiqueData = {
+  overall: number;
+  passed: boolean;
+  dimensions: CritiqueDimension[];
+  issues?: string[];
+  suggestions?: string[];
+};
+
 type ChatMessage = {
   id: string;
   role: 'user' | 'agent';
@@ -50,6 +64,7 @@ type ChatMessage = {
   imageUrl?: string;
   isTyping?: boolean;
   narration?: string; // live status line updated as steps run
+  critique?: CritiqueData; // visual analysis results
 };
 
 type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'unknown';
@@ -115,6 +130,80 @@ const ARTE_NARRATIONS: string[] = [
 ];
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+/** Renders **bold** and newlines from agent text */
+function renderMarkdown(text: string): React.ReactNode {
+  return text.split('\n').map((line, i) => {
+    const parts = line.split(/\*\*(.*?)\*\*/g);
+    return (
+      <Box key={i} component="span" sx={{ display: 'block' }}>
+        {parts.map((part, j) =>
+          j % 2 === 1
+            ? <Box key={j} component="strong" sx={{ color: 'text.primary', fontWeight: 700 }}>{part}</Box>
+            : part
+        )}
+      </Box>
+    );
+  });
+}
+
+function CritiqueCard({ data }: { data: CritiqueData }) {
+  const overallColor = data.overall >= 72 ? '#13DEB9' : data.overall >= 55 ? '#F8A800' : '#EF4444';
+  return (
+    <Box sx={{ border: `1px solid ${overallColor}33`, borderRadius: 1.5, overflow: 'hidden' }}>
+      {/* Header */}
+      <Stack direction="row" spacing={1} alignItems="center"
+        sx={{ px: 1.5, py: 1, bgcolor: `${overallColor}08`, borderBottom: '1px solid #1e1e1e' }}>
+        <Box sx={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+          bgcolor: `${overallColor}18`, border: `2px solid ${overallColor}55`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, color: overallColor, lineHeight: 1 }}>
+            {data.overall}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: overallColor }}>
+            {data.passed ? '✓ Arte aprovada pelo Diretor AI' : '⚠ Arte precisa de ajuste'}
+          </Typography>
+          <Typography sx={{ fontSize: '0.52rem', color: '#555' }}>Score visual geral / 100</Typography>
+        </Box>
+      </Stack>
+
+      {/* Dimension bars */}
+      <Stack spacing={0.625} sx={{ px: 1.5, py: 1 }}>
+        {data.dimensions.map((d) => {
+          const c = d.score >= 72 ? '#13DEB9' : d.score >= 55 ? '#F8A800' : '#EF4444';
+          return (
+            <Stack key={d.label} direction="row" spacing={0.75} alignItems="center">
+              <Typography sx={{ fontSize: '0.5rem', color: '#555', minWidth: 130, lineHeight: 1.3 }}>
+                {d.label}
+              </Typography>
+              <LinearProgress variant="determinate" value={d.score}
+                sx={{ flex: 1, height: 3, borderRadius: 2, bgcolor: '#1e1e1e',
+                  '& .MuiLinearProgress-bar': { bgcolor: c, borderRadius: 2 } }} />
+              <Typography sx={{ fontSize: '0.52rem', color: c, minWidth: 22, textAlign: 'right', fontWeight: 700 }}>
+                {d.score}
+              </Typography>
+            </Stack>
+          );
+        })}
+      </Stack>
+
+      {/* Suggestions */}
+      {data.suggestions && data.suggestions.length > 0 && (
+        <Box sx={{ px: 1.5, pb: 1, borderTop: '1px solid #1a1a1a', pt: 0.75 }}>
+          {data.suggestions.map((s, i) => (
+            <Typography key={i} sx={{ fontSize: '0.55rem', color: '#666', lineHeight: 1.5 }}>
+              → {s}
+            </Typography>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 function ToolCard({ tool }: { tool: ToolExecution }) {
   const color = tool.status === 'done' ? '#13DEB9' : tool.status === 'error' ? '#EF4444' : '#5D87FF';
@@ -245,8 +334,8 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
           bgcolor: '#141414', border: '1px solid #222', borderRadius: 2,
           px: 1.5, py: 1.125, ml: 3.5,
         }}>
-          <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-            {msg.text}
+          <Typography component="div" sx={{ fontSize: '0.65rem', color: 'text.secondary', lineHeight: 1.6 }}>
+            {renderMarkdown(msg.text)}
           </Typography>
         </Box>
       )}
@@ -296,6 +385,16 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
         }}>
           <Box component="img" src={msg.imageUrl} alt="arte gerada"
             sx={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+        </Box>
+      )}
+
+      {/* Visual critique card */}
+      {msg.critique && (
+        <Box sx={{ ml: 3.5 }}>
+          <Typography sx={{ fontSize: '0.5rem', color: '#444', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>
+            Análise visual
+          </Typography>
+          <CritiqueCard data={msg.critique} />
         </Box>
       )}
 
@@ -538,12 +637,13 @@ export default function ChatAgentPanel() {
       updateTool(agentMsgId, toolId, { status: 'done', detail: brandPack ? '5 formatos gerados' : 'Arte gerada com sucesso', progress: 100 });
       steps.forEach((_, i) => updatePlanRow(agentMsgId, `P${i + 1}`, 'done'));
 
+      const finalImageUrl = arteImageUrl || undefined;
       updateMsg(agentMsgId, {
         narration: undefined,
         text: brandPack
           ? '🎉 **Brand Pack completo gerado!** Story, Feed, Portrait, LinkedIn e Banner estão prontos no nó Arte.'
           : '✅ **Arte gerada!** Você pode ver e aprovar no nó Arte.',
-        imageUrl: arteImageUrl || undefined,
+        imageUrl: finalImageUrl,
         quickActions: [
           {
             label: 'Ficou ótimo, aprovar ✓',
@@ -565,12 +665,16 @@ export default function ChatAgentPanel() {
           },
         ],
       });
+      // Auto-trigger visual critique after a short pause
+      if (finalImageUrl && !brandPack) {
+        setTimeout(() => triggerCritique(finalImageUrl), 1200);
+      }
     } catch {
       clearInterval(ticker);
       updateMsg(agentMsgId, { narration: undefined });
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro ao gerar arte.' });
     }
-  }, [handleGenerateArteChain, arteImageUrl, updateMsg, updateTool, updatePlanRow]);
+  }, [handleGenerateArteChain, arteImageUrl, triggerCritique, updateMsg, updateTool, updatePlanRow]);
 
   const executeVisualInsights = useCallback(async (agentMsgId: string) => {
     const toolId = uid();
@@ -604,6 +708,44 @@ export default function ChatAgentPanel() {
       updateTool(agentMsgId, toolId, { status: 'error', detail: 'Erro na busca.' });
     }
   }, [briefing, activeFormat, updateMsg, updateTool]);
+
+  // ── Image Analyzer — auto-critique after arte generation ────────────────────
+
+  const triggerCritique = useCallback(async (imageUrl: string) => {
+    const msgId = uid();
+    setMessages((prev) => [...prev, {
+      id: msgId, role: 'agent', isTyping: true,
+    }]);
+
+    await new Promise((r) => setTimeout(r, 900));
+
+    updateMsg(msgId, {
+      isTyping: false,
+      text: 'Analisando a qualidade visual da arte com o Diretor AI…',
+    });
+
+    try {
+      const res = await fetch('/api/studio/creative/critique-arte', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: imageUrl,
+          platform: activeFormat?.platform ?? 'Instagram',
+          copy_text: copyOptions[selectedCopyIdx]?.title,
+          briefing_title: briefing?.title,
+          trigger: selectedTrigger,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        updateMsg(msgId, { text: undefined, critique: data.data });
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== msgId));
+      }
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    }
+  }, [briefing, activeFormat, copyOptions, selectedCopyIdx, selectedTrigger, updateMsg]);
 
   // ── Main dispatcher ──────────────────────────────────────────────────────────
 
@@ -891,17 +1033,20 @@ export default function ChatAgentPanel() {
   useEffect(() => {
     if (!arteImageUrl || arteImageUrl === prevArteImageUrl.current || isAgentBusy) return;
     prevArteImageUrl.current = arteImageUrl;
+    const capturedUrl = arteImageUrl;
     setTimeout(() => {
       setMessages((prev) => [...prev, {
         id: uid(), role: 'agent',
         text: 'Arte gerada! Ficou como você esperava?',
-        imageUrl: arteImageUrl,
+        imageUrl: capturedUrl,
         quickActions: [
           { label: 'Ficou ótimo, usar esta arte ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => handleInput('Aprovado! Vou usar esta arte.') },
           { label: 'Não ficou bom, regenerar ↗', icon: <IconRefresh size={11} />, color: '#5D87FF', onClick: () => triggerRejectionFlow() },
           { label: 'Ajustar estilo ↗', icon: <IconAdjustments size={11} />, color: '#F8A800', onClick: () => handleInput('Quero ajustar o estilo visual') },
         ],
       }]);
+      // Auto-trigger visual critique after approval loop
+      setTimeout(() => triggerCritique(capturedUrl), 1500);
     }, 400);
   }, [arteImageUrl]);
 
