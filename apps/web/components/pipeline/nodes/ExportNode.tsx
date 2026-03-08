@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
-import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram, IconAppWindow } from '@tabler/icons-react';
+import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram, IconBrandLinkedin, IconAppWindow } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import NodeShell from '../NodeShell';
@@ -29,6 +29,12 @@ export default function ExportNode() {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [publishError, setPublishError] = useState('');
+
+  // LinkedIn publishing
+  const [liPublishing, setLiPublishing] = useState(false);
+  const [liPublished, setLiPublished]   = useState(false);
+  const [liPublishError, setLiPublishError] = useState('');
+  const [liPostUrl, setLiPostUrl]       = useState('');
 
   const suggestedName = [
     activeFormat?.platform,
@@ -92,6 +98,42 @@ export default function ExportNode() {
       setPublishError(e?.message || 'Erro ao publicar no Meta.');
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handlePublishLinkedIn = async () => {
+    if (!arteImageUrl) return;
+    const clientId = typeof window !== 'undefined'
+      ? window.localStorage.getItem('edro_active_client_id')
+      : null;
+    if (!clientId) return;
+    setLiPublishing(true);
+    setLiPublishError('');
+    try {
+      const { apiPost } = await import('@/lib/api');
+      const caption = [selectedCopy?.title, selectedCopy?.body, selectedCopy?.cta, selectedCopy?.legenda]
+        .filter(Boolean).join('\n\n');
+      const res = await apiPost<{ success: boolean; post_url?: string; error?: string }>(
+        '/studio/creative/publish-linkedin',
+        {
+          client_id: clientId,
+          image_url: arteImageUrl,
+          caption,
+          title: selectedCopy?.title || 'Publicação',
+          briefing_id: briefing?.id || undefined,
+          creative_id: savedCreativeId || undefined,
+        },
+      );
+      if (res?.success) {
+        setLiPublished(true);
+        if (res.post_url) setLiPostUrl(res.post_url);
+      } else {
+        setLiPublishError(res?.error || 'Erro ao publicar no LinkedIn.');
+      }
+    } catch (e: any) {
+      setLiPublishError(e?.message || 'Erro ao publicar no LinkedIn.');
+    } finally {
+      setLiPublishing(false);
     }
   };
 
@@ -296,6 +338,47 @@ export default function ExportNode() {
                     }}
                   >
                     {publishing ? 'Publicando…' : 'Publicar no Meta'}
+                  </Button>
+                </Stack>
+              )}
+            </>
+          )}
+
+          {/* Publicar no LinkedIn */}
+          {arteImageUrl && (
+            <>
+              <Divider sx={{ borderColor: '#1e1e1e' }} />
+              {liPublished ? (
+                <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="center">
+                  <IconCheck size={12} color="#0A66C2" />
+                  <Typography sx={{ fontSize: '0.62rem', color: '#0A66C2' }}>
+                    Publicado no LinkedIn!{' '}
+                    {liPostUrl && (
+                      <Box component="a" href={liPostUrl} target="_blank" rel="noopener noreferrer"
+                        sx={{ color: '#0A66C2', textDecoration: 'underline' }}>
+                        Ver post
+                      </Box>
+                    )}
+                  </Typography>
+                </Stack>
+              ) : (
+                <Stack spacing={0.5}>
+                  {liPublishError && (
+                    <Typography sx={{ fontSize: '0.6rem', color: '#FF4D4D' }}>{liPublishError}</Typography>
+                  )}
+                  <Button
+                    size="small" variant="outlined" fullWidth
+                    onClick={handlePublishLinkedIn}
+                    disabled={liPublishing}
+                    startIcon={<IconBrandLinkedin size={11} />}
+                    sx={{
+                      textTransform: 'none', fontSize: '0.65rem',
+                      borderColor: '#0A66C266', color: '#0A66C2',
+                      '&:hover': { borderColor: '#0A66C2', bgcolor: 'rgba(10,102,194,0.06)' },
+                      '&.Mui-disabled': { borderColor: '#333', color: '#555' },
+                    }}
+                  >
+                    {liPublishing ? 'Publicando no LinkedIn…' : 'Publicar no LinkedIn'}
                   </Button>
                 </Stack>
               )}

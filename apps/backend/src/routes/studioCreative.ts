@@ -1117,4 +1117,29 @@ Retorne SOMENTE um JSON válido:
 
     return reply.send({ success: true, post_id: postId, platform });
   });
+
+  // ── Publicar no LinkedIn ──────────────────────────────────────────────────
+  const publishLinkedInSchema = z.object({
+    client_id:          z.string(),
+    image_url:          z.string().url(),
+    caption:            z.string(),
+    title:              z.string().optional(),
+    campaign_format_id: z.string().uuid().optional(),
+  });
+
+  app.post('/studio/creative/publish-linkedin', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const body = publishLinkedInSchema.parse(request.body);
+    try {
+      const { publishLinkedInPost } = await import('../services/integrations/linkedinService');
+      const result = await publishLinkedInPost(tenantId, body.client_id, {
+        imageUrl: body.image_url,
+        caption:  body.caption,
+        title:    body.title,
+      });
+      return reply.send({ success: true, post_id: result.postId, post_url: result.postUrl, platform: 'LinkedIn' });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
 }
