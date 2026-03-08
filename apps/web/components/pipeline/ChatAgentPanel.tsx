@@ -13,7 +13,7 @@ import {
   IconPhoto, IconPackage, IconSearch, IconBrandInstagram,
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
   IconChevronRight, IconBolt, IconPaperclip, IconBulb,
-  IconWorld, IconBox, IconX, IconDownload, IconWand, IconTrash,
+  IconWorld, IconBox, IconX, IconDownload, IconWand, IconTrash, IconPencil,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -70,7 +70,7 @@ type ChatMessage = {
   mockupType?: MockupType; // framed mockup display
 };
 
-type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'unknown';
+type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'edit_inpaint' | 'unknown';
 
 // ── Skill chips ────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,7 @@ const SKILLS = [
   { id: 'brand_pack',       label: 'Brand Pack',         icon: <IconPackage size={12} />,      color: '#13DEB9' },
   { id: 'edit_variation',   label: 'Variação',           icon: <IconRefresh size={12} />,      color: '#A855F7' },
   { id: 'edit_style',       label: 'Ajustar Estilo',     icon: <IconWand size={12} />,         color: '#F8A800' },
+  { id: 'edit_inpaint',     label: 'Inpaint',            icon: <IconPencil size={12} />,       color: '#EC4899' },
   { id: 'visual_insights',  label: 'Referências',        icon: <IconSearch size={12} />,       color: '#F8A800' },
 ];
 
@@ -90,11 +91,32 @@ function detectIntent(text: string): Intent {
   if (/brand.?pack|todos os formatos|pack completo|5 formatos/.test(t)) return 'brand_pack';
   if (/varia[çc]|variação|similar|outra vers|gerar.*varia/.test(t)) return 'edit_variation';
   if (/ajustar estilo|mudar estilo|outro estilo|estilo visual|ajust.*visual/.test(t)) return 'edit_style';
+  if (/inpaint|remov[ao]\s|troque.*fundo|mude\s.*fundo|adicione.*imagem|retire\s|elimin[ae]|coloque\s.*fundo|editar zona|modificar área/.test(t)) return 'edit_inpaint';
   if (/arte|imagem|visual|foto|design|ilustra|criativ|gerar.*arte/.test(t)) return 'arte';
   if (/copy|texto|legenda|redator|escrev|campanha.*texto|capti/.test(t)) return 'copy';
   if (/referên|insight|buscar|pesquis|inspect/.test(t)) return 'visual_insights';
   if (/briefing|campanha|lançamento|promo|produto|objetivo|cliente/.test(t)) return 'briefing';
   return 'unknown';
+}
+
+// ── Inpaint description extractor ──────────────────────────────────────────
+
+/** Extracts the edit description from natural language, falling back to the full text */
+function extractInpaintPrompt(text: string): string | null {
+  // "troque o fundo por X" / "mude o fundo para X" / "adicione X" / "remova X"
+  const patterns = [
+    /(?:troque?|substitu[ia])\s+.+?\s+(?:por|para)\s+(.+)/i,
+    /(?:mude?|altere?)\s+.+?\s+(?:para|por)\s+(.+)/i,
+    /(?:adicione?|coloque?|insira?)\s+(.+)/i,
+    /(?:remova?|retire?|elimine?)\s+(.+)/i,
+    /(?:modifique?|ajuste?|corrija?)\s+(.+)/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m?.[1]) return m[1].trim().replace(/[.!?]+$/, '');
+  }
+  // If no pattern matched but it looks like a short description, use the full text
+  return text.length < 120 ? text : null;
 }
 
 function uid() {
@@ -900,12 +922,47 @@ export default function ChatAgentPanel() {
     { label: 'Cinematográfico', color: '#A855F7' },
   ];
 
-  const executeEditImage = useCallback(async (agentMsgId: string, mode: 'variation' | 'style', mood?: string) => {
+  const INPAINT_SUGGESTIONS = [
+    { label: 'Trocar fundo',         prompt: 'troque o fundo por algo mais adequado à campanha, mantendo o sujeito principal', color: '#5D87FF' },
+    { label: 'Remover elemento',     prompt: 'remova elementos desnecessários do fundo e limpe a composição',                  color: '#E85219' },
+    { label: 'Ajustar iluminação',   prompt: 'melhore a iluminação e o contraste da imagem para impacto visual',               color: '#F8A800' },
+    { label: 'Adicionar textura',    prompt: 'adicione textura e profundidade ao fundo para enriquecer a composição',           color: '#13DEB9' },
+    { label: 'Recolorir tons',       prompt: 'recolora os tons da imagem para uma paleta mais vibrante e moderna',             color: '#A855F7' },
+    { label: 'Estilo cinematográfico', prompt: 'aplique estilo cinematográfico com filme granulado e cores ricas',               color: '#EC4899' },
+  ];
+
+  const executeEditImage = useCallback(async (agentMsgId: string, mode: 'variation' | 'style' | 'inpaint', mood?: string) => {
     if (!arteImageUrl) {
       updateMsg(agentMsgId, {
         isTyping: false,
         text: 'Não há arte gerada para editar ainda. Gere uma arte primeiro.',
         quickActions: [{ label: 'Gerar arte ↗', icon: <IconPalette size={11} />, color: '#5D87FF', onClick: () => sendSkill('arte') }],
+      });
+      return;
+    }
+
+    // For inpaint: show current image + preset options if no description provided
+    if (mode === 'inpaint' && !mood) {
+      updateMsg(agentMsgId, {
+        isTyping: false,
+        text: 'Qual modificação você quer aplicar à arte?',
+        imageUrl: arteImageUrl,
+        quickActions: INPAINT_SUGGESTIONS.map((s) => ({
+          label: s.label,
+          icon: <IconPencil size={11} />,
+          color: s.color,
+          onClick: () => {
+            updateMsg(agentMsgId, { quickActions: [] });
+            const newId = uid();
+            setMessages((prev) => [...prev,
+              { id: uid(), role: 'user', text: s.label },
+              { id: newId, role: 'agent', isTyping: true },
+            ]);
+            setIsAgentBusy(true);
+            executeEditImage(newId, 'inpaint', s.prompt)
+              .finally(() => { setIsAgentBusy(false); setActiveMsgId(null); });
+          },
+        })),
       });
       return;
     }
@@ -936,12 +993,18 @@ export default function ChatAgentPanel() {
     }
 
     const toolId = uid();
+    const editLabel =
+      mode === 'variation' ? 'variação'
+      : mode === 'inpaint' ? `inpaint — ${mood?.slice(0, 30)}…`
+      : mood ?? 'estilo';
     updateMsg(agentMsgId, {
       isTyping: false,
       text: mode === 'variation'
         ? 'Gerando uma variação similar mantendo a composição…'
-        : `Aplicando direção **${mood}** à arte atual…`,
-      tools: [{ id: toolId, name: `✏️ Edit Image — ${mode === 'variation' ? 'variação' : mood}`, status: 'running', detail: 'Processando com Flux…', progress: 0 }],
+        : mode === 'inpaint'
+          ? `Aplicando edição dirigida: **${mood?.slice(0, 60)}**…`
+          : `Aplicando direção **${mood}** à arte atual…`,
+      tools: [{ id: toolId, name: `✏️ Edit Image — ${editLabel}`, status: 'running', detail: 'Processando com Flux…', progress: 0 }],
     });
 
     let prog = 0;
@@ -959,20 +1022,28 @@ export default function ChatAgentPanel() {
           mode,
           prompt: mood,
           aspectRatio: activeFormat?.format?.includes('9:16') ? '9:16' : activeFormat?.format?.includes('4:5') ? '4:5' : '1:1',
-          strength: mode === 'variation' ? 0.7 : 0.4,
+          strength: mode === 'variation' ? 0.7 : mode === 'inpaint' ? 0.85 : 0.4,
         }),
       });
       clearInterval(ticker);
       const data = await res.json();
       if (data.success && data.imageUrl) {
         updateTool(agentMsgId, toolId, { status: 'done', detail: 'Edição concluída', progress: 100 });
+        const successText =
+          mode === 'variation' ? '✅ **Variação gerada!**'
+          : mode === 'inpaint' ? '✅ **Edição aplicada à arte!**'
+          : `✅ **Estilo ${mood} aplicado!**`;
         updateMsg(agentMsgId, {
-          text: mode === 'variation' ? '✅ **Variação gerada!**' : `✅ **Estilo ${mood} aplicado!**`,
+          text: successText,
           imageUrl: data.imageUrl,
           quickActions: [
             { label: 'Ficou ótimo, usar esta ✓', icon: <IconCheck size={11} />, color: '#13DEB9', onClick: () => { setApprovedStyleUrl(data.imageUrl); handleInput('Aprovado!'); } },
             { label: '📱 Celular', icon: <IconPhoto size={11} />, color: '#7C3AED', onClick: () => updateMsg(agentMsgId, { mockupType: 'phone', quickActions: [] }) },
-            { label: 'Outra variação ↗', icon: <IconRefresh size={11} />, color: '#555', onClick: () => handleInput('Gerar uma variação da arte') },
+            ...(mode === 'inpaint' ? [
+              { label: 'Outra edição ↗', icon: <IconPencil size={11} />, color: '#EC4899', onClick: () => handleInput('Editar outra área da imagem') },
+            ] : [
+              { label: 'Outra variação ↗', icon: <IconRefresh size={11} />, color: '#555', onClick: () => handleInput('Gerar uma variação da arte') },
+            ]),
           ],
         });
         setTimeout(() => triggerCritique(data.imageUrl), 1200);
@@ -1166,6 +1237,10 @@ export default function ChatAgentPanel() {
         await executeEditImage(agentMsgId, 'variation');
       } else if (intent === 'edit_style') {
         await executeEditImage(agentMsgId, 'style');
+      } else if (intent === 'edit_inpaint') {
+        // Try to extract the edit description directly from the user's message
+        const extracted = extractInpaintPrompt(text);
+        await executeEditImage(agentMsgId, 'inpaint', extracted || undefined);
       } else if (intent === 'visual_insights') {
         await executeVisualInsights(agentMsgId);
       } else if (intent === 'briefing') {
@@ -1207,6 +1282,7 @@ export default function ChatAgentPanel() {
       brand_pack:      'Gerar brand pack — todos os 5 formatos',
       edit_variation:  'Gerar uma variação da arte',
       edit_style:      'Ajustar estilo visual da arte',
+      edit_inpaint:    'Editar área específica da imagem',
       visual_insights: 'Buscar referências visuais do mercado',
       briefing:        'Configurar briefing via agente',
     };
