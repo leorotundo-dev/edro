@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
-import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram } from '@tabler/icons-react';
+import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram, IconAppWindow } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import NodeShell from '../NodeShell';
@@ -173,6 +173,23 @@ export default function ExportNode() {
             }}
           >
             Exportar Peça
+          </Button>
+
+          {/* App Mode — simplified view for client approval */}
+          <Button
+            variant="outlined" size="small" fullWidth
+            component={Link}
+            href={`/studio/pipeline/${briefing?.id}/app`}
+            target="_blank"
+            startIcon={<IconAppWindow size={12} />}
+            sx={{
+              textTransform: 'none', fontSize: '0.65rem',
+              borderColor: '#7C3AED44', color: '#7C3AED',
+              bgcolor: 'rgba(124,58,237,0.04)',
+              '&:hover': { borderColor: '#7C3AED', bgcolor: 'rgba(124,58,237,0.08)' },
+            }}
+          >
+            Abrir App Mode
           </Button>
 
           {/* Save as recipe */}
