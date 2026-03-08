@@ -739,7 +739,7 @@ Regras:
   // ── Touch Edit — img2img style/variation via Fal.ai flux-dev ────────────
   const editImageSchema = z.object({
     imageUrl:    z.string().url(),
-    mode:        z.enum(['style', 'variation']),
+    mode:        z.enum(['style', 'variation', 'inpaint']),
     prompt:      z.string().optional(),
     strength:    z.number().min(0.1).max(0.95).default(0.45),
     aspectRatio: z.string().optional().default('1:1'),
@@ -748,6 +748,25 @@ Regras:
   app.post('/studio/creative/edit-image', async (request: any, reply) => {
     const body = editImageSchema.parse(request.body);
     try {
+      // ── Inpaint & Variation: true img2img (content-guided) ──────────────
+      if (body.mode === 'inpaint' || body.mode === 'variation') {
+        const { generateImg2ImgWithFal } = await import('../services/ai/falAiService');
+
+        const prompt = body.mode === 'inpaint' && body.prompt
+          ? `${body.prompt}, high quality, professional advertising photography, photorealistic`
+          : 'high quality variation, same concept and composition, photorealistic advertising creative';
+
+        const result = await generateImg2ImgWithFal({
+          prompt,
+          imageUrl:    body.imageUrl,
+          strength:    body.mode === 'inpaint' ? (body.strength ?? 0.85) : 0.70,
+          aspectRatio: body.aspectRatio,
+        });
+
+        return reply.send({ success: true, imageUrl: result.imageUrl });
+      }
+
+      // ── Style: IP-Adapter style guidance (mood transfer) ────────────────
       const { generateImageWithFal } = await import('../services/ai/falAiService');
 
       const moodPrompts: Record<string, string> = {
@@ -758,17 +777,17 @@ Regras:
         cinematografico: 'cinematic widescreen, film grain, bokeh, golden hour, editorial photography',
       };
 
-      const effectivePrompt = body.mode === 'style' && body.prompt
+      const stylePrompt = body.prompt
         ? `${moodPrompts[body.prompt.toLowerCase()] ?? body.prompt}, high quality advertising creative`
-        : `high quality variation, photorealistic, advertising creative, professional composition`;
+        : 'high quality advertising creative, professional composition';
 
       const result = await generateImageWithFal({
-        prompt: effectivePrompt,
-        aspectRatio: body.aspectRatio,
-        numImages: 1,
-        model: 'flux-dev',
-        referenceImageUrl: body.imageUrl,
-        referenceImageStrength: body.mode === 'variation' ? 0.7 : body.strength,
+        prompt:                 stylePrompt,
+        aspectRatio:            body.aspectRatio,
+        numImages:              1,
+        model:                  'flux-dev',
+        referenceImageUrl:      body.imageUrl,
+        referenceImageStrength: body.strength,
       });
 
       return reply.send({ success: true, imageUrl: result.imageUrl });
