@@ -164,6 +164,19 @@ const ARTE_CHAIN_STEPS = [
   'P6 Formats — Multi-formato',
 ];
 
+// ── Trigger knowledge map ───────────────────────────────────────────────────
+
+const TRIGGER_MAP: Record<string, { name: string; desc: string; use: string }> = {
+  G01: { name: 'Escassez',       desc: 'Cria urgência pela limitação de disponibilidade ou tempo',           use: 'Promoções por tempo limitado, estoque restrito, ofertas exclusivas' },
+  G02: { name: 'Autoridade',     desc: 'Usa credibilidade e expertise para persuadir e gerar confiança',     use: 'Especialistas, certificações, prêmios, mídia mentions' },
+  G03: { name: 'Prova Social',   desc: 'Aproveita o comportamento coletivo e depoimentos reais',             use: 'Reviews, cases de sucesso, números de usuários, UGC' },
+  G04: { name: 'Reciprocidade',  desc: 'Oferece valor genuíno antes de pedir algo em troca',                 use: 'Conteúdo gratuito, demos, trials, checklists, guias' },
+  G05: { name: 'Curiosidade',    desc: 'Cria lacuna de informação que provoca engajamento imediato',         use: 'Headlines de teaser, listas numeradas, "você sabia?"' },
+  G06: { name: 'Identidade',     desc: 'Conecta o produto ou causa à identidade e valores do público',       use: 'Segmentação por valores, comunidade, estilo de vida, pertencimento' },
+  G07: { name: 'Antecipação',    desc: 'Gera expectativa e hype antes do lançamento ou evento',              use: 'Pré-vendas, teaser, contagem regressiva, beta exclusivo' },
+  G08: { name: 'Medo de Perder', desc: 'Amplifica a dor da perda para motivar ação imediata (FOMO)',         use: 'Últimas vagas, expiração de desconto, acesso limitado' },
+};
+
 const COPY_NARRATIONS: string[] = [
   'Lendo identidade de marca, voz e diretrizes do cliente…',
   'Mapeando ângulos persuasivos e apelos emocionais para o funil…',
@@ -1140,7 +1153,105 @@ export default function ChatAgentPanel() {
     };
 
     try {
-      if (intent === 'copy') {
+      // ── @mention commands — inject pipeline context ───────────────────────
+      const mentionCmd = /@(briefing|copy|gatilho|receita|referencia)/i.exec(text);
+      if (mentionCmd) {
+        const m = mentionCmd[1].toLowerCase();
+
+        if (m === 'briefing') {
+          const lines = [
+            '**Contexto do briefing atual**\n',
+            `Cliente: **${briefing?.client_name || '—'}**`,
+            `Produto/Campanha: **${briefing?.title || '—'}**`,
+            `Tom: **${tone || '—'}**`,
+            `AMD (Ação Mental Desejada): **${amd || '—'}**`,
+            `Funil: **${funnelPhase || '—'}**`,
+            `Gatilho: **${selectedTrigger || 'nenhum'}**`,
+            `Formato ativo: **${activeFormat?.format || '—'}** · ${activeFormat?.platform || '—'}`,
+            `Status: ${briefingConfirmed ? '✓ confirmado' : '⏳ aguardando confirmação'}`,
+          ];
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: lines.join('\n'),
+            quickActions: [
+              { label: 'Gerar copy com este briefing ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') },
+              { label: 'Gerar arte ↗', icon: <IconPalette size={11} />, color: '#5D87FF', onClick: () => sendSkill('arte') },
+            ],
+          });
+
+        } else if (m === 'copy') {
+          const copy = copyOptions[selectedCopyIdx];
+          if (!copy) {
+            updateMsg(agentMsgId, {
+              isTyping: false,
+              text: 'Nenhuma copy gerada ainda.',
+              quickActions: [{ label: 'Gerar copy agora ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') }],
+            });
+          } else {
+            updateMsg(agentMsgId, {
+              isTyping: false,
+              text: `**Copy selecionada** ${copyApproved ? '✓ aprovada' : '· aguardando aprovação'}\n\n"${copy.title}"\n\n${(copy as any).body || (copy as any).content || ''}`.trim(),
+              quickActions: [
+                { label: 'Gerar variação ↗', icon: <IconRefresh size={11} />, color: '#5D87FF', onClick: () => sendSkill('copy') },
+                { label: 'Gerar arte com esta copy ↗', icon: <IconPalette size={11} />, color: '#13DEB9', onClick: () => sendSkill('arte') },
+              ],
+            });
+          }
+
+        } else if (m === 'gatilho') {
+          const trig = TRIGGER_MAP[selectedTrigger || ''];
+          if (!selectedTrigger) {
+            updateMsg(agentMsgId, {
+              isTyping: false,
+              text: 'Nenhum gatilho ativo.\n\nConfigure no nó **Briefing → Gatilho Persuasivo** para orientar o tom da copy.',
+              quickActions: Object.entries(TRIGGER_MAP).slice(0, 4).map(([code, t]) => ({
+                label: `${code} — ${t.name}`,
+                icon: <IconBolt size={11} />,
+                color: '#F8A800',
+                onClick: () => updateMsg(agentMsgId, {
+                  text: `**${code} — ${t.name}**\n\n${t.desc}\n\n**Quando usar:** ${t.use}`,
+                  quickActions: [{ label: 'Gerar copy com este gatilho ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') }],
+                }),
+              })),
+            });
+          } else {
+            updateMsg(agentMsgId, {
+              isTyping: false,
+              text: trig
+                ? `**Gatilho ${selectedTrigger} — ${trig.name}**\n\n${trig.desc}\n\n**Quando usar:** ${trig.use}`
+                : `**Gatilho ativo: ${selectedTrigger}**\n\nEste gatilho orientará o tom persuasivo da próxima copy gerada.`,
+              quickActions: [
+                { label: 'Gerar copy com este gatilho ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') },
+              ],
+            });
+          }
+
+        } else if (m === 'receita') {
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: 'As receitas controlam quais ingredientes o Agente Redator prioriza (tom, apelo emocional, AMD, trigger).\n\nPara configurar, acesse o nó **Briefing → Ingredientes Ativos**.',
+            quickActions: [
+              { label: 'Ver briefing completo ↗', icon: <IconChevronRight size={11} />, color: '#F8A800', onClick: () => handleInput('@briefing') },
+              { label: 'Gerar copy agora ↗', icon: <IconTypography size={11} />, color: '#E85219', onClick: () => sendSkill('copy') },
+            ],
+          });
+
+        } else if (m === 'referencia') {
+          const count = visualReferences.length;
+          updateMsg(agentMsgId, {
+            isTyping: false,
+            text: count
+              ? `**${count} referência(s) visual(is) ativa(s)**\n\nEstas imagens serão usadas pelo Agente Diretor de Arte como inspiração estética e guia de composição na próxima geração.`
+              : 'Nenhuma referência visual ativa.\n\nAdicione imagens de referência para guiar o estilo da arte gerada.',
+            quickActions: [
+              { label: '📎 Adicionar imagem', icon: <IconPaperclip size={11} />, color: '#5D87FF', onClick: () => fileInputRef.current?.click() },
+              { label: 'Buscar referências online ↗', icon: <IconSearch size={11} />, color: '#F8A800', onClick: () => sendSkill('visual_insights') },
+              ...(count > 0 ? [{ label: 'Gerar arte com referências ↗', icon: <IconPalette size={11} />, color: '#13DEB9', onClick: () => sendSkill('arte') }] : []),
+            ],
+          });
+        }
+
+      } else if (intent === 'copy') {
         // Clarifying question: ask about tone if not set and never asked before
         if (!tone && !hasAskedCopyClarification.current) {
           hasAskedCopyClarification.current = true;
