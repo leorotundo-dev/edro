@@ -14,7 +14,7 @@ import Slider from '@mui/material/Slider';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
   IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
-  IconColorSwatch, IconSparkles, IconPencil, IconScissors, IconZoomIn,
+  IconColorSwatch, IconSparkles, IconPencil, IconScissors, IconZoomIn, IconPlayerPlay,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -125,6 +125,8 @@ export default function ArteNode() {
   const [editError, setEditError] = useState('');
   const [removeBgLoading, setRemoveBgLoading] = useState(false);
   const [upscaleLoading, setUpscaleLoading]   = useState(false);
+  const [animateLoading, setAnimateLoading]   = useState(false);
+  const [videoUrl, setVideoUrl]               = useState('');
 
   // Build the visual directive string from DA selections
   const buildVisualDirective = (cam: string, light: string, comp: string, extra: string) => {
@@ -213,6 +215,24 @@ export default function ArteNode() {
       else setEditError(data.error || 'Erro ao fazer upscale');
     } catch { setEditError('Erro de conexão'); }
     finally { setUpscaleLoading(false); }
+  };
+
+  const handleAnimate = async () => {
+    const currentUrl = arteImageUrls[selectedArteIdx] || arteImageUrl;
+    if (!currentUrl) return;
+    setAnimateLoading(true);
+    setEditError('');
+    try {
+      const res = await fetch('/api/studio/creative/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl, duration: 5 }),
+      });
+      const data = await res.json();
+      if (data.success && data.videoUrl) setVideoUrl(data.videoUrl);
+      else setEditError(data.error || 'Erro ao gerar vídeo');
+    } catch { setEditError('Erro de conexão'); }
+    finally { setAnimateLoading(false); }
   };
 
   const brandPackFormats = arteChainResult?.multiFormat ?? [];
@@ -831,6 +851,16 @@ export default function ArteNode() {
                   >
                     {upscaleLoading ? 'Aplicando upscale (~30s)…' : 'Upscale 4×'}
                   </Button>
+                  {/* Animate → Video */}
+                  <Button variant="outlined" size="small" fullWidth
+                    disabled={animateLoading || editLoading || removeBgLoading || upscaleLoading}
+                    onClick={handleAnimate}
+                    startIcon={animateLoading ? <CircularProgress size={11} sx={{ color: '#A855F7' }} /> : <IconPlayerPlay size={11} />}
+                    sx={{ borderColor: '#A855F733', color: '#A855F7', fontSize: '0.65rem',
+                      textTransform: 'none', '&:hover': { borderColor: '#A855F7', bgcolor: 'rgba(168,85,247,0.05)' }, justifyContent: 'flex-start', px: 1.25 }}
+                  >
+                    {animateLoading ? 'Gerando vídeo (~60s)…' : 'Animar → Vídeo 5s'}
+                  </Button>
                   {/* Style */}
                   <Button variant="outlined" size="small" fullWidth
                     onClick={() => { setShowStylePanel(p => !p); setShowInpaintPanel(false); }}
@@ -934,6 +964,23 @@ export default function ArteNode() {
               </Box>
             </Stack>
           )}
+        {/* ── Video result ── */}
+        {videoUrl && (
+          <Box sx={{ mt: 1, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #A855F733', bgcolor: '#0d0d0d' }}>
+            <Typography sx={{ fontSize: '0.5rem', color: '#A855F7', px: 1, pt: 0.75, pb: 0.5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              Vídeo gerado (Kling 5s)
+            </Typography>
+            <Box component="video" src={videoUrl} controls loop
+              sx={{ width: '100%', display: 'block', maxHeight: 220, objectFit: 'contain' }} />
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1, py: 0.5 }}>
+              <Box component="a" href={videoUrl} download="arte-animada.mp4"
+                sx={{ fontSize: '0.55rem', color: '#A855F7', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.4,
+                  '&:hover': { color: '#c084fc' } }}>
+                <IconDownload size={11} /> Baixar MP4
+              </Box>
+            </Box>
+          </Box>
+        )}
         </Stack>
       </NodeShell>
 

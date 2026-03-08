@@ -155,6 +155,71 @@ export function isFalConfigured(): boolean {
   return Boolean(env.FAL_API_KEY);
 }
 
+// ── Image → Video (Kling via fal.ai queue) ────────────────────────────────────
+
+/**
+ * Converts a static image to a short video clip using Kling v1.6 via fal.ai.
+ * Uses fal.ai queue (async), polls server-side — returns when done.
+ * Typical wait: 60–120s.
+ */
+export async function imageToVideoWithFal(params: {
+  imageUrl: string;
+  prompt?: string;
+  duration?: 5 | 10;
+}): Promise<{ videoUrl: string }> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+
+  const model = 'fal-ai/kling-video/v1.6/standard/image-to-video';
+
+  // Step 1: Enqueue
+  const queueRes = await fetch(`https://queue.fal.run/${model}`, {
+    method: 'POST',
+    headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      image_url: params.imageUrl,
+      prompt:    params.prompt ?? 'cinematic smooth motion, high quality video',
+      duration:  String(params.duration ?? 5),
+    }),
+  });
+
+  if (!queueRes.ok) {
+    const err = await queueRes.text().catch(() => 'unknown');
+    throw new Error(`fal.ai Kling queue error (${queueRes.status}): ${err.slice(0, 300)}`);
+  }
+
+  const queue = await queueRes.json() as { request_id: string };
+  const requestId = queue.request_id;
+
+  const statusUrl = `https://queue.fal.run/${model}/requests/${requestId}/status`;
+  const resultUrl = `https://queue.fal.run/${model}/requests/${requestId}`;
+
+  // Step 2: Poll until done (max 3 min, 5s intervals)
+  for (let i = 0; i < 36; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+
+    const statusRes = await fetch(statusUrl, {
+      headers: { Authorization: `Key ${apiKey}` },
+    });
+    const status = await statusRes.json() as { status: string };
+
+    if (status.status === 'COMPLETED') {
+      const resultRes = await fetch(resultUrl, {
+        headers: { Authorization: `Key ${apiKey}` },
+      });
+      const result = await resultRes.json() as { video?: { url: string }; error?: string };
+      if (result.error) throw new Error(`fal.ai Kling error: ${result.error}`);
+      const url = result.video?.url;
+      if (!url) throw new Error('fal.ai Kling: URL do vídeo não retornada');
+      return { videoUrl: url };
+    }
+
+    if (status.status === 'FAILED') throw new Error('fal.ai Kling: geração de vídeo falhou');
+  }
+
+  throw new Error('fal.ai Kling: timeout (3 min) — tente novamente');
+}
+
 // ─── Image-to-Image (true content editing, not IP-Adapter) ────────────────────
 
 /**

@@ -827,6 +827,28 @@ Regras:
     }
   });
 
+  // ── Image → Video — fal.ai Kling ─────────────────────────────────────────
+  const imageToVideoSchema = z.object({
+    imageUrl: z.string().url(),
+    prompt:   z.string().optional(),
+    duration: z.number().int().min(5).max(10).optional(),
+  });
+
+  app.post('/studio/creative/image-to-video', async (request: any, reply) => {
+    const body = imageToVideoSchema.parse(request.body);
+    try {
+      const { imageToVideoWithFal } = await import('../services/ai/falAiService');
+      const result = await imageToVideoWithFal({
+        imageUrl: body.imageUrl,
+        prompt:   body.prompt,
+        duration: (body.duration ?? 5) as 5 | 10,
+      });
+      return reply.send({ success: true, videoUrl: result.videoUrl });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Plugin 4 DA: Arte Visual Critique ─────────────────────────────────────
   const arteSchema = z.object({
     image_url:      z.string(),

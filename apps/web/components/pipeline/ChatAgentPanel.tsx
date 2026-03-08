@@ -14,7 +14,7 @@ import {
   IconCheck, IconRefresh, IconAdjustments, IconRobot,
   IconChevronRight, IconBolt, IconPaperclip, IconBulb,
   IconWorld, IconBox, IconX, IconDownload, IconWand, IconTrash, IconPencil,
-  IconScissors, IconZoomIn,
+  IconScissors, IconZoomIn, IconPlayerPlay,
 } from '@tabler/icons-react';
 import { usePipeline } from './PipelineContext';
 
@@ -69,9 +69,10 @@ type ChatMessage = {
   narration?: string; // live status line updated as steps run
   critique?: CritiqueData; // visual analysis results
   mockupType?: MockupType; // framed mockup display
+  videoUrl?: string; // generated video (image-to-video)
 };
 
-type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'edit_inpaint' | 'remove_bg' | 'upscale' | 'unknown';
+type Intent = 'copy' | 'arte' | 'brand_pack' | 'visual_insights' | 'briefing' | 'edit_variation' | 'edit_style' | 'edit_inpaint' | 'remove_bg' | 'upscale' | 'image_to_video' | 'unknown';
 
 // ── Skill chips ────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ const SKILLS = [
   { id: 'visual_insights',  label: 'Referências',        icon: <IconSearch size={12} />,       color: '#F8A800' },
   { id: 'remove_bg',        label: 'Remover fundo',      icon: <IconScissors size={12} />,     color: '#EF4444' },
   { id: 'upscale',          label: 'Upscale 4×',         icon: <IconZoomIn size={12} />,       color: '#13DEB9' },
+  { id: 'image_to_video',  label: 'Animar → Vídeo',     icon: <IconPlayerPlay size={12} />,   color: '#A855F7' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -96,6 +98,7 @@ function detectIntent(text: string): Intent {
   if (/ajustar estilo|mudar estilo|outro estilo|estilo visual|ajust.*visual/.test(t)) return 'edit_style';
   if (/remov[ao].*(fundo|background|bg)|fundo transparente|png transparente|retirar.*fundo/.test(t)) return 'remove_bg';
   if (/upscale|ampliar|aumentar.*(qualidade|resolucao|tamanho)|4x|alta.resolucao|hd\b/.test(t)) return 'upscale';
+  if (/animar|animação|video|vídeo|motion|reel|gif animado|dar.*vida|mover|movement/.test(t)) return 'image_to_video';
   if (/inpaint|remov[ao]\s|troque.*fundo|mude\s.*fundo|adicione.*imagem|retire\s|elimin[ae]|coloque\s.*fundo|editar zona|modificar área/.test(t)) return 'edit_inpaint';
   if (/arte|imagem|visual|foto|design|ilustra|criativ|gerar.*arte/.test(t)) return 'arte';
   if (/copy|texto|legenda|redator|escrev|campanha.*texto|capti/.test(t)) return 'copy';
@@ -581,6 +584,24 @@ function AgentBubble({ msg }: { msg: ChatMessage }) {
         </Box>
       )}
 
+      {/* Video result */}
+      {msg.videoUrl && (
+        <Box sx={{ ml: 3.5, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #A855F733', bgcolor: '#0d0d0d', maxWidth: 240 }}>
+          <Typography sx={{ fontSize: '0.5rem', color: '#A855F7', px: 1, pt: 0.75, pb: 0.5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            Vídeo · Kling 5s
+          </Typography>
+          <Box component="video" src={msg.videoUrl} controls loop
+            sx={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'contain' }} />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1, py: 0.5 }}>
+            <Box component="a" href={msg.videoUrl} download="arte-animada.mp4"
+              sx={{ fontSize: '0.55rem', color: '#A855F7', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.4,
+                '&:hover': { color: '#c084fc' } }}>
+              <IconDownload size={11} /> Baixar MP4
+            </Box>
+          </Box>
+        </Box>
+      )}
+
       {/* Visual critique card */}
       {msg.critique && (
         <Box sx={{ ml: 3.5 }}>
@@ -932,6 +953,12 @@ export default function ChatAgentPanel() {
             color: '#13DEB9',
             onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('upscale 4x'); },
           },
+          {
+            label: '▶️ Animar → Vídeo',
+            icon: <IconPlayerPlay size={11} />,
+            color: '#A855F7',
+            onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('animar arte'); },
+          },
         ],
       });
       // Auto-trigger visual critique after a short pause
@@ -1196,6 +1223,41 @@ export default function ChatAgentPanel() {
       updateMsg(agentMsgId, { isTyping: false, text: 'Erro de conexão no upscale.' });
     }
   }, [arteImageUrl, updateMsg, setApprovedStyleUrl]);
+
+  const executeImageToVideo = useCallback(async (agentMsgId: string) => {
+    const currentUrl = arteImageUrl || arteImageUrls?.[0];
+    if (!currentUrl) {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Gere uma arte primeiro para animar.' });
+      return;
+    }
+    updateMsg(agentMsgId, { narration: 'Animando imagem com Kling AI (~60s)…', isTyping: true });
+    try {
+      const res = await fetch('/api/studio/creative/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentUrl, duration: 5 }),
+      });
+      const data = await res.json();
+      if (data.success && data.videoUrl) {
+        updateMsg(agentMsgId, {
+          text: 'Vídeo de 5s gerado ✓',
+          videoUrl: data.videoUrl,
+          isTyping: false,
+          narration: undefined,
+          quickActions: [
+            { label: '⬆️ Upscale da imagem', icon: <IconZoomIn size={11} />, color: '#13DEB9',
+              onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('upscale 4x'); } },
+            { label: '✂️ Remover fundo',     icon: <IconScissors size={11} />, color: '#EF4444',
+              onClick: () => { updateMsg(agentMsgId, { quickActions: [] }); handleInput('remover fundo'); } },
+          ],
+        });
+      } else {
+        updateMsg(agentMsgId, { isTyping: false, text: `Erro ao gerar vídeo: ${data.error || 'falha desconhecida'}` });
+      }
+    } catch {
+      updateMsg(agentMsgId, { isTyping: false, text: 'Erro de conexão ao gerar vídeo.' });
+    }
+  }, [arteImageUrl, arteImageUrls, updateMsg]);
 
   // ── Image Analyzer — auto-critique after arte generation ────────────────────
 
@@ -1483,6 +1545,8 @@ export default function ChatAgentPanel() {
         await executeRemoveBg(agentMsgId);
       } else if (intent === 'upscale') {
         await executeUpscale(agentMsgId);
+      } else if (intent === 'image_to_video') {
+        await executeImageToVideo(agentMsgId);
       } else if (intent === 'visual_insights') {
         await executeVisualInsights(agentMsgId);
       } else if (intent === 'briefing') {
@@ -1515,7 +1579,7 @@ export default function ChatAgentPanel() {
       setIsAgentBusy(false);
       setActiveMsgId(null);
     }
-  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeEditImage, executeRemoveBg, executeUpscale, executeVisualInsights, updateMsg]);
+  }, [isAgentBusy, tone, visualReferences, executeCopy, executeArte, executeEditImage, executeRemoveBg, executeUpscale, executeImageToVideo, executeVisualInsights, updateMsg]);
 
   const sendSkill = useCallback((skillId: string) => {
     const labels: Record<string, string> = {
@@ -1527,6 +1591,9 @@ export default function ChatAgentPanel() {
       edit_inpaint:    'Editar área específica da imagem',
       visual_insights: 'Buscar referências visuais do mercado',
       briefing:        'Configurar briefing via agente',
+      remove_bg:       'remover fundo',
+      upscale:         'upscale 4x',
+      image_to_video:  'animar arte',
     };
     handleInput(labels[skillId] || skillId);
   }, [handleInput]);
@@ -1536,7 +1603,7 @@ export default function ChatAgentPanel() {
     const SHORTCUT_MAP: Record<string, string> = {
       c: 'copy', a: 'arte', b: 'brand_pack',
       v: 'edit_variation', s: 'edit_style', i: 'edit_inpaint', r: 'visual_insights',
-      x: 'remove_bg', u: 'upscale',
+      x: 'remove_bg', u: 'upscale', m: 'image_to_video',
     };
     const handler = (e: KeyboardEvent) => {
       if (inputFocused || isAgentBusy || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -1785,7 +1852,7 @@ export default function ChatAgentPanel() {
         const SKILL_KEYS: Record<string, string> = {
           copy: 'C', arte: 'A', brand_pack: 'B',
           edit_variation: 'V', edit_style: 'S', edit_inpaint: 'I', visual_insights: 'R',
-          remove_bg: 'X', upscale: 'U',
+          remove_bg: 'X', upscale: 'U', image_to_video: 'M',
         };
         return (
           <Box sx={{ px: 1.5, py: 0.875, borderBottom: '1px solid #141414' }}>
