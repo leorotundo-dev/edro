@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
-import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram, IconBrandLinkedin, IconAppWindow } from '@tabler/icons-react';
+import { IconDownload, IconChefHat, IconCheck, IconMail, IconCalendar, IconChartBar, IconBrain, IconBookmark, IconBrandInstagram, IconBrandLinkedin, IconAppWindow, IconShare, IconCopy } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import NodeShell from '../NodeShell';
@@ -35,6 +35,30 @@ export default function ExportNode() {
   const [liPublished, setLiPublished]   = useState(false);
   const [liPublishError, setLiPublishError] = useState('');
   const [liPostUrl, setLiPostUrl]       = useState('');
+
+  // Collaborative share link
+  const [shareUrl, setShareUrl]         = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied]   = useState(false);
+
+  const handleGenerateShareLink = async () => {
+    if (!briefing?.id) return;
+    setShareLoading(true);
+    try {
+      const { apiPost } = await import('@/lib/api');
+      const res = await apiPost<{ success: boolean; url: string }>(`/studio/pipeline/${briefing.id}/share-token`, {});
+      if (res?.url) setShareUrl(res.url);
+    } catch { /* silent */ } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleCopyShareUrl = () => {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl).catch(() => {});
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  };
 
   const suggestedName = [
     activeFormat?.platform,
@@ -384,6 +408,46 @@ export default function ExportNode() {
               )}
             </>
           )}
+
+          {/* ── Compartilhar com cliente (collaborative link) ── */}
+          <Divider sx={{ borderColor: '#1e1e1e' }} />
+          <Stack spacing={0.75}>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <IconShare size={11} color="#5D87FF" />
+              <Typography sx={{ fontSize: '0.6rem', color: '#5D87FF', fontWeight: 600 }}>
+                Compartilhar com Cliente
+              </Typography>
+            </Stack>
+            {!shareUrl ? (
+              <Button
+                size="small" variant="outlined" fullWidth
+                onClick={handleGenerateShareLink}
+                disabled={shareLoading || !briefing?.id}
+                startIcon={shareLoading ? <Typography sx={{ fontSize: '0.6rem' }}>…</Typography> : <IconShare size={11} />}
+                sx={{ textTransform: 'none', fontSize: '0.65rem', borderColor: '#5D87FF44', color: '#5D87FF',
+                  '&:hover': { borderColor: '#5D87FF', bgcolor: 'rgba(93,135,255,0.06)' } }}
+              >
+                {shareLoading ? 'Gerando link…' : 'Gerar link de revisão'}
+              </Button>
+            ) : (
+              <Stack spacing={0.5}>
+                <Box sx={{ p: 0.75, borderRadius: 1, bgcolor: '#111', border: '1px solid #1e1e1e',
+                  display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.55rem', color: '#888', flex: 1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {shareUrl}
+                  </Typography>
+                  <Box onClick={handleCopyShareUrl} sx={{ cursor: 'pointer', flexShrink: 0, color: shareCopied ? '#13DEB9' : '#555',
+                    '&:hover': { color: '#5D87FF' } }}>
+                    {shareCopied ? <IconCheck size={12} color="#13DEB9" /> : <IconCopy size={12} />}
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.55rem', color: '#444' }}>
+                  Link válido por 30 dias · cliente comenta e aprova sem precisar de login
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
         </Stack>
       </NodeShell>
     </Box>

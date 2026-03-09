@@ -1,0 +1,26 @@
+{
+  "name": "Edro Studio",
+  "short_name": "Edro",
+  "description": "Gestão editorial e operacional de agência",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#E85219",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/brand/icon-orange.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/icon-orange.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "pt-BR"
+}

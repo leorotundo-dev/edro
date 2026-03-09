@@ -597,6 +597,26 @@ export const TOOLS: ToolDefinition[] = [
     required: ['text'],
     category: 'action',
   },
+  {
+    name: 'consult_gemini',
+    description: 'Consulta o Gemini (Google) como especialista para obter uma perspectiva criativa ou analítica diferente. Use quando quiser um segundo ponto de vista sobre um conceito, copy, estratégia ou análise de mercado. O Gemini é especialmente bom em: raciocínio multimodal, análise de tendências culturais, criatividade visual e síntese de contexto amplo.',
+    parameters: {
+      question: { type: 'string', description: 'Pergunta ou briefing completo para o Gemini responder. Seja específico sobre o que você quer que ele contribua.' },
+      context: { type: 'string', description: 'Contexto adicional relevante (cliente, produto, público-alvo, restrições)' },
+    },
+    required: ['question'],
+    category: 'action',
+  },
+  {
+    name: 'consult_openai',
+    description: 'Consulta o GPT-4o (OpenAI) como especialista para obter uma perspectiva criativa ou analítica diferente. Use quando quiser um segundo ponto de vista sobre conceito, copy, estratégia, naming ou posicionamento. O GPT-4o é especialmente bom em: redação criativa, brainstorming de naming, variações de copy, análise de tom e voz de marca.',
+    parameters: {
+      question: { type: 'string', description: 'Pergunta ou briefing completo para o GPT-4o responder. Seja específico sobre o que você quer que ele contribua.' },
+      context: { type: 'string', description: 'Contexto adicional relevante (cliente, produto, público-alvo, restrições)' },
+    },
+    required: ['question'],
+    category: 'action',
+  },
 ];
 
 // ── Provider Format Converters ──────────────────────────────────

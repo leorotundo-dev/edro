@@ -8,10 +8,19 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
-import { IconSend, IconBrain, IconUser } from '@tabler/icons-react';
+import CircularProgress from '@mui/material/CircularProgress';
+import Tooltip from '@mui/material/Tooltip';
+import { IconSend, IconBrain, IconUser, IconPaperclip, IconX, IconFile } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
 import ArtifactCard, { Artifact } from './ArtifactCard';
+
+type AttachedFile = {
+  name: string;
+  text: string;
+  chars: number;
+  is_audio?: boolean;
+};
 
 const EDRO_ORANGE = '#E85219';
 
@@ -196,6 +205,9 @@ export default function JarvisChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep a ref to always have the latest clientId (avoids stale closures in event handlers)
@@ -222,13 +234,51 @@ export default function JarvisChatPanel() {
     }).catch(() => {});
   }, [conversationId, clientId]);
 
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length || !clientIdRef.current) return;
+    e.target.value = '';
+
+    setUploading(true);
+    const results: AttachedFile[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`/api/clients/${clientIdRef.current}/jarvis/upload`, {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        results.push({ name: data.filename, text: data.text, chars: data.chars });
+      } catch (err: any) {
+        console.error('[Jarvis] Upload failed:', err);
+      }
+    }
+    if (results.length) setAttachedFiles(prev => [...prev, ...results]);
+    setUploading(false);
+  }, []);
+
+  const removeAttachment = useCallback((idx: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
   const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
     const msg = (text ?? input).trim();
     const cid = clientIdOverride ?? clientIdRef.current;
     if (!msg || loading || !cid) return;
 
+    const filesToSend = attachedFiles.slice();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date().toISOString() }]);
+    setAttachedFiles([]);
+
+    // Build user display message
+    const displayContent = filesToSend.length
+      ? `${msg}\n\n📎 ${filesToSend.map(f => f.name).join(', ')}`
+      : msg;
+    setMessages(prev => [...prev, { role: 'user', content: displayContent, timestamp: new Date().toISOString() }]);
     setLoading(true);
 
     try {
@@ -243,7 +293,14 @@ export default function JarvisChatPanel() {
 
       const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
         `/clients/${cid}/planning/chat`,
-        { message: msg, conversationId, mode: 'agent', context_page: pathname, studio_context: studioContext }
+        {
+          message: msg,
+          conversationId,
+          mode: 'agent',
+          context_page: pathname,
+          studio_context: studioContext,
+          inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
+        }
       );
 
       const data = res?.data;
@@ -381,7 +438,52 @@ export default function JarvisChatPanel() {
 
       {/* Input */}
       <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+        {/* Attached file chips */}
+        {attachedFiles.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+            {attachedFiles.map((f, i) => (
+              <Chip
+                key={i}
+                icon={<IconFile size={12} />}
+                label={f.name.length > 24 ? f.name.slice(0, 22) + '…' : f.name}
+                size="small"
+                onDelete={() => removeAttachment(i)}
+                deleteIcon={<IconX size={12} />}
+                sx={{ fontSize: '0.7rem', bgcolor: `${EDRO_ORANGE}15`, borderColor: `${EDRO_ORANGE}40`, border: 1 }}
+              />
+            ))}
+          </Box>
+        )}
+
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+          {/* Hidden file input — visually hidden, triggered by paperclip button */}
+          <Box component="label" aria-hidden="true" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc,.txt,.md,.csv,.mp3,.mp4,.m4a,.wav,.ogg,.webm"
+              multiple
+              title="Anexar arquivo ao Jarvis"
+              aria-label="Anexar arquivo ao Jarvis"
+              tabIndex={-1}
+              onChange={handleFileChange}
+            />
+          </Box>
+
+          {/* Paperclip button */}
+          <Tooltip title="Anexar arquivo (PDF, DOCX, TXT, MP3, M4A, WAV…)">
+            <span>
+              <IconButton
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || noClient || uploading}
+                size="small"
+                sx={{ color: 'text.secondary', flexShrink: 0, '&:hover': { color: EDRO_ORANGE } }}
+              >
+                {uploading ? <CircularProgress size={16} sx={{ color: EDRO_ORANGE }} /> : <IconPaperclip size={18} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+
           <TextField
             fullWidth
             multiline
@@ -402,7 +504,7 @@ export default function JarvisChatPanel() {
           />
           <IconButton
             onClick={() => sendMessage()}
-            disabled={loading || !input.trim() || noClient}
+            disabled={loading || (!input.trim() && !attachedFiles.length) || noClient}
             sx={{
               bgcolor: EDRO_ORANGE, color: '#fff', width: 36, height: 36, flexShrink: 0,
               '&:hover': { bgcolor: '#c94215' },

@@ -1137,6 +1137,36 @@ Retorne SOMENTE um JSON válido:
     }
   });
 
+  // ── Publicar no TikTok ───────────────────────────────────────────────────
+  const publishTikTokSchema = z.object({
+    client_id:       z.string(),
+    video_url:       z.string().url(),
+    caption:         z.string(),
+    privacy:         z.enum(['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']).optional(),
+    disable_duet:    z.boolean().optional(),
+    disable_stitch:  z.boolean().optional(),
+    disable_comment: z.boolean().optional(),
+  });
+
+  app.post('/studio/creative/publish-tiktok', async (request: any, reply) => {
+    const tenantId = request.tenantId as string;
+    const body = publishTikTokSchema.parse(request.body);
+    try {
+      const { publishTikTokVideo } = await import('../services/integrations/tiktokService');
+      const result = await publishTikTokVideo(tenantId, body.client_id, {
+        videoUrl:       body.video_url,
+        caption:        body.caption,
+        privacy:        body.privacy,
+        disableDuet:    body.disable_duet,
+        disableStitch:  body.disable_stitch,
+        disableComment: body.disable_comment,
+      });
+      return reply.send({ success: true, publish_id: result.publishId, share_url: result.shareUrl, platform: 'TikTok' });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Publicar no LinkedIn ──────────────────────────────────────────────────
   const publishLinkedInSchema = z.object({
     client_id:          z.string(),
@@ -1159,6 +1189,324 @@ Retorne SOMENTE um JSON válido:
       return reply.send({ success: true, post_id: result.postId, post_url: result.postUrl, platform: 'LinkedIn' });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Pipeline Collaboration — share tokens, comments, client approvals
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Generate a share token (agency only) ──────────────────────────────────
+  app.post('/studio/pipeline/:briefingId/share-token', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.tenantId as string;
+    const { briefingId } = request.params as { briefingId: string };
+    const { client_email, client_name } = (request.body || {}) as { client_email?: string; client_name?: string };
+
+    const { rows: [row] } = await query<{ token: string }>(
+      `INSERT INTO pipeline_share_tokens (briefing_id, tenant_id, client_email, client_name)
+       VALUES ($1, $2, $3, $4) RETURNING token`,
+      [briefingId, tenantId, client_email ?? null, client_name ?? null],
+    );
+
+    const APP_URL = process.env.APP_URL || 'https://app.edro.digital';
+    return reply.send({
+      success: true,
+      token: row.token,
+      url: `${APP_URL}/collab/${briefingId}?token=${row.token}`,
+    });
+  });
+
+  // ── Validate a share token (public — no auth) ─────────────────────────────
+  app.get('/studio/pipeline/collab/validate', async (request: any, reply: any) => {
+    const { briefingId, token } = request.query as { briefingId: string; token: string };
+    const { rows } = await query<{
+      tenant_id: string; client_name: string | null; client_email: string | null; expires_at: string;
+    }>(
+      `SELECT tenant_id, client_name, client_email, expires_at
+       FROM pipeline_share_tokens
+       WHERE briefing_id = $1 AND token = $2 AND expires_at > now()`,
+      [briefingId, token],
+    );
+    if (!rows.length) return reply.status(401).send({ valid: false });
+    const { rows: [session] } = await query<{ state: any }>(
+      `SELECT state FROM pipeline_sessions WHERE briefing_id = $1`,
+      [briefingId],
+    );
+    return reply.send({ valid: true, meta: rows[0], state: session?.state ?? {} });
+  });
+
+  // ── Get comments for a briefing (agency or client via token) ─────────────
+  app.get('/studio/pipeline/:briefingId/comments', async (request: any, reply: any) => {
+    const { briefingId } = request.params as { briefingId: string };
+    const { token } = request.query as { token?: string };
+
+    // Allow if agency auth OR valid token
+    let authorized = false;
+    if (request.user?.tenant_id) {
+      authorized = true;
+    } else if (token) {
+      const { rows } = await query(
+        `SELECT id FROM pipeline_share_tokens WHERE briefing_id = $1 AND token = $2 AND expires_at > now()`,
+        [briefingId, token],
+      );
+      authorized = rows.length > 0;
+    }
+    if (!authorized) return reply.status(401).send({ error: 'unauthorized' });
+
+    const { rows } = await query(
+      `SELECT id, section, author_type, author_name, body, resolved, created_at
+       FROM pipeline_comments WHERE briefing_id = $1 ORDER BY created_at ASC`,
+      [briefingId],
+    );
+    return reply.send({ comments: rows });
+  });
+
+  // ── Post a comment (agency or client via token) ───────────────────────────
+  app.post('/studio/pipeline/:briefingId/comments', async (request: any, reply: any) => {
+    const { briefingId } = request.params as { briefingId: string };
+    const body = (request.body || {}) as {
+      section: string; body: string; author_name?: string;
+      author_email?: string; token?: string;
+    };
+
+    let tenantId: string | null = null;
+    let authorType = 'agency';
+    let shareToken: string | null = null;
+
+    if (request.user?.tenant_id) {
+      tenantId  = request.user.tenant_id;
+      authorType = 'agency';
+    } else if (body.token) {
+      const { rows } = await query<{ tenant_id: string }>(
+        `SELECT tenant_id FROM pipeline_share_tokens WHERE briefing_id = $1 AND token = $2 AND expires_at > now()`,
+        [briefingId, body.token],
+      );
+      if (!rows.length) return reply.status(401).send({ error: 'invalid_token' });
+      tenantId   = rows[0].tenant_id;
+      authorType = 'client';
+      shareToken = body.token;
+    } else {
+      return reply.status(401).send({ error: 'unauthorized' });
+    }
+
+    if (!body.body?.trim()) return reply.status(400).send({ error: 'body_required' });
+    const validSections = ['copy', 'arte', 'approval', 'general'];
+    if (!validSections.includes(body.section)) return reply.status(400).send({ error: 'invalid_section' });
+
+    const { rows: [comment] } = await query(
+      `INSERT INTO pipeline_comments (briefing_id, tenant_id, section, author_type, author_name, author_email, body, share_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [briefingId, tenantId, body.section, authorType,
+       body.author_name || (authorType === 'agency' ? 'Agência' : 'Cliente'),
+       body.author_email ?? null, body.body.trim(), shareToken],
+    );
+
+    return reply.send({ success: true, comment });
+  });
+
+  // ── Resolve a comment (agency only) ──────────────────────────────────────
+  app.patch('/studio/pipeline/:briefingId/comments/:commentId/resolve', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply: any) => {
+    const { briefingId, commentId } = request.params as { briefingId: string; commentId: string };
+    await query(
+      `UPDATE pipeline_comments SET resolved = true, resolved_at = now(), resolved_by = $1
+       WHERE id = $2 AND briefing_id = $3`,
+      [request.user?.email || 'agency', commentId, briefingId],
+    );
+    return reply.send({ success: true });
+  });
+
+  // ── Client approval (public via token) ───────────────────────────────────
+  app.post('/studio/pipeline/:briefingId/client-approve', async (request: any, reply: any) => {
+    const { briefingId } = request.params as { briefingId: string };
+    const body = (request.body || {}) as {
+      token: string; decision: 'approved' | 'rejected';
+      section: string; feedback?: string;
+      client_name?: string; client_email?: string;
+    };
+
+    if (!body.token) return reply.status(401).send({ error: 'token_required' });
+    const { rows: [tokenRow] } = await query<{ tenant_id: string; client_name: string | null; client_email: string | null }>(
+      `SELECT tenant_id, client_name, client_email FROM pipeline_share_tokens
+       WHERE briefing_id = $1 AND token = $2 AND expires_at > now()`,
+      [briefingId, body.token],
+    );
+    if (!tokenRow) return reply.status(401).send({ error: 'invalid_token' });
+
+    const { rows: [approval] } = await query(
+      `INSERT INTO pipeline_client_approvals
+         (briefing_id, tenant_id, share_token, client_name, client_email, decision, feedback, section)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (briefing_id, share_token, section) DO UPDATE
+         SET decision = EXCLUDED.decision, feedback = EXCLUDED.feedback, created_at = now()
+       RETURNING *`,
+      [
+        briefingId, tokenRow.tenant_id, body.token,
+        body.client_name || tokenRow.client_name || 'Cliente',
+        body.client_email || tokenRow.client_email || null,
+        body.decision, body.feedback ?? null,
+        body.section || 'final',
+      ],
+    );
+
+    // Notify agency (non-blocking)
+    if (body.decision === 'approved' || body.decision === 'rejected') {
+      const { notifyEvent } = await import('../services/notificationService').catch(() => ({ notifyEvent: null }));
+      if (notifyEvent) {
+        const { rows: admins } = await query(
+          `SELECT eu.id, eu.email FROM edro_users eu
+           JOIN tenant_users tu ON tu.user_id = eu.id
+           WHERE tu.tenant_id = $1 AND tu.role IN ('admin','owner') LIMIT 3`,
+          [tokenRow.tenant_id],
+        ).catch(() => ({ rows: [] as any[] }));
+        const clientLabel = body.client_name || tokenRow.client_name || 'Cliente';
+        const emoji = body.decision === 'approved' ? '✅' : '❌';
+        Promise.allSettled(admins.map((a: any) =>
+          notifyEvent!({
+            event: 'pipeline_client_approval',
+            tenantId: tokenRow.tenant_id,
+            userId:   a.id,
+            title:    `${emoji} ${clientLabel} ${body.decision === 'approved' ? 'aprovou' : 'rejeitou'} a peça`,
+            body:     body.feedback ? `"${body.feedback.slice(0, 120)}"` : 'Aprovação via App Mode.',
+            recipientEmail: a.email,
+            payload:  { briefingId, decision: body.decision, section: body.section },
+          })
+        )).catch(() => {});
+      }
+    }
+
+    return reply.send({ success: true, approval });
+  });
+
+  // ── Get approvals for a briefing (agency) ────────────────────────────────
+  app.get('/studio/pipeline/:briefingId/client-approvals', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply: any) => {
+    const { briefingId } = request.params as { briefingId: string };
+    const { rows } = await query(
+      `SELECT pca.*, pst.client_name AS token_client_name
+       FROM pipeline_client_approvals pca
+       LEFT JOIN pipeline_share_tokens pst ON pst.token = pca.share_token
+       WHERE pca.briefing_id = $1
+       ORDER BY pca.created_at DESC`,
+      [briefingId],
+    );
+    return reply.send({ approvals: rows });
+  });
+
+  // ── POST /studio/creative/adapt-multi-format ─────────────────────────────────
+  // Adapts approved copy for multiple platform formats in a single Claude call.
+  // Returns: { adaptations: { [formatId]: { short_text, caption, hashtags, cta } } }
+  app.post('/studio/creative/adapt-multi-format', async (request: any, reply: any) => {
+    const { copy_title, copy_body, copy_cta, formats, trigger, platform } =
+      request.body as {
+        copy_title: string;
+        copy_body: string;
+        copy_cta?: string;
+        formats: { id: string; label: string; platform: string; ratio: string }[];
+        trigger?: string;
+        platform?: string;
+      };
+
+    if (!copy_body || !formats?.length) {
+      return reply.status(400).send({ error: 'copy_body and formats are required' });
+    }
+
+    const formatList = formats.map((f) =>
+      `  - id="${f.id}" label="${f.label}" platform="${f.platform}" aspect_ratio="${f.ratio}"`
+    ).join('\n');
+
+    const prompt = `Você é um especialista em copywriting multicanal. Adapte o copy abaixo para cada formato especificado, respeitando os limites e convenções de cada plataforma.
+
+COPY ORIGINAL:
+Título: ${copy_title || ''}
+Corpo: ${copy_body}
+CTA: ${copy_cta || ''}
+${trigger ? `Gatilho psicológico: ${trigger}` : ''}
+
+FORMATOS ALVO:
+${formatList}
+
+REGRAS DE ADAPTAÇÃO:
+- Instagram Story (9:16): texto muito curto (máx 80 chars), impacto imediato, emoji, CTA direto
+- Instagram Feed (1:1): legenda média (máx 200 chars) + 5-8 hashtags relevantes
+- Instagram Reels caption: gancho curto + emojis + call-to-action + hashtags
+- LinkedIn (4:5): tom profissional, sem emoji excessivo, benefício claro, máx 150 chars
+- Twitter/X Banner (3:1): frase de impacto ultra-curta (máx 50 chars), sem hashtag
+- YouTube Thumbnail (16:9): texto para overlay na thumbnail (máx 30 chars, caps)
+
+Retorne APENAS JSON válido:
+{
+  "adaptations": {
+    "<id>": {
+      "short_text": "texto principal adaptado",
+      "caption": "legenda completa com emojis e hashtags quando aplicável",
+      "cta": "call to action adaptado"
+    }
+  }
+}`;
+
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+      const res = await generateCompletion({ prompt, maxTokens: 1000, temperature: 0.3 });
+      const jsonMatch = res.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON in response');
+      const parsed = JSON.parse(jsonMatch[0]);
+      return reply.send({ success: true, adaptations: parsed.adaptations || {} });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message });
+    }
+  });
+
+  // ── Schedule a post for future publishing ──────────────────────────────────
+  const scheduleSchema = z.object({
+    platform:     z.string(),
+    scheduled_at: z.string(),                 // ISO datetime string
+    copy_text:    z.string().optional(),
+    image_url:    z.string().url().optional(),
+    video_url:    z.string().url().optional(),
+    briefing_id:  z.string().uuid().optional(),
+    client_id:    z.string().optional(),
+  });
+
+  app.post('/studio/creative/schedule', async (request: any, reply: any) => {
+    const tenantId = request.tenantId as string;
+    const body     = scheduleSchema.parse(request.body);
+
+    try {
+      // Resolve client_id from briefing if not provided directly
+      let clientId = body.client_id;
+      if (!clientId && body.briefing_id) {
+        const { query: dbQuery } = await import('../db/db');
+        const { rows } = await dbQuery(
+          `SELECT main_client_id FROM edro_briefings WHERE id = $1 AND tenant_id = $2`,
+          [body.briefing_id, tenantId],
+        );
+        clientId = rows[0]?.main_client_id ?? undefined;
+      }
+
+      const { enqueuePublish } = await import('../repos/publishRepo');
+      await enqueuePublish({
+        tenant_id:     tenantId,
+        post_asset_id: body.briefing_id ?? `manual-${Date.now()}`,
+        scheduled_for: new Date(body.scheduled_at).toISOString(),
+        channel:       body.platform,
+        payload: {
+          copy_text:   body.copy_text,
+          image_url:   body.image_url,
+          video_url:   body.video_url,
+          briefing_id: body.briefing_id,
+          client_id:   clientId,
+          tenant_id:   tenantId,
+        },
+      });
+
+      return reply.send({ success: true, scheduled_at: body.scheduled_at, platform: body.platform });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message });
     }
   });
 }

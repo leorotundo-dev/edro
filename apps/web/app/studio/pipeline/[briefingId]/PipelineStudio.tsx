@@ -10,7 +10,7 @@ import '@xyflow/react/dist/style.css';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { IconRobot, IconEye } from '@tabler/icons-react';
+import { IconRobot, IconEye, IconMessage, IconCheck, IconCircleCheck, IconCircleX } from '@tabler/icons-react';
 
 import {
   PipelineContext,
@@ -53,7 +53,7 @@ import NoteNode from '@/components/pipeline/nodes/NoteNode';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
 import CanvasToolbar from '@/components/pipeline/CanvasToolbar';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -257,24 +257,229 @@ interface PipelineStudioProps {
   briefingId: string;
 }
 
+// ── Comments panel — client collaboration comments ─────────────────────────────
+
+type PipelineComment = {
+  id: string;
+  section: 'copy' | 'arte' | 'approval' | 'general';
+  author_type: 'agency' | 'client';
+  author_name: string;
+  body: string;
+  resolved: boolean;
+  created_at: string;
+};
+
+type ClientApproval = {
+  id: string;
+  section: string;
+  decision: 'approved' | 'rejected';
+  feedback: string | null;
+  created_at: string;
+};
+
+const SECTION_LABELS: Record<string, string> = {
+  copy: 'Copy', arte: 'Arte', approval: 'Aprovação', general: 'Geral',
+};
+
+function CommentsPanel({ briefingId }: { briefingId: string }) {
+  const [comments, setComments] = useState<PipelineComment[]>([]);
+  const [approvals, setApprovals] = useState<ClientApproval[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [resolving, setResolving] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [commRes, apprRes] = await Promise.all([
+        apiGet<{ comments: PipelineComment[] }>(`/studio/pipeline/${briefingId}/comments`),
+        apiGet<{ approvals: ClientApproval[] }>(`/studio/pipeline/${briefingId}/client-approvals`),
+      ]);
+      setComments(commRes.comments || []);
+      setApprovals(apprRes.approvals || []);
+    } catch { /* ignore */ } finally {
+      setLoading(false);
+    }
+  }, [briefingId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const sendReply = async () => {
+    if (!replyText.trim()) return;
+    setSending(true);
+    try {
+      await apiPost(`/studio/pipeline/${briefingId}/comments`, {
+        section: 'general',
+        author_type: 'agency',
+        body: replyText.trim(),
+      });
+      setReplyText('');
+      load();
+    } catch { /* ignore */ } finally {
+      setSending(false);
+    }
+  };
+
+  const resolveComment = async (commentId: string) => {
+    setResolving(commentId);
+    try {
+      await apiPatch(`/studio/pipeline/${briefingId}/comments/${commentId}/resolve`, {});
+      setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, resolved: true } : c));
+    } catch { /* ignore */ } finally {
+      setResolving(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography sx={{ fontSize: '0.75rem', color: '#666' }}>Carregando…</Typography>
+      </Box>
+    );
+  }
+
+  const unresolvedComments = comments.filter((c) => !c.resolved);
+  const resolvedComments   = comments.filter((c) => c.resolved);
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Approvals section */}
+      {approvals.length > 0 && (
+        <Box sx={{ p: 1.5, borderBottom: '1px solid #1a1a1a' }}>
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#888', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Decisões do Cliente
+          </Typography>
+          <Stack spacing={0.75}>
+            {approvals.map((a) => (
+              <Stack key={a.id} direction="row" spacing={1} alignItems="flex-start">
+                {a.decision === 'approved'
+                  ? <IconCircleCheck size={14} color="#13DEB9" style={{ flexShrink: 0, marginTop: 1 }} />
+                  : <IconCircleX    size={14} color="#FF4D4D" style={{ flexShrink: 0, marginTop: 1 }} />
+                }
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', color: a.decision === 'approved' ? '#13DEB9' : '#FF4D4D', fontWeight: 700 }}>
+                    {SECTION_LABELS[a.section] || a.section} — {a.decision === 'approved' ? 'Aprovado' : 'Revisão solicitada'}
+                  </Typography>
+                  {a.feedback && (
+                    <Typography sx={{ fontSize: '0.68rem', color: '#aaa', mt: 0.25 }}>{a.feedback}</Typography>
+                  )}
+                </Box>
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Comments list */}
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+        {unresolvedComments.length === 0 && resolvedComments.length === 0 ? (
+          <Typography sx={{ fontSize: '0.72rem', color: '#555', textAlign: 'center', mt: 3 }}>
+            Nenhum comentário ainda.
+          </Typography>
+        ) : (
+          <Stack spacing={1}>
+            {unresolvedComments.map((c) => (
+              <Box key={c.id} sx={{
+                p: 1.25, borderRadius: 1.5,
+                bgcolor: c.author_type === 'client' ? 'rgba(168,85,247,0.08)' : 'rgba(93,135,255,0.06)',
+                border: '1px solid',
+                borderColor: c.author_type === 'client' ? '#A855F733' : '#5D87FF22',
+              }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center">
+                    <Box sx={{
+                      width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700,
+                      bgcolor: c.author_type === 'client' ? '#A855F7' : '#5D87FF', color: '#fff',
+                    }}>
+                      {c.author_name[0]?.toUpperCase()}
+                    </Box>
+                    <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: c.author_type === 'client' ? '#A855F7' : '#5D87FF' }}>
+                      {c.author_name}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.58rem', color: '#555' }}>
+                      {SECTION_LABELS[c.section]}
+                    </Typography>
+                  </Stack>
+                  {c.author_type === 'client' && (
+                    <Box
+                      onClick={() => resolveComment(c.id)}
+                      sx={{ cursor: 'pointer', color: resolving === c.id ? '#555' : '#13DEB9', '&:hover': { opacity: 0.8 } }}
+                    >
+                      <IconCheck size={12} />
+                    </Box>
+                  )}
+                </Stack>
+                <Typography sx={{ fontSize: '0.72rem', color: '#ccc', lineHeight: 1.5 }}>{c.body}</Typography>
+                <Typography sx={{ fontSize: '0.58rem', color: '#444', mt: 0.5 }}>
+                  {new Date(c.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </Typography>
+              </Box>
+            ))}
+            {resolvedComments.length > 0 && (
+              <Typography sx={{ fontSize: '0.6rem', color: '#444', mt: 0.5 }}>
+                + {resolvedComments.length} resolvido{resolvedComments.length > 1 ? 's' : ''}
+              </Typography>
+            )}
+          </Stack>
+        )}
+      </Box>
+
+      {/* Reply input */}
+      <Box sx={{ p: 1.25, borderTop: '1px solid #1a1a1a', flexShrink: 0 }}>
+        <Stack direction="row" spacing={0.75} alignItems="flex-end">
+          <Box
+            component="textarea"
+            value={replyText}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReplyText(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
+            }}
+            placeholder="Responder ao cliente…"
+            rows={2}
+            sx={{
+              flex: 1, resize: 'none', bgcolor: '#111', border: '1px solid #2a2a2a', borderRadius: 1,
+              color: '#e0e0e0', fontSize: '0.72rem', p: 0.875, outline: 'none', fontFamily: 'inherit',
+              '&:focus': { borderColor: '#A855F744' },
+            }}
+          />
+          <Box
+            onClick={sendReply}
+            sx={{
+              cursor: sending ? 'default' : 'pointer', bgcolor: '#A855F7', color: '#fff',
+              borderRadius: 1, px: 1, py: 0.75, fontSize: '0.65rem', fontWeight: 700,
+              opacity: sending ? 0.5 : 1, whiteSpace: 'nowrap', userSelect: 'none',
+              '&:hover': { bgcolor: sending ? '#A855F7' : '#9333ea' },
+            }}
+          >
+            {sending ? '…' : 'Enviar'}
+          </Box>
+        </Stack>
+        <Typography sx={{ fontSize: '0.58rem', color: '#444', mt: 0.5 }}>Enter para enviar · Shift+Enter nova linha</Typography>
+      </Box>
+    </Box>
+  );
+}
+
 // ── Right panel — tab switcher between Chat Agent and Live Preview ─────────────
 
-function RightPanel() {
-  const [activeTab, setActiveTab] = useState<'agent' | 'preview'>('agent');
+function RightPanel({ briefingId }: { briefingId: string }) {
+  const [activeTab, setActiveTab] = useState<'agent' | 'preview' | 'comments'>('agent');
 
   return (
     <Box sx={{ flex: '0 0 38%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Tab bar */}
       <Stack direction="row" sx={{ borderBottom: '1px solid #1a1a1a', bgcolor: '#0a0a0a', flexShrink: 0 }}>
         {[
-          { id: 'agent',   label: 'Agente IA', icon: <IconRobot size={12} />,  color: '#5D87FF' },
-          { id: 'preview', label: 'Preview',   icon: <IconEye size={12} />,    color: '#13DEB9' },
+          { id: 'agent',    label: 'Agente IA',    icon: <IconRobot   size={12} />, color: '#5D87FF' },
+          { id: 'preview',  label: 'Preview',      icon: <IconEye     size={12} />, color: '#13DEB9' },
+          { id: 'comments', label: 'Comentários',  icon: <IconMessage size={12} />, color: '#A855F7' },
         ].map((tab) => {
           const active = activeTab === tab.id;
           return (
             <Box
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'agent' | 'preview')}
+              onClick={() => setActiveTab(tab.id as 'agent' | 'preview' | 'comments')}
               sx={{
                 flex: 1, py: 0.875, px: 1.5, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.625,
@@ -300,7 +505,9 @@ function RightPanel() {
 
       {/* Panel content */}
       <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {activeTab === 'agent' ? <ChatAgentPanel /> : <PreviewPanel />}
+        {activeTab === 'agent'    ? <ChatAgentPanel /> :
+         activeTab === 'preview'  ? <PreviewPanel />   :
+         <CommentsPanel briefingId={briefingId} />}
       </Box>
     </Box>
   );
@@ -1060,7 +1267,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
         </Box>
 
         {/* Right panel — 38% — Chat Agent (primary) + Preview tab */}
-        <RightPanel />
+        <RightPanel briefingId={briefingId} />
       </Box>
     </PipelineContext.Provider>
   );

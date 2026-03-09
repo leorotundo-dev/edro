@@ -27,6 +27,8 @@ const ADMIN_SUBMENU_ITEMS: AdminSubmenuItem[] = [
   { label: 'Reportei', value: 'reportei', kind: 'route', href: '/admin/reportei' },
   { label: 'Equipe', value: 'equipe', kind: 'route', href: '/admin/equipe' },
   { label: 'Pagamentos', value: 'pagamentos', kind: 'route', href: '/admin/pagamentos' },
+  { label: 'Inteligência IA', value: 'intelligence', kind: 'route', href: '/admin/intelligence' },
+  { label: 'WhatsApp Grupos', value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
   { label: 'Settings', value: 'settings', kind: 'route', href: '/settings' },
 ];
 

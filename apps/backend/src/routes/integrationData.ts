@@ -38,6 +38,28 @@ export default async function integrationDataRoutes(app: FastifyInstance) {
     }
   });
 
+  // WhatsApp messages history for a client
+  app.get('/clients/:clientId/whatsapp/messages', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const { query: dbQuery } = await import('../db/db');
+    try {
+      const { rows } = await dbQuery(
+        `SELECT id, raw_text, type, created_at, briefing_id
+         FROM whatsapp_messages
+         WHERE tenant_id = $1 AND client_id = $2
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [tenantId, clientId],
+      );
+      return reply.send({ messages: rows });
+    } catch {
+      return reply.send({ messages: [] });
+    }
+  });
+
   // Fetch Google Analytics data for a client
   app.get('/clients/:clientId/integrations/google-analytics', {
     preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],

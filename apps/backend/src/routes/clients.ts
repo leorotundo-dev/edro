@@ -1369,6 +1369,62 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
     return { ok: true };
   });
 
+  // GET /admin/intelligence — global Account Manager alerts + top Copy ROI across all clients
+  app.get('/admin/intelligence', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.user.tenant_id;
+    try {
+      const [alertsRes, roiRes, workersRes] = await Promise.all([
+        // All active alerts across clients
+        query(
+          `SELECT ama.id, ama.client_id, cl.name AS client_name,
+                  ama.alert_type, ama.priority, ama.title, ama.body,
+                  ama.recommended_action, ama.health_score, ama.roi_score,
+                  ama.status, ama.computed_at
+           FROM account_manager_alerts ama
+           JOIN clients cl ON cl.id = ama.client_id
+           WHERE ama.tenant_id = $1 AND ama.status = 'active'
+           ORDER BY
+             CASE ama.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+             ama.computed_at DESC
+           LIMIT 100`,
+          [tenantId],
+        ),
+        // Top 20 copy ROI scores
+        query(
+          `SELECT crs.id, crs.client_id, cl.name AS client_name,
+                  crs.roi_score, crs.roi_label, crs.roi_pct,
+                  crs.avg_ctr, crs.avg_roas, crs.fogg_composite,
+                  crs.total_impressions, crs.total_clicks,
+                  crs.summary, crs.computed_at
+           FROM copy_roi_scores crs
+           JOIN clients cl ON cl.id = crs.client_id
+           WHERE crs.tenant_id = $1
+           ORDER BY crs.roi_score DESC
+           LIMIT 20`,
+          [tenantId],
+        ),
+        // Basic worker heartbeat (last metaSync, copyRoi, accountManager)
+        query(
+          `SELECT
+             MAX(CASE WHEN provider = 'meta'    THEN last_sync_at END) AS meta_last_sync,
+             COUNT(CASE WHEN provider = 'meta' AND status = 'active' THEN 1 END)::int AS meta_connectors
+           FROM connectors WHERE tenant_id = $1`,
+          [tenantId],
+        ),
+      ]);
+
+      return reply.send({
+        alerts:    alertsRes.rows,
+        top_roi:   roiRes.rows,
+        workers:   workersRes.rows[0] ?? {},
+      });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   // GET /clients/brand-assets/file/:key — serve brand asset file (no auth, keys are opaque)
   app.get('/clients/brand-assets/file/:key', async (request: any, reply) => {
     const rawKey = decodeURIComponent((request.params as any).key || '');

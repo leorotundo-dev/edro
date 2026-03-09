@@ -31,6 +31,9 @@ import {
   IconBrandMeta,
   IconBrandFacebook,
   IconBrandGoogle,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandWhatsapp,
   IconChartBar,
   IconChartLine,
   IconDotsVertical,
@@ -45,6 +48,9 @@ import {
 const PROVIDER_VISUALS: Record<string, { Icon: React.ComponentType<{ size?: number; color?: string }>; color: string }> = {
   reportei:          { Icon: IconChartBar,      color: '#E85219' },
   meta:              { Icon: IconBrandMeta,      color: '#1877F2' },
+  linkedin:          { Icon: IconBrandLinkedin,  color: '#0A66C2' },
+  tiktok:            { Icon: IconBrandTiktok,    color: '#69C9D0' },
+  whatsapp:          { Icon: IconBrandWhatsapp,  color: '#25D366' },
   meta_ads:          { Icon: IconBrandFacebook,  color: '#1877F2' },
   google_ads:        { Icon: IconBrandGoogle,    color: '#EA4335' },
   google_analytics:  { Icon: IconChartLine,      color: '#F9AB00' },
@@ -151,6 +157,40 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
     configFields: [
       { key: 'webhook_url', label: 'Webhook URL', type: 'url', required: true },
       { key: 'secret_key', label: 'Secret Key', type: 'password', required: false },
+    ],
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    description: 'Publica posts e imagens diretamente no LinkedIn da empresa ou perfil pessoal',
+    icon: '💼',
+    configFields: [
+      { key: 'access_token', label: 'Access Token (LinkedIn OAuth)', type: 'password', required: true },
+      { key: 'person_id', label: 'Person ID (urn:li:person:XXX)', type: 'text', required: false },
+      { key: 'organization_id', label: 'Organization ID — empresa (preferido)', type: 'text', required: false },
+    ],
+  },
+  {
+    id: 'tiktok',
+    name: 'TikTok',
+    description: 'Publica vídeos gerados pela IA (Kling) diretamente no TikTok',
+    icon: '🎵',
+    configFields: [
+      { key: 'access_token', label: 'Access Token (TikTok for Business)', type: 'password', required: true },
+      { key: 'open_id', label: 'Open ID (user identifier)', type: 'text', required: true },
+    ],
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Briefing',
+    description: 'Cliente envia áudio/texto no WhatsApp → Edro cria briefing automaticamente via IA',
+    icon: '💬',
+    configFields: [
+      { key: 'access_token', label: 'Access Token (Meta Cloud API)', type: 'password', required: true },
+      { key: 'phone_number_id', label: 'Phone Number ID (Meta Business Suite)', type: 'text', required: true },
+      { key: 'waba_id', label: 'WhatsApp Business Account ID', type: 'text', required: true },
+      { key: 'client_phone', label: 'Telefone do cliente (E.164, ex: +5511...)', type: 'text', required: true },
+      { key: 'verify_token', label: 'Verify Token (para validação do webhook)', type: 'text', required: true },
     ],
   },
 ];

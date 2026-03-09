@@ -18,8 +18,10 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Chip from '@mui/material/Chip';
-import { IconBrandMeta, IconBrandGoogle, IconRefresh } from '@tabler/icons-react';
-import { apiGet } from '@/lib/api';
+import TextField from '@mui/material/TextField';
+import Stack from '@mui/material/Stack';
+import { IconBrandMeta, IconBrandGoogle, IconRefresh, IconBrain, IconBrandWhatsapp, IconCheck, IconCopy } from '@tabler/icons-react';
+import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -64,7 +66,32 @@ export default function ClientIntegrationsPage() {
   const [metaData, setMetaData] = useState<MetaData | null>(null);
   const [gaData, setGAData] = useState<GAData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ synced: number; skipped: number } | null>(null);
   const [error, setError] = useState('');
+
+  // WhatsApp connector state
+  const [waMessages, setWaMessages] = useState<{ id: string; raw_text: string | null; type: string; created_at: string; briefing_id: string | null }[]>([]);
+  const [waLoading, setWaLoading] = useState(false);
+  const [waCopied, setWaCopied] = useState(false);
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin.replace('3000', '3001').replace('localhost:3000', 'api.edro.studio')}/webhook/whatsapp`
+    : '/webhook/whatsapp';
+
+  const fetchWaMessages = async () => {
+    setWaLoading(true);
+    try {
+      const data = await apiGet<{ messages: typeof waMessages }>(`/clients/${clientId}/whatsapp/messages`);
+      setWaMessages(data.messages || []);
+    } catch { /* connector may not be configured */ }
+    finally { setWaLoading(false); }
+  };
+
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl).catch(() => {});
+    setWaCopied(true);
+    setTimeout(() => setWaCopied(false), 2000);
+  };
 
   const fetchMeta = async () => {
     setLoading(true);
@@ -92,6 +119,22 @@ export default function ClientIntegrationsPage() {
     }
   };
 
+  const syncMetaPerformance = async () => {
+    setSyncing(true);
+    setError('');
+    setSyncResult(null);
+    try {
+      const res = await apiPost<{ success: boolean; synced: number; skipped: number }>(
+        `/clients/${clientId}/integrations/sync-meta-performance`, {},
+      );
+      setSyncResult({ synced: res.synced, skipped: res.skipped });
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao sincronizar métricas.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const totalSpend = metaData?.campaigns.reduce((sum, c) => sum + parseFloat(c.insights?.spend || '0'), 0) || 0;
   const totalImpressions = metaData?.campaigns.reduce((sum, c) => sum + parseInt(c.insights?.impressions || '0', 10), 0) || 0;
   const totalClicks = metaData?.campaigns.reduce((sum, c) => sum + parseInt(c.insights?.clicks || '0', 10), 0) || 0;
@@ -100,24 +143,43 @@ export default function ClientIntegrationsPage() {
     <Box>
       <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>Métricas de Performance</Typography>
 
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
+      <Tabs value={tab} onChange={(_, v) => { setTab(v); if (v === 2) fetchWaMessages(); }} sx={{ mb: 3 }}>
         <Tab icon={<IconBrandMeta size={18} />} iconPosition="start" label="Meta Ads" />
         <Tab icon={<IconBrandGoogle size={18} />} iconPosition="start" label="Google Analytics" />
+        <Tab icon={<IconBrandWhatsapp size={18} />} iconPosition="start" label="WhatsApp Briefing" />
       </Tabs>
 
       {error && <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
       {tab === 0 && (
         <Box>
-          <Button
-            variant="outlined"
-            startIcon={loading ? <CircularProgress size={16} /> : <IconRefresh size={18} />}
-            onClick={fetchMeta}
-            disabled={loading}
-            sx={{ mb: 2 }}
-          >
-            {metaData ? 'Atualizar' : 'Carregar'} Meta Ads
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={loading ? <CircularProgress size={16} /> : <IconRefresh size={18} />}
+              onClick={fetchMeta}
+              disabled={loading || syncing}
+            >
+              {metaData ? 'Atualizar' : 'Carregar'} Meta Ads
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={syncing ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconBrain size={18} />}
+              onClick={syncMetaPerformance}
+              disabled={loading || syncing}
+              sx={{ bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4570ea' } }}
+            >
+              {syncing ? 'Sincronizando…' : 'Sincronizar métricas → IA'}
+            </Button>
+          </Box>
+
+          {syncResult && (
+            <Alert severity={syncResult.synced > 0 ? 'success' : 'info'} sx={{ mb: 2 }} onClose={() => setSyncResult(null)}>
+              {syncResult.synced > 0
+                ? `${syncResult.synced} post(s) sincronizados. O LearningEngine foi atualizado automaticamente.`
+                : 'Nenhum post com instagram_media_id encontrado para sincronizar.'}
+            </Alert>
+          )}
 
           {metaData && (
             <>
@@ -307,6 +369,118 @@ export default function ClientIntegrationsPage() {
               )}
             </>
           )}
+        </Box>
+      )}
+      {tab === 2 && (
+        <Box>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>Briefing via WhatsApp</strong> — o cliente envia áudio ou texto no WhatsApp e a Edro cria o briefing automaticamente usando IA (Whisper + Claude).
+          </Alert>
+
+          {/* Setup instructions */}
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconBrandWhatsapp size={20} color="#25D366" /> Configuração do Webhook
+              </Typography>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    1. No Meta Business Suite → WhatsApp → Configuração → Webhooks, adicione a URL abaixo:
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField
+                      size="small" fullWidth value={webhookUrl} InputProps={{ readOnly: true }}
+                      sx={{ fontFamily: 'monospace', '& .MuiInputBase-input': { fontSize: '0.8rem' } }}
+                    />
+                    <Button
+                      size="small" variant="outlined" onClick={copyWebhookUrl}
+                      startIcon={waCopied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                      sx={{ whiteSpace: 'nowrap', minWidth: 120 }}
+                    >
+                      {waCopied ? 'Copiado!' : 'Copiar URL'}
+                    </Button>
+                  </Stack>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    2. Crie um conector via API ou banco de dados com:
+                  </Typography>
+                  <Box component="pre" sx={{ bgcolor: 'action.hover', p: 1.5, borderRadius: 1, fontSize: '0.75rem', overflow: 'auto' }}>
+{`provider: 'whatsapp'
+status: 'active'
+payload: {
+  phone_number_id: "<ID do número no Meta>",
+  waba_id: "<WhatsApp Business Account ID>",
+  client_phone: "${/* E.164 format */'+55119...'}",
+}
+secrets_enc: { access_token: "...", verify_token: "edro-wa-secret" }`}
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    3. O número de WhatsApp do cliente deve estar no campo <strong>whatsapp_phone</strong> do perfil do cliente (Perfil → Identidade).
+                  </Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {/* Message history */}
+          <Card variant="outlined">
+            <CardContent>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                <Typography variant="h6">
+                  Mensagens Recebidas
+                </Typography>
+                <Button size="small" variant="outlined" startIcon={waLoading ? <CircularProgress size={14} /> : <IconRefresh size={14} />}
+                  onClick={fetchWaMessages} disabled={waLoading}>
+                  Atualizar
+                </Button>
+              </Stack>
+              {waMessages.length === 0 ? (
+                <Typography color="text.secondary" variant="body2">
+                  {waLoading ? 'Carregando…' : 'Nenhuma mensagem recebida ainda. Configure o webhook e aguarde o primeiro áudio ou texto do cliente.'}
+                </Typography>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Data</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Mensagem / Transcrição</TableCell>
+                      <TableCell>Briefing</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {waMessages.map((msg) => (
+                      <TableRow key={msg.id} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
+                          {new Date(msg.created_at).toLocaleString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" label={msg.type === 'audio' ? '🎙 Áudio' : '💬 Texto'}
+                            color={msg.type === 'audio' ? 'info' : 'default'} />
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 300, fontSize: '0.75rem' }}>
+                          {msg.raw_text ? (
+                            msg.raw_text.length > 120 ? msg.raw_text.slice(0, 120) + '…' : msg.raw_text
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {msg.briefing_id ? (
+                            <Chip size="small" label="✓ Briefing criado" color="success" variant="outlined" />
+                          ) : (
+                            <Chip size="small" label="Sem briefing" color="default" variant="outlined" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </Box>
       )}
     </Box>

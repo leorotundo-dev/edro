@@ -1568,11 +1568,26 @@ export default function EditorClient() {
         })()}
 
         {/* Tab bar — Gerador de Copy / Grade de Mockups */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Tabs value={criarTab} onChange={(_, v) => setCriarTab(v as 0 | 1)}>
             <Tab value={0} label="Gerador de Copy" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
             <Tab value={1} label="Grade de Mockups" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
           </Tabs>
+          {briefing?.id && (
+            <Button
+              size="small"
+              component={Link}
+              href={`/studio/pipeline/${briefing.id}`}
+              variant="outlined"
+              sx={{
+                mr: 1.5, textTransform: 'none', fontSize: '0.72rem', fontWeight: 600,
+                borderColor: '#5D87FF', color: '#5D87FF',
+                '&:hover': { borderColor: '#4a72e8', bgcolor: 'rgba(93,135,255,0.06)' },
+              }}
+            >
+              ✦ Pipeline View
+            </Button>
+          )}
         </Box>
 
         {criarTab === 1 && <MockupsPage embedded />}
@@ -1609,6 +1624,66 @@ export default function EditorClient() {
                 </Box>
               )}
               <Card sx={{ overflow: 'hidden' }}>
+                {/* ── Workflow step bar ── */}
+                {(() => {
+                  const copyDone = options.length > 0;
+                  const arteDone = arteImageUrl !== null;
+                  const steps = [
+                    { label: 'Gerar Copy', sublabel: 'Escolha o texto', done: copyDone, active: !copyDone },
+                    { label: 'Criar Arte', sublabel: 'Gere o visual', done: arteDone, active: copyDone && !arteDone, locked: !copyDone },
+                    { label: 'Exportar', sublabel: 'Finalizar peça', done: false, active: arteDone, locked: !arteDone },
+                  ];
+                  return (
+                    <Box sx={{
+                      display: 'flex', alignItems: 'stretch',
+                      borderBottom: '1px solid', borderColor: 'divider',
+                      overflow: 'hidden',
+                    }}>
+                      {steps.map((s, i) => (
+                        <Box key={i} sx={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 1.25,
+                          px: 2, py: 1.25,
+                          borderRight: i < 2 ? '1px solid' : 'none',
+                          borderColor: 'divider',
+                          bgcolor: s.active ? 'rgba(232,82,25,0.06)' : s.done ? 'rgba(19,222,185,0.04)' : 'transparent',
+                          transition: 'background-color 0.3s',
+                        }}>
+                          {/* Step circle */}
+                          <Box sx={{
+                            width: 26, height: 26, borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                            bgcolor: s.done ? '#13DEB9' : s.active ? '#E85219' : 'action.disabledBackground',
+                            border: s.active ? '2px solid #E85219' : 'none',
+                            boxShadow: s.active ? '0 0 0 4px rgba(232,82,25,0.15)' : 'none',
+                            transition: 'all 0.3s',
+                          }}>
+                            {s.done
+                              ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              : s.locked
+                              ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/><path d="M8 11V7a4 4 0 018 0v4" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round"/></svg>
+                              : <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff', lineHeight: 1 }}>{i + 1}</Typography>
+                            }
+                          </Box>
+                          {/* Step text */}
+                          <Box>
+                            <Typography sx={{
+                              fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.2,
+                              color: s.done ? 'success.main' : s.active ? '#E85219' : 'text.disabled',
+                              transition: 'color 0.3s',
+                            }}>
+                              {s.label}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', lineHeight: 1.3 }}>
+                              {s.sublabel}
+                            </Typography>
+                          </Box>
+                          {/* Connector arrow (not last) */}
+                        </Box>
+                      ))}
+                    </Box>
+                  );
+                })()}
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr 1fr' } }}>
                 {/* Mockup preview */}
                 <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
@@ -2293,7 +2368,37 @@ export default function EditorClient() {
                 </Box>
 
                 {/* ── Image Generation Panel ── */}
-                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                  {/* Lock overlay — shown while no copy generated */}
+                  {options.length === 0 && (
+                    <Box sx={{
+                      position: 'absolute', inset: 0, zIndex: 10,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: 1.5,
+                      backdropFilter: 'blur(4px)',
+                      bgcolor: 'rgba(20,20,20,0.55)',
+                      borderRadius: 0,
+                    }}>
+                      <Box sx={{
+                        width: 44, height: 44, borderRadius: '50%',
+                        bgcolor: 'action.disabledBackground',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <rect x="4" y="11" width="16" height="11" rx="2" stroke="rgba(255,255,255,0.35)" strokeWidth="2"/>
+                          <path d="M8 11V7a4 4 0 018 0v4" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
+                      </Box>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" fontWeight={700} sx={{ color: 'text.secondary', mb: 0.25 }}>
+                          Etapa 2 — Criar Arte
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+                          Gere o copy primeiro para desbloquear
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                         <Chip size="small" label="Criativo com IA" />
                         {arteRefsCount > 0 && (
@@ -2740,9 +2845,19 @@ export default function EditorClient() {
           <Button variant="outlined" onClick={() => router.back()}>
             Voltar
           </Button>
-          <Button variant="contained" component={Link} href="/studio/export">
-            Avançar para Exportar
-          </Button>
+          <Tooltip title={!arteImageUrl ? 'Crie a arte antes de exportar' : ''} placement="top">
+            <span>
+              <Button
+                variant="contained"
+                component={arteImageUrl ? Link : 'button'}
+                href={arteImageUrl ? '/studio/export' : undefined}
+                disabled={!arteImageUrl}
+                sx={!arteImageUrl ? { opacity: 0.45 } : {}}
+              >
+                Avançar para Exportar
+              </Button>
+            </span>
+          </Tooltip>
         </Stack>
       </Stack>
 

@@ -78,6 +78,8 @@ const envSchema = z.object({
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().optional(),
   WHATSAPP_WEBHOOK_SECRET: z.string().optional(),
+  EVOLUTION_API_URL: z.string().url().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
   PERPLEXITY_API_KEY: z.string().optional(),
   LEONARDO_API_KEY: z.string().optional(),
   FAL_API_KEY: z.string().optional(),

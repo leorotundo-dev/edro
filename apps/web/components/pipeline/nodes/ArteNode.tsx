@@ -14,7 +14,7 @@ import Slider from '@mui/material/Slider';
 import {
   IconPhoto, IconCheck, IconTemplate, IconBolt, IconChevronDown,
   IconRefresh, IconWand, IconLayersLinked, IconRobot, IconDna, IconPackage, IconDownload,
-  IconColorSwatch, IconSparkles, IconPencil, IconScissors, IconZoomIn, IconPlayerPlay,
+  IconColorSwatch, IconSparkles, IconPencil, IconScissors, IconZoomIn, IconPlayerPlay, IconBrandTiktok,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -96,6 +96,7 @@ export default function ArteNode() {
     handleGenerateArte, useArte, editArte, selectedTrigger, nodeStatus,
     addOptionalNode, activeNodeIds,
     arteChainResult, arteChainStep, handleGenerateArteChain,
+    copyOptions, selectedCopyIdx,
   } = usePipeline();
 
   const [provider, setProvider] = useState<'fal' | 'gemini' | 'leonardo'>('fal');
@@ -127,6 +128,10 @@ export default function ArteNode() {
   const [upscaleLoading, setUpscaleLoading]   = useState(false);
   const [animateLoading, setAnimateLoading]   = useState(false);
   const [videoUrl, setVideoUrl]               = useState('');
+  const [ttPublishing, setTtPublishing]       = useState(false);
+  const [ttPublished, setTtPublished]         = useState(false);
+  const [ttError, setTtError]                 = useState('');
+  const [ttShareUrl, setTtShareUrl]           = useState('');
 
   // Build the visual directive string from DA selections
   const buildVisualDirective = (cam: string, light: string, comp: string, extra: string) => {
@@ -972,13 +977,73 @@ export default function ArteNode() {
             </Typography>
             <Box component="video" src={videoUrl} controls loop
               sx={{ width: '100%', display: 'block', maxHeight: 220, objectFit: 'contain' }} />
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1, py: 0.5 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1, py: 0.5 }}>
               <Box component="a" href={videoUrl} download="arte-animada.mp4"
                 sx={{ fontSize: '0.55rem', color: '#A855F7', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 0.4,
                   '&:hover': { color: '#c084fc' } }}>
                 <IconDownload size={11} /> Baixar MP4
               </Box>
-            </Box>
+
+              {/* Publicar no TikTok */}
+              {ttPublished ? (
+                <Stack direction="row" spacing={0.4} alignItems="center">
+                  <IconCheck size={11} color="#69C9D0" />
+                  <Typography sx={{ fontSize: '0.52rem', color: '#69C9D0' }}>
+                    {ttShareUrl
+                      ? <Box component="a" href={ttShareUrl} target="_blank" rel="noopener noreferrer"
+                          sx={{ color: '#69C9D0', textDecoration: 'underline' }}>Ver no TikTok</Box>
+                      : 'Publicado no TikTok!'}
+                  </Typography>
+                </Stack>
+              ) : (
+                <Stack spacing={0.25} alignItems="flex-end">
+                  {ttError && (
+                    <Typography sx={{ fontSize: '0.48rem', color: '#FF4D4D' }}>{ttError}</Typography>
+                  )}
+                  <Button
+                    size="small" variant="outlined"
+                    disabled={ttPublishing}
+                    onClick={async () => {
+                      const clientId = typeof window !== 'undefined'
+                        ? window.localStorage.getItem('edro_active_client_id')
+                        : null;
+                      if (!clientId) { setTtError('Nenhum cliente ativo.'); return; }
+                      setTtPublishing(true);
+                      setTtError('');
+                      try {
+                        const { apiPost } = await import('@/lib/api');
+                        const selectedCopy = copyOptions[selectedCopyIdx];
+                        const caption = [selectedCopy?.title, selectedCopy?.body, selectedCopy?.cta]
+                          .filter(Boolean).join('\n\n');
+                        const res = await apiPost<{ success: boolean; share_url?: string; error?: string }>(
+                          '/studio/creative/publish-tiktok',
+                          { client_id: clientId, video_url: videoUrl, caption },
+                        );
+                        if (res?.success) {
+                          setTtPublished(true);
+                          if (res.share_url) setTtShareUrl(res.share_url);
+                        } else {
+                          setTtError(res?.error || 'Erro ao publicar.');
+                        }
+                      } catch (e: any) {
+                        setTtError(e?.message || 'Erro ao publicar no TikTok.');
+                      } finally {
+                        setTtPublishing(false);
+                      }
+                    }}
+                    startIcon={ttPublishing ? <CircularProgress size={10} sx={{ color: '#69C9D0' }} /> : <IconBrandTiktok size={11} />}
+                    sx={{
+                      textTransform: 'none', fontSize: '0.55rem', py: 0.25, px: 0.75,
+                      borderColor: '#69C9D044', color: '#69C9D0',
+                      '&:hover': { borderColor: '#69C9D0', bgcolor: 'rgba(105,201,208,0.06)' },
+                      '&.Mui-disabled': { borderColor: '#333', color: '#555' },
+                    }}
+                  >
+                    {ttPublishing ? 'Publicando…' : 'TikTok'}
+                  </Button>
+                </Stack>
+              )}
+            </Stack>
           </Box>
         )}
         </Stack>

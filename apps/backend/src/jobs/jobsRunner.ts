@@ -17,6 +17,9 @@ import { runClientHealthWorkerOnce } from './clientHealthWorker';
 import { runOperationalAgentOnce } from './operationalAgentWorker';
 import { runBriefingSchedulerOnce } from './briefingSchedulerWorker';
 import { runMonthlyReportsWorkerOnce } from './monthlyReportsWorker';
+import { runMetaSyncWorkerOnce } from './metaSyncWorker';
+import { runCopyRoiWorkerOnce } from './copyRoiWorker';
+import { runAccountManagerWorkerOnce } from './accountManagerWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -89,4 +92,10 @@ export function startJobsRunner() {
   startWorkerLoop('briefingScheduler', runBriefingSchedulerOnce, 8500, 60_000);
   // Monthly Reports — generates PDFs on day 1 of each month (self-throttled)
   startWorkerLoop('monthlyReports', runMonthlyReportsWorkerOnce, 9000, 300_000);
+  // Meta Ads daily sync — pulls IG post metrics → format_performance_metrics → LearningEngine (max 8 clients/tick)
+  startWorkerLoop('metaSync', runMetaSyncWorkerOnce, 9500, 120_000);
+  // Copy ROI scores — Fogg quality × Meta CTR × ROAS × AI cost (runs after metaSync, max 5 clients/tick)
+  startWorkerLoop('copyRoi', runCopyRoiWorkerOnce, 10000, 120_000);
+  // AI Account Manager — proactive churn/upsell alerts per client (max 5 clients/tick)
+  startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000);
 }

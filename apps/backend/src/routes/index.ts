@@ -43,6 +43,11 @@ import financialRoutes from './financial';
 import portalClientRoutes from './portalClient';
 import artworksRoutes from './artworks';
 import studioCreativeRoutes from './studioCreative';
+import studioRecipesRoutes from './studioRecipes';
+import webhookWhatsAppRoutes from './webhookWhatsApp';
+import meetingRoutes from './meetings';
+import evolutionRoutes from './evolutionRoutes';
+import webhookEvolutionRoutes from './webhookEvolution';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -90,4 +95,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(portalClientRoutes, { prefix: '/api' });
   app.register(artworksRoutes, { prefix: '/api' });
   app.register(studioCreativeRoutes, { prefix: '/api' });
+  app.register(studioRecipesRoutes, { prefix: '/api' });
+  // WhatsApp webhook — no /api prefix (Meta calls the raw path)
+  app.register(webhookWhatsAppRoutes);
+  // Evolution API webhook — no /api prefix
+  app.register(webhookEvolutionRoutes);
+  app.register(meetingRoutes, { prefix: '/api' });
+  app.register(evolutionRoutes, { prefix: '/api' });
 }

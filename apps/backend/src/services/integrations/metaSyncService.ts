@@ -10,6 +10,7 @@
  */
 import { query } from '../../db/db';
 import { recomputeClientLearningRules } from '../learningEngine';
+import { computeClientCopyRoi } from '../copyRoiService';
 
 const META_GRAPH_VERSION = 'v18.0';
 
@@ -178,9 +179,10 @@ export async function syncMetaPerformanceForClient(
     }
   }
 
-  // ── 4. Recompute learning rules (non-blocking) ────────────────────────────
+  // ── 4. Recompute learning rules + copy ROI (non-blocking) ────────────────
   if (result.synced > 0) {
     recomputeClientLearningRules(tenantId, clientId).catch(() => {});
+    computeClientCopyRoi(tenantId, clientId).catch(() => {});
   }
 
   return result;

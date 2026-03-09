@@ -6,7 +6,8 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import { IconLayersLinked, IconCheck, IconPhoto, IconDownload, IconBolt } from '@tabler/icons-react';
+import Tooltip from '@mui/material/Tooltip';
+import { IconLayersLinked, IconCheck, IconPhoto, IconDownload, IconBolt, IconCopy } from '@tabler/icons-react';
 import { useState, useEffect, useRef } from 'react';
 import NodeShell from '../NodeShell';
 import { usePipeline } from '../PipelineContext';
@@ -20,20 +21,24 @@ const FORMATS = [
   { id: 'yt-thumb',  label: 'YouTube Thumb',  platform: 'YouTube',   ratio: '16:9',  est: '~20s' },
 ];
 
+type Adaptation = { short_text: string; caption: string; cta: string };
+
 export default function MultiFormatNode() {
   const {
     nodeStatus, copyOptions, selectedCopyIdx, selectedTrigger,
-    clientBrandColor, activeFormat, arteApproved, arteImageUrl,
+    clientBrandColor, arteApproved, arteImageUrl,
   } = usePipeline();
 
   const status = nodeStatus.copy === 'done' ? 'active' : 'locked';
-  const [selected, setSelected]   = useState<Set<string>>(new Set(['ig-feed', 'ig-story', 'ig-reel']));
-  const [generating, setGenerating] = useState(false);
-  const [results, setResults]     = useState<Record<string, string | null>>({});
-  const [done, setDone]           = useState(false);
-  const autoTriggered             = useRef(false);
+  const [selected, setSelected]       = useState<Set<string>>(new Set(['ig-feed', 'ig-story', 'ig-reel']));
+  const [generating, setGenerating]   = useState(false);
+  const [results, setResults]         = useState<Record<string, string | null>>({});
+  const [adaptations, setAdaptations] = useState<Record<string, Adaptation>>({});
+  const [done, setDone]               = useState(false);
+  const [copiedId, setCopiedId]       = useState<string | null>(null);
+  const autoTriggered                 = useRef(false);
 
-  // ── Auto-trigger when arte is approved ─────────────────────────────────────
+  // ── Auto-trigger when arte is approved ──────────────────────────────────────
   useEffect(() => {
     if (arteApproved && !done && !generating && !autoTriggered.current && status !== 'locked') {
       autoTriggered.current = true;
@@ -51,32 +56,48 @@ export default function MultiFormatNode() {
     });
   };
 
-  const selectAll   = () => setSelected(new Set(FORMATS.map((f) => f.id)));
-  const selectMain  = () => setSelected(new Set(['ig-feed', 'ig-story', 'ig-reel']));
+  const selectAll  = () => setSelected(new Set(FORMATS.map((f) => f.id)));
+  const selectMain = () => setSelected(new Set(['ig-feed', 'ig-story', 'ig-reel']));
 
   const handleGenerate = async () => {
     setGenerating(true);
     const copy = copyOptions[selectedCopyIdx];
-    const copyText = [copy?.title, copy?.body, copy?.cta].filter(Boolean).join(' ');
+    const copyText = [copy?.body, copy?.cta].filter(Boolean).join(' ');
     const targets = FORMATS.filter((f) => selected.has(f.id));
 
     const pending: Record<string, null> = {};
     targets.forEach((f) => { pending[f.id] = null; });
     setResults(pending);
+    setAdaptations({});
 
+    // 1. Adapt copy for all formats in parallel (single Claude call)
+    const { apiPost } = await import('@/lib/api');
+    try {
+      const adaptRes = await apiPost<{ success: boolean; adaptations: Record<string, Adaptation> }>(
+        '/studio/creative/adapt-multi-format',
+        {
+          copy_title: copy?.title || '',
+          copy_body:  copy?.body  || copyText,
+          copy_cta:   copy?.cta   || '',
+          formats:    targets.map(({ id, label, platform, ratio }) => ({ id, label, platform, ratio })),
+          trigger:    selectedTrigger || undefined,
+        },
+      );
+      if (adaptRes.success) setAdaptations(adaptRes.adaptations);
+    } catch { /* non-blocking — images still generate */ }
+
+    // 2. Generate images in parallel (one per format)
     await Promise.allSettled(
       targets.map(async (fmt) => {
         try {
-          const { apiPost } = await import('@/lib/api');
           const res = await apiPost<any>('/studio/creative/orchestrate', {
-            copy:                copyText,
+            copy:                [copy?.title, copy?.body, copy?.cta].filter(Boolean).join(' '),
             gatilho:             selectedTrigger || undefined,
             brand_color:         clientBrandColor,
             platform:            fmt.platform,
             format:              `${fmt.label} ${fmt.ratio}`,
             with_image:          true,
             num_variants:        1,
-            // Use the approved arte as style reference for visual consistency
             reference_image_url: arteImageUrl || undefined,
           });
           const url: string | null = res?.image_urls?.[0] ?? res?.image_url ?? null;
@@ -86,11 +107,11 @@ export default function MultiFormatNode() {
         }
       })
     );
+
     setGenerating(false);
     setDone(true);
   };
 
-  // ── Download pack — trigger <a download> for each successful format ─────────
   const handleDownloadAll = () => {
     Object.entries(results).forEach(([fmtId, url], i) => {
       if (!url || url === 'error') return;
@@ -101,8 +122,14 @@ export default function MultiFormatNode() {
         a.download = `arte-${fmt?.label.replace(/\s/g, '-').toLowerCase() ?? fmtId}.jpg`;
         a.target = '_blank';
         a.click();
-      }, i * 400); // stagger to avoid browser popup blocker
+      }, i * 400);
     });
+  };
+
+  const copyToClipboard = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
   };
 
   const doneCount = Object.values(results).filter((v) => v && v !== 'error').length;
@@ -132,7 +159,7 @@ export default function MultiFormatNode() {
         icon={<IconLayersLinked size={14} />}
         status={done ? 'done' : generating ? 'running' : status}
         accentColor="#F97316"
-        width={268}
+        width={300}
         collapsedSummary={collapsedSummary}
       >
         <Stack spacing={1.25}>
@@ -165,24 +192,27 @@ export default function MultiFormatNode() {
             {FORMATS.map((fmt) => {
               const isSelected = selected.has(fmt.id);
               const resultUrl  = results[fmt.id];
+              const adaptation = adaptations[fmt.id];
               const isReady    = resultUrl && resultUrl !== 'error';
               const isError    = resultUrl === 'error';
-              const isPending  = generating && resultUrl === null;
+              const isPending  = generating && results[fmt.id] === null;
               return (
                 <Box
                   key={fmt.id}
-                  onClick={() => toggle(fmt.id)}
+                  onClick={() => !done && toggle(fmt.id)}
                   sx={{
-                    p: 0.75, borderRadius: 1.5, cursor: generating ? 'default' : 'pointer',
+                    p: 0.75, borderRadius: 1.5,
+                    cursor: generating || done ? 'default' : 'pointer',
                     border: `1px solid ${isSelected ? '#F97316' : '#2a2a2a'}`,
                     bgcolor: isSelected ? 'rgba(249,115,22,0.06)' : 'transparent',
                     transition: 'all 0.15s',
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
+                  {/* Image overlay */}
                   {isReady && (
                     <Box sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-                      <img src={resultUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} alt="" />
+                      <img src={resultUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} alt="" />
                       <Box sx={{ position: 'absolute', top: 4, right: 4 }}>
                         <IconCheck size={12} color="#13DEB9" />
                       </Box>
@@ -198,6 +228,7 @@ export default function MultiFormatNode() {
                       <CircularProgress size={10} sx={{ color: '#F97316' }} />
                     </Box>
                   )}
+
                   <Typography sx={{ fontSize: '0.6rem', fontWeight: 600, color: isSelected ? '#F97316' : '#888', position: 'relative', zIndex: 2 }}>
                     {fmt.label}
                   </Typography>
@@ -205,6 +236,36 @@ export default function MultiFormatNode() {
                     <Typography sx={{ fontSize: '0.52rem', color: '#555' }}>{fmt.ratio}</Typography>
                     <Typography sx={{ fontSize: '0.52rem', color: '#444' }}>· {fmt.est}</Typography>
                   </Stack>
+
+                  {/* Adapted copy snippet */}
+                  {adaptation && (
+                    <Box sx={{ mt: 0.5, position: 'relative', zIndex: 2 }}>
+                      <Tooltip title={adaptation.caption || adaptation.short_text} placement="top">
+                        <Typography sx={{
+                          fontSize: '0.52rem', color: '#aaa', lineHeight: 1.3,
+                          display: '-webkit-box', overflow: 'hidden', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        }}>
+                          {adaptation.short_text}
+                        </Typography>
+                      </Tooltip>
+                      <Box
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(fmt.id, adaptation.caption || adaptation.short_text); }}
+                        sx={{
+                          mt: 0.25, display: 'flex', alignItems: 'center', gap: 0.25, cursor: 'pointer',
+                          color: copiedId === fmt.id ? '#13DEB9' : '#444',
+                          '&:hover': { color: '#F97316' },
+                        }}
+                      >
+                        {copiedId === fmt.id
+                          ? <IconCheck size={9} />
+                          : <IconCopy size={9} />
+                        }
+                        <Typography sx={{ fontSize: '0.48rem' }}>
+                          {copiedId === fmt.id ? 'copiado' : 'copiar legenda'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               );
             })}
@@ -223,11 +284,12 @@ export default function MultiFormatNode() {
                 '&.Mui-disabled': { bgcolor: '#2a2a2a', color: '#555' },
               }}
             >
-              {generating ? `Gerando ${doneCount}/${selected.size}…` : `Gerar ${selected.size} formato${selected.size !== 1 ? 's' : ''}`}
+              {generating
+                ? `Adaptando copy + gerando ${doneCount}/${selected.size} artes…`
+                : `Gerar ${selected.size} formato${selected.size !== 1 ? 's' : ''} (copy + arte)`}
             </Button>
           )}
 
-          {/* Post-generation actions */}
           {done && doneCount > 0 && (
             <Stack spacing={0.5}>
               <Button
@@ -244,7 +306,7 @@ export default function MultiFormatNode() {
               </Button>
               <Button
                 variant="outlined" size="small" fullWidth
-                onClick={() => { setDone(false); setResults({}); autoTriggered.current = false; }}
+                onClick={() => { setDone(false); setResults({}); setAdaptations({}); autoTriggered.current = false; }}
                 sx={{
                   textTransform: 'none', fontSize: '0.65rem',
                   borderColor: '#F9731633', color: '#F97316',

@@ -136,6 +136,9 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   resume_clipping_source: toolResumeClippingSource,
   // Grupo 6 — Análise
   analyze_cognitive_load: toolAnalyzeCognitiveLoad,
+  // Grupo 7 — Consulta Multi-IA
+  consult_gemini: toolConsultGemini,
+  consult_openai: toolConsultOpenAI,
 };
 
 export async function executeTool(
@@ -1792,4 +1795,62 @@ async function toolAnalyzeCognitiveLoad(args: any, ctx: ToolContext): Promise<To
       diagnosis: analysis.diagnosis,
     },
   };
+}
+
+// ── Grupo 7 — Consulta Multi-IA ────────────────────────────────────────────
+
+const CONSULTANT_SYSTEM = `Você é um estrategista sênior de comunicação e marketing com especialidade em criatividade, posicionamento de marca e persuasão comportamental. Responda de forma direta, estratégica e acionável em português brasileiro. Entregue insights únicos, não genéricos.`;
+
+async function toolConsultGemini(args: any, _ctx: ToolContext): Promise<ToolResult> {
+  const { question, context } = args;
+  if (!question) return { success: false, error: 'question é obrigatório.' };
+
+  const prompt = context
+    ? `CONTEXTO:\n${context}\n\nPERGUNTA:\n${question}`
+    : question;
+
+  try {
+    const result = await generateWithProvider('gemini', {
+      prompt,
+      systemPrompt: CONSULTANT_SYSTEM,
+      temperature: 0.8,
+      maxTokens: 1500,
+    });
+    return {
+      success: true,
+      data: {
+        provider: 'Gemini (Google)',
+        response: result.output,
+      },
+    };
+  } catch (err: any) {
+    return { success: false, error: `Gemini indisponível: ${err?.message ?? 'erro desconhecido'}` };
+  }
+}
+
+async function toolConsultOpenAI(args: any, _ctx: ToolContext): Promise<ToolResult> {
+  const { question, context } = args;
+  if (!question) return { success: false, error: 'question é obrigatório.' };
+
+  const prompt = context
+    ? `CONTEXTO:\n${context}\n\nPERGUNTA:\n${question}`
+    : question;
+
+  try {
+    const result = await generateWithProvider('openai', {
+      prompt,
+      systemPrompt: CONSULTANT_SYSTEM,
+      temperature: 0.8,
+      maxTokens: 1500,
+    });
+    return {
+      success: true,
+      data: {
+        provider: 'GPT-4o (OpenAI)',
+        response: result.output,
+      },
+    };
+  } catch (err: any) {
+    return { success: false, error: `OpenAI indisponível: ${err?.message ?? 'erro desconhecido'}` };
+  }
 }
