@@ -1,7 +1,43 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { handleWhatsAppMessage } from '../services/whatsappBriefingService';
 
 export default async function webhooksRoutes(app: FastifyInstance) {
+
+  // ── WhatsApp Cloud API — webhook verification (GET challenge) ─────────────
+  app.get('/webhooks/whatsapp', async (request: any, reply: any) => {
+    const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = request.query as Record<string, string>;
+    const expected = process.env.WHATSAPP_WEBHOOK_SECRET;
+    if (mode === 'subscribe' && token === expected) {
+      return reply.send(challenge);
+    }
+    return reply.status(403).send('Forbidden');
+  });
+
+  // ── WhatsApp Cloud API — incoming messages ─────────────────────────────────
+  app.post('/webhooks/whatsapp', async (request: any, reply: any) => {
+    // Always ack immediately — Meta expects 200 within 20s
+    reply.send({ ok: true });
+
+    const body = request.body as any;
+    const entry = body?.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    if (!value?.messages?.length) return;
+
+    for (const message of value.messages as any[]) {
+      if (message.type === 'text' || message.type === 'audio' || message.type === 'voice') {
+        handleWhatsAppMessage({
+          from:  message.from,
+          type:  message.type,
+          text:  message.text,
+          audio: message.audio,
+          voice: message.voice,
+        }).catch((err) => console.error('[whatsapp-webhook] handler error:', err?.message));
+      }
+    }
+  });
+
   app.post('/webhooks/publisher', async (request: any, reply: any) => {
     const secret = String(request.headers?.authorization || '').replace('Bearer ', '');
     const expected = process.env.GATEWAY_SHARED_SECRET;
