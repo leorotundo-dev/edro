@@ -10,6 +10,7 @@ import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 import PDFDocument from 'pdfkit';
+import { computeClientCopyRoi, getClientCopyRoiScores } from '../services/copyRoiService';
 
 const STAGE_COLORS: Record<string, string> = {
   briefing: '#5D87FF', copy_ia: '#94a3b8', aprovacao: '#FFAE1F',
@@ -1133,5 +1134,25 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
     reply.header('Content-Disposition', `attachment; filename="${filename}"`);
     reply.header('Content-Length', pdfBuffer.length);
     return reply.send(pdfBuffer);
+  });
+
+  // ── Copy ROI Scores — get cached ───────────────────────────────────────────
+  app.get('/clients/:clientId/reports/copy-roi', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const scores = await getClientCopyRoiScores(tenantId, clientId);
+    return { scores };
+  });
+
+  // ── Copy ROI Scores — trigger computation ──────────────────────────────────
+  app.post('/clients/:clientId/reports/compute-copy-roi', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const scores = await computeClientCopyRoi(tenantId, clientId);
+    return { ok: true, computed: scores.length, scores };
   });
 }

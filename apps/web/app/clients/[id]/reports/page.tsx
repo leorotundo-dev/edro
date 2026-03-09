@@ -26,6 +26,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
+import CopyRoiPanel from './CopyRoiPanel';
 
 type ReportData = {
   period: { from: string; to: string };
@@ -548,6 +549,9 @@ export default function ClientReportsPage() {
           )}
         </Box>
       )}
+
+      {/* Copy ROI Panel — always visible once clientId is known */}
+      <CopyRoiPanel clientId={clientId} />
     </Box>
   );
 }
