@@ -54,6 +54,7 @@ import {
 } from '@tabler/icons-react';
 import PautaFromClippingModal from '@/app/clipping/PautaFromClippingModal';
 import type { PautaSuggestion } from '@/app/edro/PautaComparisonCard';
+import AccountManagerPanel from './AccountManagerPanel';
 
 type KnowledgeBase = {
   description?: string;
@@ -993,6 +994,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
           <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>Ver detalhes →</Typography>
         </Box>
       )}
+
+      {/* AI Account Manager */}
+      <AccountManagerPanel clientId={clientId} />
 
       {/* Alertas críticos */}
       {(planningAlerts.length > 0 || opportunitiesUrgentCount > 0) && (

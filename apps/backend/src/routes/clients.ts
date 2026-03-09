@@ -18,6 +18,7 @@ import { upsertUser, createLoginCode } from '../repositories/edroUserRepository'
 import { sendEmail } from '../services/emailService';
 import { makeHash } from '../utils/hash';
 import { enqueueJob } from '../jobs/jobQueue';
+import { computeClientAlerts, getClientAlerts, updateAlertStatus } from '../services/accountManagerService';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import {
@@ -1331,6 +1332,42 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       return reply.status(201).send({ url, key, assetType });
     }
   );
+
+  // ── AI Account Manager alerts ──────────────────────────────────────────────
+
+  // GET /clients/:clientId/account-manager/alerts — read cached alerts
+  app.get('/clients/:clientId/account-manager/alerts', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+  }, async (request: any, reply: any) => {
+    const tenantId  = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const alerts = await getClientAlerts(tenantId, clientId);
+    return { alerts };
+  });
+
+  // POST /clients/:clientId/account-manager/compute — generate new alerts
+  app.post('/clients/:clientId/account-manager/compute', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+  }, async (request: any, reply: any) => {
+    const tenantId  = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const alerts = await computeClientAlerts(tenantId, clientId);
+    return { ok: true, generated: alerts.length, alerts };
+  });
+
+  // PATCH /clients/:clientId/account-manager/alerts/:alertId — action or dismiss
+  app.patch('/clients/:clientId/account-manager/alerts/:alertId', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+  }, async (request: any, reply: any) => {
+    const tenantId  = request.user.tenant_id;
+    const { alertId } = request.params as { clientId: string; alertId: string };
+    const { action } = (request.body || {}) as { action: 'actioned' | 'dismissed' };
+    if (!['actioned', 'dismissed'].includes(action)) {
+      return reply.status(400).send({ error: 'action must be actioned or dismissed' });
+    }
+    await updateAlertStatus(alertId, tenantId, action, request.user.id);
+    return { ok: true };
+  });
 
   // GET /clients/brand-assets/file/:key — serve brand asset file (no auth, keys are opaque)
   app.get('/clients/brand-assets/file/:key', async (request: any, reply) => {
