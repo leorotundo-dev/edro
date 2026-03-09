@@ -809,7 +809,11 @@ export default function ChatAgentPanel() {
     } : m));
 
     try {
-      await handleGenerateCopyChain(opts?.strategyOverride ? { strategyOverride: opts.strategyOverride } : {});
+      await handleGenerateCopyChain(
+        opts?.strategyOverride
+          ? { brandVoiceOverride: { tom: opts.strategyOverride } }
+          : {}
+      );
 
       // Update tool to done
       updateTool(agentMsgId, toolId, { status: 'done', detail: '3 opções de copy criadas', progress: 100 });
@@ -896,7 +900,9 @@ export default function ChatAgentPanel() {
         : visualReferences;
       await handleGenerateArteChain({
         brandPack,
-        ...(opts?.brandVisualOverride ? { brandVisualOverride: opts.brandVisualOverride } : {}),
+        ...(opts?.brandVisualOverride
+          ? { brandVisualOverride: { referenceStyle: opts.brandVisualOverride } }
+          : {}),
         ...(styleRefs.length ? { visualReferences: styleRefs } : {}),
       });
       clearInterval(ticker);
@@ -1225,7 +1231,7 @@ export default function ChatAgentPanel() {
   }, [arteImageUrl, updateMsg, setApprovedStyleUrl]);
 
   const executeImageToVideo = useCallback(async (agentMsgId: string) => {
-    const currentUrl = arteImageUrl || arteImageUrls?.[0];
+    const currentUrl = arteImageUrl;
     if (!currentUrl) {
       updateMsg(agentMsgId, { isTyping: false, text: 'Gere uma arte primeiro para animar.' });
       return;
@@ -1257,11 +1263,11 @@ export default function ChatAgentPanel() {
     } catch {
       updateMsg(agentMsgId, { isTyping: false, text: 'Erro de conexão ao gerar vídeo.' });
     }
-  }, [arteImageUrl, arteImageUrls, updateMsg]);
+  }, [arteImageUrl, updateMsg]);
 
   // ── Image Analyzer — auto-critique after arte generation ────────────────────
 
-  const triggerCritique = useCallback(async (imageUrl: string) => {
+  async function triggerCritique(imageUrl: string) {
     const msgId = uid();
     setMessages((prev) => [...prev, {
       id: msgId, role: 'agent', isTyping: true,
@@ -1295,7 +1301,7 @@ export default function ChatAgentPanel() {
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== msgId));
     }
-  }, [briefing, activeFormat, copyOptions, selectedCopyIdx, selectedTrigger, updateMsg]);
+  }
 
   // ── Main dispatcher ──────────────────────────────────────────────────────────
 

@@ -19,15 +19,24 @@ import {
   watchGmailInbox,
 } from '../services/integrations/gmailService';
 
+function getIntegrationsRedirectUrl(query: string) {
+  const webUrl = (process.env.WEB_URL ?? 'https://app.edro.digital').replace(/\/$/, '');
+  return `${webUrl}/admin/integrations?${query}`;
+}
+
 export default async function gmailRoutes(app: FastifyInstance) {
 
   // ── Start OAuth flow ────────────────────────────────────────────────────
   app.get('/auth/google/start', {
     preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
+  }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id;
+    const mode = typeof request.query?.mode === 'string' ? request.query.mode : '';
     try {
       const url = gmailOAuthUrl(tenantId);
+      if (mode === 'json') {
+        return reply.send({ url });
+      }
       return reply.redirect(url);
     } catch (err: any) {
       return reply.code(503).send({ error: err.message });
@@ -39,8 +48,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
     const { code, state, error } = request.query as Record<string, string>;
 
     if (error) {
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?gmail_error=${encodeURIComponent(error)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`gmail_error=${encodeURIComponent(error)}`));
     }
 
     if (!code || !state) {
@@ -51,12 +59,10 @@ export default async function gmailRoutes(app: FastifyInstance) {
       const { tenantId, email } = await exchangeGmailCode(code, state);
       await watchGmailInbox(tenantId);
 
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?gmail_connected=${encodeURIComponent(email)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`gmail_connected=${encodeURIComponent(email)}`));
     } catch (err: any) {
       console.error('[gmailRoutes] OAuth callback error:', err?.message);
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?gmail_error=${encodeURIComponent(err.message)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`gmail_error=${encodeURIComponent(err.message)}`));
     }
   });
 

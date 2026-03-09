@@ -1,9 +1,21 @@
 import { query } from '../db';
 
-export async function enqueueJob(tenant_id: string, type: string, payload: any) {
+export async function enqueueJob(
+  tenant_id: string,
+  type: string,
+  payload: any,
+  options?: { scheduledFor?: Date | string },
+) {
+  const scheduledFor =
+    options?.scheduledFor instanceof Date
+      ? options.scheduledFor.toISOString()
+      : options?.scheduledFor ?? null;
+
   const { rows } = await query<any>(
-    `INSERT INTO job_queue (tenant_id, type, payload) VALUES ($1,$2,$3::jsonb) RETURNING *`,
-    [tenant_id, type, JSON.stringify(payload)]
+    `INSERT INTO job_queue (tenant_id, type, payload, scheduled_for)
+     VALUES ($1,$2,$3::jsonb, COALESCE($4::timestamptz, NOW()))
+     RETURNING *`,
+    [tenant_id, type, JSON.stringify(payload), scheduledFor]
   );
   return rows[0];
 }

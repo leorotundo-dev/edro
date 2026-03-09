@@ -10,16 +10,17 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
+import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import {
   IconMicrophone, IconUpload, IconChevronDown, IconChevronUp,
   IconCheck, IconX, IconChecks, IconBriefcase, IconBulb,
-  IconListCheck, IconNote, IconClock, IconUser,
+  IconListCheck, IconNote, IconClock, IconUser, IconRobot, IconCalendarPlus,
 } from '@tabler/icons-react';
-import AppShell from '@/components/AppShell';
 
 const EDRO_ORANGE = '#E85219';
 
@@ -306,6 +307,11 @@ export default function MeetingsClient({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduleSuccess, setScheduleSuccess] = useState('');
+  const [recallUrl, setRecallUrl] = useState('');
+  const [recallTitle, setRecallTitle] = useState('');
+  const [recallWhen, setRecallWhen] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -319,6 +325,14 @@ export default function MeetingsClient({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const initial = new Date(Date.now() + 20 * 60 * 1000);
+    const local = new Date(initial.getTime() - initial.getTimezoneOffset() * 60 * 1000)
+      .toISOString()
+      .slice(0, 16);
+    setRecallWhen(local);
+  }, []);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -347,100 +361,189 @@ export default function MeetingsClient({ clientId }: { clientId: string }) {
     }
   };
 
+  const handleScheduleRecall = async () => {
+    setScheduling(true);
+    setUploadError('');
+    setScheduleSuccess('');
+
+    try {
+      const scheduledAt = new Date(recallWhen);
+      if (!recallUrl.trim()) throw new Error('Informe o link da reunião.');
+      if (Number.isNaN(scheduledAt.getTime())) throw new Error('Informe data e hora válidas.');
+
+      const res = await apiPost<{ scheduled_at: string }>(`/clients/${clientId}/meetings/recall-bot`, {
+        meeting_url: recallUrl.trim(),
+        scheduled_at: scheduledAt.toISOString(),
+        title: recallTitle.trim() || undefined,
+      });
+
+      setScheduleSuccess(`Bot agendado para ${new Date(String(res?.scheduled_at || scheduledAt.toISOString())).toLocaleString('pt-BR')}.`);
+      setRecallUrl('');
+      setRecallTitle('');
+      await load();
+    } catch (err: any) {
+      setUploadError(err.message ?? 'Erro ao agendar bot da reunião.');
+    } finally {
+      setScheduling(false);
+    }
+  };
+
   const totalPending = meetings.reduce((acc, m) => acc + (Number(m.pending_actions) || 0), 0);
 
   return (
-    <AppShell title="Reuniões">
-      <Box sx={{ maxWidth: 900, mx: 'auto', py: 3, px: { xs: 2, md: 3 } }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Reuniões</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Envie gravações de reuniões — o Jarvis transcreve, decupa e extrai as ações.
-            </Typography>
+    <Box sx={{ maxWidth: 900, mx: 'auto', py: 3, px: { xs: 2, md: 3 } }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>Reuniões</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Envie gravações ou agende o bot ao vivo — o Jarvis transcreve, decupa e extrai as ações.
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          {totalPending > 0 && (
+            <Chip
+              label={`${totalPending} ação${totalPending > 1 ? 'ões' : ''} pendente${totalPending > 1 ? 's' : ''}`}
+              color="warning"
+              size="small"
+            />
+          )}
+          <Box component="label" aria-hidden="true" sx={{ display: 'none' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".mp3,.mp4,.m4a,.wav,.ogg,.webm"
+              title="Upload de reunião"
+              aria-label="Upload de reunião"
+              onChange={handleUpload}
+            />
           </Box>
-          <Stack direction="row" spacing={1}>
-            {totalPending > 0 && (
-              <Chip
-                label={`${totalPending} ação${totalPending > 1 ? 'ões' : ''} pendente${totalPending > 1 ? 's' : ''}`}
-                color="warning"
+          <Button
+            variant="contained"
+            startIcon={uploading ? <CircularProgress size={14} color="inherit" /> : <IconUpload size={16} />}
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c94215' } }}
+          >
+            {uploading ? 'Processando…' : 'Nova Reunião'}
+          </Button>
+        </Stack>
+      </Stack>
+
+      {uploadError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setUploadError('')}>{uploadError}</Alert>}
+      {scheduleSuccess && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setScheduleSuccess('')}>{scheduleSuccess}</Alert>}
+
+      <Card variant="outlined" sx={{ mb: 2 }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Box sx={{ p: 0.9, bgcolor: `${EDRO_ORANGE}15`, borderRadius: 1.5 }}>
+                <IconRobot size={18} style={{ color: EDRO_ORANGE }} />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>Agendar bot ao vivo</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Use a Recall para entrar na reunião sem depender de upload manual.
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              <TextField
+                label="Link da reunião"
+                placeholder="https://meet.google.com/..."
+                value={recallUrl}
+                onChange={(e) => setRecallUrl(e.target.value)}
+                fullWidth
                 size="small"
               />
-            )}
-            <Box component="label" aria-hidden="true" sx={{ display: 'none' }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".mp3,.mp4,.m4a,.wav,.ogg,.webm"
-                title="Upload de reunião"
-                aria-label="Upload de reunião"
-                onChange={handleUpload}
+              <TextField
+                label="Data e hora"
+                type="datetime-local"
+                value={recallWhen}
+                onChange={(e) => setRecallWhen(e.target.value)}
+                size="small"
+                sx={{ minWidth: { md: 220 } }}
+                InputLabelProps={{ shrink: true }}
               />
-            </Box>
-            <Button
-              variant="contained"
-              startIcon={uploading ? <CircularProgress size={14} color="inherit" /> : <IconUpload size={16} />}
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-              sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c94215' } }}
-            >
-              {uploading ? 'Processando…' : 'Nova Reunião'}
-            </Button>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
+              <TextField
+                label="Título interno"
+                placeholder="Reunião comercial, kickoff, alinhamento..."
+                value={recallTitle}
+                onChange={(e) => setRecallTitle(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <Button
+                variant="contained"
+                startIcon={scheduling ? <CircularProgress size={14} color="inherit" /> : <IconCalendarPlus size={16} />}
+                onClick={handleScheduleRecall}
+                disabled={scheduling}
+                sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c94215' }, minWidth: 180 }}
+              >
+                {scheduling ? 'Agendando…' : 'Agendar bot'}
+              </Button>
+            </Stack>
+
+            <Typography variant="caption" color="text.secondary">
+              Agende com pelo menos 11 minutos de antecedência. Para automação total via Google Calendar, conecte em{' '}
+              <Link href="/admin/integrations" underline="hover">Integrações da Agência</Link>.
+            </Typography>
           </Stack>
-        </Stack>
+        </CardContent>
+      </Card>
 
-        {uploadError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setUploadError('')}>{uploadError}</Alert>}
-
-        {uploading && (
-          <Card variant="outlined" sx={{ mb: 2, bgcolor: `${EDRO_ORANGE}08` }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <CircularProgress size={24} sx={{ color: EDRO_ORANGE }} />
-                <Box>
-                  <Typography variant="subtitle2">Processando reunião…</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Transcrevendo com Whisper e analisando com IA. Isso pode levar 1–2 minutos.
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
-
-        {loading && !uploading && (
-          <Stack alignItems="center" sx={{ py: 6 }}>
-            <CircularProgress size={28} sx={{ color: EDRO_ORANGE }} />
-          </Stack>
-        )}
-
-        {!loading && meetings.length === 0 && (
-          <Card variant="outlined">
-            <CardContent>
-              <Stack alignItems="center" spacing={1.5} sx={{ py: 4 }}>
-                <Box sx={{ p: 2, bgcolor: `${EDRO_ORANGE}15`, borderRadius: '50%' }}>
-                  <IconMicrophone size={32} style={{ color: EDRO_ORANGE }} />
-                </Box>
-                <Typography variant="subtitle1" fontWeight={600}>Nenhuma reunião ainda</Typography>
-                <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ maxWidth: 360 }}>
-                  Faça upload de uma gravação de reunião (MP3, MP4, M4A, WAV) e o Jarvis extrai as ações automaticamente.
+      {uploading && (
+        <Card variant="outlined" sx={{ mb: 2, bgcolor: `${EDRO_ORANGE}08` }}>
+          <CardContent>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <CircularProgress size={24} sx={{ color: EDRO_ORANGE }} />
+              <Box>
+                <Typography variant="subtitle2">Processando reunião…</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Transcrevendo com Whisper e analisando com IA. Isso pode levar 1–2 minutos.
                 </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<IconUpload size={16} />}
-                  onClick={() => fileInputRef.current?.click()}
-                  sx={{ borderColor: EDRO_ORANGE, color: EDRO_ORANGE, mt: 1 }}
-                >
-                  Enviar primeira reunião
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
-        {meetings.map(m => (
-          <MeetingCard key={m.id} meeting={m} clientId={clientId} onUpdate={load} />
-        ))}
-      </Box>
-    </AppShell>
+      {loading && !uploading && (
+        <Stack alignItems="center" sx={{ py: 6 }}>
+          <CircularProgress size={28} sx={{ color: EDRO_ORANGE }} />
+        </Stack>
+      )}
+
+      {!loading && meetings.length === 0 && (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack alignItems="center" spacing={1.5} sx={{ py: 4 }}>
+              <Box sx={{ p: 2, bgcolor: `${EDRO_ORANGE}15`, borderRadius: '50%' }}>
+                <IconMicrophone size={32} style={{ color: EDRO_ORANGE }} />
+              </Box>
+              <Typography variant="subtitle1" fontWeight={600}>Nenhuma reunião ainda</Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ maxWidth: 360 }}>
+                Faça upload de uma gravação de reunião (MP3, MP4, M4A, WAV) e o Jarvis extrai as ações automaticamente.
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<IconUpload size={16} />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ borderColor: EDRO_ORANGE, color: EDRO_ORANGE, mt: 1 }}
+              >
+                Enviar primeira reunião
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {meetings.map(m => (
+        <MeetingCard key={m.id} meeting={m} clientId={clientId} onUpdate={load} />
+      ))}
+    </Box>
   );
 }

@@ -17,10 +17,32 @@
 
 import crypto from 'crypto';
 import { query } from '../../db';
+import { enqueueJob } from '../../jobs/jobQueue';
+
+// ── OAuth state helpers (signed to prevent forgery) ───────────────────────
+
+function signOAuthState(payload: object): string {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const sig = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyOAuthState(rawState: string): { tenantId: string } {
+  const dotIndex = rawState.lastIndexOf('.');
+  if (dotIndex < 0) throw new Error('Invalid OAuth state format');
+  const data = rawState.slice(0, dotIndex);
+  const sig = rawState.slice(dotIndex + 1);
+  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  if (sig !== expected) throw new Error('Invalid OAuth state signature');
+  return JSON.parse(Buffer.from(data, 'base64url').toString());
+}
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
+let hasClientContactEmailColumn: boolean | null = null;
 
 // ── OAuth ─────────────────────────────────────────────────────────────────
 
@@ -29,7 +51,7 @@ export function calendarOAuthUrl(tenantId: string): string {
   const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI;
   if (!clientId || !redirectUri) throw new Error('GOOGLE_CLIENT_ID/CALENDAR_REDIRECT_URI não configurados.');
 
-  const state = Buffer.from(JSON.stringify({ tenantId, ts: Date.now() })).toString('base64url');
+  const state = signOAuthState({ tenantId, ts: Date.now() });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -78,7 +100,7 @@ export async function exchangeCalendarCode(code: string, rawState: string): Prom
 
   let tenantId: string;
   try {
-    tenantId = JSON.parse(Buffer.from(rawState, 'base64url').toString()).tenantId;
+    tenantId = verifyOAuthState(rawState).tenantId;
   } catch {
     throw new Error('Invalid OAuth state');
   }
@@ -189,13 +211,6 @@ async function processCalendarEvent(tenantId: string, event: any) {
   const eventId = event.id as string;
   if (!eventId) return;
 
-  // Idempotency
-  const { rows: existing } = await query(
-    `SELECT id FROM calendar_auto_joins WHERE calendar_event_id = $1`,
-    [eventId],
-  );
-  if (existing.length) return;
-
   const videoLink = extractVideoLink(event);
   if (!videoLink) return; // Not a video meeting, skip
 
@@ -214,31 +229,48 @@ async function processCalendarEvent(tenantId: string, event: any) {
     responseStatus: a.responseStatus,
   }));
 
-  const { rows: inserted } = await query(
-    `INSERT INTO calendar_auto_joins
-       (tenant_id, calendar_event_id, event_title, video_url, video_platform,
-        organizer_email, attendees, scheduled_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (calendar_event_id) DO NOTHING
-     RETURNING id`,
-    [
-      tenantId,
-      eventId,
-      event.summary ?? 'Reunião',
-      videoLink,
-      platform,
-      organizer,
-      JSON.stringify(attendees),
-      scheduledAt,
-    ],
+  const { rows: existing } = await query(
+    `SELECT id, job_enqueued_at, meeting_id
+       FROM calendar_auto_joins
+      WHERE calendar_event_id = $1`,
+    [eventId],
   );
 
-  if (!inserted.length) return; // conflict — already exists
+  // Always upsert — handles both INSERT (new events) and UPDATE (changed events).
+  // The ON CONFLICT DO UPDATE in upsertAutoJoin makes the separate UPDATE redundant.
+  const autoJoinId = await upsertAutoJoin({
+    tenantId,
+    eventId,
+    eventTitle: event.summary ?? 'Reunião',
+    videoLink,
+    platform,
+    organizer,
+    attendees,
+    scheduledAt,
+  });
+
+  if (!autoJoinId) return;
 
   console.log(`[googleCalendarService] Detected video meeting: "${event.summary}" at ${scheduledAt.toISOString()} — ${platform} — ${videoLink}`);
 
-  // Enqueue meet-bot job (async — fire and forget)
-  await enqueueMeetBotJob(tenantId, inserted[0].id, videoLink, event.summary ?? 'Reunião', scheduledAt)
+  if (existing[0]?.job_enqueued_at || existing[0]?.meeting_id) return;
+
+  const resolvedClient = await resolveClientForEvent(tenantId, event, attendees, organizer);
+  if (!resolvedClient) {
+    console.warn(`[googleCalendarService] No client match for "${event.summary}" (${eventId})`);
+    return;
+  }
+
+  // Enqueue scheduling now; Recall handles the future join_at internally.
+  await enqueueMeetBotJob(
+    tenantId,
+    autoJoinId,
+    videoLink,
+    event.summary ?? 'Reunião',
+    scheduledAt,
+    platform,
+    resolvedClient,
+  )
     .catch(err => console.error('[googleCalendarService] enqueueMeetBot failed:', err?.message));
 }
 
@@ -282,25 +314,22 @@ async function enqueueMeetBotJob(
   videoUrl: string,
   eventTitle: string,
   scheduledAt: Date,
+  platform: string,
+  client: { id: string; name: string },
 ): Promise<void> {
-  // Insert into jobs table (same pattern as meetings.ts)
-  const { rows } = await query(
-    `INSERT INTO jobs
-       (tenant_id, type, payload, status, run_at)
-     VALUES ($1, 'meet-bot', $2, 'pending', $3)
-     RETURNING id`,
-    [
-      tenantId,
-      JSON.stringify({
-        videoUrl,
-        eventTitle,
-        scheduledAt: scheduledAt.toISOString(),
-        autoJoinId,
-        source: 'google_calendar',
-      }),
-      // Schedule job 5 minutes before the meeting
-      new Date(scheduledAt.getTime() - 5 * 60 * 1000),
-    ],
+  const row = await enqueueJob(
+    tenantId,
+    'meet-bot',
+    {
+      videoUrl,
+      eventTitle,
+      scheduledAt: scheduledAt.toISOString(),
+      autoJoinId,
+      source: 'google_calendar',
+      platform,
+      clientId: client.id,
+      clientName: client.name,
+    },
   );
 
   await query(
@@ -308,7 +337,7 @@ async function enqueueMeetBotJob(
     [autoJoinId],
   );
 
-  console.log(`[googleCalendarService] Enqueued meet-bot job ${rows[0]?.id} for "${eventTitle}"`);
+  console.log(`[googleCalendarService] Enqueued meet-bot job ${row?.id} for "${eventTitle}"`);
 }
 
 // ── Token refresh ─────────────────────────────────────────────────────────
@@ -348,4 +377,117 @@ export async function getCalendarAccessToken(tenantId: string): Promise<string> 
   );
 
   return newTokens.access_token;
+}
+
+async function upsertAutoJoin(params: {
+  tenantId: string;
+  eventId: string;
+  eventTitle: string;
+  videoLink: string;
+  platform: string;
+  organizer: string | null;
+  attendees: Array<{ email?: string; displayName?: string; responseStatus?: string }>;
+  scheduledAt: Date;
+}): Promise<string | null> {
+  const { rows } = await query(
+    `INSERT INTO calendar_auto_joins
+       (tenant_id, calendar_event_id, event_title, video_url, video_platform,
+        organizer_email, attendees, scheduled_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+     ON CONFLICT (calendar_event_id) DO UPDATE
+       SET event_title = EXCLUDED.event_title,
+           video_url = EXCLUDED.video_url,
+           video_platform = EXCLUDED.video_platform,
+           organizer_email = EXCLUDED.organizer_email,
+           attendees = EXCLUDED.attendees,
+           scheduled_at = EXCLUDED.scheduled_at
+     RETURNING id`,
+    [
+      params.tenantId,
+      params.eventId,
+      params.eventTitle,
+      params.videoLink,
+      params.platform,
+      params.organizer,
+      JSON.stringify(params.attendees),
+      params.scheduledAt,
+    ],
+  );
+
+  return rows[0]?.id ?? null;
+}
+
+async function resolveClientForEvent(
+  tenantId: string,
+  event: any,
+  attendees: Array<{ email?: string; displayName?: string }>,
+  organizerEmail: string | null,
+): Promise<{ id: string; name: string } | null> {
+  const emails = [organizerEmail, ...attendees.map((a) => a.email)]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLowerCase());
+
+  if (emails.length && await clientsHaveContactEmailColumn()) {
+    const { rows } = await query<{ id: string; name: string }>(
+      `SELECT id, name
+         FROM clients
+        WHERE tenant_id = $1
+          AND LOWER(contact_email) = ANY($2::text[])
+        LIMIT 1`,
+      [tenantId, emails],
+    );
+    if (rows[0]) return rows[0];
+  }
+
+  const haystack = normalizeLooseText([
+    event.summary,
+    event.description,
+    organizerEmail,
+    ...attendees.flatMap((a) => [a.displayName, a.email]),
+  ].filter(Boolean).join(' '));
+
+  if (!haystack) return null;
+
+  const { rows } = await query<{ id: string; name: string }>(
+    `SELECT id, name FROM clients WHERE tenant_id = $1`,
+    [tenantId],
+  );
+
+  let best: { id: string; name: string } | null = null;
+  let bestScore = 0;
+
+  for (const client of rows) {
+    const needle = normalizeLooseText(client.name);
+    if (!needle || needle.length < 3) continue;
+    if (!haystack.includes(needle)) continue;
+    if (needle.length <= bestScore) continue;
+    best = client;
+    bestScore = needle.length;
+  }
+
+  return best;
+}
+
+async function clientsHaveContactEmailColumn(): Promise<boolean> {
+  if (hasClientContactEmailColumn !== null) return hasClientContactEmailColumn;
+
+  const { rows } = await query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'clients'
+          AND column_name = 'contact_email'
+     ) AS exists`,
+  );
+
+  hasClientContactEmailColumn = Boolean(rows[0]?.exists);
+  return hasClientContactEmailColumn;
+}
+
+function normalizeLooseText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 }

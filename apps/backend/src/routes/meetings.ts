@@ -23,6 +23,7 @@ import {
 import { query } from '../db';
 import { createBriefing } from '../repositories/edroBriefingRepository';
 import { getClientById } from '../repos/clientsRepo';
+import { enqueueJob } from '../jobs/jobQueue';
 
 const AUDIO_MIMES = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/m4a',
@@ -37,6 +38,13 @@ function isAudio(mimeType: string) {
 export default async function meetingRoutes(app: FastifyInstance) {
   await ensureMeetingTables();
   await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB
+
+  const scheduleRecallSchema = z.object({
+    meeting_url: z.string().url(),
+    scheduled_at: z.string().datetime(),
+    title: z.string().min(2).max(200).optional(),
+    platform: z.enum(['meet', 'zoom', 'teams', 'other']).optional(),
+  });
 
   // ── Upload + transcribe + analyze ────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>(
@@ -86,6 +94,56 @@ export default async function meetingRoutes(app: FastifyInstance) {
         await query(`UPDATE meetings SET status = 'failed' WHERE id = $1`, [meeting.id]);
         return reply.code(500).send({ error: `Análise falhou: ${err.message}`, meeting_id: meeting.id });
       }
+    },
+  );
+
+  // ── Manual Recall bot scheduling (no Google Calendar required) ──────────
+  app.post<{ Params: { clientId: string } }>(
+    '/clients/:clientId/meetings/recall-bot',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('library:write')] },
+    async (request, reply) => {
+      const { clientId } = request.params;
+      const tenantId = (request.user as any).tenant_id;
+      const body = scheduleRecallSchema.parse(request.body ?? {});
+
+      if (!process.env.RECALL_API_KEY) {
+        return reply.code(503).send({ error: 'RECALL_API_KEY não configurada no backend.' });
+      }
+
+      const client = await getClientById(tenantId, clientId);
+      if (!client) return reply.code(404).send({ error: 'client_not_found' });
+
+      const scheduledAt = new Date(body.scheduled_at);
+      if (Number.isNaN(scheduledAt.getTime())) {
+        return reply.code(400).send({ error: 'scheduled_at inválido.' });
+      }
+
+      const minLeadMs = 11 * 60 * 1000;
+      if (scheduledAt.getTime() < Date.now() + minLeadMs) {
+        return reply.code(422).send({
+          error: 'Agende com pelo menos 11 minutos de antecedência para evitar falha de capacidade na Recall.',
+        });
+      }
+
+      const row = await enqueueJob(
+        tenantId,
+        'meet-bot',
+        {
+          videoUrl: body.meeting_url,
+          eventTitle: body.title ?? `Reunião ${client.name}`,
+          scheduledAt: scheduledAt.toISOString(),
+          source: 'manual',
+          platform: body.platform ?? detectMeetingPlatform(body.meeting_url),
+          clientId: client.id,
+          clientName: client.name,
+        },
+      );
+
+      return reply.send({
+        success: true,
+        job_id: row.id,
+        scheduled_at: scheduledAt.toISOString(),
+      });
     },
   );
 
@@ -249,4 +307,11 @@ async function executeAction(action: any, tenantId: string): Promise<string | un
 
   // campaign and note: no immediate system creation
   return undefined;
+}
+
+function detectMeetingPlatform(url: string): 'meet' | 'zoom' | 'teams' | 'other' {
+  if (url.includes('meet.google.com') || url.includes('hangouts.google.com')) return 'meet';
+  if (url.includes('zoom.us')) return 'zoom';
+  if (url.includes('teams.microsoft.com')) return 'teams';
+  return 'other';
 }

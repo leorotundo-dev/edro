@@ -8,7 +8,6 @@ import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import StatusChip from '@/components/shared/StatusChip';
 import { apiGet, apiPost, apiPatch, apiDelete, buildApiUrl } from '@/lib/api';
-import { useConfirm } from '@/hooks/useConfirm';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -106,6 +105,18 @@ type CalendarEventItem = {
   tier: 'A' | 'B' | 'C';
   why?: string;
   is_relevant?: boolean;
+  layer?: 'editorial' | 'operational';
+  origin?: string;
+  kind?: string;
+  client_id?: string | null;
+  client_name?: string | null;
+  status?: string | null;
+  starts_at?: string | null;
+  time_label?: string | null;
+  description?: string | null;
+  editable?: boolean;
+  supports_relevance?: boolean;
+  supports_briefing?: boolean;
   possible_clients?: Array<{
     client_id: string;
     name: string;
@@ -200,6 +211,8 @@ type CalendarHubProps = {
   lockClient?: boolean;
   brandColor?: string;
 };
+
+type CalendarLayerMode = 'all' | 'editorial' | 'operational';
 
 function parseISODate(dateISO: string) {
   const [year, month, day] = dateISO.split('-').map(Number);
@@ -317,7 +330,74 @@ const TIER_COLORS: Record<string, string> = {
   C: 'default',
 };
 
-function getEventMeta(name: string, categories?: string[], tags?: string[]) {
+const ORIGIN_LABELS: Record<string, string> = {
+  editorial_global: 'Datas editoriais',
+  editorial_client: 'Eventos do cliente',
+  meeting_recorded: 'Reuniões gravadas',
+  meeting_scheduled: 'Google Calendar',
+  briefing_deadline: 'Prazos',
+  publication: 'Publicações',
+  invoice: 'Financeiro',
+};
+
+const ORIGIN_COLORS: Record<string, string> = {
+  editorial_global: '#E85219',
+  editorial_client: '#8B5CF6',
+  meeting_recorded: '#2563EB',
+  meeting_scheduled: '#0EA5E9',
+  briefing_deadline: '#F97316',
+  publication: '#16A34A',
+  invoice: '#DC2626',
+};
+
+const LAYER_LABELS: Record<CalendarLayerMode, string> = {
+  all: 'Tudo',
+  editorial: 'Editorial',
+  operational: 'Operacional',
+};
+
+const ORIGIN_FILTER_OPTIONS: Array<{
+  value: string;
+  label: string;
+  layerModes: CalendarLayerMode[];
+}> = [
+  { value: 'all', label: 'Todas as origens', layerModes: ['all', 'editorial', 'operational'] },
+  { value: 'editorial_global', label: 'Datas editoriais', layerModes: ['all', 'editorial'] },
+  { value: 'editorial_client', label: 'Eventos do cliente', layerModes: ['all', 'editorial'] },
+  { value: 'meeting_recorded', label: 'Reuniões gravadas', layerModes: ['all', 'operational'] },
+  { value: 'meeting_scheduled', label: 'Google Calendar', layerModes: ['all', 'operational'] },
+  { value: 'briefing_deadline', label: 'Prazos', layerModes: ['all', 'operational'] },
+  { value: 'publication', label: 'Publicações', layerModes: ['all', 'operational'] },
+  { value: 'invoice', label: 'Financeiro', layerModes: ['all', 'operational'] },
+];
+
+function getOriginLabel(origin?: string) {
+  if (!origin) return 'Calendário';
+  return ORIGIN_LABELS[origin] || origin;
+}
+
+function getEventColorByOrigin(origin?: string, fallbackTier?: 'A' | 'B' | 'C') {
+  if (origin && ORIGIN_COLORS[origin]) return ORIGIN_COLORS[origin];
+  if (fallbackTier === 'A') return '#D32F2F';
+  if (fallbackTier === 'B') return '#ED6C02';
+  return '#7c8fac';
+}
+
+function getEventMeta(event: Pick<CalendarEventItem, 'name' | 'categories' | 'tags' | 'origin' | 'tier'>) {
+  if (event.origin === 'meeting_recorded' || event.origin === 'meeting_scheduled') {
+    return { Icon: IconMicrophone2, color: getEventColorByOrigin(event.origin, event.tier) };
+  }
+  if (event.origin === 'briefing_deadline') {
+    return { Icon: IconChecklist, color: getEventColorByOrigin(event.origin, event.tier) };
+  }
+  if (event.origin === 'publication') {
+    return { Icon: IconCalendarPlus, color: getEventColorByOrigin(event.origin, event.tier) };
+  }
+  if (event.origin === 'invoice') {
+    return { Icon: IconReceipt2, color: getEventColorByOrigin(event.origin, event.tier) };
+  }
+
+  const { name, categories, tags } = event;
   const text = `${name} ${(categories ?? []).join(' ')} ${(tags ?? []).join(' ')}`.toLowerCase();
   if (/livro|leitura|bibliote|escola|educa|estudant|alfabetiz|literatu/.test(text))
     return { Icon: IconBook2, color: '#E85219' };
@@ -344,16 +424,57 @@ function getEventMeta(name: string, categories?: string[], tags?: string[]) {
   return { Icon: IconCalendarEvent, color: '#7c8fac' };
 }
 
+function getLayerLabel(layer?: CalendarEventItem['layer']) {
+  return layer === 'operational' ? 'Operacional' : 'Editorial';
+}
+
+function formatStatusLabel(status?: string | null) {
+  if (!status) return 'Sem status';
+  return status
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildEventSecondaryText(event: CalendarEventItem, selectedClient: ClientRow | null) {
+  if (event.layer === 'operational') {
+    return [
+      event.time_label || null,
+      !selectedClient && event.client_name ? event.client_name : null,
+      event.status ? formatStatusLabel(event.status) : null,
+      getOriginLabel(event.origin),
+    ]
+      .filter(Boolean)
+      .join(' • ');
+  }
+
+  const parts = [`${Math.round(event.score)}%`];
+
+  if (!selectedClient && event.origin === 'editorial_client' && event.client_name) {
+    parts.push(event.client_name);
+  }
+
+  if (!selectedClient && (event.possible_clients?.length || 0)) {
+    parts.push(`${event.possible_clients?.length} clientes possíveis`);
+  } else if (!selectedClient && event.is_relevant === false) {
+    parts.push('não relevante');
+  }
+
+  return parts.join(' • ');
+}
+
 export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const confirm = useConfirm();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [calendars, setCalendars] = useState<CalendarRow[]>([]);
   const [eventsByDate, setEventsByDate] = useState<Map<string, CalendarEventItem[]>>(new Map());
   const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
+  const [layerMode, setLayerMode] = useState<CalendarLayerMode>('all');
+  const [originFilter, setOriginFilter] = useState<string>('all');
   const [activeDateISO, setActiveDateISO] = useState(toISODate(new Date()));
   const [view, setView] = useState<View>('month');
   const [activeCalendarId, setActiveCalendarId] = useState<string>('all');
@@ -454,10 +575,18 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     const norm = normalizeForSearch(q);
     if (!norm) return [];
     const results: LocalSearchResult[] = [];
-    for (const [dateISO, events] of Array.from(eventsByDate.entries())) {
+    for (const [dateISO, events] of Array.from(filteredEventsByDate.entries())) {
       for (const event of events) {
         const haystack = normalizeForSearch(
-          [event.name, event.slug ?? '', ...(event.categories ?? []), ...(event.tags ?? [])].join(' ')
+          [
+            event.name,
+            event.slug ?? '',
+            event.client_name ?? '',
+            event.description ?? '',
+            event.status ?? '',
+            ...(event.categories ?? []),
+            ...(event.tags ?? []),
+          ].join(' ')
         );
         if (haystack.includes(norm)) {
           results.push({ dateISO, event });
@@ -621,12 +750,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setEventsLoading(true);
     setError('');
     try {
-      const includeNonRelevantQuery =
-        !clientId && showNonRelevant ? '?include_non_relevant=true' : '';
+      const query = new URLSearchParams();
+      query.set('layer', layerMode);
+      if (!clientId && showNonRelevant && layerMode !== 'operational') {
+        query.set('include_non_relevant', 'true');
+      }
+      const queryString = query.toString() ? `?${query.toString()}` : '';
       const response = (await apiGet(
         clientId
-          ? `/clients/${clientId}/calendar/month/${month}`
-          : `/calendar/events/${month}${includeNonRelevantQuery}`
+          ? `/clients/${clientId}/calendar/month/${month}${queryString}`
+          : `/calendar/events/${month}${queryString}`
       )) as MonthEventsResponse;
       const days = response?.days || {};
       const map = new Map<string, CalendarEventItem[]>();
@@ -634,7 +767,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
         const unique = new Map<string, CalendarEventItem>();
         (items || []).forEach((item, index) => {
           const nameKey = `${item.slug || item.name || ''}`.trim().toLowerCase();
-          const key = nameKey || item.id || String(index);
+          const key = `${item.layer || 'editorial'}:${item.id || nameKey || String(index)}`;
           if (!unique.has(key)) unique.set(key, item);
         });
         map.set(date, Array.from(unique.values()));
@@ -646,7 +779,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     } finally {
       setEventsLoading(false);
     }
-  }, [showNonRelevant]);
+  }, [layerMode, showNonRelevant]);
 
   useEffect(() => {
     const storedUser = typeof window !== 'undefined' ? localStorage.getItem('edro_user') : null;
@@ -687,7 +820,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setSelectedEventDateISO(null);
     setRelevanceByClientId({});
     setShowAllClients(false);
-  }, [selectedClient, monthFilter]);
+  }, [selectedClient, monthFilter, layerMode]);
 
   useEffect(() => {
     apiGet<{ success: boolean; eventMap: Record<string, string> }>('/edro/briefings/event-map')
@@ -722,23 +855,35 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       setShowAllClients(false);
       return;
     }
+    if (selectedEvent.supports_relevance === false) {
+      setRelevanceByClientId({});
+      setShowAllClients(false);
+      if (selectedClient?.id) {
+        setSelectedClientIds([selectedClient.id]);
+      } else if (selectedEvent.client_id) {
+        setSelectedClientIds([selectedEvent.client_id]);
+      } else {
+        setSelectedClientIds([]);
+      }
+      return;
+    }
     if (selectedClient?.id) {
       setRelevanceByClientId({});
       setSelectedClientIds([selectedClient.id]);
       return;
     }
     loadEventRelevance(selectedEvent.id);
-  }, [selectedEvent?.id, loadEventRelevance, selectedClient]);
+  }, [selectedEvent?.id, selectedEvent?.client_id, selectedEvent?.supports_relevance, loadEventRelevance, selectedClient]);
 
   // Load creative inspirations for high-relevance events
   useEffect(() => {
-    if (!selectedEvent?.id) { setInspirations([]); return; }
+    if (!selectedEvent?.id || selectedEvent.supports_briefing === false) { setInspirations([]); return; }
     if ((selectedEvent.base_relevance ?? 0) >= 50) {
       loadInspirations(selectedEvent.id);
     } else {
       setInspirations([]);
     }
-  }, [selectedEvent?.id, loadInspirations]);
+  }, [selectedEvent?.id, selectedEvent?.supports_briefing, loadInspirations]);
 
   useEffect(() => {
     if (!activeDateISO.startsWith(monthFilter)) {
@@ -791,6 +936,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return calendars.filter((calendar) => calendar.id === activeCalendarId);
   }, [calendars, activeCalendarId]);
 
+  const availableOriginFilters = useMemo(
+    () => ORIGIN_FILTER_OPTIONS.filter((option) => option.layerModes.includes(layerMode)),
+    [layerMode]
+  );
+
+  useEffect(() => {
+    if (availableOriginFilters.some((option) => option.value === originFilter)) return;
+    setOriginFilter('all');
+  }, [availableOriginFilters, originFilter]);
+
   const postsByDate = useMemo(() => {
     const map = new Map<string, Array<CalendarPost & { calendarId: string }>>();
     for (const calendar of visibleCalendars) {
@@ -812,9 +967,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return map;
   }, [visibleCalendars]);
 
+  const filteredEventsByDate = useMemo(() => {
+    if (originFilter === 'all') return eventsByDate;
+
+    const map = new Map<string, CalendarEventItem[]>();
+    eventsByDate.forEach((items, dateISO) => {
+      const filtered = items.filter((item) => item.origin === originFilter);
+      if (filtered.length) {
+        map.set(dateISO, filtered);
+      }
+    });
+    return map;
+  }, [eventsByDate, originFilter]);
+
   const calendarEvents = useMemo<CalendarRbcEvent[]>(() => {
     const output: CalendarRbcEvent[] = [];
-    eventsByDate.forEach((items, dateISO) => {
+    filteredEventsByDate.forEach((items, dateISO) => {
       const startDate = parseISODate(dateISO);
       if (!startDate) return;
       const endDate = addDays(startDate, 1);
@@ -832,11 +1000,11 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       });
     });
     return output;
-  }, [eventsByDate]);
+  }, [filteredEventsByDate]);
 
   const dayEvents = useMemo(() => {
-    return eventsByDate.get(activeDateISO) || [];
-  }, [eventsByDate, activeDateISO]);
+    return filteredEventsByDate.get(activeDateISO) || [];
+  }, [filteredEventsByDate, activeDateISO]);
 
   const dayPosts = useMemo(() => {
     return postsByDate.get(activeDateISO) || [];
@@ -867,11 +1035,11 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const totalEvents = useMemo(() => {
     let total = 0;
-    eventsByDate.forEach((items) => {
+    filteredEventsByDate.forEach((items) => {
       total += items.length;
     });
     return total;
-  }, [eventsByDate]);
+  }, [filteredEventsByDate]);
 
   const activeCalendar = useMemo(() => {
     if (activeCalendarId === 'all') return null;
@@ -926,8 +1094,8 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const selectedDayEvents = useMemo(() => {
     if (!selectedDayISO) return [];
-    return eventsByDate.get(selectedDayISO) || [];
-  }, [eventsByDate, selectedDayISO]);
+    return filteredEventsByDate.get(selectedDayISO) || [];
+  }, [filteredEventsByDate, selectedDayISO]);
 
   const selectedDayPosts = useMemo(() => {
     if (!selectedDayISO) return [];
@@ -935,6 +1103,15 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   }, [postsByDate, selectedDayISO]);
 
   const eventDetailDateISO = selectedEventDateISO || selectedDayISO || activeDateISO;
+
+  useEffect(() => {
+    if (!selectedEvent || !eventDetailDateISO) return;
+    const visibleItems = filteredEventsByDate.get(eventDetailDateISO) || [];
+    if (visibleItems.some((item) => item.id === selectedEvent.id)) return;
+    setSelectedEvent(null);
+    setSelectedEventDateISO(null);
+    setDayPanelTab(0);
+  }, [eventDetailDateISO, filteredEventsByDate, selectedEvent]);
 
   const selectedEventDateLabel = useMemo(() => {
     if (!eventDetailDateISO) return '';
@@ -1061,6 +1238,10 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   };
 
   const handleCreatePost = (event: CalendarEventItem, dateISO: string) => {
+    if (event.supports_briefing === false) {
+      setError('Este item não gera briefing a partir do calendário.');
+      return;
+    }
     if (!selectedClientIds.length) {
       setError('Selecione ao menos um cliente para criar o briefing.');
       return;
@@ -1195,6 +1376,10 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   };
 
   const handleSaveEventRelevance = async () => {
+    if (selectedEvent?.supports_relevance === false) {
+      setError('Este item não aceita ajuste de relevância.');
+      return;
+    }
     const targetClientId = selectedClient?.id || manualRelevanceClientId;
     if (!targetClientId) {
       setError('Selecione um cliente-alvo para ajustar a relevância.');
@@ -1290,6 +1475,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   const rbcEventPropGetter = useCallback((event: CalendarRbcEvent) => {
+    const item = event.resource.event;
+    if (item.origin && item.origin !== 'editorial_global') {
+      return {
+        style: {
+          backgroundColor: getEventColorByOrigin(item.origin, event.tier),
+          border: 'none',
+          color: '#fff',
+        },
+      };
+    }
     if (brandColor) {
       const opacity = event.tier === 'A' ? 'ff' : event.tier === 'B' ? 'cc' : '88';
       return { style: { backgroundColor: `${brandColor}${opacity}`, border: 'none', color: '#fff' } };
@@ -1317,12 +1512,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return <span className={cls}>{label}</span>;
   }, [todayISO, selectedDayISO]);
 
-  const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => (
-    <span className="rbc-event-content">
-      <span className="truncate">{event.title}</span>
-      <span className="rbc-event-score">{Math.round(event.score)}%</span>
-    </span>
-  );
+  const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => {
+    const item = event.resource.event;
+    return (
+      <span className="rbc-event-content">
+        <span className="truncate">{event.title}</span>
+        <span className="rbc-event-score">
+          {item.layer === 'operational'
+            ? item.time_label || getOriginLabel(item.origin)
+            : `${Math.round(event.score)}%`}
+        </span>
+      </span>
+    );
+  };
 
   if (loading && clients.length === 0) {
     return (
@@ -1410,6 +1612,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
           </Stack>
 
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <ToggleButtonGroup
+              value={layerMode}
+              exclusive
+              size="small"
+              onChange={(_, nextLayer) => {
+                if (nextLayer) setLayerMode(nextLayer);
+              }}
+            >
+              <ToggleButton value="all">Tudo</ToggleButton>
+              <ToggleButton value="editorial">Editorial</ToggleButton>
+              <ToggleButton value="operational">Operacional</ToggleButton>
+            </ToggleButtonGroup>
+
             <TextField
               select
               size="small"
@@ -1464,7 +1679,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               sx={{ minWidth: 160 }}
             />
 
-            {!selectedClient ? (
+            <TextField
+              select
+              size="small"
+              label="Origem"
+              value={originFilter}
+              onChange={(event) => setOriginFilter(event.target.value)}
+              sx={{ minWidth: 220 }}
+            >
+              {availableOriginFilters.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {!selectedClient && layerMode !== 'operational' ? (
               <Stack direction="row" spacing={1} alignItems="center" sx={{ minHeight: 40 }}>
                 <Switch
                   size="small"
@@ -1615,9 +1845,13 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
         <Chip size="small" label="High" color="error" variant="filled" />
         <Chip size="small" label="Medium" color="warning" variant="filled" />
         <Chip size="small" label="Low" variant="outlined" />
+        <Chip size="small" label={`Camada: ${LAYER_LABELS[layerMode]}`} variant="outlined" />
+        {originFilter !== 'all' ? (
+          <Chip size="small" label={`Origem: ${getOriginLabel(originFilter)}`} variant="outlined" />
+        ) : null}
         <Chip size="small" label={selectionLabel} variant="outlined" />
         <Chip size="small" label={`${totalPosts} posts`} variant="outlined" />
-        <Chip size="small" label={`${totalEvents} dates`} variant="outlined" />
+        <Chip size="small" label={`${totalEvents} itens`} variant="outlined" />
         {eventsLoading ? <Chip size="small" label="Loading dates..." variant="outlined" /> : null}
       </Stack>
 
@@ -1725,23 +1959,25 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                 {/* ── Tab 0: Daily events ── */}
                 {dayPanelTab === 0 && (
                 <Box>
-                  <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 1, mt: 0.5 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<IconPlus size={14} />}
-                      onClick={handleOpenAddEvent}
-                      disabled={addEventLoading}
-                    >
-                      {addEventLoading ? 'Adicionando...' : 'Adicionar evento'}
-                    </Button>
-                  </Stack>
+                  {layerMode !== 'operational' ? (
+                    <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 1, mt: 0.5 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<IconPlus size={14} />}
+                        onClick={handleOpenAddEvent}
+                        disabled={addEventLoading}
+                      >
+                        {addEventLoading ? 'Adicionando...' : 'Adicionar evento'}
+                      </Button>
+                    </Stack>
+                  ) : null}
                   {selectedDayEvents.length ? (
                     <>
                       <List dense disablePadding>
                         {selectedDayEvents.map((event) => {
                           const isActioning = eventActionLoading === event.id;
-                          const { Icon: EvIcon, color: evColor } = getEventMeta(event.name, event.categories, event.tags);
+                          const { Icon: EvIcon, color: evColor } = getEventMeta(event);
                           return (
                             <ListItemButton
                               key={event.id}
@@ -1766,16 +2002,10 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                               </ListItemIcon>
                               <ListItemText
                                 primary={event.name}
-                                secondary={`${Math.round(event.score)}%${
-                                  !selectedClient && (event.possible_clients?.length || 0)
-                                    ? ` • ${event.possible_clients?.length} clientes possíveis`
-                                    : !selectedClient && event.is_relevant === false
-                                      ? ' • não relevante'
-                                    : ''
-                                }`}
+                                secondary={buildEventSecondaryText(event, selectedClient)}
                               />
                               <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
-                                {eventBriefingMap[event.name.toLowerCase().trim()] && (
+                                {event.supports_briefing !== false && eventBriefingMap[event.name.toLowerCase().trim()] && (
                                   <Chip
                                     size="small"
                                     label="Briefing"
@@ -1786,7 +2016,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                                 )}
                                 {isActioning ? (
                                   <CircularProgress size={14} />
-                                ) : (
+                                ) : event.editable !== false ? (
                                   <IconButton
                                     size="small"
                                     onClick={(e) => handleEventMenuOpen(e, event.id)}
@@ -1794,11 +2024,15 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                                   >
                                     <IconDotsVertical size={14} />
                                   </IconButton>
-                                )}
+                                ) : null}
                                 <Chip
                                   size="small"
-                                  label={`Tier ${event.tier}`}
-                                  color={(TIER_COLORS[event.tier] || 'default') as any}
+                                  label={event.layer === 'operational' ? getOriginLabel(event.origin) : `Tier ${event.tier}`}
+                                  color={event.layer === 'operational' ? 'default' : (TIER_COLORS[event.tier] || 'default') as any}
+                                  sx={event.layer === 'operational' ? {
+                                    bgcolor: `${getEventColorByOrigin(event.origin, event.tier)}22`,
+                                    color: getEventColorByOrigin(event.origin, event.tier),
+                                  } : undefined}
                                 />
                               </Stack>
                             </ListItemButton>
@@ -1815,7 +2049,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       >
                         {(() => {
                           const ev = selectedDayEvents.find((e) => e.id === eventMenuId);
-                          if (!ev) return null;
+                          if (!ev || ev.editable === false) return null;
                           return [
                             <MenuItem key="edit" onClick={() => handleEditEvent(ev)}>
                               <IconPencil size={15} style={{ marginRight: 8 }} />
@@ -1867,6 +2101,14 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         <Typography variant="caption" color="text.secondary">{selectedEventDateLabel || eventDetailDateISO}</Typography>
                       </Box>
                       <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Chip
+                          size="small"
+                          label={getOriginLabel(selectedEvent.origin)}
+                          sx={{
+                            bgcolor: `${getEventColorByOrigin(selectedEvent.origin, selectedEvent.tier)}22`,
+                            color: getEventColorByOrigin(selectedEvent.origin, selectedEvent.tier),
+                          }}
+                        />
                         <StatusChip status={selectedEvent.tier === 'A' ? 'high' : selectedEvent.tier === 'B' ? 'medium' : 'low'} label={`Tier ${selectedEvent.tier}`} />
                         <IconButton size="small" onClick={() => { setSelectedEvent(null); setSelectedEventDateISO(null); setDayPanelTab(0); }}>
                           <IconX size={16} />
@@ -1874,11 +2116,27 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       </Stack>
                     </Stack>
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">{selectedClient ? 'Relevance' : 'Base relevance'}</Typography>
+                      <Typography variant="caption" color="text.secondary">Camada</Typography>
+                      <Typography variant="body2">{getLayerLabel(selectedEvent.layer)}</Typography>
+                      <Typography variant="caption" color="text.secondary">Origem</Typography>
+                      <Typography variant="body2">{getOriginLabel(selectedEvent.origin)}</Typography>
+                      <Typography variant="caption" color="text.secondary">{selectedEvent.supports_relevance === false ? 'Prioridade' : selectedClient ? 'Relevance' : 'Base relevance'}</Typography>
                       <Typography variant="body2">{selectedEvent.score}</Typography>
                       <Typography variant="caption" color="text.secondary">Client</Typography>
-                      <Typography variant="body2">{selectedClient?.name || 'Global calendar'}</Typography>
-                      {!selectedClient && selectedEvent.possible_clients?.length ? (
+                      <Typography variant="body2">{selectedEvent.client_name || selectedClient?.name || 'Global calendar'}</Typography>
+                      {selectedEvent.time_label ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Horário</Typography>
+                          <Typography variant="body2">{selectedEvent.time_label}</Typography>
+                        </>
+                      ) : null}
+                      {selectedEvent.status ? (
+                        <>
+                          <Typography variant="caption" color="text.secondary">Status</Typography>
+                          <Typography variant="body2">{formatStatusLabel(selectedEvent.status)}</Typography>
+                        </>
+                      ) : null}
+                      {!selectedClient && selectedEvent.supports_relevance !== false && selectedEvent.possible_clients?.length ? (
                         <>
                           <Typography variant="caption" color="text.secondary">Clientes possíveis</Typography>
                           <Typography variant="body2">
@@ -1886,7 +2144,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                           </Typography>
                         </>
                       ) : null}
-                      {!selectedClient && selectedEvent.is_relevant === false ? (
+                      {!selectedClient && selectedEvent.supports_relevance !== false && selectedEvent.is_relevant === false ? (
                         <>
                           <Typography variant="caption" color="text.secondary">Match</Typography>
                           <Typography variant="body2">Sem cliente relevante para este evento</Typography>
@@ -1911,49 +2169,57 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         </>
                       ) : null}
                     </Box>
-                    <Box>
-                      <Typography variant="overline" color="text.secondary">Ajuste de relevância</Typography>
-                      {selectedClient || relevanceClientOptions.length ? (
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-end' }}>
-                          {!selectedClient ? (
+                    {selectedEvent.description ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Descrição</Typography>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{selectedEvent.description}</Typography>
+                      </Box>
+                    ) : null}
+                    {selectedEvent.supports_relevance !== false ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Ajuste de relevância</Typography>
+                        {selectedClient || relevanceClientOptions.length ? (
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-end' }}>
+                            {!selectedClient ? (
+                              <TextField
+                                select
+                                size="small"
+                                label="Cliente alvo"
+                                value={manualRelevanceClientId}
+                                onChange={(event) => setManualRelevanceClientId(event.target.value)}
+                                sx={{ minWidth: 180 }}
+                              >
+                                <MenuItem value="">Selecione</MenuItem>
+                                {relevanceClientOptions.map((client) => (
+                                  <MenuItem key={client.id} value={client.id}>{client.name}</MenuItem>
+                                ))}
+                              </TextField>
+                            ) : null}
                             <TextField
-                              select
+                              type="number"
                               size="small"
-                              label="Cliente alvo"
-                              value={manualRelevanceClientId}
-                              onChange={(event) => setManualRelevanceClientId(event.target.value)}
-                              sx={{ minWidth: 180 }}
-                            >
-                              <MenuItem value="">Selecione</MenuItem>
-                              {relevanceClientOptions.map((client) => (
-                                <MenuItem key={client.id} value={client.id}>{client.name}</MenuItem>
-                              ))}
-                            </TextField>
-                          ) : null}
-                          <TextField
-                            type="number"
-                            size="small"
-                            label="Relevância (%)"
-                            value={manualRelevance}
-                            onChange={(event) => setManualRelevance(event.target.value)}
-                            inputProps={{ min: 0, max: 100 }}
-                            sx={{ width: 140 }}
-                          />
-                          <Button size="small" variant="contained" onClick={handleSaveEventRelevance} disabled={saveRelevanceLoading}>
-                            {saveRelevanceLoading ? 'Salvando...' : 'Salvar'}
-                          </Button>
-                        </Stack>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          Nenhum cliente disponível para ajuste de relevância neste evento.
-                        </Typography>
-                      )}
-                      {!selectedClient && manualRelevanceTargetClient ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                          Ajuste será aplicado para: {manualRelevanceTargetClient.name}
-                        </Typography>
-                      ) : null}
-                    </Box>
+                              label="Relevância (%)"
+                              value={manualRelevance}
+                              onChange={(event) => setManualRelevance(event.target.value)}
+                              inputProps={{ min: 0, max: 100 }}
+                              sx={{ width: 140 }}
+                            />
+                            <Button size="small" variant="contained" onClick={handleSaveEventRelevance} disabled={saveRelevanceLoading}>
+                              {saveRelevanceLoading ? 'Salvando...' : 'Salvar'}
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Nenhum cliente disponível para ajuste de relevância neste evento.
+                          </Typography>
+                        )}
+                        {!selectedClient && manualRelevanceTargetClient ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                            Ajuste será aplicado para: {manualRelevanceTargetClient.name}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    ) : null}
                     {selectedEvent.why ? (
                       <Typography variant="body2" color="text.secondary">{formatEventWhy(selectedEvent.why)}</Typography>
                     ) : null}
@@ -1974,7 +2240,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       </Box>
                     ) : null}
                     {/* ── Creative Inspirations Panel ───────────────── */}
-                    {(selectedEvent.base_relevance ?? 0) >= 50 && (
+                    {selectedEvent.supports_briefing !== false && (selectedEvent.base_relevance ?? 0) >= 50 && (
                       <Box>
                         <Typography variant="overline" color="text.secondary">Inspirações Criativas</Typography>
                         {inspirationsLoading && (
@@ -2046,68 +2312,74 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                         </Stack>
                       </Box>
                     ) : null}
-                    <Box>
-                      <Typography variant="overline" color="text.secondary">Clientes do job</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Relevantes: {recommendedClientIds.length} de {clients.length}
-                      </Typography>
-                      {isFilteredToClient && selectedClient ? (
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                          <Chip label={selectedClient.name} size="small" color="primary" />
-                        </Stack>
-                      ) : (
-                        <>
-                          {relevanceLoading ? (
-                            <Typography variant="body2" color="text.secondary">Calculando relevancia...</Typography>
-                          ) : null}
-                          {!relevanceLoading && !visibleClients.length ? (
-                            <Typography variant="body2" color="text.secondary">Nenhum cliente relevante para este evento.</Typography>
-                          ) : (
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                              {visibleClients.map((client) => (
-                                <Chip
-                                  key={client.id}
-                                  label={client.name}
-                                  size="small"
-                                  color={selectedClientIds.includes(client.id) ? 'primary' : 'default'}
-                                  variant={selectedClientIds.includes(client.id) ? 'filled' : 'outlined'}
-                                  onClick={() => handleToggleClient(client.id)}
-                                />
-                              ))}
-                            </Stack>
-                          )}
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                            <Button size="small" variant="text" onClick={handleSelectAllClients}>Selecionar todos</Button>
-                            <Button size="small" variant="text" onClick={handleClearClients}>Limpar</Button>
-                            {!showAllClients ? (
-                              <Button size="small" variant="text" onClick={() => setShowAllClients(true)}>Mostrar todos</Button>
-                            ) : (
-                              <Button size="small" variant="text" onClick={() => setShowAllClients(false)}>Mostrar apenas relevantes</Button>
-                            )}
+                    {selectedEvent.supports_relevance !== false ? (
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">Clientes do job</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Relevantes: {recommendedClientIds.length} de {clients.length}
+                        </Typography>
+                        {isFilteredToClient && selectedClient ? (
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                            <Chip label={selectedClient.name} size="small" color="primary" />
                           </Stack>
-                        </>
-                      )}
-                    </Box>
-                    {(() => {
-                      const existingId = selectedEvent && eventBriefingMap[selectedEvent.name.toLowerCase().trim()];
-                      return existingId ? (
-                        <Alert
-                          severity="success"
-                          icon={<IconFileText size={15} />}
-                          action={
-                            <Button size="small" color="success" onClick={() => router.push(`/edro/${existingId}`)}>
-                              Ver
-                            </Button>
-                          }
-                          sx={{ py: 0.5 }}
-                        >
-                          Briefing já existe para este evento.
-                        </Alert>
-                      ) : null;
-                    })()}
-                    <Button variant="contained" fullWidth onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}>
-                      Criar Briefing
-                    </Button>
+                        ) : (
+                          <>
+                            {relevanceLoading ? (
+                              <Typography variant="body2" color="text.secondary">Calculando relevancia...</Typography>
+                            ) : null}
+                            {!relevanceLoading && !visibleClients.length ? (
+                              <Typography variant="body2" color="text.secondary">Nenhum cliente relevante para este evento.</Typography>
+                            ) : (
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                {visibleClients.map((client) => (
+                                  <Chip
+                                    key={client.id}
+                                    label={client.name}
+                                    size="small"
+                                    color={selectedClientIds.includes(client.id) ? 'primary' : 'default'}
+                                    variant={selectedClientIds.includes(client.id) ? 'filled' : 'outlined'}
+                                    onClick={() => handleToggleClient(client.id)}
+                                  />
+                                ))}
+                              </Stack>
+                            )}
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                              <Button size="small" variant="text" onClick={handleSelectAllClients}>Selecionar todos</Button>
+                              <Button size="small" variant="text" onClick={handleClearClients}>Limpar</Button>
+                              {!showAllClients ? (
+                                <Button size="small" variant="text" onClick={() => setShowAllClients(true)}>Mostrar todos</Button>
+                              ) : (
+                                <Button size="small" variant="text" onClick={() => setShowAllClients(false)}>Mostrar apenas relevantes</Button>
+                              )}
+                            </Stack>
+                          </>
+                        )}
+                      </Box>
+                    ) : null}
+                    {selectedEvent.supports_briefing !== false ? (
+                      <>
+                        {(() => {
+                          const existingId = selectedEvent && eventBriefingMap[selectedEvent.name.toLowerCase().trim()];
+                          return existingId ? (
+                            <Alert
+                              severity="success"
+                              icon={<IconFileText size={15} />}
+                              action={
+                                <Button size="small" color="success" onClick={() => router.push(`/edro/${existingId}`)}>
+                                  Ver
+                                </Button>
+                              }
+                              sx={{ py: 0.5 }}
+                            >
+                              Briefing já existe para este evento.
+                            </Alert>
+                          ) : null;
+                        })()}
+                        <Button variant="contained" fullWidth onClick={() => handleCreatePost(selectedEvent, eventDetailDateISO)}>
+                          Criar Briefing
+                        </Button>
+                      </>
+                    ) : null}
                   </Stack>
                 )}
               </Stack>

@@ -17,6 +17,7 @@
  *   6. Handler decodes historyId → fetchNewMessages() → processMessage()
  */
 
+import crypto from 'crypto';
 import { query } from '../../db';
 import { generateCompletion } from '../ai/claudeService';
 import { createBriefing } from '../../repositories/edroBriefingRepository';
@@ -25,6 +26,27 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
 
+
+// ── OAuth state helpers (signed to prevent forgery) ───────────────────────
+
+function signOAuthState(payload: object): string {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const sig = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyOAuthState(rawState: string): { tenantId: string } {
+  const dotIndex = rawState.lastIndexOf('.');
+  if (dotIndex < 0) throw new Error('Invalid OAuth state format');
+  const data = rawState.slice(0, dotIndex);
+  const sig = rawState.slice(dotIndex + 1);
+  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  if (sig !== expected) throw new Error('Invalid OAuth state signature');
+  return JSON.parse(Buffer.from(data, 'base64url').toString());
+}
+
 // ── OAuth helpers ─────────────────────────────────────────────────────────
 
 export function gmailOAuthUrl(tenantId: string): string {
@@ -32,7 +54,7 @@ export function gmailOAuthUrl(tenantId: string): string {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
   if (!clientId || !redirectUri) throw new Error('GOOGLE_CLIENT_ID/REDIRECT_URI não configurados.');
 
-  const state = Buffer.from(JSON.stringify({ tenantId, ts: Date.now() })).toString('base64url');
+  const state = signOAuthState({ tenantId, ts: Date.now() });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -89,8 +111,7 @@ export async function exchangeGmailCode(code: string, rawState: string): Promise
 
   let tenantId: string;
   try {
-    const decoded = JSON.parse(Buffer.from(rawState, 'base64url').toString());
-    tenantId = decoded.tenantId;
+    tenantId = verifyOAuthState(rawState).tenantId;
   } catch {
     throw new Error('Invalid OAuth state');
   }

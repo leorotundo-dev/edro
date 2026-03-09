@@ -198,6 +198,11 @@ function computeTierFromScore(score: number): 'A' | 'B' | 'C' {
   return 'C';
 }
 
+function clampScore(score: number) {
+  if (!Number.isFinite(score)) return 0;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function computeClientNameTerms(name: string): string[] {
   const normalizedName = normalizeSearchText(name);
   if (!normalizedName) return [];
@@ -536,6 +541,436 @@ async function buildGlobalEvents(params: { tenantId: string; year: number; count
     country: params.country,
   });
   return approvedEvents.length ? approvedEvents : RETAIL_BR_EVENTS;
+}
+
+type CalendarLayerMode = 'all' | 'editorial' | 'operational';
+
+function parseCalendarLayer(value: unknown): CalendarLayerMode {
+  if (value === 'editorial' || value === 'operational') return value;
+  return 'all';
+}
+
+function monthStartDate(month: string) {
+  return `${month}-01`;
+}
+
+function pushCalendarDayItem(days: Record<string, any[]>, dateISO: string, item: any) {
+  if (!days[dateISO]) days[dateISO] = [];
+  days[dateISO].push(item);
+}
+
+function recalculateCalendarDays(days: Record<string, any[]>) {
+  let totalEvents = 0;
+  for (const date of Object.keys(days)) {
+    const editorialItems = dedupeCalendarItems(
+      days[date].filter((item) => item.layer === 'editorial')
+    );
+    const nonEditorialItems = days[date].filter((item) => item.layer !== 'editorial');
+
+    days[date] = [...nonEditorialItems, ...editorialItems];
+    days[date].sort((a, b) => {
+      const layerDelta =
+        a.layer === b.layer ? 0 : a.layer === 'operational' ? -1 : 1;
+      if (layerDelta !== 0) return layerDelta;
+
+      const aStart = String(a.starts_at || '');
+      const bStart = String(b.starts_at || '');
+      if (aStart && bStart && aStart !== bStart) {
+        return aStart.localeCompare(bStart);
+      }
+
+      const scoreDelta = Number(b.score || 0) - Number(a.score || 0);
+      if (scoreDelta !== 0) return scoreDelta;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+    });
+    totalEvents += days[date].length;
+  }
+  return totalEvents;
+}
+
+function mergeCalendarDays(target: Record<string, any[]>, source: Record<string, any[]>) {
+  for (const [dateISO, items] of Object.entries(source)) {
+    if (!target[dateISO]) target[dateISO] = [];
+    target[dateISO].push(...items);
+  }
+}
+
+function formatCalendarTimeLabel(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function buildOperationalUrgencyScore(kind: string, status: string | null | undefined, startsAt: string | Date | null | undefined) {
+  const date = startsAt ? new Date(startsAt) : null;
+  const diffHours = date ? Math.round((date.getTime() - Date.now()) / 3600000) : null;
+  const normalizedStatus = String(status || '').toLowerCase();
+
+  if (kind === 'financial') {
+    if (normalizedStatus === 'overdue') return 100;
+    if (normalizedStatus === 'sent') return 88;
+    return 74;
+  }
+
+  if (kind === 'deadline') {
+    if (diffHours !== null && diffHours < 0) return 100;
+    if (diffHours !== null && diffHours <= 24) return 96;
+    if (diffHours !== null && diffHours <= 72) return 90;
+    if (diffHours !== null && diffHours <= 168) return 82;
+    return normalizedStatus === 'done' || normalizedStatus === 'archived' ? 45 : 72;
+  }
+
+  if (kind === 'meeting') {
+    if (diffHours !== null && diffHours >= 0 && diffHours <= 48) return 94;
+    if (normalizedStatus === 'processing') return 86;
+    return 76;
+  }
+
+  if (kind === 'publication') {
+    if (normalizedStatus === 'failed') return 98;
+    if (normalizedStatus === 'scheduled') return 84;
+    if (normalizedStatus === 'published') return 52;
+    return 72;
+  }
+
+  return 70;
+}
+
+async function buildCustomCalendarEventDays(params: {
+  tenantId: string;
+  month: string;
+  clientId?: string | null;
+  clientName?: string | null;
+}) {
+  const values: any[] = [params.tenantId, monthStartDate(params.month)];
+  let clientClause = '';
+
+  if (params.clientId) {
+    values.push(params.clientId, params.clientName ?? '');
+    clientClause = `
+      AND (
+        cl.id = $3
+        OR LOWER(ec.name) = LOWER($4)
+      )
+    `;
+  }
+
+  const { rows } = await query<any>(
+    `SELECT ce.id,
+            ce.title,
+            ce.description,
+            ce.event_date::text AS event_date,
+            ce.category,
+            COALESCE(ce.relevance_score, 72) AS relevance_score,
+            ce.source,
+            ce.tags,
+            cl.id AS client_id,
+            COALESCE(cl.name, ec.name) AS client_name
+       FROM calendar_events ce
+       JOIN edro_clients ec ON ec.id = ce.client_id
+       LEFT JOIN clients cl
+         ON cl.tenant_id = $1
+        AND LOWER(cl.name) = LOWER(ec.name)
+      WHERE ce.event_date >= $2::date
+        AND ce.event_date < ($2::date + INTERVAL '1 month')
+        ${clientClause}
+      ORDER BY ce.event_date ASC, ce.created_at ASC`,
+    values,
+  );
+
+  const days: Record<string, any[]> = {};
+  for (const row of rows) {
+    const score = clampScore(Number(row.relevance_score || 72));
+    const tier = computeTierFromScore(score);
+    const clientList = row.client_id
+      ? [{ client_id: row.client_id, name: row.client_name, score, tier }]
+      : [];
+
+    pushCalendarDayItem(days, row.event_date, {
+      id: `calendar_event:${row.id}`,
+      name: row.title,
+      description: row.description ?? null,
+      categories: row.category ? [row.category] : [],
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      source: row.source || 'calendar_events',
+      score,
+      tier,
+      why: `calendar_event:${row.source || 'manual'}`,
+      is_relevant: true,
+      possible_clients: clientList,
+      layer: 'editorial',
+      origin: 'editorial_client',
+      kind: 'date',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      starts_at: `${row.event_date}T00:00:00`,
+      time_label: null,
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: true,
+    });
+  }
+
+  return days;
+}
+
+async function buildOperationalCalendarDays(params: {
+  tenantId: string;
+  month: string;
+  clientId?: string | null;
+}) {
+  const monthStart = monthStartDate(params.month);
+  const days: Record<string, any[]> = {};
+
+  const withClientFilter = (sql: string, field = 'client_id') =>
+    params.clientId ? `${sql} AND ${field} = $3` : sql;
+
+  const meetingsValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
+  const { rows: meetingsRows } = await query<any>(
+    withClientFilter(
+      `SELECT m.id,
+              m.title,
+              m.platform,
+              m.meeting_url,
+              m.recorded_at::text AS starts_at,
+              m.status,
+              c.id AS client_id,
+              c.name AS client_name
+         FROM meetings m
+         LEFT JOIN clients c ON c.id = m.client_id
+        WHERE m.tenant_id = $1
+          AND m.recorded_at >= $2::date
+          AND m.recorded_at < ($2::date + INTERVAL '1 month')`,
+    ),
+    meetingsValues,
+  );
+
+  for (const row of meetingsRows) {
+    const score = buildOperationalUrgencyScore('meeting', row.status, row.starts_at);
+    pushCalendarDayItem(days, String(row.starts_at).slice(0, 10), {
+      id: `meeting:${row.id}`,
+      name: row.title || 'Reunião',
+      description: row.meeting_url ? `Link: ${row.meeting_url}` : null,
+      source: row.platform || 'meeting',
+      score,
+      tier: computeTierFromScore(score),
+      layer: 'operational',
+      origin: 'meeting_recorded',
+      kind: 'meeting',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      status: row.status ?? 'analyzed',
+      starts_at: row.starts_at,
+      time_label: formatCalendarTimeLabel(row.starts_at),
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: false,
+    });
+  }
+
+  const autoJoinValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
+  const { rows: autoJoinRows } = await query<any>(
+    withClientFilter(
+      `SELECT caj.id,
+              caj.event_title,
+              caj.video_platform,
+              caj.video_url,
+              caj.scheduled_at::text AS starts_at,
+              caj.job_enqueued_at,
+              caj.meeting_id,
+              COALESCE(m.client_id::text, jq.payload->>'clientId', jq.payload->>'client_id') AS client_id,
+              COALESCE(c.name, jq.payload->>'clientName', jq.payload->>'client_name') AS client_name
+         FROM calendar_auto_joins caj
+         LEFT JOIN meetings m ON m.id = caj.meeting_id
+         LEFT JOIN LATERAL (
+           SELECT payload
+             FROM job_queue jq
+            WHERE jq.tenant_id = $1
+              AND jq.type = 'meet-bot'
+              AND COALESCE(jq.payload->>'autoJoinId', jq.payload->>'auto_join_id') = caj.id::text
+            ORDER BY jq.created_at DESC
+            LIMIT 1
+         ) jq ON true
+         LEFT JOIN clients c ON c.id::text = COALESCE(m.client_id::text, jq.payload->>'clientId', jq.payload->>'client_id')
+        WHERE caj.tenant_id = $1
+          AND caj.scheduled_at >= $2::date
+          AND caj.scheduled_at < ($2::date + INTERVAL '1 month')`,
+    ),
+    autoJoinValues,
+  );
+
+  for (const row of autoJoinRows) {
+    const status = row.meeting_id ? 'processed' : row.job_enqueued_at ? 'bot_scheduled' : 'detected';
+    const score = buildOperationalUrgencyScore('meeting', status, row.starts_at);
+    pushCalendarDayItem(days, String(row.starts_at).slice(0, 10), {
+      id: `auto_join:${row.id}`,
+      name: row.event_title || 'Reunião ao vivo',
+      description: row.video_url ? `Link: ${row.video_url}` : null,
+      source: row.video_platform || 'google_calendar',
+      score,
+      tier: computeTierFromScore(score),
+      layer: 'operational',
+      origin: 'meeting_scheduled',
+      kind: 'meeting',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      status,
+      starts_at: row.starts_at,
+      time_label: formatCalendarTimeLabel(row.starts_at),
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: false,
+    });
+  }
+
+  const briefingsValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
+  const { rows: briefingRows } = await query<any>(
+    withClientFilter(
+      `SELECT b.id,
+              b.title,
+              b.status,
+              b.due_at::text AS starts_at,
+              COALESCE(b.main_client_id, fallback.id) AS client_id,
+              COALESCE(primary_client.name, fallback.name, ec.name) AS client_name
+         FROM edro_briefings b
+         LEFT JOIN clients primary_client
+           ON primary_client.id = b.main_client_id
+          AND primary_client.tenant_id = $1
+         LEFT JOIN edro_clients ec ON ec.id = b.client_id
+         LEFT JOIN clients fallback
+           ON fallback.tenant_id = $1
+          AND LOWER(fallback.name) = LOWER(ec.name)
+        WHERE b.due_at IS NOT NULL
+          AND b.due_at >= $2::date
+          AND b.due_at < ($2::date + INTERVAL '1 month')`,
+      'COALESCE(b.main_client_id, fallback.id)',
+    ),
+    briefingsValues,
+  );
+
+  for (const row of briefingRows) {
+    const score = buildOperationalUrgencyScore('deadline', row.status, row.starts_at);
+    pushCalendarDayItem(days, String(row.starts_at).slice(0, 10), {
+      id: `briefing:${row.id}`,
+      name: row.title || 'Prazo de briefing',
+      description: null,
+      source: 'edro_briefings',
+      score,
+      tier: computeTierFromScore(score),
+      layer: 'operational',
+      origin: 'briefing_deadline',
+      kind: 'deadline',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      status: row.status ?? 'pending',
+      starts_at: row.starts_at,
+      time_label: formatCalendarTimeLabel(row.starts_at),
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: false,
+    });
+  }
+
+  const publishValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
+  const { rows: publishRows } = await query<any>(
+    withClientFilter(
+      `SELECT ps.id,
+              ps.channel,
+              ps.status,
+              ps.scheduled_for::text AS starts_at,
+              b.title,
+              COALESCE(b.main_client_id, fallback.id) AS client_id,
+              COALESCE(primary_client.name, fallback.name, ec.name) AS client_name
+         FROM edro_publish_schedule ps
+         JOIN edro_briefings b ON b.id = ps.briefing_id
+         LEFT JOIN clients primary_client
+           ON primary_client.id = b.main_client_id
+          AND primary_client.tenant_id = $1
+         LEFT JOIN edro_clients ec ON ec.id = b.client_id
+         LEFT JOIN clients fallback
+           ON fallback.tenant_id = $1
+          AND LOWER(fallback.name) = LOWER(ec.name)
+        WHERE ps.scheduled_for >= $2::date
+          AND ps.scheduled_for < ($2::date + INTERVAL '1 month')`,
+      'COALESCE(b.main_client_id, fallback.id)',
+    ),
+    publishValues,
+  );
+
+  for (const row of publishRows) {
+    const score = buildOperationalUrgencyScore('publication', row.status, row.starts_at);
+    pushCalendarDayItem(days, String(row.starts_at).slice(0, 10), {
+      id: `publish:${row.id}`,
+      name: row.title ? `${row.title} (${row.channel})` : `Publicação ${row.channel}`,
+      description: null,
+      source: row.channel || 'publish_schedule',
+      score,
+      tier: computeTierFromScore(score),
+      layer: 'operational',
+      origin: 'publication',
+      kind: 'publication',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      status: row.status ?? 'scheduled',
+      starts_at: row.starts_at,
+      time_label: formatCalendarTimeLabel(row.starts_at),
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: false,
+    });
+  }
+
+  const invoiceValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
+  const { rows: invoiceRows } = await query<any>(
+    withClientFilter(
+      `SELECT i.id,
+              i.description,
+              i.amount_brl::text AS amount_brl,
+              i.due_date::text AS due_date,
+              i.status,
+              c.id AS client_id,
+              c.name AS client_name
+         FROM invoices i
+         LEFT JOIN clients c ON c.id = i.client_id
+        WHERE i.tenant_id = $1
+          AND i.due_date >= $2::date
+          AND i.due_date < ($2::date + INTERVAL '1 month')`,
+    ),
+    invoiceValues,
+  );
+
+  for (const row of invoiceRows) {
+    const startsAt = `${row.due_date}T00:00:00`;
+    const amount = Number(row.amount_brl || 0);
+    const score = buildOperationalUrgencyScore('financial', row.status, startsAt);
+    pushCalendarDayItem(days, row.due_date, {
+      id: `invoice:${row.id}`,
+      name: row.description || 'Fatura',
+      description: Number.isFinite(amount)
+        ? `Valor: ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+        : null,
+      source: 'invoices',
+      score,
+      tier: computeTierFromScore(score),
+      layer: 'operational',
+      origin: 'invoice',
+      kind: 'financial',
+      client_id: row.client_id ?? null,
+      client_name: row.client_name ?? null,
+      status: row.status ?? 'draft',
+      starts_at: startsAt,
+      time_label: null,
+      editable: false,
+      supports_relevance: false,
+      supports_briefing: false,
+    });
+  }
+
+  return days;
 }
 
 export default async function calendarRoutes(app: FastifyInstance) {
@@ -906,6 +1341,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
   app.get('/calendar/events/:month', { preHandler: [requirePerm('calendars:read')] }, async (request, reply) => {
     const params = monthParamSchema.parse(request.params);
     const tenantId = (request.user as any).tenant_id;
+    const layerMode = parseCalendarLayer((request.query as any)?.layer);
     const includeNonRelevant = ['1', 'true', 'yes', 'sim'].includes(
       String((request.query as any)?.include_non_relevant || '')
         .trim()
@@ -939,93 +1375,104 @@ export default async function calendarRoutes(app: FastifyInstance) {
     const days: Record<string, any[]> = {};
     let totalEvents = 0;
 
-    for (const hit of hits) {
-      const eventAny = hit.event as any;
-      let score = Number(hit.event.base_relevance ?? 50);
-      let tier: 'A' | 'B' | 'C' = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
-      let why = `base_relevance:${score}`;
-      let isRelevant = true;
-      let possibleClients: Array<{
-        client_id: string;
-        name: string;
-        score: number;
-        tier: 'A' | 'B' | 'C';
-        why: string;
-      }> = [];
+    if (layerMode !== 'operational') {
+      for (const hit of hits) {
+        const eventAny = hit.event as any;
+        let score = Number(hit.event.base_relevance ?? 50);
+        let tier: 'A' | 'B' | 'C' = score >= 80 ? 'A' : score >= RELEVANCE_THRESHOLD ? 'B' : 'C';
+        let why = `base_relevance:${score}`;
+        let isRelevant = true;
+        let possibleClients: Array<{
+          client_id: string;
+          name: string;
+          score: number;
+          tier: 'A' | 'B' | 'C';
+          why: string;
+        }> = [];
 
-      if (clients.length) {
-        possibleClients = clients
-          .map((client) => {
-            const override = overrideByEventClient.get(`${hit.event.id}:${client.id}`);
-            const eligibility = checkCalendarEventEligibility(hit.event, client, override);
-            if (!eligibility.ok) return null;
-            const relevance = scoreCalendarEventForClient(hit.event, client, override);
-            if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) return null;
-            return {
-              client_id: client.id,
-              name: client.name,
-              score: relevance.score,
-              tier: relevance.tier,
-              why: relevance.why,
-            };
-          })
-          .filter((item): item is NonNullable<typeof item> => Boolean(item))
-          .sort((a, b) => b.score - a.score);
+        if (clients.length) {
+          possibleClients = clients
+            .map((client) => {
+              const override = overrideByEventClient.get(`${hit.event.id}:${client.id}`);
+              const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+              if (!eligibility.ok) return null;
+              const relevance = scoreCalendarEventForClient(hit.event, client, override);
+              if (!override?.force_include && relevance.score < RELEVANCE_THRESHOLD) return null;
+              return {
+                client_id: client.id,
+                name: client.name,
+                score: relevance.score,
+                tier: relevance.tier,
+                why: relevance.why,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+            .sort((a, b) => b.score - a.score);
 
-        if (!possibleClients.length) {
-          if (!includeNonRelevant) {
-            continue;
+          if (!possibleClients.length) {
+            if (!includeNonRelevant) {
+              continue;
+            }
+            isRelevant = false;
+            tier = 'C';
+            why = ['business:no_client_match', `base_relevance:${score}`].join(' | ');
+          } else {
+            const bestMatch = possibleClients[0];
+            score = Number(bestMatch.score || 0);
+            tier = bestMatch.tier;
+            why = [
+              `best_client:${bestMatch.name}:${score}`,
+              `possible_clients:${possibleClients.length}`,
+              bestMatch.why,
+            ]
+              .filter(Boolean)
+              .join(' | ');
           }
-          isRelevant = false;
-          tier = 'C';
-          why = ['business:no_client_match', `base_relevance:${score}`].join(' | ');
-        } else {
-          const bestMatch = possibleClients[0];
-          score = Number(bestMatch.score || 0);
-          tier = bestMatch.tier;
-          why = [
-            `best_client:${bestMatch.name}:${score}`,
-            `possible_clients:${possibleClients.length}`,
-            bestMatch.why,
-          ]
-            .filter(Boolean)
-            .join(' | ');
+        }
+
+        for (const date of hit.hitDates) {
+          pushCalendarDayItem(days, date, {
+            id: hit.event.id,
+            name: hit.event.name,
+            slug: hit.event.slug,
+            categories: hit.event.categories,
+            tags: hit.event.tags,
+            source: hit.event.source,
+            score,
+            tier,
+            why,
+            is_relevant: isRelevant,
+            possible_clients: possibleClients.map(({ client_id, name, score: clientScore, tier: clientTier }) => ({
+              client_id,
+              name,
+              score: clientScore,
+              tier: clientTier,
+            })),
+            descricao_ai: eventAny.descricao_ai || eventAny.payload?.descricao_ai || null,
+            origem_ai: eventAny.origem_ai || eventAny.payload?.origem_ai || null,
+            curiosidade_ai: eventAny.curiosidade_ai || eventAny.payload?.curiosidade_ai || null,
+            layer: 'editorial',
+            origin: 'editorial_global',
+            kind: 'date',
+            starts_at: `${date}T00:00:00`,
+            time_label: null,
+            editable: true,
+            supports_relevance: true,
+            supports_briefing: true,
+          });
         }
       }
 
-      for (const date of hit.hitDates) {
-        if (!days[date]) days[date] = [];
-        days[date].push({
-          id: hit.event.id,
-          name: hit.event.name,
-          slug: hit.event.slug,
-          categories: hit.event.categories,
-          tags: hit.event.tags,
-          source: hit.event.source,
-          score,
-          tier,
-          why,
-          is_relevant: isRelevant,
-          possible_clients: possibleClients.map(({ client_id, name, score: clientScore, tier: clientTier }) => ({
-            client_id,
-            name,
-            score: clientScore,
-            tier: clientTier,
-          })),
-          descricao_ai: eventAny.descricao_ai || eventAny.payload?.descricao_ai || null,
-          origem_ai: eventAny.origem_ai || eventAny.payload?.origem_ai || null,
-          curiosidade_ai: eventAny.curiosidade_ai || eventAny.payload?.curiosidade_ai || null,
-        });
-        totalEvents += 1;
-      }
+      const customDays = await buildCustomCalendarEventDays({ tenantId, month: params.month });
+      mergeCalendarDays(days, customDays);
     }
 
-    totalEvents = 0;
-    for (const date of Object.keys(days)) {
-      days[date] = dedupeCalendarItems(days[date]);
-      days[date].sort((a, b) => b.score - a.score);
-      totalEvents += days[date].length;
+    if (layerMode !== 'editorial') {
+      const operationalDays = await buildOperationalCalendarDays({ tenantId, month: params.month });
+      mergeCalendarDays(days, operationalDays);
     }
+
+    totalEvents = recalculateCalendarDays(days);
 
     return reply.send({
       month: params.month,
@@ -1042,6 +1489,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const params = monthParamSchema.parse(request.params);
       const clientId = request.params.clientId as string;
       const tenantId = (request.user as any).tenant_id;
+      const layerMode = parseCalendarLayer((request.query as any)?.layer);
 
       const { rows: clients } = await query<any>(
         `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
@@ -1065,43 +1513,65 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const days: Record<string, any[]> = {};
       let totalEvents = 0;
 
-      for (const hit of hits) {
-        const override = overrideMap.get(hit.event.id);
+      if (layerMode !== 'operational') {
+        for (const hit of hits) {
+          const override = overrideMap.get(hit.event.id);
 
-        if (showAll) {
-          // In browse mode: only skip events explicitly force-excluded
-          if ((override as any)?.force_exclude) continue;
-        } else {
-          const eligibility = checkCalendarEventEligibility(hit.event, client, override);
-          if (!eligibility.ok) continue;
+          if (showAll) {
+            // In browse mode: only skip events explicitly force-excluded
+            if ((override as any)?.force_exclude) continue;
+          } else {
+            const eligibility = checkCalendarEventEligibility(hit.event, client, override);
+            if (!eligibility.ok) continue;
+          }
+
+          const relevance = scoreCalendarEventForClient(hit.event, client, override);
+          if (!showAll && !override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
+          for (const date of hit.hitDates) {
+            pushCalendarDayItem(days, date, {
+              id: hit.event.id,
+              name: hit.event.name,
+              slug: hit.event.slug,
+              categories: hit.event.categories,
+              tags: hit.event.tags,
+              source: hit.event.source,
+              score: relevance.score,
+              tier: relevance.tier,
+              why: relevance.why,
+              is_relevant: relevance.score >= RELEVANCE_THRESHOLD,
+              layer: 'editorial',
+              origin: 'editorial_global',
+              kind: 'date',
+              client_id: client.id,
+              client_name: client.name,
+              starts_at: `${date}T00:00:00`,
+              time_label: null,
+              editable: true,
+              supports_relevance: true,
+              supports_briefing: true,
+            });
+          }
         }
 
-        const relevance = scoreCalendarEventForClient(hit.event, client, override);
-        if (!showAll && !override?.force_include && relevance.score < RELEVANCE_THRESHOLD) continue;
-        for (const date of hit.hitDates) {
-          if (!days[date]) days[date] = [];
-          days[date].push({
-            id: hit.event.id,
-            name: hit.event.name,
-            slug: hit.event.slug,
-            categories: hit.event.categories,
-            tags: hit.event.tags,
-            source: hit.event.source,
-            score: relevance.score,
-            tier: relevance.tier,
-            why: relevance.why,
-            is_relevant: relevance.score >= RELEVANCE_THRESHOLD,
-          });
-          totalEvents += 1;
-        }
+        const customDays = await buildCustomCalendarEventDays({
+          tenantId,
+          month: params.month,
+          clientId: client.id,
+          clientName: client.name,
+        });
+        mergeCalendarDays(days, customDays);
       }
 
-      totalEvents = 0;
-      for (const date of Object.keys(days)) {
-        days[date] = dedupeCalendarItems(days[date]);
-        days[date].sort((a, b) => b.score - a.score);
-        totalEvents += days[date].length;
+      if (layerMode !== 'editorial') {
+        const operationalDays = await buildOperationalCalendarDays({
+          tenantId,
+          month: params.month,
+          clientId: client.id,
+        });
+        mergeCalendarDays(days, operationalDays);
       }
+
+      totalEvents = recalculateCalendarDays(days);
 
       return reply.send({
         month: params.month,

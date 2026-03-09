@@ -20,15 +20,24 @@ import {
   watchCalendar,
 } from '../services/integrations/googleCalendarService';
 
+function getIntegrationsRedirectUrl(query: string) {
+  const webUrl = (process.env.WEB_URL ?? 'https://app.edro.digital').replace(/\/$/, '');
+  return `${webUrl}/admin/integrations?${query}`;
+}
+
 export default async function googleCalendarRoutes(app: FastifyInstance) {
 
   // ── Start OAuth ─────────────────────────────────────────────────────────
   app.get('/auth/google/calendar/start', {
     preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
+  }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id;
+    const mode = typeof request.query?.mode === 'string' ? request.query.mode : '';
     try {
       const url = calendarOAuthUrl(tenantId);
+      if (mode === 'json') {
+        return reply.send({ url });
+      }
       return reply.redirect(url);
     } catch (err: any) {
       return reply.code(503).send({ error: err.message });
@@ -40,8 +49,7 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
     const { code, state, error } = request.query as Record<string, string>;
 
     if (error) {
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?calendar_error=${encodeURIComponent(error)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`calendar_error=${encodeURIComponent(error)}`));
     }
 
     if (!code || !state) {
@@ -52,12 +60,10 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
       const { tenantId, email } = await exchangeCalendarCode(code, state);
       await watchCalendar(tenantId);
 
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?calendar_connected=${encodeURIComponent(email)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`calendar_connected=${encodeURIComponent(email)}`));
     } catch (err: any) {
       console.error('[googleCalendarRoutes] callback error:', err?.message);
-      const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
-      return reply.redirect(`${webUrl}/settings/integrations?calendar_error=${encodeURIComponent(err.message)}`);
+      return reply.redirect(getIntegrationsRedirectUrl(`calendar_error=${encodeURIComponent(err.message)}`));
     }
   });
 

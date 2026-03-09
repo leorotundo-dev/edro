@@ -20,6 +20,8 @@ import { runMonthlyReportsWorkerOnce } from './monthlyReportsWorker';
 import { runMetaSyncWorkerOnce } from './metaSyncWorker';
 import { runCopyRoiWorkerOnce } from './copyRoiWorker';
 import { runAccountManagerWorkerOnce } from './accountManagerWorker';
+import { runMeetBotWorkerOnce } from './meetBotWorker';
+import { runWatchRenewWorkerOnce } from './watchRenewWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -98,4 +100,8 @@ export function startJobsRunner() {
   startWorkerLoop('copyRoi', runCopyRoiWorkerOnce, 10000, 120_000);
   // AI Account Manager — proactive churn/upsell alerts per client (max 5 clients/tick)
   startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000);
+  // Recall meet-bot scheduler/finalizer for Google Calendar auto-join meetings
+  startWorkerLoop('meetBot', runMeetBotWorkerOnce, 11000, 120_000);
+  // Gmail + Calendar watch auto-renewal — runs 1×/day, prevents silent expiry after 6-7 days
+  startWorkerLoop('watchRenew', runWatchRenewWorkerOnce, 11500, 60_000);
 }

@@ -4,7 +4,8 @@
  * Gmail, Google Calendar, Instagram DMs
  */
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiDelete } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -23,8 +24,7 @@ import {
   IconBrandInstagram,
   IconCalendar,
   IconCircleCheck,
-  IconCircleX,
-  IconExternalLink,
+  IconRobot,
   IconPlugConnected,
   IconRefresh,
   IconSettings,
@@ -47,7 +47,12 @@ type CalendarStatus = {
   stats?: { totalMeetings: number; enqueuedMeetings: number };
 };
 
+type OAuthStartResponse = {
+  url: string;
+};
+
 export default function IntegrationsClient() {
+  const searchParams = useSearchParams();
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,8 +74,20 @@ export default function IntegrationsClient() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleGmailConnect = () => {
-    window.location.href = '/api/auth/google/start';
+  const redirectToOAuth = async (path: string) => {
+    try {
+      const response = await apiGet<OAuthStartResponse>(`${path}?mode=json`);
+      if (!response?.url) {
+        throw new Error('URL de autenticação não disponível.');
+      }
+      window.location.assign(response.url);
+    } catch (e: any) {
+      setError(e.message || 'Falha ao iniciar autenticação Google.');
+    }
+  };
+
+  const handleGmailConnect = async () => {
+    await redirectToOAuth('/auth/google/start');
   };
 
   const handleGmailDisconnect = async () => {
@@ -79,8 +96,8 @@ export default function IntegrationsClient() {
     load();
   };
 
-  const handleCalendarConnect = () => {
-    window.location.href = '/api/auth/google/calendar/start';
+  const handleCalendarConnect = async () => {
+    await redirectToOAuth('/auth/google/calendar/start');
   };
 
   const handleCalendarDisconnect = async () => {
@@ -91,8 +108,7 @@ export default function IntegrationsClient() {
 
   const handleCalendarRenew = async () => {
     try {
-      const res = await fetch('/api/calendar/watch/renew', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      if (!res.ok) throw new Error('Falha ao renovar.');
+      await apiPost('/calendar/watch/renew');
       load();
     } catch (e: any) {
       setError(e.message);
@@ -101,6 +117,11 @@ export default function IntegrationsClient() {
 
   const isWatchExpired = (expiresAt?: string) =>
     expiresAt ? new Date(expiresAt) < new Date() : false;
+
+  const gmailConnected = searchParams.get('gmail_connected');
+  const gmailError = searchParams.get('gmail_error');
+  const calendarConnected = searchParams.get('calendar_connected');
+  const calendarError = searchParams.get('calendar_error');
 
   return (
     <AppShell title="Integrações">
@@ -118,6 +139,10 @@ export default function IntegrationsClient() {
         </Stack>
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+        {gmailConnected && <Alert severity="success" sx={{ mb: 2 }}>Gmail conectado: {gmailConnected}</Alert>}
+        {gmailError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Gmail: {gmailError}</Alert>}
+        {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
+        {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
 
         {loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -265,6 +290,46 @@ export default function IntegrationsClient() {
               </CardContent>
             </Card>
 
+            {/* ── Recall Meeting Bot ── */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#111827', width: 40, height: 40 }}>
+                      <IconRobot size={22} />
+                    </Avatar>
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="subtitle1" fontWeight={700}>Recall.ai</Typography>
+                        <Chip label="Bot de reunião" size="small" color="info" />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Entrada ao vivo nas calls + transcrição + análise automática no módulo de reuniões.
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" variant="outlined" href="/clients">
+                      Abrir clientes
+                    </Button>
+                  </Stack>
+                </Stack>
+
+                <Divider sx={{ my: 2 }} />
+                <Stack spacing={0.75}>
+                  <Typography variant="caption" color="text.secondary">
+                    1. Para uso manual imediato, vá em um cliente → <strong>Reuniões</strong> → <strong>Agendar bot ao vivo</strong>.
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    2. Para automação completa, conecte o Google Calendar nesta tela.
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    3. Se o Google Meet exigir usuário autenticado, configure também <code>RECALL_GOOGLE_LOGIN_GROUP_ID</code>.
+                  </Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+
             {/* ── Instagram DMs ── */}
             <Card variant="outlined">
               <CardContent>
@@ -316,6 +381,9 @@ GOOGLE_REDIRECT_URI=https://api.edro.digital/auth/google/callback
 GOOGLE_PUBSUB_TOPIC=projects/PROJECT_ID/topics/gmail-watch
 GOOGLE_CALENDAR_REDIRECT_URI=https://api.edro.digital/auth/google/calendar/callback
 GOOGLE_CALENDAR_WEBHOOK_URL=https://api.edro.digital/webhook/google-calendar
+RECALL_API_KEY=...
+RECALL_REGION=us-west-2
+RECALL_GOOGLE_LOGIN_GROUP_ID=...
 META_VERIFY_TOKEN=seu-token-secreto`}
                   </Box>
                 </Typography>
