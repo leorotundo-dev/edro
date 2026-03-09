@@ -15,12 +15,15 @@ export const metadata = {
   title: 'Edro Studio',
   description: 'Gestão editorial e operacional de agência',
   manifest: '/manifest.json',
-  themeColor: '#E85219',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent' as const,
     title: 'Edro Studio',
   },
+};
+
+export const viewport = {
+  themeColor: '#E85219',
 };
 
 export default function RootLayout({

@@ -38,6 +38,7 @@ const METRIC_LABELS: Record<string, string> = {
 };
 
 let running = false;
+let lastRunDate = '';
 
 function shouldRunToday(): boolean {
   if (process.env.PERF_ALERT_FORCE === 'true') return true;
@@ -80,6 +81,8 @@ interface AlertCandidate {
 export async function runPerformanceAlertWorkerOnce() {
   if (running) return;
   if (!shouldRunToday()) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastRunDate === today) return;
   running = true;
 
   try {
@@ -200,6 +203,7 @@ export async function runPerformanceAlertWorkerOnce() {
     }
 
     console.log(`[perfAlerts] ${inserted} new alerts saved`);
+    lastRunDate = today;
   } catch (e: any) {
     console.error('[perfAlerts] Worker failed:', e.message);
   } finally {

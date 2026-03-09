@@ -130,6 +130,7 @@ async function tryRefreshPlatformId(
 }
 
 let running = false;
+let lastRunDate = '';
 
 function isMonday(): boolean {
   return new Date().getDay() === 1;
@@ -331,7 +332,7 @@ async function syncClientMetrics(
                   [tenantId, clientId, newId, platform, window, start, end, JSON.stringify(metricsObj)]
                 );
                 snapshots++;
-                await sleep(1500);
+                await sleep(3000);
                 continue;
               }
             } catch { /* fall through to error */ }
@@ -365,6 +366,8 @@ async function updateConnectorStatus(tenantId: string, clientId: string, ok: boo
 export async function runReporteiSyncWorkerOnce() {
   if (running) return;
   if (!shouldRunToday()) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastRunDate === today) return;
   running = true;
 
   try {
@@ -394,6 +397,8 @@ export async function runReporteiSyncWorkerOnce() {
         console.error(`[reporteiSync] ${client.name} failed:`, e.message);
         await updateConnectorStatus(client.tenant_id, client.id, false, e.message).catch(() => {});
       }
+      // Pause between clients to avoid Reportei rate limits
+      await sleep(3000);
     }
 
     // FASE 3: generate learning rules from fresh snapshots (non-blocking)
@@ -403,6 +408,7 @@ export async function runReporteiSyncWorkerOnce() {
       )
       .catch((e) => console.error('[reporteiSync] Learning sync failed:', e.message));
 
+    lastRunDate = today;
     console.log('[reporteiSync] Done');
   } finally {
     running = false;
