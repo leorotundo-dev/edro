@@ -30,7 +30,7 @@ export async function runMetaSyncWorkerOnce(): Promise<void> {
      FROM connectors c
      JOIN clients cl ON cl.id = c.client_id
      WHERE c.provider = 'meta'
-       AND c.status   = 'active'
+       AND cl.status  = 'active'
        AND c.secrets_enc IS NOT NULL
        AND (
          c.last_sync_at IS NULL

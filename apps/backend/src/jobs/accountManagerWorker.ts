@@ -29,7 +29,7 @@ export async function runAccountManagerWorkerOnce(): Promise<void> {
      LEFT JOIN LATERAL (
        SELECT MAX(computed_at) AS last_computed_at
        FROM account_manager_alerts
-       WHERE tenant_id = c.tenant_id AND client_id = c.id
+       WHERE tenant_id = c.tenant_id::text AND client_id = c.id
      ) ama ON true
      WHERE c.status = 'active'
        AND (

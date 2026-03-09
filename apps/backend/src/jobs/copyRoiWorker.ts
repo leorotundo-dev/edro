@@ -33,7 +33,7 @@ export async function runCopyRoiWorkerOnce(): Promise<void> {
      LEFT JOIN LATERAL (
        SELECT MAX(computed_at) AS last_computed_at
        FROM copy_roi_scores
-       WHERE tenant_id = c.tenant_id AND client_id = c.id
+       WHERE tenant_id = c.tenant_id::text AND client_id = c.id
      ) rs ON true
      WHERE c.status = 'active'
        AND (
