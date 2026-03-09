@@ -18,6 +18,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db';
+import { authGuard } from '../auth/rbac';
+import { tenantGuard } from '../auth/tenantGuard';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -161,6 +163,51 @@ export default async function portalClientRoutes(app: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
+  // POST /portal/client/jobs/request — cliente envia novo pedido
+  app.post('/portal/client/jobs/request', async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { message } = z.object({ message: z.string().min(5) }).parse(request.body ?? {});
+
+    // Get client info to resolve edro_clients UUID
+    const clientRes = await pool.query(
+      `SELECT name, tenant_id FROM clients WHERE id = $1`,
+      [clientId],
+    );
+    if (!clientRes.rows.length) return reply.status(404).send({ error: 'Client not found' });
+    const { name: clientName, tenant_id: tenantId } = clientRes.rows[0];
+
+    const edroRes = await pool.query(
+      `SELECT id FROM edro_clients WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
+      [clientId, tenantId],
+    );
+    if (!edroRes.rows.length) {
+      // Create a simple note in the whatsapp_group_messages style instead
+      await pool.query(
+        `INSERT INTO webhook_events (tenant_id, client_id, source, raw_payload, extracted_message)
+         VALUES ($1, $2, 'portal', $3, $4)`,
+        [tenantId, clientId, JSON.stringify({ message }), message],
+      );
+      return reply.send({ ok: true });
+    }
+
+    const { createBriefing } = await import('../repositories/edroBriefingRepository');
+    await createBriefing({
+      clientId: edroRes.rows[0].id,
+      title: `Pedido via Portal — ${message.slice(0, 60)}`,
+      status: 'draft',
+      payload: {
+        objective: message,
+        notes: `Pedido enviado pelo cliente ${clientName} via Portal do Cliente.`,
+        origin: 'client_portal',
+      },
+      createdBy: 'client-portal',
+    });
+
+    return reply.send({ ok: true });
+  });
+
   // POST /portal/client/jobs/:id/revision — cliente solicita revisão
   app.post('/portal/client/jobs/:id/revision', async (request: any, reply) => {
     const clientId = requireClient(request, reply);
@@ -268,5 +315,139 @@ export default async function portalClientRoutes(app: FastifyInstance) {
     );
 
     return reply.send({ invoices: res.rows });
+  });
+}
+
+// ── Public token routes (separate Fastify instance — no JWT preHandler) ──────
+
+export async function portalTokenRoutes(app: FastifyInstance) {
+
+  // POST /portal/invite/:clientId — generate magic link (admin only)
+  app.post('/portal/invite/:clientId', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id;
+    if (!tenantId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { clientId } = request.params as { clientId: string };
+    const { label, expiresInDays = 90 } = z.object({
+      label: z.string().optional(),
+      expiresInDays: z.coerce.number().min(1).max(365).optional(),
+    }).parse(request.body ?? {});
+
+    // Verify client belongs to this tenant
+    const check = await pool.query(
+      `SELECT id, name FROM clients WHERE id = $1 AND tenant_id = $2`,
+      [clientId, tenantId],
+    );
+    if (!check.rows.length) return reply.status(404).send({ error: 'Client not found' });
+
+    const expiresAt = expiresInDays
+      ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    const result = await pool.query(
+      `INSERT INTO client_portal_tokens (tenant_id, client_id, label, expires_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, token, label, expires_at, created_at`,
+      [tenantId, clientId, label ?? `Portal ${check.rows[0].name}`, expiresAt],
+    );
+
+    const row = result.rows[0];
+    const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
+    const portalUrl = `${webUrl}/portal/${row.token}`;
+
+    return reply.send({
+      ok: true,
+      token: row.token,
+      url: portalUrl,
+      label: row.label,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+    });
+  });
+
+  // GET /portal/token/:token — exchange magic token for a client JWT
+  app.get('/portal/token/:token', async (request: any, reply) => {
+    const { token } = request.params as { token: string };
+
+    const result = await pool.query(
+      `SELECT cpt.id, cpt.tenant_id, cpt.client_id, cpt.expires_at,
+              c.name AS client_name
+       FROM client_portal_tokens cpt
+       JOIN clients c ON c.id = cpt.client_id
+       WHERE cpt.token = $1`,
+      [token],
+    );
+
+    if (!result.rows.length) {
+      return reply.status(404).send({ error: 'Token inválido ou expirado.' });
+    }
+
+    const row = result.rows[0];
+
+    // Check expiry
+    if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      return reply.status(410).send({ error: 'Link expirado.' });
+    }
+
+    // Update last_used_at
+    await pool.query(
+      `UPDATE client_portal_tokens SET last_used_at = now() WHERE id = $1`,
+      [row.id],
+    );
+
+    // Issue client JWT (7 days)
+    const jwt = app.jwt.sign(
+      {
+        sub: row.client_id,
+        role: 'client',
+        client_id: row.client_id,
+        tenant_id: row.tenant_id,
+        client_name: row.client_name,
+        portal_token: token,
+      },
+      { expiresIn: '7d' },
+    );
+
+    return reply.send({ token: jwt, clientName: row.client_name });
+  });
+
+  // GET /portal/links/:clientId — list active tokens for admin
+  app.get('/portal/links/:clientId', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+
+    const result = await pool.query(
+      `SELECT id, token, label, expires_at, last_used_at, created_at
+       FROM client_portal_tokens
+       WHERE tenant_id = $1 AND client_id = $2
+       ORDER BY created_at DESC`,
+      [tenantId, clientId],
+    );
+
+    const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
+    return reply.send({
+      links: result.rows.map(r => ({
+        ...r,
+        url: `${webUrl}/portal/${r.token}`,
+      })),
+    });
+  });
+
+  // DELETE /portal/links/:tokenId — revoke token
+  app.delete('/portal/links/:tokenId', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id;
+    const { tokenId } = request.params as { tokenId: string };
+
+    await pool.query(
+      `DELETE FROM client_portal_tokens WHERE id = $1 AND tenant_id = $2`,
+      [tokenId, tenantId],
+    );
+    return reply.send({ ok: true });
   });
 }

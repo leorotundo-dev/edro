@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import Alert from '@mui/material/Alert';
@@ -36,8 +36,10 @@ import {
   IconBrandWhatsapp,
   IconChartBar,
   IconChartLine,
+  IconCopy,
   IconDotsVertical,
   IconPlugConnected,
+  IconRefresh,
   IconSearch,
   IconSettings,
   IconTrash,
@@ -574,6 +576,9 @@ export default function ClientConnectorsPage() {
         )}
       </Menu>
 
+      {/* ── Universal Webhook section ─────────────────────────────────── */}
+      <UniversalWebhookSection clientId={clientId} />
+
       {/* Config Modal */}
       <Dialog
         open={Boolean(selectedProvider && providerInfo)}
@@ -674,5 +679,154 @@ export default function ClientConnectorsPage() {
         )}
       </Dialog>
     </Stack>
+  );
+}
+
+// ── Universal Webhook Section ─────────────────────────────────────────────
+
+function UniversalWebhookSection({ clientId }: { clientId: string }) {
+  const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const apiBase = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_BACKEND_URL ?? window.location.origin.replace(':3000', ':3001'))
+    : 'https://api.edro.digital';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const clientRes = await apiGet<{ client: { webhook_secret?: string } }>(`/clients/${clientId}`);
+      setWebhookSecret(clientRes?.client?.webhook_secret ?? null);
+
+      const eventsRes = await apiGet<{ data: any[] }>(`/clients/${clientId}/webhook-events`).catch(() => null);
+      setRecentEvents(eventsRes?.data ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const webhookUrl = webhookSecret
+    ? `${apiBase}/webhook/inbound/${webhookSecret}`
+    : null;
+
+  const copy = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const regenerate = async () => {
+    if (!confirm('Regenerar o webhook secret? O URL antigo deixará de funcionar.')) return;
+    setRegenerating(true);
+    try {
+      await apiPost(`/clients/${clientId}/webhook-secret/regenerate`, {});
+      load();
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+          <Avatar sx={{ bgcolor: '#6366F1', width: 36, height: 36 }}>
+            <IconWebhook size={20} />
+          </Avatar>
+          <Box>
+            <Typography variant="subtitle2" fontWeight={700}>Webhook Universal</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Receba eventos de Zapier, Make, n8n ou qualquer ferramenta externa.
+            </Typography>
+          </Box>
+        </Stack>
+
+        {loading ? (
+          <CircularProgress size={20} />
+        ) : webhookUrl ? (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              URL do Webhook (POST):
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  p: 1,
+                  bgcolor: 'action.hover',
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {webhookUrl}
+              </Box>
+              <IconButton size="small" onClick={copy} title={copied ? 'Copiado!' : 'Copiar URL'} sx={{ color: copied ? 'success.main' : 'text.secondary' }}>
+                <IconCopy size={16} />
+              </IconButton>
+              <IconButton size="small" onClick={load} title="Atualizar" sx={{ color: 'text.secondary' }}>
+                <IconRefresh size={16} />
+              </IconButton>
+            </Stack>
+
+            {recentEvents.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Últimos eventos ({recentEvents.length}):
+                </Typography>
+                <Stack spacing={0.5}>
+                  {recentEvents.slice(0, 5).map((ev: any) => (
+                    <Stack key={ev.id} direction="row" alignItems="center" spacing={1}
+                      sx={{ p: 0.75, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Chip label={ev.source ?? 'custom'} size="small" sx={{ fontSize: '0.6rem', height: 18 }} />
+                      <Typography variant="caption" noWrap sx={{ flex: 1 }}>
+                        {ev.extracted_message ?? JSON.stringify(ev.raw_payload).slice(0, 80)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(ev.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1.5 }}>
+              <Button
+                size="small"
+                color="error"
+                variant="text"
+                disabled={regenerating}
+                onClick={regenerate}
+                startIcon={regenerating ? <CircularProgress size={12} /> : undefined}
+              >
+                Regenerar secret
+              </Button>
+            </Stack>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            Webhook secret não encontrado. Salve o cliente para gerar automaticamente.
+          </Typography>
+        )}
+
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="caption" color="text.secondary" component="div">
+          <strong>Payload suportado:</strong> JSON com campo <code>message</code>, <code>text</code>, <code>content</code> ou <code>body</code>.
+          Mensagens relevantes viram briefings automáticos via Jarvis.
+        </Typography>
+      </CardContent>
+    </Card>
   );
 }

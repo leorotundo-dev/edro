@@ -83,6 +83,15 @@ const envSchema = z.object({
   PERPLEXITY_API_KEY: z.string().optional(),
   LEONARDO_API_KEY: z.string().optional(),
   FAL_API_KEY: z.string().optional(),
+  // Instagram DMs (Meta webhook verify token)
+  META_VERIFY_TOKEN: z.string().optional(),
+  // Google OAuth (Gmail + Calendar)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+  GOOGLE_PUBSUB_TOPIC: z.string().optional(),
+  GOOGLE_CALENDAR_REDIRECT_URI: z.string().optional(),
+  GOOGLE_CALENDAR_WEBHOOK_URL: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);

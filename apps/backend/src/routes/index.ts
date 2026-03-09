@@ -48,6 +48,13 @@ import webhookWhatsAppRoutes from './webhookWhatsApp';
 import meetingRoutes from './meetings';
 import evolutionRoutes from './evolutionRoutes';
 import webhookEvolutionRoutes from './webhookEvolution';
+import webhookInstagramRoutes from './webhookInstagram';
+import webhookUniversalRoutes, { webhookAdminRoutes } from './webhookUniversal';
+import { portalTokenRoutes } from './portalClient';
+import gmailRoutes from './gmailRoutes';
+import webhookGmailRoutes from './webhookGmail';
+import googleCalendarRoutes from './googleCalendarRoutes';
+import webhookGoogleCalendarRoutes from './webhookGoogleCalendar';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -100,6 +107,19 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(webhookWhatsAppRoutes);
   // Evolution API webhook — no /api prefix
   app.register(webhookEvolutionRoutes);
+  // Instagram DMs webhook — no /api prefix (Meta calls the raw path)
+  app.register(webhookInstagramRoutes);
+  // Universal inbound webhook — no /api prefix (Zapier/Make/n8n use raw URL)
+  app.register(webhookUniversalRoutes);
+  // Gmail Pub/Sub webhook — no /api prefix
+  app.register(webhookGmailRoutes);
+  // Google Calendar push notification — no /api prefix
+  app.register(webhookGoogleCalendarRoutes);
   app.register(meetingRoutes, { prefix: '/api' });
   app.register(evolutionRoutes, { prefix: '/api' });
+  // Portal token routes (public + admin endpoints)
+  app.register(portalTokenRoutes, { prefix: '/api' });
+  app.register(gmailRoutes, { prefix: '/api' });
+  app.register(googleCalendarRoutes, { prefix: '/api' });
+  app.register(webhookAdminRoutes, { prefix: '/api' });
 }
