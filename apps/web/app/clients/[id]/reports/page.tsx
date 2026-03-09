@@ -21,7 +21,7 @@ import Stack from '@mui/material/Stack';
 import Radio from '@mui/material/Radio';
 import LinearProgress from '@mui/material/LinearProgress';
 import Divider from '@mui/material/Divider';
-import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp } from '@tabler/icons-react';
+import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp, IconFileTypePdf } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -102,6 +102,31 @@ export default function ClientReportsPage() {
   const [emailSent, setEmailSent] = useState('');
   const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/reports/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Erro ao gerar PDF.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-${clientId}-${from}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao baixar PDF.');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const generateReport = async () => {
     setLoading(true);
@@ -225,6 +250,15 @@ export default function ClientReportsPage() {
                 </Button>
                 <Button variant="outlined" startIcon={<IconDownload size={18} />} onClick={handlePrint}>
                   Imprimir / PDF
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={pdfLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconFileTypePdf size={18} />}
+                  onClick={handleDownloadPdf}
+                  disabled={pdfLoading}
+                  sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c94a17' }, fontWeight: 700, textTransform: 'none' }}
+                >
+                  {pdfLoading ? 'Gerando PDF…' : 'Baixar PDF com IA'}
                 </Button>
                 <Button variant="outlined" startIcon={<IconMail size={18} />} onClick={handleEmail}>
                   Enviar Email

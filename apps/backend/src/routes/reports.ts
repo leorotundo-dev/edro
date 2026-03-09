@@ -9,6 +9,7 @@ import { ClaudeService } from '../services/ai/claudeService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
+import PDFDocument from 'pdfkit';
 
 const STAGE_COLORS: Record<string, string> = {
   briefing: '#5D87FF', copy_ia: '#94a3b8', aprovacao: '#FFAE1F',
@@ -912,5 +913,225 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
       providers: providerStages,
       duration_ms: totalDurationMs,
     };
+  });
+
+  // ── PDF Report ─────────────────────────────────────────────────────────────
+  app.post('/clients/:clientId/reports/pdf', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+  }, async (request: any, reply: any) => {
+    const tenantId = request.user.tenant_id;
+    const { clientId } = request.params as { clientId: string };
+    const body = (request.body || {}) as { from?: string; to?: string };
+    const dateFrom = body.from || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const dateTo = body.to || new Date().toISOString().slice(0, 10);
+
+    const client = await resolveClientByRef(tenantId, clientId);
+    if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+    const reportClientId = client.edro_client_id;
+    const clientName = client.name;
+    const segment = client.segment || 'marketing digital';
+
+    // ── Collect data in parallel ──
+    const [
+      { rows: [summary] },
+      { rows: byStage },
+      { rows: [copies] },
+      { rows: stageTimeline },
+      { rows: topBriefings },
+      { rows: perfMetrics },
+      { rows: learningRules },
+    ] = await Promise.all([
+      reportClientId
+        ? query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status IN ('done','concluido'))::int AS completed, COUNT(*) FILTER (WHERE due_at < now() AND status NOT IN ('done','concluido'))::int AS overdue FROM edro_briefings WHERE client_id = $1 AND created_at >= $2 AND created_at <= $3::date + interval '1 day'`, [reportClientId, dateFrom, dateTo])
+        : Promise.resolve({ rows: [{ total: 0, completed: 0, overdue: 0 }] }),
+      reportClientId
+        ? query(`SELECT status, COUNT(*)::int AS count FROM edro_briefings WHERE client_id = $1 AND created_at >= $2 AND created_at <= $3::date + interval '1 day' GROUP BY status ORDER BY count DESC`, [reportClientId, dateFrom, dateTo])
+        : Promise.resolve({ rows: [] }),
+      reportClientId
+        ? query(`SELECT COUNT(*)::int AS total_copies, ROUND(AVG(char_length(COALESCE(output,''))))::int AS avg_chars, COUNT(*) FILTER (WHERE score >= 7)::int AS high_score FROM edro_copy_versions cv JOIN edro_briefings b ON b.id = cv.briefing_id WHERE b.client_id = $1 AND cv.created_at >= $2 AND cv.created_at <= $3::date + interval '1 day'`, [reportClientId, dateFrom, dateTo])
+        : Promise.resolve({ rows: [{ total_copies: 0, avg_chars: 0, high_score: 0 }] }),
+      reportClientId
+        ? query(`SELECT bs.stage, ROUND(AVG(EXTRACT(epoch FROM (bs.updated_at - bs.created_at)) / 3600), 1) AS avg_hours FROM edro_briefing_stages bs JOIN edro_briefings b ON b.id = bs.briefing_id WHERE b.client_id = $1 AND bs.created_at >= $2 AND bs.created_at <= $3::date + interval '1 day' GROUP BY bs.stage ORDER BY MIN(bs.position)`, [reportClientId, dateFrom, dateTo])
+        : Promise.resolve({ rows: [] }),
+      reportClientId
+        ? query(`SELECT title, status, due_at FROM edro_briefings WHERE client_id = $1 AND created_at >= $2 AND created_at <= $3::date + interval '1 day' ORDER BY created_at DESC LIMIT 8`, [reportClientId, dateFrom, dateTo])
+        : Promise.resolve({ rows: [] }),
+      // Format performance (from Meta sync)
+      query(
+        `SELECT
+           fpm.metric_name,
+           SUM(fpm.metric_value)::int AS total,
+           ROUND(AVG(fpm.metric_value), 1)::float AS avg
+         FROM format_performance_metrics fpm
+         JOIN campaign_formats cf ON cf.id = fpm.campaign_format_id
+         JOIN campaigns camp ON camp.id = cf.campaign_id
+         JOIN clients cl ON cl.id = camp.client_id
+         WHERE cl.tenant_id = $1 AND camp.client_id = $2
+           AND fpm.measurement_date >= $3 AND fpm.measurement_date <= $4
+         GROUP BY fpm.metric_name
+         ORDER BY fpm.metric_name`,
+        [tenantId, clientId, dateFrom, dateTo]
+      ).catch(() => ({ rows: [] })),
+      // Learning rules summary
+      query(
+        `SELECT rule_type, rule_text FROM client_learning_rules WHERE tenant_id = $1 AND client_id = $2 ORDER BY created_at DESC LIMIT 5`,
+        [tenantId, clientId]
+      ).catch(() => ({ rows: [] })),
+    ]);
+
+    const completionRate = summary?.total > 0 ? Math.round((summary.completed / summary.total) * 100) : 0;
+    const totalImpressions = (perfMetrics as any[]).find((m: any) => m.metric_name === 'impressions')?.total || 0;
+    const totalLikes = (perfMetrics as any[]).find((m: any) => m.metric_name === 'likes')?.total || 0;
+    const totalComments = (perfMetrics as any[]).find((m: any) => m.metric_name === 'comments')?.total || 0;
+
+    // ── AI Narrative ──
+    const dataSnap = JSON.stringify({
+      client: { name: clientName, segment },
+      period: { from: dateFrom, to: dateTo },
+      briefings: { total: summary?.total || 0, completed: summary?.completed || 0, overdue: summary?.overdue || 0, completion_rate: completionRate },
+      copies: { total: copies?.total_copies || 0, avg_chars: copies?.avg_chars || 0, high_score: copies?.high_score || 0 },
+      stageTimeline: stageTimeline.map((s: any) => ({ stage: s.stage, avg_hours: Number(s.avg_hours) })),
+      performance: { impressions: totalImpressions, likes: totalLikes, comments: totalComments },
+      learning_insights: (learningRules as any[]).map((r: any) => r.rule_text).filter(Boolean),
+    });
+
+    let narrative = '';
+    try {
+      const aiRes = await ClaudeService.generateCompletion({
+        prompt: `Você é o analista estratégico da agência Edro. Gere um relatório executivo mensal em português para o cliente abaixo.\n\nDados:\n${dataSnap}\n\nO relatório deve ter:\n1. Parágrafo de visão geral (2-3 frases sobre o período)\n2. Destaques do período (3 bullet points positivos)\n3. Pontos de atenção (1-2 bullet points de riscos ou gaps)\n4. Recomendação principal para o próximo mês (1 parágrafo)\n\nUse linguagem executiva, direta e em português brasileiro. Sem jargão técnico excessivo.`,
+        maxTokens: 600,
+        temperature: 0.5,
+      });
+      narrative = aiRes.text.trim();
+    } catch {
+      narrative = `Relatório do período ${dateFrom} a ${dateTo} para ${clientName}. Total de ${summary?.total || 0} briefings, com taxa de conclusão de ${completionRate}%.`;
+    }
+
+    // ── Build PDF with pdfkit ──
+    const doc = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `Relatório Mensal — ${clientName}`, Author: 'Edro.Digital' } });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    const EDRO_BLUE = '#5D87FF';
+    const DARK = '#1a1a2e';
+    const GRAY = '#64748b';
+    const LIGHT_GRAY = '#f1f5f9';
+    const ACCENT = '#13DEB9';
+    const pageW = 595 - 100; // A4 width minus 2×margin
+
+    // Helper: section header
+    const sectionHeader = (title: string) => {
+      doc.moveDown(0.5)
+        .rect(50, doc.y, pageW, 22).fill(EDRO_BLUE)
+        .fillColor('#ffffff').fontSize(10).font('Helvetica-Bold')
+        .text(title.toUpperCase(), 58, doc.y - 17)
+        .fillColor(DARK).font('Helvetica').fontSize(9)
+        .moveDown(0.8);
+    };
+
+    // Helper: kpi box
+    const kpiBox = (label: string, value: string, color: string, x: number, y: number, w: number) => {
+      doc.rect(x, y, w, 50).fill(LIGHT_GRAY)
+        .rect(x, y, 4, 50).fill(color)
+        .fillColor(DARK).font('Helvetica-Bold').fontSize(18)
+        .text(value, x + 12, y + 8, { width: w - 16, align: 'left' })
+        .fillColor(GRAY).font('Helvetica').fontSize(7.5)
+        .text(label, x + 12, y + 32, { width: w - 16 });
+    };
+
+    // ── HEADER ──
+    doc.rect(0, 0, 595, 80).fill(DARK);
+    doc.fillColor(EDRO_BLUE).font('Helvetica-Bold').fontSize(22).text('edro', 50, 22);
+    doc.fillColor('#ffffff').font('Helvetica').fontSize(9).text('by edro.digital', 50, 46);
+    doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(14)
+      .text(`Relatório Mensal — ${clientName}`, 160, 22, { align: 'right', width: 385 });
+    doc.fillColor('#94a3b8').font('Helvetica').fontSize(8.5)
+      .text(`Período: ${dateFrom} a ${dateTo}`, 160, 43, { align: 'right', width: 385 });
+    doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
+      .text(`Gerado em ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} · Confidencial`, 160, 57, { align: 'right', width: 385 });
+    doc.moveDown(3.5);
+
+    // ── KPIs ──
+    sectionHeader('Resumo do Período');
+    const kpiY = doc.y;
+    const kpiW = Math.floor(pageW / 4) - 4;
+    kpiBox('Briefings', String(summary?.total || 0), EDRO_BLUE, 50, kpiY, kpiW);
+    kpiBox('Concluídos', String(summary?.completed || 0), ACCENT, 50 + kpiW + 6, kpiY, kpiW);
+    kpiBox('Taxa de Conclusão', `${completionRate}%`, '#F97316', 50 + (kpiW + 6) * 2, kpiY, kpiW);
+    kpiBox('Copies Gerados', String(copies?.total_copies || 0), '#A855F7', 50 + (kpiW + 6) * 3, kpiY, kpiW);
+    doc.moveDown(4.5);
+
+    // Performance metrics if available
+    if (totalImpressions > 0 || totalLikes > 0) {
+      const pm2W = Math.floor(pageW / 3) - 4;
+      const pm2Y = doc.y;
+      kpiBox('Impressões', totalImpressions.toLocaleString('pt-BR'), '#1877F2', 50, pm2Y, pm2W);
+      kpiBox('Curtidas', totalLikes.toLocaleString('pt-BR'), '#E85219', 50 + pm2W + 6, pm2Y, pm2W);
+      kpiBox('Comentários', totalComments.toLocaleString('pt-BR'), '#0A66C2', 50 + (pm2W + 6) * 2, pm2Y, pm2W);
+      doc.moveDown(4.5);
+    }
+
+    // ── AI Narrative ──
+    sectionHeader('Análise Executiva por IA');
+    doc.fillColor(DARK).font('Helvetica').fontSize(9).text(narrative, 50, doc.y, { width: pageW, lineGap: 3 });
+    doc.moveDown(1);
+
+    // ── Learning Insights ──
+    if ((learningRules as any[]).length > 0) {
+      sectionHeader('Insights do Motor de Aprendizado');
+      (learningRules as any[]).forEach((r: any, i: number) => {
+        if (!r.rule_text) return;
+        doc.fillColor(EDRO_BLUE).font('Helvetica-Bold').fontSize(8).text(`${i + 1}.`, 50, doc.y, { continued: true, width: 14 });
+        doc.fillColor(DARK).font('Helvetica').fontSize(8.5).text(` ${r.rule_text}`, { width: pageW - 14, lineGap: 2 });
+        doc.moveDown(0.3);
+      });
+      doc.moveDown(0.5);
+    }
+
+    // ── Stage Timeline ──
+    if ((stageTimeline as any[]).length > 0) {
+      sectionHeader('Tempo Médio por Etapa');
+      (stageTimeline as any[]).forEach((s: any) => {
+        const barW = Math.min(Math.round((Number(s.avg_hours) / 48) * (pageW - 120)), pageW - 120);
+        doc.fillColor(GRAY).font('Helvetica').fontSize(8).text(s.stage, 50, doc.y + 3, { width: 100 });
+        doc.rect(155, doc.y - 9, Math.max(barW, 4), 10).fill(EDRO_BLUE);
+        doc.fillColor(DARK).font('Helvetica-Bold').fontSize(8)
+          .text(`${s.avg_hours}h`, 155 + Math.max(barW, 4) + 6, doc.y - 12);
+        doc.moveDown(0.5);
+      });
+      doc.moveDown(0.5);
+    }
+
+    // ── Top Briefings ──
+    if ((topBriefings as any[]).length > 0) {
+      sectionHeader('Demandas do Período');
+      const statusEmoji: Record<string, string> = { done: '✓', concluido: '✓', aprovacao: '⏳', producao: '🔨', revisao: '🔍' };
+      (topBriefings as any[]).forEach((b: any) => {
+        const mark = statusEmoji[b.status] || '·';
+        doc.fillColor(EDRO_BLUE).font('Helvetica-Bold').fontSize(8).text(`${mark}`, 50, doc.y, { continued: true, width: 14 });
+        doc.fillColor(DARK).font('Helvetica').fontSize(8.5).text(` ${b.title || 'Sem título'}`, { width: pageW - 14, lineGap: 1 });
+      });
+      doc.moveDown(0.8);
+    }
+
+    // ── FOOTER ──
+    const footerY = 780;
+    doc.rect(0, footerY, 595, 62).fill(DARK);
+    doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
+      .text('Relatório gerado automaticamente pela plataforma Edro.Digital · www.edro.digital', 50, footerY + 12, { width: pageW, align: 'center' });
+    doc.fillColor(EDRO_BLUE).font('Helvetica-Bold').fontSize(7.5)
+      .text('Confidencial — uso exclusivo do cliente', 50, footerY + 28, { width: pageW, align: 'center' });
+
+    doc.end();
+
+    await new Promise<void>((resolve) => doc.on('end', resolve));
+    const pdfBuffer = Buffer.concat(chunks);
+    const filename = `relatorio-${clientName.replace(/\s+/g, '-').toLowerCase()}-${dateFrom}.pdf`;
+
+    reply.header('Content-Type', 'application/pdf');
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    reply.header('Content-Length', pdfBuffer.length);
+    return reply.send(pdfBuffer);
   });
 }
