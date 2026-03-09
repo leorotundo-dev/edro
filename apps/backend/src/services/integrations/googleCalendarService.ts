@@ -58,6 +58,7 @@ export function calendarOAuthUrl(tenantId: string): string {
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: [
+      'https://www.googleapis.com/auth/calendar.events',
       'https://www.googleapis.com/auth/calendar.readonly',
       'https://www.googleapis.com/auth/userinfo.email',
     ].join(' '),
@@ -257,11 +258,12 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   const resolvedClient = await resolveClientForEvent(tenantId, event, attendees, organizer);
   if (!resolvedClient) {
-    console.warn(`[googleCalendarService] No client match for "${event.summary}" (${eventId})`);
-    return;
+    console.log(`[googleCalendarService] No client match for "${event.summary}" — joining as internal Edro meeting`);
   }
 
-  // Enqueue scheduling now; Recall handles the future join_at internally.
+  // Always enqueue — for internal Edro meetings we still want Jarvis to transcribe and analyze.
+  const client = resolvedClient ?? { id: 'edro-internal', name: 'Reunião Interna Edro' };
+
   await enqueueMeetBotJob(
     tenantId,
     autoJoinId,
@@ -269,7 +271,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
     event.summary ?? 'Reunião',
     scheduledAt,
     platform,
-    resolvedClient,
+    client,
   )
     .catch(err => console.error('[googleCalendarService] enqueueMeetBot failed:', err?.message));
 }
@@ -377,6 +379,62 @@ export async function getCalendarAccessToken(tenantId: string): Promise<string> 
   );
 
   return newTokens.access_token;
+}
+
+// ── Create Google Meet via Calendar API ────────────────────────────────────
+
+export async function createCalendarMeeting(params: {
+  tenantId: string;
+  title: string;
+  startAt: Date;
+  durationMinutes?: number;
+  attendeeEmails?: string[];
+  description?: string;
+}): Promise<{ eventId: string; meetUrl: string; htmlLink: string; endAt: Date }> {
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+
+  const durationMs = (params.durationMinutes ?? 60) * 60_000;
+  const startAt = params.startAt;
+  const endAt = new Date(startAt.getTime() + durationMs);
+
+  const body = {
+    summary: params.title,
+    description: params.description ?? '',
+    start: { dateTime: startAt.toISOString() },
+    end: { dateTime: endAt.toISOString() },
+    attendees: (params.attendeeEmails ?? []).map((email) => ({ email })),
+    conferenceData: {
+      createRequest: {
+        requestId: crypto.randomUUID(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
+  };
+
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar createEvent failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const event = await res.json() as any;
+  const meetUrl = event.hangoutLink as string | undefined;
+  if (!meetUrl) {
+    throw new Error('Google Meet link não foi gerado. Verifique se o Google Meet está habilitado na conta.');
+  }
+
+  return { eventId: event.id, meetUrl, htmlLink: event.htmlLink ?? '', endAt };
 }
 
 async function upsertAutoJoin(params: {

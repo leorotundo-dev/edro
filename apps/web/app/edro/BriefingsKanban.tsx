@@ -10,7 +10,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconCalendar, IconCheck } from '@tabler/icons-react';
+import { IconCalendar, IconCheck, IconVideo } from '@tabler/icons-react';
 import EdroAvatar from '@/components/shared/EdroAvatar';
 import { getLabelPreset } from './BriefingCardDrawer';
 
@@ -29,6 +29,7 @@ type Briefing = {
   source: string | null;
   labels?: string[];
   checklist?: ChecklistItem[];
+  meeting_url?: string | null;
 };
 
 const KANBAN_COLUMNS = [
@@ -262,16 +263,34 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
                         )}
                       </Stack>
 
-                      {/* Checklist badge */}
-                      {checklist.length > 0 && (
-                        <Stack direction="row" alignItems="center" spacing={0.3} mt={0.4}>
-                          <IconCheck size={10} color={allDone ? '#4caf50' : 'gray'} />
-                          <Typography
-                            variant="caption"
-                            sx={{ fontSize: '0.65rem', color: allDone ? 'success.main' : 'text.secondary' }}
-                          >
-                            {doneCount}/{checklist.length}
-                          </Typography>
+                      {/* Checklist + meeting badges */}
+                      {(checklist.length > 0 || briefing.meeting_url) && (
+                        <Stack direction="row" alignItems="center" spacing={0.75} mt={0.4} flexWrap="wrap">
+                          {checklist.length > 0 && (
+                            <Stack direction="row" alignItems="center" spacing={0.3}>
+                              <IconCheck size={10} color={allDone ? '#4caf50' : 'gray'} />
+                              <Typography
+                                variant="caption"
+                                sx={{ fontSize: '0.65rem', color: allDone ? 'success.main' : 'text.secondary' }}
+                              >
+                                {doneCount}/{checklist.length}
+                              </Typography>
+                            </Stack>
+                          )}
+                          {briefing.meeting_url && (
+                            <Tooltip title="Reunião vinculada" placement="top">
+                              <Box
+                                component="a"
+                                href={briefing.meeting_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{ display: 'flex', alignItems: 'center', color: '#1976d2', lineHeight: 0 }}
+                              >
+                                <IconVideo size={11} />
+                              </Box>
+                            </Tooltip>
+                          )}
                         </Stack>
                       )}
                     </CardContent>

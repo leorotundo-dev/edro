@@ -742,6 +742,53 @@ export default async function edroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: clients });
   });
 
+  // ── Próximas reuniões do Google Calendar ──────────────────────
+  app.get('/edro/upcoming-meetings', async (request, reply) => {
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'unauthorized' });
+
+    try {
+      const { rows } = await query<{
+        id: string;
+        calendar_event_id: string;
+        event_title: string | null;
+        video_url: string;
+        video_platform: string | null;
+        scheduled_at: string;
+        organizer_email: string | null;
+        meeting_id: string | null;
+        job_enqueued_at: string | null;
+        has_briefing: boolean;
+      }>(
+        `SELECT caj.id,
+                caj.calendar_event_id,
+                caj.event_title,
+                caj.video_url,
+                caj.video_platform,
+                caj.scheduled_at,
+                caj.organizer_email,
+                caj.meeting_id,
+                caj.job_enqueued_at,
+                EXISTS (
+                  SELECT 1 FROM edro_briefings eb
+                  JOIN clients cl ON cl.id = eb.main_client_id
+                  WHERE cl.tenant_id = $1
+                    AND eb.meeting_url = caj.video_url
+                ) AS has_briefing
+           FROM calendar_auto_joins caj
+          WHERE caj.tenant_id = $1
+            AND caj.scheduled_at BETWEEN NOW() AND NOW() + INTERVAL '14 days'
+          ORDER BY caj.scheduled_at ASC
+          LIMIT 20`,
+        [tenantId]
+      );
+      return reply.send({ success: true, data: rows });
+    } catch {
+      // Calendar integration not yet set up for this tenant
+      return reply.send({ success: true, data: [] });
+    }
+  });
+
   // ── Mapa evento → briefing (para badge no calendário) ────────
   app.get('/edro/briefings/event-map', async (request, reply) => {
     const tenantId = (request.user as any)?.tenant_id;

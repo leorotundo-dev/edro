@@ -5,7 +5,7 @@ import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch } from '@/lib/api';
 import { baseChartOptions } from '@/utils/chartTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import Avatar from '@mui/material/Avatar';
@@ -25,6 +25,9 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Tooltip from '@mui/material/Tooltip';
 import {
   IconRefresh,
   IconCoin,
@@ -35,6 +38,14 @@ import {
   IconArrowDown,
   IconWorld,
   IconPhoto,
+  IconRobot,
+  IconVideo,
+  IconCheck,
+  IconAlertTriangle,
+  IconExternalLink,
+  IconEdit,
+  IconDeviceFloppy,
+  IconX,
 } from '@tabler/icons-react';
 
 type Totals = {
@@ -83,12 +94,24 @@ type RecentRow = {
   created_at: string;
 };
 
+type RecallData = {
+  total_bots: number;
+  completed: number;
+  in_progress: number;
+  total_minutes: number;
+  cost_usd: number;
+  cost_brl: number;
+  active_days: number;
+  last_meeting_at: string | null;
+};
+
 type CostsData = {
   totals: Totals;
   by_provider: ProviderRow[];
   by_day: DayRow[];
   by_feature: FeatureRow[];
   recent: RecentRow[];
+  recall?: RecallData;
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -98,6 +121,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   perplexity: '#20B2AA',
   tavily: '#0EA5E9',
   leonardo: '#C026D3',
+  recall: '#7C3AED',
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -107,9 +131,22 @@ const PROVIDER_LABELS: Record<string, string> = {
   perplexity: 'Perplexity',
   tavily: 'Tavily',
   leonardo: 'Leonardo.ai',
+  recall: 'Recall.ai',
 };
 
 const TAVILY_FREE_TIER = 1000; // credits/month on free plan
+
+type PlatformCostRow = {
+  platform: string;
+  name: string;
+  category: string;
+  model: 'subscription' | 'usage' | 'free' | 'freemium';
+  color: string;
+  url: string;
+  cost_usd: number;
+  cost_brl: number;
+  source: 'tracked' | 'manual' | 'free';
+};
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -141,6 +178,13 @@ export default function AiCostsPage() {
   const [data, setData] = useState<CostsData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [platformCosts, setPlatformCosts] = useState<PlatformCostRow[]>([]);
+  const [platformMonth, setPlatformMonth] = useState('');
+  const [platformLoading, setPlatformLoading] = useState(true);
+  const [editPlatform, setEditPlatform] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -153,9 +197,41 @@ export default function AiCostsPage() {
     }
   }, [days]);
 
+  const loadPlatformCosts = useCallback(async () => {
+    setPlatformLoading(true);
+    try {
+      const res = await apiGet<{ success: boolean; month: string; data: PlatformCostRow[] }>('/admin/platform-costs');
+      setPlatformCosts(res.data ?? []);
+      setPlatformMonth(res.month ?? '');
+    } catch {
+      // silent
+    } finally {
+      setPlatformLoading(false);
+    }
+  }, []);
+
+  const savePlatformCost = async (platform: string) => {
+    const val = parseFloat(editValue);
+    if (isNaN(val) || val < 0) return;
+    setSaving(true);
+    try {
+      await apiPatch(`/admin/platform-costs/${platform}`, { monthly_cost_usd: val });
+      await loadPlatformCosts();
+      setEditPlatform(null);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  };
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadPlatformCosts();
+  }, [loadPlatformCosts]);
 
   const totals = data?.totals;
 
@@ -178,6 +254,9 @@ export default function AiCostsPage() {
   const leonardoTotalImages = leonardoRows.reduce((s, r) => s + Number(r.output_tokens), 0); // output_tokens = num_images
   const leonardoCostUsd = leonardoRows.reduce((s, r) => s + Number(r.cost_usd), 0);
   const leonardoCostBrl = leonardoRows.reduce((s, r) => s + Number(r.cost_brl), 0);
+
+  // Recall.ai from dedicated recall field
+  const recall = data?.recall;
 
   const statCards = [
     {
@@ -451,6 +530,215 @@ export default function AiCostsPage() {
                 </Grid>
               </DashboardCard>
             )}
+
+            {/* Recall.ai Meeting Bots summary */}
+            <DashboardCard title="Recall.ai — Bots de Transcrição de Reuniões" sx={{ mb: 3 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <IconVideo size={24} color="#7C3AED" />
+                    <Typography variant="h5" fontWeight={700}>{recall?.total_bots ?? 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">Bots agendados</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700} color="success.main">{recall?.completed ?? 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">Concluídos</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700} color="#7C3AED">{recall?.total_minutes ?? 0} min</Typography>
+                    <Typography variant="caption" color="text.secondary">Minutos transcritos</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                  <Stack alignItems="center" spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700}>{formatUsd(recall?.cost_usd ?? 0)}</Typography>
+                    <Typography variant="caption" color="text.secondary">Custo USD</Typography>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" fontWeight={700}>{formatBrl(recall?.cost_brl ?? 0)}</Typography>
+                    <Typography variant="caption" color="text.secondary">Custo BRL estimado</Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                      Estimativa Starter: $0,02/min gravado
+                    </Typography>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </DashboardCard>
+
+            {/* All Platforms Monthly Cost Audit */}
+            {(() => {
+              const totalBrl = platformCosts.reduce((s, p) => s + Number(p.cost_brl), 0);
+              const totalUsd = platformCosts.reduce((s, p) => s + Number(p.cost_usd), 0);
+              const monthLabel = platformMonth
+                ? new Date(platformMonth + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                : '';
+              return (
+                <DashboardCard
+                  title={`Custo Mensal por Plataforma${monthLabel ? ` — ${monthLabel}` : ''}`}
+                  noPadding
+                  sx={{ mb: 3 }}
+                  action={
+                    <IconButton size="small" onClick={loadPlatformCosts} disabled={platformLoading}>
+                      <IconRefresh size={16} />
+                    </IconButton>
+                  }
+                >
+                  {platformLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Plataforma</TableCell>
+                            <TableCell>Categoria</TableCell>
+                            <TableCell align="center">Modelo</TableCell>
+                            <TableCell align="right">Custo USD</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Custo BRL / mês</TableCell>
+                            <TableCell align="center">Fonte</TableCell>
+                            <TableCell align="center" sx={{ width: 40 }} />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {platformCosts.map((p) => {
+                            const isEditing = editPlatform === p.platform;
+                            return (
+                              <TableRow key={p.platform} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
+                                {/* Platform name */}
+                                <TableCell>
+                                  <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.color, flexShrink: 0 }} />
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.82rem' }}>
+                                      {p.name}
+                                    </Typography>
+                                    <Box
+                                      component="a"
+                                      href={p.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      sx={{ color: 'text.disabled', display: 'flex', alignItems: 'center', lineHeight: 0, '&:hover': { color: 'primary.main' } }}
+                                    >
+                                      <IconExternalLink size={11} />
+                                    </Box>
+                                  </Stack>
+                                </TableCell>
+                                {/* Category */}
+                                <TableCell>
+                                  <Typography variant="caption" color="text.secondary">{p.category}</Typography>
+                                </TableCell>
+                                {/* Model chip */}
+                                <TableCell align="center">
+                                  <Chip
+                                    label={p.model === 'subscription' ? 'Assinatura' : p.model === 'usage' ? 'Por uso' : p.model === 'freemium' ? 'Freemium' : 'Gratuito'}
+                                    size="small"
+                                    sx={{
+                                      fontSize: '0.62rem', height: 17,
+                                      bgcolor: p.model === 'subscription' ? '#7C3AED18' : p.model === 'usage' ? '#E8521918' : p.model === 'freemium' ? '#0EA5E918' : '#10A37F18',
+                                      color: p.model === 'subscription' ? '#7C3AED' : p.model === 'usage' ? '#E85219' : p.model === 'freemium' ? '#0EA5E9' : '#10A37F',
+                                    }}
+                                  />
+                                </TableCell>
+                                {/* Cost USD */}
+                                <TableCell align="right">
+                                  {isEditing ? (
+                                    <TextField
+                                      size="small"
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') savePlatformCost(p.platform); if (e.key === 'Escape') setEditPlatform(null); }}
+                                      InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                                      sx={{ width: 110 }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <Typography variant="body2" sx={{ fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                                      {p.source === 'free' ? '—' : `$ ${Number(p.cost_usd).toFixed(2)}`}
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                                {/* Cost BRL */}
+                                <TableCell align="right">
+                                  <Typography
+                                    variant="body2"
+                                    fontWeight={700}
+                                    sx={{
+                                      fontSize: '0.85rem',
+                                      color: p.source === 'free' ? 'text.disabled' : p.cost_brl > 500 ? 'error.main' : p.cost_brl > 200 ? 'warning.main' : 'text.primary',
+                                    }}
+                                  >
+                                    {p.source === 'free' ? 'Gratuito' : formatBrl(p.cost_brl)}
+                                  </Typography>
+                                </TableCell>
+                                {/* Source badge */}
+                                <TableCell align="center">
+                                  {p.source === 'tracked' ? (
+                                    <Tooltip title="Custo real medido pelo sistema">
+                                      <Chip label="Rastreado" size="small" sx={{ fontSize: '0.6rem', height: 16, bgcolor: '#10A37F18', color: '#10A37F' }} />
+                                    </Tooltip>
+                                  ) : p.source === 'manual' ? (
+                                    <Tooltip title="Valor informado manualmente — clique no lápis para editar">
+                                      <Chip label="Manual" size="small" sx={{ fontSize: '0.6rem', height: 16, bgcolor: '#FFAE1F18', color: '#FFAE1F' }} />
+                                    </Tooltip>
+                                  ) : (
+                                    <Tooltip title="API gratuita — sem custo direto">
+                                      <Chip label="Grátis" size="small" sx={{ fontSize: '0.6rem', height: 16, bgcolor: '#4285F418', color: '#4285F4' }} />
+                                    </Tooltip>
+                                  )}
+                                </TableCell>
+                                {/* Edit actions */}
+                                <TableCell align="center" sx={{ p: 0.5 }}>
+                                  {p.source !== 'tracked' && p.source !== 'free' && (
+                                    isEditing ? (
+                                      <Stack direction="row" spacing={0.25}>
+                                        <IconButton size="small" onClick={() => savePlatformCost(p.platform)} disabled={saving} color="success">
+                                          <IconDeviceFloppy size={14} />
+                                        </IconButton>
+                                        <IconButton size="small" onClick={() => setEditPlatform(null)}>
+                                          <IconX size={14} />
+                                        </IconButton>
+                                      </Stack>
+                                    ) : (
+                                      <IconButton size="small" onClick={() => { setEditPlatform(p.platform); setEditValue(String(p.cost_usd)); }}>
+                                        <IconEdit size={13} />
+                                      </IconButton>
+                                    )
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {/* TOTAL row */}
+                          <TableRow sx={{ bgcolor: 'action.selected' }}>
+                            <TableCell colSpan={3}>
+                              <Typography variant="body2" fontWeight={700}>TOTAL MENSAL ESTIMADO</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={700} sx={{ fontFamily: 'monospace' }}>
+                                $ {totalUsd.toFixed(2)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body1" fontWeight={800} color="error.main">
+                                {formatBrl(totalBrl)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell colSpan={2} />
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </DashboardCard>
+              );
+            })()}
 
             {/* Recent calls */}
             <DashboardCard title="Chamadas Recentes" noPadding>

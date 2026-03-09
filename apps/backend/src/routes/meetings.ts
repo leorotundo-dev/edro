@@ -24,6 +24,7 @@ import { query } from '../db';
 import { createBriefing } from '../repositories/edroBriefingRepository';
 import { getClientById } from '../repos/clientsRepo';
 import { enqueueJob } from '../jobs/jobQueue';
+import { createCalendarMeeting } from '../services/integrations/googleCalendarService';
 
 const AUDIO_MIMES = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/m4a',
@@ -45,6 +46,174 @@ export default async function meetingRoutes(app: FastifyInstance) {
     title: z.string().min(2).max(200).optional(),
     platform: z.enum(['meet', 'zoom', 'teams', 'other']).optional(),
   });
+
+  // ── Create instant Google Meet + schedule Jarvis bot ──────────────────────
+  const instantMeetingSchema = z.object({
+    title: z.string().min(2).max(200).default('Reunião Edro'),
+    attendee_emails: z.array(z.string().email()).max(50).default([]),
+    duration_minutes: z.number().int().min(15).max(480).default(60),
+    description: z.string().max(2000).optional(),
+    client_id: z.string().optional(),
+    client_name: z.string().optional(),
+    enqueue_bot: z.boolean().default(true),
+    start_at: z.string().datetime().optional(), // ISO — defaults to now
+  });
+
+  app.post(
+    '/meetings/instant',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const userEmail = (request.user as any).email as string;
+      const body = instantMeetingSchema.parse(request.body ?? {});
+
+      const startAt = body.start_at ? new Date(body.start_at) : new Date(Date.now() + 60_000);
+
+      let event: Awaited<ReturnType<typeof createCalendarMeeting>>;
+      try {
+        event = await createCalendarMeeting({
+          tenantId,
+          title: body.title,
+          startAt,
+          durationMinutes: body.duration_minutes,
+          attendeeEmails: body.attendee_emails,
+          description: body.description,
+        });
+      } catch (err: any) {
+        const msg = err?.message ?? 'Erro ao criar reunião no Google Calendar';
+        const isConfig = msg.includes('não configurado') || msg.includes('Reconecte');
+        return reply.status(isConfig ? 503 : 502).send({ success: false, error: msg });
+      }
+
+      // Save to meetings table
+      const meeting = await createMeeting({
+        tenantId,
+        clientId: body.client_id ?? 'edro-internal',
+        title: body.title,
+        platform: 'meet',
+        meetingUrl: event.meetUrl,
+        createdBy: userEmail,
+      });
+
+      // Upsert to calendar_auto_joins for tracking
+      await query(
+        `INSERT INTO calendar_auto_joins
+           (tenant_id, calendar_event_id, event_title, video_url, video_platform, scheduled_at, meeting_id, job_enqueued_at)
+         VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7)
+         ON CONFLICT (calendar_event_id) DO UPDATE
+           SET video_url = EXCLUDED.video_url,
+               meeting_id = EXCLUDED.meeting_id`,
+        [
+          tenantId,
+          event.eventId,
+          body.title,
+          event.meetUrl,
+          startAt,
+          meeting.id,
+          body.enqueue_bot ? new Date() : null,
+        ],
+      ).catch(() => {}); // non-blocking
+
+      // Enqueue Recall bot if requested
+      if (body.enqueue_bot) {
+        await enqueueJob(
+          tenantId,
+          'meet-bot',
+          {
+            videoUrl: event.meetUrl,
+            eventTitle: body.title,
+            scheduledAt: startAt.toISOString(),
+            autoJoinId: null,
+            source: 'instant',
+            platform: 'meet',
+            clientId: body.client_id ?? 'edro-internal',
+            clientName: body.client_name ?? 'Edro',
+          },
+        ).catch(() => {});
+      }
+
+      return reply.send({
+        success: true,
+        meeting_id: meeting.id,
+        meet_url: event.meetUrl,
+        html_link: event.htmlLink,
+        event_id: event.eventId,
+        start_at: startAt.toISOString(),
+        end_at: event.endAt.toISOString(),
+      });
+    },
+  );
+
+  // ── Global pending proposals (Jarvis review hub) ──────────────────────────
+  app.get(
+    '/meetings/proposals',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query(
+        `SELECT
+           m.id             AS meeting_id,
+           m.title          AS meeting_title,
+           m.client_id,
+           m.recorded_at,
+           m.summary,
+           m.status         AS meeting_status,
+           m.platform,
+           ma.id            AS action_id,
+           ma.type,
+           ma.title,
+           ma.description,
+           ma.responsible,
+           ma.deadline,
+           ma.priority,
+           ma.status,
+           ma.raw_excerpt
+         FROM meeting_actions ma
+         JOIN meetings m ON m.id = ma.meeting_id
+         WHERE ma.tenant_id = $1
+           AND ma.status = 'pending'
+           AND m.status = 'analyzed'
+         ORDER BY
+           CASE ma.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+           m.recorded_at DESC
+         LIMIT 200`,
+        [tenantId],
+      );
+
+      // Group by meeting
+      const meetingMap = new Map<string, any>();
+      for (const row of rows) {
+        if (!meetingMap.has(row.meeting_id)) {
+          meetingMap.set(row.meeting_id, {
+            meeting_id: row.meeting_id,
+            meeting_title: row.meeting_title,
+            client_id: row.client_id,
+            recorded_at: row.recorded_at,
+            summary: row.summary,
+            platform: row.platform,
+            actions: [],
+          });
+        }
+        meetingMap.get(row.meeting_id).actions.push({
+          action_id: row.action_id,
+          type: row.type,
+          title: row.title,
+          description: row.description,
+          responsible: row.responsible,
+          deadline: row.deadline,
+          priority: row.priority,
+          status: row.status,
+          raw_excerpt: row.raw_excerpt,
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: Array.from(meetingMap.values()),
+        total_pending: rows.length,
+      });
+    },
+  );
 
   // ── Upload + transcribe + analyze ────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>(
@@ -256,51 +425,44 @@ export default async function meetingRoutes(app: FastifyInstance) {
 // ── Execute approved action in system ─────────────────────────────────────
 
 async function executeAction(action: any, tenantId: string): Promise<string | undefined> {
-  if (action.type === 'briefing' || action.type === 'pauta') {
-    // Resolve edro_clients UUID
-    const { rows } = await query(
-      `SELECT id FROM edro_clients WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
-      [action.client_id, tenantId],
-    );
-    if (!rows.length) return undefined;
-    const edroClientId = rows[0].id;
+  if (action.type === 'briefing' || action.type === 'pauta' || action.type === 'task') {
+    // Try to resolve edro_clients UUID (may be null for internal meetings)
+    let edroClientId: string | null = null;
+    let mainClientId: string | null = null;
+
+    if (action.client_id && action.client_id !== 'edro-internal') {
+      const { rows: ecRows } = await query(
+        `SELECT id FROM edro_clients WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
+        [action.client_id, tenantId],
+      ).catch(() => ({ rows: [] as any[] }));
+      edroClientId = ecRows[0]?.id ?? null;
+
+      // Also try to find main_client_id from clients table
+      const { rows: cRows } = await query(
+        `SELECT id FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+        [tenantId, action.client_id],
+      ).catch(() => ({ rows: [] as any[] }));
+      mainClientId = cRows[0]?.id ?? null;
+    }
 
     const briefing = await createBriefing({
-      client_id: edroClientId,
-      title: action.title,
-      status: 'draft',
+      clientId: edroClientId,
+      mainClientId,
+      title: action.type === 'task' ? `[Tarefa] ${action.title}` : action.title,
+      status: 'briefing',
       payload: {
         objective: action.description,
         origin: 'meeting',
+        type: action.type,
         meeting_action_id: action.id,
+        meeting_title: action.meeting_title ?? null,
         responsible: action.responsible ?? null,
         deadline: action.deadline ?? null,
       },
-      created_by: 'jarvis-meeting',
-    });
-    return briefing.id;
-  }
-
-  if (action.type === 'task') {
-    // Create a simple briefing as task placeholder (no campaign system yet for standalone tasks)
-    const { rows } = await query(
-      `SELECT id FROM edro_clients WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
-      [action.client_id, tenantId],
-    );
-    if (!rows.length) return undefined;
-
-    const briefing = await createBriefing({
-      client_id: rows[0].id,
-      title: `[Tarefa] ${action.title}`,
-      status: 'draft',
-      payload: {
-        objective: action.description,
-        origin: 'meeting',
-        type: 'task',
-        responsible: action.responsible ?? null,
-        deadline: action.deadline ?? null,
-      },
-      created_by: 'jarvis-meeting',
+      createdBy: 'jarvis-meeting',
+      trafficOwner: action.responsible ?? null,
+      dueAt: action.deadline ? new Date(action.deadline) : null,
+      source: 'meeting',
     });
     return briefing.id;
   }

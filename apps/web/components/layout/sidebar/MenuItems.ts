@@ -10,6 +10,7 @@ import {
   IconUsersGroup,
   IconReceipt2,
   IconPhoto,
+  IconRobot,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -46,6 +47,12 @@ const MenuItems: MenuGroupType[] = [
         href: '/edro',
         badge: 'New',
         badgeColor: 'primary',
+      },
+      {
+        id: 'jarvis',
+        title: 'Jarvis Propostas',
+        icon: IconRobot,
+        href: '/edro/jarvis',
       },
       {
         id: 'clients',
