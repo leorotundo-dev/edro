@@ -24,7 +24,7 @@ import {
   IconScissors, IconCopy, IconRotate360, IconArrowLeft,
   IconClipboardList, IconInfoCircle, IconHandStop,
   IconPointer, IconPointFilled, IconEraser,
-  IconArrowBackUp, IconArrowForwardUp, IconLayers,
+  IconArrowBackUp, IconArrowForwardUp, IconStack2,
   IconLayersSubtract, IconMovie, IconWand,
   IconPhoto, IconPaint, IconFileExport,
   IconZoomIn, IconZoomOut, IconZoomReset,
@@ -919,7 +919,7 @@ export default function CanvasClient() {
             <Tooltip title="Layers">
               <IconButton size="small" onClick={() => setShowLayers(!showLayers)}
                 sx={{ color: showLayers ? EDRO_ORANGE : '#666', '&:hover': { color: '#fff' } }}>
-                <IconLayers size={14} />
+                <IconStack2 size={14} />
               </IconButton>
             </Tooltip>
 
