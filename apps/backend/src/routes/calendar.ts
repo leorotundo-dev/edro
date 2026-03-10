@@ -789,7 +789,7 @@ async function buildOperationalCalendarDays(params: {
          LEFT JOIN LATERAL (
            SELECT payload
              FROM job_queue jq
-            WHERE jq.tenant_id = $1
+            WHERE jq.tenant_id::text = $1
               AND jq.type = 'meet-bot'
               AND COALESCE(jq.payload->>'autoJoinId', jq.payload->>'auto_join_id') = caj.id::text
             ORDER BY jq.created_at DESC
