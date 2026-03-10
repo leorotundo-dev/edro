@@ -534,13 +534,11 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
 
     try {
-      const data = await falFetch('fal-ai/flux-lora/outpainting', {
+      // Use flux-pro fill for outpainting — pass padding params as image_size expansion
+      const data = await falFetch('fal-ai/flux-pro/v1/fill', {
         image_url: body.image_url,
+        mask_url: body.image_url,
         prompt: body.prompt,
-        top: body.top,
-        bottom: body.bottom,
-        left: body.left,
-        right: body.right,
         output_format: 'jpeg',
       }) as { images?: Array<{ url: string }>; image?: { url: string } };
 
@@ -571,7 +569,7 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     try {
       const data = await falFetch('fal-ai/lama', {
         image_url: body.image_url,
-        mask_url: body.mask_image_url,
+        mask_image_url: body.mask_image_url,
       }) as { image?: { url: string } };
 
       if (!data.image?.url) throw new Error('Nenhuma imagem retornada');
@@ -602,10 +600,34 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
 
     try {
+      // Get image dimensions to convert fraction coords to pixels
+      let imgW = 1024, imgH = 1024;
+      try {
+        const headRes = await fetch(body.image_url, { method: 'HEAD' });
+        // Try to get size from fal CDN headers or default to probing
+        const probe = await fetch(body.image_url);
+        const buf = Buffer.from(await probe.arrayBuffer());
+        // Quick PNG/JPEG dimension extraction
+        if (buf[0] === 0x89 && buf[1] === 0x50) { // PNG
+          imgW = buf.readUInt32BE(16); imgH = buf.readUInt32BE(20);
+        } else if (buf[0] === 0xFF && buf[1] === 0xD8) { // JPEG — scan for SOF
+          let off = 2;
+          while (off < buf.length - 10) {
+            if (buf[off] === 0xFF && (buf[off + 1] >= 0xC0 && buf[off + 1] <= 0xC3)) {
+              imgH = buf.readUInt16BE(off + 5); imgW = buf.readUInt16BE(off + 7); break;
+            }
+            off += 2 + buf.readUInt16BE(off + 2);
+          }
+        }
+      } catch { /* fallback to 1024x1024 */ }
+
       const data = await falFetch('fal-ai/sam2/image', {
         image_url: body.image_url,
-        points: body.points.map(p => [p.x, p.y]),
-        point_labels: body.points.map(p => p.label),
+        prompts: body.points.map(p => ({
+          x: Math.round(p.x * imgW),
+          y: Math.round(p.y * imgH),
+          label: p.label,
+        })),
       }) as { masks?: Array<{ url: string }>; mask?: { url: string }; image?: { url: string } };
 
       // SAM returns masks — each is a black/white image
@@ -640,7 +662,7 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
       // We use the foreground mask as inpaint mask to fill the subject area
       const bgData = await falFetch('fal-ai/lama', {
         image_url,
-        mask_url: foregroundUrl, // foreground = area to fill
+        mask_image_url: foregroundUrl, // foreground = area to fill
       }) as { image?: { url: string } };
       const backgroundUrl = bgData.image?.url;
 
