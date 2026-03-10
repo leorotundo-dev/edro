@@ -102,8 +102,11 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
   const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
   const [user, setUser] = useState<UserInfo>({});
 
+  // Canvas and Pipeline get full-screen — no Studio chrome
+  const isFullscreen = pathname.startsWith('/studio/canvas') || pathname.startsWith('/studio/pipeline');
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isFullscreen) return;
 
     // Load user from localStorage
     try {
@@ -155,7 +158,9 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
       window.removeEventListener('edro-studio-context-change', readClient);
       window.removeEventListener('storage', readClient);
     };
-  }, []);
+  }, [isFullscreen]);
+
+  if (isFullscreen) return <>{children}</>;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', fontFamily: 'sans-serif', color: 'text.primary', bgcolor: 'background.default' }}>

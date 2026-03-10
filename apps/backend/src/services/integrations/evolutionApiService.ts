@@ -197,6 +197,25 @@ export async function disconnectInstance(tenantId: string): Promise<void> {
   );
 }
 
+/**
+ * Restart an existing instance (delete + recreate).
+ * Useful when the Baileys session gets stuck or corrupted.
+ */
+export async function restartInstance(tenantId: string): Promise<void> {
+  const name = instanceName(tenantId);
+
+  // Try to delete the existing instance
+  try {
+    await evolFetch(`/instance/delete/${name}`, { method: 'DELETE' });
+    console.log(`[evolutionApi] Deleted instance ${name} for restart`);
+  } catch (err: any) {
+    console.warn(`[evolutionApi] Delete before restart failed (may not exist): ${err.message}`);
+  }
+
+  // Recreate
+  await createInstance(tenantId);
+}
+
 // ── Group management ───────────────────────────────────────────────────────
 
 export async function fetchGroups(tenantId: string): Promise<EvolutionGroup[]> {
@@ -305,9 +324,12 @@ export async function ensureEvolutionTables() {
       media_url TEXT,
       briefing_id UUID,
       processed BOOLEAN NOT NULL DEFAULT false,
+      insight_extracted BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // Ensure insight_extracted exists on older tables
+  await query(`ALTER TABLE whatsapp_group_messages ADD COLUMN IF NOT EXISTS insight_extracted BOOLEAN DEFAULT false`).catch(() => {});
 }
 
 export function isConfigured(): boolean {
@@ -342,8 +364,24 @@ export async function fetchGroupHistory(
     }),
   });
 
-  // v2 returns array of message objects or { messages: [...] }
-  const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+  // Handle various Evolution API v2 response formats:
+  // - Array directly: [msg, msg, ...]
+  // - { messages: [msg, ...] }
+  // - { messages: { records: [msg, ...] } }
+  // - { data: [msg, ...] }
+  let msgs: any[];
+  if (Array.isArray(data)) {
+    msgs = data;
+  } else if (Array.isArray(data?.messages)) {
+    msgs = data.messages;
+  } else if (Array.isArray(data?.messages?.records)) {
+    msgs = data.messages.records;
+  } else if (Array.isArray(data?.data)) {
+    msgs = data.data;
+  } else {
+    console.warn(`[evolutionApi] fetchGroupHistory unexpected response shape for ${groupJid}:`, JSON.stringify(data).slice(0, 300));
+    msgs = [];
+  }
   return msgs as EvolutionHistoryMessage[];
 }
 

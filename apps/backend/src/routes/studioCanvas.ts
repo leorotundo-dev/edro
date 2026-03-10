@@ -7,10 +7,11 @@ import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { generateCompletion } from '../services/ai/claudeService';
-import { generateAdCreative, refineScenePrompt, isAdCreativeConfigured } from '../services/adCreativeService';
-import { orchestrateCreative } from '../services/ai/artDirectorOrchestrator';
+import { refineScenePrompt } from '../services/adCreativeService';
 import { generateCopy } from '../services/ai/copyService';
-import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured } from '../services/ai/falAiService';
+import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured, FalModel } from '../services/ai/falAiService';
+import { generateImage as generateImageGemini } from '../services/ai/geminiService';
+import { generateImageWithLeonardo } from '../services/ai/leonardoService';
 import { env } from '../env';
 
 const chatSchema = z.object({
@@ -40,6 +41,8 @@ const chatSchema = z.object({
   })).default([]),
   /** Preferred image provider */
   image_provider: z.enum(['gemini', 'leonardo', 'fal']).default('fal'),
+  /** Specific fal.ai model (e.g. 'flux-pro', 'recraft-v3', or 'fal-ai/some-model') */
+  fal_model: z.string().default('flux-pro'),
   /** Format */
   format: z.string().default('Feed 1:1'),
   platform: z.string().default('Instagram'),
@@ -150,33 +153,64 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
       if (actionType === 'generate_image') {
         actionsTaken.push('generate_image');
         const aspectRatio = action.aspect_ratio || (body.format.includes('9:16') ? '9:16' : body.format.includes('16:9') ? '16:9' : body.format.includes('4:5') ? '4:5' : '1:1');
+        const imagePrompt = action.image_prompt || body.message;
+        const refAsset = body.assets.find(a => a.type === 'reference' || a.type === 'product' || a.type === 'logo');
 
-        if (isAdCreativeConfigured()) {
-          try {
-            // Use reference image from assets if available
-            const refAsset = body.assets.find(a => a.type === 'reference' || a.type === 'product' || a.type === 'logo');
-
-            const imgResult = await generateAdCreative({
-              copy: action.image_prompt || body.message,
-              headline: action.copy?.headline,
-              format: body.format,
-              brand: body.client_name || '',
-              segment: '',
-              customPrompt: action.image_prompt,
-              imageProvider: body.image_provider,
+        try {
+          if (body.image_provider === 'gemini') {
+            // Direct Gemini call — no VISUAL_DNA_BASE injection
+            const result = await generateImageGemini({
+              prompt: imagePrompt,
               aspectRatio,
               negativePrompt: action.negative_prompt,
-              numImages: body.image_provider === 'gemini' ? 1 : 3,
-              tenantId,
+              referenceImageUrls: refAsset ? [refAsset.url] : undefined,
+            });
+            results.image = {
+              success: true,
+              image_url: `data:${result.mimeType};base64,${result.base64}`,
+              image_urls: [`data:${result.mimeType};base64,${result.base64}`],
+              prompt_used: imagePrompt,
+              provider: 'gemini',
+            };
+          } else if (body.image_provider === 'leonardo') {
+            // Direct Leonardo call — no VISUAL_DNA_BASE injection
+            const result = await generateImageWithLeonardo({
+              prompt: imagePrompt,
+              aspectRatio,
+              negativePrompt: action.negative_prompt,
+              numImages: 3,
+            });
+            results.image = {
+              success: true,
+              image_url: result.imageUrl,
+              image_urls: result.imageUrls,
+              prompt_used: imagePrompt,
+              provider: 'leonardo',
+            };
+          } else {
+            // fal.ai — direct call with selected model
+            if (!isFalConfigured()) throw new Error('FAL_API_KEY nao configurada');
+            const result = await generateImageWithFal({
+              prompt: imagePrompt,
+              aspectRatio,
+              negativePrompt: action.negative_prompt,
+              model: body.fal_model as FalModel,
+              numImages: 3,
               referenceImageUrl: refAsset?.url,
               referenceImageStrength: refAsset ? 0.2 : undefined,
             });
-            results.image = imgResult;
-          } catch (err: any) {
-            results.image = { success: false, error: err?.message };
+            results.image = {
+              success: true,
+              image_url: result.imageUrl,
+              image_urls: result.imageUrls,
+              prompt_used: imagePrompt,
+              provider: 'fal',
+              model: body.fal_model,
+              seed: result.seed,
+            };
           }
-        } else {
-          results.image = { success: false, error: 'Geracao de imagens nao configurada' };
+        } catch (err: any) {
+          results.image = { success: false, error: err?.message };
         }
       }
 
@@ -225,21 +259,43 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
             instruction: action.refine_instruction || body.message,
             brand: body.client_name,
           });
-          // Generate with refined prompt
           const aspectRatio = action.aspect_ratio || (body.format.includes('9:16') ? '9:16' : '1:1');
-          const imgResult = await generateAdCreative({
-            copy: body.message,
-            format: body.format,
-            brand: body.client_name || '',
-            segment: '',
-            customPrompt: refined,
-            imageProvider: body.image_provider,
-            aspectRatio,
-            negativePrompt: action.negative_prompt,
-            numImages: body.image_provider === 'gemini' ? 1 : 3,
-            tenantId,
-          });
-          results.image = { ...imgResult, refined_prompt: refined };
+
+          if (body.image_provider === 'gemini') {
+            const result = await generateImageGemini({ prompt: refined, aspectRatio, negativePrompt: action.negative_prompt });
+            results.image = {
+              success: true,
+              image_url: `data:${result.mimeType};base64,${result.base64}`,
+              image_urls: [`data:${result.mimeType};base64,${result.base64}`],
+              refined_prompt: refined,
+              provider: 'gemini',
+            };
+          } else if (body.image_provider === 'leonardo') {
+            const result = await generateImageWithLeonardo({ prompt: refined, aspectRatio, negativePrompt: action.negative_prompt, numImages: 3 });
+            results.image = { success: true, image_url: result.imageUrl, image_urls: result.imageUrls, refined_prompt: refined, provider: 'leonardo' };
+          } else {
+            if (!isFalConfigured()) throw new Error('FAL_API_KEY nao configurada');
+            // If we have the current image, use img2img for better refinement
+            if (body.current_image_url && !body.current_image_url.startsWith('data:')) {
+              const result = await generateImg2ImgWithFal({
+                prompt: refined,
+                imageUrl: body.current_image_url,
+                strength: 0.65,
+                aspectRatio,
+                numImages: 3,
+              });
+              results.image = { success: true, image_url: result.imageUrl, image_urls: result.imageUrls, refined_prompt: refined, provider: 'fal', model: 'flux-dev-i2i' };
+            } else {
+              const result = await generateImageWithFal({
+                prompt: refined,
+                aspectRatio,
+                negativePrompt: action.negative_prompt,
+                model: body.fal_model as FalModel,
+                numImages: 3,
+              });
+              results.image = { success: true, image_url: result.imageUrl, image_urls: result.imageUrls, refined_prompt: refined, provider: 'fal', model: body.fal_model };
+            }
+          }
         } catch (err: any) {
           results.image = { success: false, error: err?.message };
         }

@@ -41,6 +41,8 @@ type AdCreativeRequest = {
   referenceImageUrl?: string;
   /** 0.0–1.0 how strongly the reference image influences generation (default 0.15) */
   referenceImageStrength?: number;
+  /** Specific fal.ai model to use (e.g. 'flux-pro', 'recraft-v3', or 'fal-ai/some-model') */
+  falModel?: string;
 };
 
 type AdCreativeResponse = {
@@ -364,6 +366,7 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
         numImages: params.numImages ?? 1,
         referenceImageUrl: params.referenceImageUrl,
         referenceImageStrength: params.referenceImageStrength,
+        model: (params.falModel as any) || 'flux-pro',
       });
       return {
         success: true,

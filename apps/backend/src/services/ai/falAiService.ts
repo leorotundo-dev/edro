@@ -7,16 +7,43 @@ export type FalModel =
   | 'flux-dev'           // fast, free-tier friendly
   | 'flux-lora'          // LoRA-enabled for brand consistency
   | 'flux-control-canny' // structure-guided (respects edge maps)
-  | 'flux-realism';      // photorealistic
+  | 'flux-realism'       // photorealistic
+  | 'recraft-v3'         // vector/illustration, great for logos and icons
+  | 'ideogram-v2'        // good with text-in-image
+  | 'hidream-i1'         // high-quality creative
+  | 'stable-diffusion-v35' // SD 3.5 Large
+  | 'minimax-image'      // creative artistic
+  | 'omnigen-v1'         // versatile gen
+  | 'nano-banana-2'      // Google Gemini 3.1 Flash Image — fast, text rendering, reasoning
+  | 'nano-banana-pro';   // Google Gemini 3 Pro Image — highest quality, semantic understanding
 
 const FAL_ENDPOINTS: Record<FalModel, string> = {
-  'flux-pro':           'https://fal.run/fal-ai/flux-pro/v1.1',
-  'flux-pro-ultra':     'https://fal.run/fal-ai/flux-pro/v1.1-ultra',
-  'flux-dev':           'https://fal.run/fal-ai/flux/dev',
-  'flux-lora':          'https://fal.run/fal-ai/flux-lora',
-  'flux-control-canny': 'https://fal.run/fal-ai/flux-control-lora-canny',
-  'flux-realism':       'https://fal.run/fal-ai/flux-realism',
+  'flux-pro':             'https://fal.run/fal-ai/flux-pro/v1.1',
+  'flux-pro-ultra':       'https://fal.run/fal-ai/flux-pro/v1.1-ultra',
+  'flux-dev':             'https://fal.run/fal-ai/flux/dev',
+  'flux-lora':            'https://fal.run/fal-ai/flux-lora',
+  'flux-control-canny':   'https://fal.run/fal-ai/flux-control-lora-canny',
+  'flux-realism':         'https://fal.run/fal-ai/flux-realism',
+  'recraft-v3':           'https://fal.run/fal-ai/recraft-v3',
+  'ideogram-v2':          'https://fal.run/fal-ai/ideogram/v2',
+  'hidream-i1':           'https://fal.run/fal-ai/hidream-i1-full',
+  'stable-diffusion-v35': 'https://fal.run/fal-ai/stable-diffusion-v35-large',
+  'minimax-image':        'https://fal.run/fal-ai/minimax/image',
+  'omnigen-v1':           'https://fal.run/fal-ai/omnigen-v1',
+  'nano-banana-2':        'https://fal.run/fal-ai/nano-banana-2',
+  'nano-banana-pro':      'https://fal.run/fal-ai/nano-banana-pro',
 };
+
+/** Resolve a fal model name or direct fal.ai path to an endpoint URL */
+function resolveEndpoint(model: string): string {
+  // Known alias
+  if (model in FAL_ENDPOINTS) return FAL_ENDPOINTS[model as FalModel];
+  // Direct fal.ai path (e.g. "fal-ai/recraft-v3" or full URL)
+  if (model.startsWith('https://')) return model;
+  if (model.startsWith('fal-ai/')) return `https://fal.run/${model}`;
+  // Fallback to flux-pro
+  return FAL_ENDPOINTS['flux-pro'];
+}
 
 export type FalLoraConfig = {
   /** URL to the .safetensors file or Civitai/HuggingFace path */
@@ -63,8 +90,8 @@ export async function generateImageWithFal(params: {
   numImages?: number;
   guidanceScale?: number;
   numInferenceSteps?: number;
-  /** Which Fal.ai model to use (default: flux-pro) */
-  model?: FalModel;
+  /** Which Fal.ai model to use (default: flux-pro). Can be FalModel alias or direct fal-ai/ path */
+  model?: FalModel | string;
   /** LoRA configurations for brand consistency */
   loras?: FalLoraConfig[];
   /** Reference image URL or base64 data URI for IP-Adapter style guidance */
@@ -80,7 +107,7 @@ export async function generateImageWithFal(params: {
   if (!apiKey) throw new Error('FAL_API_KEY não configurada');
 
   const model = params.model ?? 'flux-pro';
-  const endpoint = FAL_ENDPOINTS[model];
+  const endpoint = resolveEndpoint(model);
 
   const { width, height } = resolveSize(params.aspectRatio);
   const numImages = params.numImages ?? 1;
@@ -102,7 +129,7 @@ export async function generateImageWithFal(params: {
   if (params.seed)           body.seed = params.seed;
 
   // LoRA injection — supported by flux-lora and flux-control-canny
-  if (params.loras?.length && (model === 'flux-lora' || model === 'flux-control-canny')) {
+  if (params.loras?.length && (model === 'flux-lora' || model === 'flux-control-canny' || String(model).includes('lora'))) {
     body.loras = params.loras.map((l) => ({ path: l.path, scale: l.scale ?? 0.85 }));
   }
 

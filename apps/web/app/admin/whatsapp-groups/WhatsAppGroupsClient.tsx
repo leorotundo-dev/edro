@@ -26,7 +26,7 @@ import Tabs from '@mui/material/Tabs';
 import {
   IconBrandWhatsapp, IconRefresh, IconLink, IconLinkOff,
   IconQrcode, IconCircleCheck, IconCircleX, IconSettings, IconExternalLink,
-  IconBrain, IconUrgent, IconCheck, IconDownload,
+  IconBrain, IconUrgent, IconCheck, IconDownload, IconPlayerPlay, IconBug,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 
@@ -72,6 +72,9 @@ export default function WhatsAppGroupsClient() {
   const [intelLoading, setIntelLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState('');
+  const [restarting, setRestarting] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<Record<string, string> | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -206,16 +209,55 @@ export default function WhatsAppGroupsClient() {
   }, []);
 
   const handleSyncHistory = async () => {
+    if (!connected) {
+      setSyncResult('WhatsApp desconectado. Conecte via QR Code primeiro.');
+      return;
+    }
     setSyncing(true);
     setSyncResult('');
     try {
-      const res = await apiPost<{ message: string; total_inserted: number }>('/whatsapp-groups/sync-history', { limit: 200 });
+      const res = await apiPost<{ success: boolean; message: string; total_inserted: number }>('/whatsapp-groups/sync-history', { limit: 500 });
       setSyncResult(res?.message ?? `${res?.total_inserted ?? 0} mensagens sincronizadas.`);
-      await loadStatus();
+      if (res?.success) await loadStatus();
     } catch (e: any) {
       setSyncResult(`Erro: ${e?.message ?? 'falha no sync'}`);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    if (!confirm('Reiniciar instância WhatsApp? Isso vai gerar um novo QR Code.')) return;
+    setRestarting(true);
+    setError('');
+    setQr(null);
+    try {
+      const res = await apiPost<{ success: boolean; qr: { base64: string; code: string }; message: string }>(
+        '/whatsapp-groups/restart', {},
+      );
+      if (res?.qr?.base64) {
+        setQr(res.qr);
+      } else {
+        startQrPolling();
+      }
+      setSyncResult(res?.message ?? 'Instância reiniciada.');
+      setTimeout(loadStatus, 5000);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao reiniciar.');
+    } finally {
+      setRestarting(false);
+    }
+  };
+
+  const loadDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const res = await apiGet<{ data: Record<string, string> }>('/whatsapp-groups/diagnostics');
+      setDiagnostics(res?.data ?? null);
+    } catch {
+      setDiagnostics(null);
+    } finally {
+      setDiagLoading(false);
     }
   };
 
@@ -366,15 +408,36 @@ export default function WhatsAppGroupsClient() {
                   </Stack>
                   <Stack direction="row" spacing={1}>
                     {!connected ? (
-                      <Button
-                        variant="contained"
-                        startIcon={connecting ? <CircularProgress size={14} color="inherit" /> : <IconQrcode size={16} />}
-                        disabled={connecting}
-                        onClick={handleConnect}
-                        sx={{ bgcolor: EDRO_GREEN, '&:hover': { bgcolor: '#1ea855' } }}
-                      >
-                        {connecting ? 'Aguardando…' : 'Conectar via QR Code'}
-                      </Button>
+                      <>
+                        <Button
+                          variant="contained"
+                          startIcon={connecting ? <CircularProgress size={14} color="inherit" /> : <IconQrcode size={16} />}
+                          disabled={connecting || restarting}
+                          onClick={handleConnect}
+                          sx={{ bgcolor: EDRO_GREEN, '&:hover': { bgcolor: '#1ea855' } }}
+                        >
+                          {connecting ? 'Aguardando…' : 'Conectar via QR Code'}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          startIcon={restarting ? <CircularProgress size={12} /> : <IconPlayerPlay size={14} />}
+                          disabled={connecting || restarting}
+                          onClick={handleRestart}
+                        >
+                          {restarting ? 'Reiniciando…' : 'Reiniciar'}
+                        </Button>
+                        <Button
+                          size="small"
+                          startIcon={diagLoading ? <CircularProgress size={12} /> : <IconBug size={14} />}
+                          onClick={loadDiagnostics}
+                          disabled={diagLoading}
+                          sx={{ color: 'text.secondary' }}
+                        >
+                          Diagnóstico
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Button size="small" startIcon={<IconRefresh size={14} />} onClick={loadStatus}>
@@ -444,6 +507,28 @@ export default function WhatsAppGroupsClient() {
                         </Stack>
                       </Stack>
                     ) : null}
+                  </Box>
+                )}
+
+                {/* Diagnostics panel */}
+                {diagnostics && !connected && (
+                  <Box sx={{ mt: 2, p: 2, borderRadius: 1.5, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+                    <Typography variant="caption" fontWeight={700} sx={{ mb: 1, display: 'block' }}>
+                      Diagnóstico da Conexão
+                    </Typography>
+                    <Stack spacing={0.5}>
+                      {Object.entries(diagnostics).map(([key, val]) => (
+                        <Stack key={key} direction="row" spacing={1}>
+                          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 150 }}>
+                            {key.replace(/_/g, ' ')}:
+                          </Typography>
+                          <Typography variant="caption" fontWeight={600}
+                            sx={{ color: val === 'NOT SET' || val === 'false' ? 'error.main' : val === 'open' || val === 'true' ? 'success.main' : 'text.primary' }}>
+                            {val}
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
                   </Box>
                 )}
               </CardContent>

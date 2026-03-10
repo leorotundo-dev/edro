@@ -14,6 +14,7 @@ import {
   getQrCode,
   getInstanceStatus,
   disconnectInstance,
+  restartInstance,
   fetchGroups,
   linkGroupToClient,
   unlinkGroup,
@@ -406,6 +407,63 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── Restart instance (delete + recreate) ──────────────────────────────
+  app.post('/whatsapp-groups/restart', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    if (!isConfigured()) {
+      return reply.code(503).send({ error: 'Evolution API não configurada.' });
+    }
+    try {
+      await restartInstance(tenantId);
+      const qr = await getQrCode(tenantId, { pollSeconds: 20 });
+      return reply.send({ success: true, qr, message: 'Instância reiniciada. Escaneie o QR Code.' });
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // ── Diagnostic info ──────────────────────────────────────────────────
+  app.get('/whatsapp-groups/diagnostics', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const name = instanceName(tenantId);
+    const publicUrl = process.env.PUBLIC_API_URL || '';
+    const evolutionUrl = process.env.EVOLUTION_API_URL || '';
+
+    let connectionState = 'unknown';
+    let webhookConfigured = false;
+    let webhookUrl = '';
+    try {
+      const status = await getInstanceStatus(tenantId);
+      connectionState = status.state;
+    } catch { /* ignore */ }
+
+    try {
+      const webhookData = await fetch(`${evolutionUrl.replace(/\/$/, '')}/webhook/find/${name}`, {
+        headers: { apikey: process.env.EVOLUTION_API_KEY || '', 'Content-Type': 'application/json' },
+      }).then(r => r.json()).catch(() => null);
+      if (webhookData) {
+        webhookUrl = webhookData?.webhook?.url || webhookData?.url || '';
+        webhookConfigured = !!webhookUrl;
+      }
+    } catch { /* ignore */ }
+
+    return reply.send({
+      success: true,
+      data: {
+        instance_name: name,
+        connection_state: connectionState,
+        public_api_url: publicUrl ? `${publicUrl.slice(0, 40)}...` : 'NOT SET',
+        evolution_api_url: evolutionUrl ? `${evolutionUrl.slice(0, 40)}...` : 'NOT SET',
+        webhook_configured: webhookConfigured,
+        webhook_url: webhookUrl ? `${webhookUrl.slice(0, 60)}...` : 'NOT SET',
+      },
+    });
+  });
+
   // ── Reconfigure webhook (admin manual trigger) ────────────────────────
   app.post('/whatsapp-groups/reconfigure-webhook', {
     preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
@@ -426,6 +484,22 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any).tenant_id;
     const { limit } = (request.body as any) ?? {};
 
+    // Check connection first
+    let connectionState = 'unknown';
+    try {
+      const status = await getInstanceStatus(tenantId);
+      connectionState = status.state;
+    } catch { /* ignore */ }
+
+    if (connectionState !== 'open') {
+      return reply.send({
+        success: false,
+        message: `WhatsApp desconectado (estado: ${connectionState}). Conecte via QR Code primeiro, depois sincronize.`,
+        total_inserted: 0,
+        groups: [],
+      });
+    }
+
     const { rows: groups } = await query(
       `SELECT id, group_jid, client_id FROM whatsapp_groups WHERE tenant_id = $1 AND active = true`,
       [tenantId],
@@ -440,7 +514,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     for (const g of groups) {
       try {
-        const inserted = await syncGroupHistory(tenantId, g.id, g.group_jid, g.client_id, limit ?? 200);
+        const inserted = await syncGroupHistory(tenantId, g.id, g.group_jid, g.client_id, limit ?? 500);
         totalInserted += inserted;
         results.push({ group_jid: g.group_jid, inserted });
       } catch (err: any) {
