@@ -1,10 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { swrFetcher, apiPost } from '@/lib/api';
-import clsx from 'clsx';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
 
 type Profile = {
   id: string;
@@ -24,17 +22,15 @@ function useElapsed(startedAt: string) {
   const [secs, setSecs] = useState(
     Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000),
   );
-
   useEffect(() => {
-    const timer = setInterval(() => setSecs((value) => value + 1), 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
   }, [startedAt]);
-
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const hours = Math.floor(secs / 3600);
-  const minutes = Math.floor((secs % 3600) / 60);
-  const seconds = secs % 60;
-  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
 function ActiveTimerCard({ timer, freelancerId, onStopped }: {
@@ -53,24 +49,30 @@ function ActiveTimerCard({ timer, freelancerId, onStopped }: {
         briefing_id: timer.briefing_id,
       });
       onStopped();
-    } finally {
+    } catch { /* silent */ } finally {
       setStopping(false);
     }
   };
 
   return (
-    <div className="portal-card">
-      <div className="portal-section-head">
-        <div>
-          <span className="portal-kicker">Timer ativo</span>
-          <h3 className="portal-section-title" style={{ marginTop: 12 }}>{timer.briefing_title ?? 'Job em execucao'}</h3>
-          <p className="portal-card-subtitle">O cronometro continua rodando ate voce encerrar este bloco.</p>
+    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-sm font-semibold text-green-800">Timer ativo</span>
         </div>
-        <span className="portal-stat-value" style={{ fontSize: '1.8rem' }}>{elapsed}</span>
+        <p className="text-xs text-green-700 mt-0.5 truncate max-w-48">{timer.briefing_title ?? 'Job'}</p>
       </div>
-      <button onClick={stop} disabled={stopping} className="portal-button-danger">
-        {stopping ? 'Parando...' : 'Parar timer'}
-      </button>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-lg font-bold text-green-700">{elapsed}</span>
+        <button
+          onClick={stop}
+          disabled={stopping}
+          className="bg-red-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-red-600 disabled:opacity-50"
+        >
+          {stopping ? '...' : 'Parar'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -79,74 +81,74 @@ export default function DashboardPage() {
   const { data: profile, mutate } = useSWR<Profile>('/freelancers/portal/me', swrFetcher);
 
   const currentMonth = (() => {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   })();
 
-  const { data: entriesData } = useSWR(`/freelancers/portal/me/entries?month=${currentMonth}`, swrFetcher);
+  const { data: entriesData } = useSWR(
+    `/freelancers/portal/me/entries?month=${currentMonth}`,
+    swrFetcher,
+  );
   const { data: payablesData } = useSWR('/freelancers/portal/me/payables', swrFetcher);
 
-  const totalMinutes = (entriesData?.entries ?? []).reduce((sum: number, entry: any) => sum + (entry.minutes ?? 0), 0);
-  const pendingPayable = (payablesData?.payables ?? []).find((payable: Payable) => payable.status === 'open');
+  const totalMinutes = (entriesData?.entries ?? []).reduce((s: number, e: any) => s + (e.minutes ?? 0), 0);
+  const pendingPayable = (payablesData?.payables ?? []).find((p: Payable) => p.status === 'open');
   const activeTimers = profile?.active_timers ?? [];
 
-  function formatHours(minutes: number) {
-    if (!minutes) return '0h';
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return rest > 0 ? `${hours}h ${rest}min` : `${hours}h`;
+  function formatHours(mins: number) {
+    if (!mins) return '0h';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
   if (!profile) {
-    return <div className="portal-empty"><div><p className="portal-card-title">Carregando portal</p><p className="portal-card-subtitle">Sincronizando sua visao operacional.</p></div></div>;
+    return <div className="text-center py-12 text-slate-400 text-sm">Carregando...</div>;
   }
 
   return (
-    <div className="portal-page">
-      <div className="portal-page-header">
-        <div>
-          <span className="portal-kicker">Workspace freelancer</span>
-          <h2 className="portal-page-title">Ola, {profile.display_name}</h2>
-          <p className="portal-page-subtitle">
-            Este painel concentra o que esta ativo agora, o volume de horas do mes e o proximo valor previsto para pagamento.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-slate-800">Olá, {profile.display_name} 👋</h1>
+        <p className="text-sm text-slate-500">{currentMonth}</p>
       </div>
 
-      {activeTimers.map((timer) => (
-        <ActiveTimerCard key={timer.briefing_id} timer={timer} freelancerId={profile.id} onStopped={() => mutate()} />
+      {/* Active timer */}
+      {activeTimers.map((t, i) => (
+        <ActiveTimerCard
+          key={i}
+          timer={t}
+          freelancerId={profile.id}
+          onStopped={() => mutate()}
+        />
       ))}
 
-      <section className="portal-hero-card">
-        <div className="portal-stat-grid">
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Horas no mes</div>
-            <div className="portal-stat-value">{formatHours(totalMinutes)}</div>
-            <div className="portal-stat-meta">
-              {profile.hourly_rate_brl
-                ? `Estimativa bruta de R$ ${((totalMinutes / 60) * parseFloat(profile.hourly_rate_brl)).toFixed(2)}`
-                : 'Sem valor hora cadastrado.'}
-            </div>
-          </div>
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Proximo pagamento</div>
-            <div className="portal-stat-value">{pendingPayable ? `R$ ${parseFloat(pendingPayable.amount_brl).toFixed(2)}` : 'Sem pendencia'}</div>
-            <div className="portal-stat-meta">{pendingPayable ? pendingPayable.period_month : 'Nenhum pagamento aberto no momento.'}</div>
-          </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Horas no mês</p>
+          <p className="text-2xl font-bold text-blue-600">{formatHours(totalMinutes)}</p>
+          {profile.hourly_rate_brl && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              ≈ R$ {((totalMinutes / 60) * parseFloat(profile.hourly_rate_brl)).toFixed(2)}
+            </p>
+          )}
         </div>
-      </section>
 
-      <section className="portal-note">
-        <div className="portal-section-head" style={{ marginBottom: 0 }}>
-          <div>
-            <h3 className="portal-section-title">Ritmo de operacao</h3>
-            <p className="portal-card-subtitle">Seu painel agora segue o mesmo sistema visual do Edro Web, sem alterar o fluxo de trabalho existente.</p>
-          </div>
-          <span className={clsx('portal-pill', activeTimers.length ? 'portal-pill-success' : 'portal-pill-neutral')}>
-            {activeTimers.length ? 'Em execucao' : 'Sem timer ativo'}
-          </span>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Próximo pagamento</p>
+          {pendingPayable ? (
+            <>
+              <p className="text-2xl font-bold text-orange-500">
+                R$ {parseFloat(pendingPayable.amount_brl).toFixed(2)}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">{pendingPayable.period_month}</p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400 mt-1">Nenhum pendente</p>
+          )}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

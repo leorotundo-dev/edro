@@ -2,7 +2,6 @@
 
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
-import clsx from 'clsx';
 
 type Invoice = {
   id: string;
@@ -19,12 +18,18 @@ function brl(val: string) {
   return parseFloat(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function statusMeta(status: Invoice['status']) {
-  if (status === 'paid') return { tone: 'portal-pill-success', label: 'Paga' };
-  if (status === 'sent') return { tone: 'portal-pill-accent', label: 'Enviada' };
-  if (status === 'overdue') return { tone: 'portal-pill-danger', label: 'Vencida' };
-  if (status === 'cancelled') return { tone: 'portal-pill-neutral', label: 'Cancelada' };
-  return { tone: 'portal-pill-neutral', label: 'Rascunho' };
+function statusChip(status: string) {
+  const map: Record<string, string> = {
+    paid: 'bg-green-100 text-green-700',
+    sent: 'bg-blue-100 text-blue-700',
+    overdue: 'bg-red-100 text-red-700',
+    draft: 'bg-slate-100 text-slate-600',
+    cancelled: 'bg-slate-100 text-slate-400 line-through',
+  };
+  const label: Record<string, string> = {
+    paid: 'Paga', sent: 'Enviada', overdue: 'Vencida', draft: 'Rascunho', cancelled: 'Cancelada',
+  };
+  return { cls: map[status] ?? 'bg-slate-100 text-slate-600', label: label[status] ?? status };
 }
 
 export default function FaturasPage() {
@@ -32,51 +37,57 @@ export default function FaturasPage() {
   const invoices = data?.invoices ?? [];
 
   return (
-    <div className="portal-page">
-      <div>
-        <span className="portal-kicker">Financeiro</span>
-        <h2 className="portal-page-title">Faturas</h2>
-        <p className="portal-page-subtitle">Historico financeiro da conta com acesso rapido ao PDF sempre que estiver disponivel.</p>
-      </div>
+    <div className="space-y-4">
+      <h1 className="text-xl font-bold text-slate-800">Faturas</h1>
 
-      <section className="portal-card">
-        {isLoading ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Carregando faturas</p><p className="portal-card-subtitle">Buscando o historico financeiro.</p></div></div>
-        ) : invoices.length === 0 ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Nenhuma fatura emitida</p><p className="portal-card-subtitle">Quando houver emissao, o documento aparecera aqui.</p></div></div>
-        ) : (
-          <div className="portal-list">
-            {invoices.map((invoice) => {
-              const chip = statusMeta(invoice.status);
-              return (
-                <div key={invoice.id} className="portal-list-card">
-                  <div className="portal-list-row">
-                    <div>
-                      <p className="portal-card-title">{invoice.description}</p>
-                      {invoice.period_month && <p className="portal-card-subtitle">Periodo: {invoice.period_month}</p>}
-                      {invoice.due_date && invoice.status !== 'paid' && (
-                        <p className="portal-card-subtitle">Vence em {new Date(invoice.due_date).toLocaleDateString('pt-BR')}</p>
-                      )}
-                      {invoice.paid_at && <p className="portal-card-subtitle">Pago em {new Date(invoice.paid_at).toLocaleDateString('pt-BR')}</p>}
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p className="portal-card-title">{brl(invoice.amount_brl)}</p>
-                      <div className="portal-inline-stack" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
-                        <span className={clsx('portal-pill', chip.tone)}>{chip.label}</span>
-                        {invoice.pdf_url && (
-                          <a href={invoice.pdf_url} target="_blank" rel="noreferrer" className="portal-section-link">
-                            Abrir PDF
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+      {isLoading ? (
+        <p className="text-slate-400 text-sm">Carregando...</p>
+      ) : invoices.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+          <p className="text-slate-400 text-sm">Nenhuma fatura emitida.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {invoices.map((inv) => {
+            const chip = statusChip(inv.status);
+            return (
+              <div
+                key={inv.id}
+                className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-800 text-sm truncate">{inv.description}</p>
+                  {inv.period_month && (
+                    <p className="text-xs text-slate-400 mt-0.5">Período: {inv.period_month}</p>
+                  )}
+                  {inv.due_date && inv.status !== 'paid' && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Vence em {new Date(inv.due_date).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                  {inv.paid_at && (
+                    <p className="text-xs text-green-600 mt-0.5">
+                      Paga em {new Date(inv.paid_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <p className="text-lg font-bold text-slate-800">{brl(inv.amount_brl)}</p>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${chip.cls}`}>
+                    {chip.label}
+                  </span>
+                  {inv.pdf_url && (
+                    <a href={inv.pdf_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+                      PDF
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

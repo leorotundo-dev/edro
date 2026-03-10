@@ -11,20 +11,20 @@ type Profile = {
 };
 
 function useElapsed(startedAt: string | null) {
-  const [secs, setSecs] = useState(startedAt ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) : 0);
-
+  const [secs, setSecs] = useState(
+    startedAt ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) : 0,
+  );
   useEffect(() => {
-    if (!startedAt) return undefined;
-    const timer = setInterval(() => setSecs((value) => value + 1), 1000);
-    return () => clearInterval(timer);
+    if (!startedAt) return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
   }, [startedAt]);
-
   if (!startedAt) return null;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const hours = Math.floor(secs / 3600);
-  const minutes = Math.floor((secs % 3600) / 60);
-  const seconds = secs % 60;
-  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +34,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [description, setDescription] = useState('');
   const [showStop, setShowStop] = useState(false);
 
-  const activeTimer = profile?.active_timers?.find((timer) => timer.briefing_id === id) ?? null;
+  const activeTimer = profile?.active_timers?.find((t) => t.briefing_id === id) ?? null;
   const elapsed = useElapsed(activeTimer?.started_at ?? null);
 
   const handleStart = async () => {
@@ -43,7 +43,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     try {
       await apiPost('/freelancers/timer/start', { freelancer_id: profile.id, briefing_id: id });
       await mutateProfile();
-    } finally {
+    } catch { /* silent */ } finally {
       setLoading(false);
     }
   };
@@ -60,49 +60,57 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setShowStop(false);
       setDescription('');
       await mutateProfile();
-    } finally {
+    } catch { /* silent */ } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="portal-page">
-      <div>
-        <span className="portal-kicker">Job</span>
-        <h2 className="portal-page-title">Executar e registrar tempo</h2>
-        <p className="portal-page-subtitle">ID operacional {id}</p>
-      </div>
+    <div className="space-y-5">
+      <a href="/jobs" className="text-blue-600 text-sm hover:underline">← Jobs</a>
 
-      <section className="portal-card">
-        <div className="portal-section-head">
-          <div>
-            <h3 className="portal-section-title">Timesheet</h3>
-            <p className="portal-card-subtitle">Inicie ou finalize o bloco de trabalho associado a este job.</p>
-          </div>
-          {activeTimer && <span className="portal-pill portal-pill-success">Timer ativo</span>}
-        </div>
+      <h1 className="text-xl font-bold text-slate-800">Job</h1>
+      <p className="text-xs text-slate-500 font-mono">{id}</p>
+
+      {/* Timer section */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+        <h2 className="font-semibold text-slate-700 text-sm">Timesheet</h2>
 
         {activeTimer ? (
-          <div className="portal-page" style={{ gap: 16 }}>
-            <div className="portal-stat-card">
-              <div className="portal-stat-label">Tempo em execucao</div>
-              <div className="portal-stat-value">{elapsed}</div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse inline-block" />
+              <span className="font-mono text-2xl font-bold text-green-600">{elapsed}</span>
             </div>
 
             {!showStop ? (
-              <button onClick={() => setShowStop(true)} className="portal-button-danger">Parar timer</button>
+              <button
+                onClick={() => setShowStop(true)}
+                className="bg-red-500 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-red-600"
+              >
+                Parar timer
+              </button>
             ) : (
-              <div className="portal-page" style={{ gap: 16 }}>
+              <div className="space-y-2">
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descricao opcional do que foi executado..."
-                  rows={3}
-                  className="portal-textarea"
+                  placeholder="Descrição do trabalho (opcional)..."
+                  rows={2}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
                 />
-                <div className="portal-inline-stack">
-                  <button onClick={() => setShowStop(false)} className="portal-button-ghost">Cancelar</button>
-                  <button onClick={handleStop} disabled={loading} className="portal-button-danger">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowStop(false)}
+                    className="flex-1 border border-slate-300 text-slate-600 text-sm py-2 rounded-lg hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleStop}
+                    disabled={loading}
+                    className="flex-1 bg-red-500 text-white text-sm py-2 rounded-lg hover:bg-red-600 disabled:opacity-50"
+                  >
                     {loading ? 'Parando...' : 'Confirmar parada'}
                   </button>
                 </div>
@@ -110,16 +118,15 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             )}
           </div>
         ) : (
-          <div className="portal-page" style={{ gap: 16 }}>
-            <div className="portal-note">
-              Nenhum timer ativo para este job no momento. Inicie quando comecar a execucao para manter o historico consistente.
-            </div>
-            <button onClick={handleStart} disabled={loading || !profile} className="portal-button">
-              {loading ? 'Iniciando...' : 'Iniciar timer'}
-            </button>
-          </div>
+          <button
+            onClick={handleStart}
+            disabled={loading || !profile}
+            className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Iniciando...' : '▶ Iniciar timer'}
+          </button>
         )}
-      </section>
+      </div>
     </div>
   );
 }

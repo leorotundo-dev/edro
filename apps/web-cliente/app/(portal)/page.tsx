@@ -3,7 +3,6 @@
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
 import Link from 'next/link';
-import clsx from 'clsx';
 
 type ClientMe = {
   id: string;
@@ -27,26 +26,12 @@ type Invoice = {
 };
 
 function fmtDate(d: string | null) {
-  if (!d) return 'Sem data';
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('pt-BR');
 }
 
 function brl(val: string) {
   return parseFloat(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function invoiceTone(status: string) {
-  if (status === 'paid') return 'portal-pill-success';
-  if (status === 'overdue') return 'portal-pill-danger';
-  if (status === 'sent') return 'portal-pill-warning';
-  return 'portal-pill-neutral';
-}
-
-function invoiceLabel(status: string) {
-  if (status === 'paid') return 'Paga';
-  if (status === 'overdue') return 'Vencida';
-  if (status === 'sent') return 'Em aberto';
-  return 'Rascunho';
 }
 
 export default function DashboardPage() {
@@ -56,89 +41,62 @@ export default function DashboardPage() {
 
   const jobs = jobsData?.jobs ?? [];
   const lastInvoice = invData?.invoices?.[0];
-  const firstName = me?.client?.name?.split(' ')[0] ?? 'cliente';
 
   return (
-    <div className="portal-page">
-      <div className="portal-page-header">
-        <div>
-          <span className="portal-kicker">Workspace cliente</span>
-          <h2 className="portal-page-title">Ola, {firstName}</h2>
-          <p className="portal-page-subtitle">
-            Aqui voce acompanha o que esta em andamento, o que precisa de aprovacao e o status financeiro do seu relacionamento com a Edro.
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-slate-800">
+          Olá{me?.client?.name ? `, ${me.client.name.split(' ')[0]}` : ''}!
+        </h1>
+        <p className="text-sm text-slate-500 mt-0.5">Bem-vindo ao seu portal de projetos.</p>
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">Projetos ativos</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{jobs.length}</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">Última fatura</p>
+          <p className="text-lg font-bold text-slate-800 mt-1">
+            {lastInvoice ? brl(lastInvoice.amount_brl) : '—'}
           </p>
+          {lastInvoice && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              {lastInvoice.status === 'paid' ? '✓ Paga' : `Vence ${fmtDate(lastInvoice.due_date)}`}
+            </p>
+          )}
         </div>
       </div>
 
-      <section className="portal-hero-card">
-        <div className="portal-section-head">
-          <div>
-            <h3 className="portal-section-title">Resumo operacional</h3>
-            <p className="portal-card-subtitle">Visao rapida do que ja esta sendo executado pela agencia.</p>
-          </div>
+      {/* Recent jobs */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-semibold text-slate-700 text-sm">Projetos recentes</h2>
+          <Link href="/jobs" className="text-xs text-blue-600 hover:underline">Ver todos</Link>
         </div>
-        <div className="portal-stat-grid">
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Projetos recentes</div>
-            <div className="portal-stat-value">{jobs.length}</div>
-            <div className="portal-stat-meta">Jobs ativos ou atualizados no periodo mais recente.</div>
-          </div>
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Ultima fatura</div>
-            <div className="portal-stat-value">{lastInvoice ? brl(lastInvoice.amount_brl) : 'Sem emissao'}</div>
-            <div className="portal-stat-meta">
-              {lastInvoice ? `${invoiceLabel(lastInvoice.status)} · ${fmtDate(lastInvoice.due_date)}` : 'Nenhuma cobranca registrada.'}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="portal-card">
-        <div className="portal-section-head">
-          <div>
-            <h3 className="portal-section-title">Projetos recentes</h3>
-            <p className="portal-card-subtitle">Acesse rapidamente o que foi atualizado por ultimo.</p>
-          </div>
-          <Link href="/jobs" className="portal-section-link">Ver todos</Link>
-        </div>
-
         {jobs.length === 0 ? (
-          <div className="portal-empty">
-            <div>
-              <p className="portal-card-title">Nenhum projeto encontrado</p>
-              <p className="portal-card-subtitle">Quando a agencia publicar novos jobs, eles aparecerao aqui.</p>
-            </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <p className="text-slate-400 text-sm">Nenhum projeto ainda.</p>
           </div>
         ) : (
-          <div className="portal-list">
-            {jobs.map((job) => (
-              <Link key={job.id} href={`/jobs/${job.id}`} className="portal-list-card">
-                <div className="portal-list-row">
-                  <div>
-                    <p className="portal-card-title">{job.title}</p>
-                    <p className="portal-card-subtitle">Atualizado em {fmtDate(job.updated_at)}</p>
-                  </div>
-                  <span className={clsx('portal-pill', job.status === 'review' ? 'portal-pill-warning' : job.status === 'done' ? 'portal-pill-success' : 'portal-pill-neutral')}>
-                    {job.status === 'review' ? 'Em aprovacao' : job.status === 'done' ? 'Concluido' : 'Em andamento'}
-                  </span>
-                </div>
+          <div className="space-y-2">
+            {jobs.map((j) => (
+              <Link
+                key={j.id}
+                href={`/jobs/${j.id}`}
+                className="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+              >
+                <p className="font-medium text-slate-800 text-sm">{j.title}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Atualizado em {fmtDate(j.updated_at)}
+                </p>
               </Link>
             ))}
           </div>
         )}
-      </section>
-
-      {lastInvoice && (
-        <section className="portal-note">
-          <div className="portal-section-head" style={{ marginBottom: 0 }}>
-            <div>
-              <h3 className="portal-section-title">Financeiro em foco</h3>
-              <p className="portal-card-subtitle">Ultimo documento emitido para sua conta.</p>
-            </div>
-            <span className={clsx('portal-pill', invoiceTone(lastInvoice.status))}>{invoiceLabel(lastInvoice.status)}</span>
-          </div>
-        </section>
-      )}
+      </div>
     </div>
   );
 }

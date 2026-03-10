@@ -17,84 +17,88 @@ type Entry = {
 };
 
 function buildMonthOptions() {
-  const options = [];
+  const opts = [];
   const now = new Date();
-  for (let index = 0; index < 6; index += 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    options.push({ value, label: format(date, 'MMMM yyyy', { locale: ptBR }) });
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    opts.push({ value: val, label: format(d, 'MMMM yyyy', { locale: ptBR }) });
   }
-  return options;
+  return opts;
 }
 
 export default function HorasPage() {
   const monthOptions = buildMonthOptions();
   const [month, setMonth] = useState(monthOptions[0].value);
 
-  const { data, isLoading } = useSWR<{ entries: Entry[] }>(`/freelancers/portal/me/entries?month=${month}`, swrFetcher);
-  const entries = data?.entries ?? [];
-  const totalMinutes = entries.reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const { data, isLoading } = useSWR<{ entries: Entry[] }>(
+    `/freelancers/portal/me/entries?month=${month}`,
+    swrFetcher,
+  );
 
-  function formatMinutes(minutes: number) {
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return rest > 0 ? `${hours}h ${rest}min` : `${hours}h`;
+  const entries = data?.entries ?? [];
+  const totalMinutes = entries.reduce((s, e) => s + (e.minutes ?? 0), 0);
+
+  function fmtMins(mins: number) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
   return (
-    <div className="portal-page">
-      <div className="portal-page-header">
-        <div>
-          <span className="portal-kicker">Horas</span>
-          <h2 className="portal-page-title">Registro por periodo</h2>
-          <p className="portal-page-subtitle">Historico de blocos de trabalho registrados no mes selecionado.</p>
-        </div>
-        <div style={{ minWidth: 220 }}>
-          <label className="portal-field-label" htmlFor="hours-month">Periodo</label>
-          <select id="hours-month" value={month} onChange={(e) => setMonth(e.target.value)} className="portal-select">
-            {monthOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-slate-800">Horas</h1>
+        <select
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="border border-slate-300 rounded-lg px-2 py-1 text-sm focus:outline-none"
+        >
+          {monthOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
 
       {totalMinutes > 0 && (
-        <section className="portal-hero-card">
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Total acumulado</div>
-            <div className="portal-stat-value">{formatMinutes(totalMinutes)}</div>
-            <div className="portal-stat-meta">Periodo {month}</div>
-          </div>
-        </section>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <p className="text-xs text-blue-600">Total em {month}</p>
+          <p className="text-2xl font-bold text-blue-700">{fmtMins(totalMinutes)}</p>
+        </div>
       )}
 
-      <section className="portal-card">
-        {isLoading ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Carregando apontamentos</p><p className="portal-card-subtitle">Buscando os lancamentos do periodo.</p></div></div>
-        ) : !entries.length ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Nenhuma hora registrada</p><p className="portal-card-subtitle">Nao ha apontamentos para {month}.</p></div></div>
-        ) : (
-          <div className="portal-list">
-            {entries.map((entry) => (
-              <div key={entry.id} className="portal-list-card">
-                <div className="portal-list-row">
-                  <div>
-                    <p className="portal-card-title">{entry.briefing_title ?? 'Job'}</p>
-                    {entry.description && <p className="portal-card-subtitle">{entry.description}</p>}
-                    <p className="portal-card-subtitle">
-                      {new Date(entry.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                      {' -> '}
-                      {new Date(entry.ended_at).toLocaleString('pt-BR', { timeStyle: 'short' })}
-                    </p>
-                  </div>
-                  <span className="portal-pill portal-pill-accent">{formatMinutes(entry.minutes)}</span>
+      {isLoading ? (
+        <p className="text-slate-400 text-sm">Carregando...</p>
+      ) : !entries.length ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+          <p className="text-slate-400 text-sm">Nenhuma hora registrada em {month}.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((e) => (
+            <div key={e.id} className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-800 text-sm truncate">
+                    {e.briefing_title ?? 'Job'}
+                  </p>
+                  {e.description && (
+                    <p className="text-xs text-slate-500 mt-0.5">{e.description}</p>
+                  )}
                 </div>
+                <span className="shrink-0 text-sm font-bold text-slate-700">
+                  {fmtMins(e.minutes)}
+                </span>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+              <p className="text-xs text-slate-400 mt-2">
+                {new Date(e.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                {' → '}
+                {new Date(e.ended_at).toLocaleString('pt-BR', { timeStyle: 'short' })}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -12,38 +12,48 @@ type Job = {
 };
 
 export default function AprovacoesPage() {
-  const { data, isLoading } = useSWR<{ jobs: Job[] }>('/portal/client/jobs?status=review', swrFetcher);
-  const jobs = (data?.jobs ?? []).filter((job) => job.status === 'review');
+  const { data, isLoading } = useSWR<{ jobs: Job[] }>(
+    '/portal/client/jobs?status=review',
+    swrFetcher,
+  );
+  const jobs = (data?.jobs ?? []).filter((j) => j.status === 'review');
 
   return (
-    <div className="portal-page">
+    <div className="space-y-4">
       <div>
-        <span className="portal-kicker">Aprovacoes</span>
-        <h2 className="portal-page-title">Pontos que aguardam retorno</h2>
-        <p className="portal-page-subtitle">Tudo o que depende da sua validacao para seguir o fluxo de producao.</p>
+        <h1 className="text-xl font-bold text-slate-800">Aprovações pendentes</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Projetos aguardando sua aprovação de copy.</p>
       </div>
 
-      <section className="portal-card">
-        {isLoading ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Carregando aprovacoes</p><p className="portal-card-subtitle">Sincronizando seus itens pendentes.</p></div></div>
-        ) : jobs.length === 0 ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Nenhuma aprovacao pendente</p><p className="portal-card-subtitle">Quando houver materiais aguardando seu retorno, eles aparecerao aqui.</p></div></div>
-        ) : (
-          <div className="portal-list">
-            {jobs.map((job) => (
-              <Link key={job.id} href={`/jobs/${job.id}`} className="portal-list-card">
-                <div className="portal-list-row">
-                  <div>
-                    <p className="portal-card-title">{job.title}</p>
-                    <p className="portal-card-subtitle">Atualizado em {new Date(job.updated_at).toLocaleDateString('pt-BR')}</p>
-                  </div>
-                  <span className="portal-pill portal-pill-warning">Aguardando aprovacao</span>
+      {isLoading ? (
+        <p className="text-slate-400 text-sm">Carregando...</p>
+      ) : jobs.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+          <p className="text-slate-400 text-sm">Nenhuma aprovação pendente.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {jobs.map((j) => (
+            <Link
+              key={j.id}
+              href={`/jobs/${j.id}`}
+              className="block bg-yellow-50 border border-yellow-200 rounded-xl p-4 hover:border-yellow-400 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-slate-800 text-sm">{j.title}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Atualizado em {new Date(j.updated_at).toLocaleDateString('pt-BR')}
+                  </p>
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 shrink-0">
+                  Aguarda aprovação
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

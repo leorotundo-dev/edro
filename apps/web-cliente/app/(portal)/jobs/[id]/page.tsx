@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
+import { use } from 'react';
 import useSWR from 'swr';
 import { swrFetcher, apiPost } from '@/lib/api';
-import clsx from 'clsx';
 
 type Job = {
   id: string;
@@ -34,61 +34,72 @@ type Artwork = {
   created_at: string;
 };
 
-function artworkTone(status: Artwork['status']) {
-  if (status === 'approved') return 'portal-pill-success';
-  if (status === 'revision') return 'portal-pill-warning';
-  return 'portal-pill-accent';
-}
-
-function artworkLabel(status: Artwork['status']) {
-  if (status === 'approved') return 'Aprovado';
-  if (status === 'revision') return 'Revisao solicitada';
-  return 'Aguardando retorno';
-}
-
 function ArtworkCard({ art, onAction }: { art: Artwork; onAction: (id: string, type: 'approve' | 'revision') => void }) {
   const isImage = art.mime_type.startsWith('image/');
-  const isPdf = art.mime_type === 'application/pdf';
+  const isPdf   = art.mime_type === 'application/pdf';
+
+  const statusColor = art.status === 'approved'
+    ? 'bg-green-50 border-green-200 text-green-700'
+    : art.status === 'revision'
+    ? 'bg-orange-50 border-orange-200 text-orange-700'
+    : 'bg-yellow-50 border-yellow-200 text-yellow-700';
+
+  const statusLabel = art.status === 'approved' ? '✓ Aprovado' : art.status === 'revision' ? 'Revisão solicitada' : 'Aguardando aprovação';
 
   return (
-    <div className="portal-list-card">
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
       {isImage ? (
-        <img src={art.file_url} alt={art.title} style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 18, marginBottom: 16 }} />
+        <img src={art.file_url} alt={art.title} className="w-full h-40 object-cover" />
       ) : (
-        <div className="portal-empty" style={{ minHeight: 220, marginBottom: 16 }}>
-          <div>
-            <p className="portal-card-title">{isPdf ? 'Documento PDF' : 'Midia anexada'}</p>
-            <p className="portal-card-subtitle">Abra o arquivo para revisar o conteudo.</p>
+        <div className="h-40 flex items-center justify-center bg-slate-100">
+          <span className="text-3xl">{isPdf ? '📄' : '🎬'}</span>
+        </div>
+      )}
+      <div className="p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-800 truncate">{art.title}</p>
+          <span className="text-xs text-slate-400">v{art.version}</span>
+        </div>
+        <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${statusColor}`}>{statusLabel}</span>
+        {art.revision_comment && (
+          <p className="text-xs text-orange-600 italic">"{art.revision_comment}"</p>
+        )}
+        {art.status === 'pending' && (
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => onAction(art.id, 'approve')}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg py-1.5 text-xs font-medium"
+            >
+              Aprovar
+            </button>
+            <button
+              onClick={() => onAction(art.id, 'revision')}
+              className="flex-1 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg py-1.5 text-xs font-medium"
+            >
+              Revisão
+            </button>
           </div>
-        </div>
-      )}
-
-      <div className="portal-list-row">
-        <div>
-          <p className="portal-card-title">{art.title}</p>
-          <p className="portal-card-subtitle">Versao {art.version}</p>
-          {art.revision_comment && <p className="portal-card-subtitle">Observacao: {art.revision_comment}</p>}
-        </div>
-        <span className={clsx('portal-pill', artworkTone(art.status))}>{artworkLabel(art.status)}</span>
+        )}
       </div>
-
-      {art.status === 'pending' && (
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}>
-          <button onClick={() => onAction(art.id, 'approve')} className="portal-button">Aprovar</button>
-          <button onClick={() => onAction(art.id, 'revision')} className="portal-button-secondary">Solicitar revisao</button>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data, mutate, isLoading } = useSWR<{ job: Job; thread: ThreadMessage[] }>(`/portal/client/jobs/${id}`, swrFetcher);
-  const { data: artData, mutate: mutateArt } = useSWR<{ artworks: Artwork[] }>(`/portal/client/jobs/${id}/artworks`, swrFetcher);
+  const { data, mutate, isLoading } = useSWR<{ job: Job; thread: ThreadMessage[] }>(
+    `/portal/client/jobs/${id}`,
+    swrFetcher,
+  );
+  const { data: artData, mutate: mutateArt } = useSWR<{ artworks: Artwork[] }>(
+    `/portal/client/jobs/${id}/artworks`,
+    swrFetcher,
+  );
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [action, setAction] = useState<'approve' | 'revision' | null>(null);
+
+  // Artwork action state
   const [artAction, setArtAction] = useState<{ id: string; type: 'approve' | 'revision' } | null>(null);
   const [artComment, setArtComment] = useState('');
   const [artSubmitting, setArtSubmitting] = useState(false);
@@ -107,8 +118,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setArtAction(null);
       setArtComment('');
       mutateArt();
-    } catch (error: any) {
-      alert(error.message ?? 'Erro ao enviar');
+    } catch (e: any) {
+      alert(e.message ?? 'Erro ao enviar');
     } finally {
       setArtSubmitting(false);
     }
@@ -125,133 +136,158 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setMessage('');
       setAction(null);
       mutate();
-    } catch (error: any) {
-      alert(error.message ?? 'Erro ao enviar');
+    } catch (e: any) {
+      alert(e.message ?? 'Erro ao enviar');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (isLoading) return <div className="portal-empty"><div><p className="portal-card-title">Carregando projeto</p><p className="portal-card-subtitle">Recuperando o contexto para aprovacao.</p></div></div>;
-  if (!job) return <div className="portal-empty"><div><p className="portal-card-title">Projeto nao encontrado</p><p className="portal-card-subtitle">O item solicitado nao esta disponivel.</p></div></div>;
+  if (isLoading) return <p className="text-slate-400 text-sm">Carregando...</p>;
+  if (!job) return <p className="text-slate-400 text-sm">Projeto não encontrado.</p>;
 
   return (
-    <div className="portal-page">
+    <div className="space-y-5">
       <div>
-        <span className="portal-kicker">Projeto</span>
-        <h2 className="portal-page-title">{job.title}</h2>
-        <p className="portal-page-subtitle">Atualizado em {new Date(job.updated_at).toLocaleDateString('pt-BR')}.</p>
+        <h1 className="text-xl font-bold text-slate-800">{job.title}</h1>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Atualizado em {new Date(job.updated_at).toLocaleDateString('pt-BR')}
+        </p>
       </div>
 
+      {/* Status + approval */}
       {!job.copy_approved_at && job.status === 'review' && (
-        <section className="portal-card">
-          <div className="portal-section-head">
-            <div>
-              <h3 className="portal-section-title">Aguardando sua aprovacao</h3>
-              <p className="portal-card-subtitle">Valide a copy ou devolva com orientacao objetiva para a equipe.</p>
-            </div>
-            <span className="portal-pill portal-pill-warning">Em revisao</span>
-          </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <p className="text-sm font-medium text-yellow-800 mb-3">
+            Este projeto está aguardando sua aprovação de copy.
+          </p>
 
-          {action === null ? (
-            <div className="portal-inline-stack">
-              <button onClick={() => setAction('approve')} className="portal-button">Aprovar copy</button>
-              <button onClick={() => setAction('revision')} className="portal-button-secondary">Solicitar revisao</button>
+          {action === null && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAction('approve')}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 text-sm font-medium transition-colors"
+              >
+                Aprovar ✓
+              </button>
+              <button
+                onClick={() => setAction('revision')}
+                className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg py-2 text-sm font-medium transition-colors"
+              >
+                Solicitar revisão
+              </button>
             </div>
-          ) : (
-            <div className="portal-page" style={{ gap: 16 }}>
+          )}
+
+          {action !== null && (
+            <div className="space-y-3">
               <textarea
-                rows={4}
+                rows={3}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder={action === 'approve' ? 'Comentario opcional...' : 'Descreva o ajuste necessario...'}
-                className="portal-textarea"
+                placeholder={action === 'approve' ? 'Comentário opcional...' : 'Descreva o que precisa ser ajustado...'}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
               />
-              <div className="portal-inline-stack">
-                <button onClick={() => handleSubmit(action)} disabled={submitting} className={action === 'approve' ? 'portal-button' : 'portal-button-secondary'}>
-                  {submitting ? 'Enviando...' : action === 'approve' ? 'Confirmar aprovacao' : 'Enviar revisao'}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleSubmit(action)}
+                  disabled={submitting}
+                  className={`flex-1 text-white rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                    action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'
+                  }`}
+                >
+                  {submitting ? 'Enviando...' : action === 'approve' ? 'Confirmar aprovação' : 'Enviar revisão'}
                 </button>
-                <button onClick={() => { setAction(null); setMessage(''); }} className="portal-button-ghost">Cancelar</button>
+                <button
+                  onClick={() => { setAction(null); setMessage(''); }}
+                  className="px-4 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           )}
-        </section>
+        </div>
       )}
 
       {job.copy_approved_at && (
-        <section className="portal-note">
-          <div className="portal-section-head" style={{ marginBottom: 0 }}>
-            <div>
-              <h3 className="portal-section-title">Copy aprovada</h3>
-              <p className="portal-card-subtitle">Aprovada em {new Date(job.copy_approved_at).toLocaleDateString('pt-BR')}.</p>
-              {job.copy_approval_comment && <p className="portal-card-subtitle">{job.copy_approval_comment}</p>}
-            </div>
-            <span className="portal-pill portal-pill-success">Aprovada</span>
-          </div>
-        </section>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-sm text-green-700 font-medium">
+            ✓ Copy aprovada em {new Date(job.copy_approved_at).toLocaleDateString('pt-BR')}
+          </p>
+          {job.copy_approval_comment && (
+            <p className="text-xs text-green-600 mt-1">{job.copy_approval_comment}</p>
+          )}
+        </div>
       )}
 
+      {/* Artworks */}
       {(artData?.artworks?.length ?? 0) > 0 && (
-        <section className="portal-card">
-          <div className="portal-section-head">
-            <div>
-              <h3 className="portal-section-title">Criativos para avaliacao</h3>
-              <p className="portal-card-subtitle">Revise as pecas anexadas antes de seguir o fluxo.</p>
-            </div>
-          </div>
-
-          <div className="portal-media-grid">
+        <div>
+          <h2 className="font-semibold text-slate-700 text-sm mb-3">Criativos para aprovação</h2>
+          <div className="grid grid-cols-2 gap-3">
             {artData!.artworks.map((art) => (
               <ArtworkCard key={art.id} art={art} onAction={handleArtAction} />
             ))}
           </div>
 
           {artAction && (
-            <div className="portal-note" style={{ marginTop: 18 }}>
-              <div className="portal-page" style={{ gap: 16 }}>
-                <div>
-                  <h3 className="portal-section-title">{artAction.type === 'approve' ? 'Confirmar aprovacao do criativo' : 'Solicitar revisao do criativo'}</h3>
-                  <p className="portal-card-subtitle">Adicione um comentario se precisar orientar o ajuste.</p>
-                </div>
-                <textarea
-                  rows={4}
-                  value={artComment}
-                  onChange={(e) => setArtComment(e.target.value)}
-                  placeholder={artAction.type === 'approve' ? 'Comentario opcional...' : 'Descreva o ajuste necessario...'}
-                  className="portal-textarea"
-                />
-                <div className="portal-inline-stack">
-                  <button onClick={submitArtAction} disabled={artSubmitting || (artAction.type === 'revision' && !artComment)} className={artAction.type === 'approve' ? 'portal-button' : 'portal-button-secondary'}>
-                    {artSubmitting ? 'Enviando...' : artAction.type === 'approve' ? 'Confirmar' : 'Enviar revisao'}
-                  </button>
-                  <button onClick={() => { setArtAction(null); setArtComment(''); }} className="portal-button-ghost">Cancelar</button>
-                </div>
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium text-slate-700">
+                {artAction.type === 'approve' ? 'Confirmar aprovação' : 'Solicitar revisão'}
+              </p>
+              <textarea
+                rows={3}
+                value={artComment}
+                onChange={(e) => setArtComment(e.target.value)}
+                placeholder={artAction.type === 'approve' ? 'Comentário opcional...' : 'Descreva o ajuste necessário...'}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={submitArtAction}
+                  disabled={artSubmitting || (artAction.type === 'revision' && !artComment)}
+                  className={`flex-1 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 ${
+                    artAction.type === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'
+                  }`}
+                >
+                  {artSubmitting ? 'Enviando...' : artAction.type === 'approve' ? 'Confirmar' : 'Enviar revisão'}
+                </button>
+                <button
+                  onClick={() => { setArtAction(null); setArtComment(''); }}
+                  className="px-4 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           )}
-        </section>
+        </div>
       )}
 
+      {/* Thread */}
       {thread.length > 0 && (
-        <section className="portal-card">
-          <div className="portal-section-head">
-            <div>
-              <h3 className="portal-section-title">Historico de comentarios</h3>
-              <p className="portal-card-subtitle">Conversas e retornos registrados neste job.</p>
-            </div>
-          </div>
-
-          <div className="portal-thread">
+        <div>
+          <h2 className="font-semibold text-slate-700 text-sm mb-3">Histórico de comentários</h2>
+          <div className="space-y-3">
             {thread.map((msg) => (
-              <div key={msg.id} className={clsx('portal-thread-bubble', msg.author_type === 'client' && 'portal-thread-bubble-client')}>
-                <span className="portal-thread-meta">
-                  {msg.author_name ?? (msg.author_type === 'client' ? 'Voce' : 'Agencia')} · {new Date(msg.created_at).toLocaleString('pt-BR')}
-                </span>
-                <div>{msg.message}</div>
+              <div
+                key={msg.id}
+                className={`rounded-xl p-3 text-sm ${
+                  msg.author_type === 'client'
+                    ? 'bg-blue-50 border border-blue-100 ml-4'
+                    : 'bg-white border border-slate-200 mr-4'
+                }`}
+              >
+                <p className="text-xs font-medium text-slate-500 mb-1">
+                  {msg.author_name ?? (msg.author_type === 'client' ? 'Você' : 'Agência')} ·{' '}
+                  {new Date(msg.created_at).toLocaleString('pt-BR')}
+                </p>
+                <p className="text-slate-700">{msg.message}</p>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
