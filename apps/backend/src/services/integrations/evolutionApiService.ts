@@ -118,14 +118,16 @@ export async function configureWebhook(nameOrTenantId: string): Promise<void> {
   await evolFetch(`/webhook/set/${name}`, {
     method: 'POST',
     body: JSON.stringify({
-      url: webhookUrl,
-      webhook_by_events: false,
-      webhook_base64: false,
-      events: [
-        'MESSAGES_UPSERT',
-        'CONNECTION_UPDATE',
-      ],
-      enabled: true,
+      webhook: {
+        url: webhookUrl,
+        webhook_by_events: false,
+        webhook_base64: false,
+        events: [
+          'MESSAGES_UPSERT',
+          'CONNECTION_UPDATE',
+        ],
+        enabled: true,
+      },
     }),
   });
 
