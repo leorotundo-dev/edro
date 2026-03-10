@@ -369,16 +369,16 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
   });
 
   /**
-   * POST /studio/canvas/upscale — 4x upscale via fal.ai real-esrgan
+   * POST /studio/canvas/upscale — 4x upscale via fal.ai clarity-upscaler
    */
   app.post('/studio/canvas/upscale', async (request: any, reply) => {
     const { image_url } = imageUrlSchema.parse(request.body || {});
     if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
 
-    const res = await fetch('https://fal.run/fal-ai/real-esrgan', {
+    const res = await fetch('https://fal.run/fal-ai/clarity-upscaler', {
       method: 'POST',
       headers: { Authorization: `Key ${env.FAL_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url, scale: 4 }),
+      body: JSON.stringify({ image_url, scale_factor: 4 }),
     });
     if (!res.ok) {
       const err = await res.text();
