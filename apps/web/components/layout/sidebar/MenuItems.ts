@@ -11,6 +11,7 @@ import {
   IconReceipt2,
   IconPhoto,
   IconRobot,
+  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -59,6 +60,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Clientes',
         icon: IconUsers,
         href: '/clients',
+      },
+      {
+        id: 'whatsapp',
+        title: 'WhatsApp',
+        icon: IconBrandWhatsapp,
+        href: '/whatsapp',
       },
       {
         id: 'calendar',

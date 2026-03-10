@@ -83,6 +83,7 @@ const CLIENT_TABS = [
   { label: 'Métricas',      path: '/metricas' },
   { label: 'Reuniões',      path: '/meetings' },
   { label: 'Financeiro',    path: '/financeiro' },
+  { label: 'WhatsApp',      path: '/whatsapp' },
   { label: 'Perfil',        path: '/perfil' },
 ];
 

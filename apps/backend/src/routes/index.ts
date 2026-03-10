@@ -48,6 +48,7 @@ import webhookWhatsAppRoutes from './webhookWhatsApp';
 import meetingRoutes from './meetings';
 import evolutionRoutes from './evolutionRoutes';
 import webhookEvolutionRoutes from './webhookEvolution';
+import whatsappInboxRoutes from './whatsappInbox';
 import webhookInstagramRoutes from './webhookInstagram';
 import webhookUniversalRoutes, { webhookAdminRoutes } from './webhookUniversal';
 import { portalTokenRoutes } from './portalClient';
@@ -117,6 +118,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(webhookGoogleCalendarRoutes);
   app.register(meetingRoutes, { prefix: '/api' });
   app.register(evolutionRoutes, { prefix: '/api' });
+  app.register(whatsappInboxRoutes, { prefix: '/api' });
   // Portal token routes (public + admin endpoints)
   app.register(portalTokenRoutes, { prefix: '/api' });
   app.register(gmailRoutes, { prefix: '/api' });
