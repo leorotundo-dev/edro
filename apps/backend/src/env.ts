@@ -97,7 +97,17 @@ const envSchema = z.object({
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
 });
 
-const parsed = envSchema.parse(process.env);
+// Railway injects RAILWAY_SERVICE_<NAME>_URL for linked services (no https:// prefix)
+const railwayEvoUrl = process.env.RAILWAY_SERVICE_EVOLUTION_API_URL
+  ? `https://${process.env.RAILWAY_SERVICE_EVOLUTION_API_URL}`
+  : undefined;
+
+const parsed = envSchema.parse({
+  ...process.env,
+  // Use Railway service reference as fallback if explicit vars not set
+  EVOLUTION_API_URL: process.env.EVOLUTION_API_URL || railwayEvoUrl,
+  EVOLUTION_API_KEY: process.env.EVOLUTION_API_KEY || process.env.RAILWAY_SERVICE_EVOLUTION_API_KEY,
+});
 
 export const env = {
   ...parsed,
