@@ -20,6 +20,8 @@ import {
   IconSend, IconPalette, IconPhoto, IconUpload, IconX,
   IconUser, IconDownload, IconRefresh, IconFileTypePdf,
   IconBrush, IconSparkles, IconChevronLeft, IconChevronRight,
+  IconArrowsMaximize, IconScissors, IconCopy, IconRotate360,
+  IconWand, IconEraser,
 } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
@@ -63,6 +65,7 @@ export default function CanvasClient() {
   const [currentPrompt, setCurrentPrompt] = useState('');
   const [copy, setCopy] = useState<CopyState>({ headline: '', body: '', cta: '' });
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [toolbarLoading, setToolbarLoading] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +175,53 @@ export default function CanvasClient() {
   };
 
   const currentImage = imageUrls[imageIdx] || null;
+
+  // ── Toolbar Actions ──────────────────────────────────────────────
+  const handleToolbarAction = useCallback(async (action: string) => {
+    if (!currentImage || toolbarLoading) return;
+    setToolbarLoading(action);
+    try {
+      if (action === 'upscale') {
+        const res = await apiPost<{ success: boolean; image_url?: string; error?: string }>('/studio/canvas/upscale', { image_url: currentImage });
+        if (res.success && res.image_url) {
+          setImageUrls([res.image_url]);
+          setImageIdx(0);
+          setMessages(prev => [...prev, { role: 'assistant', content: 'Imagem upscaled 4x!', timestamp: new Date().toISOString() }]);
+        }
+      } else if (action === 'remove-bg') {
+        const res = await apiPost<{ success: boolean; image_url?: string; error?: string }>('/studio/canvas/remove-bg', { image_url: currentImage });
+        if (res.success && res.image_url) {
+          setImageUrls(prev => [...prev, res.image_url!]);
+          setImageIdx(imageUrls.length);
+          setMessages(prev => [...prev, { role: 'assistant', content: 'Background removido!', timestamp: new Date().toISOString() }]);
+        }
+      } else if (action === 'variations') {
+        const ar = format.includes('9:16') ? '9:16' : format.includes('16:9') ? '16:9' : format.includes('4:5') ? '4:5' : '1:1';
+        const res = await apiPost<{ success: boolean; image_urls?: string[]; error?: string }>('/studio/canvas/variations', {
+          image_url: currentImage, prompt: currentPrompt, aspect_ratio: ar, num_images: 3,
+        });
+        if (res.success && res.image_urls?.length) {
+          setImageUrls(res.image_urls);
+          setImageIdx(0);
+          setMessages(prev => [...prev, { role: 'assistant', content: `${res.image_urls!.length} variacoes geradas!`, timestamp: new Date().toISOString() }]);
+        }
+      } else if (action === 'multi-angles') {
+        const ar = format.includes('9:16') ? '9:16' : format.includes('16:9') ? '16:9' : '1:1';
+        const res = await apiPost<{ success: boolean; image_urls?: string[]; error?: string }>('/studio/canvas/multi-angles', {
+          image_url: currentImage, prompt: currentPrompt, aspect_ratio: ar,
+        });
+        if (res.success && res.image_urls?.length) {
+          setImageUrls(res.image_urls);
+          setImageIdx(0);
+          setMessages(prev => [...prev, { role: 'assistant', content: `${res.image_urls!.length} angulos gerados!`, timestamp: new Date().toISOString() }]);
+        }
+      }
+    } catch (err: any) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `Erro: ${err?.message || 'Falha na acao'}`, timestamp: new Date().toISOString() }]);
+    } finally {
+      setToolbarLoading(null);
+    }
+  }, [currentImage, toolbarLoading, imageUrls.length, currentPrompt, format]);
 
   const quickActions = [
     'Cria um post impactante sobre lancamento de produto',
@@ -316,26 +366,60 @@ export default function CanvasClient() {
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', bgcolor: '#1a1a1a', minWidth: 0 }}>
 
           {/* Canvas toolbar */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderBottom: '1px solid #333', flexShrink: 0 }}>
-            <IconPalette size={18} style={{ color: EDRO_ORANGE }} />
-            <Typography variant="caption" sx={{ color: '#999', flex: 1 }}>
-              {currentImage ? `Imagem ${imageIdx + 1}/${imageUrls.length}` : 'Canvas vazio — pede algo no chat'}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 0.75, borderBottom: '1px solid #333', flexShrink: 0, overflowX: 'auto' }}>
+            <IconPalette size={16} style={{ color: EDRO_ORANGE, flexShrink: 0 }} />
+            <Typography variant="caption" sx={{ color: '#666', mr: 1, whiteSpace: 'nowrap', fontSize: '0.7rem' }}>
+              {currentImage ? `${imageIdx + 1}/${imageUrls.length}` : 'Vazio'}
               {format && ` · ${format}`}
             </Typography>
+
+            {currentImage && (
+              <>
+                <Box sx={{ width: '1px', height: 20, bgcolor: '#333', mx: 0.5, flexShrink: 0 }} />
+
+                {([
+                  { key: 'upscale', icon: <IconArrowsMaximize size={15} />, label: 'Upscale 4x' },
+                  { key: 'remove-bg', icon: <IconScissors size={15} />, label: 'Remove BG' },
+                  { key: 'variations', icon: <IconCopy size={15} />, label: 'Variacoes' },
+                  { key: 'multi-angles', icon: <IconRotate360 size={15} />, label: 'Multi-Angulos' },
+                ] as const).map(btn => (
+                  <Tooltip key={btn.key} title={btn.label}>
+                    <Button
+                      size="small"
+                      onClick={() => handleToolbarAction(btn.key)}
+                      disabled={!!toolbarLoading}
+                      startIcon={toolbarLoading === btn.key ? <CircularProgress size={12} sx={{ color: EDRO_ORANGE }} /> : btn.icon}
+                      sx={{
+                        color: '#aaa', fontSize: '0.7rem', textTransform: 'none', whiteSpace: 'nowrap',
+                        minWidth: 'auto', px: 1, py: 0.3, borderRadius: 1,
+                        '&:hover': { color: '#fff', bgcolor: '#333' },
+                      }}
+                    >
+                      {btn.label}
+                    </Button>
+                  </Tooltip>
+                ))}
+
+                <Box sx={{ width: '1px', height: 20, bgcolor: '#333', mx: 0.5, flexShrink: 0 }} />
+              </>
+            )}
+
+            <Box sx={{ flex: 1 }} />
+
             {imageUrls.length > 1 && (
               <>
                 <IconButton size="small" onClick={() => setImageIdx(i => Math.max(0, i - 1))} disabled={imageIdx === 0} sx={{ color: '#999' }}>
-                  <IconChevronLeft size={16} />
+                  <IconChevronLeft size={14} />
                 </IconButton>
                 <IconButton size="small" onClick={() => setImageIdx(i => Math.min(imageUrls.length - 1, i + 1))} disabled={imageIdx >= imageUrls.length - 1} sx={{ color: '#999' }}>
-                  <IconChevronRight size={16} />
+                  <IconChevronRight size={14} />
                 </IconButton>
               </>
             )}
             {currentImage && (
               <Tooltip title="Download">
                 <IconButton size="small" component="a" href={currentImage} target="_blank" download sx={{ color: '#999' }}>
-                  <IconDownload size={16} />
+                  <IconDownload size={14} />
                 </IconButton>
               </Tooltip>
             )}

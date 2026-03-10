@@ -10,6 +10,8 @@ import { generateCompletion } from '../services/ai/claudeService';
 import { generateAdCreative, refineScenePrompt, isAdCreativeConfigured } from '../services/adCreativeService';
 import { orchestrateCreative } from '../services/ai/artDirectorOrchestrator';
 import { generateCopy } from '../services/ai/copyService';
+import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured } from '../services/ai/falAiService';
+import { env } from '../env';
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -267,5 +269,120 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
       actions_taken: actionsTaken,
       results,
     });
+  });
+
+  // ── Image Processing Actions ───────────────────────────────────────
+
+  const imageUrlSchema = z.object({
+    image_url: z.string().min(1),
+  });
+
+  /**
+   * POST /studio/canvas/upscale — 4x upscale via fal.ai real-esrgan
+   */
+  app.post('/studio/canvas/upscale', async (request: any, reply) => {
+    const { image_url } = imageUrlSchema.parse(request.body || {});
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    const res = await fetch('https://fal.run/fal-ai/real-esrgan', {
+      method: 'POST',
+      headers: { Authorization: `Key ${env.FAL_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url, scale: 4 }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return reply.status(502).send({ success: false, error: `Upscale failed: ${err.slice(0, 200)}` });
+    }
+    const data = await res.json() as { image?: { url: string } };
+    return reply.send({ success: true, image_url: data.image?.url });
+  });
+
+  /**
+   * POST /studio/canvas/remove-bg — background removal via fal.ai birefnet
+   */
+  app.post('/studio/canvas/remove-bg', async (request: any, reply) => {
+    const { image_url } = imageUrlSchema.parse(request.body || {});
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    const res = await fetch('https://fal.run/fal-ai/birefnet/v2', {
+      method: 'POST',
+      headers: { Authorization: `Key ${env.FAL_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return reply.status(502).send({ success: false, error: `Remove BG failed: ${err.slice(0, 200)}` });
+    }
+    const data = await res.json() as { image?: { url: string } };
+    return reply.send({ success: true, image_url: data.image?.url });
+  });
+
+  /**
+   * POST /studio/canvas/variations — re-generate with same prompt, different seed
+   */
+  app.post('/studio/canvas/variations', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      prompt: z.string().default(''),
+      aspect_ratio: z.string().default('1:1'),
+      num_images: z.number().min(1).max(4).default(3),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      // Use img2img with low strength to create variations
+      const result = await generateImg2ImgWithFal({
+        prompt: body.prompt || 'same scene, slight variation, high quality photography',
+        imageUrl: body.image_url,
+        strength: 0.35,
+        aspectRatio: body.aspect_ratio,
+        numImages: body.num_images,
+      });
+      return reply.send({ success: true, image_urls: result.imageUrls });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  /**
+   * POST /studio/canvas/multi-angles — same subject from different perspectives
+   */
+  app.post('/studio/canvas/multi-angles', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      prompt: z.string().default(''),
+      aspect_ratio: z.string().default('1:1'),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    const angles = [
+      'front view, eye level, centered composition',
+      'three-quarter view from left, slight overhead angle',
+      'close-up detail shot, macro perspective',
+      'wide angle establishing shot, environmental context',
+    ];
+
+    try {
+      const basePrompt = body.prompt || 'same product, professional studio photography';
+      const results = await Promise.allSettled(
+        angles.map(angle =>
+          generateImageWithFal({
+            prompt: `${basePrompt}, ${angle}`,
+            aspectRatio: body.aspect_ratio,
+            model: 'flux-pro',
+            referenceImageUrl: body.image_url,
+            referenceImageStrength: 0.3,
+          }),
+        ),
+      );
+      const urls = results
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value.imageUrl);
+      return reply.send({ success: true, image_urls: urls });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
   });
 }
