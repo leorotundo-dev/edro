@@ -1,6 +1,6 @@
 import { query } from '../db';
 import { fetchJobs, markJob, enqueueJob } from './jobQueue';
-import { createMeeting, analyzeMeetingTranscript, saveMeetingAnalysis } from '../services/meetingService';
+import { createMeeting, analyzeMeetingTranscript, saveMeetingAnalysis, notifyMeetingActions } from '../services/meetingService';
 import { createRecallBot, getRecallBot, getRecallBotStatus, getRecallBotTranscript, isRecallConfigured } from '../services/integrations/recallService';
 
 const FINALIZE_DELAY_MINUTES = 30;
@@ -180,6 +180,10 @@ async function handleFinalizeJob(job: any): Promise<void> {
 
   const analysis = await analyzeMeetingTranscript(transcript, clientName);
   await saveMeetingAnalysis(meetingId, transcript, analysis, tenantId, clientId);
+
+  // Notify admins about extracted actions
+  await notifyMeetingActions(tenantId, clientId, meetingId, clientName, analysis.actions?.length ?? 0)
+    .catch((err: any) => console.error('[meetBotWorker] notification failed:', err?.message));
 }
 
 async function getExistingScheduledMeeting(autoJoinId: string): Promise<{ meetingId: string | null; botId: string | null } | null> {

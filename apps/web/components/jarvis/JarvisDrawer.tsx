@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -9,7 +10,7 @@ import Avatar from '@mui/material/Avatar';
 import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import Slide from '@mui/material/Slide';
-import { IconX, IconPlus, IconClockHour3, IconBrain } from '@tabler/icons-react';
+import { IconX, IconPlus, IconClockHour3, IconBrain, IconArrowsMaximize } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 import JarvisChatPanel from './JarvisChatPanel';
 import ConversationList from './ConversationList';
@@ -24,8 +25,14 @@ type Conversation = {
 };
 
 export default function JarvisDrawer() {
+  const router = useRouter();
   const { isOpen, close, clientId, clientName, setConversationId, conversationId } = useJarvis();
   const [showHistory, setShowHistory] = useState(false);
+
+  const handleExpand = () => {
+    close();
+    router.push('/jarvis');
+  };
 
   const handleNewConversation = () => {
     setConversationId(null);
@@ -97,6 +104,11 @@ export default function JarvisDrawer() {
             sx={{ color: showHistory ? EDRO_ORANGE : 'text.secondary' }}
           >
             <IconClockHour3 size={18} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Tela cheia">
+          <IconButton size="small" onClick={handleExpand} sx={{ color: 'text.secondary' }}>
+            <IconArrowsMaximize size={18} />
           </IconButton>
         </Tooltip>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />

@@ -11,7 +11,9 @@ import {
   IconReceipt2,
   IconPhoto,
   IconRobot,
+  IconBrain,
   IconBrandWhatsapp,
+  IconMicrophone,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -50,6 +52,12 @@ const MenuItems: MenuGroupType[] = [
         badgeColor: 'primary',
       },
       {
+        id: 'jarvis-chat',
+        title: 'Jarvis Chat',
+        icon: IconBrain,
+        href: '/jarvis',
+      },
+      {
         id: 'jarvis',
         title: 'Jarvis Propostas',
         icon: IconRobot,
@@ -66,6 +74,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'WhatsApp',
         icon: IconBrandWhatsapp,
         href: '/whatsapp',
+      },
+      {
+        id: 'reunioes',
+        title: 'Reuniões',
+        icon: IconMicrophone,
+        href: '/admin/reunioes',
       },
       {
         id: 'calendar',

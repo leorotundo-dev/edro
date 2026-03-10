@@ -136,6 +136,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     role_title: z.string().optional().nullable(),
     email_personal: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
+    cpf: z.string().optional().nullable(),
+    rg: z.string().optional().nullable(),
+    birth_date: z.string().optional().nullable(),
+    bank_name: z.string().optional().nullable(),
+    bank_agency: z.string().optional().nullable(),
+    bank_account: z.string().optional().nullable(),
   });
 
   app.post('/freelancers', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -150,8 +156,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!userCheck.rows.length) return reply.status(404).send({ error: 'User not found in tenant' });
 
     const res = await pool.query(
-      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        ON CONFLICT (user_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          specialty = EXCLUDED.specialty,
@@ -163,12 +169,19 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          role_title = EXCLUDED.role_title,
          email_personal = EXCLUDED.email_personal,
          notes = EXCLUDED.notes,
+         cpf = EXCLUDED.cpf,
+         rg = EXCLUDED.rg,
+         birth_date = EXCLUDED.birth_date,
+         bank_name = EXCLUDED.bank_name,
+         bank_agency = EXCLUDED.bank_agency,
+         bank_account = EXCLUDED.bank_account,
          is_active = true,
          updated_at = now()
        RETURNING *`,
       [body.user_id, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null,
        body.phone ?? null, body.whatsapp_jid ?? null, body.department ?? null, body.role_title ?? null,
-       body.email_personal ?? null, body.notes ?? null],
+       body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
+       body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null],
     );
     return reply.status(201).send(res.rows[0]);
   });

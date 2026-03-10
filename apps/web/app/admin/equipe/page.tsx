@@ -599,6 +599,12 @@ export default function EquipePage() {
   const [newWhatsapp, setNewWhatsapp] = useState('');
   const [newRole,    setNewRole]    = useState('');
   const [newDept,    setNewDept]    = useState('');
+  const [newCpf,     setNewCpf]     = useState('');
+  const [newRg,      setNewRg]      = useState('');
+  const [newBirth,   setNewBirth]   = useState('');
+  const [newBank,    setNewBank]    = useState('');
+  const [newAgency,  setNewAgency]  = useState('');
+  const [newAccount, setNewAccount] = useState('');
 
   const currentMonth = (() => {
     const d = new Date();
@@ -691,10 +697,17 @@ export default function EquipePage() {
         whatsapp_jid: newWhatsapp || null,
         role_title: newRole || null,
         department: newDept || null,
+        cpf: newCpf || null,
+        rg: newRg || null,
+        birth_date: newBirth || null,
+        bank_name: newBank || null,
+        bank_agency: newAgency || null,
+        bank_account: newAccount || null,
       });
       setNewOpen(false);
       setNewUserId(''); setNewName(''); setNewSpec(''); setNewRate(''); setNewPix('');
       setNewPhone(''); setNewWhatsapp(''); setNewRole(''); setNewDept('');
+      setNewCpf(''); setNewRg(''); setNewBirth(''); setNewBank(''); setNewAgency(''); setNewAccount('');
       await load();
     } catch (e: any) {
       alert(e.message ?? 'Erro ao criar freelancer');
@@ -1010,12 +1023,11 @@ export default function EquipePage() {
                 <strong>Taxa:</strong>{' '}
                 {drawerFl.hourly_rate_brl ? `R$ ${parseFloat(drawerFl.hourly_rate_brl).toFixed(2)}/h` : 'Projeto (flat-fee)'}
               </Typography>
-              {drawerFl.pix_key && (
-                <Typography variant="body2"><strong>PIX:</strong> {drawerFl.pix_key}</Typography>
-              )}
+              {/* Contato */}
               {(drawerFl.phone || drawerFl.email_personal || drawerFl.whatsapp_jid) && (
                 <>
                   <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">Contato</Typography>
                   {drawerFl.phone && (
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       <IconPhone size={13} />
@@ -1036,6 +1048,50 @@ export default function EquipePage() {
                   )}
                 </>
               )}
+
+              {/* Dados Pessoais */}
+              {(drawerFl.cpf || drawerFl.rg || drawerFl.birth_date) && (
+                <>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">Dados Pessoais</Typography>
+                  {drawerFl.cpf && (
+                    <Typography variant="body2"><strong>CPF:</strong> {drawerFl.cpf}</Typography>
+                  )}
+                  {drawerFl.rg && (
+                    <Typography variant="body2"><strong>RG:</strong> {drawerFl.rg}</Typography>
+                  )}
+                  {drawerFl.birth_date && (
+                    <Typography variant="body2"><strong>Nascimento:</strong> {new Date(drawerFl.birth_date).toLocaleDateString('pt-BR')}</Typography>
+                  )}
+                </>
+              )}
+
+              {/* Dados Bancários */}
+              {(drawerFl.pix_key || drawerFl.bank_name) && (
+                <>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">Dados Bancários</Typography>
+                  {drawerFl.pix_key && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconCurrencyDollar size={13} color="#059669" />
+                      <Typography variant="body2"><strong>Pix:</strong> {drawerFl.pix_key}</Typography>
+                    </Stack>
+                  )}
+                  {drawerFl.bank_name && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconBuildingBank size={13} />
+                      <Typography variant="body2"><strong>Banco:</strong> {drawerFl.bank_name}</Typography>
+                    </Stack>
+                  )}
+                  {drawerFl.bank_agency && (
+                    <Typography variant="body2"><strong>Agência:</strong> {drawerFl.bank_agency}</Typography>
+                  )}
+                  {drawerFl.bank_account && (
+                    <Typography variant="body2"><strong>Conta:</strong> {drawerFl.bank_account}</Typography>
+                  )}
+                </>
+              )}
+
               {drawerFl.notes && (
                 <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
                   {drawerFl.notes}
@@ -1143,7 +1199,7 @@ export default function EquipePage() {
               placeholder="CPF, e-mail ou chave aleatória"
             />
 
-            <Divider><Typography variant="caption" color="text.secondary">Contato (opcional)</Typography></Divider>
+            <Divider><Typography variant="caption" color="text.secondary">Contato</Typography></Divider>
 
             <Stack direction="row" spacing={1.5}>
               <TextField
@@ -1163,12 +1219,12 @@ export default function EquipePage() {
             </Stack>
             <Stack direction="row" spacing={1.5}>
               <TextField
-                label="Telefone"
+                label="Celular"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 size="small"
                 fullWidth
-                placeholder="+5511999999999"
+                placeholder="(13) 99711-2202"
               />
               <TextField
                 label="WhatsApp JID"
@@ -1177,6 +1233,65 @@ export default function EquipePage() {
                 size="small"
                 fullWidth
                 placeholder="5511999@s.whatsapp.net"
+              />
+            </Stack>
+
+            <Divider><Typography variant="caption" color="text.secondary">Dados Pessoais</Typography></Divider>
+
+            <Stack direction="row" spacing={1.5}>
+              <TextField
+                label="CPF"
+                value={newCpf}
+                onChange={(e) => setNewCpf(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="000.000.000-00"
+              />
+              <TextField
+                label="RG"
+                value={newRg}
+                onChange={(e) => setNewRg(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="00.000.000-0"
+              />
+              <TextField
+                label="Nascimento"
+                type="date"
+                value={newBirth}
+                onChange={(e) => setNewBirth(e.target.value)}
+                size="small"
+                fullWidth
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Stack>
+
+            <Divider><Typography variant="caption" color="text.secondary">Dados Bancários</Typography></Divider>
+
+            <Stack direction="row" spacing={1.5}>
+              <TextField
+                label="Banco"
+                value={newBank}
+                onChange={(e) => setNewBank(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="077 - Inter"
+              />
+              <TextField
+                label="Agência"
+                value={newAgency}
+                onChange={(e) => setNewAgency(e.target.value)}
+                size="small"
+                sx={{ width: 120 }}
+                placeholder="0001"
+              />
+              <TextField
+                label="Conta"
+                value={newAccount}
+                onChange={(e) => setNewAccount(e.target.value)}
+                size="small"
+                sx={{ width: 160 }}
+                placeholder="331975343"
               />
             </Stack>
           </Stack>

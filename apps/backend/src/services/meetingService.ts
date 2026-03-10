@@ -240,3 +240,43 @@ export async function rejectMeetingAction(tenantId: string, actionId: string): P
   );
   return (rowCount ?? 0) > 0;
 }
+
+// ── Notifications ──────────────────────────────────────────────────
+
+export async function notifyMeetingActions(
+  tenantId: string,
+  clientId: string,
+  meetingId: string,
+  meetingTitle: string,
+  actionCount: number,
+): Promise<void> {
+  if (actionCount === 0) return;
+  try {
+    const { notifyEvent } = await import('./notificationService');
+    const { rows: admins } = await query(
+      `SELECT eu.id, eu.email FROM edro_users eu
+       JOIN tenant_users tu ON tu.user_id = eu.id
+       WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'owner') LIMIT 5`,
+      [tenantId],
+    );
+    const link = `/clients/${clientId}/meetings`;
+    const title = `Reuniao analisada: ${meetingTitle}`;
+    const body = `${actionCount} acao${actionCount > 1 ? 'es' : ''} extraida${actionCount > 1 ? 's' : ''} da reuniao "${meetingTitle}". Revise e aprove.`;
+    await Promise.allSettled(
+      admins.map((a: any) =>
+        notifyEvent({
+          event: 'meeting_analyzed',
+          tenantId,
+          userId: a.id,
+          title,
+          body,
+          link,
+          recipientEmail: a.email,
+          payload: { meetingId, clientId, actionCount },
+        }),
+      ),
+    );
+  } catch (err: any) {
+    console.error('[meetingService] notifyMeetingActions error:', err?.message);
+  }
+}

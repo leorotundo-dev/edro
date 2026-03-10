@@ -19,6 +19,7 @@ import {
   approveMeetingAction,
   rejectMeetingAction,
   ensureMeetingTables,
+  notifyMeetingActions,
 } from '../services/meetingService';
 import { query } from '../db';
 import { createBriefing } from '../repositories/edroBriefingRepository';
@@ -215,6 +216,70 @@ export default async function meetingRoutes(app: FastifyInstance) {
     },
   );
 
+  // ── Global dashboard stats ──────────────────────────────────────────────
+  app.get(
+    '/meetings/dashboard',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+
+      const [statsRes, recentRes, pendingRes, clientsRes] = await Promise.all([
+        query(
+          `SELECT
+             COUNT(*)::int AS total_meetings,
+             COUNT(*) FILTER (WHERE status = 'analyzed')::int AS analyzed,
+             COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+             COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+             COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days')::int AS last_7_days,
+             COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '30 days')::int AS last_30_days
+           FROM meetings WHERE tenant_id = $1`,
+          [tenantId],
+        ),
+        query(
+          `SELECT m.id, m.title, m.client_id, c.name AS client_name,
+                  m.platform, m.recorded_at, m.status, m.summary,
+                  COUNT(ma.id)::int AS total_actions,
+                  COUNT(ma.id) FILTER (WHERE ma.status = 'pending')::int AS pending_actions
+           FROM meetings m
+           LEFT JOIN clients c ON c.id = m.client_id
+           LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
+           WHERE m.tenant_id = $1
+           GROUP BY m.id, c.name
+           ORDER BY m.recorded_at DESC
+           LIMIT 50`,
+          [tenantId],
+        ),
+        query(
+          `SELECT COUNT(*)::int AS total_pending
+           FROM meeting_actions
+           WHERE tenant_id = $1 AND status = 'pending'`,
+          [tenantId],
+        ),
+        query(
+          `SELECT m.client_id, c.name AS client_name,
+                  COUNT(DISTINCT m.id)::int AS meeting_count,
+                  COUNT(ma.id) FILTER (WHERE ma.status = 'pending')::int AS pending_actions
+           FROM meetings m
+           LEFT JOIN clients c ON c.id = m.client_id
+           LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
+           WHERE m.tenant_id = $1 AND m.recorded_at > NOW() - INTERVAL '90 days'
+           GROUP BY m.client_id, c.name
+           ORDER BY meeting_count DESC
+           LIMIT 20`,
+          [tenantId],
+        ),
+      ]);
+
+      return reply.send({
+        success: true,
+        stats: statsRes.rows[0],
+        recent: recentRes.rows,
+        total_pending: pendingRes.rows[0]?.total_pending ?? 0,
+        by_client: clientsRes.rows,
+      });
+    },
+  );
+
   // ── Upload + transcribe + analyze ────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>(
     '/clients/:clientId/meetings/upload',
@@ -255,6 +320,10 @@ export default async function meetingRoutes(app: FastifyInstance) {
         const transcript = await transcribeAudioBuffer(buffer, mimeType);
         const analysis = await analyzeMeetingTranscript(transcript, clientName);
         await saveMeetingAnalysis(meeting.id, transcript, analysis, tenantId, clientId);
+
+        // Notify admins (non-blocking)
+        notifyMeetingActions(tenantId, clientId, meeting.id, data.filename ?? 'Upload', analysis.actions?.length ?? 0)
+          .catch(() => {});
 
         const full = await getMeeting(tenantId, meeting.id);
         return reply.send({ success: true, meeting: full });
