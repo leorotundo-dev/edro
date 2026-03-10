@@ -60,6 +60,7 @@ import {
   IconUsersGroup,
 } from '@tabler/icons-react';
 import { apiDelete } from '@/lib/api';
+import CampaignCanvasView from '@/app/studio/canvas/components/CampaignCanvasView';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -553,6 +554,11 @@ function CampaignDetail({
   const [biPlatform, setBiPlatform] = useState<Record<string, string>>({});
   const [expandedBiCopy, setExpandedBiCopy] = useState<string | null>(null);
 
+  // Campaign layout pieces
+  const [generatingPiecesFor, setGeneratingPiecesFor] = useState<string | null>(null);
+  const [campaignPieces, setCampaignPieces] = useState<any[]>([]);
+  const [showCampaignCanvas, setShowCampaignCanvas] = useState(false);
+
   const phases: Phase[] = (campaign.phases && campaign.phases.length > 0)
     ? [...campaign.phases].sort((a, b) => a.order - b.order)
     : DEFAULT_PHASES;
@@ -705,6 +711,49 @@ function CampaignDetail({
       }
     } catch { /* silent */ } finally {
       setGeneratingCopyFor(null);
+    }
+  };
+
+  const handleGenerateCampaignPieces = async (camp: any) => {
+    const bis = (camp.behavior_intents ?? []) as any[];
+    if (!bis.length) return;
+    setGeneratingPiecesFor(camp.id);
+    try {
+      // Build pieces from behavior intents — Feed + Stories per intent
+      const pieces = bis.flatMap((bi: any, idx: number) => {
+        const plat = biPlatform[bi.id] || 'Instagram';
+        const copyResult = behavioralCopyMap[bi.id];
+        const basePiece = {
+          behavior_intent_id: bi.id,
+          behavioral_copy_id: copyResult?.id ?? undefined,
+          platform: plat,
+          copy: copyResult ? {
+            headline: copyResult.draft.hook_text,
+            body: copyResult.draft.content_text,
+            cta: copyResult.draft.cta_text,
+          } : undefined,
+        };
+        // Feed + Stories for each intent
+        return [
+          { ...basePiece, format: 'Feed 1:1' },
+          { ...basePiece, format: 'Stories 9:16' },
+        ];
+      }).slice(0, 20); // max 20
+
+      const res = await apiPost<any>('/studio/canvas/generate-campaign', {
+        campaign_id: camp.id,
+        pieces,
+        boldness: 0.5,
+        image_provider: 'fal',
+        fal_model: 'flux-pro',
+      });
+
+      if (res?.success && res.pieces?.length) {
+        setCampaignPieces(res.pieces);
+        setShowCampaignCanvas(true);
+      }
+    } catch { /* silent */ } finally {
+      setGeneratingPiecesFor(null);
     }
   };
 
@@ -873,10 +922,26 @@ function CampaignDetail({
       {/* ── Mapa de Intenções Comportamentais ───────────────────────────── */}
       {(campaign.behavior_intents?.length > 0 || generating) && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
-            <IconBrain size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-            Mapa de Intenções ({campaign.behavior_intents?.filter((bi: any) => !selectedPhase || bi.phase_id === selectedPhase).length ?? 0})
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em', flex: 1 }}>
+              <IconBrain size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Mapa de Intenções ({campaign.behavior_intents?.filter((bi: any) => !selectedPhase || bi.phase_id === selectedPhase).length ?? 0})
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={generatingPiecesFor === campaign.id ? <CircularProgress size={12} /> : <IconSparkles size={13} />}
+              onClick={() => handleGenerateCampaignPieces(campaign)}
+              disabled={!!generatingPiecesFor}
+              sx={{
+                fontSize: '0.65rem', textTransform: 'none', py: 0.25,
+                borderColor: '#E85219', color: '#E85219',
+                '&:hover': { borderColor: '#c94215', bgcolor: 'rgba(232,82,25,0.08)' },
+              }}
+            >
+              {generatingPiecesFor === campaign.id ? 'Gerando peças…' : 'Gerar Peças'}
+            </Button>
+          </Box>
           {generating ? (
             <Stack alignItems="center" sx={{ py: 2 }}>
               <CircularProgress size={20} />
@@ -1607,6 +1672,27 @@ function CampaignDetail({
         onClose={() => setConceptDialogOpen(false)}
         onCreated={loadDetail}
       />
+
+      {/* Campaign Canvas View — full-screen overlay with generated pieces */}
+      {showCampaignCanvas && campaignPieces.length > 0 && (
+        <CampaignCanvasView
+          campaignName={campaign.name}
+          pieces={campaignPieces}
+          onOpenPiece={(piece) => {
+            const params = new URLSearchParams({
+              client_id: clientId,
+              layout: JSON.stringify(piece.layout),
+              image_url: piece.image_url || '',
+            });
+            window.open(`/studio/canvas?${params.toString()}`, '_blank');
+          }}
+          onRegeneratePiece={async (idx) => {
+            // TODO: regenerate single piece via API
+          }}
+          onClose={() => setShowCampaignCanvas(false)}
+          regeneratingIdx={null}
+        />
+      )}
     </Box>
   );
 }

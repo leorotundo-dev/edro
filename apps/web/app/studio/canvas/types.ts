@@ -46,3 +46,24 @@ export type GenerateLayoutResponse = {
   art_direction: Record<string, any>;
   provider: string;
 };
+
+export type CampaignPieceResult = {
+  pieceIndex: number;
+  format: string;
+  platform: string;
+  behavior_intent_id?: string;
+  layout: GeneratedLayout;
+  copy: { headline: string; body?: string; cta: string };
+  image_url?: string;
+  error?: string;
+};
+
+export type GenerateCampaignResponse = {
+  success: boolean;
+  campaign_id: string;
+  campaign_name: string;
+  art_direction: Record<string, any>;
+  pieces: CampaignPieceResult[];
+  total: number;
+  generated: number;
+};

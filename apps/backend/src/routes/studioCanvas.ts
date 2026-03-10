@@ -17,6 +17,7 @@ import { generateImageWithLeonardo } from '../services/ai/leonardoService';
 import { runAgentDiretorArte } from '../services/ai/agentDiretorArte';
 import { generateLayout, type GeneratedLayout } from '../services/layoutEngine';
 import { getClientById } from '../repos/clientsRepo';
+import { pool } from '../db';
 import { env } from '../env';
 
 // ── fal.ai helper for direct low-level calls ──────────────────────────────────
@@ -986,6 +987,241 @@ Retorne SOMENTE JSON: { "headline": "...", "body": "...", "cta": "..." }
       image_url: imageUrl,
       art_direction: artDirection,
       provider: body.image_provider,
+    });
+  });
+
+  // ── Generate Campaign — batch: N pieces with shared art direction ──────────
+
+  const generateCampaignSchema = z.object({
+    campaign_id: z.string().min(1),
+    /** Each piece: format + platform + optionally which behavioral copy to use */
+    pieces: z.array(z.object({
+      format: z.string().default('1:1'),
+      platform: z.string().default('Instagram'),
+      behavior_intent_id: z.string().optional(),
+      behavioral_copy_id: z.string().optional(),
+      /** Override copy (if not using a behavioral copy) */
+      copy: z.object({
+        headline: z.string(),
+        body: z.string().optional(),
+        cta: z.string(),
+      }).optional(),
+    })).min(1).max(20),
+    boldness: z.number().min(0).max(1).default(0.5),
+    image_provider: z.enum(['fal', 'gemini']).default('fal'),
+    fal_model: z.string().default('flux-pro'),
+  });
+
+  /**
+   * POST /studio/canvas/generate-campaign
+   *
+   * Generates N layout pieces for a campaign with shared visual direction:
+   *   1. Load campaign + client profile
+   *   2. Load behavioral copies for each piece (or use provided copy)
+   *   3. Generate ONE shared art direction (visual cohesion)
+   *   4. For each piece: layout + image (varying composition, shared palette)
+   *   5. Return array of complete layouts
+   */
+  app.post('/studio/canvas/generate-campaign', async (request: any, reply) => {
+    const body = generateCampaignSchema.parse(request.body || {});
+    const tenantId = (request.user as any)?.tenant_id as string;
+
+    // ── Load campaign ─────────────────────────────────────────
+    const { rows: campaigns } = await pool.query(
+      `SELECT * FROM campaigns WHERE tenant_id=$1 AND id=$2`,
+      [tenantId, body.campaign_id],
+    );
+    const campaign = campaigns[0];
+    if (!campaign) return reply.status(404).send({ success: false, error: 'Campanha não encontrada' });
+
+    // ── Load client profile ───────────────────────────────────
+    const clientId = campaign.client_id;
+    const clientProfile = await getClientById(tenantId, clientId);
+    const logoUrl = clientProfile?.profile?.logo_url ?? clientProfile?.logo_url;
+
+    // ── Load behavioral copies for pieces that reference them ─
+    const copyIds = body.pieces
+      .map(p => p.behavioral_copy_id)
+      .filter(Boolean) as string[];
+
+    let copiesMap: Record<string, any> = {};
+    if (copyIds.length) {
+      const { rows: copies } = await pool.query(
+        `SELECT id, hook_text, content_text, cta_text, approved_text, behavior_intent_id
+         FROM campaign_behavioral_copies
+         WHERE tenant_id=$1 AND campaign_id=$2 AND id = ANY($3)`,
+        [tenantId, body.campaign_id, copyIds],
+      );
+      for (const c of copies) copiesMap[c.id] = c;
+    }
+
+    // ── Generate ONE shared art direction (visual cohesion) ───
+    const brandColors = clientProfile?.profile?.brand_colors ?? [];
+    let sharedArtResult;
+    try {
+      sharedArtResult = await runAgentDiretorArte({
+        copy: campaign.name,
+        clientProfile: clientProfile?.profile ?? clientProfile,
+        platform: body.pieces[0]?.platform ?? 'Instagram',
+        format: body.pieces[0]?.format ?? '1:1',
+        boldness: body.boldness,
+        tenantId,
+        clientId,
+        campaignConcept: campaign.name + (campaign.objective ? ` — ${campaign.objective}` : ''),
+        totalPieces: body.pieces.length,
+      });
+    } catch (err: any) {
+      console.error('AgentDiretorArte campaign failed, using defaults:', err?.message);
+    }
+
+    const sharedArtDirection = {
+      color_palette: sharedArtResult?.brandVisual
+        ? [sharedArtResult.brandVisual.primaryColor, ...brandColors].filter(Boolean).slice(0, 6)
+        : brandColors.length ? brandColors : ['#1a1a2e', '#e94560'],
+      primary_color: sharedArtResult?.brandVisual?.primaryColor ?? brandColors[0] ?? '#1a1a2e',
+      accent_color: brandColors[1] ?? '#e94560',
+      typography: {
+        headline_style: sharedArtResult?.brandVisual?.typography ?? 'bold sans-serif',
+        body_style: 'regular sans-serif, 16px',
+        cta_style: 'semi-bold, 14px, rounded button',
+      },
+      photo_directive: sharedArtResult?.payload?.prompt ?? campaign.name,
+      composition_type: 'auto',
+      mood: sharedArtResult?.brandVisual?.moodKeywords?.[0] ?? 'profissional',
+    };
+
+    // ── Generate each piece (sequentially to avoid API rate limits) ─
+    const aspectMap: Record<string, string> = {
+      '1:1': '1:1', '4:5': '4:5', '9:16': '9:16', '16:9': '16:9',
+      '4:3': '4:3', '3:4': '3:4',
+      'Feed 1:1': '1:1', 'Stories 9:16': '9:16', 'Reels 9:16': '9:16',
+      'Banner 16:9': '16:9', 'Portrait 4:5': '4:5',
+    };
+
+    const results: Array<{
+      pieceIndex: number;
+      format: string;
+      platform: string;
+      behavior_intent_id?: string;
+      layout: GeneratedLayout;
+      copy: { headline: string; body?: string; cta: string };
+      image_url?: string;
+      error?: string;
+    }> = [];
+
+    for (let i = 0; i < body.pieces.length; i++) {
+      const piece = body.pieces[i];
+      const aspectRatio = aspectMap[piece.format] ?? '1:1';
+
+      // Resolve copy for this piece
+      let pieceCopy: { headline: string; body?: string; cta: string } | undefined =
+        piece.copy ? { headline: piece.copy.headline, body: piece.copy.body, cta: piece.copy.cta } : undefined;
+      if (!pieceCopy && piece.behavioral_copy_id && copiesMap[piece.behavioral_copy_id]) {
+        const bc = copiesMap[piece.behavioral_copy_id];
+        pieceCopy = {
+          headline: bc.hook_text || bc.approved_text?.split('\n')[0] || campaign.name,
+          body: bc.content_text || undefined,
+          cta: bc.cta_text || 'Saiba mais',
+        };
+      }
+      if (!pieceCopy) {
+        // Generate copy for this piece
+        try {
+          const copyRes = await generateCompletion({
+            systemPrompt: `Você é um copywriter sênior. Escreva copy publicitário conciso e impactante.
+Retorne SOMENTE JSON: { "headline": "...", "body": "...", "cta": "..." }`,
+            prompt: `Crie copy para a campanha "${campaign.name}" (peça ${i + 1} de ${body.pieces.length}).
+Plataforma: ${piece.platform}. Formato: ${piece.format}.
+Varie o ângulo de abordagem em relação às outras peças.`,
+            temperature: 0.6 + (i * 0.05), // slightly different temperature per piece
+            maxTokens: 400,
+          });
+          const jsonMatch = copyRes.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            pieceCopy = {
+              headline: parsed.headline || campaign.name,
+              body: parsed.body || undefined,
+              cta: parsed.cta || 'Saiba mais',
+            };
+          }
+        } catch { /* fallback below */ }
+        if (!pieceCopy) {
+          pieceCopy = { headline: campaign.name, cta: 'Saiba mais' };
+        }
+      }
+
+      // Generate layout (varying composition per piece)
+      try {
+        const layout = await generateLayout({
+          copy: { headline: pieceCopy.headline, body: pieceCopy.body, cta: pieceCopy.cta },
+          artDirection: {
+            ...sharedArtDirection,
+            composition_type: 'auto', // let each piece vary
+          },
+          format: aspectRatio,
+          logoUrl,
+          platform: piece.platform,
+        });
+
+        // Generate image
+        let imageUrl: string | undefined;
+        try {
+          if (body.image_provider === 'gemini') {
+            const imgRes = await generateImageGemini({ prompt: layout.imagePrompt, aspectRatio });
+            imageUrl = `data:${imgRes.mimeType};base64,${imgRes.base64}`;
+          } else {
+            if (isFalConfigured()) {
+              const imgRes = await generateImageWithFal({
+                prompt: layout.imagePrompt,
+                aspectRatio,
+                negativePrompt: 'text, watermark, logo, words, letters, typography',
+                model: body.fal_model as FalModel,
+                numImages: 1,
+              });
+              imageUrl = imgRes.imageUrl;
+            }
+          }
+        } catch (err: any) {
+          console.error(`Image generation failed for piece ${i}:`, err?.message);
+        }
+
+        // Fill image into background layer
+        if (imageUrl) {
+          const bgLayer = layout.layers.find(l => l.id === 'bg_image' || l.type === 'image');
+          if (bgLayer) bgLayer.imageUrl = imageUrl;
+        }
+
+        results.push({
+          pieceIndex: i,
+          format: piece.format,
+          platform: piece.platform,
+          behavior_intent_id: piece.behavior_intent_id,
+          layout,
+          copy: pieceCopy,
+          image_url: imageUrl,
+        });
+      } catch (err: any) {
+        results.push({
+          pieceIndex: i,
+          format: piece.format,
+          platform: piece.platform,
+          behavior_intent_id: piece.behavior_intent_id,
+          layout: {} as any,
+          copy: pieceCopy,
+          error: err?.message,
+        });
+      }
+    }
+
+    return reply.send({
+      success: true,
+      campaign_id: body.campaign_id,
+      campaign_name: campaign.name,
+      art_direction: sharedArtDirection,
+      pieces: results,
+      total: results.length,
+      generated: results.filter(r => !r.error).length,
     });
   });
 }
