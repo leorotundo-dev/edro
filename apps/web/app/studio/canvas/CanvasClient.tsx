@@ -29,7 +29,13 @@ import {
   IconPhoto, IconPaint, IconFileExport,
   IconZoomIn, IconZoomOut, IconZoomReset,
   IconEye, IconEyeOff, IconGridDots,
+  IconLayoutBoard,
 } from '@tabler/icons-react';
+import CanvasViewport from './components/CanvasViewport';
+import LayerPanel from './components/LayerPanel';
+import BoldnessSlider from './components/BoldnessSlider';
+import { useCanvasLayers } from './hooks/useCanvasLayers';
+import type { GenerateLayoutResponse } from './types';
 
 const EDRO_ORANGE = '#E85219';
 const DARK_BG = '#111';
@@ -142,6 +148,14 @@ export default function CanvasClient() {
   const [copy, setCopy] = useState<CopyState>({ headline: '', body: '', cta: '' });
   const [assets, setAssets] = useState<Asset[]>([]);
   const [toolbarLoading, setToolbarLoading] = useState<string | null>(null);
+
+  // ── Layout mode ──────────────────────────────────────────────
+  const [layoutMode, setLayoutMode] = useState(false);
+  const [boldness, setBoldness] = useState(0.5);
+  const [layoutLoading, setLayoutLoading] = useState(false);
+  const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const layoutCanvasRef = useRef<HTMLDivElement>(null);
+  const canvasLayers = useCanvasLayers();
 
   // ── New: Canvas tools ──────────────────────────────────────────
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
@@ -470,6 +484,57 @@ export default function CanvasClient() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  // ── Generate full layout piece ──────────────────────────────
+  const generateLayoutPiece = useCallback(async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || layoutLoading) return;
+    setInput('');
+    setLayoutLoading(true);
+    setMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date().toISOString() }]);
+    notify('Gerando peça completa (copy → direção de arte → layout → imagem)...');
+
+    try {
+      const res = await apiPost<GenerateLayoutResponse>('/studio/canvas/generate-layout', {
+        message: msg,
+        client_id: clientId || undefined,
+        format,
+        platform,
+        boldness,
+        image_provider: provider === 'leonardo' ? 'fal' : provider,
+        fal_model: provider === 'fal' ? falModel : 'flux-pro',
+      });
+
+      if (res.success && res.layout) {
+        canvasLayers.loadLayout(res.layout);
+        setLayoutMode(true);
+        setShowLayerPanel(true);
+
+        // Also update copy state
+        if (res.copy) {
+          setCopy({
+            headline: res.copy.headline || '',
+            body: res.copy.body || '',
+            cta: res.copy.cta || '',
+          });
+        }
+
+        // Set image for legacy canvas view too
+        if (res.image_url) {
+          setImageUrls([res.image_url]);
+          setImageIdx(0);
+        }
+
+        notify(`Peça gerada! Layout "${res.layout.compositionType}" com ${res.layout.layers.length} layers. Clique nos elementos para editar.`);
+      } else {
+        notify('Erro ao gerar layout. Tente novamente.');
+      }
+    } catch (err: any) {
+      notify(`Erro: ${err?.message || 'Falha na geração'}`);
+    } finally {
+      setLayoutLoading(false);
+    }
+  }, [input, layoutLoading, clientId, format, platform, boldness, provider, falModel, canvasLayers, notify]);
+
   // ── Toolbar Actions ───────────────────────────────────────────
   const handleToolbarAction = useCallback(async (action: string, extraParams?: Record<string, any>) => {
     if (!currentImage || toolbarLoading) return;
@@ -552,8 +617,41 @@ export default function CanvasClient() {
 
   // ── Export ─────────────────────────────────────────────────────
   const handleExport = useCallback(async (fmt: 'png' | 'jpg' | 'pdf') => {
-    if (!currentImage) return;
     setExportMenuAnchor(null);
+
+    // Layout mode: export composed canvas via html-to-image
+    if (layoutMode && layoutCanvasRef.current) {
+      try {
+        const { toPng, toJpeg } = await import('html-to-image');
+        const fn = fmt === 'jpg' ? toJpeg : toPng;
+        const dataUrl = await fn(layoutCanvasRef.current, {
+          width: canvasLayers.canvasSize.width,
+          height: canvasLayers.canvasSize.height,
+          pixelRatio: 2,
+          style: { transform: 'none' },
+        });
+        if (fmt === 'pdf') {
+          const w = window.open('', '_blank');
+          if (w) {
+            w.document.write(`<html><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000"><img src="${dataUrl}" style="max-width:100%;max-height:100vh" /></body></html>`);
+            w.document.title = 'Canvas Edro — PDF';
+            setTimeout(() => w.print(), 500);
+          }
+        } else {
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `canvas-edro.${fmt}`;
+          a.click();
+        }
+        notify(`Exportado como ${fmt.toUpperCase()}`);
+      } catch (err: any) {
+        notify(`Erro ao exportar: ${err?.message}`);
+      }
+      return;
+    }
+
+    // Classic mode
+    if (!currentImage) return;
     if (fmt === 'png' || fmt === 'jpg') {
       const a = document.createElement('a');
       a.href = currentImage;
@@ -561,7 +659,6 @@ export default function CanvasClient() {
       a.target = '_blank';
       a.click();
     } else if (fmt === 'pdf') {
-      // For PDF we open in new tab — browser print dialog
       const w = window.open('', '_blank');
       if (w) {
         w.document.write(`<html><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000"><img src="${currentImage}" style="max-width:100%;max-height:100vh" /></body></html>`);
@@ -570,7 +667,7 @@ export default function CanvasClient() {
       }
     }
     notify(`Exportado como ${fmt.toUpperCase()}`);
-  }, [currentImage, notify]);
+  }, [currentImage, layoutMode, canvasLayers.canvasSize, notify]);
 
   // ── Quick actions ──────────────────────────────────────────────
   const quickActions = useMemo(() => hasBriefing
@@ -587,6 +684,19 @@ export default function CanvasClient() {
         'Escreve headline + CTA para Instagram',
         'Cria versão para Stories 9:16',
         'Gera uma foto de produto em estúdio',
+      ], [hasBriefing, briefCtx]);
+
+  // ── Layout quick actions ──────────────────────────────────
+  const layoutQuickActions = useMemo(() => hasBriefing
+    ? [
+        `Gera peça completa para "${briefCtx.briefingTitle || 'briefing'}"`,
+        'Cria post para Feed com copy + imagem',
+        'Gera peça para Stories 9:16',
+      ]
+    : [
+        'Cria post profissional para Instagram',
+        'Gera peça de promoção de verão',
+        'Cria banner institucional minimalista',
       ], [hasBriefing, briefCtx]);
 
   // ── Tool cursor ────────────────────────────────────────────────
@@ -718,6 +828,28 @@ export default function CanvasClient() {
                 <MenuItem value="YouTube">YouTube</MenuItem>
                 <MenuItem value="OOH">OOH</MenuItem>
               </Select>
+            </Stack>
+            {/* Boldness slider + Generate Layout button */}
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <BoldnessSlider value={boldness} onChange={setBoldness} />
+              <Button
+                size="small"
+                variant={layoutMode ? 'outlined' : 'contained'}
+                startIcon={layoutLoading ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : <IconLayoutBoard size={14} />}
+                onClick={() => {
+                  if (input.trim()) generateLayoutPiece();
+                }}
+                disabled={layoutLoading || !input.trim()}
+                sx={{
+                  flex: 1, fontSize: '0.7rem', textTransform: 'none',
+                  bgcolor: layoutMode ? 'transparent' : EDRO_ORANGE,
+                  borderColor: EDRO_ORANGE, color: '#fff',
+                  '&:hover': { bgcolor: layoutMode ? `${EDRO_ORANGE}20` : '#c94215' },
+                  '&.Mui-disabled': { bgcolor: '#333', color: '#666' },
+                }}
+              >
+                Gerar Peça
+              </Button>
             </Stack>
           </Stack>
         </Box>
@@ -926,10 +1058,23 @@ export default function CanvasClient() {
               <MenuItem onClick={() => handleExport('pdf')} sx={{ fontSize: '0.75rem', color: '#ccc' }}>PDF (impressão)</MenuItem>
             </Menu>
 
+            {/* Layout mode toggle */}
+            {layoutMode && (
+              <Tooltip title="Voltar ao modo clássico">
+                <Button size="small" onClick={() => setLayoutMode(false)}
+                  sx={{ color: '#666', fontSize: '0.6rem', textTransform: 'none', minWidth: 'auto', px: 0.5 }}>
+                  Clássico
+                </Button>
+              </Tooltip>
+            )}
+
             {/* Layers toggle */}
             <Tooltip title="Layers">
-              <IconButton size="small" onClick={() => setShowLayers(!showLayers)}
-                sx={{ color: showLayers ? EDRO_ORANGE : '#666', '&:hover': { color: '#fff' } }}>
+              <IconButton size="small" onClick={() => {
+                if (layoutMode) setShowLayerPanel(!showLayerPanel);
+                else setShowLayers(!showLayers);
+              }}
+                sx={{ color: (layoutMode ? showLayerPanel : showLayers) ? EDRO_ORANGE : '#666', '&:hover': { color: '#fff' } }}>
                 <IconStack2 size={14} />
               </IconButton>
             </Tooltip>
@@ -953,125 +1098,149 @@ export default function CanvasClient() {
         {/* ── Canvas Area ─────────────────────────────────────────── */}
         <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
 
-          {/* Main canvas with pan/zoom */}
-          <Box
-            ref={canvasContainerRef}
-            onWheel={handleWheel}
-            onMouseDown={handleCanvasMouseDown}
-            onMouseMove={(e) => { handleCanvasMouseMove(e); if (isDrawing) drawOnMask(e, activeTool === 'eraser'); }}
-            onMouseUp={(e) => { handleCanvasMouseUp(); stopDrawing(); }}
-            onMouseLeave={() => { handleCanvasMouseUp(); stopDrawing(); }}
-            sx={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', cursor: isPanning ? 'grabbing' : canvasCursor, position: 'relative',
-            }}
-          >
-            {currentImage ? (
-              <Box sx={{
-                position: 'relative',
-                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                transformOrigin: 'center center',
-                transition: isPanning ? 'none' : 'transform 0.15s ease',
-              }}>
-                {/* Main image */}
-                <Box
-                  component="img"
-                  ref={imageRef}
-                  src={currentImage}
-                  alt="Canvas"
-                  onMouseDown={startDrawing}
-                  onClick={handleMarkClick}
-                  sx={{ maxWidth: '80vw', maxHeight: 'calc(100vh - 200px)', borderRadius: 2, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', objectFit: 'contain', userSelect: 'none', pointerEvents: 'auto' }}
+          {layoutMode && canvasLayers.layers.length > 0 ? (
+            /* ── Layout Mode: editable layer composition ──────── */
+            <>
+              <CanvasViewport
+                layers={canvasLayers.layers}
+                canvasWidth={canvasLayers.canvasSize.width}
+                canvasHeight={canvasLayers.canvasSize.height}
+                backgroundColor={canvasLayers.backgroundColor}
+                selectedLayerId={canvasLayers.selectedLayerId}
+                onSelectLayer={canvasLayers.setSelectedLayerId}
+                onContentChange={canvasLayers.updateContent}
+                onDragEnd={canvasLayers.moveLayer}
+                onResizeEnd={canvasLayers.resizeLayer}
+                exportRef={layoutCanvasRef}
+              />
+              {showLayerPanel && (
+                <LayerPanel
+                  layers={canvasLayers.layers}
+                  selectedLayerId={canvasLayers.selectedLayerId}
+                  onSelect={canvasLayers.setSelectedLayerId}
+                  onClose={() => setShowLayerPanel(false)}
+                  onDelete={canvasLayers.deleteLayer}
+                  onReorder={canvasLayers.reorderLayer}
+                  onUpdateLayer={canvasLayers.updateLayer}
+                  onUpdateStyle={canvasLayers.updateLayerStyle}
                 />
-
-                {/* Mask overlay (semi-transparent red) */}
-                {maskDataUrl && (activeTool === 'brush' || activeTool === 'eraser' || maskDataUrl) && (
-                  <Box
-                    component="img"
-                    src={maskDataUrl}
-                    sx={{
-                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                      opacity: 0.35, mixBlendMode: 'screen', pointerEvents: 'none', borderRadius: 2,
-                      filter: 'hue-rotate(0deg) saturate(3)',
-                    }}
-                  />
-                )}
-
-                {/* Mark points */}
-                {marks.map((m, i) => (
-                  <Box key={i} sx={{
-                    position: 'absolute',
-                    left: `${m.x * 100}%`, top: `${m.y * 100}%`,
-                    transform: 'translate(-50%, -50%)',
-                    width: 20, height: 20, borderRadius: '50%',
-                    bgcolor: `${EDRO_ORANGE}80`, border: `2px solid ${EDRO_ORANGE}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.6rem', color: '#fff', fontWeight: 700,
-                    pointerEvents: 'none',
+              )}
+            </>
+          ) : (
+            /* ── Classic Mode: single image with pan/zoom ─────── */
+            <>
+              <Box
+                ref={canvasContainerRef}
+                onWheel={handleWheel}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={(e) => { handleCanvasMouseMove(e); if (isDrawing) drawOnMask(e, activeTool === 'eraser'); }}
+                onMouseUp={() => { handleCanvasMouseUp(); stopDrawing(); }}
+                onMouseLeave={() => { handleCanvasMouseUp(); stopDrawing(); }}
+                sx={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', cursor: isPanning ? 'grabbing' : canvasCursor, position: 'relative',
+                }}
+              >
+                {currentImage ? (
+                  <Box sx={{
+                    position: 'relative',
+                    transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    transition: isPanning ? 'none' : 'transform 0.15s ease',
                   }}>
-                    {i + 1}
-                  </Box>
-                ))}
-
-                {/* Hidden mask canvas for brush drawing */}
-                <canvas ref={maskCanvasRef} style={{ display: 'none' }} />
-              </Box>
-            ) : (
-              <Box sx={{ textAlign: 'center', color: '#444' }}>
-                <IconBrush size={72} style={{ opacity: 0.2, marginBottom: 20 }} />
-                <Typography variant="h6" sx={{ color: '#444', fontWeight: 600 }}>Seu canvas</Typography>
-                <Typography variant="body2" sx={{ color: '#3a3a3a', maxWidth: 400 }}>
-                  Descreve o que você quer no chat e a imagem aparece aqui.
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#333', mt: 2, display: 'block' }}>
-                  V = Select &nbsp; H = Pan &nbsp; B = Brush &nbsp; M = Mark &nbsp; E = Eraser &nbsp; Ctrl+Z = Undo
-                </Typography>
-              </Box>
-            )}
-          </Box>
-
-          {/* ── Layers Panel (right sidebar) ───────────────────────── */}
-          {showLayers && (
-            <Box sx={{ width: 220, borderLeft: `1px solid ${BORDER}`, bgcolor: PANEL_BG, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-              <Box sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="caption" sx={{ color: '#aaa', fontWeight: 700, fontSize: '0.75rem' }}>Layers</Typography>
-                <IconButton size="small" onClick={() => setShowLayers(false)} sx={{ color: '#666' }}><IconX size={12} /></IconButton>
-              </Box>
-              <Box sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
-                {layers.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', pt: 4 }}>
-                    <Typography variant="caption" sx={{ color: '#555' }}>Nenhum layer.</Typography>
-                    <Typography variant="caption" sx={{ color: '#444', display: 'block', mt: 0.5 }}>Use "Split Layers" para separar.</Typography>
-                  </Box>
-                ) : (
-                  <Stack spacing={0.5}>
-                    {layers.map((layer) => (
-                      <Box key={layer.id} onClick={() => setActiveLayerId(layer.id)}
-                        sx={{
-                          display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, cursor: 'pointer',
-                          bgcolor: activeLayerId === layer.id ? `${EDRO_ORANGE}15` : 'transparent',
-                          border: activeLayerId === layer.id ? `1px solid ${EDRO_ORANGE}40` : '1px solid transparent',
-                          '&:hover': { bgcolor: '#1e1e1e' },
-                        }}>
-                        <Box component="img" src={layer.imageUrl} sx={{ width: 36, height: 36, borderRadius: 0.5, objectFit: 'cover' }} />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="caption" sx={{ color: '#ccc', fontSize: '0.7rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {layer.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#555', fontSize: '0.6rem' }}>{layer.type}</Typography>
-                        </Box>
-                        <IconButton size="small" onClick={(e) => {
-                          e.stopPropagation();
-                          setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, visible: !l.visible } : l));
-                        }} sx={{ color: layer.visible ? '#666' : '#333' }}>
-                          {layer.visible ? <IconEye size={12} /> : <IconEyeOff size={12} />}
-                        </IconButton>
+                    <Box
+                      component="img"
+                      ref={imageRef}
+                      src={currentImage}
+                      alt="Canvas"
+                      onMouseDown={startDrawing}
+                      onClick={handleMarkClick}
+                      sx={{ maxWidth: '80vw', maxHeight: 'calc(100vh - 200px)', borderRadius: 2, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', objectFit: 'contain', userSelect: 'none', pointerEvents: 'auto' }}
+                    />
+                    {maskDataUrl && (
+                      <Box component="img" src={maskDataUrl}
+                        sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.35, mixBlendMode: 'screen', pointerEvents: 'none', borderRadius: 2, filter: 'hue-rotate(0deg) saturate(3)' }}
+                      />
+                    )}
+                    {marks.map((m, i) => (
+                      <Box key={i} sx={{
+                        position: 'absolute', left: `${m.x * 100}%`, top: `${m.y * 100}%`,
+                        transform: 'translate(-50%, -50%)', width: 20, height: 20, borderRadius: '50%',
+                        bgcolor: `${EDRO_ORANGE}80`, border: `2px solid ${EDRO_ORANGE}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.6rem', color: '#fff', fontWeight: 700, pointerEvents: 'none',
+                      }}>
+                        {i + 1}
                       </Box>
                     ))}
-                  </Stack>
+                    <canvas ref={maskCanvasRef} style={{ display: 'none' }} />
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', color: '#444' }}>
+                    <IconBrush size={72} style={{ opacity: 0.2, marginBottom: 20 }} />
+                    <Typography variant="h6" sx={{ color: '#444', fontWeight: 600 }}>Seu canvas</Typography>
+                    <Typography variant="body2" sx={{ color: '#3a3a3a', maxWidth: 400 }}>
+                      Descreve o que quer no chat ou use &quot;Gerar Peça&quot; para criar um layout completo.
+                    </Typography>
+                    {/* Layout quick actions */}
+                    <Stack spacing={0.75} sx={{ mt: 3, maxWidth: 380, mx: 'auto' }}>
+                      {layoutQuickActions.map(qa => (
+                        <Chip key={qa} label={qa} variant="outlined" clickable
+                          icon={<IconLayoutBoard size={14} />}
+                          onClick={() => { setInput(qa); generateLayoutPiece(qa); }}
+                          sx={{
+                            fontSize: '0.73rem', justifyContent: 'flex-start', py: 0.5,
+                            borderColor: `${EDRO_ORANGE}40`, color: '#999',
+                            '& .MuiChip-icon': { color: EDRO_ORANGE },
+                            '&:hover': { borderColor: EDRO_ORANGE, color: EDRO_ORANGE, bgcolor: `${EDRO_ORANGE}10` },
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
                 )}
               </Box>
-            </Box>
+
+              {/* Legacy layers panel */}
+              {showLayers && (
+                <Box sx={{ width: 220, borderLeft: `1px solid ${BORDER}`, bgcolor: PANEL_BG, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                  <Box sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ color: '#aaa', fontWeight: 700, fontSize: '0.75rem' }}>Layers</Typography>
+                    <IconButton size="small" onClick={() => setShowLayers(false)} sx={{ color: '#666' }}><IconX size={12} /></IconButton>
+                  </Box>
+                  <Box sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
+                    {layers.length === 0 ? (
+                      <Box sx={{ textAlign: 'center', pt: 4 }}>
+                        <Typography variant="caption" sx={{ color: '#555' }}>Nenhum layer.</Typography>
+                        <Typography variant="caption" sx={{ color: '#444', display: 'block', mt: 0.5 }}>Use &quot;Split Layers&quot; ou &quot;Gerar Peça&quot;.</Typography>
+                      </Box>
+                    ) : (
+                      <Stack spacing={0.5}>
+                        {layers.map((layer) => (
+                          <Box key={layer.id} onClick={() => setActiveLayerId(layer.id)}
+                            sx={{
+                              display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, cursor: 'pointer',
+                              bgcolor: activeLayerId === layer.id ? `${EDRO_ORANGE}15` : 'transparent',
+                              border: activeLayerId === layer.id ? `1px solid ${EDRO_ORANGE}40` : '1px solid transparent',
+                              '&:hover': { bgcolor: '#1e1e1e' },
+                            }}>
+                            <Box component="img" src={layer.imageUrl} sx={{ width: 36, height: 36, borderRadius: 0.5, objectFit: 'cover' }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" sx={{ color: '#ccc', fontSize: '0.7rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{layer.name}</Typography>
+                              <Typography variant="caption" sx={{ color: '#555', fontSize: '0.6rem' }}>{layer.type}</Typography>
+                            </Box>
+                            <IconButton size="small" onClick={(e) => { e.stopPropagation(); setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, visible: !l.visible } : l)); }}
+                              sx={{ color: layer.visible ? '#666' : '#333' }}>
+                              {layer.visible ? <IconEye size={12} /> : <IconEyeOff size={12} />}
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </>
           )}
         </Box>
 
