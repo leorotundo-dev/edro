@@ -13,7 +13,7 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
     const [cloud, grp, briefs, totalCloud, totalGrp] = await Promise.all([
       query(`SELECT COUNT(*) AS cnt FROM whatsapp_messages WHERE tenant_id = $1 AND created_at > now() - INTERVAL '24h'`, [tenantId]),
       query(`SELECT COUNT(*) AS cnt FROM whatsapp_group_messages wgm JOIN whatsapp_groups wg ON wg.id = wgm.group_id WHERE wgm.tenant_id = $1 AND wgm.created_at > now() - INTERVAL '24h'`, [tenantId]),
-      query(`SELECT COUNT(*) AS cnt FROM edro_briefings WHERE tenant_id = $1 AND (payload->>'origin' = 'whatsapp_group' OR source = 'whatsapp') AND created_at > now() - INTERVAL '24h'`, [tenantId]),
+      query(`SELECT COUNT(*) AS cnt FROM edro_briefings b JOIN clients c ON c.id = b.client_id::text WHERE c.tenant_id = $1 AND (b.payload->>'origin' = 'whatsapp_group' OR b.source = 'whatsapp') AND b.created_at > now() - INTERVAL '24h'`, [tenantId]),
       query(`SELECT COUNT(*) AS cnt FROM whatsapp_messages WHERE tenant_id = $1`, [tenantId]),
       query(`SELECT COUNT(*) AS cnt FROM whatsapp_group_messages wgm JOIN whatsapp_groups wg ON wg.id = wgm.group_id WHERE wgm.tenant_id = $1`, [tenantId]),
     ]);
