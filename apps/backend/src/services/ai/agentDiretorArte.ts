@@ -12,6 +12,7 @@
 
 import { generateCompletion } from './claudeService';
 import { generateImageWithFal, type FalModel, type FalLoraConfig } from './falAiService';
+import { loadCachedStyle, analyzeClientVisualStyle, type ClientVisualStyle } from '../visualStyleAnalyzer';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,14 @@ export type AgentDAParams = {
   generateMultiFormat?: boolean;
   brandPack?: boolean;          // generate ALL 5 formats (Story/Feed/Portrait/LinkedIn/Banner)
   visualReferences?: string[];  // reference image URLs from Visual Insights (feed into P2)
+  // ── Canvas Campaign Pipeline ──
+  boldness?: number;            // 0.0 (conservador/fiel ao Instagram) → 1.0 (arrojado/tendências)
+  tenantId?: string;            // for loading Instagram visual style
+  clientId?: string;            // for loading Instagram visual style
+  campaignConcept?: string;     // conceito criativo da campanha
+  pieceIndex?: number;          // qual peça da campanha (para variação)
+  totalPieces?: number;         // total de peças na campanha
+  spatialDirective?: string;    // "leave clean area in top 30% for headline"
 };
 
 // ─── Plugin 1 — Brand Visual RAG ─────────────────────────────────────────────
@@ -90,8 +99,38 @@ async function plugin1BrandVisualRag(params: AgentDAParams): Promise<BrandVisual
   const vi = profile.visual_identity ?? profile.brand_tokens ?? {};
   const bv = profile.brand_voice ?? {};
 
+  // Load Instagram visual style if available
+  let instagramStyle: ClientVisualStyle | null = null;
+  if (params.clientId) {
+    instagramStyle = await loadCachedStyle(params.clientId, 'instagram');
+    // Auto-analyze if expired and we have tenantId
+    if (!instagramStyle && params.tenantId) {
+      instagramStyle = await analyzeClientVisualStyle(params.tenantId, params.clientId).catch(() => null);
+    }
+  }
+
+  const boldness = params.boldness ?? 0.5;
+  const boldnessLabel = boldness <= 0.3 ? 'CONSERVADOR — mantenha fiel ao estilo atual do cliente'
+    : boldness <= 0.7 ? 'EQUILIBRADO — respeite a identidade mas traga frescor'
+    : 'ARROJADO — proponha evolução visual, referências de tendência, ouse mais';
+
+  const instagramBlock = instagramStyle ? `
+ANÁLISE VISUAL DO INSTAGRAM (estilo atual real do cliente):
+${instagramStyle.style_summary}
+- Cores dominantes nos posts: ${instagramStyle.dominant_colors?.join(', ') ?? 'não analisado'}
+- Estilo fotográfico: ${instagramStyle.photo_style ?? 'variado'}
+- Composição habitual: ${instagramStyle.composition ?? 'variada'}
+- Mood visual: ${instagramStyle.mood ?? 'variado'}
+- Harmonia de cores: ${instagramStyle.color_harmony ?? 'variada'}` : '';
+
+  const campaignBlock = params.campaignConcept ? `
+CONCEITO DA CAMPANHA: ${params.campaignConcept}
+${params.pieceIndex != null ? `PEÇA ${params.pieceIndex + 1} DE ${params.totalPieces ?? '?'} — varie a composição entre peças, mantenha coesão visual` : ''}` : '';
+
   const prompt = `Você é um especialista em identidade visual de marcas.
 Analise os dados do cliente abaixo e extraia as regras de direção de arte em um JSON rigoroso.
+
+NÍVEL DE OUSADIA: ${(boldness * 10).toFixed(0)}/10 — ${boldnessLabel}
 
 DADOS DO CLIENTE:
 - Segmento: ${profile.segment ?? 'não informado'}
@@ -102,6 +141,7 @@ DADOS DO CLIENTE:
 - Elementos a evitar: ${JSON.stringify(vi.avoidElements ?? bv.donts ?? [])}
 - LoRA treinado: ${profile.fal_lora_id ?? 'não disponível'}
 - Personalidade da marca: ${bv.personality ?? 'não informada'}
+${instagramBlock}${campaignBlock}
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -187,6 +227,9 @@ ${params.visualReferences && params.visualReferences.length > 0
   ? `REFERÊNCIAS VISUAIS SELECIONADAS PELO CLIENTE (inspire-se no estilo destas imagens):\n${params.visualReferences.slice(0, 4).map((u, i) => `${i + 1}. ${u}`).join('\n')}`
   : ''}
 ${promptRefinements ? `REFINAMENTOS DO CRITIQUE LOOP (corrija estes pontos):\n${promptRefinements}` : ''}
+${params.spatialDirective ? `DIRETIVA ESPACIAL PARA LAYOUT (a imagem será composta com texto sobreposto):
+${params.spatialDirective}
+IMPORTANTE: Gere a imagem respeitando esta diretiva — deixe espaço limpo nas áreas indicadas para texto.` : ''}
 
 Regras para o prompt:
 1. Seja ESPECÍFICO sobre sujeito, ambiente, iluminação, câmera

@@ -14,6 +14,9 @@ import { generateCopy } from '../services/ai/copyService';
 import { generateImageWithFal, generateImg2ImgWithFal, imageToVideoWithFal, isFalConfigured, FalModel } from '../services/ai/falAiService';
 import { generateImage as generateImageGemini } from '../services/ai/geminiService';
 import { generateImageWithLeonardo } from '../services/ai/leonardoService';
+import { runAgentDiretorArte } from '../services/ai/agentDiretorArte';
+import { generateLayout, type GeneratedLayout } from '../services/layoutEngine';
+import { getClientById } from '../repos/clientsRepo';
 import { env } from '../env';
 
 // ── fal.ai helper for direct low-level calls ──────────────────────────────────
@@ -811,5 +814,178 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
       : `/api/artworks/file/${encodeURIComponent(key)}`;
 
     return reply.send({ success: true, url: fileUrl, name: data.filename });
+  });
+
+  // ── Generate Layout — full pipeline: copy → art direction → layout → image ──
+
+  const generateLayoutSchema = z.object({
+    message: z.string().min(1),
+    client_id: z.string().optional(),
+    format: z.string().default('1:1'),
+    platform: z.string().default('Instagram'),
+    boldness: z.number().min(0).max(1).default(0.5),
+    /** Pre-existing copy (skips copy generation) */
+    copy: z.object({
+      headline: z.string(),
+      body: z.string().optional(),
+      cta: z.string(),
+    }).optional(),
+    /** Image provider */
+    image_provider: z.enum(['fal', 'gemini']).default('fal'),
+    fal_model: z.string().default('flux-pro'),
+  });
+
+  /**
+   * POST /studio/canvas/generate-layout
+   *
+   * Full pipeline that returns a production-ready layout with positioned layers:
+   *   1. Generate copy (headline, body, CTA) from user message — or use provided copy
+   *   2. Load client profile + run AgentDiretorArte for art direction
+   *   3. Run LayoutEngine to compose layers (text, image, logo, CTA)
+   *   4. Generate background image with layout-aware prompt (image "knows" where text goes)
+   *   5. Return complete GeneratedLayout with imageUrl filled in
+   */
+  app.post('/studio/canvas/generate-layout', async (request: any, reply) => {
+    const body = generateLayoutSchema.parse(request.body || {});
+    const tenantId = (request.user as any)?.tenant_id as string;
+
+    // ── Step 1: Copy ─────────────────────────────────────────────────
+    let copy = body.copy;
+    if (!copy) {
+      const copyRes = await generateCompletion({
+        systemPrompt: `Você é um copywriter sênior. Escreva copy publicitário conciso e impactante.
+Retorne SOMENTE JSON: { "headline": "...", "body": "...", "cta": "..." }
+- headline: max 60 caracteres, impactante
+- body: 1-2 frases de suporte (opcional, pode ser "")
+- cta: max 25 caracteres, ação clara`,
+        prompt: `Crie copy para: ${body.message}\nPlataforma: ${body.platform}\nFormato: ${body.format}`,
+        temperature: 0.6,
+        maxTokens: 400,
+      });
+      try {
+        const jsonMatch = copyRes.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          copy = {
+            headline: parsed.headline || body.message.slice(0, 60),
+            body: parsed.body || undefined,
+            cta: parsed.cta || 'Saiba mais',
+          };
+        }
+      } catch { /* fallback below */ }
+      if (!copy) {
+        copy = { headline: body.message.slice(0, 60), cta: 'Saiba mais' };
+      }
+    }
+
+    // ── Step 2: Client profile + Art Direction ───────────────────────
+    let clientProfile: any = null;
+    let logoUrl: string | undefined;
+    if (body.client_id && tenantId) {
+      clientProfile = await getClientById(tenantId, body.client_id);
+      logoUrl = clientProfile?.profile?.logo_url ?? clientProfile?.logo_url;
+    }
+
+    // Extract aspect ratio from format string
+    const aspectMap: Record<string, string> = {
+      '1:1': '1:1', '4:5': '4:5', '9:16': '9:16', '16:9': '16:9',
+      '4:3': '4:3', '3:4': '3:4',
+      'Feed 1:1': '1:1', 'Stories 9:16': '9:16', 'Reels 9:16': '9:16',
+      'Banner 16:9': '16:9', 'Portrait 4:5': '4:5',
+    };
+    const aspectRatio = aspectMap[body.format] ?? '1:1';
+
+    // Run AgentDiretorArte for visual direction
+    let artResult;
+    try {
+      artResult = await runAgentDiretorArte({
+        copy: copy.headline,
+        clientProfile: clientProfile?.profile ?? clientProfile,
+        platform: body.platform,
+        format: body.format,
+        aspectRatio,
+        boldness: body.boldness,
+        tenantId,
+        clientId: body.client_id,
+        campaignConcept: body.message,
+        spatialDirective: 'leave clean area for text overlay based on composition',
+      });
+    } catch (err: any) {
+      console.error('AgentDiretorArte failed, using defaults:', err?.message);
+    }
+
+    // Build artDirection object for LayoutEngine from DA result
+    const brandColors = clientProfile?.profile?.brand_colors ?? [];
+    const artDirection = {
+      color_palette: artResult?.brandVisual
+        ? [artResult.brandVisual.primaryColor, ...brandColors].filter(Boolean).slice(0, 6)
+        : brandColors.length ? brandColors : ['#1a1a2e', '#e94560'],
+      primary_color: artResult?.brandVisual?.primaryColor ?? brandColors[0] ?? '#1a1a2e',
+      accent_color: brandColors[1] ?? '#e94560',
+      typography: {
+        headline_style: artResult?.brandVisual?.typography ?? 'bold sans-serif',
+        body_style: 'regular sans-serif, 16px',
+        cta_style: 'semi-bold, 14px, rounded button',
+      },
+      photo_directive: artResult?.payload?.prompt ?? body.message,
+      composition_type: 'auto',
+      mood: artResult?.brandVisual?.moodKeywords?.[0] ?? 'profissional',
+    };
+
+    // ── Step 3: Layout composition ───────────────────────────────────
+    let layout: GeneratedLayout;
+    try {
+      layout = await generateLayout({
+        copy: { headline: copy.headline, body: copy.body, cta: copy.cta },
+        artDirection,
+        format: aspectRatio,
+        logoUrl,
+        platform: body.platform,
+      });
+    } catch (err: any) {
+      console.error('LayoutEngine failed:', err?.message);
+      return reply.status(500).send({ success: false, error: 'Falha ao gerar layout' });
+    }
+
+    // ── Step 4: Generate background image with layout-aware prompt ──
+    let imageUrl: string | undefined;
+    try {
+      if (body.image_provider === 'gemini') {
+        const imgRes = await generateImageGemini({
+          prompt: layout.imagePrompt,
+          aspectRatio,
+        });
+        imageUrl = `data:${imgRes.mimeType};base64,${imgRes.base64}`;
+      } else {
+        if (!isFalConfigured()) throw new Error('FAL_API_KEY nao configurada');
+        const imgRes = await generateImageWithFal({
+          prompt: layout.imagePrompt,
+          aspectRatio,
+          negativePrompt: 'text, watermark, logo, words, letters, typography',
+          model: body.fal_model as FalModel,
+          numImages: 1,
+        });
+        imageUrl = imgRes.imageUrl;
+      }
+    } catch (err: any) {
+      console.error('Image generation failed:', err?.message);
+      // Layout still valid without image — frontend can retry
+    }
+
+    // Fill image URL into the background layer
+    if (imageUrl) {
+      const bgLayer = layout.layers.find(l => l.id === 'bg_image' || l.type === 'image');
+      if (bgLayer) bgLayer.imageUrl = imageUrl;
+    }
+
+    // ── Step 5: Return complete layout ───────────────────────────────
+    return reply.send({
+      success: true,
+      layout,
+      copy,
+      image_url: imageUrl,
+      art_direction: artDirection,
+      provider: body.image_provider,
+    });
   });
 }
