@@ -77,14 +77,16 @@ export default function WhatsAppGroupsClient() {
       const [statusRes, groupsRes, clientsRes] = await Promise.all([
         apiGet<InstanceStatus>('/whatsapp-groups/status'),
         apiGet<{ data: LinkedGroup[] }>('/whatsapp-groups'),
-        apiGet<{ data: Client[] }>('/clients?limit=100'),
+        apiGet<any>('/clients?limit=100'),
       ]);
       setStatus(statusRes ?? null);
       setLinkedGroups(
         (groupsRes?.data ?? []).slice().sort((a, b) => a.group_name.localeCompare(b.group_name, 'pt-BR')),
       );
+      // API returns plain array or { data: [...] }
+      const rawClients: Client[] = Array.isArray(clientsRes) ? clientsRes : (clientsRes?.data ?? []);
       setClients(
-        (clientsRes?.data ?? []).slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+        rawClients.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
       );
     } finally {
       setLoading(false);
