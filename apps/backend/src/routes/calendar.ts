@@ -727,7 +727,7 @@ async function buildOperationalCalendarDays(params: {
   const days: Record<string, any[]> = {};
 
   const withClientFilter = (sql: string, field = 'client_id') =>
-    params.clientId ? `${sql} AND ${field} = $3` : sql;
+    params.clientId ? `${sql} AND ${field}::text = $3` : sql;
 
   const meetingsValues = params.clientId ? [params.tenantId, monthStart, params.clientId] : [params.tenantId, monthStart];
   const { rows: meetingsRows } = await query<any>(
