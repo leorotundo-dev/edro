@@ -94,13 +94,31 @@ export async function createInstance(tenantId: string): Promise<void> {
   );
 }
 
-export async function getQrCode(tenantId: string): Promise<EvolutionQrCode> {
+export async function getQrCode(
+  tenantId: string,
+  { pollSeconds = 0 }: { pollSeconds?: number } = {},
+): Promise<EvolutionQrCode> {
   const name = instanceName(tenantId);
-  const data = await evolFetch(`/instance/connect/${name}`);
-  return {
-    base64: data.base64 ?? '',
-    code: data.code ?? '',
+
+  const once = async (): Promise<EvolutionQrCode> => {
+    const data = await evolFetch(`/instance/connect/${name}`);
+    // v2 returns { count, base64, code } when QR is ready; { count: 0 } when not ready yet
+    return {
+      base64: data.base64 ?? '',
+      code: data.code ?? '',
+    };
   };
+
+  if (!pollSeconds) return once();
+
+  // Poll until QR appears or timeout
+  const deadline = Date.now() + pollSeconds * 1000;
+  while (Date.now() < deadline) {
+    const qr = await once();
+    if (qr.base64) return qr;
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  return { base64: '', code: '' };
 }
 
 export async function getInstanceStatus(tenantId: string): Promise<EvolutionInstanceStatus> {

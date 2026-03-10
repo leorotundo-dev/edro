@@ -24,7 +24,7 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import {
   IconBrandWhatsapp, IconRefresh, IconLink, IconLinkOff,
-  IconQrcode, IconCircleCheck, IconCircleX, IconSettings,
+  IconQrcode, IconCircleCheck, IconCircleX, IconSettings, IconExternalLink,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 
@@ -45,6 +45,8 @@ type LinkedGroup = {
 };
 type Client = { id: string; name: string };
 
+const MANAGER_URL = 'https://evolution-api-production-f05a.up.railway.app/manager';
+
 export default function WhatsAppGroupsClient() {
   const [status, setStatus] = useState<InstanceStatus | null>(null);
   const [qr, setQr] = useState<{ base64: string; code: string } | null>(null);
@@ -53,6 +55,8 @@ export default function WhatsAppGroupsClient() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [pendingQr, setPendingQr] = useState(false);   // polling for QR
+  const [qrTimeout, setQrTimeout] = useState(false);   // gave up after timeout
   const [fetchingGroups, setFetchingGroups] = useState(false);
   const [error, setError] = useState('');
   const [linkMap, setLinkMap] = useState<Record<string, string>>({}); // groupJid → clientId
@@ -75,15 +79,47 @@ export default function WhatsAppGroupsClient() {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
+  // Poll /qrcode endpoint until QR appears (max 90s) or connected
+  const startQrPolling = useCallback(async () => {
+    setPendingQr(true);
+    setQrTimeout(false);
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      // Check if connected first
+      const st = await apiGet<InstanceStatus>('/whatsapp-groups/status').catch(() => null);
+      if (st?.live?.state === 'open' || st?.instance?.status === 'connected') {
+        setStatus(st);
+        setPendingQr(false);
+        setQr(null);
+        return;
+      }
+      // Try QR (backend polls Evolution for up to 15s internally)
+      const res = await apiGet<{ qr: { base64: string; code: string } }>('/whatsapp-groups/qrcode').catch(() => null);
+      if (res?.qr?.base64) {
+        setQr(res.qr);
+        setPendingQr(false);
+        return;
+      }
+    }
+    setPendingQr(false);
+    setQrTimeout(true);
+  }, []);
+
   const handleConnect = async () => {
     setConnecting(true);
     setError('');
     setQr(null);
+    setQrTimeout(false);
     try {
       const res = await apiPost<{ success: boolean; qr: { base64: string; code: string } }>(
         '/whatsapp-groups/connect', {},
       );
-      if (res?.qr) setQr(res.qr);
+      if (res?.qr?.base64) {
+        setQr(res.qr);
+      } else {
+        // QR not ready yet — start background polling
+        startQrPolling();
+      }
       setTimeout(loadStatus, 5000);
     } catch (e: any) {
       setError(e.message ?? 'Erro ao conectar.');
@@ -92,14 +128,10 @@ export default function WhatsAppGroupsClient() {
     }
   };
 
-  const handleRefreshQr = async () => {
-    setConnecting(true);
-    try {
-      const res = await apiGet<{ qr: { base64: string; code: string } }>('/whatsapp-groups/qrcode');
-      if (res?.qr) setQr(res.qr);
-    } finally {
-      setConnecting(false);
-    }
+  const handleRefreshQr = () => {
+    setQr(null);
+    setQrTimeout(false);
+    startQrPolling();
   };
 
   const handleDisconnect = async () => {
@@ -216,20 +248,61 @@ export default function WhatsAppGroupsClient() {
                 </Stack>
 
                 {/* QR Code display */}
-                {qr && !connected && (
+                {!connected && (qr || pendingQr || qrTimeout) && (
                   <Box sx={{ mt: 2, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo → Escaneie o QR
-                    </Typography>
-                    {qr.base64 && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={qr.base64} alt="QR Code WhatsApp" width={200} height={200} style={{ borderRadius: 8, border: '1px solid #e0e0e0' }} />
-                    )}
-                    <Box>
-                      <Button size="small" onClick={handleRefreshQr} sx={{ mt: 1, color: EDRO_GREEN }}>
-                        Atualizar QR Code
-                      </Button>
-                    </Box>
+                    {qr?.base64 ? (
+                      <>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo → Escaneie o QR
+                        </Typography>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <Box
+                          component="img"
+                          src={qr.base64}
+                          alt="QR Code WhatsApp"
+                          sx={{ width: 200, height: 200, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+                        />
+                        <Box>
+                          <Button size="small" onClick={handleRefreshQr} sx={{ mt: 1, color: EDRO_GREEN }}>
+                            Atualizar QR Code
+                          </Button>
+                        </Box>
+                      </>
+                    ) : pendingQr ? (
+                      <Stack alignItems="center" spacing={1} sx={{ py: 2 }}>
+                        <CircularProgress size={32} sx={{ color: EDRO_GREEN }} />
+                        <Typography variant="caption" color="text.secondary">
+                          Aguardando QR Code do WhatsApp… pode levar até 90 segundos.
+                        </Typography>
+                      </Stack>
+                    ) : qrTimeout ? (
+                      <Stack alignItems="center" spacing={1.5} sx={{ py: 2 }}>
+                        <Alert severity="warning" sx={{ textAlign: 'left', width: '100%', maxWidth: 440 }}>
+                          <strong>QR Code não gerado.</strong> O servidor pode estar bloqueado pelo WhatsApp.
+                          Tente conectar pelo painel do Evolution API ou use um servidor com IP residencial.
+                        </Alert>
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            size="small"
+                            startIcon={<IconRefresh size={14} />}
+                            onClick={handleRefreshQr}
+                            sx={{ color: EDRO_GREEN }}
+                          >
+                            Tentar novamente
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<IconExternalLink size={14} />}
+                            href={MANAGER_URL}
+                            target="_blank"
+                            rel="noopener"
+                          >
+                            Abrir Evolution Manager
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    ) : null}
                   </Box>
                 )}
               </CardContent>

@@ -67,20 +67,22 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     try {
       await createInstance(tenantId);
-      const qr = await getQrCode(tenantId);
+      // Poll up to 20s so the instance has time to initiate Baileys connection
+      const qr = await getQrCode(tenantId, { pollSeconds: 20 });
       return reply.send({ success: true, qr });
     } catch (err: any) {
       return reply.code(500).send({ error: err.message });
     }
   });
 
-  // ── Get QR code (for reconnect) ────────────────────────────────────────
+  // ── Get QR code (polling endpoint for frontend) ────────────────────────
   app.get('/whatsapp-groups/qrcode', {
     preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
-      const qr = await getQrCode(tenantId);
+      // Poll up to 15s per request so the frontend can use long-polling
+      const qr = await getQrCode(tenantId, { pollSeconds: 15 });
       return reply.send({ success: true, qr });
     } catch (err: any) {
       return reply.code(500).send({ error: err.message });
