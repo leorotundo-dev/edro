@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import Alert from '@mui/material/Alert';
+import Autocomplete from '@mui/material/Autocomplete';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,9 +12,6 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Table from '@mui/material/Table';
@@ -21,10 +19,14 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import {
   IconBrandWhatsapp, IconRefresh, IconLink, IconLinkOff,
   IconQrcode, IconCircleCheck, IconCircleX, IconSettings, IconExternalLink,
+  IconBrain, IconUrgent, IconCheck,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 
@@ -45,9 +47,15 @@ type LinkedGroup = {
 };
 type Client = { id: string; name: string };
 
+type IntelSummary = {
+  stats: { total_insights: number; unactioned: number; urgent_unactioned: number; clients_with_insights: number };
+  urgent_items: { id: string; client_id: string; client_name?: string; summary: string; insight_type: string; created_at: string }[];
+};
+
 const MANAGER_URL = 'https://evolution-api-production-f05a.up.railway.app/manager';
 
 export default function WhatsAppGroupsClient() {
+  const [tab, setTab] = useState(0);
   const [status, setStatus] = useState<InstanceStatus | null>(null);
   const [qr, setQr] = useState<{ base64: string; code: string } | null>(null);
   const [linkedGroups, setLinkedGroups] = useState<LinkedGroup[]>([]);
@@ -60,6 +68,8 @@ export default function WhatsAppGroupsClient() {
   const [fetchingGroups, setFetchingGroups] = useState(false);
   const [error, setError] = useState('');
   const [linkMap, setLinkMap] = useState<Record<string, string>>({}); // groupJid → clientId
+  const [intelSummary, setIntelSummary] = useState<IntelSummary | null>(null);
+  const [intelLoading, setIntelLoading] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -70,8 +80,12 @@ export default function WhatsAppGroupsClient() {
         apiGet<{ data: Client[] }>('/clients?limit=100'),
       ]);
       setStatus(statusRes ?? null);
-      setLinkedGroups(groupsRes?.data ?? []);
-      setClients(clientsRes?.data ?? []);
+      setLinkedGroups(
+        (groupsRes?.data ?? []).slice().sort((a, b) => a.group_name.localeCompare(b.group_name, 'pt-BR')),
+      );
+      setClients(
+        (clientsRes?.data ?? []).slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+      );
     } finally {
       setLoading(false);
     }
@@ -146,7 +160,9 @@ export default function WhatsAppGroupsClient() {
     setError('');
     try {
       const res = await apiGet<{ data: AvailableGroup[] }>('/whatsapp-groups/available');
-      setAvailableGroups(res?.data ?? []);
+      setAvailableGroups(
+        (res?.data ?? []).slice().sort((a, b) => a.subject.localeCompare(b.subject, 'pt-BR')),
+      );
     } catch (e: any) {
       setError(e.message ?? 'Erro ao buscar grupos.');
     } finally {
@@ -175,6 +191,21 @@ export default function WhatsAppGroupsClient() {
     loadStatus();
   };
 
+  const loadIntelligence = useCallback(async () => {
+    setIntelLoading(true);
+    try {
+      const res = await apiGet<{ data: IntelSummary }>('/whatsapp-groups/intelligence/summary');
+      setIntelSummary(res?.data ?? null);
+    } finally {
+      setIntelLoading(false);
+    }
+  }, []);
+
+  const handleMarkActioned = async (insightId: string) => {
+    await apiPatch(`/whatsapp-groups/insights/${insightId}/action`, {});
+    loadIntelligence();
+  };
+
   const connected = status?.live?.state === 'open' || status?.instance?.status === 'connected';
 
   return (
@@ -192,9 +223,101 @@ export default function WhatsAppGroupsClient() {
           </Box>
         </Stack>
 
+        <Tabs
+          value={tab}
+          onChange={(_, v) => {
+            setTab(v);
+            if (v === 1 && !intelSummary) loadIntelligence();
+          }}
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Grupos" icon={<IconBrandWhatsapp size={16} />} iconPosition="start" sx={{ minHeight: 42 }} />
+          <Tab label="Intelligence" icon={<IconBrain size={16} />} iconPosition="start" sx={{ minHeight: 42 }} />
+        </Tabs>
+
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
-        {loading ? (
+        {/* ─── Tab 1: Intelligence ─── */}
+        {tab === 1 && (
+          <Box>
+            {intelLoading ? (
+              <Stack alignItems="center" sx={{ py: 6 }}>
+                <CircularProgress size={28} sx={{ color: EDRO_GREEN }} />
+              </Stack>
+            ) : !intelSummary ? (
+              <Alert severity="info">Nenhum dado de inteligência disponível ainda.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {/* Stats cards */}
+                <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                  {[
+                    { label: 'Insights (30d)', value: intelSummary.stats.total_insights, color: '#5D87FF' },
+                    { label: 'Pendentes', value: intelSummary.stats.unactioned, color: '#ffb547' },
+                    { label: 'Urgentes', value: intelSummary.stats.urgent_unactioned, color: '#ef4444' },
+                    { label: 'Clientes ativos', value: intelSummary.stats.clients_with_insights, color: EDRO_GREEN },
+                  ].map(s => (
+                    <Card key={s.label} variant="outlined" sx={{ flex: '1 1 140px', minWidth: 140 }}>
+                      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                        <Typography variant="caption" color="text.secondary">{s.label}</Typography>
+                        <Typography variant="h5" fontWeight={700} sx={{ color: s.color }}>{s.value}</Typography>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+
+                {/* Urgent items */}
+                {intelSummary.urgent_items.length > 0 && (
+                  <Card variant="outlined" sx={{ borderColor: '#ef4444' }}>
+                    <CardContent>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                        <IconUrgent size={18} style={{ color: '#ef4444' }} />
+                        <Typography variant="subtitle2" fontWeight={700} color="error">
+                          Itens Urgentes ({intelSummary.urgent_items.length})
+                        </Typography>
+                      </Stack>
+                      <Stack spacing={1}>
+                        {intelSummary.urgent_items.map(item => (
+                          <Stack key={item.id} direction="row" alignItems="center" spacing={1.5}
+                            sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'error.main', color: 'white', opacity: 0.9 }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.82rem' }}>
+                                {item.client_name || item.client_id}
+                              </Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                                {item.summary}
+                              </Typography>
+                            </Box>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<IconCheck size={14} />}
+                              onClick={() => handleMarkActioned(item.id)}
+                              sx={{ color: 'white', borderColor: 'rgba(255,255,255,.5)', whiteSpace: 'nowrap', fontSize: '0.7rem' }}
+                            >
+                              Resolver
+                            </Button>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Button
+                  size="small"
+                  startIcon={<IconRefresh size={14} />}
+                  onClick={loadIntelligence}
+                  sx={{ color: EDRO_GREEN, alignSelf: 'flex-start' }}
+                >
+                  Atualizar
+                </Button>
+              </Stack>
+            )}
+          </Box>
+        )}
+
+        {/* ─── Tab 0: Groups (original content) ─── */}
+        {tab === 0 && (loading ? (
           <Stack alignItems="center" sx={{ py: 6 }}>
             <CircularProgress size={28} sx={{ color: EDRO_GREEN }} />
           </Stack>
@@ -407,18 +530,18 @@ export default function WhatsAppGroupsClient() {
                             <Chip label="Vinculado" size="small" color="success" sx={{ fontSize: '0.65rem' }} />
                           ) : (
                             <Stack direction="row" spacing={1} alignItems="center">
-                              <Select
+                              <Autocomplete
                                 size="small"
-                                displayEmpty
-                                value={linkMap[g.id] ?? ''}
-                                onChange={e => setLinkMap(prev => ({ ...prev, [g.id]: e.target.value }))}
-                                sx={{ minWidth: 180, fontSize: '0.78rem', '& .MuiSelect-select': { py: 0.5 } }}
-                              >
-                                <MenuItem value="" disabled><em>Selecione cliente</em></MenuItem>
-                                {clients.map(c => (
-                                  <MenuItem key={c.id} value={c.id} sx={{ fontSize: '0.78rem' }}>{c.name}</MenuItem>
-                                ))}
-                              </Select>
+                                options={clients}
+                                getOptionLabel={(c) => c.name}
+                                value={clients.find(c => c.id === linkMap[g.id]) ?? null}
+                                onChange={(_, val) => setLinkMap(prev => ({ ...prev, [g.id]: val?.id ?? '' }))}
+                                renderInput={(params) => (
+                                  <TextField {...params} placeholder="Selecione cliente" sx={{ '& .MuiInputBase-input': { fontSize: '0.78rem' } }} />
+                                )}
+                                sx={{ minWidth: 220 }}
+                                noOptionsText="Nenhum cliente"
+                              />
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -465,7 +588,7 @@ export default function WhatsAppGroupsClient() {
               </CardContent>
             </Card>
           </>
-        )}
+        ))}
       </Box>
     </AppShell>
   );

@@ -1259,9 +1259,13 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
       await createLoginCode({ email: normalized, codeHash, expiresAt });
 
-      const portalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL
-        ? `${process.env.NEXT_PUBLIC_CLIENTE_URL.replace(/\/$/, '')}/login`
-        : '/cliente/login';
+      const webUrl = process.env.WEB_URL?.replace(/\/$/, '');
+      const directPortalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL?.replace(/\/$/, '');
+      const portalUrl = webUrl
+        ? `${webUrl}/cliente/login`
+        : directPortalUrl
+          ? `${directPortalUrl}/login`
+          : '/cliente/login';
 
       await sendEmail({
         to: normalized,

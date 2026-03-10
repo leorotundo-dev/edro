@@ -75,6 +75,19 @@ export type IntelligenceContext = {
     content: string;
     citations: string[];
   } | null;
+  group_intelligence: {
+    recent_insights: { type: string; summary: string; sentiment: string; urgency: string; date: string }[];
+    unactioned_count: number;
+    latest_digest: string | null;
+    top_topics: string[];
+    client_sentiment_trend: string; // improving | stable | declining
+  } | null;
+  meeting_intelligence: {
+    recent_meetings: { title: string; summary: string; platform: string; recorded_at: string; action_count: number }[];
+    pending_actions: { type: string; title: string; description: string; responsible: string; deadline: string | null; priority: string; excerpt: string }[];
+    total_meetings: number;
+    total_pending_actions: number;
+  } | null;
 };
 
 /**
@@ -104,6 +117,9 @@ export async function buildIntelligenceContext(params: {
     clientInsightData,
     learnedPrefsData,
     predictiveTimesData,
+    groupInsightsData,
+    meetingSummariesData,
+    meetingActionsData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -239,6 +255,43 @@ export async function buildIntelligenceContext(params: {
       LIMIT 10
     `, [params.tenant_id, params.client_id]),
 
+    // WhatsApp group intelligence insights (últimos 30 dias)
+    query(`
+      SELECT insight_type, summary, sentiment, urgency, actioned, created_at
+      FROM whatsapp_message_insights
+      WHERE client_id = $1 AND tenant_id = $2
+        AND created_at > NOW() - INTERVAL '30 days'
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [params.client_id, params.tenant_id]),
+
+    // Meeting summaries (últimos 90 dias)
+    query(`
+      SELECT m.title, m.summary, m.platform, m.recorded_at, m.status,
+        (SELECT COUNT(*) FROM meeting_actions ma WHERE ma.meeting_id = m.id) AS action_count
+      FROM meetings m
+      WHERE m.client_id = $1 AND m.tenant_id = $2
+        AND m.status IN ('analyzed', 'approved', 'archived')
+        AND m.recorded_at > NOW() - INTERVAL '90 days'
+      ORDER BY m.recorded_at DESC
+      LIMIT 10
+    `, [params.client_id, params.tenant_id]),
+
+    // Pending meeting actions
+    query(`
+      SELECT ma.type, ma.title, ma.description, ma.responsible, ma.deadline,
+             ma.priority, ma.raw_excerpt, ma.status, mt.title AS meeting_title
+      FROM meeting_actions ma
+      JOIN meetings mt ON mt.id = ma.meeting_id
+      WHERE ma.client_id = $1 AND ma.tenant_id = $2
+        AND ma.created_at > NOW() - INTERVAL '90 days'
+      ORDER BY
+        CASE ma.status WHEN 'pending' THEN 0 ELSE 1 END,
+        CASE ma.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+        ma.created_at DESC
+      LIMIT 20
+    `, [params.client_id, params.tenant_id]),
+
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -261,6 +314,9 @@ export async function buildIntelligenceContext(params: {
   const latestInsight = clientInsightData.status === 'fulfilled' ? clientInsightData.value : null;
   const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
   const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
+  const groupInsights = groupInsightsData.status === 'fulfilled' ? groupInsightsData.value.rows : [];
+  const meetingSummaries = meetingSummariesData.status === 'fulfilled' ? meetingSummariesData.value.rows : [];
+  const meetingActions = meetingActionsData.status === 'fulfilled' ? meetingActionsData.value.rows : [];
 
   // Tavily trending: fetch now that we have client keywords (fire-and-forget with timeout)
   let webTrends: { content: string; citations: string[] } | null = null;
@@ -380,6 +436,10 @@ export async function buildIntelligenceContext(params: {
       content_mix: [],
     } : null,
     web_trends: webTrends,
+    group_intelligence: groupInsights.length > 0 ? buildGroupIntelligence(groupInsights) : null,
+    meeting_intelligence: (meetingSummaries.length > 0 || meetingActions.length > 0)
+      ? buildMeetingIntelligence(meetingSummaries, meetingActions)
+      : null,
   };
 
   // Token validation: estimate tokens and truncate if needed
@@ -514,6 +574,50 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
     }
   }
 
+  // WhatsApp Group Intelligence
+  if (context.group_intelligence) {
+    const gi = context.group_intelligence;
+    sections.push(`\n# INTELIGENCIA DE GRUPO WHATSAPP`);
+    sections.push(`Sentimento geral: ${gi.client_sentiment_trend} | ${gi.unactioned_count} itens pendentes de ação`);
+    if (gi.top_topics.length) {
+      sections.push(`Tópicos recorrentes: ${gi.top_topics.join(', ')}`);
+    }
+    if (gi.recent_insights.length) {
+      sections.push(`## Insights Recentes:`);
+      gi.recent_insights.forEach((insight) => {
+        const urgencyTag = insight.urgency === 'urgent' ? ' [URGENTE]' : '';
+        sections.push(`- [${insight.type}] ${insight.summary} (${insight.sentiment})${urgencyTag}`);
+      });
+    }
+    if (gi.latest_digest) {
+      sections.push(`## Resumo Semanal:\n${gi.latest_digest}`);
+    }
+  }
+
+  // Meeting Intelligence
+  if (context.meeting_intelligence) {
+    const mi = context.meeting_intelligence;
+    sections.push(`\n# INTELIGÊNCIA DE REUNIÕES (${mi.total_meetings} reuniões recentes)`);
+    if (mi.recent_meetings.length) {
+      sections.push(`## Reuniões Recentes:`);
+      mi.recent_meetings.forEach((m) => {
+        const date = m.recorded_at ? new Date(m.recorded_at).toLocaleDateString('pt-BR') : '';
+        sections.push(`- ${date} [${m.platform}] "${m.title}" (${m.action_count} ações)`);
+        if (m.summary) sections.push(`  Resumo: ${m.summary}`);
+      });
+    }
+    if (mi.pending_actions.length) {
+      sections.push(`## Ações Pendentes de Reuniões (${mi.total_pending_actions}):`);
+      mi.pending_actions.forEach((a) => {
+        const deadlineStr = a.deadline ? ` — prazo: ${new Date(a.deadline).toLocaleDateString('pt-BR')}` : '';
+        const responsibleStr = a.responsible ? ` (resp: ${a.responsible})` : '';
+        sections.push(`- [${a.type}] ${a.title}${responsibleStr}${deadlineStr} [${a.priority}]`);
+        if (a.description) sections.push(`  ${a.description}`);
+        if (a.excerpt) sections.push(`  Trecho: "${a.excerpt}"`);
+      });
+    }
+  }
+
   // Performance insights
   if (Object.keys(context.performance.platforms).length > 0) {
     sections.push(`\n# PERFORMANCE (últimos 60 dias)`);
@@ -593,6 +697,74 @@ function extractAnglesFromCopies(copies: any[]): string[] {
     .map((c) => c.output.slice(0, 50).trim())
     .filter((angle, idx, arr) => arr.indexOf(angle) === idx)
     .slice(0, 20);
+}
+
+function buildGroupIntelligence(insights: any[]): IntelligenceContext['group_intelligence'] {
+  const recent = insights.slice(0, 15).map((i: any) => ({
+    type: i.insight_type,
+    summary: i.summary,
+    sentiment: i.sentiment || 'neutral',
+    urgency: i.urgency || 'normal',
+    date: i.created_at ? new Date(i.created_at).toISOString() : '',
+  }));
+
+  const unactioned = insights.filter((i: any) => !i.actioned).length;
+
+  // Extract top topics from all insights
+  const topicCount: Record<string, number> = {};
+  for (const i of insights) {
+    const entities = typeof i.entities === 'string' ? JSON.parse(i.entities) : i.entities;
+    const topics: string[] = entities?.topics || [];
+    for (const t of topics) {
+      topicCount[t] = (topicCount[t] || 0) + 1;
+    }
+  }
+  const topTopics = Object.entries(topicCount)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([topic]) => topic);
+
+  // Sentiment trend: compare first half vs second half
+  const mid = Math.floor(insights.length / 2);
+  const sentimentScore = (s: string) => s === 'positive' ? 1 : s === 'negative' ? -1 : 0;
+  const recentAvg = insights.slice(0, mid).reduce((sum: number, i: any) => sum + sentimentScore(i.sentiment), 0) / (mid || 1);
+  const olderAvg = insights.slice(mid).reduce((sum: number, i: any) => sum + sentimentScore(i.sentiment), 0) / ((insights.length - mid) || 1);
+  const trend = recentAvg > olderAvg + 0.2 ? 'improving' : recentAvg < olderAvg - 0.2 ? 'declining' : 'stable';
+
+  return {
+    recent_insights: recent,
+    unactioned_count: unactioned,
+    latest_digest: null, // populated by Phase 2 digest worker
+    top_topics: topTopics,
+    client_sentiment_trend: trend,
+  };
+}
+
+function buildMeetingIntelligence(
+  meetings: any[],
+  actions: any[],
+): IntelligenceContext['meeting_intelligence'] {
+  const pendingActions = actions.filter((a: any) => a.status === 'pending');
+  return {
+    recent_meetings: meetings.slice(0, 8).map((m: any) => ({
+      title: m.title,
+      summary: (m.summary || '').slice(0, 500),
+      platform: m.platform || 'upload',
+      recorded_at: m.recorded_at ? new Date(m.recorded_at).toISOString() : '',
+      action_count: Number(m.action_count) || 0,
+    })),
+    pending_actions: pendingActions.slice(0, 10).map((a: any) => ({
+      type: a.type,
+      title: a.title,
+      description: (a.description || '').slice(0, 300),
+      responsible: a.responsible || '',
+      deadline: a.deadline || null,
+      priority: a.priority || 'medium',
+      excerpt: (a.raw_excerpt || '').slice(0, 200),
+    })),
+    total_meetings: meetings.length,
+    total_pending_actions: pendingActions.length,
+  };
 }
 
 function estimateContextTokens(context: IntelligenceContext): number {

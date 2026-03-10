@@ -22,6 +22,8 @@ import { runCopyRoiWorkerOnce } from './copyRoiWorker';
 import { runAccountManagerWorkerOnce } from './accountManagerWorker';
 import { runMeetBotWorkerOnce } from './meetBotWorker';
 import { runWatchRenewWorkerOnce } from './watchRenewWorker';
+import { runGroupIntelligenceWorkerOnce } from './groupIntelligenceWorker';
+import { runGroupDigestWorkerOnce } from './groupDigestWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -104,4 +106,8 @@ export function startJobsRunner() {
   startWorkerLoop('meetBot', runMeetBotWorkerOnce, 11000, 120_000);
   // Gmail + Calendar watch auto-renewal — runs 1×/day, prevents silent expiry after 6-7 days
   startWorkerLoop('watchRenew', runWatchRenewWorkerOnce, 11500, 60_000);
+  // WhatsApp group intelligence — extracts insights from unprocessed messages (max 5 clients/tick)
+  startWorkerLoop('groupIntelligence', runGroupIntelligenceWorkerOnce, 12000, 120_000);
+  // WhatsApp group digests — daily at 08:00 BRT, weekly on Mondays
+  startWorkerLoop('groupDigest', runGroupDigestWorkerOnce, 12500, 120_000);
 }

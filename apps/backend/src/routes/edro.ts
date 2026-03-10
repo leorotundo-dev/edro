@@ -1253,12 +1253,13 @@ export default async function edroRoutes(app: FastifyInstance) {
         const c = clientRes.rows[0];
         if (c?.whatsapp_phone) {
           const { notifyEvent } = await import('../services/notificationService');
+          const clientPortalUrl = `${(env.WEB_URL || 'https://app.edro.digital').replace(/\/$/, '')}/cliente`;
           await notifyEvent({
             event: 'approval.requested',
             tenantId: c.tenant_id,
             userId: '',
             title: `Nova peça para aprovação: ${updated.title}`,
-            body: `Acesse edro.digital/cliente para revisar e aprovar.`,
+            body: `Acesse ${clientPortalUrl} para revisar e aprovar.`,
             recipientPhone: c.whatsapp_phone,
             payload: { briefingId: updated.id },
           }).catch(() => {});

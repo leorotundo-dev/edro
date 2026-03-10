@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
+import clsx from 'clsx';
 
 type Job = {
   id: string;
@@ -13,62 +14,58 @@ type Job = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  briefing:    'Briefing',
-  iclips_in:   'iClips Entrada',
+  briefing: 'Briefing',
+  iclips_in: 'iClips entrada',
   alinhamento: 'Alinhamento',
-  copy_ia:     'Copy IA',
-  aprovacao:   'Aprovação',
-  producao:    'Produção',
-  revisao:     'Revisão',
-  iclips_out:  'iClips Saída',
-  done:        'Concluído',
+  copy_ia: 'Copy IA',
+  aprovacao: 'Aprovacao',
+  producao: 'Producao',
+  revisao: 'Revisao',
+  iclips_out: 'iClips saida',
+  done: 'Concluido',
 };
 
-export default function JobsPage() {
-  // The portal /me endpoint doesn't return briefings — we'd need a dedicated endpoint.
-  // For now, show a helpful message until backend has GET /freelancers/portal/me/jobs.
-  const { data, isLoading } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
+function statusTone(status: string) {
+  if (status === 'done') return 'portal-pill-success';
+  if (status === 'aprovacao' || status === 'revisao') return 'portal-pill-warning';
+  if (status === 'producao' || status === 'copy_ia') return 'portal-pill-accent';
+  return 'portal-pill-neutral';
+}
 
+export default function JobsPage() {
+  const { data, isLoading } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
   const jobs = data?.jobs ?? [];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-800">Jobs</h1>
+    <div className="portal-page">
+      <div>
+        <span className="portal-kicker">Execucao</span>
+        <h2 className="portal-page-title">Jobs atribuidos</h2>
+        <p className="portal-page-subtitle">Itens em que voce esta alocado, com contexto de cliente, prazo e status de etapa.</p>
+      </div>
 
-      {isLoading ? (
-        <p className="text-slate-400 text-sm">Carregando...</p>
-      ) : !jobs.length ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-          <p className="text-slate-400 text-sm">Nenhum job atribuído a você.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {jobs.map((job) => (
-            <Link
-              key={job.id}
-              href={`/jobs/${job.id}`}
-              className="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-800 text-sm truncate">{job.title}</p>
-                  {job.client_name && (
-                    <p className="text-xs text-slate-500 mt-0.5">{job.client_name}</p>
-                  )}
+      <section className="portal-card">
+        {isLoading ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Carregando jobs</p><p className="portal-card-subtitle">Sincronizando atribuicoes.</p></div></div>
+        ) : !jobs.length ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Nenhum job atribuido</p><p className="portal-card-subtitle">Quando o backend expor atribuicoes para sua conta, a lista aparece aqui.</p></div></div>
+        ) : (
+          <div className="portal-list">
+            {jobs.map((job) => (
+              <Link key={job.id} href={`/jobs/${job.id}`} className="portal-list-card">
+                <div className="portal-list-row">
+                  <div>
+                    <p className="portal-card-title">{job.title}</p>
+                    <p className="portal-card-subtitle">{job.client_name ?? 'Cliente nao informado'}</p>
+                    {job.due_at && <p className="portal-card-subtitle">Entrega em {new Date(job.due_at).toLocaleDateString('pt-BR')}</p>}
+                  </div>
+                  <span className={clsx('portal-pill', statusTone(job.status))}>{STATUS_LABELS[job.status] ?? job.status}</span>
                 </div>
-                <span className="shrink-0 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                  {STATUS_LABELS[job.status] ?? job.status}
-                </span>
-              </div>
-              {job.due_at && (
-                <p className="text-xs text-slate-400 mt-2">
-                  Entrega: {new Date(job.due_at).toLocaleDateString('pt-BR')}
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

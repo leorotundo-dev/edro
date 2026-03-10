@@ -228,4 +228,138 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     );
     return reply.send({ success: true, data: rows });
   });
+
+  // ── Intelligence: insights for a client ─────────────────────────────────
+  app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/insights', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const qs = request.query as any;
+    const page = Math.max(1, Number(qs.page) || 1);
+    const limit = Math.min(50, Number(qs.limit) || 20);
+    const offset = (page - 1) * limit;
+
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+      query(
+        `SELECT i.*, m.sender_name, m.content AS message_content
+         FROM whatsapp_message_insights i
+         JOIN whatsapp_group_messages m ON m.id = i.message_id
+         WHERE i.client_id = $1 AND i.tenant_id = $2
+         ORDER BY i.created_at DESC
+         LIMIT $3 OFFSET $4`,
+        [request.params.clientId, tenantId, limit, offset],
+      ),
+      query(
+        `SELECT COUNT(*) AS total FROM whatsapp_message_insights
+         WHERE client_id = $1 AND tenant_id = $2`,
+        [request.params.clientId, tenantId],
+      ),
+    ]);
+
+    return reply.send({ success: true, data: rows, total: Number(countRows[0]?.total || 0), page, limit });
+  });
+
+  // ── Intelligence: digests for a client ──────────────────────────────────
+  app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/digests', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const { rows } = await query(
+      `SELECT * FROM whatsapp_group_digests
+       WHERE client_id = $1 AND tenant_id = $2
+       ORDER BY period_start DESC
+       LIMIT 20`,
+      [request.params.clientId, tenantId],
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
+  // ── Intelligence: timeline (messages + insights merged) ─────────────────
+  app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/timeline', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const limit = Math.min(100, Number((request.query as any).limit) || 50);
+
+    const { rows } = await query(
+      `SELECT
+         m.id, m.sender_name, m.type, m.content, m.created_at,
+         m.insight_extracted,
+         wg.group_name,
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'id', i.id,
+               'insight_type', i.insight_type,
+               'summary', i.summary,
+               'sentiment', i.sentiment,
+               'urgency', i.urgency,
+               'actioned', i.actioned
+             )
+           ) FILTER (WHERE i.id IS NOT NULL),
+           '[]'
+         ) AS insights
+       FROM whatsapp_group_messages m
+       JOIN whatsapp_groups wg ON wg.id = m.group_id
+       LEFT JOIN whatsapp_message_insights i ON i.message_id = m.id
+       WHERE m.client_id = $1 AND m.tenant_id = $2
+       GROUP BY m.id, wg.group_name
+       ORDER BY m.created_at DESC
+       LIMIT $3`,
+      [request.params.clientId, tenantId, limit],
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
+  // ── Intelligence: summary across all clients ────────────────────────────
+  app.get('/whatsapp-groups/intelligence/summary', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+
+    const [{ rows: stats }, { rows: urgent }] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*) AS total_insights,
+           COUNT(*) FILTER (WHERE NOT actioned) AS unactioned,
+           COUNT(*) FILTER (WHERE urgency = 'urgent' AND NOT actioned) AS urgent_unactioned,
+           COUNT(DISTINCT client_id) AS clients_with_insights
+         FROM whatsapp_message_insights
+         WHERE tenant_id = $1
+           AND created_at > NOW() - INTERVAL '30 days'`,
+        [tenantId],
+      ),
+      query(
+        `SELECT i.*, c.name AS client_name
+         FROM whatsapp_message_insights i
+         LEFT JOIN clients c ON c.id = i.client_id
+         WHERE i.tenant_id = $1
+           AND i.urgency = 'urgent'
+           AND i.actioned = false
+         ORDER BY i.created_at DESC
+         LIMIT 10`,
+        [tenantId],
+      ),
+    ]);
+
+    return reply.send({
+      success: true,
+      data: {
+        stats: stats[0] || {},
+        urgent_items: urgent,
+      },
+    });
+  });
+
+  // ── Mark insight as actioned ────────────────────────────────────────────
+  app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/action', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    await query(
+      `UPDATE whatsapp_message_insights SET actioned = true WHERE id = $1 AND tenant_id = $2`,
+      [request.params.insightId, tenantId],
+    );
+    return reply.send({ success: true });
+  });
 }

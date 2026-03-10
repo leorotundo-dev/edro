@@ -15,6 +15,7 @@ import { instanceName } from '../services/integrations/evolutionApiService';
 import { env } from '../env';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
+const URGENT_KEYWORDS = /\b(urgente|deadline|amanhã|hoje|cancelar|problema|erro|bug|reclamação|atraso|emergência|prazo)\b/i;
 const MIN_TEXT_LENGTH = 10;
 
 export default async function webhookEvolutionRoutes(app: FastifyInstance) {
@@ -124,13 +125,19 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
   const { type, content, mediaUrl } = await extractContent(msg, tenantId);
   if (!content && !mediaUrl) return;
 
+  // Extract reply context (quoted message stanzaId)
+  const message = msg.message ?? {};
+  const replyToWaId = message.extendedTextMessage?.contextInfo?.stanzaId
+    ?? message.ephemeralMessage?.message?.extendedTextMessage?.contextInfo?.stanzaId
+    ?? null;
+
   // Save message
   await query(
     `INSERT INTO whatsapp_group_messages
-       (tenant_id, group_id, client_id, wa_message_id, sender_jid, sender_name, type, content, media_url, processed)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)
+       (tenant_id, group_id, client_id, wa_message_id, sender_jid, sender_name, type, content, media_url, processed, reply_to_wa_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10)
      ON CONFLICT (wa_message_id) DO NOTHING`,
-    [tenantId, group.id, group.client_id ?? null, waMessageId, senderJid, senderName, type, content ?? null, mediaUrl ?? null],
+    [tenantId, group.id, group.client_id ?? null, waMessageId, senderJid, senderName, type, content ?? null, mediaUrl ?? null, replyToWaId],
   );
 
   // Update group last_message_at
@@ -140,14 +147,23 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
 
   if (!group.client_id) return; // not linked to a client — just store
 
+  // Urgent fast-path: detect urgent keywords and insert insight immediately (no worker delay)
+  if (group.notify_jarvis && type === 'text' && content && URGENT_KEYWORDS.test(content) && content.length >= MIN_TEXT_LENGTH) {
+    await insertUrgentInsight(tenantId, group.client_id, waMessageId, senderName, content).catch(() => {});
+  }
+
   // Auto-briefing: if message looks like a content request
   if (group.auto_briefing && type === 'text' && content && BRIEFING_TRIGGER.test(content) && content.length >= MIN_TEXT_LENGTH) {
+    // Fetch thread context (previous messages in the group for richer briefings)
+    const threadContext = await getThreadContext(group.id, tenantId).catch(() => '');
+
     await autoCreateBriefingFromMessage({
       tenantId,
       clientId: group.client_id,
       senderName,
       content,
       groupMessageId: waMessageId,
+      threadContext,
     }).catch(() => {});
   }
 }
@@ -221,8 +237,23 @@ async function transcribeEvolutionAudio(msg: any, tenantId: string): Promise<str
 
 // ── Auto-briefing from message ────────────────────────────────────────────
 
+// ── Thread context for richer briefings ───────────────────────────────────
+
+async function getThreadContext(groupId: string, tenantId: string): Promise<string> {
+  const { rows } = await query(
+    `SELECT sender_name, content
+     FROM whatsapp_group_messages
+     WHERE group_id = $1 AND tenant_id = $2 AND content IS NOT NULL
+     ORDER BY created_at DESC
+     LIMIT 5`,
+    [groupId, tenantId],
+  );
+  if (rows.length <= 1) return '';
+  return rows.reverse().map((r: any) => `${r.sender_name}: ${(r.content || '').slice(0, 200)}`).join('\n');
+}
+
 const BRIEFING_EXTRACT_PROMPT = `Você é um assistente de agência. A mensagem abaixo foi enviada por um cliente em um grupo de WhatsApp.
-Extraia um briefing conciso a partir dessa mensagem.
+Extraia um briefing conciso a partir dessa mensagem e do contexto da conversa.
 Retorne APENAS JSON: { "title": "...", "objective": "...", "notes": "..." }
 Se não houver solicitação clara de conteúdo, retorne { "skip": true }.`;
 
@@ -232,11 +263,13 @@ async function autoCreateBriefingFromMessage(params: {
   senderName: string;
   content: string;
   groupMessageId: string;
+  threadContext?: string;
 }) {
-  const { tenantId, clientId, senderName, content, groupMessageId } = params;
+  const { tenantId, clientId, senderName, content, groupMessageId, threadContext } = params;
 
+  const contextBlock = threadContext ? `\n\nContexto da conversa recente:\n${threadContext}\n` : '';
   const result = await generateCompletion({
-    prompt: `Mensagem de ${senderName}:\n"${content}"`,
+    prompt: `${contextBlock}Mensagem de ${senderName}:\n"${content}"`,
     systemPrompt: BRIEFING_EXTRACT_PROMPT,
     temperature: 0.1,
     maxTokens: 512,
@@ -256,7 +289,7 @@ async function autoCreateBriefingFromMessage(params: {
 
   const { createBriefing } = await import('../repositories/edroBriefingRepository');
   const briefing = await createBriefing({
-    client_id: edroRows[0].id,
+    clientId: edroRows[0].id,
     title: parsed.title,
     status: 'draft',
     payload: {
@@ -266,12 +299,49 @@ async function autoCreateBriefingFromMessage(params: {
       wa_message_id: groupMessageId,
       sender: senderName,
     },
-    created_by: 'jarvis-whatsapp',
+    createdBy: 'jarvis-whatsapp',
   });
 
   // Link briefing to message
   await query(
     `UPDATE whatsapp_group_messages SET briefing_id = $1, processed = true WHERE wa_message_id = $2`,
     [briefing.id, groupMessageId],
+  );
+}
+
+// ── Urgent insight fast-path ──────────────────────────────────────────────
+
+async function insertUrgentInsight(
+  tenantId: string,
+  clientId: string,
+  waMessageId: string,
+  senderName: string,
+  content: string,
+) {
+  // Resolve message UUID from wa_message_id
+  const { rows } = await query(
+    `SELECT id FROM whatsapp_group_messages WHERE wa_message_id = $1`,
+    [waMessageId],
+  );
+  if (!rows.length) return;
+
+  await query(
+    `INSERT INTO whatsapp_message_insights
+       (tenant_id, client_id, message_id, insight_type, summary, sentiment, urgency, entities, confidence)
+     VALUES ($1, $2, $3, 'request', $4, 'neutral', 'urgent', $5, 0.9)
+     ON CONFLICT DO NOTHING`,
+    [
+      tenantId,
+      clientId,
+      rows[0].id,
+      `[URGENTE] ${senderName}: ${content.slice(0, 300)}`,
+      JSON.stringify({ people: [senderName], topics: [] }),
+    ],
+  );
+
+  // Mark as insight_extracted so the worker doesn't re-process
+  await query(
+    `UPDATE whatsapp_group_messages SET insight_extracted = true WHERE id = $1`,
+    [rows[0].id],
   );
 }

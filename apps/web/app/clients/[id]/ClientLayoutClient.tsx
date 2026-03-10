@@ -434,7 +434,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
           ) : (
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Digite o e-mail do contato do cliente. Ele receberá um código de acesso ao Portal do Cliente em <strong>edro.digital/cliente</strong>.
+                Digite o e-mail do contato do cliente. Ele receberá um código de acesso ao Portal do Cliente da Edro.
               </Typography>
               <TextField
                 label="E-mail do cliente"

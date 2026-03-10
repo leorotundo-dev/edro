@@ -5,12 +5,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 
 // Railway auto-injects RAILWAY_SERVICE_*_URL for inter-service networking
+const isProd = process.env.NODE_ENV === 'production';
 const CLIENTE_URL = process.env.RAILWAY_SERVICE_EDRO_WEB_CLIENTE_URL
   ?? process.env.NEXT_PUBLIC_CLIENTE_URL
-  ?? 'http://localhost:3445';
+  ?? (isProd ? 'https://edro-web-cliente-production.up.railway.app' : 'http://localhost:3445');
 const FREELANCER_URL = process.env.RAILWAY_SERVICE_EDRO_WEB_FREELANCER_URL
   ?? process.env.NEXT_PUBLIC_FREELANCER_URL
-  ?? 'http://localhost:3444';
+  ?? (isProd ? 'https://edro-web-freelancer-production.up.railway.app' : 'http://localhost:3444');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -26,12 +27,20 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/cliente',
+        destination: `${CLIENTE_URL}`,
+      },
+      {
         source: '/cliente/:path*',
-        destination: `${CLIENTE_URL}/cliente/:path*`,
+        destination: `${CLIENTE_URL}/:path*`,
+      },
+      {
+        source: '/freelancer',
+        destination: `${FREELANCER_URL}`,
       },
       {
         source: '/freelancer/:path*',
-        destination: `${FREELANCER_URL}/freelancer/:path*`,
+        destination: `${FREELANCER_URL}/:path*`,
       },
     ];
   },

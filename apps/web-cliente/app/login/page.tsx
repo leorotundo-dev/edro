@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import { setToken, apiPost } from '@/lib/api';
 
+const FEATURES = [
+  'Aprovacoes centralizadas',
+  'Projetos em tempo real',
+  'Relatorios e faturas',
+  'Contexto direto com a agencia',
+];
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -33,76 +40,105 @@ export default function LoginPage() {
       setToken(data.token);
       window.location.href = '/';
     } catch (err: any) {
-      setError(err.message ?? 'Token inválido ou expirado');
+      setError(err.message ?? 'Token invalido ou expirado');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-slate-800">Portal do Cliente</h1>
-          <p className="text-sm text-slate-500 mt-1">Edro Digital</p>
+    <div className="portal-login">
+      <section className="portal-login-hero">
+        <div className="portal-brand-lockup">
+          <div className="portal-brand-mark" aria-hidden="true" />
+          <div className="portal-brand-copy">
+            <span className="portal-brand-label">Edro Studio</span>
+            <h1 className="portal-brand-title">Portal do Cliente</h1>
+            <p className="portal-brand-subtitle">
+              A mesma linguagem visual do Edro Web, agora aplicada ao acesso do cliente.
+            </p>
+          </div>
         </div>
 
-        {!sent ? (
-          <form onSubmit={handleRequestLink} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Enviando...' : 'Enviar link de acesso'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerify} className="space-y-4">
-            <p className="text-sm text-slate-600 text-center">
-              Verifique seu e-mail e cole o código de acesso abaixo.
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Código</label>
-              <input
-                type="text"
-                required
-                value={token}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Cole o código aqui"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Verificando...' : 'Entrar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSent(false)}
-              className="w-full text-slate-400 text-xs hover:text-slate-600"
-            >
-              Reenviar link
-            </button>
-          </form>
-        )}
-      </div>
+        <div className="portal-login-display">
+          <span className="portal-kicker">Workspace cliente</span>
+          <h2 className="portal-login-title">
+            Sua agencia, seus materiais e suas aprovacoes em um unico <em>painel</em>.
+          </h2>
+          <p className="portal-login-copy">
+            Entre com seu email para acompanhar jobs, aprovar entregas, consultar relatorios e revisar faturamento sem depender de troca manual por WhatsApp ou email.
+          </p>
+
+          <div className="portal-login-features">
+            {FEATURES.map((feature) => (
+              <span key={feature} className="portal-login-pill">{feature}</span>
+            ))}
+          </div>
+        </div>
+
+        <p className="portal-brand-subtitle">Edro.Digital · operacao orientada por contexto</p>
+      </section>
+
+      <aside className="portal-login-side">
+        <div className="portal-login-card">
+          <span className="portal-kicker">Acesso seguro</span>
+          <h2>{sent ? 'Validar codigo' : 'Entrar no portal'}</h2>
+          <p>
+            {sent
+              ? 'Use o codigo enviado para seu email para concluir a autenticacao.'
+              : 'Digite o email autorizado para receber o link de acesso.'}
+          </p>
+
+          {error && <div className="portal-alert portal-alert-error">{error}</div>}
+
+          {!sent ? (
+            <form onSubmit={handleRequestLink} className="portal-login-form">
+              <div>
+                <label className="portal-field-label" htmlFor="client-email">Email</label>
+                <input
+                  id="client-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="voce@empresa.com"
+                  className="portal-input"
+                />
+              </div>
+
+              <button type="submit" disabled={loading} className="portal-button">
+                {loading ? 'Enviando acesso...' : 'Enviar link de acesso'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerify} className="portal-login-form">
+              <div className="portal-note">
+                Verifique o email <strong style={{ color: '#fff' }}>{email}</strong> e cole o codigo abaixo.
+              </div>
+
+              <div>
+                <label className="portal-field-label" htmlFor="client-code">Codigo</label>
+                <input
+                  id="client-code"
+                  type="text"
+                  required
+                  value={token}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  placeholder="Cole o codigo aqui"
+                  className="portal-input"
+                />
+              </div>
+
+              <button type="submit" disabled={loading} className="portal-button">
+                {loading ? 'Validando...' : 'Entrar'}
+              </button>
+              <button type="button" onClick={() => setSent(false)} className="portal-button-ghost">
+                Reenviar link
+              </button>
+            </form>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }
