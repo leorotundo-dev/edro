@@ -16,39 +16,38 @@ export default function RelatoriosPage() {
   const reports = data?.reports ?? [];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-800">Relatórios</h1>
+    <div className="portal-page">
+      <div>
+        <span className="portal-kicker">Analise</span>
+        <h2 className="portal-page-title">Relatorios</h2>
+        <p className="portal-page-subtitle">Documentos consolidados do trabalho entregue para sua conta.</p>
+      </div>
 
-      {isLoading ? (
-        <p className="text-slate-400 text-sm">Carregando...</p>
-      ) : reports.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-          <p className="text-slate-400 text-sm">Nenhum relatório gerado ainda.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {reports.map((r) => (
-            <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
-              <div>
-                <p className="font-medium text-slate-800 text-sm">{r.title ?? `Relatório ${r.period_month}`}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {new Date(r.created_at).toLocaleDateString('pt-BR')}
-                </p>
+      <section className="portal-card">
+        {isLoading ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Carregando relatorios</p><p className="portal-card-subtitle">Buscando os arquivos disponiveis.</p></div></div>
+        ) : reports.length === 0 ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Nenhum relatorio gerado</p><p className="portal-card-subtitle">Quando houver um consolidado publicado, ele aparece aqui.</p></div></div>
+        ) : (
+          <div className="portal-list">
+            {reports.map((report) => (
+              <div key={report.id} className="portal-list-card">
+                <div className="portal-list-row">
+                  <div>
+                    <p className="portal-card-title">{report.title ?? `Relatorio ${report.period_month}`}</p>
+                    <p className="portal-card-subtitle">Publicado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                  {report.pdf_url ? (
+                    <a href={report.pdf_url} target="_blank" rel="noreferrer" className="portal-section-link">Baixar PDF</a>
+                  ) : (
+                    <span className="portal-pill portal-pill-neutral">Sem arquivo</span>
+                  )}
+                </div>
               </div>
-              {r.pdf_url && (
-                <a
-                  href={r.pdf_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 text-xs hover:underline shrink-0"
-                >
-                  Baixar PDF
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

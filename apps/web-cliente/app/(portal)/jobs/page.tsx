@@ -3,6 +3,7 @@
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
 import Link from 'next/link';
+import clsx from 'clsx';
 
 type Job = {
   id: string;
@@ -16,15 +17,15 @@ const STATUS_LABEL: Record<string, string> = {
   backlog: 'Backlog',
   todo: 'A fazer',
   in_progress: 'Em andamento',
-  review: 'Em revisão',
-  done: 'Concluído',
+  review: 'Em revisao',
+  done: 'Concluido',
 };
 
-function statusColor(status: string) {
-  if (status === 'done') return 'bg-green-100 text-green-700';
-  if (status === 'review') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
-  return 'bg-slate-100 text-slate-600';
+function statusTone(status: string) {
+  if (status === 'done') return 'portal-pill-success';
+  if (status === 'review') return 'portal-pill-warning';
+  if (status === 'in_progress') return 'portal-pill-accent';
+  return 'portal-pill-neutral';
 }
 
 export default function JobsPage() {
@@ -32,43 +33,37 @@ export default function JobsPage() {
   const jobs = data?.jobs ?? [];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-800">Projetos</h1>
+    <div className="portal-page">
+      <div>
+        <span className="portal-kicker">Projetos</span>
+        <h2 className="portal-page-title">Visao completa dos jobs</h2>
+        <p className="portal-page-subtitle">Todos os itens disponibilizados para sua conta, com status de producao e aprovacao.</p>
+      </div>
 
-      {isLoading ? (
-        <p className="text-slate-400 text-sm">Carregando...</p>
-      ) : jobs.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-          <p className="text-slate-400 text-sm">Nenhum projeto encontrado.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {jobs.map((j) => (
-            <Link
-              key={j.id}
-              href={`/jobs/${j.id}`}
-              className="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-slate-800 text-sm">{j.title}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Atualizado em {new Date(j.updated_at).toLocaleDateString('pt-BR')}
-                  </p>
+      <section className="portal-card">
+        {isLoading ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Carregando projetos</p><p className="portal-card-subtitle">Buscando o status mais recente.</p></div></div>
+        ) : jobs.length === 0 ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Nenhum projeto encontrado</p><p className="portal-card-subtitle">Assim que houver jobs vinculados, eles aparecem aqui.</p></div></div>
+        ) : (
+          <div className="portal-list">
+            {jobs.map((job) => (
+              <Link key={job.id} href={`/jobs/${job.id}`} className="portal-list-card">
+                <div className="portal-list-row">
+                  <div>
+                    <p className="portal-card-title">{job.title}</p>
+                    <p className="portal-card-subtitle">Atualizado em {new Date(job.updated_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                  <div className="portal-inline-stack">
+                    <span className={clsx('portal-pill', statusTone(job.status))}>{STATUS_LABEL[job.status] ?? job.status}</span>
+                    {job.copy_approved_at && <span className="portal-pill portal-pill-success">Copy aprovada</span>}
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor(j.status)}`}>
-                    {STATUS_LABEL[j.status] ?? j.status}
-                  </span>
-                  {j.copy_approved_at && (
-                    <span className="text-xs text-green-600">Copy aprovada ✓</span>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

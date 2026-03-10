@@ -2,6 +2,7 @@
 
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
+import clsx from 'clsx';
 
 type Payable = {
   id: string;
@@ -14,90 +15,75 @@ type Payable = {
 };
 
 export default function PagamentosPage() {
-  const { data, isLoading } = useSWR<{ payables: Payable[] }>(
-    '/freelancers/portal/me/payables',
-    swrFetcher,
-  );
-
+  const { data, isLoading } = useSWR<{ payables: Payable[] }>('/freelancers/portal/me/payables', swrFetcher);
   const payables = data?.payables ?? [];
 
-  function fmtMins(mins: number | null) {
-    if (!mins) return '—';
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  function formatMinutes(minutes: number | null) {
+    if (!minutes) return 'Sem apontamento';
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest > 0 ? `${hours}h ${rest}min` : `${hours}h`;
   }
 
-  const handleDownload = async (p: Payable) => {
+  const handleDownload = async (payable: Payable) => {
     const token = localStorage.getItem('fl_token') ?? '';
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
-    const res = await fetch(`${apiUrl}/api/freelancers/payables/${p.id}/pdf`, {
+    const response = await fetch(`${apiUrl}/api/freelancers/payables/${payable.id}/pdf`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) { alert('Erro ao baixar PDF'); return; }
-    const blob = await res.blob();
+    if (!response.ok) {
+      alert('Erro ao baixar PDF');
+      return;
+    }
+    const blob = await response.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `recibo-${p.period_month}.pdf`;
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `recibo-${payable.period_month}.pdf`;
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-800">Pagamentos</h1>
+    <div className="portal-page">
+      <div>
+        <span className="portal-kicker">Financeiro</span>
+        <h2 className="portal-page-title">Pagamentos</h2>
+        <p className="portal-page-subtitle">Historico de valores gerados para pagamento, com comprovante em PDF quando disponivel.</p>
+      </div>
 
-      {isLoading ? (
-        <p className="text-slate-400 text-sm">Carregando...</p>
-      ) : !payables.length ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-          <p className="text-slate-400 text-sm">Nenhum pagamento gerado ainda.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {payables.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <p className="font-medium text-slate-800 text-sm">{p.period_month}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Horas: {fmtMins(p.total_minutes)}</p>
-                {p.paid_at && (
-                  <p className="text-xs text-green-600 mt-0.5">
-                    Pago em {new Date(p.paid_at).toLocaleDateString('pt-BR')}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="text-right">
-                  <p className="text-lg font-bold text-slate-800">
-                    R$ {parseFloat(p.amount_brl).toFixed(2)}
-                  </p>
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      p.status === 'paid'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-orange-100 text-orange-700'
-                    }`}
-                  >
-                    {p.status === 'paid' ? 'Pago' : 'A pagar'}
-                  </span>
+      <section className="portal-card">
+        {isLoading ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Carregando pagamentos</p><p className="portal-card-subtitle">Buscando os valores vinculados a sua conta.</p></div></div>
+        ) : !payables.length ? (
+          <div className="portal-empty"><div><p className="portal-card-title">Nenhum pagamento gerado</p><p className="portal-card-subtitle">Assim que houver fechamento, o valor sera listado aqui.</p></div></div>
+        ) : (
+          <div className="portal-list">
+            {payables.map((payable) => (
+              <div key={payable.id} className="portal-list-card">
+                <div className="portal-list-row">
+                  <div>
+                    <p className="portal-card-title">{payable.period_month}</p>
+                    <p className="portal-card-subtitle">Horas contabilizadas: {formatMinutes(payable.total_minutes)}</p>
+                    {payable.paid_at && <p className="portal-card-subtitle">Pago em {new Date(payable.paid_at).toLocaleDateString('pt-BR')}</p>}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p className="portal-card-title">R$ {parseFloat(payable.amount_brl).toFixed(2)}</p>
+                    <div className="portal-inline-stack" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+                      <span className={clsx('portal-pill', payable.status === 'paid' ? 'portal-pill-success' : 'portal-pill-warning')}>
+                        {payable.status === 'paid' ? 'Pago' : 'A pagar'}
+                      </span>
+                      <button onClick={() => handleDownload(payable)} className="portal-button-secondary">
+                        Baixar PDF
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={() => handleDownload(p)}
-                  className="text-slate-400 hover:text-blue-600 text-xs"
-                  title="Baixar recibo PDF"
-                >
-                  PDF
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
