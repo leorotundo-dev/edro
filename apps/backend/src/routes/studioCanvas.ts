@@ -9,10 +9,27 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { generateCompletion } from '../services/ai/claudeService';
 import { refineScenePrompt } from '../services/adCreativeService';
 import { generateCopy } from '../services/ai/copyService';
-import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured, FalModel } from '../services/ai/falAiService';
+import { generateImageWithFal, generateImg2ImgWithFal, imageToVideoWithFal, isFalConfigured, FalModel } from '../services/ai/falAiService';
 import { generateImage as generateImageGemini } from '../services/ai/geminiService';
 import { generateImageWithLeonardo } from '../services/ai/leonardoService';
 import { env } from '../env';
+
+// ── fal.ai helper for direct low-level calls ──────────────────────────────────
+async function falFetch(endpoint: string, body: Record<string, any>) {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY nao configurada');
+  const url = endpoint.startsWith('https://') ? endpoint : `https://fal.run/${endpoint}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown');
+    throw new Error(`fal.ai error (${res.status}): ${err.slice(0, 300)}`);
+  }
+  return res.json();
+}
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -58,6 +75,19 @@ Voce pode fazer QUALQUER combinacao destas acoes:
 4. REFINE_COPY — Refinar o copy atual (ajustar tom, encurtar, adaptar formato)
 5. ANSWER — Apenas responder/conversar (duvidas, sugestoes, estrategia)
 
+MODELOS DE IMAGEM DISPONIVEIS (escolha o melhor automaticamente baseado no pedido):
+- nano-banana-pro: MELHOR para fotorealismo, texturas, retratos, produtos (Google Gemini 3 Pro)
+- nano-banana-2: Rapido, bom com texto na imagem, raciocinio visual (Google Gemini 3.1 Flash)
+- flux-pro: Alta qualidade geral, versatil, bom default
+- flux-pro-ultra: Ultra resolucao, maximo detalhe
+- recraft-v3: MELHOR para logos, icones, ilustracoes vetoriais, design grafico
+- ideogram-v2: MELHOR para texto legivel dentro da imagem (posters, banners)
+- flux-realism: Fotorrealismo extremo
+- hidream-i1: Criativo, artistico, alta qualidade
+- stable-diffusion-v35: Versatil, bom para estilos variados
+- minimax-image: Artistico criativo
+- flux-dev: Rapido, economico
+
 REGRAS:
 - Interprete o pedido do usuario e decida qual acao tomar
 - Se o pedido envolve visual E texto, faca ambos
@@ -65,6 +95,7 @@ REGRAS:
 - Sempre responda em portugues brasileiro
 - Seja direto e criativo, sem enrolacao
 - Se o pedido e vago, faca sua melhor interpretacao e execute — nao fique perguntando
+- Escolha o modelo ideal no campo "recommended_model" baseado no tipo de pedido
 
 Responda SEMPRE com JSON valido neste formato:
 {
@@ -75,7 +106,8 @@ Responda SEMPRE com JSON valido neste formato:
       "refine_instruction": "instrucao de refinamento (apenas para refine_image/refine_copy)",
       "copy": { "headline": "...", "body": "...", "cta": "..." },
       "aspect_ratio": "1:1" | "4:5" | "9:16" | "16:9",
-      "negative_prompt": "elementos para evitar na imagem"
+      "negative_prompt": "elementos para evitar na imagem",
+      "recommended_model": "nome do modelo fal.ai ideal para este pedido (opcional)"
     }
   ],
   "message": "mensagem curta para o usuario explicando o que voce fez/vai fazer"
@@ -188,13 +220,16 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
               provider: 'leonardo',
             };
           } else {
-            // fal.ai — direct call with selected model
+            // fal.ai — direct call with selected model (or AI-recommended)
             if (!isFalConfigured()) throw new Error('FAL_API_KEY nao configurada');
+            const chosenModel = (body.fal_model === 'auto' && action.recommended_model)
+              ? action.recommended_model
+              : body.fal_model;
             const result = await generateImageWithFal({
               prompt: imagePrompt,
               aspectRatio,
               negativePrompt: action.negative_prompt,
-              model: body.fal_model as FalModel,
+              model: chosenModel as FalModel,
               numImages: 3,
               referenceImageUrl: refAsset?.url,
               referenceImageStrength: refAsset ? 0.2 : undefined,
@@ -205,7 +240,7 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
               image_urls: result.imageUrls,
               prompt_used: imagePrompt,
               provider: 'fal',
-              model: body.fal_model,
+              model: chosenModel,
               seed: result.seed,
             };
           }
@@ -437,6 +472,300 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
         .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
         .map(r => r.value.imageUrl);
       return reply.send({ success: true, image_urls: urls });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Inpainting — edit specific region with mask ─────────────────────
+
+  /**
+   * POST /studio/canvas/inpaint
+   * Mask-based inpainting: regenerate only the masked region guided by prompt.
+   * mask_image_url should be a black/white image (white = area to regenerate).
+   */
+  app.post('/studio/canvas/inpaint', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      mask_image_url: z.string().min(1),
+      prompt: z.string().min(1),
+      negative_prompt: z.string().default(''),
+      num_images: z.number().min(1).max(4).default(2),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      const data = await falFetch('fal-ai/flux/dev/inpainting', {
+        image_url: body.image_url,
+        mask_url: body.mask_image_url,
+        prompt: body.prompt,
+        negative_prompt: body.negative_prompt || undefined,
+        num_images: body.num_images,
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        output_format: 'jpeg',
+      }) as { images?: Array<{ url: string }>; image?: { url: string } };
+
+      const images = data.images ?? (data.image ? [data.image] : []);
+      const urls = images.map(i => i.url);
+      return reply.send({ success: true, image_urls: urls });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Outpaint / Image Extend ────────────────────────────────────────
+
+  /**
+   * POST /studio/canvas/outpaint
+   * Extends the image canvas in specified directions with AI-generated content.
+   */
+  app.post('/studio/canvas/outpaint', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      prompt: z.string().default('seamless natural extension, same style and lighting'),
+      /** Pixels to extend in each direction */
+      top: z.number().min(0).max(1024).default(0),
+      bottom: z.number().min(0).max(1024).default(0),
+      left: z.number().min(0).max(1024).default(0),
+      right: z.number().min(0).max(1024).default(0),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      // Use creative-upscaler with outpaint mask approach, or bria-eraser outpaint
+      // fal-ai/flux/dev/outpainting is the dedicated endpoint
+      const data = await falFetch('fal-ai/flux/dev/outpainting', {
+        image_url: body.image_url,
+        prompt: body.prompt,
+        top: body.top,
+        bottom: body.bottom,
+        left: body.left,
+        right: body.right,
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        output_format: 'jpeg',
+      }) as { images?: Array<{ url: string }>; image?: { url: string } };
+
+      const images = data.images ?? (data.image ? [data.image] : []);
+      const url = images[0]?.url;
+      if (!url) throw new Error('Nenhuma imagem retornada');
+      return reply.send({ success: true, image_url: url });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Object Removal (LaMa) ─────────────────────────────────────────
+
+  /**
+   * POST /studio/canvas/object-remove
+   * Removes objects from the image using mask. White mask = area to erase.
+   * Uses LaMa for seamless fill without needing a prompt.
+   */
+  app.post('/studio/canvas/object-remove', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      mask_image_url: z.string().min(1),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      const data = await falFetch('fal-ai/lama', {
+        image_url: body.image_url,
+        mask_url: body.mask_image_url,
+      }) as { image?: { url: string } };
+
+      if (!data.image?.url) throw new Error('Nenhuma imagem retornada');
+      return reply.send({ success: true, image_url: data.image.url });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── SAM Segmentation (Touch Edit / Mark Mode) ─────────────────────
+
+  /**
+   * POST /studio/canvas/segment
+   * Click-to-segment using SAM2. Returns mask for the clicked object.
+   * Used for Touch Edit: user clicks on an element → gets a mask → can edit/remove/replace it.
+   */
+  app.post('/studio/canvas/segment', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      /** Click coordinates as fractions 0.0–1.0 of image dimensions */
+      points: z.array(z.object({
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        label: z.number().default(1), // 1 = foreground, 0 = background
+      })).min(1),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      const data = await falFetch('fal-ai/sam2/image', {
+        image_url: body.image_url,
+        points: body.points.map(p => [p.x, p.y]),
+        point_labels: body.points.map(p => p.label),
+      }) as { masks?: Array<{ url: string }>; mask?: { url: string }; image?: { url: string } };
+
+      // SAM returns masks — each is a black/white image
+      const masks = data.masks ?? (data.mask ? [data.mask] : data.image ? [data.image] : []);
+      const maskUrls = masks.map((m: any) => m.url || m);
+      return reply.send({ success: true, mask_urls: maskUrls });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Split Layers (Edit Elements) ──────────────────────────────────
+
+  /**
+   * POST /studio/canvas/split-layers
+   * Splits an image into foreground (subject) and background layers.
+   * Returns both layers as separate images.
+   */
+  app.post('/studio/canvas/split-layers', async (request: any, reply) => {
+    const { image_url } = imageUrlSchema.parse(request.body || {});
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      // Step 1: Remove background to get foreground with transparency
+      const fgData = await falFetch('fal-ai/birefnet/v2', {
+        image_url,
+      }) as { image?: { url: string } };
+      const foregroundUrl = fgData.image?.url;
+      if (!foregroundUrl) throw new Error('Falha ao extrair foreground');
+
+      // Step 2: Generate background-only using inpainting
+      // We use the foreground mask as inpaint mask to fill the subject area
+      const bgData = await falFetch('fal-ai/lama', {
+        image_url,
+        mask_url: foregroundUrl, // foreground = area to fill
+      }) as { image?: { url: string } };
+      const backgroundUrl = bgData.image?.url;
+
+      return reply.send({
+        success: true,
+        layers: [
+          { id: 'foreground', name: 'Foreground', image_url: foregroundUrl, type: 'foreground' },
+          { id: 'background', name: 'Background', image_url: backgroundUrl || image_url, type: 'background' },
+          { id: 'original', name: 'Original', image_url, type: 'original' },
+        ],
+      });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Style Transfer ────────────────────────────────────────────────
+
+  /**
+   * POST /studio/canvas/style-transfer
+   * Applies an artistic style to the image while preserving composition.
+   */
+  app.post('/studio/canvas/style-transfer', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      style: z.enum([
+        'oil-painting', 'watercolor', 'pencil-sketch', 'anime',
+        'pop-art', 'cyberpunk', 'vintage-film', 'neon-glow',
+        'minimalist-flat', 'comic-book', 'impressionist', 'surrealist',
+      ]),
+      strength: z.number().min(0.3).max(0.95).default(0.7),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    const stylePrompts: Record<string, string> = {
+      'oil-painting': 'oil painting on canvas, thick brush strokes, rich colors, classical art',
+      'watercolor': 'delicate watercolor painting, soft washes, translucent colors, paper texture',
+      'pencil-sketch': 'detailed pencil sketch on paper, graphite drawing, hatching and cross-hatching',
+      'anime': 'anime art style, cel-shaded, vibrant colors, Studio Ghibli quality',
+      'pop-art': 'pop art style, bold colors, halftone dots, Andy Warhol inspired',
+      'cyberpunk': 'cyberpunk aesthetic, neon lights, futuristic, dark with glowing accents',
+      'vintage-film': 'vintage film photograph, grain, warm tones, 1970s Kodachrome aesthetic',
+      'neon-glow': 'neon glow effect, dark background, vivid neon outlines, synthwave',
+      'minimalist-flat': 'minimalist flat illustration, clean lines, solid colors, vector art style',
+      'comic-book': 'comic book art, bold outlines, cel-shading, action comic style',
+      'impressionist': 'impressionist painting, visible brushstrokes, light and color, Monet style',
+      'surrealist': 'surrealist art, dreamlike, unexpected juxtapositions, Salvador Dali inspired',
+    };
+
+    try {
+      const result = await generateImg2ImgWithFal({
+        prompt: `${stylePrompts[body.style]}, maintaining the same subject and composition`,
+        imageUrl: body.image_url,
+        strength: body.strength,
+        numImages: 2,
+      });
+      return reply.send({ success: true, image_urls: result.imageUrls, style: body.style });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Image to Video ────────────────────────────────────────────────
+
+  /**
+   * POST /studio/canvas/image-to-video
+   * Converts a static image to a short video clip using Kling via fal.ai.
+   * Async — takes 60-120s. Returns video URL when done.
+   */
+  app.post('/studio/canvas/image-to-video', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      prompt: z.string().default('cinematic smooth motion, high quality video'),
+      duration: z.union([z.literal(5), z.literal(10)]).default(5),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    try {
+      const result = await imageToVideoWithFal({
+        imageUrl: body.image_url,
+        prompt: body.prompt,
+        duration: body.duration,
+      });
+      return reply.send({ success: true, video_url: result.videoUrl });
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, error: err?.message });
+    }
+  });
+
+  // ── Cartoonize ────────────────────────────────────────────────────
+
+  /**
+   * POST /studio/canvas/cartoonize
+   * Converts photo to cartoon/anime avatar style.
+   */
+  app.post('/studio/canvas/cartoonize', async (request: any, reply) => {
+    const body = z.object({
+      image_url: z.string().min(1),
+      style: z.enum(['anime', 'cartoon', 'pixar', 'caricature']).default('anime'),
+    }).parse(request.body || {});
+
+    if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
+
+    const cartoonPrompts: Record<string, string> = {
+      'anime': 'anime art style, cel-shaded, vibrant colors, beautiful anime character portrait',
+      'cartoon': 'cartoon character, colorful, fun, Disney/Pixar style, smooth rendering',
+      'pixar': '3D Pixar-style character render, smooth skin, big expressive eyes, cinematic lighting',
+      'caricature': 'exaggerated caricature illustration, humorous, bold lines, expressive features',
+    };
+
+    try {
+      const result = await generateImg2ImgWithFal({
+        prompt: cartoonPrompts[body.style],
+        imageUrl: body.image_url,
+        strength: 0.75,
+        numImages: 2,
+      });
+      return reply.send({ success: true, image_urls: result.imageUrls });
     } catch (err: any) {
       return reply.status(502).send({ success: false, error: err?.message });
     }
