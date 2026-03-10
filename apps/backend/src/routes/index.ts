@@ -43,6 +43,7 @@ import financialRoutes from './financial';
 import portalClientRoutes from './portalClient';
 import artworksRoutes from './artworks';
 import studioCreativeRoutes from './studioCreative';
+import studioCanvasRoutes from './studioCanvas';
 import studioRecipesRoutes from './studioRecipes';
 import webhookWhatsAppRoutes from './webhookWhatsApp';
 import meetingRoutes from './meetings';
@@ -103,6 +104,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(portalClientRoutes, { prefix: '/api' });
   app.register(artworksRoutes, { prefix: '/api' });
   app.register(studioCreativeRoutes, { prefix: '/api' });
+  app.register(studioCanvasRoutes, { prefix: '/api' });
   app.register(studioRecipesRoutes, { prefix: '/api' });
   // WhatsApp webhook — no /api prefix (Meta calls the raw path)
   app.register(webhookWhatsAppRoutes);

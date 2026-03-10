@@ -14,6 +14,7 @@ import {
   IconBrain,
   IconBrandWhatsapp,
   IconMicrophone,
+  IconSparkles,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -98,6 +99,14 @@ const MenuItems: MenuGroupType[] = [
   {
     subheader: 'Criativo',
     items: [
+      {
+        id: 'canvas',
+        title: 'Canvas',
+        icon: IconSparkles,
+        href: '/studio/canvas',
+        badge: 'New',
+        badgeColor: 'warning',
+      },
       {
         id: 'studio',
         title: 'Creative Studio',
