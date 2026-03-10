@@ -498,14 +498,11 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
 
     try {
-      const data = await falFetch('fal-ai/flux/dev/inpainting', {
+      const data = await falFetch('fal-ai/flux-pro/v1/fill', {
         image_url: body.image_url,
         mask_url: body.mask_image_url,
         prompt: body.prompt,
-        negative_prompt: body.negative_prompt || undefined,
         num_images: body.num_images,
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
         output_format: 'jpeg',
       }) as { images?: Array<{ url: string }>; image?: { url: string } };
 
@@ -537,17 +534,13 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     if (!isFalConfigured()) return reply.status(503).send({ success: false, error: 'FAL_API_KEY nao configurada' });
 
     try {
-      // Use creative-upscaler with outpaint mask approach, or bria-eraser outpaint
-      // fal-ai/flux/dev/outpainting is the dedicated endpoint
-      const data = await falFetch('fal-ai/flux/dev/outpainting', {
+      const data = await falFetch('fal-ai/flux-lora/outpainting', {
         image_url: body.image_url,
         prompt: body.prompt,
         top: body.top,
         bottom: body.bottom,
         left: body.left,
         right: body.right,
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
         output_format: 'jpeg',
       }) as { images?: Array<{ url: string }>; image?: { url: string } };
 
