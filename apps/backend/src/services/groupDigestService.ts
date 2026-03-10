@@ -5,6 +5,7 @@
 
 import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
+import { sendOutboundMessage } from './groupOutboundService';
 
 const DIGEST_SYSTEM_PROMPT = `Você é o assistente de inteligência de uma agência de marketing digital.
 Gere um RESUMO EXECUTIVO das conversas de WhatsApp com o cliente no período indicado.
@@ -124,5 +125,55 @@ export async function generateDigest(
     ],
   );
 
-  return inserted[0] || null;
+  if (!inserted[0]) return null;
+
+  // Send digest summary to linked WhatsApp groups
+  sendDigestToGroups(tenantId, clientId, period, clientName, parsed.summary, parsed.key_decisions, parsed.pending_actions)
+    .catch((err) => console.error(`[groupDigest] sendDigestToGroups failed: ${err.message}`));
+
+  return inserted[0];
+}
+
+async function sendDigestToGroups(
+  tenantId: string,
+  clientId: string,
+  period: 'daily' | 'weekly',
+  clientName: string,
+  summary: string,
+  keyDecisions: any[],
+  pendingActions: any[],
+): Promise<void> {
+  const { rows: groups } = await query(
+    `SELECT id, group_jid FROM whatsapp_groups
+     WHERE client_id = $1 AND tenant_id = $2 AND active = true AND notify_digest = true`,
+    [clientId, tenantId],
+  );
+  if (!groups.length) return;
+
+  const periodLabel = period === 'daily' ? 'Resumo do dia' : 'Resumo da semana';
+  const dateStr = new Date().toLocaleDateString('pt-BR');
+
+  let messageText = `📊 *${periodLabel}* — ${clientName}\n${dateStr}\n\n${(summary || '').slice(0, 500)}`;
+
+  if (keyDecisions?.length) {
+    messageText += `\n\n✅ *Decisões:*\n${keyDecisions.slice(0, 5).map((d: any) => `• ${d.decision}`).join('\n')}`;
+  }
+  if (pendingActions?.length) {
+    messageText += `\n\n⏳ *Pendências:*\n${pendingActions.slice(0, 5).map((a: any) => `• ${a.action}${a.owner ? ` (${a.owner})` : ''}`).join('\n')}`;
+  }
+
+  const scenario = period === 'daily' ? 'digest_daily' : 'digest_weekly';
+  const periodStart = new Date().toISOString().slice(0, 10);
+
+  for (const g of groups) {
+    await sendOutboundMessage({
+      tenantId,
+      groupId: g.id,
+      groupJid: g.group_jid,
+      clientId,
+      scenario,
+      triggerKey: `${scenario}:${clientId}:${periodStart}:${g.id}`,
+      messageText,
+    }).catch(() => {});
+  }
 }

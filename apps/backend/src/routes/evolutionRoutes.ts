@@ -163,7 +163,18 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     auto_briefing: z.boolean().optional(),
     notify_jarvis: z.boolean().optional(),
     active: z.boolean().optional(),
+    notify_briefing_confirm: z.boolean().optional(),
+    notify_digest: z.boolean().optional(),
+    notify_deadlines: z.boolean().optional(),
+    notify_jarvis_reply: z.boolean().optional(),
+    quiet_hours_start: z.number().min(0).max(23).nullable().optional(),
+    quiet_hours_end: z.number().min(0).max(23).nullable().optional(),
   });
+
+  const BOOL_FIELDS = [
+    'auto_briefing', 'notify_jarvis', 'active',
+    'notify_briefing_confirm', 'notify_digest', 'notify_deadlines', 'notify_jarvis_reply',
+  ] as const;
 
   app.patch<{ Params: { groupId: string } }>('/whatsapp-groups/:groupId', {
     preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
@@ -174,9 +185,12 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     const sets: string[] = [];
     const vals: any[] = [groupId, tenantId];
-    if (body.auto_briefing !== undefined) { vals.push(body.auto_briefing); sets.push(`auto_briefing = $${vals.length}`); }
-    if (body.notify_jarvis !== undefined) { vals.push(body.notify_jarvis); sets.push(`notify_jarvis = $${vals.length}`); }
-    if (body.active !== undefined)        { vals.push(body.active);        sets.push(`active = $${vals.length}`); }
+
+    for (const f of BOOL_FIELDS) {
+      if ((body as any)[f] !== undefined) { vals.push((body as any)[f]); sets.push(`${f} = $${vals.length}`); }
+    }
+    if (body.quiet_hours_start !== undefined) { vals.push(body.quiet_hours_start); sets.push(`quiet_hours_start = $${vals.length}`); }
+    if (body.quiet_hours_end !== undefined)   { vals.push(body.quiet_hours_end);   sets.push(`quiet_hours_end = $${vals.length}`); }
 
     if (!sets.length) return reply.code(400).send({ error: 'Nenhum campo para atualizar.' });
 

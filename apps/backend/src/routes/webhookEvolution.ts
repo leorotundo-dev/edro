@@ -12,6 +12,8 @@ import { query } from '../db';
 import { transcribeAudioBuffer } from '../services/meetingService';
 import { generateCompletion } from '../services/ai/claudeService';
 import { instanceName } from '../services/integrations/evolutionApiService';
+import { sendOutboundMessage } from '../services/groupOutboundService';
+import { shouldJarvisReply, handleJarvisReply } from '../services/groupJarvisReplyService';
 import { env } from '../env';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
@@ -110,7 +112,7 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
 
   // Find linked group
   const { rows: groupRows } = await query(
-    `SELECT id, client_id, auto_briefing, notify_jarvis
+    `SELECT id, client_id, auto_briefing, notify_jarvis, notify_jarvis_reply
      FROM whatsapp_groups
      WHERE instance_id = $1 AND group_jid = $2 AND active = true`,
     [instanceId, remoteJid],
@@ -164,7 +166,22 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
       content,
       groupMessageId: waMessageId,
       threadContext,
+      groupId: group.id,
+      groupJid: remoteJid!,
     }).catch(() => {});
+  }
+
+  // Jarvis smart reply: detect question and respond with AI
+  if (group.notify_jarvis_reply && type === 'text' && content && shouldJarvisReply(content)) {
+    handleJarvisReply({
+      tenantId,
+      clientId: group.client_id,
+      groupId: group.id,
+      groupJid: remoteJid!,
+      senderName,
+      content,
+      waMessageId,
+    }).catch((err) => console.error(`[webhookEvolution] Jarvis reply failed: ${err.message}`));
   }
 }
 
@@ -264,8 +281,10 @@ async function autoCreateBriefingFromMessage(params: {
   content: string;
   groupMessageId: string;
   threadContext?: string;
+  groupId?: string;
+  groupJid?: string;
 }) {
-  const { tenantId, clientId, senderName, content, groupMessageId, threadContext } = params;
+  const { tenantId, clientId, senderName, content, groupMessageId, threadContext, groupId, groupJid } = params;
 
   const contextBlock = threadContext ? `\n\nContexto da conversa recente:\n${threadContext}\n` : '';
   const result = await generateCompletion({
@@ -307,6 +326,21 @@ async function autoCreateBriefingFromMessage(params: {
     `UPDATE whatsapp_group_messages SET briefing_id = $1, processed = true WHERE wa_message_id = $2`,
     [briefing.id, groupMessageId],
   );
+
+  // Send briefing confirmation to the group
+  if (groupId && groupJid) {
+    const confirmText = `✅ *Briefing capturado!*\n\n📋 *Título:* ${parsed.title}\n🎯 *Objetivo:* ${parsed.objective || 'N/A'}\n👤 *Solicitante:* ${senderName}\n\nO briefing foi criado automaticamente e está disponível no painel. A equipe será notificada.`;
+
+    sendOutboundMessage({
+      tenantId,
+      groupId,
+      groupJid,
+      clientId,
+      scenario: 'briefing_confirm',
+      triggerKey: `briefing_confirm:${briefing.id}`,
+      messageText: confirmText,
+    }).catch(() => {});
+  }
 }
 
 // ── Urgent insight fast-path ──────────────────────────────────────────────

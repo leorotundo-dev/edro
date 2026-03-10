@@ -24,6 +24,7 @@ import { runMeetBotWorkerOnce } from './meetBotWorker';
 import { runWatchRenewWorkerOnce } from './watchRenewWorker';
 import { runGroupIntelligenceWorkerOnce } from './groupIntelligenceWorker';
 import { runGroupDigestWorkerOnce } from './groupDigestWorker';
+import { runGroupDeadlineAlertWorkerOnce } from './groupDeadlineAlertWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -110,4 +111,6 @@ export function startJobsRunner() {
   startWorkerLoop('groupIntelligence', runGroupIntelligenceWorkerOnce, 12000, 120_000);
   // WhatsApp group digests — daily at 08:00 BRT, weekly on Mondays
   startWorkerLoop('groupDigest', runGroupDigestWorkerOnce, 12500, 120_000);
+  // WhatsApp deadline alerts — self-throttled to 09:00, 14:00, 18:00 BRT
+  startWorkerLoop('groupDeadlineAlert', runGroupDeadlineAlertWorkerOnce, 13000, 60_000);
 }
