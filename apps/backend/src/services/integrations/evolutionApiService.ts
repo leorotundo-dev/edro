@@ -70,14 +70,21 @@ export function instanceName(tenantId: string): string {
 export async function createInstance(tenantId: string): Promise<void> {
   const name = instanceName(tenantId);
 
-  await evolFetch('/instance/create', {
-    method: 'POST',
-    body: JSON.stringify({
-      instanceName: name,
-      qrcode: true,
-      integration: 'WHATSAPP-BAILEYS',
-    }),
-  });
+  try {
+    await evolFetch('/instance/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        instanceName: name,
+        qrcode: true,
+        integration: 'WHATSAPP-BAILEYS',
+      }),
+    });
+  } catch (err: any) {
+    // 403 "already in use" means the instance was created before — that's fine
+    if (!err?.message?.includes('403') && !err?.message?.toLowerCase().includes('already in use')) {
+      throw err;
+    }
+  }
 
   await query(
     `INSERT INTO evolution_instances (tenant_id, instance_name, status)
