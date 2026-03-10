@@ -379,11 +379,31 @@ export default function CanvasClient() {
     if (!files?.length) return;
     e.target.value = '';
     for (const file of Array.from(files)) {
-      const url = URL.createObjectURL(file);
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       const type: Asset['type'] = ext === 'svg' || file.name.toLowerCase().includes('logo') ? 'logo'
         : ext === 'png' || ext === 'jpg' || ext === 'jpeg' ? 'photo' : 'reference';
-      setAssets(prev => [...prev, { url, type, name: file.name }]);
+      // Upload to server
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
+        const base = process.env.NEXT_PUBLIC_API_URL || '';
+        const apiBase = base.startsWith('/') ? base : base.replace(/\/$/, '').replace(/\/api$/i, '') + '/api';
+        const res = await fetch(`${apiBase}/studio/canvas/upload`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.url) {
+          setAssets(prev => [...prev, { url: data.url, type, name: file.name }]);
+        } else {
+          // Fallback to blob URL if upload fails
+          setAssets(prev => [...prev, { url: URL.createObjectURL(file), type, name: file.name }]);
+        }
+      } catch {
+        setAssets(prev => [...prev, { url: URL.createObjectURL(file), type, name: file.name }]);
+      }
     }
   }, []);
 

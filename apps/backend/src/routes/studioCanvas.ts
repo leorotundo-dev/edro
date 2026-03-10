@@ -4,9 +4,11 @@
  */
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import multipart from '@fastify/multipart';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { generateCompletion } from '../services/ai/claudeService';
+import { buildKey, saveFile } from '../library/storage';
 import { refineScenePrompt } from '../services/adCreativeService';
 import { generateCopy } from '../services/ai/copyService';
 import { generateImageWithFal, generateImg2ImgWithFal, imageToVideoWithFal, isFalConfigured, FalModel } from '../services/ai/falAiService';
@@ -769,5 +771,30 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.status(502).send({ success: false, error: err?.message });
     }
+  });
+
+  /**
+   * POST /studio/canvas/upload — upload an image asset and return a public URL
+   */
+  await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } });
+  app.post('/studio/canvas/upload', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
+    const tenantId = request.user.tenant_id;
+    const data = await request.file();
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+
+    const key = buildKey(tenantId, 'canvas', data.filename);
+    await saveFile(buffer, key);
+
+    // Build public URL using same pattern as artworks
+    const base = process.env.S3_PUBLIC_URL ?? process.env.API_URL ?? '';
+    const fileUrl = base
+      ? `${base.replace(/\/$/, '')}/api/artworks/file/${encodeURIComponent(key)}`
+      : `/api/artworks/file/${encodeURIComponent(key)}`;
+
+    return reply.send({ success: true, url: fileUrl, name: data.filename });
   });
 }
