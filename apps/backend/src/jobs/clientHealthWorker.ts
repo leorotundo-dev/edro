@@ -85,7 +85,7 @@ async function computeHealthScores() {
              COUNT(*) FILTER (WHERE cat.author_type = 'client' AND cat.message ILIKE '✓%') AS approvals
            FROM copy_approval_thread cat
            JOIN edro_briefings b ON b.id = cat.briefing_id
-           WHERE (b.main_client_id = $1 OR b.client_id = $1)
+           WHERE (b.main_client_id = $1 OR b.client_id::text = $1)
              AND cat.created_at > NOW() - INTERVAL '60 days'`,
           [clientId],
         );
@@ -97,7 +97,7 @@ async function computeHealthScores() {
         // Factor 3: briefing frequency in last 60 days
         const briefFreqRes = await pool.query(
           `SELECT COUNT(*) AS cnt FROM edro_briefings
-           WHERE (main_client_id = $1 OR client_id = $1)
+           WHERE (main_client_id = $1 OR client_id::text = $1)
              AND created_at > NOW() - INTERVAL '60 days'`,
           [clientId],
         );

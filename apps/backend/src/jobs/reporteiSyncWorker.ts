@@ -332,7 +332,7 @@ async function syncClientMetrics(
                   [tenantId, clientId, newId, platform, window, start, end, JSON.stringify(metricsObj)]
                 );
                 snapshots++;
-                await sleep(3000);
+                await sleep(5000);
                 continue;
               }
             } catch { /* fall through to error */ }
@@ -340,7 +340,7 @@ async function syncClientMetrics(
         }
         errors.push(`${platform}/${window}: ${msg}`);
       }
-      await sleep(1500);
+      await sleep(2500);
     }
   }
 
@@ -398,7 +398,7 @@ export async function runReporteiSyncWorkerOnce() {
         await updateConnectorStatus(client.tenant_id, client.id, false, e.message).catch(() => {});
       }
       // Pause between clients to avoid Reportei rate limits
-      await sleep(3000);
+      await sleep(8000);
     }
 
     // FASE 3: generate learning rules from fresh snapshots (non-blocking)

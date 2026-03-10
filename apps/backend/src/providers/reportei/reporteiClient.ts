@@ -51,24 +51,39 @@ export class ReporteiClient {
 
   // ── Generic HTTP helpers ──────────────────────────────────────────────────
 
+  private static async handleRateLimit(response: Response, label: string): Promise<void> {
+    const retryAfter = response.headers.get('Retry-After') ?? response.headers.get('retry-after');
+    const waitSecs = retryAfter ? parseInt(retryAfter, 10) : 60;
+    const waitMs = (isNaN(waitSecs) ? 60 : Math.min(waitSecs, 300)) * 1000;
+    console.warn(`[reporteiClient] 429 on ${label}, waiting ${waitMs / 1000}s before retry`);
+    await new Promise(r => setTimeout(r, waitMs));
+  }
+
   async get(path: string, overrides?: Partial<ReporteiConfig>): Promise<any> {
     const cfg = this.resolveConfig(overrides);
     if (!cfg.token) throw new Error('Reportei token not configured');
 
     const base = cfg.baseUrl.replace(/\/$/, '');
     const url = `${base}${path}`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${cfg.token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Reportei GET ${path} → ${response.status}: ${text}`);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${cfg.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+      if (response.status === 429 && attempt === 0) {
+        await ReporteiClient.handleRateLimit(response, `GET ${path}`);
+        continue;
+      }
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`Reportei GET ${path} → ${response.status}: ${text}`);
+      }
+      try { return JSON.parse(text); } catch { return text; }
     }
-    try { return JSON.parse(text); } catch { return text; }
   }
 
   async post(path: string, body: unknown, overrides?: Partial<ReporteiConfig>): Promise<any> {
@@ -82,21 +97,27 @@ export class ReporteiClient {
       : cfg.baseUrl.replace(/\/$/, '');
     const url = `${correctBase}${path}`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${cfg.token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
 
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Reportei POST ${path} → ${response.status}: ${text}`);
+      if (response.status === 429 && attempt === 0) {
+        await ReporteiClient.handleRateLimit(response, `POST ${path}`);
+        continue;
+      }
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`Reportei POST ${path} → ${response.status}: ${text}`);
+      }
+      try { return JSON.parse(text); } catch { return text; }
     }
-    try { return JSON.parse(text); } catch { return text; }
   }
 
   // ── Reportei API v2 endpoints ─────────────────────────────────────────────
