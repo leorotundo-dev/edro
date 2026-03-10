@@ -250,6 +250,31 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   });
 }
 
+export async function apiPostFormData<T = any>(path: string, formData: FormData): Promise<T> {
+  const apiBase = getApiBase();
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('edro_token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch(`${apiBase}${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const newHeaders: Record<string, string> = {};
+      const token = localStorage.getItem('edro_token');
+      if (token) newHeaders.Authorization = `Bearer ${token}`;
+      const retry = await fetch(`${apiBase}${path}`, { method: 'POST', headers: newHeaders, body: formData });
+      return handleResponse<T>(retry);
+    }
+  }
+  return handleResponse<T>(response);
+}
+
 export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
   return requestWithRefresh<T>(path, {
     method: 'PATCH',

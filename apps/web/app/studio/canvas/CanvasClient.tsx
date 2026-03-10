@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -382,23 +382,14 @@ export default function CanvasClient() {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       const type: Asset['type'] = ext === 'svg' || file.name.toLowerCase().includes('logo') ? 'logo'
         : ext === 'png' || ext === 'jpg' || ext === 'jpeg' ? 'photo' : 'reference';
-      // Upload to server
+      // Upload to server via proxy (same auth flow as other API calls)
       try {
         const fd = new FormData();
         fd.append('file', file);
-        const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-        const base = process.env.NEXT_PUBLIC_API_URL || '';
-        const apiBase = base.startsWith('/') ? base : base.replace(/\/$/, '').replace(/\/api$/i, '') + '/api';
-        const res = await fetch(`${apiBase}/studio/canvas/upload`, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: fd,
-        });
-        const data = await res.json();
+        const data = await apiPostFormData<{ success: boolean; url?: string }>('/studio/canvas/upload', fd);
         if (data.url) {
           setAssets(prev => [...prev, { url: data.url, type, name: file.name }]);
         } else {
-          // Fallback to blob URL if upload fails
           setAssets(prev => [...prev, { url: URL.createObjectURL(file), type, name: file.name }]);
         }
       } catch {
