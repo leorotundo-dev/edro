@@ -96,9 +96,15 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
         query(`
           SELECT wgm.id::text, wg.client_id, wgm.content, 'inbound' AS direction, wgm.type,
                  wgm.created_at, wgm.briefing_id::text, 'evolution' AS channel,
-                 wgm.sender_name, wg.group_name, NULL::text AS sender_phone
+                 COALESCE(cc.name, fp.display_name, wgm.sender_name) AS sender_name,
+                 wg.group_name, NULL::text AS sender_phone,
+                 CASE WHEN cc.id IS NOT NULL THEN 'client_contact'
+                      WHEN fp.id IS NOT NULL THEN 'freelancer'
+                      ELSE NULL END AS contact_type
           FROM whatsapp_group_messages wgm
           JOIN whatsapp_groups wg ON wg.id = wgm.group_id
+          LEFT JOIN client_contacts cc ON cc.whatsapp_jid = wgm.sender_jid AND cc.active = true
+          LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = wgm.sender_jid
           WHERE wg.client_id = $1 AND wgm.tenant_id = $2
           ORDER BY wgm.created_at DESC LIMIT $3
         `, [client_id, tenantId, lim]),

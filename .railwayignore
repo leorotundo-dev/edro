@@ -11,3 +11,42 @@ docs/
 _inbox/
 **/_inbox/**
 **/*.zip
+
+# Git history — 381MB not needed in build
+.git
+
+# IDE / local config
+.vscode/
+.idea/
+.claude/
+
+# Build caches
+**/.cache/**
+**/tsconfig.tsbuildinfo
+
+# Logs
+*.log
+*.err.log
+*.out.log
+backend-dev.out.log
+web-dev.out.log
+
+# Temp / scratch files
+tmp_*.html
+tmp_*.css
+tmp-*.js
+stitch_today_s_dashboard/
+$$edital_id$$
+$2
+scripts/data/
+
+# Playwright / tests
+e2e/
+playwright-report/
+test-results/
+coverage/
+
+# Misc large text files
+*.txt
+TURBO_AGENTS_PLAYBOOK.txt
+PLANO_COMPLETO_FINAL.md

@@ -130,6 +130,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     specialty: z.string().optional().nullable(),
     hourly_rate_brl: z.number().positive().optional().nullable(),
     pix_key: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    whatsapp_jid: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    role_title: z.string().optional().nullable(),
+    email_personal: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
   });
 
   app.post('/freelancers', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -144,16 +150,25 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!userCheck.rows.length) return reply.status(404).send({ error: 'User not found in tenant' });
 
     const res = await pool.query(
-      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key)
-       VALUES ($1,$2,$3,$4,$5)
+      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (user_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          specialty = EXCLUDED.specialty,
          hourly_rate_brl = EXCLUDED.hourly_rate_brl,
          pix_key = EXCLUDED.pix_key,
-         is_active = true
+         phone = EXCLUDED.phone,
+         whatsapp_jid = EXCLUDED.whatsapp_jid,
+         department = EXCLUDED.department,
+         role_title = EXCLUDED.role_title,
+         email_personal = EXCLUDED.email_personal,
+         notes = EXCLUDED.notes,
+         is_active = true,
+         updated_at = now()
        RETURNING *`,
-      [body.user_id, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null],
+      [body.user_id, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null,
+       body.phone ?? null, body.whatsapp_jid ?? null, body.department ?? null, body.role_title ?? null,
+       body.email_personal ?? null, body.notes ?? null],
     );
     return reply.status(201).send(res.rows[0]);
   });
@@ -177,6 +192,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     hourly_rate_brl: z.number().positive().optional().nullable(),
     pix_key: z.string().optional().nullable(),
     is_active: z.boolean().optional(),
+    phone: z.string().optional().nullable(),
+    whatsapp_jid: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    role_title: z.string().optional().nullable(),
+    email_personal: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
   });
 
   app.patch('/freelancers/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -191,8 +212,15 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (body.hourly_rate_brl !== undefined) { sets.push(`hourly_rate_brl = $${i++}`); vals.push(body.hourly_rate_brl); }
     if (body.pix_key       !== undefined) { sets.push(`pix_key = $${i++}`);          vals.push(body.pix_key); }
     if (body.is_active     !== undefined) { sets.push(`is_active = $${i++}`);         vals.push(body.is_active); }
+    if (body.phone         !== undefined) { sets.push(`phone = $${i++}`);             vals.push(body.phone); }
+    if (body.whatsapp_jid  !== undefined) { sets.push(`whatsapp_jid = $${i++}`);      vals.push(body.whatsapp_jid); }
+    if (body.department    !== undefined) { sets.push(`department = $${i++}`);         vals.push(body.department); }
+    if (body.role_title    !== undefined) { sets.push(`role_title = $${i++}`);         vals.push(body.role_title); }
+    if (body.email_personal !== undefined) { sets.push(`email_personal = $${i++}`);   vals.push(body.email_personal); }
+    if (body.notes         !== undefined) { sets.push(`notes = $${i++}`);              vals.push(body.notes); }
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
+    sets.push(`updated_at = now()`);
     vals.push(id);
 
     const res = await pool.query(
@@ -441,6 +469,37 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [userId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Freelancer profile not found' });
+    return reply.send(res.rows[0]);
+  });
+
+  app.patch('/freelancers/portal/me', async (request: any, reply) => {
+    const userId = request.user?.id;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const freelancerId = fpRes.rows[0].id;
+
+    const body = request.body as Record<string, any>;
+    const allowed = ['phone', 'whatsapp_jid', 'department', 'role_title', 'email_personal', 'notes'];
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let idx = 1;
+    for (const key of allowed) {
+      if (body[key] !== undefined) {
+        sets.push(`${key} = $${idx++}`);
+        vals.push(body[key] || null);
+      }
+    }
+    if (!sets.length) return reply.status(400).send({ error: 'No fields to update' });
+
+    sets.push(`updated_at = now()`);
+    vals.push(freelancerId);
+
+    const res = await pool.query(
+      `UPDATE freelancer_profiles SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      vals,
+    );
     return reply.send(res.rows[0]);
   });
 

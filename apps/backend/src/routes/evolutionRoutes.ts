@@ -221,9 +221,16 @@ export default async function evolutionRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
-      `SELECT * FROM whatsapp_group_messages
-       WHERE group_id = $1 AND tenant_id = $2
-       ORDER BY created_at DESC LIMIT 50`,
+      `SELECT m.*,
+              COALESCE(cc.name, fp.display_name, m.sender_name) AS resolved_name,
+              CASE WHEN cc.id IS NOT NULL THEN 'client_contact'
+                   WHEN fp.id IS NOT NULL THEN 'freelancer'
+                   ELSE NULL END AS contact_type
+       FROM whatsapp_group_messages m
+       LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
+       LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
+       WHERE m.group_id = $1 AND m.tenant_id = $2
+       ORDER BY m.created_at DESC LIMIT 50`,
       [request.params.groupId, tenantId],
     );
     return reply.send({ success: true, data: rows });
@@ -235,9 +242,15 @@ export default async function evolutionRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
-      `SELECT m.*, wg.group_name
+      `SELECT m.*, wg.group_name,
+              COALESCE(cc.name, fp.display_name, m.sender_name) AS resolved_name,
+              CASE WHEN cc.id IS NOT NULL THEN 'client_contact'
+                   WHEN fp.id IS NOT NULL THEN 'freelancer'
+                   ELSE NULL END AS contact_type
        FROM whatsapp_group_messages m
        JOIN whatsapp_groups wg ON wg.id = m.group_id
+       LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
+       LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
        WHERE m.client_id = $1 AND m.tenant_id = $2
        ORDER BY m.created_at DESC LIMIT 50`,
       [request.params.clientId, tenantId],
@@ -257,9 +270,15 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     const [{ rows }, { rows: countRows }] = await Promise.all([
       query(
-        `SELECT i.*, m.sender_name, m.content AS message_content
+        `SELECT i.*, COALESCE(cc.name, fp.display_name, m.sender_name) AS sender_name,
+                m.content AS message_content,
+                CASE WHEN cc.id IS NOT NULL THEN 'client_contact'
+                     WHEN fp.id IS NOT NULL THEN 'freelancer'
+                     ELSE NULL END AS contact_type
          FROM whatsapp_message_insights i
          JOIN whatsapp_group_messages m ON m.id = i.message_id
+         LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
+         LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
          WHERE i.client_id = $1 AND i.tenant_id = $2
          ORDER BY i.created_at DESC
          LIMIT $3 OFFSET $4`,
@@ -299,7 +318,12 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     const { rows } = await query(
       `SELECT
-         m.id, m.sender_name, m.type, m.content, m.created_at,
+         m.id, COALESCE(cc.name, fp.display_name, m.sender_name) AS sender_name,
+         m.sender_name AS original_sender_name,
+         CASE WHEN cc.id IS NOT NULL THEN 'client_contact'
+              WHEN fp.id IS NOT NULL THEN 'freelancer'
+              ELSE NULL END AS contact_type,
+         m.type, m.content, m.created_at,
          m.insight_extracted,
          wg.group_name,
          COALESCE(
@@ -318,8 +342,10 @@ export default async function evolutionRoutes(app: FastifyInstance) {
        FROM whatsapp_group_messages m
        JOIN whatsapp_groups wg ON wg.id = m.group_id
        LEFT JOIN whatsapp_message_insights i ON i.message_id = m.id
+       LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
+       LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
        WHERE m.client_id = $1 AND m.tenant_id = $2
-       GROUP BY m.id, wg.group_name
+       GROUP BY m.id, wg.group_name, cc.id, cc.name, fp.id, fp.display_name
        ORDER BY m.created_at DESC
        LIMIT $3`,
       [request.params.clientId, tenantId, limit],

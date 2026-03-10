@@ -1446,4 +1446,226 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       return reply.status(404).send({ error: 'not_found' });
     }
   });
+
+  // ── Client Contacts ────────────────────────────────────────────────────────
+
+  // GET /clients/:id/contacts — list all active contacts for a client
+  app.get(
+    '/clients/:id/contacts',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      try {
+        const { rows } = await query(
+          `SELECT * FROM client_contacts
+           WHERE client_id = $1 AND tenant_id = $2 AND active = true
+           ORDER BY is_primary DESC, name ASC`,
+          [params.id, tenantId],
+        );
+        return reply.send(rows);
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
+
+  // POST /clients/:id/contacts — create a new contact
+  app.post(
+    '/clients/:id/contacts',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const bodySchema = z.object({
+        name: z.string().min(1),
+        role: z.string().optional(),
+        department: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        whatsapp_jid: z.string().optional(),
+        is_primary: z.boolean().optional(),
+        notes: z.string().optional(),
+      });
+      const params = paramsSchema.parse(request.params);
+      const body = bodySchema.parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      try {
+        if (body.is_primary) {
+          await query(
+            `UPDATE client_contacts SET is_primary = false, updated_at = now()
+             WHERE client_id = $1 AND tenant_id = $2`,
+            [params.id, tenantId],
+          );
+        }
+
+        const { rows } = await query(
+          `INSERT INTO client_contacts
+             (tenant_id, client_id, name, role, department, email, phone, whatsapp_jid, is_primary, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *`,
+          [
+            tenantId,
+            params.id,
+            body.name,
+            body.role ?? null,
+            body.department ?? null,
+            body.email ?? null,
+            body.phone ?? null,
+            body.whatsapp_jid ?? null,
+            body.is_primary ?? false,
+            body.notes ?? null,
+          ],
+        );
+        return reply.status(201).send(rows[0]);
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
+
+  // PATCH /clients/:id/contacts/:contactId — update a contact
+  app.patch(
+    '/clients/:id/contacts/:contactId',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1), contactId: z.string().min(1) });
+      const bodySchema = z.object({
+        name: z.string().min(1).optional(),
+        role: z.string().optional(),
+        department: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        whatsapp_jid: z.string().optional(),
+        is_primary: z.boolean().optional(),
+        notes: z.string().optional(),
+        active: z.boolean().optional(),
+      });
+      const params = paramsSchema.parse(request.params);
+      const body = bodySchema.parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      try {
+        if (body.is_primary === true) {
+          await query(
+            `UPDATE client_contacts SET is_primary = false, updated_at = now()
+             WHERE client_id = $1 AND tenant_id = $2`,
+            [params.id, tenantId],
+          );
+        }
+
+        // Build dynamic SET clause — only update fields that are provided
+        const sets: string[] = [];
+        const queryParams: any[] = [];
+
+        const addField = (col: string, val: any) => {
+          queryParams.push(val);
+          sets.push(`${col}=$${queryParams.length}`);
+        };
+
+        if (body.name !== undefined) addField('name', body.name);
+        if (body.role !== undefined) addField('role', body.role);
+        if (body.department !== undefined) addField('department', body.department);
+        if (body.email !== undefined) addField('email', body.email);
+        if (body.phone !== undefined) addField('phone', body.phone);
+        if (body.whatsapp_jid !== undefined) addField('whatsapp_jid', body.whatsapp_jid);
+        if (body.is_primary !== undefined) addField('is_primary', body.is_primary);
+        if (body.notes !== undefined) addField('notes', body.notes);
+        if (body.active !== undefined) addField('active', body.active);
+
+        if (!sets.length) {
+          return reply.status(400).send({ error: 'no_fields_to_update' });
+        }
+
+        sets.push(`updated_at=now()`);
+
+        queryParams.push(params.contactId, params.id, tenantId);
+        const { rows } = await query(
+          `UPDATE client_contacts SET ${sets.join(', ')}
+           WHERE id=$${queryParams.length - 2} AND client_id=$${queryParams.length - 1} AND tenant_id=$${queryParams.length}
+           RETURNING *`,
+          queryParams,
+        );
+
+        if (!rows[0]) {
+          return reply.status(404).send({ error: 'contact_not_found' });
+        }
+        return reply.send(rows[0]);
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
+
+  // DELETE /clients/:id/contacts/:contactId — soft-delete (set active = false)
+  app.delete(
+    '/clients/:id/contacts/:contactId',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1), contactId: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      try {
+        const { rows } = await query(
+          `UPDATE client_contacts SET active = false, updated_at = now()
+           WHERE id = $1 AND client_id = $2 AND tenant_id = $3
+           RETURNING id`,
+          [params.contactId, params.id, tenantId],
+        );
+
+        if (!rows[0]) {
+          return reply.status(404).send({ error: 'contact_not_found' });
+        }
+        return reply.send({ success: true });
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
+
+  // GET /clients/:id/contacts/discover — auto-discover contacts from WhatsApp messages
+  app.get(
+    '/clients/:id/contacts/discover',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      try {
+        const { rows } = await query(
+          `SELECT
+             wgm.sender_jid,
+             wgm.sender_name,
+             COUNT(*) AS message_count,
+             BOOL_OR(cc.id IS NOT NULL) AS already_linked
+           FROM whatsapp_group_messages wgm
+           LEFT JOIN client_contacts cc
+             ON cc.whatsapp_jid = wgm.sender_jid
+             AND cc.client_id = wgm.client_id
+             AND cc.tenant_id = wgm.tenant_id
+             AND cc.active = true
+           WHERE wgm.client_id = $1 AND wgm.tenant_id = $2 AND wgm.sender_jid IS NOT NULL
+           GROUP BY wgm.sender_jid, wgm.sender_name
+           ORDER BY message_count DESC
+           LIMIT 50`,
+          [params.id, tenantId],
+        );
+
+        return reply.send({
+          discovered: rows.map((r: any) => ({
+            sender_jid: r.sender_jid,
+            sender_name: r.sender_name,
+            message_count: Number(r.message_count),
+            already_linked: Boolean(r.already_linked),
+          })),
+        });
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message });
+      }
+    }
+  );
 }

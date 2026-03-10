@@ -37,6 +37,7 @@ import {
   IconHash,
   IconPlugConnected,
   IconTarget,
+  IconUsers,
   IconUserSquare,
   IconWorld,
   IconX,
@@ -48,6 +49,7 @@ import BrandTokensCard from './BrandTokensCard';
 import PersonaManager from './PersonaManager';
 import IntelligenceScoreBar from './IntelligenceScoreBar';
 import ManualFieldsChecklist from './ManualFieldsChecklist';
+import ContactsManager from './ContactsManager';
 import SectionEnrichmentCard from './SectionEnrichmentCard';
 
 type SocialProfiles = {
@@ -392,6 +394,7 @@ export default function PerfilPage() {
         <Tab label="DNA de Marca" />
         <Tab label="Conteúdo" />
         <Tab label="Conectores" />
+        <Tab icon={<IconUsers size={16} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
         <Tab icon={<IconBooks size={16} />} iconPosition="start" label="Library" sx={{ fontSize: '0.85rem' }} />
       </Tabs>
 
@@ -867,7 +870,9 @@ export default function PerfilPage() {
         </Card>
       )}
 
-      {tab === 4 && <ClientLibraryClient clientId={clientId} />}
+      {tab === 4 && <ContactsManager clientId={clientId} />}
+
+      {tab === 5 && <ClientLibraryClient clientId={clientId} />}
     </Box>
   );
 }

@@ -35,7 +35,7 @@ type Message = {
   id: string; client_id: string; content: string | null; direction: string;
   type: string; created_at: string; briefing_id: string | null;
   channel: 'cloud' | 'evolution'; sender_name: string | null; group_name: string | null;
-  sender_phone: string | null;
+  sender_phone: string | null; contact_type: 'client_contact' | 'freelancer' | null;
 };
 type Stats = { messages_today: number; briefings_today: number; total_messages: number };
 
@@ -240,9 +240,15 @@ export default function WhatsAppInboxClient() {
                         <Stack key={msg.id} direction="row" justifyContent={isOut ? 'flex-end' : 'flex-start'} sx={{ mb: 1 }}>
                           <Box sx={{ maxWidth: '70%' }}>
                             {!isOut && msg.sender_name && (
-                              <Typography variant="caption" sx={{ color: EDRO_GREEN, fontWeight: 600, ml: 1, display: 'block' }}>
-                                {msg.sender_name}{msg.group_name ? ` · ${msg.group_name}` : ''}
-                              </Typography>
+                              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1, mb: 0.25 }}>
+                                <Typography variant="caption" sx={{ color: msg.contact_type ? '#1976d2' : EDRO_GREEN, fontWeight: 600 }}>
+                                  {msg.sender_name}{msg.group_name ? ` · ${msg.group_name}` : ''}
+                                </Typography>
+                                {msg.contact_type && (
+                                  <Chip size="small" label={msg.contact_type === 'freelancer' ? 'Equipe' : 'Contato'}
+                                    sx={{ height: 14, fontSize: '0.55rem', bgcolor: msg.contact_type === 'freelancer' ? '#E8EAF6' : '#E3F2FD', color: msg.contact_type === 'freelancer' ? '#3949AB' : '#1565C0', '& .MuiChip-label': { px: 0.5 } }} />
+                                )}
+                              </Stack>
                             )}
                             <Paper elevation={0} sx={{
                               px: 1.5, py: 1,

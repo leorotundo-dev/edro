@@ -32,7 +32,24 @@ import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconChartBar, IconClock, IconCurrencyDollar, IconPlus, IconUserCheck } from '@tabler/icons-react';
+import {
+  IconBrandWhatsapp,
+  IconChartBar,
+  IconCheck,
+  IconClock,
+  IconCurrencyDollar,
+  IconEdit,
+  IconMail,
+  IconPhone,
+  IconPlus,
+  IconSearch,
+  IconUserCheck,
+  IconUsers,
+  IconX,
+} from '@tabler/icons-react';
+import Collapse from '@mui/material/Collapse';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 type FreelancerProfile = {
@@ -44,6 +61,12 @@ type FreelancerProfile = {
   hourly_rate_brl: string | null;
   pix_key: string | null;
   is_active: boolean;
+  phone: string | null;
+  whatsapp_jid: string | null;
+  department: string | null;
+  role_title: string | null;
+  email_personal: string | null;
+  notes: string | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -86,6 +109,322 @@ function TimerDot({ startedAt }: { startedAt: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Contatos tab — contact directory for freelancers
+// ---------------------------------------------------------------------------
+
+type ContactForm = {
+  phone: string;
+  whatsapp_jid: string;
+  department: string;
+  role_title: string;
+  email_personal: string;
+  notes: string;
+};
+
+const EMPTY_CONTACT_FORM: ContactForm = {
+  phone: '',
+  whatsapp_jid: '',
+  department: '',
+  role_title: '',
+  email_personal: '',
+  notes: '',
+};
+
+const AVATAR_COLORS = [
+  '#E85219', '#4570EA', '#13DEB9', '#7c3aed',
+  '#f59e0b', '#10b981', '#3b82f6', '#ec4899',
+  '#8b5cf6', '#ef4444',
+];
+
+function avatarColor(name: string): string {
+  const code = (name?.charCodeAt(0) ?? 0) + (name?.charCodeAt(1) ?? 0);
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+}
+
+function FreelancerContacts({
+  freelancers,
+  loading,
+  onUpdated,
+}: {
+  freelancers: FreelancerProfile[];
+  loading: boolean;
+  onUpdated: () => Promise<void>;
+}) {
+  const [search, setSearch] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ContactForm>(EMPTY_CONTACT_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const filtered = freelancers.filter((fl) => {
+    if (!search.trim()) return fl.is_active;
+    const q = search.toLowerCase();
+    return (
+      fl.display_name.toLowerCase().includes(q) ||
+      fl.email?.toLowerCase().includes(q) ||
+      fl.specialty?.toLowerCase().includes(q) ||
+      fl.phone?.toLowerCase().includes(q) ||
+      fl.department?.toLowerCase().includes(q) ||
+      fl.role_title?.toLowerCase().includes(q) ||
+      fl.whatsapp_jid?.toLowerCase().includes(q)
+    );
+  });
+
+  const openEdit = (fl: FreelancerProfile) => {
+    setEditingId(fl.id);
+    setForm({
+      phone: fl.phone ?? '',
+      whatsapp_jid: fl.whatsapp_jid ?? '',
+      department: fl.department ?? '',
+      role_title: fl.role_title ?? '',
+      email_personal: fl.email_personal ?? '',
+      notes: fl.notes ?? '',
+    });
+  };
+
+  const handleSave = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    try {
+      await apiPatch(`/freelancers/${editingId}`, {
+        phone: form.phone.trim() || null,
+        whatsapp_jid: form.whatsapp_jid.trim() || null,
+        department: form.department.trim() || null,
+        role_title: form.role_title.trim() || null,
+        email_personal: form.email_personal.trim() || null,
+        notes: form.notes.trim() || null,
+      });
+      setEditingId(null);
+      await onUpdated();
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
+  const set = (patch: Partial<ContactForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  if (loading) {
+    return <Stack alignItems="center" py={6}><CircularProgress /></Stack>;
+  }
+
+  return (
+    <Stack spacing={2}>
+      {/* Search */}
+      <TextField
+        size="small"
+        placeholder="Buscar por nome, email, especialidade, departamento..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <IconSearch size={16} />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={{ maxWidth: 420 }}
+      />
+
+      {filtered.length === 0 && (
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+          {search ? 'Nenhum resultado encontrado.' : 'Nenhum freelancer ativo.'}
+        </Typography>
+      )}
+
+      {/* Contact cards grid */}
+      <Grid container spacing={2}>
+        {filtered.map((fl) => {
+          const color = avatarColor(fl.display_name);
+          const isEditing = editingId === fl.id;
+          const hasContact = fl.phone || fl.whatsapp_jid || fl.email_personal;
+
+          return (
+            <Grid key={fl.id} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Card
+                variant="outlined"
+                sx={{
+                  borderRadius: 2,
+                  borderColor: isEditing ? 'rgba(232,82,25,0.4)' : 'divider',
+                  transition: 'border-color 0.2s',
+                }}
+              >
+                <CardContent sx={{ p: '14px !important' }}>
+                  {/* Header */}
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                    <Avatar
+                      sx={{
+                        bgcolor: color,
+                        width: 42,
+                        height: 42,
+                        fontSize: '0.95rem',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials(fl.display_name)}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="subtitle2" fontWeight={700} noWrap>
+                        {fl.display_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {[fl.role_title, fl.department].filter(Boolean).join(' · ') || fl.specialty || fl.email}
+                      </Typography>
+                      {fl.specialty && (fl.role_title || fl.department) && (
+                        <Chip
+                          label={fl.specialty}
+                          size="small"
+                          sx={{ mt: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'action.hover' }}
+                        />
+                      )}
+                    </Box>
+                    <Tooltip title="Editar contato">
+                      <IconButton
+                        size="small"
+                        onClick={() => isEditing ? setEditingId(null) : openEdit(fl)}
+                        sx={{ color: isEditing ? '#E85219' : 'text.disabled', '&:hover': { color: '#E85219' } }}
+                      >
+                        {isEditing ? <IconX size={15} /> : <IconEdit size={15} />}
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+
+                  {/* Contact chips */}
+                  {hasContact && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
+                      {fl.email_personal && (
+                        <Chip
+                          size="small"
+                          icon={<IconMail size={11} />}
+                          label={fl.email_personal}
+                          variant="outlined"
+                          sx={{ fontSize: '0.68rem', height: 20 }}
+                        />
+                      )}
+                      {fl.phone && (
+                        <Chip
+                          size="small"
+                          icon={<IconPhone size={11} />}
+                          label={fl.phone}
+                          variant="outlined"
+                          sx={{ fontSize: '0.68rem', height: 20 }}
+                        />
+                      )}
+                      {fl.whatsapp_jid && (
+                        <Chip
+                          size="small"
+                          icon={<IconBrandWhatsapp size={11} />}
+                          label={fl.whatsapp_jid.replace('@s.whatsapp.net', '')}
+                          variant="outlined"
+                          sx={{
+                            fontSize: '0.68rem',
+                            height: 20,
+                            bgcolor: 'rgba(37,211,102,0.08)',
+                            color: '#22a84d',
+                            borderColor: 'rgba(37,211,102,0.3)',
+                          }}
+                        />
+                      )}
+                    </Stack>
+                  )}
+                  {!hasContact && !isEditing && (
+                    <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                      Sem dados de contato — clique no lápis para adicionar
+                    </Typography>
+                  )}
+
+                  {fl.notes && !isEditing && (
+                    <Typography
+                      variant="caption"
+                      color="text.disabled"
+                      sx={{ mt: 0.75, display: 'block', fontStyle: 'italic', lineHeight: 1.4 }}
+                    >
+                      {fl.notes}
+                    </Typography>
+                  )}
+
+                  {/* Inline edit form */}
+                  <Collapse in={isEditing} unmountOnExit>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Grid container spacing={1}>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Cargo"
+                          value={form.role_title}
+                          onChange={(e) => set({ role_title: e.target.value })}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Departamento"
+                          value={form.department}
+                          onChange={(e) => set({ department: e.target.value })}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Telefone"
+                          value={form.phone}
+                          onChange={(e) => set({ phone: e.target.value })}
+                          placeholder="+5511999999999"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="E-mail pessoal"
+                          type="email"
+                          value={form.email_personal}
+                          onChange={(e) => set({ email_personal: e.target.value })}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          fullWidth size="small" label="WhatsApp JID"
+                          placeholder="5511999999999@s.whatsapp.net"
+                          value={form.whatsapp_jid}
+                          onChange={(e) => set({ whatsapp_jid: e.target.value })}
+                          helperText="Identificador do contato no WhatsApp (Evolution API)"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          fullWidth size="small" label="Notas" multiline rows={2}
+                          value={form.notes}
+                          onChange={(e) => set({ notes: e.target.value })}
+                        />
+                      </Grid>
+                    </Grid>
+                    <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
+                      <Button
+                        size="small"
+                        onClick={() => setEditingId(null)}
+                        disabled={saving}
+                        startIcon={<IconX size={14} />}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="small" variant="contained"
+                        onClick={handleSave}
+                        disabled={saving}
+                        startIcon={saving ? <CircularProgress size={13} sx={{ color: '#fff' }} /> : <IconCheck size={14} />}
+                        sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}
+                      >
+                        {saving ? 'Salvando...' : 'Salvar'}
+                      </Button>
+                    </Stack>
+                  </Collapse>
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+    </Stack>
+  );
+}
+
 export default function EquipePage() {
   const [tab, setTab] = useState(0);
 
@@ -117,6 +456,10 @@ export default function EquipePage() {
   const [newRate,    setNewRate]    = useState('');
   const [newPix,     setNewPix]     = useState('');
   const [newSaving,  setNewSaving]  = useState(false);
+  const [newPhone,   setNewPhone]   = useState('');
+  const [newWhatsapp, setNewWhatsapp] = useState('');
+  const [newRole,    setNewRole]    = useState('');
+  const [newDept,    setNewDept]    = useState('');
 
   const currentMonth = (() => {
     const d = new Date();
@@ -150,7 +493,7 @@ export default function EquipePage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (tab !== 1) return;
+    if (tab !== 2) return;
     setAnalyticsLoading(true);
     Promise.all([
       apiGet<{ by_freelancer: any[]; by_client: any[] }>(`/financial/productivity?month=${analyticsMonth}`).catch(() => ({ by_freelancer: [], by_client: [] })),
@@ -205,9 +548,14 @@ export default function EquipePage() {
         specialty: newSpec || null,
         hourly_rate_brl: newRate ? parseFloat(newRate) : null,
         pix_key: newPix || null,
+        phone: newPhone || null,
+        whatsapp_jid: newWhatsapp || null,
+        role_title: newRole || null,
+        department: newDept || null,
       });
       setNewOpen(false);
       setNewUserId(''); setNewName(''); setNewSpec(''); setNewRate(''); setNewPix('');
+      setNewPhone(''); setNewWhatsapp(''); setNewRole(''); setNewDept('');
       await load();
     } catch (e: any) {
       alert(e.message ?? 'Erro ao criar freelancer');
@@ -270,12 +618,13 @@ export default function EquipePage() {
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Equipe" />
+          <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
           <Tab label="Analytics do Mês" />
         </Tabs>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {tab === 1 && (
+        {tab === 2 && (
           <Box>
             <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
               <Typography variant="h6">Analytics de Produtividade</Typography>
@@ -395,6 +744,10 @@ export default function EquipePage() {
           </Box>
         )}
 
+        {tab === 1 && (
+          <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+        )}
+
         {tab === 0 && loading ? (
           <Stack alignItems="center" py={6}><CircularProgress /></Stack>
         ) : tab === 0 && (
@@ -508,12 +861,46 @@ export default function EquipePage() {
               {drawerFl.specialty && (
                 <Typography variant="body2"><strong>Especialidade:</strong> {drawerFl.specialty}</Typography>
               )}
+              {drawerFl.role_title && (
+                <Typography variant="body2"><strong>Cargo:</strong> {drawerFl.role_title}</Typography>
+              )}
+              {drawerFl.department && (
+                <Typography variant="body2"><strong>Departamento:</strong> {drawerFl.department}</Typography>
+              )}
               <Typography variant="body2">
                 <strong>Taxa:</strong>{' '}
                 {drawerFl.hourly_rate_brl ? `R$ ${parseFloat(drawerFl.hourly_rate_brl).toFixed(2)}/h` : 'Projeto (flat-fee)'}
               </Typography>
               {drawerFl.pix_key && (
                 <Typography variant="body2"><strong>PIX:</strong> {drawerFl.pix_key}</Typography>
+              )}
+              {(drawerFl.phone || drawerFl.email_personal || drawerFl.whatsapp_jid) && (
+                <>
+                  <Divider sx={{ my: 0.5 }} />
+                  {drawerFl.phone && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconPhone size={13} />
+                      <Typography variant="body2">{drawerFl.phone}</Typography>
+                    </Stack>
+                  )}
+                  {drawerFl.email_personal && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconMail size={13} />
+                      <Typography variant="body2">{drawerFl.email_personal}</Typography>
+                    </Stack>
+                  )}
+                  {drawerFl.whatsapp_jid && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconBrandWhatsapp size={13} color="#25D366" />
+                      <Typography variant="body2">{drawerFl.whatsapp_jid.replace('@s.whatsapp.net', '')}</Typography>
+                    </Stack>
+                  )}
+                </>
+              )}
+              {drawerFl.notes && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
+                  {drawerFl.notes}
+                </Typography>
               )}
             </Stack>
 
@@ -616,6 +1003,43 @@ export default function EquipePage() {
               fullWidth
               placeholder="CPF, e-mail ou chave aleatória"
             />
+
+            <Divider><Typography variant="caption" color="text.secondary">Contato (opcional)</Typography></Divider>
+
+            <Stack direction="row" spacing={1.5}>
+              <TextField
+                label="Cargo"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Departamento"
+                value={newDept}
+                onChange={(e) => setNewDept(e.target.value)}
+                size="small"
+                fullWidth
+              />
+            </Stack>
+            <Stack direction="row" spacing={1.5}>
+              <TextField
+                label="Telefone"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="+5511999999999"
+              />
+              <TextField
+                label="WhatsApp JID"
+                value={newWhatsapp}
+                onChange={(e) => setNewWhatsapp(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="5511999@s.whatsapp.net"
+              />
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>

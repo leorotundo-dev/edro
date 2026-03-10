@@ -11,6 +11,7 @@ const NAV = [
   { href: '/jobs', label: 'Jobs', match: (pathname: string) => pathname.startsWith('/jobs') },
   { href: '/horas', label: 'Horas', match: (pathname: string) => pathname.startsWith('/horas') },
   { href: '/pagamentos', label: 'Pagamentos', match: (pathname: string) => pathname.startsWith('/pagamentos') },
+  { href: '/perfil', label: 'Perfil', match: (pathname: string) => pathname.startsWith('/perfil') },
 ];
 
 function getInitials(value: string) {
