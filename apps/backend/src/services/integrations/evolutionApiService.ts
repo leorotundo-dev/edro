@@ -92,6 +92,44 @@ export async function createInstance(tenantId: string): Promise<void> {
      ON CONFLICT (tenant_id) DO UPDATE SET status = 'connecting'`,
     [tenantId, name],
   );
+
+  // Auto-configure webhook so Evolution API sends events to our endpoint
+  await configureWebhook(name).catch((err) => {
+    console.warn(`[evolutionApi] Webhook config failed for ${name}: ${err.message}`);
+  });
+}
+
+/**
+ * Configure the Evolution API webhook for an instance.
+ * Points to our /webhook/evolution endpoint with MESSAGES_UPSERT + CONNECTION_UPDATE events.
+ */
+export async function configureWebhook(nameOrTenantId: string): Promise<void> {
+  // Accept either an instance name (edro-...) or a tenantId
+  const name = nameOrTenantId.startsWith('edro-') ? nameOrTenantId : instanceName(nameOrTenantId);
+
+  const apiBaseUrl = env.PUBLIC_API_URL;
+  if (!apiBaseUrl) {
+    console.warn('[evolutionApi] PUBLIC_API_URL not set — skipping webhook config');
+    return;
+  }
+
+  const webhookUrl = `${apiBaseUrl.replace(/\/$/, '')}/webhook/evolution`;
+
+  await evolFetch(`/webhook/set/${name}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      url: webhookUrl,
+      webhook_by_events: false,
+      webhook_base64: false,
+      events: [
+        'MESSAGES_UPSERT',
+        'CONNECTION_UPDATE',
+      ],
+      enabled: true,
+    }),
+  });
+
+  console.log(`[evolutionApi] Webhook configured for ${name} → ${webhookUrl}`);
 }
 
 export async function getQrCode(

@@ -19,6 +19,8 @@ import {
   unlinkGroup,
   ensureEvolutionTables,
   isConfigured,
+  configureWebhook,
+  instanceName,
 } from '../services/integrations/evolutionApiService';
 
 export default async function evolutionRoutes(app: FastifyInstance) {
@@ -361,5 +363,18 @@ export default async function evolutionRoutes(app: FastifyInstance) {
       [request.params.insightId, tenantId],
     );
     return reply.send({ success: true });
+  });
+
+  // ── Reconfigure webhook (admin manual trigger) ────────────────────────
+  app.post('/whatsapp-groups/reconfigure-webhook', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    try {
+      await configureWebhook(tenantId);
+      return reply.send({ success: true, message: 'Webhook configurado com sucesso.' });
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
   });
 }
