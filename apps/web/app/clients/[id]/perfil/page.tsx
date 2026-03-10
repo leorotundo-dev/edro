@@ -51,6 +51,7 @@ import IntelligenceScoreBar from './IntelligenceScoreBar';
 import ManualFieldsChecklist from './ManualFieldsChecklist';
 import ContactsManager from './ContactsManager';
 import SectionEnrichmentCard from './SectionEnrichmentCard';
+import VisualStyleCard from './VisualStyleCard';
 
 type SocialProfiles = {
   instagram?: string;
@@ -548,6 +549,9 @@ export default function PerfilPage() {
                 existingValues={sectionExistingValues.calendar}
                 onChanged={onProfileChanged}
               />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <VisualStyleCard clientId={clientId} />
             </Grid>
           </Grid>
 

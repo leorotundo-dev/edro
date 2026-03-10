@@ -64,25 +64,24 @@ export async function analyzeClientVisualStyle(
   return style;
 }
 
+export interface CachedVisualStyle extends ClientVisualStyle {
+  sample_count: number;
+  sample_urls: string[];
+  expires_at: string;
+  analyzed_at: string;
+}
+
 /**
  * Load cached visual style (non-expired).
  */
 export async function loadCachedStyle(
   clientId: string,
   source = 'instagram',
-): Promise<ClientVisualStyle | null> {
-  const res = await query<{
-    dominant_colors: string[];
-    color_harmony: string;
-    photo_style: string;
-    composition: string;
-    mood: string;
-    typography_style: string;
-    text_placement: string;
-    style_summary: string;
-  }>(
+): Promise<CachedVisualStyle | null> {
+  const res = await query<CachedVisualStyle>(
     `SELECT dominant_colors, color_harmony, photo_style, composition, mood,
-            typography_style, text_placement, style_summary
+            typography_style, text_placement, style_summary,
+            sample_count, sample_urls, expires_at, analyzed_at
      FROM client_visual_style
      WHERE client_id = $1 AND source = $2 AND expires_at > now()
      LIMIT 1`,

@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { generateWithProvider } from './ai/copyOrchestrator';
+import { analyzeClientVisualStyle, loadCachedStyle } from './visualStyleAnalyzer';
 import type { ProfileSuggestions } from '../types/clientProfile';
 
 export type EnrichmentSection =
@@ -7,7 +8,8 @@ export type EnrichmentSection =
   | 'voice'
   | 'strategy'
   | 'competitors'
-  | 'calendar';
+  | 'calendar'
+  | 'visual';
 
 export type EnrichmentTrigger = 'created' | 'profile_update' | 'scheduled' | 'manual';
 
@@ -36,6 +38,7 @@ const ALL_SECTIONS: EnrichmentSection[] = [
   'strategy',
   'competitors',
   'calendar',
+  'visual',
 ];
 
 const SECTION_FIELDS: Record<EnrichmentSection, string[]> = {
@@ -44,6 +47,7 @@ const SECTION_FIELDS: Record<EnrichmentSection, string[]> = {
   strategy: ['pillars', 'keywords', 'negative_keywords', 'content_mix'],
   competitors: ['competitors'],
   calendar: ['strategic_dates'],
+  visual: ['visual_style'],
 };
 
 function safeJsonParse(text: string) {
@@ -141,6 +145,7 @@ export function calculateIntelligenceScore(params: {
   let totalMax = 0;
 
   for (const section of ALL_SECTIONS) {
+    if (section === 'visual') continue; // visual has its own scoring
     const sectionCounts = countFilledInSection(profile, section);
     totalFilled += sectionCounts.filled;
     totalMax += sectionCounts.max;
@@ -150,6 +155,12 @@ export function calculateIntelligenceScore(params: {
     ).length;
     totalFilled += pendingCount * 0.5;
     totalMax += pendingCount * 0.5;
+  }
+
+  // Visual section: adds a bonus point if analyzed
+  totalMax += 1;
+  if (suggestions.visual?.status === 'done') {
+    totalFilled += 1;
   }
 
   if (!totalMax) return 0;
@@ -348,6 +359,57 @@ export async function enrichClientProfile(params: EnrichmentParams): Promise<voi
 
   try {
     for (const section of sections) {
+      // Visual section uses dedicated visualStyleAnalyzer (Claude Vision)
+      if (section === 'visual') {
+        try {
+          await analyzeClientVisualStyle(params.tenant_id, params.client_id);
+          const cached = await loadCachedStyle(params.client_id, 'instagram');
+          suggestions.visual = {
+            suggested_at: new Date().toISOString(),
+            status: cached ? 'done' : 'pending',
+            fields: {
+              visual_style: {
+                value: cached?.style_summary || null,
+                confidence: cached ? 0.85 : 0,
+                source: 'instagram_vision',
+                reasoning: cached
+                  ? `Analisados ${cached.sample_count} posts do Instagram via Claude Vision.`
+                  : 'Nenhum post com imagem encontrado para análise.',
+                status: cached ? 'confirmed' : 'pending',
+                metadata: cached ? {
+                  dominant_colors: cached.dominant_colors,
+                  color_harmony: cached.color_harmony,
+                  photo_style: cached.photo_style,
+                  composition: cached.composition,
+                  mood: cached.mood,
+                  typography_style: cached.typography_style,
+                  text_placement: cached.text_placement,
+                  sample_count: cached.sample_count,
+                  expires_at: cached.expires_at,
+                } : undefined,
+              },
+            },
+          };
+        } catch (err: any) {
+          console.warn('[enrichment] visual section failed:', err?.message);
+          suggestions.visual = {
+            suggested_at: new Date().toISOString(),
+            status: 'failed',
+            fields: {
+              visual_style: {
+                value: null,
+                confidence: 0,
+                source: 'instagram_vision',
+                reasoning: `Falha na análise visual: ${err?.message || 'unknown'}`,
+                status: 'pending',
+              },
+            },
+          };
+        }
+        refreshedAt.visual = new Date().toISOString();
+        continue;
+      }
+
       let parsed: any = null;
       try {
         const result = await generateWithProvider('gemini', {

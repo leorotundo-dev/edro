@@ -18,6 +18,7 @@ function normalizeSections(value: any): EnrichmentSection[] | undefined {
     'strategy',
     'competitors',
     'calendar',
+    'visual',
   ]);
   const sections = value
     .map((item) => String(item || '').trim() as EnrichmentSection)

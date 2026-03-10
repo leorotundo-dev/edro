@@ -26,6 +26,7 @@ import {
   calculateIntelligenceScore,
   type EnrichmentSection,
 } from '../services/clientEnrichmentService';
+import { analyzeClientVisualStyle, loadCachedStyle } from '../services/visualStyleAnalyzer';
 import {
   getClientPreferenceContext,
   recordPreferenceFeedback,
@@ -196,7 +197,7 @@ const baseClientSchema = z.object({
   status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
 });
 
-const enrichmentSections = ['identity', 'voice', 'strategy', 'competitors', 'calendar'] as const;
+const enrichmentSections = ['identity', 'voice', 'strategy', 'competitors', 'calendar', 'visual'] as const;
 const enrichmentSectionSchema = z.enum(enrichmentSections);
 const suggestionFieldPathSchema = z.object({
   id: z.string().min(1),
@@ -500,6 +501,44 @@ export default async function clientsRoutes(app: FastifyInstance) {
       });
     }
   );
+
+  // ── Visual Style Analysis ──────────────────────────────────────────────────
+
+  app.post(
+    '/clients/:id/analyze-visual',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = z.object({ force: z.boolean().optional() }).optional().parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      try {
+        await analyzeClientVisualStyle(tenantId, params.id, body?.force ?? false);
+        const style = await loadCachedStyle(params.id, 'instagram');
+        return reply.send({ ok: true, style });
+      } catch (err: any) {
+        return reply.status(500).send({ error: err?.message || 'visual_analysis_failed' });
+      }
+    }
+  );
+
+  app.get(
+    '/clients/:id/visual-style',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const style = await loadCachedStyle(params.id, 'instagram');
+      return reply.send({
+        style: style || null,
+        expired: style ? new Date(style.expires_at) < new Date() : true,
+      });
+    }
+  );
+
+  // ── Intelligence ──────────────────────────────────────────────────────────
 
   app.get(
     '/clients/:id/intelligence',

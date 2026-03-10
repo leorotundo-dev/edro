@@ -86,12 +86,19 @@ export type SectionSuggestion = {
   fields: Record<string, FieldSuggestion>;
 };
 
+export type VisualSectionSuggestion = {
+  suggested_at: string;
+  status: 'pending' | 'done' | 'failed';
+  fields: Record<string, FieldSuggestion & { metadata?: Record<string, any> }>;
+};
+
 export type ProfileSuggestions = {
   identity?: SectionSuggestion;
   voice?: SectionSuggestion;
   strategy?: SectionSuggestion;
   competitors?: SectionSuggestion;
   calendar?: SectionSuggestion;
+  visual?: VisualSectionSuggestion;
 };
 
 export type IntelligenceScoreBreakdown = {
