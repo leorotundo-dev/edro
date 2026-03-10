@@ -21,6 +21,7 @@ import {
   isConfigured,
   configureWebhook,
   instanceName,
+  syncGroupHistory,
 } from '../services/integrations/evolutionApiService';
 
 export default async function evolutionRoutes(app: FastifyInstance) {
@@ -416,5 +417,66 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.code(500).send({ error: err.message });
     }
+  });
+
+  // ── Sync history for all linked groups ──────────────────────────────────
+  app.post('/whatsapp-groups/sync-history', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const { limit } = (request.body as any) ?? {};
+
+    const { rows: groups } = await query(
+      `SELECT id, group_jid, client_id FROM whatsapp_groups WHERE tenant_id = $1 AND active = true`,
+      [tenantId],
+    );
+
+    if (!groups.length) {
+      return reply.send({ success: true, message: 'Nenhum grupo ativo encontrado.', synced: 0 });
+    }
+
+    let totalInserted = 0;
+    const results: { group_jid: string; inserted: number; error?: string }[] = [];
+
+    for (const g of groups) {
+      try {
+        const inserted = await syncGroupHistory(tenantId, g.id, g.group_jid, g.client_id, limit ?? 200);
+        totalInserted += inserted;
+        results.push({ group_jid: g.group_jid, inserted });
+      } catch (err: any) {
+        results.push({ group_jid: g.group_jid, inserted: 0, error: err.message });
+      }
+    }
+
+    return reply.send({
+      success: true,
+      message: `Sync concluído: ${totalInserted} mensagens novas de ${groups.length} grupo(s).`,
+      total_inserted: totalInserted,
+      groups: results,
+    });
+  });
+
+  // ── Sync history for a single group ─────────────────────────────────────
+  app.post('/whatsapp-groups/:groupId/sync-history', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const { groupId } = request.params as any;
+    const { limit } = (request.body as any) ?? {};
+
+    const { rows } = await query(
+      `SELECT id, group_jid, client_id FROM whatsapp_groups WHERE id = $1 AND tenant_id = $2 AND active = true`,
+      [groupId, tenantId],
+    );
+    if (!rows.length) return reply.code(404).send({ error: 'Grupo não encontrado.' });
+
+    const g = rows[0];
+    const inserted = await syncGroupHistory(tenantId, g.id, g.group_jid, g.client_id, limit ?? 200);
+
+    return reply.send({
+      success: true,
+      message: `${inserted} mensagens sincronizadas.`,
+      inserted,
+    });
   });
 }

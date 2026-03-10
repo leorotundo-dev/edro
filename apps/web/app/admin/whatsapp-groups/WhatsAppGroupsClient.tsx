@@ -26,7 +26,7 @@ import Tabs from '@mui/material/Tabs';
 import {
   IconBrandWhatsapp, IconRefresh, IconLink, IconLinkOff,
   IconQrcode, IconCircleCheck, IconCircleX, IconSettings, IconExternalLink,
-  IconBrain, IconUrgent, IconCheck,
+  IconBrain, IconUrgent, IconCheck, IconDownload,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 
@@ -70,6 +70,8 @@ export default function WhatsAppGroupsClient() {
   const [linkMap, setLinkMap] = useState<Record<string, string>>({}); // groupJid → clientId
   const [intelSummary, setIntelSummary] = useState<IntelSummary | null>(null);
   const [intelLoading, setIntelLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState('');
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -202,6 +204,20 @@ export default function WhatsAppGroupsClient() {
       setIntelLoading(false);
     }
   }, []);
+
+  const handleSyncHistory = async () => {
+    setSyncing(true);
+    setSyncResult('');
+    try {
+      const res = await apiPost<{ message: string; total_inserted: number }>('/whatsapp-groups/sync-history', { limit: 200 });
+      setSyncResult(res?.message ?? `${res?.total_inserted ?? 0} mensagens sincronizadas.`);
+      await loadStatus();
+    } catch (e: any) {
+      setSyncResult(`Erro: ${e?.message ?? 'falha no sync'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleMarkActioned = async (insightId: string) => {
     await apiPatch(`/whatsapp-groups/insights/${insightId}/action`, {});
@@ -437,9 +453,25 @@ export default function WhatsAppGroupsClient() {
             {linkedGroups.length > 0 && (
               <Card variant="outlined" sx={{ mb: 3 }}>
                 <CardContent sx={{ pb: '8px !important' }}>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                    Grupos Vinculados ({linkedGroups.length})
-                  </Typography>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Grupos Vinculados ({linkedGroups.length})
+                    </Typography>
+                    <Button
+                      size="small"
+                      startIcon={syncing ? <CircularProgress size={12} /> : <IconDownload size={14} />}
+                      onClick={handleSyncHistory}
+                      disabled={syncing}
+                      sx={{ color: EDRO_GREEN }}
+                    >
+                      {syncing ? 'Sincronizando...' : 'Sincronizar Histórico'}
+                    </Button>
+                  </Stack>
+                  {syncResult && (
+                    <Alert severity={syncResult.startsWith('Erro') ? 'error' : 'success'} onClose={() => setSyncResult('')} sx={{ mb: 1.5, py: 0 }}>
+                      {syncResult}
+                    </Alert>
+                  )}
                   <Table size="small">
                     <TableHead>
                       <TableRow>

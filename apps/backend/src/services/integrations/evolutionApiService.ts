@@ -313,3 +313,101 @@ export async function ensureEvolutionTables() {
 export function isConfigured(): boolean {
   return !!(env.EVOLUTION_API_URL && env.EVOLUTION_API_KEY);
 }
+
+// ── History sync ──────────────────────────────────────────────────────────
+
+export interface EvolutionHistoryMessage {
+  key: { id: string; remoteJid: string; fromMe: boolean; participant?: string };
+  pushName?: string;
+  message?: any;
+  messageTimestamp?: number | string;
+}
+
+/**
+ * Fetch historical messages from a group via Evolution API.
+ * Returns raw Evolution API message objects (same format as MESSAGES_UPSERT).
+ */
+export async function fetchGroupHistory(
+  tenantId: string,
+  groupJid: string,
+  limit = 200,
+): Promise<EvolutionHistoryMessage[]> {
+  const name = instanceName(tenantId);
+
+  const data = await evolFetch(`/chat/findMessages/${name}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      where: { key: { remoteJid: groupJid } },
+      limit,
+    }),
+  });
+
+  // v2 returns array of message objects or { messages: [...] }
+  const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+  return msgs as EvolutionHistoryMessage[];
+}
+
+/**
+ * Sync historical messages for a single linked group.
+ * Skips messages already saved (idempotent via wa_message_id UNIQUE).
+ * Returns count of newly inserted messages.
+ */
+export async function syncGroupHistory(
+  tenantId: string,
+  groupId: string,
+  groupJid: string,
+  clientId: string | null,
+  limit = 200,
+): Promise<number> {
+  const messages = await fetchGroupHistory(tenantId, groupJid, limit);
+  let inserted = 0;
+
+  for (const msg of messages) {
+    const waMessageId = msg.key?.id;
+    if (!waMessageId) continue;
+    if (msg.key.fromMe) continue; // skip own messages
+
+    const senderJid = (msg.key.participant ?? '') as string;
+    const senderName = msg.pushName ?? senderJid.split('@')[0] ?? 'Desconhecido';
+
+    // Extract text content (simplified — no audio transcription for history)
+    const message = msg.message ?? {};
+    const text = message.conversation
+      ?? message.extendedTextMessage?.text
+      ?? message.ephemeralMessage?.message?.extendedTextMessage?.text
+      ?? null;
+    const isAudio = !!(message.audioMessage ?? message.pttMessage);
+    const isImage = !!message.imageMessage;
+    const isDoc = !!(message.documentMessage ?? message.documentWithCaptionMessage);
+    const type = text ? 'text' : isAudio ? 'audio' : isImage ? 'image' : isDoc ? 'document' : 'unknown';
+    const content = text ?? (isImage ? message.imageMessage?.caption : null) ?? (isDoc ? (message.documentMessage?.caption ?? message.documentMessage?.fileName) : null);
+
+    if (!content && type === 'unknown') continue;
+
+    // Parse timestamp
+    const ts = msg.messageTimestamp
+      ? new Date(Number(msg.messageTimestamp) * (Number(msg.messageTimestamp) > 1e12 ? 1 : 1000))
+      : new Date();
+
+    const { rowCount } = await query(
+      `INSERT INTO whatsapp_group_messages
+         (tenant_id, group_id, client_id, wa_message_id, sender_jid, sender_name, type, content, processed, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9)
+       ON CONFLICT (wa_message_id) DO NOTHING`,
+      [tenantId, groupId, clientId, waMessageId, senderJid, senderName, type, content, ts],
+    );
+    if (rowCount && rowCount > 0) inserted++;
+  }
+
+  // Update group last_message_at
+  if (inserted > 0) {
+    await query(
+      `UPDATE whatsapp_groups SET last_message_at = (
+         SELECT MAX(created_at) FROM whatsapp_group_messages WHERE group_id = $1
+       ) WHERE id = $1`,
+      [groupId],
+    );
+  }
+
+  return inserted;
+}
