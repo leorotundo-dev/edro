@@ -34,11 +34,14 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import {
   IconBrandWhatsapp,
+  IconBuildingBank,
+  IconCalendar,
   IconChartBar,
   IconCheck,
   IconClock,
   IconCurrencyDollar,
   IconEdit,
+  IconId,
   IconMail,
   IconPhone,
   IconPlus,
@@ -67,6 +70,12 @@ type FreelancerProfile = {
   role_title: string | null;
   email_personal: string | null;
   notes: string | null;
+  cpf: string | null;
+  rg: string | null;
+  birth_date: string | null;
+  bank_name: string | null;
+  bank_agency: string | null;
+  bank_account: string | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -120,6 +129,13 @@ type ContactForm = {
   role_title: string;
   email_personal: string;
   notes: string;
+  cpf: string;
+  rg: string;
+  birth_date: string;
+  pix_key: string;
+  bank_name: string;
+  bank_agency: string;
+  bank_account: string;
 };
 
 const EMPTY_CONTACT_FORM: ContactForm = {
@@ -129,6 +145,13 @@ const EMPTY_CONTACT_FORM: ContactForm = {
   role_title: '',
   email_personal: '',
   notes: '',
+  cpf: '',
+  rg: '',
+  birth_date: '',
+  pix_key: '',
+  bank_name: '',
+  bank_agency: '',
+  bank_account: '',
 };
 
 const AVATAR_COLORS = [
@@ -179,6 +202,13 @@ function FreelancerContacts({
       role_title: fl.role_title ?? '',
       email_personal: fl.email_personal ?? '',
       notes: fl.notes ?? '',
+      cpf: fl.cpf ?? '',
+      rg: fl.rg ?? '',
+      birth_date: fl.birth_date ? fl.birth_date.slice(0, 10) : '',
+      pix_key: fl.pix_key ?? '',
+      bank_name: fl.bank_name ?? '',
+      bank_agency: fl.bank_agency ?? '',
+      bank_account: fl.bank_account ?? '',
     });
   };
 
@@ -193,6 +223,13 @@ function FreelancerContacts({
         role_title: form.role_title.trim() || null,
         email_personal: form.email_personal.trim() || null,
         notes: form.notes.trim() || null,
+        cpf: form.cpf.trim() || null,
+        rg: form.rg.trim() || null,
+        birth_date: form.birth_date.trim() || null,
+        pix_key: form.pix_key.trim() || null,
+        bank_name: form.bank_name.trim() || null,
+        bank_agency: form.bank_agency.trim() || null,
+        bank_account: form.bank_account.trim() || null,
       });
       setEditingId(null);
       await onUpdated();
@@ -238,6 +275,7 @@ function FreelancerContacts({
           const color = avatarColor(fl.display_name);
           const isEditing = editingId === fl.id;
           const hasContact = fl.phone || fl.whatsapp_jid || fl.email_personal;
+          const hasFinancial = fl.cpf || fl.pix_key || fl.bank_name;
 
           return (
             <Grid key={fl.id} size={{ xs: 12, sm: 6, md: 4 }}>
@@ -328,10 +366,45 @@ function FreelancerContacts({
                       )}
                     </Stack>
                   )}
-                  {!hasContact && !isEditing && (
+                  {!hasContact && !hasFinancial && !isEditing && (
                     <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
-                      Sem dados de contato — clique no lápis para adicionar
+                      Sem dados cadastrais — clique no lápis para adicionar
                     </Typography>
+                  )}
+
+                  {/* Personal / financial info */}
+                  {hasFinancial && !isEditing && (
+                    <Box sx={{ mt: 1.25 }}>
+                      <Divider sx={{ mb: 0.75 }} />
+                      <Stack spacing={0.25}>
+                        {(fl.cpf || fl.rg || fl.birth_date) && (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {fl.cpf && (
+                              <Chip size="small" icon={<IconId size={11} />} label={`CPF ${fl.cpf}`} variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                            )}
+                            {fl.rg && (
+                              <Chip size="small" icon={<IconId size={11} />} label={`RG ${fl.rg}`} variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                            )}
+                            {fl.birth_date && (
+                              <Chip size="small" icon={<IconCalendar size={11} />} label={new Date(fl.birth_date).toLocaleDateString('pt-BR')} variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                            )}
+                          </Stack>
+                        )}
+                        {(fl.pix_key || fl.bank_name) && (
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                            {fl.pix_key && (
+                              <Chip size="small" icon={<IconCurrencyDollar size={11} />} label={`Pix: ${fl.pix_key}`} variant="outlined"
+                                sx={{ fontSize: '0.68rem', height: 20, bgcolor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)', color: '#059669' }} />
+                            )}
+                            {fl.bank_name && (
+                              <Chip size="small" icon={<IconBuildingBank size={11} />}
+                                label={[fl.bank_name, fl.bank_agency ? `Ag ${fl.bank_agency}` : '', fl.bank_account ? `Cc ${fl.bank_account}` : ''].filter(Boolean).join(' · ')}
+                                variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                            )}
+                          </Stack>
+                        )}
+                      </Stack>
+                    </Box>
                   )}
 
                   {fl.notes && !isEditing && (
@@ -347,6 +420,7 @@ function FreelancerContacts({
                   {/* Inline edit form */}
                   <Collapse in={isEditing} unmountOnExit>
                     <Divider sx={{ my: 1.5 }} />
+                    <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Profissional</Typography>
                     <Grid container spacing={1}>
                       <Grid size={{ xs: 12, sm: 6 }}>
                         <TextField
@@ -364,10 +438,10 @@ function FreelancerContacts({
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6 }}>
                         <TextField
-                          fullWidth size="small" label="Telefone"
+                          fullWidth size="small" label="Celular"
                           value={form.phone}
                           onChange={(e) => set({ phone: e.target.value })}
-                          placeholder="+5511999999999"
+                          placeholder="(13) 99711-2202"
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6 }}>
@@ -385,6 +459,71 @@ function FreelancerContacts({
                           value={form.whatsapp_jid}
                           onChange={(e) => set({ whatsapp_jid: e.target.value })}
                           helperText="Identificador do contato no WhatsApp (Evolution API)"
+                        />
+                      </Grid>
+                    </Grid>
+
+                    <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mt: 1.5, mb: 0.5, display: 'block' }}>Dados Pessoais</Typography>
+                    <Grid container spacing={1}>
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="CPF"
+                          value={form.cpf}
+                          onChange={(e) => set({ cpf: e.target.value })}
+                          placeholder="000.000.000-00"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="RG"
+                          value={form.rg}
+                          onChange={(e) => set({ rg: e.target.value })}
+                          placeholder="00.000.000-0"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="Data de Nascimento"
+                          type="date"
+                          value={form.birth_date}
+                          onChange={(e) => set({ birth_date: e.target.value })}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </Grid>
+                    </Grid>
+
+                    <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mt: 1.5, mb: 0.5, display: 'block' }}>Dados Bancários</Typography>
+                    <Grid container spacing={1}>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          fullWidth size="small" label="Chave Pix"
+                          value={form.pix_key}
+                          onChange={(e) => set({ pix_key: e.target.value })}
+                          placeholder="CPF, e-mail, telefone ou chave aleatória"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="Banco"
+                          value={form.bank_name}
+                          onChange={(e) => set({ bank_name: e.target.value })}
+                          placeholder="077 - Inter"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="Agência"
+                          value={form.bank_agency}
+                          onChange={(e) => set({ bank_agency: e.target.value })}
+                          placeholder="0001"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 4 }}>
+                        <TextField
+                          fullWidth size="small" label="Conta"
+                          value={form.bank_account}
+                          onChange={(e) => set({ bank_account: e.target.value })}
+                          placeholder="331975343"
                         />
                       </Grid>
                       <Grid size={{ xs: 12 }}>

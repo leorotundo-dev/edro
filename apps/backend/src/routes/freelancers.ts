@@ -198,6 +198,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     role_title: z.string().optional().nullable(),
     email_personal: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
+    cpf: z.string().optional().nullable(),
+    rg: z.string().optional().nullable(),
+    birth_date: z.string().optional().nullable(),
+    bank_name: z.string().optional().nullable(),
+    bank_agency: z.string().optional().nullable(),
+    bank_account: z.string().optional().nullable(),
   });
 
   app.patch('/freelancers/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -218,6 +224,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (body.role_title    !== undefined) { sets.push(`role_title = $${i++}`);         vals.push(body.role_title); }
     if (body.email_personal !== undefined) { sets.push(`email_personal = $${i++}`);   vals.push(body.email_personal); }
     if (body.notes         !== undefined) { sets.push(`notes = $${i++}`);              vals.push(body.notes); }
+    if (body.cpf           !== undefined) { sets.push(`cpf = $${i++}`);                vals.push(body.cpf); }
+    if (body.rg            !== undefined) { sets.push(`rg = $${i++}`);                 vals.push(body.rg); }
+    if (body.birth_date    !== undefined) { sets.push(`birth_date = $${i++}`);         vals.push(body.birth_date); }
+    if (body.bank_name     !== undefined) { sets.push(`bank_name = $${i++}`);          vals.push(body.bank_name); }
+    if (body.bank_agency   !== undefined) { sets.push(`bank_agency = $${i++}`);        vals.push(body.bank_agency); }
+    if (body.bank_account  !== undefined) { sets.push(`bank_account = $${i++}`);       vals.push(body.bank_account); }
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     sets.push(`updated_at = now()`);
