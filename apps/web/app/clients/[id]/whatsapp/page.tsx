@@ -1,5 +1,8 @@
 import WhatsAppClientTab from './WhatsAppClientTab';
 
-export default function ClientWhatsAppPage({ params }: { params: { id: string } }) {
-  return <WhatsAppClientTab clientId={params.id} />;
+type Props = { params: Promise<{ id: string }> };
+
+export default async function ClientWhatsAppPage({ params }: Props) {
+  const { id } = await params;
+  return <WhatsAppClientTab clientId={id} />;
 }
