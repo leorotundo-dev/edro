@@ -113,7 +113,9 @@ export async function configureWebhook(nameOrTenantId: string): Promise<void> {
     return;
   }
 
-  const webhookUrl = `${apiBaseUrl.replace(/\/$/, '')}/webhook/evolution`;
+  // Strip /api suffix since webhooks are registered without prefix
+  const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+  const webhookUrl = `${baseUrl}/webhook/evolution`;
 
   await evolFetch(`/webhook/set/${name}`, {
     method: 'POST',
