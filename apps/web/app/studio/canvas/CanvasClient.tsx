@@ -35,8 +35,9 @@ import {
 import CanvasViewport from './components/CanvasViewport';
 import LayerPanel from './components/LayerPanel';
 import BoldnessSlider from './components/BoldnessSlider';
+import CampaignCanvasView from './components/CampaignCanvasView';
 import { useCanvasLayers } from './hooks/useCanvasLayers';
-import type { GenerateLayoutResponse } from './types';
+import type { GenerateLayoutResponse, GenerateCampaignResponse, CampaignPieceResult } from './types';
 
 const EDRO_ORANGE = '#E85219';
 const DARK_BG = '#111';
@@ -160,6 +161,15 @@ export default function CanvasClient() {
   const layoutCanvasRef = useRef<HTMLDivElement>(null);
   const canvasLayers = useCanvasLayers();
 
+  // ── Campaign mode ───────────────────────────────────────────────
+  const [campaignMode, setCampaignMode] = useState(false);
+  const [campaignPieces, setCampaignPieces] = useState<CampaignPieceResult[]>([]);
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignId, setCampaignId] = useState('');
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignArtDirection, setCampaignArtDirection] = useState<Record<string, any>>({});
+  const [regeneratingPieceIdx, setRegeneratingPieceIdx] = useState<number | null>(null);
+
   // ── New: Canvas tools ──────────────────────────────────────────
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
   const [brushSize, setBrushSize] = useState(30);
@@ -250,11 +260,13 @@ export default function CanvasClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load campaign piece from URL params ──────────────────────
+  // ── Load campaign piece or layout from URL params ────────────
   useEffect(() => {
     const layoutParam = searchParams.get('layout');
     const imageUrl = searchParams.get('image_url');
     const paramClientId = searchParams.get('client_id');
+    const paramCampaignId = searchParams.get('campaign_id');
+    const paramCampaignName = searchParams.get('campaign_name');
 
     if (layoutParam) {
       try {
@@ -264,11 +276,20 @@ export default function CanvasClient() {
         setShowLayerPanel(true);
         if (imageUrl) setImageUrls([imageUrl]);
         if (paramClientId) setClientId(paramClientId);
-        // Clean URL without reload
         window.history.replaceState({}, '', '/studio/canvas');
       } catch {
         // Invalid layout param — ignore
       }
+    }
+
+    // Auto-launch campaign generation if campaign_id is in URL
+    if (paramCampaignId) {
+      setCampaignId(paramCampaignId);
+      if (paramCampaignName) setCampaignName(decodeURIComponent(paramCampaignName));
+      if (paramClientId) setClientId(paramClientId);
+      window.history.replaceState({}, '', '/studio/canvas');
+      // Trigger campaign generation after mount
+      setTimeout(() => generateCampaignPieces(paramCampaignId), 100);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -560,6 +581,95 @@ export default function CanvasClient() {
       setLayoutLoading(false);
     }
   }, [input, layoutLoading, clientId, format, platform, boldness, provider, falModel, canvasLayers, notify]);
+
+  // ── Generate campaign pieces ──────────────────────────────────
+  const generateCampaignPieces = useCallback(async (overrideCampaignId?: string) => {
+    const cId = overrideCampaignId || campaignId;
+    if (!cId || campaignLoading) return;
+    setCampaignLoading(true);
+    setCampaignMode(true);
+    notify('Gerando peças da campanha (copy → direção de arte → layout → imagens)...');
+
+    try {
+      // Default pieces: Feed + Stories + Feed 4:5
+      const pieces = [
+        { format: 'Feed 1:1', platform },
+        { format: 'Stories 9:16', platform },
+        { format: 'Feed 4:5', platform },
+      ];
+
+      const res = await apiPost<GenerateCampaignResponse>('/studio/canvas/generate-campaign', {
+        campaign_id: cId,
+        pieces,
+        boldness,
+        image_provider: provider === 'leonardo' ? 'fal' : provider,
+        fal_model: provider === 'fal' ? falModel : 'flux-pro',
+      });
+
+      if (res.success) {
+        setCampaignPieces(res.pieces);
+        setCampaignName(res.campaign_name);
+        setCampaignArtDirection(res.art_direction);
+        notify(`Campanha "${res.campaign_name}" — ${res.generated}/${res.total} peças geradas!`);
+      } else {
+        notify('Erro ao gerar campanha. Tente novamente.');
+      }
+    } catch (err: any) {
+      notify(`Erro: ${err?.message || 'Falha na geração de campanha'}`);
+    } finally {
+      setCampaignLoading(false);
+    }
+  }, [campaignId, campaignLoading, platform, boldness, provider, falModel, notify]);
+
+  const handleOpenCampaignPiece = useCallback((piece: CampaignPieceResult) => {
+    if (!piece.layout?.layers?.length) return;
+    canvasLayers.loadLayout(piece.layout);
+    setLayoutMode(true);
+    setShowLayerPanel(true);
+    setCampaignMode(false); // close campaign overlay, show editor
+    if (piece.copy) {
+      setCopy({
+        headline: piece.copy.headline || '',
+        body: piece.copy.body || '',
+        cta: piece.copy.cta || '',
+      });
+    }
+    if (piece.image_url) {
+      setImageUrls([piece.image_url]);
+      setImageIdx(0);
+    }
+  }, [canvasLayers]);
+
+  const handleRegeneratePiece = useCallback(async (pieceIndex: number) => {
+    const piece = campaignPieces[pieceIndex];
+    if (!piece || regeneratingPieceIdx !== null) return;
+    setRegeneratingPieceIdx(pieceIndex);
+
+    try {
+      const res = await apiPost<{ success: boolean; layout: any; copy: any; image_url?: string }>('/studio/canvas/regenerate-piece', {
+        format: piece.format,
+        platform: piece.platform,
+        copy: piece.copy,
+        art_direction: campaignArtDirection,
+        boldness,
+        image_provider: provider === 'leonardo' ? 'fal' : provider,
+        fal_model: provider === 'fal' ? falModel : 'flux-pro',
+      });
+
+      if (res.success) {
+        setCampaignPieces(prev => prev.map((p, i) =>
+          i === pieceIndex
+            ? { ...p, layout: res.layout, copy: res.copy, image_url: res.image_url, error: undefined }
+            : p
+        ));
+        notify(`Peça ${pieceIndex + 1} regenerada!`);
+      }
+    } catch (err: any) {
+      notify(`Erro ao regenerar peça: ${err?.message}`);
+    } finally {
+      setRegeneratingPieceIdx(null);
+    }
+  }, [campaignPieces, regeneratingPieceIdx, campaignArtDirection, boldness, provider, falModel, notify]);
 
   // ── Toolbar Actions ───────────────────────────────────────────
   const handleToolbarAction = useCallback(async (action: string, extraParams?: Record<string, any>) => {
@@ -1296,6 +1406,35 @@ export default function CanvasClient() {
           </Box>
         )}
       </Box>
+
+      {/* ── Campaign overlay ────────────────────────────────────── */}
+      {campaignMode && campaignPieces.length > 0 && (
+        <CampaignCanvasView
+          campaignName={campaignName}
+          pieces={campaignPieces}
+          onOpenPiece={handleOpenCampaignPiece}
+          onRegeneratePiece={handleRegeneratePiece}
+          onClose={() => setCampaignMode(false)}
+          regeneratingIdx={regeneratingPieceIdx}
+        />
+      )}
+
+      {/* Campaign loading overlay */}
+      {campaignLoading && (
+        <Box sx={{
+          position: 'fixed', inset: 0, zIndex: 1400,
+          bgcolor: 'rgba(0,0,0,0.85)', display: 'flex',
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+        }}>
+          <CircularProgress size={48} sx={{ color: EDRO_ORANGE }} />
+          <Typography variant="h6" sx={{ color: '#eee', fontWeight: 600 }}>
+            Gerando peças da campanha...
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#888' }}>
+            Copy + Direção de Arte + Layout + Imagens
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }
