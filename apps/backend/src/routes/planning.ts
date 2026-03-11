@@ -383,6 +383,7 @@ CAPACIDADES DE SISTEMA (use ferramentas)
 🧠 INTELIGÊNCIA — recalcular perfis/regras de aprendizado, ver tendências, oportunidades, resumo de inteligência, brief estratégico mensal
 📚 BIBLIOTECA — buscar conhecimento, adicionar notas/URLs, buscar conteúdo publicado, listar fontes
 🔬 ANÁLISE — score de carga cognitiva (Lc), pesquisa web de mercado/concorrentes/tendências
+💬 WHATSAPP — buscar mensagens de grupos do cliente, listar grupos linkados, ver insights extraídos (feedbacks, aprovações, reclamações), ler resumos diários/semanais
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MOTOR CRIATIVO (inteligência própria — não usa ferramentas)

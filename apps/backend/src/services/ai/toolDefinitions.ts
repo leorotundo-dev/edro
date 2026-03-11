@@ -617,6 +617,47 @@ export const TOOLS: ToolDefinition[] = [
     required: ['question'],
     category: 'action',
   },
+
+  // ── GRUPO 7: WhatsApp / Grupos ──────────────────────────────────
+  {
+    name: 'search_whatsapp_messages',
+    description: 'Busca mensagens de grupos de WhatsApp associados ao cliente. Retorna mensagens recentes com nome do remetente, conteúdo e grupo de origem. Use para: "o que falaram no grupo", "últimas mensagens do WhatsApp", "o que o cliente pediu no zap".',
+    parameters: {
+      query: { type: 'string', description: 'Termo de busca dentro das mensagens (opcional — sem query retorna as mais recentes)' },
+      group_name: { type: 'string', description: 'Nome parcial do grupo para filtrar (ex: "Ciclus", "Hotel")' },
+      days_back: { type: 'number', description: 'Buscar últimos N dias (padrão 7, máximo 30)' },
+      limit: { type: 'number', description: 'Máximo de mensagens a retornar (padrão 30, máximo 100)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'list_whatsapp_groups',
+    description: 'Lista os grupos de WhatsApp linkados ao cliente com contagem de mensagens e última atividade.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_whatsapp_insights',
+    description: 'Retorna insights extraídos por IA das mensagens de WhatsApp do cliente: feedbacks, aprovações, reclamações, deadlines, preferências de estilo/tom.',
+    parameters: {
+      insight_type: { type: 'string', description: 'Filtrar por tipo de insight', enum: ['feedback', 'approval', 'request', 'preference', 'deadline', 'complaint', 'praise'] },
+      days_back: { type: 'number', description: 'Últimos N dias (padrão 14)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_whatsapp_digests',
+    description: 'Retorna resumos diários/semanais das conversas de WhatsApp do cliente, incluindo decisões-chave e ações pendentes.',
+    parameters: {
+      period: { type: 'string', description: 'Período do digest', enum: ['daily', 'weekly'] },
+      limit: { type: 'number', description: 'Quantidade de digests (padrão 5)' },
+    },
+    required: [],
+    category: 'read',
+  },
 ];
 
 // ── Provider Format Converters ──────────────────────────────────

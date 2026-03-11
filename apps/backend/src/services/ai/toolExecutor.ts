@@ -139,6 +139,11 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   // Grupo 7 — Consulta Multi-IA
   consult_gemini: toolConsultGemini,
   consult_openai: toolConsultOpenAI,
+  // Grupo 8 — WhatsApp / Grupos
+  search_whatsapp_messages: toolSearchWhatsAppMessages,
+  list_whatsapp_groups: toolListWhatsAppGroups,
+  get_whatsapp_insights: toolGetWhatsAppInsights,
+  get_whatsapp_digests: toolGetWhatsAppDigests,
 };
 
 export async function executeTool(
@@ -1853,4 +1858,151 @@ async function toolConsultOpenAI(args: any, _ctx: ToolContext): Promise<ToolResu
   } catch (err: any) {
     return { success: false, error: `OpenAI indisponível: ${err?.message ?? 'erro desconhecido'}` };
   }
+}
+
+// ── GRUPO 8: WhatsApp / Grupos ────────────────────────────────────
+
+async function toolSearchWhatsAppMessages(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const daysBack = Math.min(args.days_back ?? 7, 30);
+  const limit = Math.min(args.limit ?? 30, 100);
+  const searchQuery = args.query?.trim() || null;
+  const groupName = args.group_name?.trim() || null;
+
+  const params: any[] = [ctx.clientId, daysBack];
+  let sql = `
+    SELECT wgm.sender_name, wgm.content, wgm.type, wgm.created_at,
+           wg.group_name
+    FROM whatsapp_group_messages wgm
+    JOIN whatsapp_groups wg ON wg.id = wgm.group_id
+    WHERE wg.client_id = $1
+      AND wg.active = true
+      AND wgm.content IS NOT NULL
+      AND wgm.created_at > NOW() - make_interval(days => $2)
+  `;
+
+  if (groupName) {
+    params.push(`%${groupName}%`);
+    sql += ` AND wg.group_name ILIKE $${params.length}`;
+  }
+
+  if (searchQuery) {
+    params.push(`%${searchQuery}%`);
+    sql += ` AND wgm.content ILIKE $${params.length}`;
+  }
+
+  sql += ` ORDER BY wgm.created_at DESC LIMIT ${limit}`;
+
+  const { rows } = await query(sql, params);
+  if (!rows.length) {
+    return { success: true, data: { messages: [], total: 0, note: 'Nenhuma mensagem encontrada para este cliente nos últimos ' + daysBack + ' dias.' } };
+  }
+
+  const messages = rows.map((r: any) => ({
+    grupo: r.group_name,
+    remetente: r.sender_name,
+    mensagem: (r.content || '').slice(0, 500),
+    tipo: r.type,
+    data: r.created_at,
+  }));
+
+  return { success: true, data: safeData(messages, 30), metadata: { row_count: rows.length } };
+}
+
+async function toolListWhatsAppGroups(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { rows } = await query(
+    `SELECT wg.id, wg.group_name, wg.participant_count, wg.auto_briefing, wg.notify_jarvis,
+            wg.last_message_at,
+            (SELECT COUNT(*) FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id) AS message_count
+     FROM whatsapp_groups wg
+     WHERE wg.client_id = $1 AND wg.active = true
+     ORDER BY wg.last_message_at DESC NULLS LAST`,
+    [ctx.clientId],
+  );
+
+  if (!rows.length) {
+    return { success: true, data: { groups: [], note: 'Nenhum grupo de WhatsApp linkado a este cliente.' } };
+  }
+
+  return {
+    success: true,
+    data: rows.map((r: any) => ({
+      id: r.id,
+      nome: r.group_name,
+      participantes: r.participant_count,
+      mensagens: Number(r.message_count),
+      auto_briefing: r.auto_briefing,
+      jarvis_ativo: r.notify_jarvis,
+      ultima_mensagem: r.last_message_at,
+    })),
+  };
+}
+
+async function toolGetWhatsAppInsights(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const daysBack = Math.min(args.days_back ?? 14, 60);
+  const insightType = args.insight_type || null;
+
+  const params: any[] = [ctx.clientId, daysBack];
+  let sql = `
+    SELECT wi.insight_type, wi.summary, wi.sentiment, wi.urgency, wi.entities, wi.confidence, wi.created_at
+    FROM whatsapp_message_insights wi
+    WHERE wi.client_id = $1
+      AND wi.created_at > NOW() - make_interval(days => $2)
+  `;
+
+  if (insightType) {
+    params.push(insightType);
+    sql += ` AND wi.insight_type = $${params.length}`;
+  }
+
+  sql += ` ORDER BY wi.created_at DESC LIMIT 30`;
+
+  const { rows } = await query(sql, params);
+  if (!rows.length) {
+    return { success: true, data: { insights: [], note: 'Nenhum insight extraído nos últimos ' + daysBack + ' dias.' } };
+  }
+
+  return {
+    success: true,
+    data: safeData(rows.map((r: any) => ({
+      tipo: r.insight_type,
+      resumo: r.summary,
+      sentimento: r.sentiment,
+      urgencia: r.urgency,
+      entidades: r.entities,
+      data: r.created_at,
+    })), 20),
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function toolGetWhatsAppDigests(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const period = args.period || 'daily';
+  const limit = Math.min(args.limit ?? 5, 20);
+
+  const { rows } = await query(
+    `SELECT wd.period, wd.summary, wd.key_decisions, wd.pending_actions,
+            wd.message_count, wd.insight_count, wd.created_at
+     FROM whatsapp_group_digests wd
+     WHERE wd.client_id = $1 AND wd.period = $2
+     ORDER BY wd.created_at DESC
+     LIMIT $3`,
+    [ctx.clientId, period, limit],
+  );
+
+  if (!rows.length) {
+    return { success: true, data: { digests: [], note: `Nenhum digest ${period} encontrado.` } };
+  }
+
+  return {
+    success: true,
+    data: rows.map((r: any) => ({
+      periodo: r.period,
+      resumo: r.summary,
+      decisoes: r.key_decisions,
+      acoes_pendentes: r.pending_actions,
+      mensagens: r.message_count,
+      insights: r.insight_count,
+      data: r.created_at,
+    })),
+  };
 }
