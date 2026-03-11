@@ -493,6 +493,18 @@ export default async function meetingRoutes(app: FastifyInstance) {
     },
   );
 
+  // ── Get meeting detail (admin — no clientId needed) ──────────────────────
+  app.get<{ Params: { meetingId: string } }>(
+    '/meetings/:meetingId/detail',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const meeting = await getMeeting(tenantId, request.params.meetingId);
+      if (!meeting) return reply.code(404).send({ error: 'not_found' });
+      return reply.send({ data: meeting });
+    },
+  );
+
   // ── Create meeting + schedule bot + send invites ──────────────────────────
   const createMeetingSchema = z.object({
     title: z.string().min(1),

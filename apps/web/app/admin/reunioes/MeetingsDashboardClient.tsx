@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -39,7 +39,7 @@ import {
   IconClock, IconUser, IconAlertTriangle, IconChevronRight,
   IconChecks, IconCalendar, IconBrandGoogle, IconBrandZoom,
   IconBrandTeams, IconVideo, IconBrandWhatsapp, IconMail,
-  IconSend, IconRobot,
+  IconSend, IconRobot, IconFileText, IconPlayerPlay,
 } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
@@ -337,6 +337,160 @@ function ProposalCard({
   );
 }
 
+// ── Meeting Detail (expandable row content) ─────────────────────────
+
+type MeetingDetail = {
+  id: string;
+  title: string;
+  summary: string | null;
+  transcript: string | null;
+  status: string;
+  meeting_url: string | null;
+  actions: Array<{
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    priority: string;
+    status: string;
+    responsible: string | null;
+    deadline: string | null;
+  }> | null;
+};
+
+function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
+  const [detail, setDetail] = useState<MeetingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showTranscript, setShowTranscript] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    apiGet<{ data: MeetingDetail }>(`/meetings/${meetingId}/detail`)
+      .then(r => setDetail(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [meetingId]);
+
+  if (loading) {
+    return (
+      <Box sx={{ py: 3, textAlign: 'center' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+        Erro ao carregar detalhes.
+      </Typography>
+    );
+  }
+
+  const actions = detail.actions ?? [];
+
+  return (
+    <Box sx={{ px: 2, py: 2 }}>
+      {/* Summary */}
+      {detail.summary && (
+        <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 1.5, borderLeft: `3px solid ${EDRO_ORANGE}` }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            <IconRobot size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
+            Resumo Jarvis
+          </Typography>
+          <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+            {detail.summary}
+          </Typography>
+        </Box>
+      )}
+
+      {/* Actions extracted */}
+      {actions.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Acoes extraidas ({actions.length})
+          </Typography>
+          <Stack spacing={0.75}>
+            {actions.map(a => (
+              <Stack key={a.id} direction="row" alignItems="center" spacing={1} sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                {actionIcon(a.type)}
+                <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.78rem', flex: 1 }} noWrap>
+                  {a.title}
+                </Typography>
+                <Chip label={typeLabel(a.type)} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
+                <Chip label={a.priority} size="small" color={priorityColor(a.priority)} sx={{ fontSize: '0.6rem', height: 18 }} />
+                {a.status === 'approved' && <IconCheck size={14} style={{ color: '#4caf50' }} />}
+                {a.status === 'rejected' && <IconX size={14} style={{ color: '#f44336' }} />}
+                {a.status === 'pending' && <IconClock size={14} style={{ color: '#ff9800' }} />}
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Transcript toggle */}
+      {detail.transcript && (
+        <Box>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<IconFileText size={14} />}
+            onClick={() => setShowTranscript(v => !v)}
+            sx={{ mb: 0.5, textTransform: 'none', fontSize: '0.75rem' }}
+          >
+            {showTranscript ? 'Ocultar transcricao' : 'Ver transcricao completa'}
+          </Button>
+          <Collapse in={showTranscript}>
+            <Box sx={{
+              p: 1.5, bgcolor: '#fafafa', borderRadius: 1.5, border: 1, borderColor: 'divider',
+              maxHeight: 400, overflow: 'auto', fontFamily: 'monospace',
+            }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {detail.transcript}
+              </Typography>
+            </Box>
+          </Collapse>
+        </Box>
+      )}
+
+      {/* No analysis yet */}
+      {!detail.summary && !detail.transcript && detail.status !== 'analyzed' && (
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 1 }}>
+          {detail.status === 'processing' ? (
+            <>
+              <CircularProgress size={14} />
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                Jarvis esta analisando esta reuniao...
+              </Typography>
+            </>
+          ) : (
+            <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.8rem' }}>
+              Nenhuma analise disponivel.
+            </Typography>
+          )}
+        </Stack>
+      )}
+
+      {/* Meeting URL */}
+      {detail.meeting_url && (
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary">Link:</Typography>
+          <Typography
+            variant="caption"
+            component="a"
+            href={detail.meeting_url}
+            target="_blank"
+            rel="noopener"
+            sx={{ color: 'primary.main', textDecoration: 'underline', wordBreak: 'break-all' }}
+          >
+            {detail.meeting_url}
+          </Typography>
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────
 
 export default function MeetingsDashboardClient() {
@@ -366,6 +520,7 @@ export default function MeetingsDashboardClient() {
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState<any>(null);
   const [createError, setCreateError] = useState('');
+  const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
 
   // ── Load dashboard data ────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -822,48 +977,63 @@ export default function MeetingsDashboardClient() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {recent.slice(0, 20).map(m => (
-                            <TableRow
-                              key={m.id}
-                              hover
-                              sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
-                              onClick={() => router.push(`/clients/${m.client_id}/meetings`)}
-                            >
-                              <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                                {fmtDate(m.recorded_at)}<br />
-                                <Typography variant="caption" color="text.disabled">{fmtTime(m.recorded_at)}</Typography>
-                              </TableCell>
-                              <TableCell sx={{ fontSize: '0.78rem', maxWidth: 140 }}>
-                                <Typography variant="body2" noWrap sx={{ fontSize: '0.78rem' }}>
-                                  {m.client_name || 'Interno'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell sx={{ fontSize: '0.78rem', maxWidth: 200 }}>
-                                <Typography variant="body2" noWrap sx={{ fontSize: '0.78rem' }}>
-                                  {m.title || 'Sem titulo'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell sx={{ fontSize: '0.75rem' }}>
-                                <Stack direction="row" alignItems="center" spacing={0.5}>
-                                  {platformIcon(m.platform)}
-                                  <Typography variant="caption">{platformLabel(m.platform)}</Typography>
-                                </Stack>
-                              </TableCell>
-                              <TableCell>{statusChip(m.status)}</TableCell>
-                              <TableCell align="center">
-                                {m.pending_actions > 0 ? (
-                                  <Chip label={`${m.pending_actions}/${m.total_actions}`} size="small" color="warning" sx={{ fontSize: '0.7rem', height: 20 }} />
-                                ) : m.total_actions > 0 ? (
-                                  <Chip label={m.total_actions} size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
-                                ) : (
-                                  <Typography variant="caption" color="text.disabled">-</Typography>
+                          {recent.slice(0, 20).map(m => {
+                            const isExpanded = expandedMeetingId === m.id;
+                            return (
+                              <React.Fragment key={m.id}>
+                                <TableRow
+                                  hover
+                                  sx={{
+                                    cursor: 'pointer',
+                                    bgcolor: isExpanded ? 'action.selected' : undefined,
+                                    '&:last-child td': { border: isExpanded ? undefined : 0 },
+                                  }}
+                                  onClick={() => setExpandedMeetingId(isExpanded ? null : m.id)}
+                                >
+                                  <TableCell sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                    {fmtDate(m.recorded_at)}<br />
+                                    <Typography variant="caption" color="text.disabled">{fmtTime(m.recorded_at)}</Typography>
+                                  </TableCell>
+                                  <TableCell sx={{ fontSize: '0.78rem', maxWidth: 140 }}>
+                                    <Typography variant="body2" noWrap sx={{ fontSize: '0.78rem' }}>
+                                      {m.client_name || 'Interno'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell sx={{ fontSize: '0.78rem', maxWidth: 200 }}>
+                                    <Typography variant="body2" noWrap sx={{ fontSize: '0.78rem' }}>
+                                      {m.title || 'Sem titulo'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell sx={{ fontSize: '0.75rem' }}>
+                                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                                      {platformIcon(m.platform)}
+                                      <Typography variant="caption">{platformLabel(m.platform)}</Typography>
+                                    </Stack>
+                                  </TableCell>
+                                  <TableCell>{statusChip(m.status)}</TableCell>
+                                  <TableCell align="center">
+                                    {m.pending_actions > 0 ? (
+                                      <Chip label={`${m.pending_actions}/${m.total_actions}`} size="small" color="warning" sx={{ fontSize: '0.7rem', height: 20 }} />
+                                    ) : m.total_actions > 0 ? (
+                                      <Chip label={m.total_actions} size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
+                                    ) : (
+                                      <Typography variant="caption" color="text.disabled">-</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {isExpanded ? <IconChevronDown size={14} style={{ color: '#999' }} /> : <IconChevronRight size={14} style={{ color: '#999' }} />}
+                                  </TableCell>
+                                </TableRow>
+                                {isExpanded && (
+                                  <TableRow>
+                                    <TableCell colSpan={7} sx={{ p: 0, bgcolor: '#fafbfc', borderBottom: 1, borderColor: 'divider' }}>
+                                      <MeetingDetailPanel meetingId={m.id} />
+                                    </TableCell>
+                                  </TableRow>
                                 )}
-                              </TableCell>
-                              <TableCell>
-                                <IconChevronRight size={14} style={{ color: '#999' }} />
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                              </React.Fragment>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
