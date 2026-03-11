@@ -49,8 +49,13 @@ export default function WhatsAppPulseCard({ clientId }: { clientId: string }) {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiGet<PulseData>(`/clients/${clientId}/whatsapp-pulse`);
-      setData(res);
+      const res = await apiGet<any>(`/clients/${clientId}/whatsapp-pulse`);
+      setData({
+        ...res,
+        topics: Array.isArray(res?.topics) ? res.topics.map((t: any) => String(t ?? '')) : [],
+        pending_actions: Array.isArray(res?.pending_actions) ? res.pending_actions.map((a: any) => String(a ?? '')) : [],
+        groups: Array.isArray(res?.groups) ? res.groups : [],
+      });
     } catch { /* silent */ } finally {
       setLoading(false);
     }
@@ -172,19 +177,22 @@ export default function WhatsAppPulseCard({ clientId }: { clientId: string }) {
         {/* Topics */}
         {data.topics.length > 0 && (
           <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-            {data.topics.map((topic, i) => (
-              <Chip
-                key={i}
-                label={topic}
-                size="small"
-                sx={{
-                  height: 22, fontSize: '0.65rem',
-                  bgcolor: topic.startsWith('⚠️') ? '#fef3c7' : '#e0f2fe',
-                  color: topic.startsWith('⚠️') ? '#92400e' : '#0369a1',
-                  fontWeight: topic.startsWith('⚠️') ? 700 : 500,
-                }}
-              />
-            ))}
+            {data.topics.map((rawTopic, i) => {
+              const topic = String(rawTopic ?? '');
+              return (
+                <Chip
+                  key={i}
+                  label={topic}
+                  size="small"
+                  sx={{
+                    height: 22, fontSize: '0.65rem',
+                    bgcolor: topic.startsWith('⚠️') ? '#fef3c7' : '#e0f2fe',
+                    color: topic.startsWith('⚠️') ? '#92400e' : '#0369a1',
+                    fontWeight: topic.startsWith('⚠️') ? 700 : 500,
+                  }}
+                />
+              );
+            })}
           </Stack>
         )}
 
