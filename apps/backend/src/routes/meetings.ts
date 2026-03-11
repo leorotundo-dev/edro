@@ -26,6 +26,9 @@ import { createBriefing } from '../repositories/edroBriefingRepository';
 import { getClientById } from '../repos/clientsRepo';
 import { enqueueJob } from '../jobs/jobQueue';
 import { createCalendarMeeting } from '../services/integrations/googleCalendarService';
+import { sendDirectMessage, sendGroupMessage, isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
+import { sendEmail } from '../services/emailService';
+import { env } from '../env';
 
 const AUDIO_MIMES = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/m4a',
@@ -487,6 +490,207 @@ export default async function meetingRoutes(app: FastifyInstance) {
       const ok = await rejectMeetingAction(tenantId, request.params.actionId);
       if (!ok) return reply.code(404).send({ error: 'not_found' });
       return reply.send({ success: true });
+    },
+  );
+
+  // ── Create meeting + schedule bot + send invites ──────────────────────────
+  const createMeetingSchema = z.object({
+    title: z.string().min(1),
+    client_id: z.string().optional(),
+    platform: z.enum(['meet', 'zoom', 'teams', 'other']),
+    meeting_url: z.string().optional(),        // For Zoom/Teams — user provides link
+    scheduled_at: z.string(),                   // ISO string
+    duration_minutes: z.number().min(15).max(480).default(60),
+    description: z.string().optional(),
+    invite_contacts: z.array(z.object({
+      name: z.string(),
+      email: z.string().optional(),
+      phone: z.string().optional(),
+      send_via: z.enum(['whatsapp', 'email', 'both']).default('email'),
+    })).optional(),
+    schedule_bot: z.boolean().default(true),
+  });
+
+  app.post(
+    '/meetings/create',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply) => {
+      const tenantId = request.user.tenant_id;
+      const body = createMeetingSchema.parse(request.body || {});
+      const startAt = new Date(body.scheduled_at);
+
+      let meetingUrl = body.meeting_url ?? '';
+      let htmlLink = '';
+
+      // ── 1. Create video meeting link if platform is Google Meet ─────
+      if (body.platform === 'meet') {
+        const attendeeEmails = (body.invite_contacts ?? [])
+          .map(c => c.email).filter(Boolean) as string[];
+
+        const calResult = await createCalendarMeeting({
+          tenantId,
+          title: body.title,
+          startAt,
+          durationMinutes: body.duration_minutes,
+          attendeeEmails,
+          description: body.description,
+        });
+
+        meetingUrl = calResult.meetUrl;
+        htmlLink = calResult.htmlLink;
+      }
+
+      // ── 2. Create meeting record ─────────────────────────────────────
+      const meetingRow = await createMeeting({
+        tenantId,
+        clientId: body.client_id ?? '',
+        title: body.title,
+        platform: body.platform,
+        meetingUrl,
+        createdBy: (request.user as any).email ?? 'admin',
+      });
+      const meetingId = meetingRow.id;
+
+      // ── 3. Schedule Recall bot for transcription ─────────────────────
+      if (body.schedule_bot && meetingUrl) {
+        try {
+          await enqueueJob(tenantId, 'meet-bot', {
+            meeting_id: meetingId,
+            meeting_url: meetingUrl,
+            scheduled_at: startAt.toISOString(),
+            client_id: body.client_id,
+            title: body.title,
+            platform: body.platform,
+          }, { scheduledFor: new Date(startAt.getTime() - 60_000) });
+        } catch (err: any) {
+          console.error('[meetings/create] Failed to enqueue bot:', err?.message);
+        }
+      }
+
+      // ── 4. Send invites ──────────────────────────────────────────────
+      const inviteResults: Array<{ name: string; channel: string; ok: boolean; error?: string }> = [];
+
+      if (body.invite_contacts?.length) {
+        const fmtDate = startAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const fmtTime = startAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+        const platformName = body.platform === 'meet' ? 'Google Meet'
+          : body.platform === 'zoom' ? 'Zoom'
+          : body.platform === 'teams' ? 'Microsoft Teams' : 'Video';
+
+        const waText = `📅 *Convite de Reunião*\n\n` +
+          `*${body.title}*\n` +
+          `🗓 ${fmtDate} às ${fmtTime}\n` +
+          `⏱ ${body.duration_minutes} minutos\n` +
+          `📹 ${platformName}\n` +
+          (meetingUrl ? `\n🔗 ${meetingUrl}\n` : '') +
+          (body.description ? `\n${body.description}\n` : '') +
+          `\n_Enviado via Edro Digital_`;
+
+        for (const contact of body.invite_contacts) {
+          // WhatsApp invite
+          if ((contact.send_via === 'whatsapp' || contact.send_via === 'both') && contact.phone) {
+            try {
+              if (isEvolutionConfigured()) {
+                await sendDirectMessage(tenantId, contact.phone, waText);
+                inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: true });
+              } else {
+                inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: 'Evolution API não configurada' });
+              }
+            } catch (err: any) {
+              inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: err?.message });
+            }
+          }
+
+          // Email invite
+          if ((contact.send_via === 'email' || contact.send_via === 'both') && contact.email) {
+            try {
+              await sendEmail({
+                to: contact.email,
+                subject: `Convite: ${body.title} — ${fmtDate} ${fmtTime}`,
+                html: `
+                  <h2>${body.title}</h2>
+                  <p><strong>Data:</strong> ${fmtDate} às ${fmtTime}</p>
+                  <p><strong>Duração:</strong> ${body.duration_minutes} minutos</p>
+                  <p><strong>Plataforma:</strong> ${platformName}</p>
+                  ${meetingUrl ? `<p><strong>Link:</strong> <a href="${meetingUrl}">${meetingUrl}</a></p>` : ''}
+                  ${body.description ? `<p>${body.description}</p>` : ''}
+                  <hr><p style="color:#999;font-size:12px">Enviado via Edro Digital</p>
+                `,
+              });
+              inviteResults.push({ name: contact.name, channel: 'email', ok: true });
+            } catch (err: any) {
+              inviteResults.push({ name: contact.name, channel: 'email', ok: false, error: err?.message });
+            }
+          }
+        }
+      }
+
+      return reply.send({
+        success: true,
+        meeting_id: meetingId,
+        meeting_url: meetingUrl,
+        html_link: htmlLink,
+        platform: body.platform,
+        bot_scheduled: body.schedule_bot && !!meetingUrl,
+        invites: inviteResults,
+      });
+    },
+  );
+
+  // ── List contacts for meeting invites ─────────────────────────────────────
+  app.get(
+    '/meetings/contacts',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply) => {
+      const tenantId = request.user.tenant_id;
+      const clientId = (request.query as any)?.client_id;
+
+      // Client contacts
+      let contactsSql = `
+        SELECT cc.id, cc.name, cc.role, cc.email, cc.phone, cc.client_id, cc.is_primary,
+               c.name AS client_name, 'client_contact' AS source
+        FROM client_contacts cc
+        JOIN clients c ON c.id = cc.client_id
+        WHERE cc.tenant_id = $1 AND cc.active = true
+      `;
+      const params: any[] = [tenantId];
+      if (clientId) {
+        params.push(clientId);
+        contactsSql += ` AND cc.client_id = $${params.length}`;
+      }
+      contactsSql += ` ORDER BY cc.is_primary DESC, cc.name ASC`;
+
+      const { rows: clientContacts } = await query(contactsSql, params);
+
+      // Team members (users of the tenant)
+      const { rows: teamMembers } = await query(
+        `SELECT id, email, name, role, 'team' AS source
+         FROM users
+         WHERE tenant_id = $1 AND active = true
+         ORDER BY name ASC`,
+        [tenantId],
+      );
+
+      return reply.send({
+        contacts: clientContacts.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          role: c.role,
+          email: c.email,
+          phone: c.phone,
+          client_id: c.client_id,
+          client_name: c.client_name,
+          is_primary: c.is_primary,
+          source: c.source,
+        })),
+        team: teamMembers.map((u: any) => ({
+          id: u.id,
+          name: u.name || u.email,
+          email: u.email,
+          role: u.role,
+          source: u.source,
+        })),
+      });
     },
   );
 }

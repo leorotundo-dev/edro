@@ -280,6 +280,17 @@ export async function sendGroupMessage(tenantId: string, groupJid: string, text:
   });
 }
 
+/** Send a text message to an individual phone number via Evolution API */
+export async function sendDirectMessage(tenantId: string, phone: string, text: string): Promise<void> {
+  const name = instanceName(tenantId);
+  // Normalize phone to JID format if not already
+  const jid = phone.includes('@') ? phone : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
+  await evolFetch(`/message/sendText/${name}`, {
+    method: 'POST',
+    body: JSON.stringify({ number: jid, text }),
+  });
+}
+
 // ── DB helpers ─────────────────────────────────────────────────────────────
 
 export async function ensureEvolutionTables() {

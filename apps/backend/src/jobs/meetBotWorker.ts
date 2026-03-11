@@ -2,6 +2,7 @@ import { query } from '../db';
 import { fetchJobs, markJob, enqueueJob } from './jobQueue';
 import { createMeeting, analyzeMeetingTranscript, saveMeetingAnalysis, notifyMeetingActions } from '../services/meetingService';
 import { createRecallBot, getRecallBot, getRecallBotStatus, getRecallBotTranscript, isRecallConfigured } from '../services/integrations/recallService';
+import { sendGroupMessage, isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
 
 const FINALIZE_DELAY_MINUTES = 30;
 const RETRY_DELAY_MINUTES = 15;
@@ -184,6 +185,10 @@ async function handleFinalizeJob(job: any): Promise<void> {
   // Notify admins about extracted actions
   await notifyMeetingActions(tenantId, clientId, meetingId, clientName, analysis.actions?.length ?? 0)
     .catch((err: any) => console.error('[meetBotWorker] notification failed:', err?.message));
+
+  // Send WhatsApp summary to client's linked group
+  await sendMeetingSummaryToWhatsApp(tenantId, clientId, clientName, analysis)
+    .catch((err: any) => console.error('[meetBotWorker] WhatsApp notification failed:', err?.message));
 }
 
 async function getExistingScheduledMeeting(autoJoinId: string): Promise<{ meetingId: string | null; botId: string | null } | null> {
@@ -267,4 +272,48 @@ async function enqueueFinalizeJob(params: {
 
 function minutesFromNow(minutes: number): Date {
   return new Date(Date.now() + minutes * 60 * 1000);
+}
+
+/**
+ * After Jarvis analyzes a meeting, send a summary to the client's WhatsApp group.
+ * Finds groups linked to the client and sends a formatted message with
+ * the summary + extracted actions.
+ */
+async function sendMeetingSummaryToWhatsApp(
+  tenantId: string,
+  clientId: string,
+  clientName: string,
+  analysis: { summary: string; actions: Array<{ type: string; title: string; priority: string }> },
+): Promise<void> {
+  if (!isEvolutionConfigured()) return;
+
+  // Find WhatsApp groups linked to this client
+  const { rows: groups } = await query(
+    `SELECT wg.group_jid
+     FROM whatsapp_groups wg
+     JOIN evolution_instances ei ON ei.id = wg.instance_id
+     WHERE wg.client_id = $1 AND wg.tenant_id = $2 AND wg.active = true AND wg.notify_jarvis = true
+     LIMIT 1`,
+    [clientId, tenantId],
+  );
+
+  if (!groups.length) return;
+
+  const actionCount = analysis.actions?.length ?? 0;
+  const actionLines = (analysis.actions ?? []).slice(0, 5).map(a => {
+    const emoji = a.type === 'briefing' ? '📋' : a.type === 'task' ? '✅' : a.type === 'campaign' ? '💡' : a.type === 'pauta' ? '📝' : '📌';
+    const prio = a.priority === 'high' ? '🔴' : a.priority === 'medium' ? '🟡' : '🟢';
+    return `${emoji} ${prio} ${a.title}`;
+  }).join('\n');
+
+  const text = `🤖 *Jarvis — Analise de Reuniao*\n\n` +
+    `👤 *Cliente:* ${clientName}\n\n` +
+    `📝 *Resumo:*\n${(analysis.summary ?? '').slice(0, 500)}\n\n` +
+    (actionCount > 0
+      ? `⚡ *${actionCount} acao${actionCount > 1 ? 'es' : ''} extraida${actionCount > 1 ? 's' : ''}:*\n${actionLines}\n\n`
+      : '') +
+    `_Acesse o painel para aprovar as acoes sugeridas._`;
+
+  await sendGroupMessage(tenantId, groups[0].group_jid, text);
+  console.log(`[meetBotWorker] WhatsApp summary sent to ${groups[0].group_jid} for client ${clientId}`);
 }
