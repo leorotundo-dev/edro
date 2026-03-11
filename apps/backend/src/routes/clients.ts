@@ -27,6 +27,7 @@ import {
   type EnrichmentSection,
 } from '../services/clientEnrichmentService';
 import { analyzeClientVisualStyle, loadCachedStyle } from '../services/visualStyleAnalyzer';
+import { generateCompletion } from '../services/ai/claudeService';
 import {
   getClientPreferenceContext,
   recordPreferenceFeedback,
@@ -1706,5 +1707,161 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         return reply.status(500).send({ error: err.message });
       }
     }
+  );
+
+  // ── WhatsApp Pulse — summary of recent group activity ─────────
+  app.get(
+    '/clients/:clientId/whatsapp-pulse',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply) => {
+      const { clientId } = request.params as { clientId: string };
+      const tenantId = request.user.tenant_id;
+
+      // Get linked groups
+      const { rows: groups } = await pool.query(
+        `SELECT id, group_name, last_message_at
+         FROM whatsapp_groups
+         WHERE client_id = $1 AND tenant_id = $2 AND active = true
+         ORDER BY last_message_at DESC NULLS LAST`,
+        [clientId, tenantId],
+      );
+
+      if (!groups.length) {
+        return reply.send({
+          has_groups: false,
+          groups: [],
+          message_count_7d: 0,
+          insight_count_7d: 0,
+          summary: null,
+          topics: [],
+          sentiment: null,
+          pending_actions: [],
+          last_activity: null,
+        });
+      }
+
+      const groupIds = groups.map((g: any) => g.id);
+
+      // Count messages last 7 days
+      const { rows: [msgStats] } = await pool.query(
+        `SELECT COUNT(*) AS cnt
+         FROM whatsapp_group_messages
+         WHERE group_id = ANY($1) AND created_at > NOW() - INTERVAL '7 days'
+           AND content IS NOT NULL`,
+        [groupIds],
+      );
+
+      // Count insights last 7 days
+      const { rows: [insightStats] } = await pool.query(
+        `SELECT COUNT(*) AS cnt
+         FROM whatsapp_message_insights
+         WHERE client_id = $1 AND tenant_id = $2
+           AND created_at > NOW() - INTERVAL '7 days'`,
+        [clientId, tenantId],
+      );
+
+      // Get latest digest
+      const { rows: digests } = await pool.query(
+        `SELECT summary, key_decisions, pending_actions, period, created_at
+         FROM whatsapp_group_digests
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [clientId, tenantId],
+      );
+
+      // Get recent insights grouped by type
+      const { rows: recentInsights } = await pool.query(
+        `SELECT insight_type, summary, sentiment, urgency, created_at
+         FROM whatsapp_message_insights
+         WHERE client_id = $1 AND tenant_id = $2
+           AND created_at > NOW() - INTERVAL '7 days'
+         ORDER BY created_at DESC LIMIT 15`,
+        [clientId, tenantId],
+      );
+
+      // Get last 30 messages for AI summary (if no recent digest)
+      let aiSummary: string | null = null;
+      let topics: string[] = [];
+      let overallSentiment: string | null = null;
+
+      const digest = digests[0];
+      const msgCount = Number(msgStats.cnt);
+
+      if (digest) {
+        aiSummary = digest.summary;
+        topics = (digest.key_decisions ?? []).slice(0, 5);
+      } else if (msgCount > 3) {
+        // Generate a quick AI summary from recent messages
+        const { rows: recentMsgs } = await pool.query(
+          `SELECT sender_name, content, created_at
+           FROM whatsapp_group_messages
+           WHERE group_id = ANY($1) AND content IS NOT NULL
+             AND created_at > NOW() - INTERVAL '7 days'
+           ORDER BY created_at DESC LIMIT 30`,
+          [groupIds],
+        );
+
+        if (recentMsgs.length >= 3) {
+          const msgBlock = recentMsgs
+            .reverse()
+            .map((m: any) => `${m.sender_name}: ${(m.content || '').slice(0, 200)}`)
+            .join('\n');
+
+          try {
+            const aiRes = await generateCompletion({
+              systemPrompt: `Você é um analista de conta de agência digital. Resuma as mensagens de WhatsApp de um grupo com cliente.
+Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1", "tópico 2"], "sentiment": "positivo|neutro|negativo|misto", "blind_spots": ["coisa que a equipe pode estar ignorando"] }`,
+              prompt: `Mensagens recentes do grupo:\n${msgBlock}`,
+              temperature: 0.2,
+              maxTokens: 500,
+            });
+
+            const jsonMatch = aiRes.text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              aiSummary = parsed.summary || null;
+              topics = parsed.topics || [];
+              overallSentiment = parsed.sentiment || null;
+              // Include blind_spots in topics for visibility
+              if (parsed.blind_spots?.length) {
+                topics.push(...parsed.blind_spots.map((b: string) => `⚠️ ${b}`));
+              }
+            }
+          } catch { /* silent — return data without AI summary */ }
+        }
+      }
+
+      // Derive sentiment from insights if not from AI
+      if (!overallSentiment && recentInsights.length) {
+        const sentiments = recentInsights.map((i: any) => i.sentiment).filter(Boolean);
+        const neg = sentiments.filter((s: string) => s === 'negative').length;
+        const pos = sentiments.filter((s: string) => s === 'positive').length;
+        overallSentiment = neg > pos ? 'negativo' : pos > neg ? 'positivo' : 'neutro';
+      }
+
+      // Pending actions from digest or urgent insights
+      const pendingActions: string[] = digest?.pending_actions ?? [];
+      recentInsights
+        .filter((i: any) => i.urgency === 'urgent')
+        .forEach((i: any) => {
+          if (!pendingActions.includes(i.summary)) pendingActions.push(i.summary);
+        });
+
+      return reply.send({
+        has_groups: true,
+        groups: groups.map((g: any) => ({
+          id: g.id,
+          name: g.group_name,
+          last_activity: g.last_message_at,
+        })),
+        message_count_7d: msgCount,
+        insight_count_7d: Number(insightStats.cnt),
+        summary: aiSummary,
+        topics: topics.slice(0, 8),
+        sentiment: overallSentiment,
+        pending_actions: pendingActions.slice(0, 5),
+        last_activity: groups[0]?.last_message_at ?? null,
+      });
+    },
   );
 }

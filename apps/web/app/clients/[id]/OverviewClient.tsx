@@ -55,6 +55,7 @@ import {
 import PautaFromClippingModal from '@/app/clipping/PautaFromClippingModal';
 import type { PautaSuggestion } from '@/app/edro/PautaComparisonCard';
 import AccountManagerPanel from './AccountManagerPanel';
+import WhatsAppPulseCard from './WhatsAppPulseCard';
 
 type KnowledgeBase = {
   description?: string;
@@ -1160,6 +1161,11 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Grid>
             ))}
           </Grid>
+
+          {/* WhatsApp Pulse — AI summary of group conversations */}
+          <Box sx={{ my: 3 }}>
+            <WhatsAppPulseCard clientId={clientId} />
+          </Box>
 
           <Divider sx={{ my: 3 }} />
 
