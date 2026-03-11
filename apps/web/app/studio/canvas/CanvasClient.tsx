@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 import Box from '@mui/material/Box';
@@ -123,6 +124,8 @@ function readBriefingContext(): BriefingContext {
 
 // ── Main Component ────────────────────────────────────────────────────
 export default function CanvasClient() {
+  const searchParams = useSearchParams();
+
   // Briefing context
   const [briefCtx, setBriefCtx] = useState<BriefingContext>(readBriefingContext);
 
@@ -244,6 +247,29 @@ export default function CanvasClient() {
     window.addEventListener('edro-studio-context-change', handleCtxChange);
     window.addEventListener('storage', handleCtxChange);
     return () => { window.removeEventListener('edro-studio-context-change', handleCtxChange); window.removeEventListener('storage', handleCtxChange); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Load campaign piece from URL params ──────────────────────
+  useEffect(() => {
+    const layoutParam = searchParams.get('layout');
+    const imageUrl = searchParams.get('image_url');
+    const paramClientId = searchParams.get('client_id');
+
+    if (layoutParam) {
+      try {
+        const layout = JSON.parse(layoutParam);
+        canvasLayers.loadLayout(layout);
+        setLayoutMode(true);
+        setShowLayerPanel(true);
+        if (imageUrl) setImageUrls([imageUrl]);
+        if (paramClientId) setClientId(paramClientId);
+        // Clean URL without reload
+        window.history.replaceState({}, '', '/studio/canvas');
+      } catch {
+        // Invalid layout param — ignore
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

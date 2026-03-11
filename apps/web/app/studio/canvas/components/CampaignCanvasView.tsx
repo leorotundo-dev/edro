@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -125,6 +125,32 @@ export default function CampaignCanvasView({
   campaignName, pieces, onOpenPiece, onRegeneratePiece,
   onClose, regeneratingIdx,
 }: Props) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportAll = useCallback(async () => {
+    setExporting(true);
+    try {
+      const validPieces = pieces.filter(p => p.image_url && !p.error);
+      for (let i = 0; i < validPieces.length; i++) {
+        const p = validPieces[i];
+        const res = await fetch(p.image_url!);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${campaignName.replace(/[^a-zA-Z0-9]/g, '_')}_${p.format.replace(/[^a-zA-Z0-9]/g, '')}_${i + 1}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        // Small delay between downloads to avoid browser throttling
+        if (i < validPieces.length - 1) await new Promise(r => setTimeout(r, 300));
+      }
+    } catch { /* silent */ } finally {
+      setExporting(false);
+    }
+  }, [pieces, campaignName]);
+
   return (
     <Box sx={{
       position: 'fixed', inset: 0, zIndex: 1300,
@@ -144,6 +170,15 @@ export default function CampaignCanvasView({
           size="small"
           sx={{ bgcolor: `${EDRO_ORANGE}20`, color: EDRO_ORANGE, mr: 2 }}
         />
+        <Tooltip title="Baixar todas as peças">
+          <IconButton
+            onClick={handleExportAll}
+            disabled={exporting || !pieces.some(p => p.image_url)}
+            sx={{ color: EDRO_ORANGE, mr: 1 }}
+          >
+            {exporting ? <CircularProgress size={16} sx={{ color: EDRO_ORANGE }} /> : <IconDownload size={18} />}
+          </IconButton>
+        </Tooltip>
         <IconButton onClick={onClose} sx={{ color: '#666' }}>
           <IconX size={18} />
         </IconButton>

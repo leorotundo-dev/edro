@@ -558,6 +558,8 @@ function CampaignDetail({
   const [generatingPiecesFor, setGeneratingPiecesFor] = useState<string | null>(null);
   const [campaignPieces, setCampaignPieces] = useState<any[]>([]);
   const [showCampaignCanvas, setShowCampaignCanvas] = useState(false);
+  const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
+  const [campaignArtDirection, setCampaignArtDirection] = useState<Record<string, any>>({});
 
   const phases: Phase[] = (campaign.phases && campaign.phases.length > 0)
     ? [...campaign.phases].sort((a, b) => a.order - b.order)
@@ -750,10 +752,42 @@ function CampaignDetail({
 
       if (res?.success && res.pieces?.length) {
         setCampaignPieces(res.pieces);
+        setCampaignArtDirection(res.art_direction ?? {});
         setShowCampaignCanvas(true);
       }
     } catch { /* silent */ } finally {
       setGeneratingPiecesFor(null);
+    }
+  };
+
+  const handleRegeneratePiece = async (idx: number) => {
+    const piece = campaignPieces[idx];
+    if (!piece || regeneratingIdx !== null) return;
+    setRegeneratingIdx(idx);
+    try {
+      const res = await apiPost<any>('/studio/canvas/regenerate-piece', {
+        format: piece.format,
+        platform: piece.platform,
+        copy: piece.copy,
+        art_direction: campaignArtDirection,
+        boldness: 0.5,
+        image_provider: 'fal',
+        fal_model: 'flux-pro',
+      });
+      if (res?.success) {
+        setCampaignPieces(prev => {
+          const next = [...prev];
+          next[idx] = {
+            ...next[idx],
+            layout: res.layout,
+            image_url: res.image_url,
+            error: undefined,
+          };
+          return next;
+        });
+      }
+    } catch { /* silent */ } finally {
+      setRegeneratingIdx(null);
     }
   };
 
@@ -1686,11 +1720,9 @@ function CampaignDetail({
             });
             window.open(`/studio/canvas?${params.toString()}`, '_blank');
           }}
-          onRegeneratePiece={async (idx) => {
-            // TODO: regenerate single piece via API
-          }}
+          onRegeneratePiece={handleRegeneratePiece}
           onClose={() => setShowCampaignCanvas(false)}
-          regeneratingIdx={null}
+          regeneratingIdx={regeneratingIdx}
         />
       )}
     </Box>

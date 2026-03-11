@@ -1224,4 +1224,79 @@ Varie o ângulo de abordagem em relação às outras peças.`,
       generated: results.filter(r => !r.error).length,
     });
   });
+
+  // ── Regenerate single piece ─────────────────────────────────────
+  const regeneratePieceSchema = z.object({
+    format: z.string().default('1:1'),
+    platform: z.string().default('Instagram'),
+    copy: z.object({
+      headline: z.string(),
+      body: z.string().optional(),
+      cta: z.string(),
+    }),
+    art_direction: z.record(z.any()),
+    logo_url: z.string().optional(),
+    boldness: z.number().min(0).max(1).default(0.5),
+    image_provider: z.enum(['fal', 'gemini']).default('fal'),
+    fal_model: z.string().default('flux-pro'),
+  });
+
+  app.post('/studio/canvas/regenerate-piece', async (request: any, reply) => {
+    const body = regeneratePieceSchema.parse(request.body || {});
+
+    const aspectMap: Record<string, string> = {
+      '1:1': '1:1', '4:5': '4:5', '9:16': '9:16', '16:9': '16:9',
+      '4:3': '4:3', '3:4': '3:4',
+      'Feed 1:1': '1:1', 'Stories 9:16': '9:16', 'Reels 9:16': '9:16',
+      'Banner 16:9': '16:9', 'Portrait 4:5': '4:5',
+    };
+    const aspectRatio = aspectMap[body.format] ?? '1:1';
+
+    // Generate layout
+    const pieceCopy = { headline: body.copy.headline, body: body.copy.body, cta: body.copy.cta };
+    const layout = await generateLayout({
+      copy: pieceCopy,
+      artDirection: {
+        ...body.art_direction,
+        composition_type: 'auto',
+      },
+      format: aspectRatio,
+      logoUrl: body.logo_url,
+      platform: body.platform,
+    });
+
+    // Generate image
+    let imageUrl: string | undefined;
+    try {
+      if (body.image_provider === 'gemini') {
+        const imgRes = await generateImageGemini({ prompt: layout.imagePrompt, aspectRatio });
+        imageUrl = `data:${imgRes.mimeType};base64,${imgRes.base64}`;
+      } else {
+        if (isFalConfigured()) {
+          const imgRes = await generateImageWithFal({
+            prompt: layout.imagePrompt,
+            aspectRatio,
+            negativePrompt: 'text, watermark, logo, words, letters, typography',
+            model: body.fal_model as FalModel,
+            numImages: 1,
+          });
+          imageUrl = imgRes.imageUrl;
+        }
+      }
+    } catch (err: any) {
+      console.error('Regenerate piece image failed:', err?.message);
+    }
+
+    if (imageUrl) {
+      const bgLayer = layout.layers.find(l => l.id === 'bg_image' || l.type === 'image');
+      if (bgLayer) bgLayer.imageUrl = imageUrl;
+    }
+
+    return reply.send({
+      success: true,
+      layout,
+      copy: pieceCopy,
+      image_url: imageUrl,
+    });
+  });
 }
