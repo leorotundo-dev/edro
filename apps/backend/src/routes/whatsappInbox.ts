@@ -10,13 +10,14 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
   // ── TEMPORARY DIAGNOSTIC (remove after debugging) ─────────────────────────
   app.get('/whatsapp/debug-groups', async (_req, reply) => {
     const groups = await query(`
-      SELECT wg.id, wg.group_name, wg.client_id, wg.tenant_id, wg.active,
+      SELECT wg.id, wg.group_name, wg.client_id, wg.tenant_id AS group_tenant,
              c.name AS client_name,
-             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id) AS msg_count
+             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id) AS total_msgs,
+             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id AND wgm.tenant_id = wg.tenant_id) AS msgs_same_tenant,
+             (SELECT DISTINCT wgm.tenant_id FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id LIMIT 1) AS msg_tenant_id
       FROM whatsapp_groups wg
       LEFT JOIN clients c ON c.id = wg.client_id
-      ORDER BY wg.last_message_at DESC NULLS LAST
-      LIMIT 20
+      WHERE wg.client_id = 'banco-bbc-digital'
     `);
     const tenants = await query(`SELECT id, name, slug FROM tenants LIMIT 5`);
     return reply.send({ groups: groups.rows, tenants: tenants.rows });
