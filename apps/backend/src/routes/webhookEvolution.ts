@@ -149,6 +149,11 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
 
   if (!group.client_id) return; // not linked to a client — just store
 
+  // Auto-create/update client contact from sender if not yet known
+  if (senderJid) {
+    await upsertContactFromMessage(tenantId, group.client_id, senderJid, senderName).catch(() => {});
+  }
+
   // Urgent fast-path: detect urgent keywords and insert insight immediately (no worker delay)
   if (group.notify_jarvis && type === 'text' && content && URGENT_KEYWORDS.test(content) && content.length >= MIN_TEXT_LENGTH) {
     await insertUrgentInsight(tenantId, group.client_id, waMessageId, senderName, content).catch(() => {});
@@ -377,5 +382,32 @@ async function insertUrgentInsight(
   await query(
     `UPDATE whatsapp_group_messages SET insight_extracted = true WHERE id = $1`,
     [rows[0].id],
+  );
+}
+
+// ── Auto-create client contact from WhatsApp sender ──────────────────────
+
+async function upsertContactFromMessage(
+  tenantId: string,
+  clientId: string,
+  senderJid: string,
+  senderName: string,
+) {
+  // Extract phone from JID: "5511999999999@s.whatsapp.net" → "+5511999999999"
+  const phone = senderJid.includes('@')
+    ? `+${senderJid.split('@')[0]}`
+    : null;
+
+  await query(
+    `INSERT INTO client_contacts (tenant_id, client_id, name, whatsapp_jid, phone)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (whatsapp_jid) WHERE whatsapp_jid IS NOT NULL
+     DO UPDATE SET
+       name = CASE WHEN client_contacts.name = client_contacts.whatsapp_jid
+                        OR client_contacts.name = split_part(client_contacts.whatsapp_jid, '@', 1)
+                   THEN EXCLUDED.name
+                   ELSE client_contacts.name END,
+       updated_at = now()`,
+    [tenantId, clientId, senderName, senderJid, phone],
   );
 }
