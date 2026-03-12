@@ -110,6 +110,18 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
         `, [client_id, tenantId, lim]),
       ]);
 
+      // DEBUG: log query params and result counts
+      console.log(`[whatsapp/messages] client_id=${client_id} tenant_id=${tenantId} cloud=${cloudMsgs.rows.length} group=${groupMsgs.rows.length}`);
+
+      // Also check group linkage directly
+      const { rows: groupCheck } = await query(
+        `SELECT id, group_name, client_id, active FROM whatsapp_groups WHERE tenant_id = $1 AND (client_id = $2 OR group_name ILIKE '%' || $3 || '%') LIMIT 5`,
+        [tenantId, client_id, client_id.replace(/-/g, ' ')],
+      );
+      if (groupCheck.length > 0 || (cloudMsgs.rows.length === 0 && groupMsgs.rows.length === 0)) {
+        console.log(`[whatsapp/messages] groups found:`, JSON.stringify(groupCheck.map(g => ({ id: g.id, name: g.group_name, client_id: g.client_id, active: g.active }))));
+      }
+
       const all = [...cloudMsgs.rows, ...groupMsgs.rows].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
       );
