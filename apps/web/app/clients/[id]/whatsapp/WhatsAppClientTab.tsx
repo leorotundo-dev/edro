@@ -34,9 +34,8 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
     setLoading(true);
     setError('');
     try {
-      const res = await apiGet<{ data: Message[] }>(`/whatsapp/messages?client_id=${clientId}`);
-      console.log('[WhatsAppClientTab] API response:', { clientId, dataLength: (res as any)?.data?.length, _debug: (res as any)?._debug, keys: Object.keys(res as any ?? {}) });
-      setMessages((res as any)?.data ?? []);
+      const res = await apiGet<{ success: boolean; data: Message[] }>(`/whatsapp/messages?client_id=${clientId}`);
+      setMessages(res?.data ?? []);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err: any) {
       console.error('[WhatsAppClientTab] load error:', err);

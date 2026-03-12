@@ -7,23 +7,6 @@ import { env } from '../env';
 
 export default async function whatsappInboxRoutes(app: FastifyInstance) {
 
-  // ── TEMPORARY DIAGNOSTIC (remove after debugging) ─────────────────────────
-  app.get('/whatsapp/debug-groups', async (_req, reply) => {
-    const groups = await query(`
-      SELECT wg.id, wg.group_name, wg.client_id, wg.tenant_id AS group_tenant,
-             c.name AS client_name,
-             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id) AS total_msgs,
-             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id AND wgm.tenant_id = wg.tenant_id) AS msgs_same_tenant,
-             (SELECT DISTINCT wgm.tenant_id FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id LIMIT 1) AS msg_tenant_id
-      FROM whatsapp_groups wg
-      LEFT JOIN clients c ON c.id = wg.client_id
-      WHERE wg.client_id = 'banco-bbc-digital'
-    `);
-    const tenants = await query(`SELECT id, name, slug FROM tenants LIMIT 5`);
-    const users = await query(`SELECT tu.user_id, tu.role, u.email FROM tenant_users tu LEFT JOIN edro_users u ON u.id = tu.user_id WHERE tu.tenant_id = '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5' LIMIT 5`);
-    return reply.send({ groups: groups.rows, tenants: tenants.rows, users: users.rows });
-  });
-
   // ── Stats ─────────────────────────────────────────────────────────────────
   app.get('/whatsapp/stats', { preHandler: [authGuard, tenantGuard()] }, async (req, reply) => {
     const tenantId = (req.user as any).tenant_id;
@@ -131,19 +114,7 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
       );
 
-      // DEBUG: include diagnostic info in response
-      return reply.send({
-        success: true,
-        data: all,
-        _debug: {
-          client_id,
-          jwt_tenant_id: tenantId,
-          expected_tenant: '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5',
-          tenant_match: tenantId === '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5',
-          cloud_count: cloudMsgs.rows.length,
-          group_count: groupMsgs.rows.length,
-        },
-      });
+      return reply.send({ success: true, data: all });
     },
   );
 

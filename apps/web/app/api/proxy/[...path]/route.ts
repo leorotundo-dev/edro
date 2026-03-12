@@ -60,10 +60,6 @@ function resolveBackendBase() {
 
 function buildTargetUrl(path: string, query = '') {
   const base = resolveBackendBase();
-  // DEBUG: log resolved backend for whatsapp requests
-  if (path.includes('whatsapp')) {
-    console.log(`[proxy] resolveBackendBase()=${base} EDRO_BACKEND_URL=${process.env.EDRO_BACKEND_URL ?? 'UNSET'} DEFAULT=${DEFAULT_BACKEND_URL} path=${path}`);
-  }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const finalPath = API_SUFFIX_REGEX.test(base) || normalizedPath.startsWith('/api')
     ? normalizedPath
