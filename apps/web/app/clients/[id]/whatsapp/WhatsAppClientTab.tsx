@@ -32,10 +32,15 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await apiGet<{ data: Message[] }>(`/whatsapp/messages?client_id=${clientId}`);
+      console.log('[WhatsAppClientTab] API response:', { clientId, dataLength: (res as any)?.data?.length, _debug: (res as any)?._debug, keys: Object.keys(res as any ?? {}) });
       setMessages((res as any)?.data ?? []);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (err: any) {
+      console.error('[WhatsAppClientTab] load error:', err);
+      setError(err?.message ?? 'Erro ao carregar mensagens');
     } finally {
       setLoading(false);
     }
