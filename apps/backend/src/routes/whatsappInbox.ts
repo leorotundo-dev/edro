@@ -7,6 +7,21 @@ import { env } from '../env';
 
 export default async function whatsappInboxRoutes(app: FastifyInstance) {
 
+  // ── TEMPORARY DIAGNOSTIC (remove after debugging) ─────────────────────────
+  app.get('/whatsapp/debug-groups', async (_req, reply) => {
+    const groups = await query(`
+      SELECT wg.id, wg.group_name, wg.client_id, wg.tenant_id, wg.active,
+             c.name AS client_name,
+             (SELECT COUNT(*)::int FROM whatsapp_group_messages wgm WHERE wgm.group_id = wg.id) AS msg_count
+      FROM whatsapp_groups wg
+      LEFT JOIN clients c ON c.id = wg.client_id
+      ORDER BY wg.last_message_at DESC NULLS LAST
+      LIMIT 20
+    `);
+    const tenants = await query(`SELECT id, name, slug FROM tenants LIMIT 5`);
+    return reply.send({ groups: groups.rows, tenants: tenants.rows });
+  });
+
   // ── Stats ─────────────────────────────────────────────────────────────────
   app.get('/whatsapp/stats', { preHandler: [authGuard, tenantGuard()] }, async (req, reply) => {
     const tenantId = (req.user as any).tenant_id;
