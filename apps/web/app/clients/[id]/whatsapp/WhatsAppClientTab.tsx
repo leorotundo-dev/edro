@@ -30,22 +30,31 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (silent = false) => {
+    if (!silent) { setLoading(true); setError(''); }
     try {
       const res = await apiGet<{ success: boolean; data: Message[] }>(`/whatsapp/messages?client_id=${clientId}`);
-      setMessages(res?.data ?? []);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      const fresh = res?.data ?? [];
+      setMessages(prev => {
+        if (!silent || fresh.length !== prev.length) {
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+        return fresh;
+      });
     } catch (err: any) {
-      console.error('[WhatsAppClientTab] load error:', err);
-      setError(err?.message ?? 'Erro ao carregar mensagens');
+      if (!silent) setError(err?.message ?? 'Erro ao carregar mensagens');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [clientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Poll every 10s for new messages
+  useEffect(() => {
+    const id = setInterval(() => load(true), 10_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const handleSend = async () => {
     if (!sendText.trim()) return;

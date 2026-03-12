@@ -62,8 +62,8 @@ export default function WhatsAppInboxClient() {
 
   const selectedConv = convs.find(c => c.client_id === selectedId) ?? null;
 
-  const loadConvs = useCallback(async () => {
-    setLoadingConvs(true);
+  const loadConvs = useCallback(async (silent = false) => {
+    if (!silent) setLoadingConvs(true);
     try {
       const [convRes, statsRes] = await Promise.all([
         apiGet<{ data: Conversation[] }>('/whatsapp/conversations'),
@@ -72,24 +72,37 @@ export default function WhatsAppInboxClient() {
       setConvs((convRes as any)?.data ?? []);
       setStats((statsRes as any) ?? null);
     } finally {
-      setLoadingConvs(false);
+      if (!silent) setLoadingConvs(false);
     }
   }, []);
 
-  const loadMessages = useCallback(async (clientId: string) => {
-    setLoadingMsgs(true);
-    setMessages([]);
+  const loadMessages = useCallback(async (clientId: string, silent = false) => {
+    if (!silent) { setLoadingMsgs(true); setMessages([]); }
     try {
       const res = await apiGet<{ data: Message[] }>(`/whatsapp/messages?client_id=${clientId}`);
-      setMessages((res as any)?.data ?? []);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      const fresh = (res as any)?.data ?? [];
+      setMessages(prev => {
+        if (!silent || fresh.length !== prev.length) {
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+        return fresh;
+      });
     } finally {
-      setLoadingMsgs(false);
+      if (!silent) setLoadingMsgs(false);
     }
   }, []);
 
   useEffect(() => { loadConvs(); }, [loadConvs]);
   useEffect(() => { if (selectedId) loadMessages(selectedId); }, [selectedId, loadMessages]);
+
+  // Poll every 10s for new messages + conversation updates
+  useEffect(() => {
+    const id = setInterval(() => {
+      loadConvs(true);
+      if (selectedId) loadMessages(selectedId, true);
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [loadConvs, loadMessages, selectedId]);
 
   const handleSend = async () => {
     if (!selectedId || !sendText.trim()) return;
