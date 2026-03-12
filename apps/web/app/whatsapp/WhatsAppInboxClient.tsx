@@ -142,7 +142,7 @@ export default function WhatsAppInboxClient() {
             </Stack>
           )}
           <Box sx={{ flex: 1 }} />
-          <IconButton size="small" onClick={loadConvs} disabled={loadingConvs}>
+          <IconButton size="small" onClick={() => loadConvs()} disabled={loadingConvs}>
             {loadingConvs ? <CircularProgress size={16} /> : <IconRefresh size={16} />}
           </IconButton>
         </Stack>

@@ -83,7 +83,7 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
         {briefingsCount > 0 && <Chip size="small" label={`${briefingsCount} briefings gerados`} color="primary" />}
         {inboundCount > 0 && <Chip size="small" label={`${inboundCount} recebidas`} />}
         <Box sx={{ flex: 1 }} />
-        <IconButton size="small" onClick={load} disabled={loading}>{loading ? <CircularProgress size={14} /> : <IconRefresh size={14} />}</IconButton>
+        <IconButton size="small" onClick={() => load()} disabled={loading}>{loading ? <CircularProgress size={14} /> : <IconRefresh size={14} />}</IconButton>
       </Stack>
 
       {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
