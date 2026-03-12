@@ -20,7 +20,8 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
       WHERE wg.client_id = 'banco-bbc-digital'
     `);
     const tenants = await query(`SELECT id, name, slug FROM tenants LIMIT 5`);
-    return reply.send({ groups: groups.rows, tenants: tenants.rows });
+    const users = await query(`SELECT tu.user_id, tu.role, u.email FROM tenant_users tu LEFT JOIN auth_users u ON u.id = tu.user_id WHERE tu.tenant_id = '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5' LIMIT 5`);
+    return reply.send({ groups: groups.rows, tenants: tenants.rows, users: users.rows });
   });
 
   // ── Stats ─────────────────────────────────────────────────────────────────
