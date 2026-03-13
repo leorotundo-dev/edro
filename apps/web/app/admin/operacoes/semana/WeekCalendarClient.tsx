@@ -10,7 +10,7 @@ import {
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
-import { OpsSummaryStat } from '@/components/operations/primitives';
+import { ClientThumb, OpsSummaryStat } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 
 import Box from '@mui/material/Box';
@@ -26,9 +26,17 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
+  IconBrandFacebook,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandWhatsapp,
+  IconBrandYoutube,
   IconCalendarWeek,
   IconChevronLeft,
   IconChevronRight,
+  IconDeviceDesktop,
+  IconMail,
   IconRefresh,
 } from '@tabler/icons-react';
 
@@ -145,6 +153,29 @@ function OwnerLegend({ owners, jobs }: { owners: OperationsOwner[]; jobs: Operat
   );
 }
 
+/* ─── CHANNEL ICON ─── */
+
+const CHANNEL_ICON_MAP: Record<string, React.ReactNode> = {
+  instagram: <IconBrandInstagram size={12} />,
+  facebook: <IconBrandFacebook size={12} />,
+  linkedin: <IconBrandLinkedin size={12} />,
+  tiktok: <IconBrandTiktok size={12} />,
+  youtube: <IconBrandYoutube size={12} />,
+  whatsapp: <IconBrandWhatsapp size={12} />,
+  email: <IconMail size={12} />,
+  site: <IconDeviceDesktop size={12} />,
+  web: <IconDeviceDesktop size={12} />,
+};
+
+function channelIcon(channel?: string | null) {
+  if (!channel) return null;
+  const key = channel.toLowerCase();
+  for (const [match, icon] of Object.entries(CHANNEL_ICON_MAP)) {
+    if (key.includes(match)) return icon;
+  }
+  return null;
+}
+
 /* ─── JOB CARD (minimal, inspired by Monday/ClickUp) ─── */
 
 function JobCard({
@@ -166,6 +197,7 @@ function JobCard({
   const risk = getRisk(job);
   const ownerFirstName = job.owner_name?.split(' ')[0] || 'Sem dono';
   const hours = job.estimated_minutes ? `${Math.round(job.estimated_minutes / 60)}h` : '';
+  const chIcon = channelIcon(job.channel);
 
   return (
     <Tooltip
@@ -176,6 +208,7 @@ function JobCard({
           <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
           <Typography variant="caption" display="block">Cliente: {job.client_name || '—'}</Typography>
           <Typography variant="caption" display="block">Tipo: {job.job_type}</Typography>
+          <Typography variant="caption" display="block">Canal: {job.channel || '—'}</Typography>
           <Typography variant="caption" display="block">Status: {job.status}</Typography>
           <Typography variant="caption" display="block">Risco: {risk.label}</Typography>
           {job.deadline_at && (
@@ -214,7 +247,12 @@ function JobCard({
         }}
       >
         <Stack direction="row" spacing={0.75} alignItems="center">
-          <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: riskDot(job), flexShrink: 0 }} />
+          <ClientThumb
+            name={job.client_name}
+            logoUrl={job.client_logo_url}
+            accent={job.client_brand_color || color}
+            size={20}
+          />
           <Typography
             variant="caption"
             sx={{
@@ -228,8 +266,13 @@ function JobCard({
           >
             {job.title}
           </Typography>
+          {chIcon && (
+            <Box sx={{ flexShrink: 0, color: alpha(theme.palette.text.primary, 0.45), display: 'flex' }}>
+              {chIcon}
+            </Box>
+          )}
         </Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 1.75 }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 3.25 }}>
           <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.55), fontWeight: 600, fontSize: '0.68rem' })}>
             {ownerFirstName}
           </Typography>
