@@ -903,7 +903,7 @@ export async function syncCalendarItems(tenantId: string) {
          tenant_id, source_type, source_id, client_id, job_id, owner_id, item_type, title, starts_at, ends_at,
          status, priority_band, risk_level, capacity_minutes, metadata, updated_at
        ) VALUES (
-         $1,'allocation',$2,$3,$4,$5,'production_block',$6,$7,$8,$9,$10,$11,$12::jsonb,now()
+         $1,'allocation',$2,$3,$4,$5,'production_block',$6,$7,$8,$9,$10,$11,$12,$13::jsonb,now()
        )
        ON CONFLICT (tenant_id, source_type, source_id, item_type) DO UPDATE
          SET client_id = EXCLUDED.client_id,
@@ -1146,7 +1146,7 @@ async function syncCalendarItemsForJob(tenantId: string, jobId: string) {
          tenant_id, source_type, source_id, client_id, job_id, owner_id, item_type, title, starts_at, ends_at,
          status, priority_band, risk_level, capacity_minutes, metadata, updated_at
        ) VALUES (
-         $1,'allocation',$2,$3,$4,$5,'production_block',$6,$7,$8,$9,$10,$11,$12::jsonb,now()
+         $1,'allocation',$2,$3,$4,$5,'production_block',$6,$7,$8,$9,$10,$11,$12,$13::jsonb,now()
        )
        ON CONFLICT (tenant_id, source_type, source_id, item_type) DO UPDATE
          SET client_id = EXCLUDED.client_id,

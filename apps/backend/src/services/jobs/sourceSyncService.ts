@@ -159,7 +159,7 @@ async function upsertSourceJob(
         AND source = $2
         AND metadata ->> $3 = $4
       LIMIT 1`,
-    [tenantId, draft.source, metadataKey, metadataValue],
+    [tenantId, draft.source, metadataKey, String(metadataValue)],
   );
 
   const metadata = {
