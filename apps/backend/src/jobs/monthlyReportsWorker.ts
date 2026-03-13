@@ -11,7 +11,7 @@
  */
 
 import { query } from '../db';
-import { saveFile, buildKey } from '../library/storage';
+import { saveFile } from '../library/storage';
 
 let lastRun = 0;
 const RUN_INTERVAL_MS = 60 * 60 * 1000; // check every hour, run only on day 1
@@ -54,8 +54,8 @@ export async function runMonthlyReportsWorkerOnce() {
       if (exists.rows.length > 0) continue;
 
       const pdfBuffer = await generateClientReportPdf(client.id, month);
-      const key = buildKey(`reports/${client.tenant_id}/${client.id}/${month}.pdf`);
-      await saveFile(key, pdfBuffer, 'application/pdf');
+      const key = `reports/${client.tenant_id}/${client.id}/${month}.pdf`;
+      await saveFile(pdfBuffer, key);
 
       const label = prevMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
       const title = `Relatório ${label.charAt(0).toUpperCase() + label.slice(1)} — ${client.name}`;
@@ -99,8 +99,8 @@ export async function generateMonthlyReportsForAll(month: string): Promise<{ gen
   for (const client of clientsRes.rows) {
     try {
       const pdfBuffer = await generateClientReportPdf(client.id, month);
-      const key = buildKey(`reports/${client.tenant_id}/${client.id}/${month}.pdf`);
-      await saveFile(key, pdfBuffer, 'application/pdf');
+      const key = `reports/${client.tenant_id}/${client.id}/${month}.pdf`;
+      await saveFile(pdfBuffer, key);
 
       const title = `Relatório ${label.charAt(0).toUpperCase() + label.slice(1)} — ${client.name}`;
       await query(

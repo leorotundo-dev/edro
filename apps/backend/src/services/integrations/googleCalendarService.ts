@@ -19,6 +19,12 @@ import crypto from 'crypto';
 import { query } from '../../db';
 import { enqueueJob } from '../../jobs/jobQueue';
 
+type ResolvedCalendarClient = {
+  id: string;
+  name: string;
+  matchSource: string;
+};
+
 // ── OAuth state helpers (signed to prevent forgery) ───────────────────────
 
 function signOAuthState(payload: object): string {
@@ -141,37 +147,49 @@ export async function watchCalendar(tenantId: string): Promise<void> {
   // Calendar watch expires after 1 week max
   const expiration = Date.now() + 6 * 24 * 60 * 60 * 1000; // 6 days
 
-  const res = await fetch(`${CALENDAR_API}/calendars/primary/events/watch`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      id: channelId,
-      type: 'web_hook',
-      address: webhookUrl,
-      expiration: expiration.toString(),
-    }),
-  });
+  try {
+    const res = await fetch(`${CALENDAR_API}/calendars/primary/events/watch`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: channelId,
+        type: 'web_hook',
+        address: webhookUrl,
+        expiration: expiration.toString(),
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Calendar watch failed: ${err.slice(0, 200)}`);
+    if (!res.ok) {
+      const err = await res.text();
+      await markCalendarWatchFailure(tenantId, `Calendar watch failed: ${err.slice(0, 200)}`);
+      throw new Error(`Calendar watch failed: ${err.slice(0, 200)}`);
+    }
+
+    const data = await res.json() as { resourceId: string };
+
+    await query(
+      `UPDATE google_calendar_channels
+          SET resource_id = $1,
+              expires_at = $2,
+              last_watch_renewed_at = now(),
+              last_watch_error = NULL,
+              watch_status = 'active',
+              updated_at = now()
+        WHERE tenant_id = $3`,
+      [data.resourceId, new Date(expiration), tenantId],
+    );
+  } catch (error: any) {
+    await markCalendarWatchFailure(tenantId, error?.message ?? 'calendar_watch_failed').catch(() => {});
+    throw error;
   }
-  const data = await res.json() as { resourceId: string };
-
-  await query(
-    `UPDATE google_calendar_channels
-     SET resource_id = $1, expires_at = $2
-     WHERE tenant_id = $3`,
-    [data.resourceId, new Date(expiration), tenantId],
-  );
 }
 
 // ── Process calendar notification ─────────────────────────────────────────
 
-export async function processCalendarNotification(channelId: string): Promise<void> {
+export async function processCalendarNotification(channelId: string, resourceState?: string): Promise<void> {
   const { rows } = await query(
     `SELECT tenant_id FROM google_calendar_channels WHERE channel_id = $1`,
     [channelId],
@@ -179,6 +197,16 @@ export async function processCalendarNotification(channelId: string): Promise<vo
   if (!rows.length) return;
 
   const { tenant_id: tenantId } = rows[0];
+  await query(
+    `UPDATE google_calendar_channels
+        SET last_notification_at = now(),
+            last_notification_state = $2,
+            watch_status = 'active',
+            updated_at = now()
+      WHERE tenant_id = $1`,
+    [tenantId, resourceState ?? null],
+  ).catch(() => {});
+
   const accessToken = await getCalendarAccessToken(tenantId);
 
   // Fetch events in the next 48 hours
@@ -231,7 +259,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
   }));
 
   const { rows: existing } = await query(
-    `SELECT id, job_enqueued_at, meeting_id
+    `SELECT id, job_enqueued_at, meeting_id, status
        FROM calendar_auto_joins
       WHERE calendar_event_id = $1`,
     [eventId],
@@ -254,7 +282,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   console.log(`[googleCalendarService] Detected video meeting: "${event.summary}" at ${scheduledAt.toISOString()} — ${platform} — ${videoLink}`);
 
-  if (existing[0]?.job_enqueued_at || existing[0]?.meeting_id) return;
+  if (existing[0]?.job_enqueued_at || existing[0]?.meeting_id || existing[0]?.status === 'done') return;
 
   const resolvedClient = await resolveClientForEvent(tenantId, event, attendees, organizer);
   if (!resolvedClient) {
@@ -262,7 +290,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
   }
 
   // Always enqueue — for internal Edro meetings we still want Jarvis to transcribe and analyze.
-  const client = resolvedClient ?? { id: 'edro-internal', name: 'Reunião Interna Edro' };
+  const client = resolvedClient ?? { id: 'edro-internal', name: 'Reunião Interna Edro', matchSource: 'fallback_internal' };
 
   await enqueueMeetBotJob(
     tenantId,
@@ -317,7 +345,7 @@ async function enqueueMeetBotJob(
   eventTitle: string,
   scheduledAt: Date,
   platform: string,
-  client: { id: string; name: string },
+  client: ResolvedCalendarClient,
 ): Promise<void> {
   const row = await enqueueJob(
     tenantId,
@@ -335,8 +363,14 @@ async function enqueueMeetBotJob(
   );
 
   await query(
-    `UPDATE calendar_auto_joins SET job_enqueued_at = now() WHERE id = $1`,
-    [autoJoinId],
+    `UPDATE calendar_auto_joins
+        SET job_enqueued_at = now(),
+            client_id = $2,
+            client_match_source = $3,
+            status = 'queued',
+            updated_at = now()
+      WHERE id = $1`,
+    [autoJoinId, client.id, client.matchSource],
   );
 
   console.log(`[googleCalendarService] Enqueued meet-bot job ${row?.id} for "${eventTitle}"`);
@@ -390,6 +424,8 @@ export async function createCalendarMeeting(params: {
   durationMinutes?: number;
   attendeeEmails?: string[];
   description?: string;
+  clientId?: string | null;
+  clientName?: string | null;
 }): Promise<{ eventId: string; meetUrl: string; htmlLink: string; endAt: Date }> {
   const accessToken = await getCalendarAccessToken(params.tenantId);
 
@@ -403,6 +439,14 @@ export async function createCalendarMeeting(params: {
     start: { dateTime: startAt.toISOString() },
     end: { dateTime: endAt.toISOString() },
     attendees: (params.attendeeEmails ?? []).map((email) => ({ email })),
+    extendedProperties: {
+      private: {
+        edro_tenant_id: params.tenantId,
+        edro_client_id: params.clientId ?? '',
+        edro_client_name: params.clientName ?? '',
+        edro_source: 'edro_calendar',
+      },
+    },
     conferenceData: {
       createRequest: {
         requestId: crypto.randomUUID(),
@@ -450,15 +494,16 @@ async function upsertAutoJoin(params: {
   const { rows } = await query(
     `INSERT INTO calendar_auto_joins
        (tenant_id, calendar_event_id, event_title, video_url, video_platform,
-        organizer_email, attendees, scheduled_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+        organizer_email, attendees, scheduled_at, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 'detected')
      ON CONFLICT (calendar_event_id) DO UPDATE
        SET event_title = EXCLUDED.event_title,
            video_url = EXCLUDED.video_url,
            video_platform = EXCLUDED.video_platform,
            organizer_email = EXCLUDED.organizer_email,
            attendees = EXCLUDED.attendees,
-           scheduled_at = EXCLUDED.scheduled_at
+           scheduled_at = EXCLUDED.scheduled_at,
+           updated_at = now()
      RETURNING id`,
     [
       params.tenantId,
@@ -480,10 +525,35 @@ async function resolveClientForEvent(
   event: any,
   attendees: Array<{ email?: string; displayName?: string }>,
   organizerEmail: string | null,
-): Promise<{ id: string; name: string } | null> {
+): Promise<ResolvedCalendarClient | null> {
+  const explicit = await extractExplicitClientReference(tenantId, event);
+  if (explicit) return explicit;
+
   const emails = [organizerEmail, ...attendees.map((a) => a.email)]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.trim().toLowerCase());
+
+  if (emails.length) {
+    const { rows } = await query<{ id: string; name: string }>(
+      `SELECT c.id, c.name
+         FROM client_contacts cc
+         JOIN clients c ON c.id = cc.client_id
+        WHERE cc.tenant_id = $1
+          AND cc.active = true
+          AND cc.email IS NOT NULL
+          AND LOWER(cc.email) = ANY($2::text[])
+        ORDER BY cc.is_primary DESC, cc.updated_at DESC
+        LIMIT 1`,
+      [tenantId, emails],
+    ).catch(() => ({ rows: [] as Array<{ id: string; name: string }> }));
+    if (rows[0]) {
+      return {
+        id: rows[0].id,
+        name: rows[0].name,
+        matchSource: 'client_contact_email',
+      };
+    }
+  }
 
   if (emails.length && await clientsHaveContactEmailColumn()) {
     const { rows } = await query<{ id: string; name: string }>(
@@ -494,7 +564,13 @@ async function resolveClientForEvent(
         LIMIT 1`,
       [tenantId, emails],
     );
-    if (rows[0]) return rows[0];
+    if (rows[0]) {
+      return {
+        id: rows[0].id,
+        name: rows[0].name,
+        matchSource: 'client_email',
+      };
+    }
   }
 
   const haystack = normalizeLooseText([
@@ -511,7 +587,7 @@ async function resolveClientForEvent(
     [tenantId],
   );
 
-  let best: { id: string; name: string } | null = null;
+  let best: ResolvedCalendarClient | null = null;
   let bestScore = 0;
 
   for (const client of rows) {
@@ -519,11 +595,57 @@ async function resolveClientForEvent(
     if (!needle || needle.length < 3) continue;
     if (!haystack.includes(needle)) continue;
     if (needle.length <= bestScore) continue;
-    best = client;
+    best = {
+      id: client.id,
+      name: client.name,
+      matchSource: 'client_name',
+    };
     bestScore = needle.length;
   }
 
   return best;
+}
+
+async function extractExplicitClientReference(
+  tenantId: string,
+  event: any,
+): Promise<ResolvedCalendarClient | null> {
+  const privateProps = event?.extendedProperties?.private ?? {};
+  const explicitClientId = String(
+    privateProps.edro_client_id ??
+    privateProps.client_id ??
+    '',
+  ).trim();
+
+  if (!explicitClientId) return null;
+
+  const { rows } = await query<{ id: string; name: string }>(
+    `SELECT id, name
+       FROM clients
+      WHERE tenant_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [tenantId, explicitClientId],
+  ).catch(() => ({ rows: [] as Array<{ id: string; name: string }> }));
+
+  if (!rows[0]) return null;
+
+  return {
+    id: rows[0].id,
+    name: rows[0].name,
+    matchSource: 'event_private_client_id',
+  };
+}
+
+async function markCalendarWatchFailure(tenantId: string, message: string): Promise<void> {
+  await query(
+    `UPDATE google_calendar_channels
+        SET last_watch_error = $2,
+            watch_status = 'error',
+            updated_at = now()
+      WHERE tenant_id = $1`,
+    [tenantId, message.slice(0, 500)],
+  ).catch(() => {});
 }
 
 async function clientsHaveContactEmailColumn(): Promise<boolean> {

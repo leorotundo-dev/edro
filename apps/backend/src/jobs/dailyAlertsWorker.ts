@@ -170,7 +170,7 @@ function povEmailHtml(params: {
 async function runBottleneckAlertsJob() {
   console.log('[dailyAlerts] running bottleneck alerts job');
 
-  const panelBaseUrl = process.env.APP_URL || 'https://app.edro.studio';
+  const panelBaseUrl = process.env.APP_URL || process.env.WEB_URL || 'https://edro-production.up.railway.app';
 
   // Get all tenants with their admin emails
   const { rows: tenants } = await query<{ tenant_id: string; admin_email: string; admin_name: string }>(
@@ -238,7 +238,7 @@ async function runBottleneckAlertsJob() {
 async function runMonthlyPovJob() {
   console.log('[dailyAlerts] running monthly proof of value job');
 
-  const panelBaseUrl = process.env.APP_URL || 'https://app.edro.studio';
+  const panelBaseUrl = process.env.APP_URL || process.env.WEB_URL || 'https://edro-production.up.railway.app';
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const periodFrom = prevMonth.toISOString().slice(0, 10);

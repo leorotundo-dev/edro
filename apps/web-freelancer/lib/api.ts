@@ -1,4 +1,13 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+function resolveApiUrl() {
+  const explicit = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:3000';
+  }
+  return 'https://edro-backend-production.up.railway.app';
+}
+
+const API_URL = resolveApiUrl();
 
 function getToken(): string {
   if (typeof window === 'undefined') return '';
@@ -42,4 +51,8 @@ export const apiPatch = <T = any>(path: string, body?: unknown) => request<T>('P
 // SWR fetcher
 export function swrFetcher(path: string) {
   return apiGet(path);
+}
+
+export function getApiBaseUrl() {
+  return API_URL;
 }

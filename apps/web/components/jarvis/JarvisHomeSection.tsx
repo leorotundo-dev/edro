@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
@@ -12,6 +10,8 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
+import { alpha } from '@mui/material/styles';
 import Link from 'next/link';
 import { IconBrain, IconSend, IconMessage } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
@@ -43,6 +43,15 @@ function relativeTime(iso: string) {
   const h = Math.floor(min / 60);
   if (h < 24) return `${h}h atrás`;
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+function initials(name?: string) {
+  return String(name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || '?';
 }
 
 const QUICK_ACTIONS = [
@@ -90,19 +99,22 @@ export default function JarvisHomeSection() {
   };
 
   return (
-    <Card
-      elevation={0}
+    <Box
       sx={{
-        border: `1px solid ${EDRO_ORANGE}20`,
-        borderRadius: 3,
-        background: `linear-gradient(135deg, ${EDRO_ORANGE}04 0%, transparent 60%)`,
-        mb: 3,
+        py: 0.5,
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+      <Box sx={{ px: 0.25 }}>
         {/* Greeting */}
         <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2.5 }}>
-          <Box sx={{ p: 1, borderRadius: 2, bgcolor: `${EDRO_ORANGE}15` }}>
+          <Box
+            sx={(theme) => ({
+              p: 1,
+              borderRadius: 1.5,
+              bgcolor: alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.12 : 0.08),
+              border: `1px solid ${alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.22 : 0.16)}`,
+            })}
+          >
             <IconBrain size={22} style={{ color: EDRO_ORANGE }} />
           </Box>
           <Box>
@@ -126,7 +138,11 @@ export default function JarvisHomeSection() {
             onKeyDown={handleKeyDown}
             sx={{
               '& .MuiOutlinedInput-root': {
-                borderRadius: 3,
+                borderRadius: 1.5,
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.common.white, 0.02)
+                    : alpha(theme.palette.common.black, 0.018),
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: EDRO_ORANGE },
               },
             }}
@@ -134,7 +150,19 @@ export default function JarvisHomeSection() {
           <IconButton
             onClick={() => handleSend()}
             disabled={!input.trim()}
-            sx={{ bgcolor: EDRO_ORANGE, color: '#fff', '&:hover': { bgcolor: '#c94215' }, '&.Mui-disabled': { bgcolor: 'action.disabledBackground' }, flexShrink: 0, width: 40, height: 40 }}
+            sx={(theme) => ({
+              bgcolor: EDRO_ORANGE,
+              color: theme.palette.getContrastText(EDRO_ORANGE),
+              '&:hover': { bgcolor: '#c94215' },
+              '&.Mui-disabled': {
+                bgcolor: theme.palette.action.disabledBackground,
+                color: theme.palette.action.disabled,
+              },
+              flexShrink: 0,
+              width: 40,
+              height: 40,
+              borderRadius: 1.5,
+            })}
           >
             <IconSend size={16} />
           </IconButton>
@@ -150,7 +178,17 @@ export default function JarvisHomeSection() {
               variant="outlined"
               clickable
               onClick={() => handleSend(qa)}
-              sx={{ fontSize: '0.68rem', borderColor: `${EDRO_ORANGE}30`, color: 'text.secondary', '&:hover': { borderColor: EDRO_ORANGE, color: EDRO_ORANGE } }}
+              sx={(theme) => ({
+                fontSize: '0.68rem',
+                borderRadius: 1,
+                borderColor: alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.28 : 0.22),
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  borderColor: EDRO_ORANGE,
+                  color: EDRO_ORANGE,
+                  bgcolor: alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.08 : 0.05),
+                },
+              })}
             />
           ))}
         </Box>
@@ -176,14 +214,30 @@ export default function JarvisHomeSection() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
-                        px: 1.5,
+                        px: 0.5,
                         py: 0.75,
-                        borderRadius: 2,
                         cursor: 'pointer',
-                        '&:hover': { bgcolor: 'action.hover' },
+                        '&:hover': {
+                          bgcolor: (theme) =>
+                            theme.palette.mode === 'dark'
+                              ? alpha(theme.palette.common.white, 0.03)
+                              : alpha(theme.palette.common.black, 0.03),
+                        },
                       }}
                     >
-                      <IconMessage size={14} style={{ color: EDRO_ORANGE, flexShrink: 0 }} />
+                      <Avatar
+                        sx={(theme) => ({
+                          width: 22,
+                          height: 22,
+                          fontSize: '0.62rem',
+                          bgcolor: alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.14 : 0.09),
+                          color: EDRO_ORANGE,
+                          border: `1px solid ${alpha(EDRO_ORANGE, theme.palette.mode === 'dark' ? 0.24 : 0.18)}`,
+                          flexShrink: 0,
+                        })}
+                      >
+                        {conv.client_name ? initials(conv.client_name) : <IconMessage size={11} />}
+                      </Avatar>
                       <Typography variant="body2" sx={{ flex: 1, fontSize: '0.78rem' }} noWrap>
                         {conv.title || 'Conversa'}
                       </Typography>
@@ -199,7 +253,7 @@ export default function JarvisHomeSection() {
             </Stack>
           </>
         )}
-      </CardContent>
-    </Card>
+      </Box>
+    </Box>
   );
 }

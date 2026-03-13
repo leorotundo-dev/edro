@@ -232,6 +232,7 @@ Retorne SOMENTE este JSON (sem markdown):
       body: '',
       cta: 'Saiba mais',
       legenda: '',
+      hashtags: [],
     };
   }
 }

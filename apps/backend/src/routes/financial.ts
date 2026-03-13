@@ -639,7 +639,15 @@ export default async function financialRoutes(app: FastifyInstance) {
     }).parse(request.body);
 
     const { estimateScope } = await import('../services/ai/scopeEstimator');
-    const estimate = await estimateScope({ ...body, tenantId });
+    const estimate = await estimateScope({
+      tenantId,
+      title: body.title,
+      labels: body.labels,
+      platform: body.platform,
+      format: body.format,
+      clientId: body.client_id,
+      briefingId: body.briefing_id,
+    });
 
     // Persist to job_estimations if briefing_id provided
     if (body.briefing_id) {

@@ -8,7 +8,7 @@
  * Resultado salvo em job_estimations para loop de aprendizado.
  */
 
-import { query } from '../db';
+import { query } from '../../db';
 import { generateWithProvider } from './copyOrchestrator';
 
 export type Complexity = 'simple' | 'medium' | 'complex' | 'premium';
@@ -30,6 +30,7 @@ export interface ScopeEstimateResult {
   confidence: number;    // 0–1
   rationale: string;
   similar_jobs_count: number;
+  factors?: Record<string, unknown>;
 }
 
 // ── Historical analysis ────────────────────────────────────────────────────────
@@ -146,6 +147,12 @@ Referência de complexidade:
       confidence: 0.4,
       rationale: parsed.rationale || 'Estimativa por IA (sem histórico suficiente)',
       similar_jobs_count: 0,
+      factors: {
+        source: 'ai',
+        labels: input.labels ?? [],
+        platform: input.platform ?? null,
+        format: input.format ?? null,
+      },
     };
   } catch {
     return {
@@ -155,6 +162,12 @@ Referência de complexidade:
       confidence: 0.2,
       rationale: 'Estimativa padrão (IA indisponível)',
       similar_jobs_count: 0,
+      factors: {
+        source: 'fallback',
+        labels: input.labels ?? [],
+        platform: input.platform ?? null,
+        format: input.format ?? null,
+      },
     };
   }
 }
@@ -183,6 +196,15 @@ export async function estimateScope(input: ScopeEstimateInput): Promise<ScopeEst
       confidence: Math.round(confidence * 100) / 100,
       rationale: `Baseado em ${hist.count} jobs similares (média ${hours.toFixed(1)}h ± ${hist.stddev_hours.toFixed(1)}h)`,
       similar_jobs_count: hist.count,
+      factors: {
+        source: 'historical',
+        labels: input.labels ?? [],
+        platform: input.platform ?? null,
+        format: input.format ?? null,
+        avg_hours: Math.round(hist.avg_hours * 100) / 100,
+        stddev_hours: Math.round(hist.stddev_hours * 100) / 100,
+        avg_rate: hist.avg_rate,
+      },
     };
   } else {
     // AI fallback

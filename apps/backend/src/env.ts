@@ -95,6 +95,7 @@ const envSchema = z.object({
   RECALL_API_KEY: z.string().optional(),
   RECALL_REGION: z.string().optional(),
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
+  RECALL_WEBHOOK_SECRET: z.string().optional(),
 });
 
 // Railway injects RAILWAY_SERVICE_<NAME>_URL for linked services (no https:// prefix)

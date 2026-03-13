@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { setToken } from '@/lib/api';
+import { getApiBaseUrl, setToken } from '@/lib/api';
 
 const FEATURES = [
   'Jobs atribuidos com contexto',
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API = process.env.NEXT_PUBLIC_API_URL ?? '';
+  const API = getApiBaseUrl();
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();

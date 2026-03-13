@@ -42,6 +42,39 @@ const SENTIMENT_MAP: Record<string, { icon: any; label: string; color: string }>
   misto: { icon: IconMoodSmile, label: 'Misto', color: '#d97706' },
 };
 
+function normalizePulseItem(item: unknown): string {
+  if (typeof item === 'string') return item;
+  if (!item || typeof item !== 'object') return '';
+
+  const data = item as Record<string, unknown>;
+
+  if (typeof data.decision === 'string' && data.decision.trim()) {
+    const context = typeof data.context === 'string' && data.context.trim()
+      ? ` (${data.context.trim()})`
+      : '';
+    const date = typeof data.date === 'string' && data.date.trim()
+      ? ` · ${data.date.trim()}`
+      : '';
+    return `${data.decision.trim()}${context}${date}`;
+  }
+
+  if (typeof data.action === 'string' && data.action.trim()) {
+    const owner = typeof data.owner === 'string' && data.owner.trim()
+      ? ` (${data.owner.trim()})`
+      : '';
+    const deadline = typeof data.deadline === 'string' && data.deadline.trim()
+      ? ` · prazo: ${data.deadline.trim()}`
+      : '';
+    return `${data.action.trim()}${owner}${deadline}`;
+  }
+
+  if (typeof data.summary === 'string' && data.summary.trim()) {
+    return data.summary.trim();
+  }
+
+  return '';
+}
+
 export default function WhatsAppPulseCard({ clientId }: { clientId: string }) {
   const [data, setData] = useState<PulseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +85,8 @@ export default function WhatsAppPulseCard({ clientId }: { clientId: string }) {
       const res = await apiGet<any>(`/clients/${clientId}/whatsapp-pulse`);
       setData({
         ...res,
-        topics: Array.isArray(res?.topics) ? res.topics.map((t: any) => String(t ?? '')) : [],
-        pending_actions: Array.isArray(res?.pending_actions) ? res.pending_actions.map((a: any) => String(a ?? '')) : [],
+        topics: Array.isArray(res?.topics) ? res.topics.map(normalizePulseItem).filter(Boolean) : [],
+        pending_actions: Array.isArray(res?.pending_actions) ? res.pending_actions.map(normalizePulseItem).filter(Boolean) : [],
         groups: Array.isArray(res?.groups) ? res.groups : [],
       });
     } catch { /* silent */ } finally {

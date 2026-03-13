@@ -148,7 +148,7 @@ async function resolveByPhone(phone: string): Promise<{ tenantId: string; client
 
 // ── Format a short preview of the briefing for the WhatsApp reply ──────────
 function buildReply(fields: ReturnType<typeof extractBriefingFields> extends Promise<infer T> ? T : never, briefingId: string): string {
-  const BASE = process.env.APP_URL || 'https://app.edro.digital';
+  const BASE = process.env.APP_URL || process.env.WEB_URL || 'https://edro-production.up.railway.app';
   const lines: string[] = [
     `✅ *Briefing criado com sucesso!*`,
     ``,

@@ -25,6 +25,7 @@ import { runWatchRenewWorkerOnce } from './watchRenewWorker';
 import { runGroupIntelligenceWorkerOnce } from './groupIntelligenceWorker';
 import { runGroupDigestWorkerOnce } from './groupDigestWorker';
 import { runGroupDeadlineAlertWorkerOnce } from './groupDeadlineAlertWorker';
+import { runOperationsRuntimeWorkerOnce } from './operationsRuntimeWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -113,4 +114,6 @@ export function startJobsRunner() {
   startWorkerLoop('groupDigest', runGroupDigestWorkerOnce, 12500, 120_000);
   // WhatsApp deadline alerts — self-throttled to 09:00, 14:00, 18:00 BRT
   startWorkerLoop('groupDeadlineAlert', runGroupDeadlineAlertWorkerOnce, 13000, 60_000);
+  // Central de Operações runtime — keeps demands, agenda e riscos synchronized
+  startWorkerLoop('operationsRuntime', runOperationsRuntimeWorkerOnce, 13500, 180_000);
 }

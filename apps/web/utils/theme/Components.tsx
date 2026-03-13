@@ -278,14 +278,6 @@ const Components: Components<Theme> = {
       },
     },
   },
-  MuiDrawer: {
-    styleOverrides: {
-      paper: {
-        border: 'none',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-      },
-    },
-  },
   MuiAppBar: {
     styleOverrides: {
       root: ({ theme }) => ({
@@ -472,11 +464,66 @@ const Components: Components<Theme> = {
   },
   MuiTab: {
     styleOverrides: {
-      root: {
+      root: ({ theme }) => ({
         textTransform: 'none',
         fontWeight: 600,
         fontSize: '0.875rem',
+        minHeight: 42,
+        borderRadius: '10px',
+        marginRight: theme.spacing(0.5),
+        '&.Mui-selected': {
+          color: theme.palette.primary.main,
+          backgroundColor: `${theme.palette.primary.main}10`,
+        },
+      }),
+    },
+  },
+  MuiTabs: {
+    styleOverrides: {
+      root: {
+        minHeight: 42,
       },
+      indicator: ({ theme }) => ({
+        height: 3,
+        borderRadius: 999,
+        backgroundColor: theme.palette.primary.main,
+      }),
+      scroller: {
+        overflow: 'visible !important',
+      },
+    },
+  },
+  MuiDrawer: {
+    styleOverrides: {
+      paper: ({ theme }) => ({
+        borderRadius: 0,
+        borderLeft: `1px solid ${theme.palette.divider}`,
+        backgroundImage: 'none',
+      }),
+    },
+  },
+  MuiAlert: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        borderRadius: '12px',
+        border: `1px solid ${theme.palette.divider}`,
+      }),
+    },
+  },
+  MuiStepper: {
+    styleOverrides: {
+      root: {
+        padding: 0,
+      },
+    },
+  },
+  MuiStepConnector: {
+    styleOverrides: {
+      line: ({ theme }) => ({
+        borderColor: `${theme.palette.primary.main}33`,
+        borderTopWidth: 2,
+        borderRadius: 999,
+      }),
     },
   },
   MuiTooltip: {
@@ -523,13 +570,6 @@ const Components: Components<Theme> = {
           color: theme.palette.primary.main,
         },
       }),
-    },
-  },
-  MuiAlert: {
-    styleOverrides: {
-      root: {
-        borderRadius: '12px',
-      },
     },
   },
   MuiBadge: {

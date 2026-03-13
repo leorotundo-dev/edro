@@ -20,7 +20,7 @@ import {
 } from '../services/integrations/gmailService';
 
 function getIntegrationsRedirectUrl(query: string) {
-  const webUrl = (process.env.WEB_URL ?? 'https://app.edro.digital').replace(/\/$/, '');
+  const webUrl = (process.env.WEB_URL ?? 'https://edro-production.up.railway.app').replace(/\/$/, '');
   return `${webUrl}/admin/integrations?${query}`;
 }
 

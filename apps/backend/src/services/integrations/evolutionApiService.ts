@@ -274,6 +274,9 @@ export async function unlinkGroup(tenantId: string, groupJid: string): Promise<v
 
 export async function sendGroupMessage(tenantId: string, groupJid: string, text: string): Promise<void> {
   const name = instanceName(tenantId);
+  // Warm up group metadata cache before sending. Evolution v2.1.1 has shown
+  // intermittent `findGroup` failures right after channel startup for group sends.
+  await fetchGroups(tenantId).catch(() => {});
   await evolFetch(`/message/sendText/${name}`, {
     method: 'POST',
     body: JSON.stringify({ number: groupJid, text }),

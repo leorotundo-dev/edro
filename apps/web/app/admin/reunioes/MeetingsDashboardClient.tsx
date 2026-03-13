@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
@@ -112,6 +112,7 @@ type Contact = {
 type InviteContact = Contact & { send_via: 'whatsapp' | 'email' | 'both' };
 
 type Platform = 'meet' | 'zoom' | 'teams' | 'other';
+type RecentMeetingFilter = 'all' | 'active' | 'approval' | 'failed' | 'done';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -158,11 +159,35 @@ function typeLabel(type: string) {
 }
 
 function statusChip(status: string) {
-  if (status === 'analyzed') return <Chip label="Analisada" size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />;
-  if (status === 'processing') return <Chip label="Processando" size="small" color="warning" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />;
-  if (status === 'failed') return <Chip label="Falha" size="small" color="error" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />;
-  if (status === 'scheduled') return <Chip label="Agendada" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />;
-  return <Chip label={status} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />;
+  const map = {
+    scheduled: { label: 'Agendada', color: 'info' },
+    bot_scheduled: { label: 'Bot agendado', color: 'info' },
+    joining: { label: 'Entrando', color: 'warning' },
+    in_call: { label: 'Em call', color: 'warning' },
+    recorded: { label: 'Gravada', color: 'info' },
+    transcript_pending: { label: 'Transcript pendente', color: 'warning' },
+    transcribed: { label: 'Transcrita', color: 'info' },
+    analysis_pending: { label: 'Analisando', color: 'warning' },
+    analyzed: { label: 'Analisada', color: 'success' },
+    approval_pending: { label: 'Aprovacao pendente', color: 'warning' },
+    partially_approved: { label: 'Parcialmente aprovada', color: 'warning' },
+    completed: { label: 'Concluida', color: 'success' },
+    approved: { label: 'Aprovada', color: 'success' },
+    processing: { label: 'Processando', color: 'warning' },
+    failed: { label: 'Falha', color: 'error' },
+    archived: { label: 'Arquivada', color: 'default' },
+  } as const;
+
+  const meta = map[status as keyof typeof map];
+  return (
+    <Chip
+      label={meta?.label ?? status}
+      size="small"
+      color={meta?.color ?? 'default'}
+      variant="outlined"
+      sx={{ fontSize: '0.7rem', height: 22 }}
+    />
+  );
 }
 
 function fmtDate(iso: string) {
@@ -175,9 +200,88 @@ function fmtTime(iso: string) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function fmtDateTime(iso: string | null | undefined) {
+  if (!iso) return '—';
+  return `${fmtDate(iso)} as ${fmtTime(iso)}`;
+}
+
 function toLocalISO(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function stageLabel(stage: string | null | undefined) {
+  const map: Record<string, string> = {
+    calendar_detect: 'Calendar',
+    bot_create: 'Criacao do bot',
+    bot_join: 'Entrada do bot',
+    bot_finalize: 'Finalizacao do bot',
+    transcript_fetch: 'Coleta do transcript',
+    analysis: 'Analise',
+    approval: 'Aprovacao',
+    system_create: 'Criacao no sistema',
+    whatsapp_notify: 'WhatsApp',
+  };
+  if (!stage) return '—';
+  return map[stage] ?? stage;
+}
+
+function sourceLabel(source: string | null | undefined) {
+  const map: Record<string, string> = {
+    upload: 'Upload',
+    calendar: 'Google Calendar',
+    manual_bot: 'Bot manual',
+    instant: 'Instantanea',
+  };
+  if (!source) return '—';
+  return map[source] ?? source;
+}
+
+function transcriptProviderLabel(provider: string | null | undefined) {
+  const map: Record<string, string> = {
+    recall: 'Recall.ai',
+    whisper: 'Whisper',
+    manual: 'Manual',
+  };
+  if (!provider) return '—';
+  return map[provider] ?? provider;
+}
+
+function shortText(value: string | null | undefined, fallback = '—') {
+  if (!value) return fallback;
+  return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
+function jobStatusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'error' {
+  if (status === 'done' || status === 'completed') return 'success';
+  if (status === 'pending' || status === 'scheduled' || status === 'running') return 'warning';
+  if (status === 'failed') return 'error';
+  return 'default';
+}
+
+function matchesRecentMeetingFilter(meeting: RecentMeeting, filter: RecentMeetingFilter) {
+  if (filter === 'all') return true;
+  if (filter === 'failed') return meeting.status === 'failed';
+  if (filter === 'approval') return meeting.status === 'approval_pending' || meeting.status === 'partially_approved';
+  if (filter === 'done') return meeting.status === 'completed' || meeting.status === 'analyzed' || meeting.status === 'approved';
+  if (filter === 'active') {
+    return !['failed', 'completed', 'analyzed', 'approved', 'archived'].includes(meeting.status)
+      && meeting.status !== 'approval_pending'
+      && meeting.status !== 'partially_approved';
+  }
+  return true;
+}
+
+function normalizeClientsResponse(payload: unknown): Array<{ id: string; name: string }> {
+  const raw = Array.isArray(payload)
+    ? payload
+    : ((payload as { clients?: Array<{ id: string; name: string }>; data?: Array<{ id: string; name: string }> } | null)?.clients
+      ?? (payload as { data?: Array<{ id: string; name: string }> } | null)?.data
+      ?? []);
+  return raw
+    .filter((item): item is { id: string; name: string } => Boolean(item?.id && item?.name))
+    .slice()
+    .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 }
 
 // ── Stat Card ────────────────────────────────────────────────────────
@@ -358,18 +462,138 @@ type MeetingDetail = {
   }> | null;
 };
 
+type MeetingStatusData = {
+  id: string;
+  title: string;
+  client_id: string;
+  platform: string;
+  status: string;
+  source: string | null;
+  meeting_url: string | null;
+  recorded_at: string;
+  bot_id: string | null;
+  bot_status: string | null;
+  transcript_provider: string | null;
+  analysis_version: number | null;
+  failed_stage: string | null;
+  failed_reason: string | null;
+  retry_count: number | null;
+  summary_sent_at: string | null;
+  approved_at: string | null;
+  completed_at: string | null;
+  total_actions: number;
+  pending_actions: number;
+  approved_actions: number;
+  rejected_actions: number;
+  auto_join_id: string | null;
+  auto_join_status: string | null;
+  auto_join_bot_id: string | null;
+  auto_join_last_error: string | null;
+  auto_join_attempt_count: number | null;
+  auto_join_scheduled_at: string | null;
+  latest_event_type: string | null;
+  latest_event_stage: string | null;
+  latest_event_message: string | null;
+  latest_event_at: string | null;
+};
+
+type MeetingAuditEvent = {
+  id: string;
+  event_type: string;
+  stage: string | null;
+  status: string;
+  message: string | null;
+  actor_type: string | null;
+  actor_id: string | null;
+  payload?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type MeetingAuditJob = {
+  id: string;
+  type: string;
+  status: string;
+  attempts: number;
+  error_message: string | null;
+  scheduled_for: string | null;
+  created_at: string;
+  updated_at: string | null;
+  payload?: Record<string, unknown> | null;
+};
+
+type MeetingAuditData = {
+  meeting: MeetingStatusData;
+  events: MeetingAuditEvent[];
+  jobs: MeetingAuditJob[];
+};
+
+type OperationKey = 'retry-bot' | 'reprocess-transcript' | 'reanalyze' | 'resend-whatsapp';
+type FeedbackState = { severity: 'success' | 'error'; message: string } | null;
+
+function OpsInfoCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: React.ReactNode;
+  helper?: React.ReactNode;
+}) {
+  return (
+    <Box sx={{ p: 1.25, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', minHeight: '100%' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.8rem', lineHeight: 1.4, wordBreak: 'break-word' }}>
+        {value}
+      </Typography>
+      {helper && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.45, lineHeight: 1.5 }}>
+          {helper}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
+  const [ops, setOps] = useState<MeetingStatusData | null>(null);
+  const [audit, setAudit] = useState<MeetingAuditData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
+  const [operationLoading, setOperationLoading] = useState<OperationKey | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
+
+  const loadDetail = useCallback(async () => {
+    setLoading(true);
+
+    const [detailRes, statusRes, auditRes] = await Promise.allSettled([
+      apiGet<{ data: MeetingDetail }>(`/meetings/${meetingId}/detail`),
+      apiGet<{ data: MeetingStatusData }>(`/meetings/${meetingId}/status`),
+      apiGet<{ data: MeetingAuditData }>(`/meetings/${meetingId}/audit`),
+    ]);
+
+    if (detailRes.status === 'fulfilled') setDetail(detailRes.value.data);
+    else setDetail(null);
+
+    if (statusRes.status === 'fulfilled') setOps(statusRes.value.data);
+    else setOps(null);
+
+    if (auditRes.status === 'fulfilled') setAudit(auditRes.value.data);
+    else setAudit(null);
+
+    if (detailRes.status === 'rejected' && statusRes.status === 'rejected') {
+      setFeedback({ severity: 'error', message: 'Erro ao carregar detalhes operacionais desta reuniao.' });
+    }
+
+    setLoading(false);
+  }, [meetingId]);
 
   useEffect(() => {
-    setLoading(true);
-    apiGet<{ data: MeetingDetail }>(`/meetings/${meetingId}/detail`)
-      .then(r => setDetail(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [meetingId]);
+    void loadDetail();
+  }, [loadDetail]);
 
   if (loading) {
     return (
@@ -379,7 +603,7 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
     );
   }
 
-  if (!detail) {
+  if (!detail && !ops && !audit?.meeting) {
     return (
       <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
         Erro ao carregar detalhes.
@@ -387,12 +611,214 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
     );
   }
 
-  const actions = detail.actions ?? [];
+  const operational = ops ?? audit?.meeting ?? null;
+  const actions = detail?.actions ?? [];
+
+  const handleOperation = async (operation: OperationKey) => {
+    const operationMap: Record<OperationKey, { path: string; success: string }> = {
+      'retry-bot': {
+        path: `/meetings/${meetingId}/retry-bot`,
+        success: 'Fila operacional atualizada para novo ciclo do bot.',
+      },
+      'reprocess-transcript': {
+        path: `/meetings/${meetingId}/reprocess-transcript`,
+        success: 'Transcript reprocessado com sucesso.',
+      },
+      'reanalyze': {
+        path: `/meetings/${meetingId}/reanalyze`,
+        success: 'Reanalise executada. O painel foi atualizado.',
+      },
+      'resend-whatsapp': {
+        path: `/meetings/${meetingId}/resend-whatsapp`,
+        success: 'Resumo reenviado ao grupo do cliente.',
+      },
+    };
+
+    setOperationLoading(operation);
+    setFeedback(null);
+    try {
+      await apiPost(operationMap[operation].path, {});
+      setFeedback({ severity: 'success', message: operationMap[operation].success });
+      await loadDetail();
+    } catch (error: any) {
+      setFeedback({ severity: 'error', message: error?.message ?? 'Falha ao executar operacao.' });
+    } finally {
+      setOperationLoading(null);
+    }
+  };
 
   return (
     <Box sx={{ px: 2, py: 2 }}>
+      {feedback && <Alert severity={feedback.severity} sx={{ mb: 2 }}>{feedback.message}</Alert>}
+
+      {operational && (
+        <Box sx={{ mb: 2 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              {statusChip(operational.status)}
+              {operational.source === 'calendar' && (
+                <Chip
+                  label="Google Calendar"
+                  size="small"
+                  variant="outlined"
+                  color="info"
+                  sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+              )}
+              {operational.auto_join_status && (
+                <Chip
+                  label={`Auto-join: ${operational.auto_join_status}`}
+                  size="small"
+                  variant="outlined"
+                  color={
+                    operational.auto_join_status === 'failed' ? 'error'
+                      : operational.auto_join_status === 'done' ? 'success'
+                        : ['queued', 'meeting_created', 'bot_created', 'waiting', 'processing'].includes(operational.auto_join_status) ? 'warning'
+                          : 'default'
+                  }
+                  sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+              )}
+              {operational.auto_join_id && (
+                <Chip
+                  label="Vinculada ao auto-join"
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+              )}
+              {operational.failed_stage && (
+                <Chip
+                  label={`Falha em ${stageLabel(operational.failed_stage)}`}
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+              )}
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Typography variant="caption" color="text.secondary">
+                Versao da analise: {operational.analysis_version ?? 1}
+              </Typography>
+              {operational.latest_event_at && (
+                <Typography variant="caption" color="text.secondary">
+                  Ultimo evento: {fmtDateTime(operational.latest_event_at)}
+                </Typography>
+              )}
+            </Stack>
+          </Stack>
+
+          <Grid container spacing={1.25}>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <OpsInfoCard
+                label="Origem"
+                value={sourceLabel(operational.source)}
+                helper={`${platformLabel(operational.platform)} · ${fmtDateTime(operational.recorded_at)}`}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <OpsInfoCard
+                label="Bot Recall"
+                value={operational.bot_id ? shortText(operational.bot_id) : 'Nao criado'}
+                helper={[
+                  operational.bot_status ? `Status: ${operational.bot_status}` : null,
+                  operational.retry_count != null ? `Retries: ${operational.retry_count}` : null,
+                ].filter(Boolean).join(' · ')}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <OpsInfoCard
+                label="Auto-join"
+                value={operational.auto_join_status ? operational.auto_join_status : 'Sem auto-join'}
+                helper={[
+                  operational.auto_join_scheduled_at ? `Agendado: ${fmtDateTime(operational.auto_join_scheduled_at)}` : null,
+                  operational.auto_join_attempt_count != null ? `Tentativas: ${operational.auto_join_attempt_count}` : null,
+                ].filter(Boolean).join(' · ')}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <OpsInfoCard
+                label="Pipeline"
+                value={transcriptProviderLabel(operational.transcript_provider)}
+                helper={`${operational.pending_actions}/${operational.total_actions} pendentes · ${operational.approved_actions} aprovadas`}
+              />
+            </Grid>
+          </Grid>
+
+          {(operational.failed_reason || operational.auto_join_last_error) && (
+            <Alert severity="error" sx={{ mt: 1.5 }}>
+              {operational.failed_reason ?? operational.auto_join_last_error}
+            </Alert>
+          )}
+
+          {operational.latest_event_message && (
+            <Alert severity="info" sx={{ mt: 1.5 }}>
+              {stageLabel(operational.latest_event_stage)}: {operational.latest_event_message}
+            </Alert>
+          )}
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+            {operational.auto_join_id && (
+              <Button
+                size="small"
+                variant="outlined"
+                href={`/admin/integrations?autoJoinId=${encodeURIComponent(operational.auto_join_id)}`}
+              >
+                Abrir auto-join
+              </Button>
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={operationLoading === 'retry-bot' ? <CircularProgress size={14} /> : <IconPlayerPlay size={14} />}
+              disabled={operationLoading !== null || !operational.meeting_url}
+              onClick={() => void handleOperation('retry-bot')}
+            >
+              Retry bot
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={operationLoading === 'reprocess-transcript' ? <CircularProgress size={14} /> : <IconFileText size={14} />}
+              disabled={operationLoading !== null || (!operational.bot_id && !detail?.transcript)}
+              onClick={() => void handleOperation('reprocess-transcript')}
+            >
+              Reprocessar transcript
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={operationLoading === 'reanalyze' ? <CircularProgress size={14} /> : <IconRobot size={14} />}
+              disabled={operationLoading !== null || !detail?.transcript}
+              onClick={() => void handleOperation('reanalyze')}
+            >
+              Reanalisar
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={operationLoading === 'resend-whatsapp' ? <CircularProgress size={14} /> : <IconBrandWhatsapp size={14} />}
+              disabled={operationLoading !== null || !detail?.summary}
+              onClick={() => void handleOperation('resend-whatsapp')}
+            >
+              Reenviar WhatsApp
+            </Button>
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<IconChevronDown size={14} style={{ transform: showAudit ? 'rotate(180deg)' : 'none' }} />}
+              onClick={() => setShowAudit(v => !v)}
+            >
+              {showAudit ? 'Ocultar auditoria' : 'Ver auditoria'}
+            </Button>
+          </Stack>
+        </Box>
+      )}
+
       {/* Summary */}
-      {detail.summary && (
+      {detail?.summary && (
         <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 1.5, borderLeft: `3px solid ${EDRO_ORANGE}` }}>
           <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
             <IconRobot size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
@@ -429,7 +855,7 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
       )}
 
       {/* Transcript toggle */}
-      {detail.transcript && (
+      {detail?.transcript && (
         <Box>
           <Button
             size="small"
@@ -453,10 +879,88 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
         </Box>
       )}
 
+      <Collapse in={showAudit}>
+        <Box sx={{ mt: 2, mb: 2, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: '#fcfcfd' }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Timeline operacional
+          </Typography>
+
+          {audit?.events?.length ? (
+            <Stack spacing={1}>
+              {audit.events.slice(0, 12).map(event => (
+                <Box key={event.id} sx={{ p: 1, borderRadius: 1.25, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Chip label={stageLabel(event.stage)} size="small" variant="outlined" sx={{ fontSize: '0.64rem', height: 20 }} />
+                      {statusChip(event.status)}
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {fmtDateTime(event.created_at)}
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" fontWeight={600} sx={{ mt: 0.8, fontSize: '0.78rem' }}>
+                    {event.event_type}
+                  </Typography>
+                  {event.message && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4, lineHeight: 1.5 }}>
+                      {event.message}
+                    </Typography>
+                  )}
+                  {(event.actor_type || event.actor_id) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>
+                      {event.actor_type ?? 'ator'}{event.actor_id ? ` · ${event.actor_id}` : ''}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+              Nenhum evento operacional registrado.
+            </Typography>
+          )}
+
+          <Divider sx={{ my: 1.5 }} />
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Jobs relacionados
+          </Typography>
+
+          {audit?.jobs?.length ? (
+            <Stack spacing={1}>
+              {audit.jobs.slice(0, 8).map(job => (
+                <Box key={job.id} sx={{ p: 1, borderRadius: 1.25, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Chip label={job.type} size="small" variant="outlined" sx={{ fontSize: '0.64rem', height: 20 }} />
+                      <Chip label={job.status} size="small" color={jobStatusColor(job.status)} variant="outlined" sx={{ fontSize: '0.64rem', height: 20 }} />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {fmtDateTime(job.updated_at ?? job.created_at)}
+                    </Typography>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.45 }}>
+                    Tentativas: {job.attempts} · Agenda: {fmtDateTime(job.scheduled_for)}
+                  </Typography>
+                  {job.error_message && (
+                    <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.45, lineHeight: 1.5 }}>
+                      {job.error_message}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+              Nenhum job relacionado encontrado.
+            </Typography>
+          )}
+        </Box>
+      </Collapse>
+
       {/* No analysis yet */}
-      {!detail.summary && !detail.transcript && detail.status !== 'analyzed' && (
+      {!detail?.summary && !detail?.transcript && operational?.status !== 'analyzed' && (
         <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 1 }}>
-          {detail.status === 'processing' ? (
+          {operational?.status === 'processing' || operational?.status === 'analysis_pending' ? (
             <>
               <CircularProgress size={14} />
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
@@ -472,19 +976,28 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
       )}
 
       {/* Meeting URL */}
-      {detail.meeting_url && (
+      {(detail?.meeting_url || operational?.meeting_url) && (
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.5 }}>
           <Typography variant="caption" color="text.secondary">Link:</Typography>
           <Typography
             variant="caption"
             component="a"
-            href={detail.meeting_url}
+            href={detail?.meeting_url ?? operational?.meeting_url ?? undefined}
             target="_blank"
             rel="noopener"
             sx={{ color: 'primary.main', textDecoration: 'underline', wordBreak: 'break-all' }}
           >
-            {detail.meeting_url}
+            {detail?.meeting_url ?? operational?.meeting_url}
           </Typography>
+        </Stack>
+      )}
+
+      {operational && (
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary">Aprovada em: {fmtDateTime(operational.approved_at)}</Typography>
+          <Typography variant="caption" color="text.secondary">WhatsApp: {fmtDateTime(operational.summary_sent_at)}</Typography>
+          <Typography variant="caption" color="text.secondary">Concluida em: {fmtDateTime(operational.completed_at)}</Typography>
+          <Typography variant="caption" color="text.secondary">Bot: {shortText(operational.bot_id)}</Typography>
         </Stack>
       )}
     </Box>
@@ -495,6 +1008,7 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
 
 export default function MeetingsDashboardClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<RecentMeeting[]>([]);
@@ -521,6 +1035,8 @@ export default function MeetingsDashboardClient() {
   const [createResult, setCreateResult] = useState<any>(null);
   const [createError, setCreateError] = useState('');
   const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
+  const [recentFilter, setRecentFilter] = useState<RecentMeetingFilter>('all');
+  const requestedMeetingId = searchParams.get('meetingId');
 
   // ── Load dashboard data ────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -545,10 +1061,17 @@ export default function MeetingsDashboardClient() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!requestedMeetingId || !recent.length) return;
+    if (recent.some((meeting) => meeting.id === requestedMeetingId)) {
+      setExpandedMeetingId(requestedMeetingId);
+    }
+  }, [requestedMeetingId, recent]);
+
   // Load clients
   useEffect(() => {
-    apiGet<{ clients: Array<{ id: string; name: string }> }>('/clients?limit=200&status=active')
-      .then(r => setClients(r.clients ?? []))
+    apiGet<unknown>('/clients?limit=200&status=active')
+      .then((response) => setClients(normalizeClientsResponse(response)))
       .catch(() => {});
   }, []);
 
@@ -640,6 +1163,14 @@ export default function MeetingsDashboardClient() {
   };
 
   const pendingProposals = proposals.filter(p => p.actions.some(a => a.status === 'pending'));
+  const recentCounts = {
+    all: recent.length,
+    active: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'active')).length,
+    approval: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'approval')).length,
+    failed: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'failed')).length,
+    done: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'done')).length,
+  };
+  const filteredRecent = recent.filter((meeting) => matchesRecentMeetingFilter(meeting, recentFilter));
 
   return (
     <AppShell title="Reunioes">
@@ -955,12 +1486,37 @@ export default function MeetingsDashboardClient() {
             <Grid size={{ xs: 12, lg: 7 }}>
               <Card variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
                 <CardContent sx={{ pb: '12px !important' }}>
-                  <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
-                    Reunioes Recentes
-                  </Typography>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap mb={1.5}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Reunioes Recentes
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {([
+                        ['all', 'Todas'],
+                        ['active', 'Em andamento'],
+                        ['approval', 'Aprovacao'],
+                        ['failed', 'Falhas'],
+                        ['done', 'Concluidas'],
+                      ] as Array<[RecentMeetingFilter, string]>).map(([value, label]) => (
+                        <Chip
+                          key={value}
+                          label={`${label} (${recentCounts[value]})`}
+                          clickable
+                          color={recentFilter === value ? 'primary' : 'default'}
+                          variant={recentFilter === value ? 'filled' : 'outlined'}
+                          onClick={() => setRecentFilter(value)}
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
                   {recent.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                       Nenhuma reuniao encontrada. Crie sua primeira reuniao acima.
+                    </Typography>
+                  ) : filteredRecent.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                      Nenhuma reuniao encontrada para esse filtro.
                     </Typography>
                   ) : (
                     <TableContainer>
@@ -977,7 +1533,7 @@ export default function MeetingsDashboardClient() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {recent.slice(0, 20).map(m => {
+                          {filteredRecent.slice(0, 20).map(m => {
                             const isExpanded = expandedMeetingId === m.id;
                             return (
                               <React.Fragment key={m.id}>

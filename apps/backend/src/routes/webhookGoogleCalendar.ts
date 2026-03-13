@@ -28,7 +28,7 @@ export default async function webhookGoogleCalendarRoutes(app: FastifyInstance) 
     // 'exists' means a calendar change was detected
     if (resourceState === 'exists' || resourceState === 'not_exists') {
       try {
-        await processCalendarNotification(channelId);
+        await processCalendarNotification(channelId, resourceState);
       } catch (err: any) {
         console.error('[webhookGoogleCalendar] processNotification failed:', err?.message);
       }

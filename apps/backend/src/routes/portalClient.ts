@@ -354,7 +354,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     );
 
     const row = result.rows[0];
-    const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
+    const webUrl = process.env.WEB_URL ?? 'https://edro-production.up.railway.app';
     const portalUrl = `${webUrl}/portal/${row.token}`;
 
     return reply.send({
@@ -428,7 +428,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       [tenantId, clientId],
     );
 
-    const webUrl = process.env.WEB_URL ?? 'https://app.edro.digital';
+    const webUrl = process.env.WEB_URL ?? 'https://edro-production.up.railway.app';
     return reply.send({
       links: result.rows.map(r => ({
         ...r,

@@ -111,6 +111,18 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('pt-BR');
 }
 
+function normalizeClientsResponse(payload: unknown): Client[] {
+  const raw = Array.isArray(payload)
+    ? payload
+    : ((payload as { clients?: Client[]; data?: Client[] } | null)?.clients
+      ?? (payload as { data?: Client[] } | null)?.data
+      ?? []);
+  return raw
+    .filter((item): item is Client => Boolean(item?.id && item?.name))
+    .slice()
+    .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+}
+
 const INVOICE_STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error'> = {
   draft: 'default',
   sent: 'warning',
@@ -289,10 +301,10 @@ function ContractsTab() {
     try {
       const [c, cl] = await Promise.all([
         apiGet<{ contracts: Contract[] }>('/financial/contracts'),
-        apiGet<{ clients: Client[] }>('/clients?status=active&limit=200'),
+        apiGet<unknown>('/clients?status=active&limit=200'),
       ]);
       setContracts(c.contracts ?? []);
-      setClients(cl.clients ?? []);
+      setClients(normalizeClientsResponse(cl));
     } finally {
       setLoading(false);
     }
@@ -488,10 +500,10 @@ function InvoicesTab() {
     try {
       const [inv, cl] = await Promise.all([
         apiGet<{ invoices: Invoice[] }>('/financial/invoices'),
-        apiGet<{ clients: Client[] }>('/clients?status=active&limit=200'),
+        apiGet<unknown>('/clients?status=active&limit=200'),
       ]);
       setInvoices(inv.invoices ?? []);
-      setClients(cl.clients ?? []);
+      setClients(normalizeClientsResponse(cl));
     } finally {
       setLoading(false);
     }
@@ -700,11 +712,11 @@ function MediaTab() {
       const [b, a, cl] = await Promise.all([
         apiGet<{ budgets: MediaBudget[] }>(`/financial/media-budgets?month=${month}`),
         apiGet<{ alerts: MediaBudget[] }>('/financial/media-budgets/alerts'),
-        apiGet<{ clients: Client[] }>('/clients?status=active&limit=200'),
+        apiGet<unknown>('/clients?status=active&limit=200'),
       ]);
       setBudgets(b.budgets ?? []);
       setAlerts(a.alerts ?? []);
-      setClients(cl.clients ?? []);
+      setClients(normalizeClientsResponse(cl));
     } finally {
       setLoading(false);
     }
@@ -902,10 +914,10 @@ function PropostasTab() {
     try {
       const [p, cl] = await Promise.all([
         apiGet<{ proposals: Proposal[] }>('/financial/proposals'),
-        apiGet<{ clients: Client[] }>('/clients?status=active&limit=200'),
+        apiGet<unknown>('/clients?status=active&limit=200'),
       ]);
       setProposals(p.proposals ?? []);
-      setClients(cl.clients ?? []);
+      setClients(normalizeClientsResponse(cl));
     } finally {
       setLoading(false);
     }

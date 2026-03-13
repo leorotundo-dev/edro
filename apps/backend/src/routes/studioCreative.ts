@@ -1130,7 +1130,12 @@ Retorne SOMENTE um JSON válido:
     const body = voiceoverSchema.parse(request.body);
     try {
       const { generateSpeech } = await import('../services/ai/openaiService');
-      const result = await generateSpeech(body);
+      const result = await generateSpeech({
+        text: body.text,
+        voice: body.voice,
+        model: body.model,
+        speed: body.speed,
+      });
       return reply.send({ success: true, audioBase64: result.audioBase64, durationEstimateMs: result.durationEstimateMs });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });

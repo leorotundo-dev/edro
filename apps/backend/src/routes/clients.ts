@@ -1714,6 +1714,42 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
     '/clients/:clientId/whatsapp-pulse',
     { preHandler: [authGuard, tenantGuard()] },
     async (request: any, reply) => {
+      const normalizeTopic = (item: any): string => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+        if (typeof item.decision === 'string' && item.decision.trim()) {
+          const context = typeof item.context === 'string' && item.context.trim()
+            ? ` (${item.context.trim()})`
+            : '';
+          const date = typeof item.date === 'string' && item.date.trim()
+            ? ` · ${item.date.trim()}`
+            : '';
+          return `${item.decision.trim()}${context}${date}`;
+        }
+        if (typeof item.summary === 'string' && item.summary.trim()) {
+          return item.summary.trim();
+        }
+        return '';
+      };
+
+      const normalizePendingAction = (item: any): string => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+        if (typeof item.action === 'string' && item.action.trim()) {
+          const owner = typeof item.owner === 'string' && item.owner.trim()
+            ? ` (${item.owner.trim()})`
+            : '';
+          const deadline = typeof item.deadline === 'string' && item.deadline.trim()
+            ? ` · prazo: ${item.deadline.trim()}`
+            : '';
+          return `${item.action.trim()}${owner}${deadline}`;
+        }
+        if (typeof item.summary === 'string' && item.summary.trim()) {
+          return item.summary.trim();
+        }
+        return '';
+      };
+
       const { clientId } = request.params as { clientId: string };
       const tenantId = request.user.tenant_id;
 
@@ -1789,7 +1825,10 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
       if (digest) {
         aiSummary = digest.summary;
-        topics = (digest.key_decisions ?? []).slice(0, 5);
+        topics = (Array.isArray(digest.key_decisions) ? digest.key_decisions : [])
+          .map(normalizeTopic)
+          .filter(Boolean)
+          .slice(0, 5);
       } else if (msgCount > 3) {
         // Generate a quick AI summary from recent messages
         const { rows: recentMsgs } = await pool.query(
@@ -1840,7 +1879,9 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
       }
 
       // Pending actions from digest or urgent insights
-      const pendingActions: string[] = digest?.pending_actions ?? [];
+      const pendingActions = (Array.isArray(digest?.pending_actions) ? digest.pending_actions : [])
+        .map(normalizePendingAction)
+        .filter(Boolean);
       recentInsights
         .filter((i: any) => i.urgency === 'urgent')
         .forEach((i: any) => {

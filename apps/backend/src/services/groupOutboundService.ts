@@ -15,7 +15,8 @@ export type OutboundScenario =
   | 'digest_daily'
   | 'digest_weekly'
   | 'deadline_alert'
-  | 'jarvis_reply';
+  | 'jarvis_reply'
+  | 'meeting_summary';
 
 // Map scenario → group opt-in column
 const SCENARIO_FLAG: Record<OutboundScenario, string> = {
@@ -24,6 +25,7 @@ const SCENARIO_FLAG: Record<OutboundScenario, string> = {
   digest_weekly: 'notify_digest',
   deadline_alert: 'notify_deadlines',
   jarvis_reply: 'notify_jarvis_reply',
+  meeting_summary: 'notify_jarvis',
 };
 
 export async function sendOutboundMessage(params: {
@@ -120,7 +122,8 @@ export function isWithinQuietHours(quietStart: number | null, quietEnd: number |
 }
 
 export function formatJarvisMessage(body: string): string {
-  return `🤖 *Jarvis* — Assistente Edro\n\n${body}\n\n_Mensagem automática • edro.studio_`;
+  const brandUrl = process.env.APP_URL || process.env.WEB_URL || 'https://edro-production.up.railway.app';
+  return `🤖 *Jarvis* — Assistente Edro\n\n${body}\n\n_Mensagem automática • ${brandUrl.replace(/^https?:\/\//, '')}_`;
 }
 
 /**

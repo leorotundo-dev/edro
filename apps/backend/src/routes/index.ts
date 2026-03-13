@@ -57,6 +57,9 @@ import gmailRoutes from './gmailRoutes';
 import webhookGmailRoutes from './webhookGmail';
 import googleCalendarRoutes from './googleCalendarRoutes';
 import webhookGoogleCalendarRoutes from './webhookGoogleCalendar';
+import webhookRecallRoutes from './webhookRecall';
+import jobsRoutes from './jobs';
+import operationsRoutes from './operations';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -118,6 +121,8 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(webhookGmailRoutes);
   // Google Calendar push notification — no /api prefix
   app.register(webhookGoogleCalendarRoutes);
+  // Recall async webhooks — no /api prefix
+  app.register(webhookRecallRoutes);
   app.register(meetingRoutes, { prefix: '/api' });
   app.register(evolutionRoutes, { prefix: '/api' });
   app.register(whatsappInboxRoutes, { prefix: '/api' });
@@ -125,5 +130,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(portalTokenRoutes, { prefix: '/api' });
   app.register(gmailRoutes, { prefix: '/api' });
   app.register(googleCalendarRoutes, { prefix: '/api' });
+  app.register(jobsRoutes, { prefix: '/api' });
+  app.register(operationsRoutes, { prefix: '/api' });
   app.register(webhookAdminRoutes, { prefix: '/api' });
 }

@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS client_visual_style (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       TEXT NOT NULL,
-  client_id       UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id       TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   source          TEXT NOT NULL DEFAULT 'instagram',  -- instagram | library | external
 
   -- Padrões extraídos via Claude Vision

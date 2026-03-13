@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
+import { ensureTenantMembership } from '../repos/tenantRepo';
+import { upsertUser } from '../repositories/edroUserRepository';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -125,7 +127,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   const freelancerCreateSchema = z.object({
-    user_id: z.string().uuid(),
+    user_id: z.string().uuid().optional().nullable(),
+    user_email: z.string().email().optional().nullable(),
     display_name: z.string().min(1),
     specialty: z.string().optional().nullable(),
     hourly_rate_brl: z.number().positive().optional().nullable(),
@@ -142,18 +145,54 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     bank_name: z.string().optional().nullable(),
     bank_agency: z.string().optional().nullable(),
     bank_account: z.string().optional().nullable(),
+  }).superRefine((body, ctx) => {
+    if (!body.user_id && !body.user_email) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Selecione um usuário existente ou informe um e-mail de acesso.',
+        path: ['user_email'],
+      });
+    }
   });
 
   app.post('/freelancers', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const body = freelancerCreateSchema.parse(request.body);
     const { tenantId } = request;
 
-    // Verify the user belongs to this tenant and has staff/admin role
-    const userCheck = await pool.query(
-      `SELECT id FROM edro_users WHERE id = $1 AND tenant_id = $2`,
-      [body.user_id, tenantId],
-    );
-    if (!userCheck.rows.length) return reply.status(404).send({ error: 'User not found in tenant' });
+    let userId = body.user_id ?? null;
+
+    if (userId) {
+      const userCheck = await pool.query(
+        `SELECT eu.id
+           FROM edro_users eu
+           JOIN tenant_users tu ON tu.user_id = eu.id
+          WHERE eu.id = $1
+            AND tu.tenant_id = $2
+          LIMIT 1`,
+        [userId, tenantId],
+      );
+      if (!userCheck.rows.length) {
+        return reply.status(404).send({ error: 'Usuário não encontrado neste tenant.' });
+      }
+    } else {
+      const normalizedEmail = body.user_email?.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return reply.status(400).send({ error: 'Informe o e-mail de acesso do freelancer.' });
+      }
+
+      const user = await upsertUser({
+        email: normalizedEmail,
+        name: body.display_name,
+        role: 'staff',
+      });
+      userId = user.id;
+
+      await ensureTenantMembership({
+        tenant_id: tenantId,
+        user_id: user.id,
+        role: 'viewer',
+      });
+    }
 
     const res = await pool.query(
       `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account)
@@ -178,7 +217,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          is_active = true,
          updated_at = now()
        RETURNING *`,
-      [body.user_id, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null,
+      [userId, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null,
        body.phone ?? null, body.whatsapp_jid ?? null, body.department ?? null, body.role_title ?? null,
        body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
        body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null],

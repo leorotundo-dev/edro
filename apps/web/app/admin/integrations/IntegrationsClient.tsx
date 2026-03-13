@@ -23,7 +23,6 @@ import {
   IconBrandGoogle,
   IconBrandInstagram,
   IconCalendar,
-  IconCircleCheck,
   IconRobot,
   IconPlugConnected,
   IconRefresh,
@@ -44,29 +43,120 @@ type CalendarStatus = {
   configured: boolean;
   email?: string;
   expiresAt?: string;
+  calendarId?: string;
+  watchStatus?: string;
+  expiresSoon?: boolean;
+  expired?: boolean;
+  lastWatchRenewedAt?: string;
+  lastWatchError?: string;
+  lastNotificationAt?: string;
+  lastNotificationState?: string;
   stats?: { totalMeetings: number; enqueuedMeetings: number };
+};
+
+type AutoJoin = {
+  id: string;
+  event_title: string | null;
+  video_url: string | null;
+  video_platform: string | null;
+  organizer_email: string | null;
+  scheduled_at: string | null;
+  job_enqueued_at: string | null;
+  meeting_id: string | null;
+  client_id: string | null;
+  client_match_source: string | null;
+  bot_id: string | null;
+  status: string;
+  last_error: string | null;
+  attempt_count: number | null;
+  processed_at: string | null;
+  created_at: string;
 };
 
 type OAuthStartResponse = {
   url: string;
 };
 
+type AutoJoinFilter = 'all' | 'attention' | 'active' | 'done';
+
+function fmtDateTime(value?: string | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('pt-BR');
+}
+
+function shortValue(value?: string | null, limit = 28) {
+  if (!value) return '—';
+  return value.length > limit ? `${value.slice(0, limit - 10)}...${value.slice(-7)}` : value;
+}
+
+function watchChip(calendar: CalendarStatus | null) {
+  if (!calendar?.configured) return <Chip label="Desconectado" size="small" color="default" />;
+  if (calendar.expired) return <Chip label="Watch expirado" size="small" color="error" />;
+  if (calendar.watchStatus === 'error') return <Chip label="Watch com erro" size="small" color="error" />;
+  if (calendar.expiresSoon) return <Chip label="Expira em breve" size="small" color="warning" />;
+  return <Chip label="Watch ativo" size="small" color="success" />;
+}
+
+function autoJoinStatusChip(status: string) {
+  const color =
+    status === 'done' ? 'success'
+      : status === 'failed' ? 'error'
+        : status === 'processing' || status === 'waiting' || status === 'queued' || status === 'bot_created' ? 'warning'
+          : 'default';
+  return <Chip label={status} size="small" color={color} variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />;
+}
+
+function isAutoJoinCritical(item: AutoJoin) {
+  return item.status === 'failed' || Boolean(item.last_error);
+}
+
+function matchesAutoJoinFilter(item: AutoJoin, filter: AutoJoinFilter) {
+  if (filter === 'all') return true;
+  if (filter === 'attention') return item.status === 'failed' || Boolean(item.last_error);
+  if (filter === 'active') {
+    return ['detected', 'queued', 'meeting_created', 'bot_created', 'waiting', 'processing'].includes(item.status);
+  }
+  if (filter === 'done') return item.status === 'done';
+  return true;
+}
+
+function autoJoinSortScore(item: AutoJoin) {
+  if (item.status === 'failed' || item.last_error) return 0;
+  if (['detected', 'queued', 'meeting_created', 'bot_created', 'waiting', 'processing'].includes(item.status)) return 1;
+  if (item.status === 'done') return 3;
+  return 2;
+}
+
+function autoJoinSortDate(item: AutoJoin) {
+  if (item.status === 'done') {
+    return -(new Date(item.processed_at ?? item.scheduled_at ?? item.created_at).getTime() || 0);
+  }
+  return new Date(item.scheduled_at ?? item.created_at).getTime() || 0;
+}
+
 export default function IntegrationsClient() {
   const searchParams = useSearchParams();
+  const requestedAutoJoinId = searchParams.get('autoJoinId');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [autoJoins, setAutoJoins] = useState<AutoJoin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [renewingCalendar, setRenewingCalendar] = useState(false);
+  const [requeueingAutoJoinId, setRequeueingAutoJoinId] = useState<string | null>(null);
+  const [autoJoinFilter, setAutoJoinFilter] = useState<AutoJoinFilter>('all');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [gmailRes, calRes] = await Promise.all([
+      const [gmailRes, calRes, autoJoinRes] = await Promise.all([
         apiGet<GmailStatus>('/gmail/status').catch(() => ({ configured: false } as GmailStatus)),
         apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
+        apiGet<{ data: AutoJoin[] }>('/calendar/auto-joins').catch(() => ({ data: [] as AutoJoin[] })),
       ]);
       setGmail(gmailRes ?? { configured: false });
       setCalendar(calRes ?? { configured: false });
+      setAutoJoins(autoJoinRes.data ?? []);
     } finally {
       setLoading(false);
     }
@@ -107,21 +197,51 @@ export default function IntegrationsClient() {
   };
 
   const handleCalendarRenew = async () => {
+    setRenewingCalendar(true);
     try {
       await apiPost('/calendar/watch/renew');
-      load();
+      await load();
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setRenewingCalendar(false);
     }
   };
 
-  const isWatchExpired = (expiresAt?: string) =>
-    expiresAt ? new Date(expiresAt) < new Date() : false;
+  const handleAutoJoinRequeue = async (autoJoinId: string) => {
+    setRequeueingAutoJoinId(autoJoinId);
+    setError('');
+    try {
+      await apiPost(`/calendar/auto-joins/${autoJoinId}/requeue`);
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Falha ao reenfileirar auto-join.');
+    } finally {
+      setRequeueingAutoJoinId(null);
+    }
+  };
 
   const gmailConnected = searchParams.get('gmail_connected');
   const gmailError = searchParams.get('gmail_error');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
+  const autoJoinCounts = {
+    all: autoJoins.length,
+    attention: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'attention')).length,
+    active: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'active')).length,
+    done: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'done')).length,
+  };
+  const visibleAutoJoins = [...autoJoins]
+    .filter((item) => matchesAutoJoinFilter(item, autoJoinFilter))
+    .sort((left, right) => {
+      if (requestedAutoJoinId) {
+        if (left.id === requestedAutoJoinId) return -1;
+        if (right.id === requestedAutoJoinId) return 1;
+      }
+      const scoreDelta = autoJoinSortScore(left) - autoJoinSortScore(right);
+      if (scoreDelta !== 0) return scoreDelta;
+      return autoJoinSortDate(left) - autoJoinSortDate(right);
+    });
 
   return (
     <AppShell title="Integrações">
@@ -227,15 +347,7 @@ export default function IntegrationsClient() {
                     <Box>
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="subtitle1" fontWeight={700}>Google Calendar</Typography>
-                        {calendar?.configured ? (
-                          <Chip
-                            label={isWatchExpired(calendar.expiresAt) ? 'Expirado' : 'Conectado'}
-                            size="small"
-                            color={isWatchExpired(calendar.expiresAt) ? 'warning' : 'success'}
-                          />
-                        ) : (
-                          <Chip label="Desconectado" size="small" color="default" />
-                        )}
+                        {watchChip(calendar)}
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
                         {calendar?.configured
@@ -247,11 +359,16 @@ export default function IntegrationsClient() {
                   <Stack direction="row" spacing={1}>
                     {calendar?.configured ? (
                       <>
-                        {isWatchExpired(calendar.expiresAt) && (
-                          <Button size="small" variant="outlined" color="warning" onClick={handleCalendarRenew}>
-                            Renovar Watch
-                          </Button>
-                        )}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color={calendar?.expired || calendar?.expiresSoon ? 'warning' : 'primary'}
+                          onClick={handleCalendarRenew}
+                          disabled={renewingCalendar}
+                          startIcon={renewingCalendar ? <CircularProgress size={14} color="inherit" /> : <IconRefresh size={14} />}
+                        >
+                          {renewingCalendar ? 'Renovando...' : 'Renovar Watch'}
+                        </Button>
                         <Button size="small" startIcon={<IconRefresh size={14} />} onClick={load}>
                           Atualizar
                         </Button>
@@ -274,12 +391,171 @@ export default function IntegrationsClient() {
                 </Stack>
 
                 {calendar?.configured && (
-                  <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Watch expira em {calendar.expiresAt ? new Date(calendar.expiresAt).toLocaleDateString('pt-BR') : '—'}.
-                      {' '}O watch precisa ser renovado semanalmente (ou configure um cron).
-                    </Typography>
-                  </Box>
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                      <Chip label={`Status: ${calendar.watchStatus ?? 'unknown'}`} size="small" variant="outlined" />
+                      <Chip label={`Expira: ${fmtDateTime(calendar.expiresAt)}`} size="small" variant="outlined" />
+                      <Chip label={`Ultima renovacao: ${fmtDateTime(calendar.lastWatchRenewedAt)}`} size="small" variant="outlined" />
+                      <Chip label={`Ultima notificacao: ${fmtDateTime(calendar.lastNotificationAt)}`} size="small" variant="outlined" />
+                    </Stack>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                      <Chip label={`Calendar ID: ${shortValue(calendar.calendarId)}`} size="small" variant="outlined" />
+                      <Chip label={`Notification state: ${calendar.lastNotificationState ?? '—'}`} size="small" variant="outlined" />
+                      <Chip label={`${calendar.stats?.totalMeetings ?? 0} eventos detectados`} size="small" color="info" variant="outlined" />
+                      <Chip label={`${calendar.stats?.enqueuedMeetings ?? 0} bots enfileirados`} size="small" color="success" variant="outlined" />
+                    </Stack>
+
+                    <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        O watch precisa ser renovado semanalmente. O estado correto aqui é: notificações recentes, sem erro e sem expiração iminente.
+                      </Typography>
+                    </Box>
+
+                    {calendar.lastWatchError && (
+                      <Alert severity="error" sx={{ mt: 2 }}>
+                        Último erro do watch: {calendar.lastWatchError}
+                      </Alert>
+                    )}
+
+                    <Box sx={{ mt: 2 }}>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          Últimos auto-joins detectados
+                        </Typography>
+                        <Button size="small" variant="text" href="/admin/reunioes">
+                          Abrir Meeting Ops
+                        </Button>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                        {([
+                          ['all', 'Todos'],
+                          ['attention', 'Atenção'],
+                          ['active', 'Em fila'],
+                          ['done', 'Concluídos'],
+                        ] as Array<[AutoJoinFilter, string]>).map(([value, label]) => (
+                          <Chip
+                            key={value}
+                            label={`${label} (${autoJoinCounts[value]})`}
+                            clickable
+                            color={autoJoinFilter === value ? 'primary' : 'default'}
+                            variant={autoJoinFilter === value ? 'filled' : 'outlined'}
+                            onClick={() => setAutoJoinFilter(value)}
+                          />
+                        ))}
+                      </Stack>
+
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                        Falhas e itens com erro sobem para o topo. Depois, a fila operacional vem antes dos concluídos.
+                      </Typography>
+
+                      {requestedAutoJoinId && (
+                        <Alert severity="info" sx={{ mb: 1.5 }}>
+                          Auto-join aberto a partir do Meeting Ops. O item vinculado foi priorizado na lista.
+                        </Alert>
+                      )}
+
+                      {visibleAutoJoins.length === 0 ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {autoJoins.length === 0
+                            ? 'Nenhum evento detectado ainda pelo Google Calendar.'
+                            : 'Nenhum auto-join encontrado para esse filtro.'}
+                        </Typography>
+                      ) : (
+                        <Stack spacing={1}>
+                          {visibleAutoJoins.slice(0, 5).map((item) => (
+                            <Box
+                              key={item.id}
+                              sx={{
+                                p: 1.25,
+                                border: 1,
+                                borderColor:
+                                  item.id === requestedAutoJoinId ? 'primary.main'
+                                    : isAutoJoinCritical(item) ? 'error.main'
+                                      : item.status === 'done' ? 'success.main'
+                                        : 'divider',
+                                borderRadius: 1.5,
+                                bgcolor:
+                                  item.id === requestedAutoJoinId ? 'action.selected'
+                                    : isAutoJoinCritical(item) ? 'rgba(211, 47, 47, 0.06)'
+                                      : item.status === 'queued' || item.status === 'processing' || item.status === 'waiting' || item.status === 'bot_created'
+                                        ? 'rgba(249, 171, 0, 0.06)'
+                                        : 'background.paper',
+                                boxShadow: isAutoJoinCritical(item) ? '0 0 0 1px rgba(211, 47, 47, 0.08)' : 'none',
+                              }}
+                            >
+                              <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap" useFlexGap>
+                                <Box>
+                                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.82rem' }}>
+                                    {item.event_title || 'Evento sem título'}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {item.video_platform || 'video'} · {fmtDateTime(item.scheduled_at)} · {item.organizer_email || 'sem organizer'}
+                                  </Typography>
+                                </Box>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  {isAutoJoinCritical(item) && (
+                                    <Chip
+                                      label="Atenção operacional"
+                                      size="small"
+                                      color="error"
+                                      sx={{ fontSize: '0.68rem', height: 20, fontWeight: 700 }}
+                                    />
+                                  )}
+                                  {item.id === requestedAutoJoinId && (
+                                    <Chip
+                                      label="Vindo da reunião"
+                                      size="small"
+                                      color="primary"
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.68rem', height: 20 }}
+                                    />
+                                  )}
+                                  {autoJoinStatusChip(item.status)}
+                                  {item.meeting_id && (
+                                    <Button
+                                      size="small"
+                                      variant="text"
+                                      href={`/admin/reunioes?meetingId=${encodeURIComponent(item.meeting_id)}`}
+                                      sx={{ minWidth: 0, py: 0.4, px: 1 }}
+                                    >
+                                      Abrir reunião
+                                    </Button>
+                                  )}
+                                  {item.status !== 'done' && (
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={() => void handleAutoJoinRequeue(item.id)}
+                                      disabled={requeueingAutoJoinId !== null}
+                                      startIcon={requeueingAutoJoinId === item.id ? <CircularProgress size={12} color="inherit" /> : <IconRefresh size={13} />}
+                                      sx={{ minWidth: 0, py: 0.4, px: 1 }}
+                                    >
+                                      {requeueingAutoJoinId === item.id ? 'Reenfileirando...' : 'Requeue'}
+                                    </Button>
+                                  )}
+                                </Stack>
+                              </Stack>
+
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                <Chip label={`Match: ${item.client_match_source ?? '—'}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
+                                <Chip label={`Tentativas: ${item.attempt_count ?? 0}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
+                                <Chip label={`Job: ${item.job_enqueued_at ? fmtDateTime(item.job_enqueued_at) : 'não enfileirado'}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
+                                <Chip label={`Processado: ${fmtDateTime(item.processed_at)}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
+                              </Stack>
+
+                              {item.last_error && (
+                                <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1, lineHeight: 1.5 }}>
+                                  {item.last_error}
+                                </Typography>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
+                    </Box>
+                  </>
                 )}
 
                 <Divider sx={{ my: 2 }} />
@@ -383,6 +659,7 @@ GOOGLE_CALENDAR_REDIRECT_URI=https://api.edro.digital/auth/google/calendar/callb
 GOOGLE_CALENDAR_WEBHOOK_URL=https://api.edro.digital/webhook/google-calendar
 RECALL_API_KEY=...
 RECALL_REGION=us-west-2
+RECALL_WEBHOOK_SECRET=...
 RECALL_GOOGLE_LOGIN_GROUP_ID=...
 META_VERIFY_TOKEN=seu-token-secreto`}
                   </Box>

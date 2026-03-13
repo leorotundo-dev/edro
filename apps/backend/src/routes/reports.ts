@@ -294,7 +294,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
 
   <!-- CTA -->
   <div style="text-align:center;margin:24px 0;">
-    <a href="${process.env.FRONTEND_URL || 'https://edro.studio'}/clients/${clientId}/reports" style="display:inline-block;background:#ff6600;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">
+    <a href="${process.env.FRONTEND_URL || process.env.WEB_URL || process.env.APP_URL || 'https://edro-production.up.railway.app'}/clients/${clientId}/reports" style="display:inline-block;background:#ff6600;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">
       Ver Relatório Completo
     </a>
   </div>
@@ -302,7 +302,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
   <!-- Footer -->
   <div style="border-top:2px solid #ff6600;padding-top:12px;margin-top:24px;font-size:11px;color:#94a3b8;">
     <strong style="color:#ff6600;">Edro Studio</strong> &nbsp;·&nbsp; Relatório gerado em ${today}<br>
-    edro.studio
+    ${process.env.FRONTEND_URL || process.env.WEB_URL || process.env.APP_URL || 'https://edro-production.up.railway.app'}
   </div>
 </body>
 </html>`;
@@ -315,7 +315,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
       '',
       byStage.map((s: any) => `${s.status}: ${s.count}`).join(', '),
       '',
-      `Acesse o relatório completo em: ${process.env.FRONTEND_URL || 'https://edro.studio'}/clients/${clientId}/reports`,
+      `Acesse o relatório completo em: ${process.env.FRONTEND_URL || process.env.WEB_URL || process.env.APP_URL || 'https://edro-production.up.railway.app'}/clients/${clientId}/reports`,
     ].join('\n');
 
     const result = await sendEmail({

@@ -1491,7 +1491,7 @@ async function toolGenerateApprovalLink(args: any, ctx: ToolContext): Promise<To
     [briefing_id, token, client_name ?? null, expiresAt, ctx.tenantId]
   );
 
-  const approvalUrl = `${process.env.WEB_URL ?? 'https://app.edro.digital'}/edro/aprovacao-externa?token=${token}`;
+  const approvalUrl = `${process.env.WEB_URL ?? 'https://edro-production.up.railway.app'}/edro/aprovacao-externa?token=${token}`;
   return { success: true, data: { approvalUrl, expiresAt: expiresAt.toISOString(), token, expires_in_days: days } };
 }
 

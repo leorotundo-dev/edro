@@ -34,10 +34,13 @@ async function processDeadlineAlerts(): Promise<void> {
   // Find briefings with due_at in the next 24h, not done/cancelled
   const { rows: briefings } = await query(
     `SELECT b.id, b.title, b.due_at, b.status,
-            ec.client_id, ec.tenant_id, ec.name AS client_name
+            b.main_client_id AS client_id,
+            c.tenant_id,
+            c.name AS client_name
      FROM edro_briefings b
-     JOIN edro_clients ec ON ec.id = b.client_id
+     JOIN clients c ON c.id = b.main_client_id
      WHERE b.due_at IS NOT NULL
+       AND b.main_client_id IS NOT NULL
        AND b.due_at > NOW()
        AND b.due_at < NOW() + INTERVAL '24 hours'
        AND b.status NOT IN ('done', 'archived', 'cancelled', 'approved')
@@ -58,6 +61,7 @@ async function processDeadlineAlerts(): Promise<void> {
 
 async function sendDeadlineAlert(briefing: any): Promise<void> {
   const { client_id: clientId, tenant_id: tenantId, title, due_at, client_name: clientName } = briefing;
+  if (!clientId || !tenantId) return;
 
   // Find groups linked to this client with deadline alerts enabled
   const { rows: groups } = await query(
