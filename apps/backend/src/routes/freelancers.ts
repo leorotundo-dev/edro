@@ -114,7 +114,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // ── Freelancer profiles ─────────────────────────────────────────────────
 
   app.get('/freelancers', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
-    const { tenantId } = request;
+    const tenantId = (request as any).user?.tenant_id;
     const rows = await pool.query(
       `SELECT fp.*, eu.email
        FROM freelancer_profiles fp
@@ -157,7 +157,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   app.post('/freelancers', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const body = freelancerCreateSchema.parse(request.body);
-    const { tenantId } = request;
+    const tenantId = (request as any).user?.tenant_id;
 
     let userId = body.user_id ?? null;
 
@@ -411,7 +411,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   app.get('/freelancers/payables', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { month } = (request.query as any);
-    const { tenantId } = request;
+    const tenantId = (request as any).user?.tenant_id;
 
     const qs = month
       ? `AND fp2.period_month = $2`
@@ -434,7 +434,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   app.post('/freelancers/payables/close-month', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(request.body);
-    const { tenantId } = request;
+    const tenantId = (request as any).user?.tenant_id;
 
     // Get all active freelancers for this tenant with hourly rates
     const freelancers = await pool.query(
