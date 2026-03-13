@@ -460,16 +460,20 @@ export function OpsJobRow({
     <Box
       onClick={onClick}
       sx={(theme) => ({
-        px: 1.25,
-        py: 0.9,
-        mx: -1,
+        px: 1.5,
+        py: 1.25,
         cursor: onClick ? 'pointer' : 'default',
         borderRadius: 2,
-        border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : '1px solid transparent',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : undefined,
         bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
         transition: 'background-color 140ms ease, border-color 140ms ease',
         '&:hover': {
           bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
+        },
+        '&:last-child': {
+          borderBottom: selected ? undefined : 'none',
         },
       })}
     >
