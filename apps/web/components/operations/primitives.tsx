@@ -5,8 +5,8 @@ import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
+import Paper from '@mui/material/Paper';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -293,16 +293,15 @@ export function OpsPanel({
   sx?: any;
 }) {
   return (
-    <Box
-      sx={(theme) => ({
+    <Paper
+      variant="outlined"
+      sx={{
         position: sticky ? 'sticky' : 'relative',
         top: sticky ? 112 : 'auto',
-        p: { xs: 2, md: 2.1 },
-        borderRadius: 1.25,
-        border: `1px solid ${opsTokens(theme).surfaceBorder}`,
-        bgcolor: opsTokens(theme).surfaceBg,
+        p: { xs: 2, md: 2.25 },
+        borderRadius: 3,
         ...sx,
-      })}
+      }}
     >
       {(eyebrow || title || subtitle || action) ? (
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }} sx={{ mb: 2 }}>
@@ -319,7 +318,7 @@ export function OpsPanel({
         </Stack>
       ) : null}
       {children}
-    </Box>
+    </Paper>
   );
 }
 
@@ -377,17 +376,16 @@ export function OpsToolbar({
   children: React.ReactNode;
 }) {
   return (
-    <Box
-      sx={(theme) => ({
-        px: { xs: 1.25, md: 1.5 },
-        py: 1.35,
-        border: `1px solid ${opsTokens(theme).surfaceBorder}`,
-        borderRadius: 1.25,
-        bgcolor: opsTokens(theme).surfaceBg,
-      })}
+    <Paper
+      variant="outlined"
+      sx={{
+        px: { xs: 1.5, md: 2 },
+        py: 1.5,
+        borderRadius: 3,
+      }}
     >
       {children}
-    </Box>
+    </Paper>
   );
 }
 
@@ -397,22 +395,21 @@ export function OpsSurface({
   children: React.ReactNode;
 }) {
   return (
-    <Box
-      sx={(theme) => ({
-        px: { xs: 1.25, md: 1.5 },
-        py: { xs: 1.5, md: 1.75 },
-        border: `1px solid ${opsTokens(theme).surfaceBorder}`,
-        borderRadius: 1.25,
-        bgcolor: opsTokens(theme).surfaceBg,
-      })}
+    <Paper
+      variant="outlined"
+      sx={{
+        px: { xs: 1.5, md: 2 },
+        py: { xs: 1.75, md: 2 },
+        borderRadius: 3,
+      }}
     >
       {children}
-    </Box>
+    </Paper>
   );
 }
 
 export function OpsDivider() {
-  return <Divider sx={(theme) => ({ borderColor: opsTokens(theme).surfaceBorder })} />;
+  return <Divider />;
 }
 
 export function OpsSummaryStat({
@@ -465,16 +462,16 @@ export function OpsJobRow({
     <Box
       onClick={onClick}
       sx={(theme) => ({
-        px: 1,
+        px: 1.25,
         py: 1.15,
         mx: -1,
         cursor: onClick ? 'pointer' : 'default',
-        borderRadius: 1,
-        border: selected ? `1px solid ${alpha(opsTokens(theme).accent, 0.28)}` : '1px solid transparent',
-        bgcolor: selected ? alpha(opsTokens(theme).accent, theme.palette.mode === 'dark' ? 0.08 : 0.06) : 'transparent',
+        borderRadius: 2,
+        border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : '1px solid transparent',
+        bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
         transition: 'background-color 140ms ease, border-color 140ms ease, transform 140ms ease',
         '&:hover': {
-          bgcolor: onClick ? opsTokens(theme).hoverBg : 'transparent',
+          bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
           transform: onClick ? 'translateX(2px)' : 'none',
         },
       })}
@@ -553,7 +550,7 @@ export function OpsStageGroup({
   children: React.ReactNode;
 }) {
   return (
-    <Box sx={(theme) => ({ pt: 1.5, borderTop: `1px solid ${opsTokens(theme).surfaceBorder}` })}>
+    <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
       <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.25 }}>
         <Box>
           <Typography variant="body1" fontWeight={900}>{title}</Typography>
@@ -611,9 +608,14 @@ export function CapacityBar({
           sx={{
             height: 8,
             borderRadius: 999,
-            bgcolor: (theme) => opsTokens(theme).surfaceSoftBg,
+            bgcolor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.06 : 0.08),
             '& .MuiLinearProgress-bar': {
-              bgcolor: committedPct > 90 ? '#FA896B' : committedPct > 75 ? '#FFAE1F' : '#13DEB9',
+              bgcolor: (theme) =>
+                committedPct > 90
+                  ? theme.palette.error.main
+                  : committedPct > 75
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main,
               borderRadius: 999,
             },
           }}
@@ -683,11 +685,12 @@ export function EntityLinkCard({
         py: 1,
         textDecoration: 'none',
         color: 'inherit',
-        borderTop: `1px solid ${opsTokens(theme).surfaceBorder}`,
+        borderTop: '1px solid',
+        borderColor: 'divider',
         transition: 'background-color 140ms ease, transform 140ms ease',
         '&:hover': isLink
           ? {
-              bgcolor: opsTokens(theme).hoverBg,
+              bgcolor: alpha(theme.palette.action.hover, 0.04),
               transform: 'translateX(2px)',
             }
           : undefined,
@@ -784,10 +787,12 @@ export function NextActionBar({
   return (
     <Box
       sx={{
-        px: 1,
-        py: 1.15,
+        px: 1.25,
+        py: 1.25,
         borderLeft: '2px solid',
-        borderColor: (theme) => alpha(opsTokens(theme).accent, 0.72),
+        borderColor: 'primary.main',
+        borderRadius: 1,
+        bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.02),
       }}
     >
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} justifyContent="space-between">
@@ -860,14 +865,13 @@ export function ContextDrawer({
         sx: {
           width: { xs: '100%', md: 620 },
           p: 0,
-          bgcolor: (theme) => opsTokens(theme).drawerBg,
           borderLeft: '1px solid',
           borderColor: 'divider',
         },
       }}
     >
       <Stack sx={{ height: '100%' }}>
-        <Box sx={(theme) => ({ p: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: opsTokens(theme).surfaceSoftBg })}>
+        <Box sx={{ p: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
           <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="flex-start">
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="overline" color="text.secondary">Contexto operacional</Typography>
@@ -903,11 +907,12 @@ export function OperationCard({
       onClick={onClick}
       sx={{
         cursor: onClick ? 'pointer' : 'default',
-        borderTop: (theme) => `1px solid ${opsTokens(theme).surfaceBorder}`,
+        borderTop: '1px solid',
+        borderColor: 'divider',
         py: 1.5,
         transition: 'background-color 140ms ease, transform 140ms ease',
         '&:hover': {
-          bgcolor: onClick ? (theme) => opsTokens(theme).hoverBg : 'transparent',
+          bgcolor: onClick ? (theme) => alpha(theme.palette.action.hover, 0.04) : 'transparent',
           transform: onClick ? 'translateX(2px)' : 'none',
         },
       }}
@@ -1004,17 +1009,18 @@ export function AttentionStrip({
   onAction?: () => void;
 }) {
   return (
-    <Box
+    <Paper
+      variant="outlined"
       sx={(theme) => ({
         p: 1.5,
-        borderRadius: 1.5,
-        bgcolor: opsTokens(theme).accentSoftBg,
-        border: `1px solid ${opsTokens(theme).accentSoftBorder}`,
+        borderRadius: 2,
+        bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.04),
+        borderColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.15),
       })}
     >
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <Box sx={(theme) => ({ width: 38, height: 38, borderRadius: 1.5, bgcolor: opsTokens(theme).accent, color: theme.palette.getContrastText(opsTokens(theme).accent), display: 'flex', alignItems: 'center', justifyContent: 'center' })}>
+          <Box sx={(theme) => ({ width: 38, height: 38, borderRadius: 1.5, bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText, display: 'flex', alignItems: 'center', justifyContent: 'center' })}>
             <IconBriefcase size={18} />
           </Box>
           <Box>
@@ -1024,7 +1030,7 @@ export function AttentionStrip({
         </Stack>
         {onAction && actionLabel ? <Button variant="contained" onClick={onAction}>{actionLabel}</Button> : null}
       </Stack>
-    </Box>
+    </Paper>
   );
 }
 
@@ -1040,18 +1046,17 @@ export function EmptyOperationState({
   onAction?: () => void;
 }) {
   return (
-    <Card
+    <Paper
       variant="outlined"
       sx={(theme) => ({
-        borderRadius: 1.25,
+        borderRadius: 3,
         borderStyle: 'dashed',
-        borderColor: alpha(opsTokens(theme).accent, 0.25),
-        bgcolor: alpha(opsTokens(theme).accent, theme.palette.mode === 'dark' ? 0.012 : 0.04),
-        p: 2.25,
+        borderColor: alpha(theme.palette.text.secondary, 0.2),
+        p: 3,
       })}
     >
       <Stack spacing={2} alignItems="center" textAlign="center">
-        <Box sx={(theme) => ({ width: 56, height: 56, borderRadius: 1.5, bgcolor: alpha(opsTokens(theme).accent, 0.10), color: opsTokens(theme).accent, display: 'flex', alignItems: 'center', justifyContent: 'center' })}>
+        <Box sx={(theme) => ({ width: 56, height: 56, borderRadius: '50%', bgcolor: alpha(theme.palette.success.main, 0.08), color: theme.palette.success.main, display: 'flex', alignItems: 'center', justifyContent: 'center' })}>
           <IconCalendarEvent size={24} />
         </Box>
         <Box>
@@ -1060,7 +1065,7 @@ export function EmptyOperationState({
         </Box>
         {onAction && actionLabel ? <Button variant="outlined" onClick={onAction}>{actionLabel}</Button> : null}
       </Stack>
-    </Card>
+    </Paper>
   );
 }
 
@@ -1132,12 +1137,13 @@ export function OperationsContextRail({
 }) {
   return (
     <Box
-      sx={(theme) => ({
+      sx={{
         position: 'sticky',
         top: 104,
-        pl: { xs: 0, md: 2.25 },
-        borderLeft: { xs: 'none', md: `1px solid ${opsTokens(theme).surfaceBorder}` },
-      })}
+        pl: { xs: 0, md: 2.5 },
+        borderLeft: { xs: 'none', md: '1px solid' },
+        borderColor: { xs: 'transparent', md: 'divider' },
+      }}
     >
       <Stack spacing={2}>
         <Box>
@@ -1164,7 +1170,8 @@ export function OperationsContextRail({
             <Box
               sx={{
                 pb: 1.5,
-                borderBottom: (theme) => `1px solid ${opsTokens(theme).surfaceBorder}`,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
               }}
             >
               <Stack direction="row" spacing={1.15} alignItems="center" sx={{ minWidth: 0 }}>
@@ -1239,7 +1246,7 @@ export function OperationsContextRail({
             ) : null}
 
             {links ? (
-              <Box sx={(theme) => ({ pt: 0.25, borderTop: `1px solid ${opsTokens(theme).surfaceBorder}` })}>
+              <Box sx={{ pt: 0.25, borderTop: '1px solid', borderColor: 'divider' }}>
                 {links}
               </Box>
             ) : null}

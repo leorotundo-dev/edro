@@ -3,15 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
-import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { alpha } from '@mui/material/styles';
 import { apiGet } from '@/lib/api';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
@@ -20,16 +19,13 @@ import {
   EmptyOperationState,
   EntityLinkCard,
   OperationsContextRail,
-  OpsDivider,
   OpsJobRow,
   OpsSection,
   OpsSummaryStat,
-  OpsSurface,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
-import { jobsByAttentionClient, sortByOperationalPriority } from '@/components/operations/derived';
-import { formatSourceLabel, getNextAction, getRisk, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
+import { formatSourceLabel, getNextAction, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -134,57 +130,67 @@ export default function OperationsRadarClient() {
                   </Stack>
                 }
               >
-                <OpsSurface>
-                  <Stack spacing={2.5}>
-                    <Box>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
-                        <Box>
-                          <Typography variant="body1" fontWeight={900}>Crítico</Typography>
-                          <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.criticalSubtitle}</Typography>
-                        </Box>
-                        <Chip size="small" color="error" label={`${critical.length}`} />
-                      </Stack>
-                      <Stack spacing={0.5}>
-                        {critical.length ? critical.map((job) => (
-                          <Box key={job.id}>
-                            <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
-                              Próxima ação sugerida: {getNextAction(job).label}
-                            </Typography>
-                          </Box>
-                        )) : (
-                          <EmptyOperationState title={OPS_COPY.radar.emptyCriticalTitle} description={OPS_COPY.radar.emptyCriticalDescription} />
-                        )}
-                      </Stack>
-                    </Box>
-
-                    <OpsDivider />
-
-                    <Box>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
-                        <Box>
-                          <Typography variant="body1" fontWeight={900}>Risco alto</Typography>
-                          <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.highSubtitle}</Typography>
-                        </Box>
-                        <Chip size="small" color={high.length ? 'warning' : 'default'} label={`${high.length}`} />
-                      </Stack>
-                      <Stack spacing={0.5}>
-                        {high.length ? high.map((job) => (
-                          <Box key={job.id}>
-                            <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
-                              Próxima ação sugerida: {getNextAction(job).label}
-                            </Typography>
-                          </Box>
-                        )) : (
-                          <Typography variant="body2" color="text.secondary">
-                            {OPS_COPY.radar.emptyHigh}
+                <Stack spacing={2.5}>
+                  <Paper
+                    variant="outlined"
+                    sx={(theme) => ({
+                      px: 2,
+                      py: 2,
+                      borderRadius: 3,
+                      borderLeft: `3px solid ${theme.palette.error.main}`,
+                    })}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                      <Box>
+                        <Typography variant="body1" fontWeight={900}>Crítico</Typography>
+                        <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.criticalSubtitle}</Typography>
+                      </Box>
+                      <Chip size="small" color="error" label={`${critical.length}`} />
+                    </Stack>
+                    <Stack spacing={0.5}>
+                      {critical.length ? critical.map((job) => (
+                        <Box key={job.id}>
+                          <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
+                            Próxima ação sugerida: {getNextAction(job).label}
                           </Typography>
-                        )}
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </OpsSurface>
+                        </Box>
+                      )) : (
+                        <EmptyOperationState title={OPS_COPY.radar.emptyCriticalTitle} description={OPS_COPY.radar.emptyCriticalDescription} />
+                      )}
+                    </Stack>
+                  </Paper>
+
+                  <Paper
+                    variant="outlined"
+                    sx={(theme) => ({
+                      px: 2,
+                      py: 2,
+                      borderRadius: 3,
+                      borderLeft: `3px solid ${theme.palette.warning.main}`,
+                    })}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                      <Box>
+                        <Typography variant="body1" fontWeight={900}>Risco alto</Typography>
+                        <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.highSubtitle}</Typography>
+                      </Box>
+                      <Chip size="small" color={high.length ? 'warning' : 'default'} label={`${high.length}`} />
+                    </Stack>
+                    <Stack spacing={0.5}>
+                      {high.length ? high.map((job) => (
+                        <Box key={job.id}>
+                          <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
+                            Próxima ação sugerida: {getNextAction(job).label}
+                          </Typography>
+                        </Box>
+                      )) : (
+                        <EmptyOperationState title="Sem risco alto" description={OPS_COPY.radar.emptyHigh} />
+                      )}
+                    </Stack>
+                  </Paper>
+                </Stack>
               </OpsSection>
             </Stack>
           </Grid>
@@ -256,13 +262,13 @@ export default function OperationsRadarClient() {
                       {clientRisk.map((item) => (
                         <Box
                           key={item.clientId}
-                          sx={(theme) => ({
-                            px: 1,
+                          sx={{
+                            px: 1.25,
                             py: 1.1,
-                            borderRadius: 1.5,
-                            border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
-                            bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.015 : 0.02),
-                          })}
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
                         >
                           <Stack direction="row" spacing={1.25} alignItems="center" justifyContent="space-between">
                             <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>

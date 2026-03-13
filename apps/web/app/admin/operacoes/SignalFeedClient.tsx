@@ -10,14 +10,13 @@ import { formatMinutes, getRisk, type OperationsJob } from '@/components/operati
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { apiGet, apiPost } from '@/lib/api';
 
-import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
@@ -32,6 +31,7 @@ import {
   IconChevronRight,
   IconClock,
   IconFlag,
+  IconInbox,
   IconPlugConnected,
   IconRefresh,
   IconSparkles,
@@ -56,80 +56,32 @@ type Signal = {
   snoozed_until?: string | null;
 };
 
-/* ─── Signal type → visual config ─── */
+/* ─── Signal visual mapping ─── */
 
-type SignalVisual = {
-  color: string;
-  bg: string;
-  border: string;
-  icon: React.ReactNode;
-  label: string;
-};
+function signalConfig(signal: Signal) {
+  const t = signal.signal_type;
+  if (t === 'decision' || signal.severity >= 90) return { color: 'error' as const, icon: <IconFlag size={15} />, label: 'Decisão' };
+  if (t === 'attention' || signal.severity >= 70) return { color: 'warning' as const, icon: <IconAlertTriangle size={15} />, label: 'Atenção' };
+  if (t === 'action' || signal.severity >= 55) return { color: 'info' as const, icon: signal.domain === 'meeting' ? <IconCalendarEvent size={15} /> : <IconBell size={15} />, label: 'Ação' };
+  if (t === 'opportunity') return { color: 'success' as const, icon: <IconSparkles size={15} />, label: 'Oportunidade' };
+  return { color: 'default' as const, icon: <IconPlugConnected size={15} />, label: 'Saúde' };
+}
 
-function signalVisual(signal: Signal, dark: boolean): SignalVisual {
-  const type = signal.signal_type;
-  const domain = signal.domain;
-
-  if (type === 'decision' || signal.severity >= 90) {
-    return {
-      color: dark ? '#FF6B6B' : '#D32F2F',
-      bg: dark ? 'rgba(255,72,66,0.1)' : 'rgba(211,47,47,0.06)',
-      border: dark ? 'rgba(255,72,66,0.25)' : 'rgba(211,47,47,0.18)',
-      icon: <IconFlag size={16} />,
-      label: 'DECISÃO',
-    };
+function domainLabel(domain: string) {
+  switch (domain) {
+    case 'jobs': return 'Demandas';
+    case 'whatsapp': return 'WhatsApp';
+    case 'meeting': return 'Reuniões';
+    case 'health': return 'Integrações';
+    default: return domain;
   }
-  if (type === 'attention' || signal.severity >= 70) {
-    return {
-      color: dark ? '#FF6B6B' : '#D32F2F',
-      bg: dark ? 'rgba(255,72,66,0.08)' : 'rgba(211,47,47,0.04)',
-      border: dark ? 'rgba(255,72,66,0.18)' : 'rgba(211,47,47,0.12)',
-      icon: <IconAlertTriangle size={16} />,
-      label: 'ATENÇÃO',
-    };
-  }
-  if (type === 'action' || signal.severity >= 55) {
-    return {
-      color: dark ? '#FFAE1F' : '#ED6C02',
-      bg: dark ? 'rgba(255,174,31,0.08)' : 'rgba(237,108,2,0.04)',
-      border: dark ? 'rgba(255,174,31,0.18)' : 'rgba(237,108,2,0.12)',
-      icon: domain === 'meeting' ? <IconCalendarEvent size={16} /> : <IconBell size={16} />,
-      label: 'AÇÃO',
-    };
-  }
-  if (type === 'opportunity') {
-    return {
-      color: dark ? '#FFAE1F' : '#ED6C02',
-      bg: dark ? 'rgba(255,174,31,0.06)' : 'rgba(237,108,2,0.03)',
-      border: dark ? 'rgba(255,174,31,0.14)' : 'rgba(237,108,2,0.08)',
-      icon: <IconSparkles size={16} />,
-      label: 'OPORTUNIDADE',
-    };
-  }
-  if (type === 'health') {
-    return {
-      color: dark ? '#aaa' : '#666',
-      bg: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-      border: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-      icon: <IconPlugConnected size={16} />,
-      label: 'SAÚDE',
-    };
-  }
-  // Default: production/learning/financial
-  return {
-    color: dark ? '#ccc' : '#555',
-    bg: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
-    border: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-    icon: <IconClock size={16} />,
-    label: type.toUpperCase(),
-  };
 }
 
 function domainIcon(domain: string) {
   switch (domain) {
-    case 'whatsapp': return <IconBrandWhatsapp size={14} />;
-    case 'meeting': return <IconCalendarEvent size={14} />;
-    case 'health': return <IconPlugConnected size={14} />;
+    case 'whatsapp': return <IconBrandWhatsapp size={13} />;
+    case 'meeting': return <IconCalendarEvent size={13} />;
+    case 'health': return <IconPlugConnected size={13} />;
     default: return null;
   }
 }
@@ -151,7 +103,8 @@ function SignalCard({
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const vis = signalVisual(signal, dark);
+  const cfg = signalConfig(signal);
+  const paletteColor = cfg.color !== 'default' ? theme.palette[cfg.color].main : alpha(theme.palette.text.primary, 0.5);
 
   return (
     <Box
@@ -160,71 +113,68 @@ function SignalCard({
         px: 2,
         py: 1.5,
         cursor: 'pointer',
-        borderLeft: `3px solid ${vis.color}`,
-        bgcolor: selected ? vis.bg : 'transparent',
-        borderBottom: `1px solid ${dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.06)}`,
+        borderLeft: `3px solid ${paletteColor}`,
+        bgcolor: selected ? alpha(paletteColor, dark ? 0.08 : 0.04) : 'transparent',
         transition: 'all 120ms ease',
-        '&:hover': {
-          bgcolor: vis.bg,
+        '&:hover': { bgcolor: alpha(paletteColor, dark ? 0.06 : 0.03) },
+        '&:not(:last-child)': {
+          borderBottom: `1px solid ${theme.palette.divider}`,
         },
       }}
     >
       <Stack spacing={0.75}>
-        {/* Header: type badge + domain + time */}
+        {/* Header row */}
         <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ color: vis.color, display: 'flex', alignItems: 'center' }}>{vis.icon}</Box>
+          <Box sx={{ color: paletteColor, display: 'flex' }}>{cfg.icon}</Box>
           <Chip
             size="small"
-            label={vis.label}
-            sx={{
-              height: 18, fontSize: '0.62rem', fontWeight: 900, letterSpacing: '0.08em',
-              bgcolor: vis.bg, color: vis.color, border: `1px solid ${vis.border}`,
-              borderRadius: 0.75,
-            }}
+            label={cfg.label}
+            color={cfg.color}
+            variant="outlined"
+            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderRadius: 1 }}
+          />
+          <Chip
+            size="small"
+            label={domainLabel(signal.domain)}
+            icon={domainIcon(signal.domain) || undefined}
+            variant="filled"
+            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.text.primary, dark ? 0.06 : 0.05), color: 'text.secondary' }}
           />
           {signal.client_name && (
-            <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.5), fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
               {signal.client_name}
             </Typography>
           )}
-          {domainIcon(signal.domain) && (
-            <Box sx={{ color: alpha(theme.palette.text.primary, 0.35), display: 'flex' }}>
-              {domainIcon(signal.domain)}
-            </Box>
-          )}
           <Box sx={{ flex: 1 }} />
-          <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.35), fontSize: '0.65rem' }}>
+          <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.35), fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
             {timeAgo(signal.created_at)}
           </Typography>
         </Stack>
 
         {/* Title */}
-        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.35 }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.4, color: 'text.primary' }}>
           {signal.title}
         </Typography>
 
         {/* Summary */}
         {signal.summary && (
-          <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.55), lineHeight: 1.3 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.35 }}>
             {signal.summary}
           </Typography>
         )}
 
-        {/* Actions */}
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5 }}>
-          {(signal.actions || []).map((action, idx) => (
+        {/* Actions row */}
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
+          {(signal.actions || []).map((action, idx) =>
             action.href ? (
               <Button
                 key={idx}
                 component={Link}
                 href={action.href}
                 size="small"
-                variant={idx === 0 ? 'contained' : 'outlined'}
-                sx={{
-                  height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 0.75,
-                  px: 1.25, textTransform: 'none',
-                  ...(idx === 0 ? { bgcolor: vis.color, '&:hover': { bgcolor: vis.color, opacity: 0.9 } } : {}),
-                }}
+                variant={idx === 0 ? 'contained' : 'text'}
+                color={idx === 0 && cfg.color !== 'default' ? cfg.color : undefined}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 1, px: 1.25, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
@@ -232,21 +182,21 @@ function SignalCard({
               <Button
                 key={idx}
                 size="small"
-                variant="outlined"
-                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 0.75, px: 1.25, textTransform: 'none' }}
+                variant="text"
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 1, px: 1.25, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
-            )
-          ))}
+            ),
+          )}
           <Box sx={{ flex: 1 }} />
           <Tooltip title="Resolver">
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onResolve(); }} sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onResolve(); }} sx={{ opacity: 0.3, '&:hover': { opacity: 1, color: 'success.main' } }}>
               <IconCheck size={14} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Adiar 4h">
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onSnooze(); }} sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onSnooze(); }} sx={{ opacity: 0.3, '&:hover': { opacity: 1, color: 'warning.main' } }}>
               <IconZzz size={14} />
             </IconButton>
           </Tooltip>
@@ -269,56 +219,31 @@ function timeAgo(dateStr: string): string {
   return `${days}d`;
 }
 
-/* ─── Jarvis Summary ─── */
+/* ─── Empty State ─── */
 
-function JarvisSummary({ signals, jobs }: { signals: Signal[]; jobs: OperationsJob[] }) {
+function EmptySignals() {
   const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
-
-  const critical = signals.filter((s) => s.severity >= 90).length;
-  const attention = signals.filter((s) => s.severity >= 70 && s.severity < 90).length;
-  const activeJobs = jobs.filter((j) => !isClosedStatus(j.status)).length;
-  const blocked = jobs.filter((j) => j.status === 'blocked').length;
-  const noOwner = jobs.filter((j) => !j.owner_id && !isClosedStatus(j.status)).length;
-
-  const parts: string[] = [];
-  if (critical > 0) parts.push(`${critical} ${critical === 1 ? 'item crítico' : 'itens críticos'}`);
-  if (attention > 0) parts.push(`${attention} ${attention === 1 ? 'precisa de atenção' : 'precisam de atenção'}`);
-  if (blocked > 0) parts.push(`${blocked} ${blocked === 1 ? 'bloqueado' : 'bloqueados'}`);
-  if (noOwner > 0) parts.push(`${noOwner} sem responsável`);
-  parts.push(`${activeJobs} jobs ativos`);
-
-  const summary = parts.join(', ') + '.';
-
   return (
-    <Box
-      sx={{
-        px: 2.5, py: 1.75,
-        borderRadius: 1.5,
-        bgcolor: dark ? alpha(theme.palette.primary.main, 0.06) : alpha(theme.palette.primary.main, 0.03),
-        border: `1px solid ${alpha(theme.palette.primary.main, dark ? 0.15 : 0.1)}`,
-      }}
-    >
-      <Stack direction="row" spacing={1.5} alignItems="flex-start">
-        <Box sx={{ color: theme.palette.primary.main, mt: 0.25 }}>
-          <IconSparkles size={20} />
-        </Box>
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.4 }}>
-            {summary}
-          </Typography>
-          {signals.length === 0 && (
-            <Typography variant="caption" color="text.secondary">
-              Nenhum sinal operacional ativo. O sistema está em dia.
-            </Typography>
-          )}
-        </Box>
-      </Stack>
+    <Box sx={{ py: 8, textAlign: 'center' }}>
+      <Box sx={{
+        width: 56, height: 56, borderRadius: '50%', mx: 'auto', mb: 2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: alpha(theme.palette.success.main, 0.08),
+        color: 'success.main',
+      }}>
+        <IconCheck size={28} />
+      </Box>
+      <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5 }}>
+        Tudo em dia
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Nenhum sinal operacional ativo. O sistema está limpo.
+      </Typography>
     </Box>
   );
 }
 
-/* ─── Team Capacity Mini (bottom bar) ─── */
+/* ─── Team Capacity Mini ─── */
 
 function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Array<{ id: string; name: string; role: string; person_type?: string | null }> }) {
   const theme = useTheme();
@@ -336,33 +261,27 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
   if (!ownerStats.length) return null;
 
   return (
-    <Box
-      sx={{
-        px: 2, py: 1.25,
-        borderRadius: 1,
-        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
-        bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.7),
-      }}
-    >
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.65rem' }}>
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
+        <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.68rem', color: 'text.secondary' }}>
           Capacidade do time
         </Typography>
+        <Box sx={{ flex: 1 }} />
         <Button component={Link} href="/admin/operacoes/semana" size="small" endIcon={<IconChevronRight size={14} />}
-          sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', ml: 'auto' }}>
+          sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
           Ver semana
         </Button>
       </Stack>
-      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-        {ownerStats.slice(0, 6).map((o) => {
+      <Stack direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
+        {ownerStats.slice(0, 8).map((o) => {
           const barColor = o.pct > 100 ? theme.palette.error.main : o.pct > 85 ? theme.palette.warning.main : theme.palette.success.main;
           return (
-            <Stack key={o.id} spacing={0.25} sx={{ minWidth: 100 }}>
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.72rem' }}>
+            <Stack key={o.id} spacing={0.5} sx={{ minWidth: 100, flex: '1 1 100px', maxWidth: 160 }}>
+              <Stack direction="row" spacing={0.5} alignItems="baseline">
+                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
                   {o.name?.split(' ')[0]}
                 </Typography>
-                <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.4), fontSize: '0.65rem' }}>
+                <Typography variant="caption" sx={{ color: barColor, fontWeight: 700, fontSize: '0.68rem' }}>
                   {o.pct}%
                 </Typography>
               </Stack>
@@ -370,7 +289,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
                 variant="determinate"
                 value={Math.min(o.pct, 100)}
                 sx={{
-                  height: 4, borderRadius: 1,
+                  height: 5, borderRadius: 1,
                   bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06),
                   '& .MuiLinearProgress-bar': { bgcolor: barColor, borderRadius: 1 },
                 }}
@@ -379,7 +298,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
           );
         })}
       </Stack>
-    </Box>
+    </Paper>
   );
 }
 
@@ -387,7 +306,6 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
 
 export default function SignalFeedClient() {
   const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
 
   const ops = useOperationsData('?active=true');
   const { jobs, lookups, loading: jobsLoading } = ops;
@@ -395,8 +313,6 @@ export default function SignalFeedClient() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [selectedSignal, setSelectedSignal] = useState<Signal | null>(null);
-
-  // Drawer for job detail
   const [drawerJobId, setDrawerJobId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -406,18 +322,13 @@ export default function SignalFeedClient() {
       const res = await apiGet<{ success: boolean; data: Signal[] }>('/operations/signals?limit=30');
       setSignals(res?.data ?? []);
     } catch {
-      // Signals table may not exist yet — gracefully degrade
       setSignals([]);
     } finally {
       if (!silent) setSignalsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadSignals();
-  }, [loadSignals]);
-
-  // Silent refresh every 30s
+  useEffect(() => { loadSignals(); }, [loadSignals]);
   useEffect(() => {
     const id = setInterval(() => loadSignals(true), 30_000);
     return () => clearInterval(id);
@@ -442,9 +353,7 @@ export default function SignalFeedClient() {
     try {
       await apiPost('/operations/signals/rebuild', {});
       await loadSignals();
-    } catch {
-      await loadSignals();
-    }
+    } catch { await loadSignals(); }
   }, [loadSignals]);
 
   const handleSelectSignal = useCallback((signal: Signal) => {
@@ -455,14 +364,10 @@ export default function SignalFeedClient() {
     }
   }, []);
 
-  // Find the job for the drawer
   const drawerJob = drawerJobId ? jobs.find((j) => j.id === drawerJobId) || null : null;
-
-  // Stats
   const activeJobs = jobs.filter((j) => !isClosedStatus(j.status));
   const criticalSignals = signals.filter((s) => s.severity >= 90).length;
   const attentionSignals = signals.filter((s) => s.severity >= 70 && s.severity < 90).length;
-
   const loading = jobsLoading || signalsLoading;
 
   const summary = (
@@ -478,65 +383,94 @@ export default function SignalFeedClient() {
     <OperationsShell section="overview" summary={summary}>
       {loading ? (
         <Stack spacing={2}>
-          <Skeleton variant="rounded" height={60} />
-          <Skeleton variant="rounded" height={300} />
-          <Skeleton variant="rounded" height={60} />
+          <Skeleton variant="rounded" height={80} sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" height={300} sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" height={80} sx={{ borderRadius: 2 }} />
         </Stack>
       ) : (
-        <Stack spacing={2.5}>
-          {/* Jarvis summary */}
-          <JarvisSummary signals={signals} jobs={jobs} />
-
-          {/* Signal feed */}
-          <Box
-            sx={{
-              borderRadius: 1.5,
-              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.008) : alpha(theme.palette.background.paper, 0.7),
-              overflow: 'hidden',
-            }}
-          >
-            {/* Feed header */}
-            <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}` }}>
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                  Feed de sinais
-                </Typography>
-                <Stack direction="row" spacing={0.5}>
+        <Grid container spacing={2.5}>
+          {/* Signal feed (main content) */}
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+              {/* Feed header */}
+              <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconInbox size={16} style={{ opacity: 0.5 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                      Feed de sinais
+                    </Typography>
+                    {signals.length > 0 && (
+                      <Chip size="small" label={signals.length} color="primary" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />
+                    )}
+                  </Stack>
                   <Tooltip title="Recalcular sinais">
-                    <IconButton size="small" onClick={handleRefreshAll}>
+                    <IconButton size="small" onClick={handleRefreshAll} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
                       <IconRefresh size={16} />
                     </IconButton>
                   </Tooltip>
                 </Stack>
-              </Stack>
-            </Box>
-
-            {/* Signal list */}
-            {signals.length === 0 ? (
-              <Box sx={{ px: 3, py: 5, textAlign: 'center' }}>
-                <IconCheck size={32} style={{ opacity: 0.2 }} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Tudo em dia. Nenhum sinal operacional ativo.
-                </Typography>
               </Box>
-            ) : (
-              signals.map((signal) => (
-                <SignalCard
-                  key={signal.id}
-                  signal={signal}
-                  selected={selectedSignal?.id === signal.id}
-                  onClick={() => handleSelectSignal(signal)}
-                  onResolve={() => handleResolve(signal.id)}
-                  onSnooze={() => handleSnooze(signal.id)}
-                />
-              ))
-            )}
-          </Box>
 
-          {/* Team capacity mini */}
-          <TeamCapacityMini jobs={jobs} owners={lookups.owners} />
-        </Stack>
+              {/* Signal list */}
+              {signals.length === 0 ? (
+                <EmptySignals />
+              ) : (
+                signals.map((signal) => (
+                  <SignalCard
+                    key={signal.id}
+                    signal={signal}
+                    selected={selectedSignal?.id === signal.id}
+                    onClick={() => handleSelectSignal(signal)}
+                    onResolve={() => handleResolve(signal.id)}
+                    onSnooze={() => handleSnooze(signal.id)}
+                  />
+                ))
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Right sidebar: quick stats + capacity */}
+          <Grid size={{ xs: 12, lg: 4 }}>
+            <Stack spacing={2}>
+              {/* Quick links */}
+              <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                {[
+                  { label: 'Demandas sem dono', value: activeJobs.filter((j) => !j.owner_id).length, href: '/admin/operacoes/jobs?unassigned=true', color: 'warning' as const },
+                  { label: 'Bloqueadas', value: activeJobs.filter((j) => j.status === 'blocked').length, href: '/admin/operacoes/radar', color: 'error' as const },
+                  { label: 'Aguardando aprovação', value: activeJobs.filter((j) => j.status === 'awaiting_approval').length, href: '/admin/operacoes/jobs', color: 'info' as const },
+                ].map((item, idx) => (
+                  <Box
+                    key={item.label}
+                    component={Link}
+                    href={item.href}
+                    sx={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      px: 2, py: 1.25, textDecoration: 'none', color: 'inherit',
+                      borderBottom: idx < 2 ? `1px solid ${theme.palette.divider}` : undefined,
+                      transition: 'background 120ms ease',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      {item.label}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={item.value}
+                      color={item.value > 0 ? item.color : 'default'}
+                      variant={item.value > 0 ? 'filled' : 'outlined'}
+                      sx={{ height: 22, fontWeight: 800, minWidth: 32 }}
+                    />
+                  </Box>
+                ))}
+              </Paper>
+
+              {/* Team capacity */}
+              <TeamCapacityMini jobs={jobs} owners={lookups.owners} />
+            </Stack>
+          </Grid>
+        </Grid>
       )}
 
       {/* Job Detail Drawer */}

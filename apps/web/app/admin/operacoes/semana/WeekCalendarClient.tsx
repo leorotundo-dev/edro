@@ -289,7 +289,7 @@ function DayColumnView({
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        borderRight: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
         '&:last-child': { borderRight: 'none' },
         bgcolor: dragOver
           ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.05)
@@ -304,7 +304,7 @@ function DayColumnView({
         sx={{
           px: 1,
           py: 0.75,
-          borderBottom: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -602,11 +602,11 @@ export default function WeekCalendarClient() {
           {/* ─── Toolbar ─── */}
           <Box
             sx={{
-              px: 1.5,
-              py: 1,
-              borderRadius: '8px 8px 0 0',
-              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.015) : alpha(theme.palette.background.paper, 0.9),
+              px: 2,
+              py: 1.25,
+              borderRadius: '12px 12px 0 0',
+              border: `1px solid ${theme.palette.divider}`,
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper,
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
@@ -660,11 +660,10 @@ export default function WeekCalendarClient() {
           <Box
             sx={{
               display: 'flex',
-              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+              border: `1px solid ${theme.palette.divider}`,
               borderTop: 'none',
-              borderRadius: '0 0 0 0',
               minHeight: 360,
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.008) : alpha(theme.palette.background.paper, 0.6),
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
             }}
           >
             {columns.map((col) => (
@@ -685,10 +684,9 @@ export default function WeekCalendarClient() {
           {/* ─── Publications ─── */}
           <Box
             sx={{
-              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+              border: `1px solid ${theme.palette.divider}`,
               borderTop: 'none',
-              borderRadius: '0 0 0 0',
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.008) : alpha(theme.palette.background.paper, 0.6),
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
             }}
           >
             <PublicationsRow jobs={activeJobs} />
@@ -697,10 +695,10 @@ export default function WeekCalendarClient() {
           {/* ─── Backlog ─── */}
           <Box
             sx={{
-              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+              border: `1px solid ${theme.palette.divider}`,
               borderTop: 'none',
-              borderRadius: '0 0 8px 8px',
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.008) : alpha(theme.palette.background.paper, 0.6),
+              borderRadius: '0 0 12px 12px',
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
             }}
           >
             <BacklogRow

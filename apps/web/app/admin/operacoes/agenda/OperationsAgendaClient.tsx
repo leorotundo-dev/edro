@@ -85,16 +85,6 @@ function ownerAccent(personType?: string | null) {
   return personType === 'freelancer' ? '#E85219' : '#5D87FF';
 }
 
-function opsDayBg(theme: any, occupied: boolean) {
-  return occupied
-    ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.035 : 0.04)
-    : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.015 : 0.02);
-}
-
-function opsDayBorder(theme: any) {
-  return alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.06 : 0.1);
-}
-
 function opsDayAccent(theme: any, jobCount: number, plannedMinutes: number) {
   if (!jobCount) return alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.14);
   if (plannedMinutes >= 6 * 60) return theme.palette.error.main;
@@ -349,7 +339,8 @@ export default function OperationsAgendaClient() {
                           sx={(theme) => ({
                             pt: index === 0 ? 0 : 2.25,
                             mt: index === 0 ? 0 : 2.25,
-                            borderTop: index === 0 ? 'none' : `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
+                            borderTop: index === 0 ? 'none' : '1px solid',
+                            borderColor: index === 0 ? 'transparent' : theme.palette.divider,
                           })}
                         >
                           <Stack spacing={1.5}>
@@ -394,14 +385,14 @@ export default function OperationsAgendaClient() {
                   ) : distributionRows.length ? (
                     <Stack spacing={0}>
                       <Box
-                        sx={(theme) => ({
+                        sx={{
                           mb: 2.25,
-                          px: 1.25,
-                          py: 1.1,
-                          borderRadius: 1.5,
-                          bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.02 : 0.025),
-                          border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.06 : 0.1)}`,
-                        })}
+                          px: 1.5,
+                          py: 1.25,
+                          borderRadius: 2,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }}
                       >
                         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
                           <Box>
@@ -421,11 +412,12 @@ export default function OperationsAgendaClient() {
                       </Box>
 
                       <Box
-                        sx={(theme) => ({
+                        sx={{
                           mb: 2.25,
                           pb: 2.25,
-                          borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
-                        })}
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        }}
                       >
                         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }} sx={{ mb: 1.25 }}>
                           <Box>
@@ -486,7 +478,8 @@ export default function OperationsAgendaClient() {
                           sx={(theme) => ({
                             pt: index === 0 ? 0 : 2.25,
                             mt: index === 0 ? 0 : 2.25,
-                            borderTop: index === 0 ? 'none' : `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
+                            borderTop: index === 0 ? 'none' : '1px solid',
+                            borderColor: index === 0 ? 'transparent' : theme.palette.divider,
                           })}
                         >
                           <Stack spacing={1.5}>
@@ -522,11 +515,12 @@ export default function OperationsAgendaClient() {
                                     direction="row"
                                     justifyContent="space-between"
                                     alignItems="center"
-                                    sx={(theme) => ({
+                                    sx={{
                                       px: 0.3,
                                       pb: 0.2,
-                                      borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.05 : 0.08)}`,
-                                    })}
+                                      borderBottom: '1px solid',
+                                      borderColor: 'divider',
+                                    }}
                                   >
                                     <Typography variant="caption" color="text.secondary">
                                       {day.label}
@@ -547,9 +541,12 @@ export default function OperationsAgendaClient() {
                                       px: 1,
                                       py: 1,
                                       minHeight: 112,
-                                      borderRadius: 1.25,
-                                      bgcolor: day.jobs.length ? opsDayBg(theme, true) : opsDayBg(theme, false),
-                                      border: `1px solid ${opsDayBorder(theme)}`,
+                                      borderRadius: 2,
+                                      bgcolor: day.jobs.length
+                                        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.02)
+                                        : 'transparent',
+                                      border: '1px solid',
+                                      borderColor: theme.palette.divider,
                                       borderTop: `2px solid ${opsDayAccent(theme, day.jobs.length, day.plannedMinutes)}`,
                                     })}
                                   >
@@ -681,7 +678,7 @@ export default function OperationsAgendaClient() {
                       </Stack>
                       <Stack spacing={0.35}>
                         {groupedDays.slice(0, 4).map((group) => (
-                          <Box key={group.day} sx={(theme) => ({ px: 1, py: 1, borderRadius: 1.5, bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.02 : 0.025), border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.06 : 0.1)}` })}>
+                          <Box key={group.day} sx={{ px: 1.25, py: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                             <Stack direction="row" justifyContent="space-between" spacing={1}>
                               <Box>
                                 <Typography variant="body2" fontWeight={800}>

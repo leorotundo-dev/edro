@@ -284,11 +284,12 @@ export default function OperationsPlannerClient() {
                       return (
                         <Box
                           key={row.owner.id}
-                          sx={(theme) => ({
+                          sx={{
                             pt: index === 0 ? 0 : 2.25,
                             mt: index === 0 ? 0 : 2.25,
-                            borderTop: index === 0 ? 'none' : `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
-                          })}
+                            borderTop: index === 0 ? 'none' : '1px solid',
+                            borderColor: index === 0 ? 'transparent' : 'divider',
+                          }}
                         >
                           <Stack spacing={1.5}>
                             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }}>
@@ -319,14 +320,17 @@ export default function OperationsPlannerClient() {
                                 <Grid key={day.key} size={{ xs: 6, md: 2.4 }}>
                                   <Box
                                     sx={(theme) => ({
-                                      px: 1,
+                                      px: 1.25,
                                       py: 1,
-                                      borderRadius: 1.25,
-                                      bgcolor: day.jobs.length ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.035 : 0.04) : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.015 : 0.02),
-                                      border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.06 : 0.1)}`,
+                                      borderRadius: 2,
+                                      bgcolor: day.jobs.length
+                                        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.03)
+                                        : 'transparent',
+                                      border: '1px solid',
+                                      borderColor: 'divider',
                                     })}
                                   >
-                                    <Typography variant="caption" color="text.secondary">{day.label}</Typography>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={700}>{day.label}</Typography>
                                     <Typography variant="body2" fontWeight={800}>
                                       {day.jobs.length ? `${day.jobs.length} demanda(s)` : 'Livre'}
                                     </Typography>
