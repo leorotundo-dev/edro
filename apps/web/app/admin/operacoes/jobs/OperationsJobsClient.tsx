@@ -172,25 +172,23 @@ export default function OperationsJobsClient() {
       ) : (
         <Box sx={{ border: `1px solid ${bdr}`, borderRadius: 2, overflow: 'hidden', bgcolor: dark ? alpha('#fff', 0.01) : '#fff' }}>
           {/* ─── Toolbar ─── */}
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${bdr}` }}>
+          <Stack direction="row" alignItems="center" spacing={0.75} sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${bdr}`, flexWrap: 'nowrap', overflow: 'hidden' }}>
             <ViewTab active={view === 'board'} onClick={() => setView('board')} icon={<IconLayoutKanban size={14} />} label="Board" />
             <ViewTab active={view === 'list'} onClick={() => setView('list')} icon={<IconList size={14} />} label="Lista" />
 
-            <Box sx={{ width: 1, height: 16, bgcolor: bdr, mx: 0.25 }} />
+            <Box sx={{ width: 1, height: 16, bgcolor: bdr, flexShrink: 0 }} />
 
-            <Box sx={{ flex: 1, maxWidth: 280 }}>
-              <TextField
-                fullWidth size="small" value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar..."
-                InputProps={{ startAdornment: <IconSearch size={14} style={{ opacity: 0.3, marginRight: 6 }} /> }}
-                sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.78rem', height: 30, bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.025), borderRadius: 1.5, '& fieldset': { border: 'none' } } }}
-              />
-            </Box>
+            <TextField
+              size="small" value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar..."
+              InputProps={{ startAdornment: <IconSearch size={14} style={{ opacity: 0.3, marginRight: 6 }} /> }}
+              sx={{ width: 200, flexShrink: 0, '& .MuiOutlinedInput-root': { fontSize: '0.78rem', height: 30, bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.025), borderRadius: 1.5, '& fieldset': { border: 'none' } } }}
+            />
 
             <Pill active={quickFilter === 'urgent'} onClick={() => setQuickFilter(quickFilter === 'urgent' ? null : 'urgent')} icon={<IconUrgent size={13} />} label="Urgentes" />
             <Pill active={quickFilter === 'unassigned'} onClick={() => setQuickFilter(quickFilter === 'unassigned' ? null : 'unassigned')} icon={<IconUserOff size={13} />} label="Sem dono" />
 
-            <Box sx={{ position: 'relative' }}>
+            <Box sx={{ position: 'relative', flexShrink: 0 }}>
               <IconButton size="small" onClick={() => setFiltersOpen(!filtersOpen)} sx={{ color: hasFilters ? 'primary.main' : 'text.secondary' }}>
                 <IconFilter size={15} />
               </IconButton>
@@ -202,7 +200,7 @@ export default function OperationsJobsClient() {
             </Box>
 
             {hasFilters && (
-              <Button size="small" onClick={clearAll} sx={{ fontSize: '0.68rem', textTransform: 'none', minWidth: 0, color: 'text.secondary' }}>Limpar</Button>
+              <Button size="small" onClick={clearAll} sx={{ fontSize: '0.68rem', textTransform: 'none', minWidth: 0, color: 'text.secondary', flexShrink: 0 }}>Limpar</Button>
             )}
 
             <Box sx={{ flex: 1 }} />
@@ -263,6 +261,8 @@ export default function OperationsJobsClient() {
    BOARD VIEW — Notion-style kanban columns
    ═══════════════════════════════════════════════════════════════════ */
 
+const MAX_BOARD_CARDS = 6;
+
 function BoardView({
   buckets,
   grouped,
@@ -274,12 +274,25 @@ function BoardView({
   onOpen: (job: OperationsJob) => void;
   onAdvance: (jobId: string, next: string) => void;
 }) {
+  const columns = buckets.map((b) => ({ ...b, jobs: b.stages.flatMap((s) => grouped[s] || []) }));
+  const nonEmpty = columns.filter((c) => c.jobs.length > 0);
+  const empty = columns.filter((c) => c.jobs.length === 0);
+
   return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ minHeight: 360, p: 0.75 }} spacing={0.5}>
-      {buckets.map((b) => {
-        const colJobs = b.stages.flatMap((s) => grouped[s] || []);
-        return <BoardColumn key={b.key} label={b.label} dot={b.dot} jobs={colJobs} onOpen={onOpen} onAdvance={onAdvance} />;
-      })}
+    <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ minHeight: 320, p: 0.75 }} spacing={0.5}>
+      {nonEmpty.map((col) => (
+        <BoardColumn key={col.key} label={col.label} dot={col.dot} jobs={col.jobs} onOpen={onOpen} onAdvance={onAdvance} />
+      ))}
+      {empty.length > 0 && (
+        <Stack spacing={0.5} sx={{ minWidth: 80 }}>
+          {empty.map((col) => (
+            <Stack key={col.key} direction="row" spacing={0.5} alignItems="center" sx={{ px: 1, py: 0.5, opacity: 0.4 }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: col.dot }} />
+              <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>{col.label} 0</Typography>
+            </Stack>
+          ))}
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -291,6 +304,8 @@ function BoardColumn({ label, dot, jobs, onOpen, onAdvance }: {
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  const visible = jobs.slice(0, MAX_BOARD_CARDS);
+  const remaining = jobs.length - visible.length;
 
   return (
     <Box sx={{ flex: 1, minWidth: 0, bgcolor: dark ? alpha('#fff', 0.015) : alpha('#000', 0.018), borderRadius: 1.5, p: 0.75 }}>
@@ -300,11 +315,16 @@ function BoardColumn({ label, dot, jobs, onOpen, onAdvance }: {
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled' }}>{jobs.length}</Typography>
       </Stack>
       <Stack spacing={0.5}>
-        {jobs.map((job) => (
+        {visible.map((job) => (
           <BoardCard key={job.id} job={job} onClick={() => onOpen(job)} onAdvance={onAdvance} />
         ))}
-        {jobs.length === 0 && (
-          <Typography sx={{ textAlign: 'center', py: 3, fontSize: '0.72rem', color: 'text.disabled' }}>—</Typography>
+        {remaining > 0 && (
+          <Typography
+            onClick={() => onOpen(jobs[MAX_BOARD_CARDS])}
+            sx={{ textAlign: 'center', py: 0.5, fontSize: '0.7rem', fontWeight: 600, color: dot, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          >
+            +{remaining} mais
+          </Typography>
         )}
       </Stack>
     </Box>
