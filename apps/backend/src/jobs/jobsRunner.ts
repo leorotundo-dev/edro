@@ -26,6 +26,7 @@ import { runGroupIntelligenceWorkerOnce } from './groupIntelligenceWorker';
 import { runGroupDigestWorkerOnce } from './groupDigestWorker';
 import { runGroupDeadlineAlertWorkerOnce } from './groupDeadlineAlertWorker';
 import { runOperationsRuntimeWorkerOnce } from './operationsRuntimeWorker';
+import { runJobAutomationWorkerOnce } from './jobAutomationWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -116,4 +117,6 @@ export function startJobsRunner() {
   startWorkerLoop('groupDeadlineAlert', runGroupDeadlineAlertWorkerOnce, 13000, 60_000);
   // Central de Operações runtime — keeps demands, agenda e riscos synchronized
   startWorkerLoop('operationsRuntime', runOperationsRuntimeWorkerOnce, 13500, 180_000);
+  // Job Automation Pipeline — auto-copy, auto-image, auto-assign, ETA recalc
+  startWorkerLoop('jobAutomation', runJobAutomationWorkerOnce, 14000, 120_000);
 }

@@ -7,6 +7,8 @@ import { calculatePriority } from '../services/jobs/priorityService';
 import { estimateMinutes } from '../services/jobs/estimationService';
 import { syncOperationalSources } from '../services/jobs/sourceSyncService';
 import { rebuildOperationalRuntime, syncOperationalRuntimeForJob } from '../services/jobs/operationsRuntimeService';
+import { enqueueJob } from '../jobs/jobQueue';
+import { getNextJobForOwner, recalculateOwnerETAs } from '../services/jobs/jobAutomationService';
 
 const jobStatusValues = [
   'intake',
@@ -370,6 +372,13 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
     await syncOperationalRuntimeForJob(tenantId, rows[0].id);
 
+    // ── Automation hook: auto-generate copy for visual jobs with a client ──
+    const VISUAL_JOB_TYPES = ['copy', 'design_static', 'design_carousel', 'campaign', 'stories', 'reels', 'video'];
+    if (VISUAL_JOB_TYPES.includes(body.job_type) && body.client_id) {
+      enqueueJob(tenantId, 'job_automation', { jobId: rows[0].id, step: 'copy' }).catch(() => {});
+      query(`UPDATE jobs SET automation_status = 'copy_pending' WHERE id = $1`, [rows[0].id]).catch(() => {});
+    }
+
     return reply.status(201).send({ data: rows[0] });
   });
 
@@ -521,6 +530,63 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
     await syncOperationalRuntimeForJob(tenantId, jobId);
 
+    // ── Automation hook: when job is done, auto-pull next for owner + recalc ETAs ──
+    if (body.status === 'done' && current.owner_id) {
+      (async () => {
+        try {
+          const nextJob = await getNextJobForOwner(tenantId, current.owner_id);
+          if (nextJob) {
+            await query(
+              `UPDATE jobs SET status = 'in_progress' WHERE tenant_id = $1 AND id = $2`,
+              [tenantId, nextJob.id]
+            );
+            await query(
+              `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
+               VALUES ($1, $2, 'in_progress', $3, 'auto_next_job')`,
+              [nextJob.id, 'allocated', userId]
+            );
+            await syncOperationalRuntimeForJob(tenantId, nextJob.id);
+          }
+          await recalculateOwnerETAs(tenantId, current.owner_id);
+        } catch (err: any) {
+          console.error('[jobs] post-done automation failed:', err?.message || err);
+        }
+      })();
+    }
+
     return { data: rows[0] };
+  });
+
+  // ── GET /jobs/:jobId/creative-drafts ──
+  app.get('/jobs/:jobId/creative-drafts', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const { rows } = await query(
+      `SELECT * FROM job_creative_drafts
+        WHERE tenant_id = $1 AND job_id = $2
+        ORDER BY created_at DESC`,
+      [tenantId, jobId]
+    );
+
+    return { data: rows };
+  });
+
+  // ── POST /jobs/:jobId/creative-drafts/regenerate ──
+  app.post('/jobs/:jobId/creative-drafts/regenerate', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const body = z.object({ step: z.enum(['copy', 'image']) }).parse(request.body);
+
+    const jobRes = await query(`SELECT id FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [tenantId, jobId]);
+    if (!jobRes.rows.length) {
+      return reply.status(404).send({ error: 'Job não encontrado.' });
+    }
+
+    const automationStatus = body.step === 'copy' ? 'copy_pending' : 'image_pending';
+    await query(`UPDATE jobs SET automation_status = $2 WHERE id = $1`, [jobId, automationStatus]);
+    await enqueueJob(tenantId, 'job_automation', { jobId, step: body.step });
+
+    return { success: true, step: body.step };
   });
 }
