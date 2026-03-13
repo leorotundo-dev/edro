@@ -16,9 +16,6 @@ import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
-import Step from '@mui/material/Step';
-import StepLabel from '@mui/material/StepLabel';
-import Stepper from '@mui/material/Stepper';
 import Typography from '@mui/material/Typography';
 import type { Theme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
@@ -554,15 +551,35 @@ export function OpsStageGroup({
 
 export function StageRail({ status }: { status: string }) {
   const activeStep = getStageIndex(status);
+  const total = STAGE_FLOW.length;
+  const progress = Math.round(((activeStep + 1) / total) * 100);
+  const currentLabel = STAGE_FLOW[activeStep]?.label ?? status;
 
   return (
-    <Stepper activeStep={activeStep} alternativeLabel sx={{ '& .MuiStepLabel-label': { fontSize: '0.72rem', fontWeight: 700 } }}>
-      {STAGE_FLOW.map((step) => (
-        <Step key={step.key}>
-          <StepLabel>{step.label}</StepLabel>
-        </Step>
-      ))}
-    </Stepper>
+    <Stack spacing={0.75}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Typography variant="caption" fontWeight={800}>{currentLabel}</Typography>
+        <Typography variant="caption" color="text.secondary">{activeStep + 1}/{total}</Typography>
+      </Stack>
+      <LinearProgress
+        variant="determinate"
+        value={progress}
+        sx={(theme) => ({
+          height: 6,
+          borderRadius: 3,
+          bgcolor: alpha(theme.palette.primary.main, 0.12),
+          '& .MuiLinearProgress-bar': { borderRadius: 3 },
+        })}
+      />
+      <Stack direction="row" justifyContent="space-between">
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+          {STAGE_FLOW[0].label}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+          {STAGE_FLOW[total - 1].label}
+        </Typography>
+      </Stack>
+    </Stack>
   );
 }
 
