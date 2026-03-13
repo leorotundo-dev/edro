@@ -24,14 +24,19 @@ import {
   IconBriefcase,
   IconCalendarEvent,
   IconCalendarTime,
+  IconCheck,
   IconCircleCheckFilled,
   IconFlag,
   IconLink,
+  IconLoader2,
   IconMessageCircle,
   IconCalendarDue,
   IconBrandWhatsapp,
   IconBulb,
   IconBrush,
+  IconPencil,
+  IconPhoto,
+  IconUserCheck,
   IconVideo,
   IconFileText,
   IconSparkles,
@@ -438,6 +443,109 @@ export function OpsSummaryStat({
   );
 }
 
+// ── Automation Pipeline Steps ──────────────────────────────────────────────
+const AUTOMATION_STEPS = [
+  { key: 'copy', label: 'Copy', icon: <IconPencil size={13} /> },
+  { key: 'image', label: 'Imagem', icon: <IconPhoto size={13} /> },
+  { key: 'assign', label: 'Designer', icon: <IconUserCheck size={13} /> },
+  { key: 'ready', label: 'Pronto', icon: <IconCheck size={13} /> },
+] as const;
+
+function getAutomationStepIndex(automationStatus?: string | null): number {
+  if (!automationStatus || automationStatus === 'none') return -1;
+  if (automationStatus === 'copy_pending') return 0;
+  if (automationStatus === 'copy_done') return 1;
+  if (automationStatus === 'image_pending') return 1;
+  if (automationStatus === 'image_done') return 2;
+  if (automationStatus === 'ready_for_review') return 4;
+  return -1;
+}
+
+function isStepLoading(automationStatus?: string | null, stepKey: string = ''): boolean {
+  if (automationStatus === 'copy_pending' && stepKey === 'copy') return true;
+  if (automationStatus === 'image_pending' && stepKey === 'image') return true;
+  return false;
+}
+
+export function AutomationPipeline({
+  automationStatus,
+  compact = false,
+}: {
+  automationStatus?: string | null;
+  compact?: boolean;
+}) {
+  const currentIdx = getAutomationStepIndex(automationStatus);
+  if (currentIdx < 0 && !compact) return null;
+
+  return (
+    <Stack direction="row" spacing={compact ? 0.5 : 0.75} alignItems="center">
+      {AUTOMATION_STEPS.map((step, idx) => {
+        const done = idx < currentIdx;
+        const active = idx === currentIdx;
+        const loading = isStepLoading(automationStatus, step.key);
+
+        const dotColor = done
+          ? '#13DEB9'
+          : active
+            ? loading ? '#FFAE1F' : '#5D87FF'
+            : 'rgba(0,0,0,0.15)';
+
+        return (
+          <Stack key={step.key} direction="row" spacing={compact ? 0.35 : 0.5} alignItems="center">
+            {idx > 0 && (
+              <Box
+                sx={{
+                  width: compact ? 8 : 14,
+                  height: 2,
+                  borderRadius: 1,
+                  bgcolor: done ? '#13DEB9' : 'rgba(0,0,0,0.10)',
+                }}
+              />
+            )}
+            <Box
+              title={step.label}
+              sx={{
+                width: compact ? 20 : 26,
+                height: compact ? 20 : 26,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: alpha(dotColor, done ? 0.18 : active ? 0.16 : 0.08),
+                color: dotColor,
+                border: `1.5px solid ${alpha(dotColor, done ? 0.5 : active ? 0.4 : 0.15)}`,
+                transition: 'all 200ms ease',
+                ...(loading && {
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': { opacity: 1 },
+                    '50%': { opacity: 0.5 },
+                  },
+                }),
+              }}
+            >
+              {loading ? <IconLoader2 size={compact ? 10 : 12} /> : step.icon}
+            </Box>
+            {!compact && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.65rem',
+                  fontWeight: done || active ? 800 : 500,
+                  color: done ? '#13DEB9' : active ? dotColor : 'text.disabled',
+                  lineHeight: 1,
+                }}
+              >
+                {step.label}
+              </Typography>
+            )}
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
+
 export function OpsJobRow({
   job,
   selected,
@@ -497,9 +605,14 @@ export function OpsJobRow({
           <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
             {job.title}
           </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
-          </Typography>
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
+            </Typography>
+            {job.automation_status && job.automation_status !== 'none' ? (
+              <AutomationPipeline automationStatus={job.automation_status} compact />
+            ) : null}
+          </Stack>
         </Stack>
 
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
@@ -513,7 +626,11 @@ export function OpsJobRow({
           <Typography variant="caption" color={risk.level === 'critical' ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 700 }}>
             {formatDateTime(timeValue ?? job.deadline_at)}
           </Typography>
-          {showStage ? (
+          {job.estimated_delivery_at ? (
+            <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>
+              ETA {formatDateTime(job.estimated_delivery_at)}
+            </Typography>
+          ) : showStage ? (
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
               {STAGE_LABELS[job.status] || job.status}
             </Typography>
@@ -971,6 +1088,17 @@ export function OperationCard({
         <Box sx={{ pt: 0.5 }}>
           <StageRail status={job.status} />
         </Box>
+
+        {job.automation_status && job.automation_status !== 'none' ? (
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pt: 0.5 }}>
+            <AutomationPipeline automationStatus={job.automation_status} />
+            {job.estimated_delivery_at ? (
+              <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700 }}>
+                ETA {formatDateTime(job.estimated_delivery_at)}
+              </Typography>
+            ) : null}
+          </Stack>
+        ) : null}
       </Stack>
     </Box>
   );
@@ -1244,6 +1372,18 @@ export function OperationsContextRail({
             </Grid>
 
             <StageRail status={job.status} />
+
+            {job.automation_status && job.automation_status !== 'none' ? (
+              <Box sx={{ py: 0.5, px: 0.25 }}>
+                <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>Pipeline IA</Typography>
+                <AutomationPipeline automationStatus={job.automation_status} />
+                {job.estimated_delivery_at ? (
+                  <Typography variant="caption" color="primary.main" sx={{ display: 'block', mt: 0.75, fontWeight: 700 }}>
+                    Entrega estimada: {formatDateTime(job.estimated_delivery_at)}
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : null}
 
             <NextActionBar job={job} primaryLabel={primaryLabel} onPrimaryAction={onPrimaryAction} />
 

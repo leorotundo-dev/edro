@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -15,8 +15,21 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import { IconPlayerPlay, IconPlayerPause, IconUserPlus, IconDeviceFloppy } from '@tabler/icons-react';
+import Skeleton from '@mui/material/Skeleton';
+import { alpha } from '@mui/material/styles';
 import {
+  IconPlayerPlay,
+  IconPlayerPause,
+  IconUserPlus,
+  IconDeviceFloppy,
+  IconRefresh,
+  IconThumbUp,
+  IconBrush,
+  IconSparkles,
+} from '@tabler/icons-react';
+import { apiGet, apiPost } from '@/lib/api';
+import {
+  AutomationPipeline,
   BlockReason,
   ContextDrawer,
   EntityLinkCard,
@@ -56,6 +69,191 @@ type JobDraft = {
   urgency_reason: string;
   definition_of_done: string;
 };
+
+type CreativeDraft = {
+  id: string;
+  draft_type: 'copy' | 'image' | 'layout';
+  status: string;
+  hook_text?: string | null;
+  content_text?: string | null;
+  cta_text?: string | null;
+  fogg_score?: { motivation?: number; ability?: number; trigger?: number } | null;
+  image_url?: string | null;
+  image_urls?: string[] | null;
+  error_message?: string | null;
+  generated_at?: string | null;
+  created_at: string;
+};
+
+function FoggBar({ label, value }: { label: string; value?: number | null }) {
+  const pct = Math.max(0, Math.min(100, Number(value ?? 0)));
+  const color = pct >= 70 ? '#13DEB9' : pct >= 40 ? '#FFAE1F' : '#FA896B';
+  return (
+    <Stack spacing={0.25}>
+      <Stack direction="row" justifyContent="space-between">
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>{label}</Typography>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 800, color }}>{pct}</Typography>
+      </Stack>
+      <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.06)' }}>
+        <Box sx={{ height: 4, borderRadius: 2, bgcolor: color, width: `${pct}%`, transition: 'width 300ms ease' }} />
+      </Box>
+    </Stack>
+  );
+}
+
+function CreativeDraftsPanel({ jobId }: { jobId: string }) {
+  const [drafts, setDrafts] = useState<CreativeDraft[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
+
+  const fetchDrafts = useCallback(async () => {
+    try {
+      const res = await apiGet<{ data: CreativeDraft[] }>(`/jobs/${jobId}/creative-drafts`);
+      setDrafts(res.data || []);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
+  useEffect(() => { fetchDrafts(); }, [fetchDrafts]);
+
+  const handleRegenerate = async (step: 'copy' | 'image') => {
+    setRegenerating(step);
+    try {
+      await apiPost(`/jobs/${jobId}/creative-drafts/regenerate`, { step });
+      setTimeout(fetchDrafts, 2000);
+    } catch {
+      // silent
+    } finally {
+      setRegenerating(null);
+    }
+  };
+
+  const copyDraft = drafts.find((d) => d.draft_type === 'copy' && d.status === 'done');
+  const imageDraft = drafts.find((d) => d.draft_type === 'image' && d.status === 'done');
+  const pendingCopy = drafts.find((d) => d.draft_type === 'copy' && (d.status === 'pending' || d.status === 'generating'));
+  const pendingImage = drafts.find((d) => d.draft_type === 'image' && (d.status === 'pending' || d.status === 'generating'));
+
+  if (loading) {
+    return (
+      <Stack spacing={1.5}>
+        <Skeleton variant="rounded" height={80} />
+        <Skeleton variant="rounded" height={120} />
+      </Stack>
+    );
+  }
+
+  if (!drafts.length) return null;
+
+  return (
+    <Stack spacing={2}>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <IconSparkles size={16} />
+        <Typography variant="body2" fontWeight={900}>Rascunho IA</Typography>
+      </Stack>
+
+      {/* Copy Draft */}
+      {copyDraft ? (
+        <Box sx={(theme) => ({
+          p: 2,
+          borderRadius: 2.5,
+          border: '1px solid',
+          borderColor: alpha(theme.palette.primary.main, 0.2),
+          bgcolor: alpha(theme.palette.primary.main, 0.03),
+        })}>
+          <Typography variant="caption" fontWeight={800} color="primary.main" sx={{ display: 'block', mb: 1 }}>
+            COPY GERADO
+          </Typography>
+          {copyDraft.hook_text ? (
+            <Typography variant="body1" fontWeight={800} sx={{ mb: 0.5, lineHeight: 1.3 }}>
+              {copyDraft.hook_text}
+            </Typography>
+          ) : null}
+          {copyDraft.content_text ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75, whiteSpace: 'pre-line' }}>
+              {copyDraft.content_text}
+            </Typography>
+          ) : null}
+          {copyDraft.cta_text ? (
+            <Chip label={copyDraft.cta_text} size="small" color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+          ) : null}
+          {copyDraft.fogg_score ? (
+            <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+              <FoggBar label="Motivacao" value={copyDraft.fogg_score.motivation} />
+              <FoggBar label="Facilidade" value={copyDraft.fogg_score.ability} />
+              <FoggBar label="Gatilho" value={copyDraft.fogg_score.trigger} />
+            </Stack>
+          ) : null}
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+            <Button size="small" variant="contained" color="success" startIcon={<IconThumbUp size={14} />}>
+              Usar
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<IconRefresh size={14} />}
+              onClick={() => handleRegenerate('copy')}
+              disabled={regenerating === 'copy'}
+            >
+              {regenerating === 'copy' ? 'Gerando...' : 'Regenerar'}
+            </Button>
+          </Stack>
+        </Box>
+      ) : pendingCopy ? (
+        <Box sx={{ p: 2, borderRadius: 2.5, border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={700}>
+            A IA esta rabiscando o copy...
+          </Typography>
+          <Skeleton variant="text" width="80%" sx={{ mx: 'auto', mt: 1 }} />
+          <Skeleton variant="text" width="60%" sx={{ mx: 'auto' }} />
+        </Box>
+      ) : null}
+
+      {/* Image Draft */}
+      {imageDraft?.image_url ? (
+        <Box sx={(theme) => ({
+          borderRadius: 2.5,
+          overflow: 'hidden',
+          border: '1px solid',
+          borderColor: alpha(theme.palette.primary.main, 0.2),
+        })}>
+          <Box
+            component="img"
+            src={imageDraft.image_url}
+            alt="Rascunho visual"
+            sx={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'cover' }}
+          />
+          <Stack direction="row" spacing={1} sx={{ p: 1.5 }}>
+            <Button size="small" variant="contained" color="success" startIcon={<IconThumbUp size={14} />}>
+              Usar
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<IconRefresh size={14} />}
+              onClick={() => handleRegenerate('image')}
+              disabled={regenerating === 'image'}
+            >
+              {regenerating === 'image' ? 'Gerando...' : 'Regenerar'}
+            </Button>
+            <Button size="small" variant="outlined" color="warning" startIcon={<IconBrush size={14} />}>
+              Refinar no Canvas
+            </Button>
+          </Stack>
+        </Box>
+      ) : pendingImage ? (
+        <Box sx={{ p: 2, borderRadius: 2.5, border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={700}>
+            A IA esta desenhando a imagem...
+          </Typography>
+          <Skeleton variant="rounded" height={120} sx={{ mt: 1 }} />
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
 
 const SOURCE_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -542,6 +740,17 @@ export default function JobWorkbenchDrawer({
                 ) : null}
               </Grid>
             </Stack>
+
+            {detailJob.automation_status && detailJob.automation_status !== 'none' ? (
+              <>
+                <Divider />
+                <Stack spacing={1.5}>
+                  <Typography variant="h6" fontWeight={800}>Pipeline IA</Typography>
+                  <AutomationPipeline automationStatus={detailJob.automation_status} />
+                  <CreativeDraftsPanel jobId={detailJob.id} />
+                </Stack>
+              </>
+            ) : null}
 
             {detailJob.history?.length ? (
               <>

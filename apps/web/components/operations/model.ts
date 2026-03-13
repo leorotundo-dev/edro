@@ -34,6 +34,8 @@ export type OperationsJob = {
   updated_at?: string;
   completed_at?: string | null;
   archived_at?: string | null;
+  automation_status?: string | null;
+  estimated_delivery_at?: string | null;
   history?: Array<{
     id: string;
     from_status?: string | null;
