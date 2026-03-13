@@ -6,8 +6,10 @@ import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
+import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -28,8 +30,16 @@ import {
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import {
+  ClientThumb,
+  EntityLinkCard,
+  OperationsContextRail,
+  OpsSection,
+  PersonThumb,
+  SourceThumb,
+} from '@/components/operations/primitives';
 import { sortByOperationalPriority, groupJobsByClient, groupJobsByOwner, groupJobsByRisk, type GroupedSection } from '@/components/operations/derived';
-import { getNextAction, getNextStatus, groupBy, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import { formatSkillLabel, formatSourceLabel, getNextAction, getNextStatus, groupBy, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -146,7 +156,8 @@ export default function OperationsJobsClient() {
     })).filter((s) => s.count > 0);
   }, [filteredJobs, groupMode, grouped]);
 
-  const openJob = (job: OperationsJob) => { setComposerOpen(false); setSelectedJob(job); setDetailOpen(true); };
+  const selectJob = (job: OperationsJob) => { setSelectedJob(job); };
+  const openJobDetail = (job: OperationsJob) => { setComposerOpen(false); setSelectedJob(job); setDetailOpen(true); };
   const handleAdvance = async (jobId: string, next: string) => { await changeStatus(jobId, next); await refresh(); };
   const handleAssign = async (jobId: string, ownerId: string) => { await updateJob(jobId, { owner_id: ownerId }); await refresh(); };
 
@@ -155,81 +166,197 @@ export default function OperationsJobsClient() {
   const clearAll = () => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); };
 
   const bdr = dark ? alpha('#fff', 0.06) : alpha('#000', 0.06);
+  const unassignedCount = useMemo(() => filteredJobs.filter((j) => !j.owner_id).length, [filteredJobs]);
+  const urgentCount = useMemo(() => filteredJobs.filter((j) => j.is_urgent).length, [filteredJobs]);
+  const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
 
   return (
     <OperationsShell
       section="jobs"
       summary={
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-          {filteredJobs.length} demanda{filteredJobs.length !== 1 ? 's' : ''}
-        </Typography>
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+          {[
+            { value: filteredJobs.length, label: OPS_COPY.jobs.summaryVisible },
+            { value: unassignedCount, label: OPS_COPY.jobs.summaryUnassigned, color: unassignedCount ? '#FFAE1F' : undefined },
+            { value: urgentCount, label: OPS_COPY.jobs.summaryUrgent, color: urgentCount ? '#FA896B' : undefined },
+            { value: sections.length, label: OPS_COPY.jobs.summaryStages },
+          ].map((kpi) => (
+            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
+              <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1, ...(kpi.color ? { color: kpi.color } : {}) }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                {kpi.label}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
       }
     >
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {loading ? (
-        <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress size={24} /></Box>
+        <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
       ) : (
-        <Box sx={{ border: `1px solid ${bdr}`, borderRadius: 2, overflow: 'hidden', bgcolor: dark ? alpha('#fff', 0.01) : '#fff' }}>
-          {/* ─── Toolbar ─── */}
-          <Stack direction="row" alignItems="center" spacing={0.75} sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${bdr}`, flexWrap: 'nowrap', overflow: 'hidden' }}>
-            <ViewTab active={view === 'board'} onClick={() => setView('board')} icon={<IconLayoutKanban size={14} />} label="Board" />
-            <ViewTab active={view === 'list'} onClick={() => setView('list')} icon={<IconList size={14} />} label="Lista" />
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, lg: 7.6 }}>
+            <OpsSection
+              eyebrow={OPS_COPY.jobs.triageEyebrow}
+              title={OPS_COPY.jobs.triageTitle}
+              subtitle={OPS_COPY.jobs.triageSubtitle}
+              action={
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" label={`${filteredJobs.length} demandas`} />
+                  <Button variant="outlined" size="small" onClick={() => refresh()}>{OPS_COPY.jobs.refresh}</Button>
+                </Stack>
+              }
+            >
+              <Box sx={{ border: `1px solid ${bdr}`, borderRadius: 2, overflow: 'hidden', bgcolor: dark ? alpha('#fff', 0.01) : '#fff' }}>
+                {/* ─── Toolbar ─── */}
+                <Stack direction="row" alignItems="center" spacing={0.75} sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${bdr}`, flexWrap: 'nowrap', overflow: 'hidden' }}>
+                  <ViewTab active={view === 'board'} onClick={() => setView('board')} icon={<IconLayoutKanban size={14} />} label="Board" />
+                  <ViewTab active={view === 'list'} onClick={() => setView('list')} icon={<IconList size={14} />} label="Lista" />
 
-            <Box sx={{ width: 1, height: 16, bgcolor: bdr, flexShrink: 0 }} />
+                  <Box sx={{ width: 1, height: 16, bgcolor: bdr, flexShrink: 0 }} />
 
-            <TextField
-              size="small" value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar..."
-              InputProps={{ startAdornment: <IconSearch size={14} style={{ opacity: 0.3, marginRight: 6 }} /> }}
-              sx={{ width: 200, flexShrink: 0, '& .MuiOutlinedInput-root': { fontSize: '0.78rem', height: 30, bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.025), borderRadius: 1.5, '& fieldset': { border: 'none' } } }}
+                  <TextField
+                    size="small" value={query} onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar..."
+                    InputProps={{ startAdornment: <IconSearch size={14} style={{ opacity: 0.3, marginRight: 6 }} /> }}
+                    sx={{ width: 200, flexShrink: 0, '& .MuiOutlinedInput-root': { fontSize: '0.78rem', height: 30, bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.025), borderRadius: 1.5, '& fieldset': { border: 'none' } } }}
+                  />
+
+                  <Pill active={quickFilter === 'urgent'} onClick={() => setQuickFilter(quickFilter === 'urgent' ? null : 'urgent')} icon={<IconUrgent size={13} />} label="Urgentes" />
+                  <Pill active={quickFilter === 'unassigned'} onClick={() => setQuickFilter(quickFilter === 'unassigned' ? null : 'unassigned')} icon={<IconUserOff size={13} />} label="Sem dono" />
+
+                  <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                    <IconButton size="small" onClick={() => setFiltersOpen(!filtersOpen)} sx={{ color: hasFilters ? 'primary.main' : 'text.secondary' }}>
+                      <IconFilter size={15} />
+                    </IconButton>
+                    {filterCount > 0 && (
+                      <Box sx={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', bgcolor: 'primary.main', color: '#fff', fontSize: '0.5rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {filterCount}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {hasFilters && (
+                    <Button size="small" onClick={clearAll} sx={{ fontSize: '0.68rem', textTransform: 'none', minWidth: 0, color: 'text.secondary', flexShrink: 0 }}>Limpar</Button>
+                  )}
+
+                  <Box sx={{ flex: 1 }} />
+
+                  {view === 'list' && <GroupByPicker value={groupMode} onChange={setGroupMode} />}
+                </Stack>
+
+                {/* ─── Filter row ─── */}
+                <Collapse in={filtersOpen}>
+                  <Stack direction="row" spacing={1.5} sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${bdr}` }}>
+                    <CompactSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: '', label: 'Todos' }, ...STAGE_ORDER.map((s) => ({ value: s, label: STAGE_LABELS[s] || s }))]} />
+                    <CompactSelect label="Prioridade" value={priorityFilter} onChange={setPriorityFilter} options={[{ value: '', label: 'Todas' }, ...['p0', 'p1', 'p2', 'p3', 'p4'].map((p) => ({ value: p, label: p.toUpperCase() }))]} />
+                    <CompactSelect label="Cliente" value={clientFilter} onChange={setClientFilter} options={[{ value: '', label: 'Todos' }, ...lookups.clients.map((c) => ({ value: c.id, label: c.name }))]} />
+                    <CompactSelect label="Responsável" value={ownerFilter} onChange={setOwnerFilter} options={[{ value: '', label: 'Todos' }, ...lookups.owners.map((o) => ({ value: o.id, label: o.name }))]} />
+                  </Stack>
+                </Collapse>
+
+                {/* ─── Content ─── */}
+                {filteredJobs.length === 0 ? (
+                  <Box sx={{ py: 8, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Nenhuma demanda encontrada</Typography>
+                    <Button size="small" onClick={() => setComposerOpen(true)} sx={{ textTransform: 'none' }}>{OPS_COPY.shell.newDemand}</Button>
+                  </Box>
+                ) : view === 'board' ? (
+                  <BoardView buckets={BUCKETS} grouped={grouped} onOpen={selectJob} onAdvance={handleAdvance} />
+                ) : (
+                  <ListView sections={sections} onOpen={selectJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
+                )}
+              </Box>
+            </OpsSection>
+          </Grid>
+
+          <Grid size={{ xs: 12, lg: 4.4 }}>
+            <OperationsContextRail
+              eyebrow={OPS_COPY.common.contextEyebrow}
+              title={OPS_COPY.common.focusTitle}
+              subtitle={OPS_COPY.jobs.focusSubtitle}
+              job={selectedJob}
+              primaryLabel={focusedAction?.label}
+              onPrimaryAction={() => { if (selectedJob) setDetailOpen(true); }}
+              emptyTitle="Selecione uma demanda"
+              emptyDescription={OPS_COPY.jobs.focusEmptySubtitle}
+              links={
+                selectedJob ? (
+                  <Grid container spacing={1.25}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <EntityLinkCard
+                        label="Cliente"
+                        value={selectedJob.client_name || 'Sem cliente'}
+                        href={selectedJob.client_id ? `/clients/${selectedJob.client_id}` : undefined}
+                        subtitle={OPS_COPY.common.clientSubtitle}
+                        accent={selectedJob.client_brand_color || '#E85219'}
+                        thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <EntityLinkCard
+                        label="Responsável"
+                        value={selectedJob.owner_name || 'Sem responsável'}
+                        href="/admin/operacoes/planner"
+                        subtitle={formatSkillLabel(selectedJob.required_skill)}
+                        thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <EntityLinkCard
+                        label="Agenda"
+                        value={selectedJob.deadline_at ? 'Já está na agenda' : 'Sem prazo'}
+                        href="/admin/operacoes/agenda"
+                        subtitle={selectedJob.deadline_at ? 'A demanda já mexe na agenda da semana' : 'Defina um prazo para ela entrar na agenda'}
+                        thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <EntityLinkCard
+                        label="Origem"
+                        value={formatSourceLabel(selectedJob.source)}
+                        subtitle={selectedJob.job_type || 'Demanda operacional'}
+                        thumbnail={<SourceThumb source={selectedJob.source} jobType={selectedJob.job_type} accent="#E85219" />}
+                      />
+                    </Grid>
+                  </Grid>
+                ) : null
+              }
+              sections={[
+                {
+                  content: (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="contained"
+                        onClick={() => { if (selectedJob) setDetailOpen(true); }}
+                        disabled={!selectedJob}
+                      >
+                        {OPS_COPY.common.openDetail}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => refresh()}
+                      >
+                        {OPS_COPY.jobs.refresh}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))}
+                        disabled={!selectedJob}
+                      >
+                        {OPS_COPY.common.refreshDetail}
+                      </Button>
+                    </Stack>
+                  ),
+                },
+              ]}
             />
-
-            <Pill active={quickFilter === 'urgent'} onClick={() => setQuickFilter(quickFilter === 'urgent' ? null : 'urgent')} icon={<IconUrgent size={13} />} label="Urgentes" />
-            <Pill active={quickFilter === 'unassigned'} onClick={() => setQuickFilter(quickFilter === 'unassigned' ? null : 'unassigned')} icon={<IconUserOff size={13} />} label="Sem dono" />
-
-            <Box sx={{ position: 'relative', flexShrink: 0 }}>
-              <IconButton size="small" onClick={() => setFiltersOpen(!filtersOpen)} sx={{ color: hasFilters ? 'primary.main' : 'text.secondary' }}>
-                <IconFilter size={15} />
-              </IconButton>
-              {filterCount > 0 && (
-                <Box sx={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', bgcolor: 'primary.main', color: '#fff', fontSize: '0.5rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {filterCount}
-                </Box>
-              )}
-            </Box>
-
-            {hasFilters && (
-              <Button size="small" onClick={clearAll} sx={{ fontSize: '0.68rem', textTransform: 'none', minWidth: 0, color: 'text.secondary', flexShrink: 0 }}>Limpar</Button>
-            )}
-
-            <Box sx={{ flex: 1 }} />
-
-            {view === 'list' && <GroupByPicker value={groupMode} onChange={setGroupMode} />}
-          </Stack>
-
-          {/* ─── Filter row ─── */}
-          <Collapse in={filtersOpen}>
-            <Stack direction="row" spacing={1.5} sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${bdr}` }}>
-              <CompactSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: '', label: 'Todos' }, ...STAGE_ORDER.map((s) => ({ value: s, label: STAGE_LABELS[s] || s }))]} />
-              <CompactSelect label="Prioridade" value={priorityFilter} onChange={setPriorityFilter} options={[{ value: '', label: 'Todas' }, ...['p0', 'p1', 'p2', 'p3', 'p4'].map((p) => ({ value: p, label: p.toUpperCase() }))]} />
-              <CompactSelect label="Cliente" value={clientFilter} onChange={setClientFilter} options={[{ value: '', label: 'Todos' }, ...lookups.clients.map((c) => ({ value: c.id, label: c.name }))]} />
-              <CompactSelect label="Responsável" value={ownerFilter} onChange={setOwnerFilter} options={[{ value: '', label: 'Todos' }, ...lookups.owners.map((o) => ({ value: o.id, label: o.name }))]} />
-            </Stack>
-          </Collapse>
-
-          {/* ─── Content ─── */}
-          {filteredJobs.length === 0 ? (
-            <Box sx={{ py: 8, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Nenhuma demanda encontrada</Typography>
-              <Button size="small" onClick={() => setComposerOpen(true)} sx={{ textTransform: 'none' }}>{OPS_COPY.shell.newDemand}</Button>
-            </Box>
-          ) : view === 'board' ? (
-            <BoardView buckets={BUCKETS} grouped={grouped} onOpen={openJob} onAdvance={handleAdvance} />
-          ) : (
-            <ListView sections={sections} onOpen={openJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
-          )}
-        </Box>
+          </Grid>
+        </Grid>
       )}
 
       {/* ─── Drawers ─── */}
