@@ -7,14 +7,11 @@ import { useJarvis } from '@/contexts/JarvisContext';
 import { OPS_COPY } from './copy';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconLayoutKanban,
   IconPlus,
@@ -103,80 +100,91 @@ export default function OperationsShell({
     setCommandInput('');
   };
 
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+
   return (
     <AppShell
       title={copy.title}
       meta={copy.subtitle}
       action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => router.push('/admin/operacoes/jobs?new=1') }}
     >
-      {/* Ops navigation bar */}
+      {/* Ops navigation bar — glass + pill nav */}
       <Box
-        sx={(theme) => {
-          const dark = theme.palette.mode === 'dark';
-          return {
-            mx: { xs: -2, sm: -3 },
-            mt: { xs: -2, sm: -3 },
-            mb: 2.5,
-            px: { xs: 2, sm: 3 },
-            py: 1.5,
-            borderBottom: `1px solid ${alpha(theme.palette.divider, dark ? 0.6 : 1)}`,
-            bgcolor: dark ? alpha(theme.palette.background.paper, 0.4) : alpha(theme.palette.background.paper, 0.7),
-            backdropFilter: 'blur(8px)',
-          };
+        sx={{
+          mx: { xs: -2, sm: -3 },
+          mt: { xs: -2, sm: -3 },
+          mb: 3,
+          px: { xs: 2, sm: 3 },
+          pt: 1.5,
+          pb: summary ? 0 : 1.5,
+          background: dark
+            ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.6)} 0%, ${alpha(theme.palette.background.default, 0.3)} 100%)`
+            : `linear-gradient(180deg, ${alpha('#fff', 0.9)} 0%, ${alpha(theme.palette.background.default, 0.5)} 100%)`,
+          backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${alpha(theme.palette.divider, dark ? 0.15 : 0.12)}`,
         }}
       >
-        <Stack spacing={1.5}>
-          {/* Top row: tabs + command bar */}
+        <Stack spacing={1.25}>
+          {/* Top row: pill nav + command bar */}
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
-            {/* Section tabs */}
-            <Tabs
-              value={section}
-              onChange={(_event, value) => router.push(SECTIONS.find((s) => s.key === value)?.href || '/admin/operacoes')}
-              variant="scrollable"
-              allowScrollButtonsMobile
+            {/* Pill navigation */}
+            <Stack
+              direction="row"
+              spacing={0.5}
               sx={{
-                minHeight: 36,
                 flex: 1,
-                '& .MuiTabs-indicator': {
-                  height: 2,
-                  borderRadius: 1,
-                },
-                '& .MuiTabs-flexContainer': { gap: 0.25 },
+                overflowX: 'auto',
+                py: 0.25,
+                px: 0.5,
+                borderRadius: 100,
+                bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.04),
+                '&::-webkit-scrollbar': { display: 'none' },
               }}
             >
-              {SECTIONS.map((item) => (
-                <Tab
-                  key={item.key}
-                  value={item.key}
-                  label={item.label}
-                  icon={item.icon}
-                  iconPosition="start"
-                  sx={(theme) => {
-                    const dark = theme.palette.mode === 'dark';
-                    return {
-                      minHeight: 36,
-                      minWidth: 0,
-                      px: 1.5,
-                      py: 0.5,
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      textTransform: 'none',
-                      color: alpha(theme.palette.text.primary, dark ? 0.55 : 0.6),
-                      transition: 'all 150ms ease',
-                      '&:hover': {
+              {SECTIONS.map((item) => {
+                const isActive = item.key === section;
+                return (
+                  <Box
+                    key={item.key}
+                    onClick={() => router.push(item.href)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.6,
+                      px: 1.75,
+                      py: 0.7,
+                      borderRadius: 100,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.78rem',
+                      fontWeight: isActive ? 800 : 600,
+                      color: isActive
+                        ? '#fff'
+                        : dark ? alpha(theme.palette.text.primary, 0.6) : alpha(theme.palette.text.primary, 0.55),
+                      background: isActive
+                        ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
+                        : 'transparent',
+                      boxShadow: isActive
+                        ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.35)}`
+                        : 'none',
+                      transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+                      '&:hover': isActive ? {} : {
+                        bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05),
                         color: theme.palette.text.primary,
-                        bgcolor: alpha(theme.palette.action.hover, 0.04),
                       },
-                      '&.Mui-selected': {
-                        color: theme.palette.primary.main,
-                        fontWeight: 800,
+                      '& svg': {
+                        opacity: isActive ? 1 : 0.6,
+                        transition: 'opacity 200ms ease',
                       },
-                      '& .MuiTab-iconWrapper': { mr: 0.5 },
-                    };
-                  }}
-                />
-              ))}
-            </Tabs>
+                    }}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Box>
+                );
+              })}
+            </Stack>
 
             {/* Command bar */}
             <Autocomplete
@@ -215,27 +223,29 @@ export default function OperationsShell({
                   </Stack>
                 </Box>
               )}
-              sx={(theme) => ({
-                width: { xs: '100%', md: 280 },
+              sx={{
+                width: { xs: '100%', md: 260 },
                 flexShrink: 0,
                 '& .MuiOutlinedInput-root': {
                   height: 36,
-                  borderRadius: 2,
+                  borderRadius: 100,
                   fontSize: '0.8rem',
+                  bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
                 },
                 '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.6 : 1),
+                  borderColor: alpha(theme.palette.divider, dark ? 0.2 : 0.15),
                 },
-              })}
+              }}
             />
           </Stack>
 
           {/* Summary stats row */}
           {summary ? (
-            <Box sx={(theme) => ({
-              pt: 1.25,
-              borderTop: `1px solid ${alpha(theme.palette.divider, theme.palette.mode === 'dark' ? 0.4 : 0.7)}`,
-            })}>
+            <Box sx={{
+              pt: 1,
+              pb: 1.25,
+              borderTop: `1px solid ${alpha(theme.palette.divider, dark ? 0.1 : 0.08)}`,
+            }}>
               {summary}
             </Box>
           ) : null}
@@ -244,9 +254,9 @@ export default function OperationsShell({
 
       {/* Page content */}
       <Box sx={{
-        animation: 'edroOpsEnter 200ms ease-out',
+        animation: 'edroOpsEnter 300ms cubic-bezier(0.4,0,0.2,1)',
         '@keyframes edroOpsEnter': {
-          from: { opacity: 0, transform: 'translateY(6px)' },
+          from: { opacity: 0, transform: 'translateY(10px)' },
           to: { opacity: 1, transform: 'translateY(0)' },
         },
       }}>

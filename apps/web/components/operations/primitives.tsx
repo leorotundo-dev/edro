@@ -727,28 +727,42 @@ export function OpsJobRow({
     <Box
       onClick={onClick}
       sx={(theme) => {
-        const riskGlow = risk.level === 'critical'
-          ? `inset 3px 0 0 0 ${theme.palette.error.main}`
+        const dark = theme.palette.mode === 'dark';
+        const riskColor = risk.level === 'critical'
+          ? theme.palette.error.main
           : risk.level === 'high'
-            ? `inset 3px 0 0 0 ${alpha(theme.palette.warning.main, 0.7)}`
-            : 'none';
+            ? theme.palette.warning.main
+            : null;
         return {
           px: 1.5,
           py: 1.25,
+          mx: 0.75,
+          my: 0.4,
           cursor: onClick ? 'pointer' : 'default',
-          borderRadius: 2,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : undefined,
-          bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
-          boxShadow: riskGlow,
-          transition: 'background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease',
-          '&:hover': {
-            bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
-          },
-          '&:last-child': {
-            borderBottom: selected ? undefined : 'none',
-          },
+          borderRadius: 3,
+          border: selected
+            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          bgcolor: selected
+            ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.05)
+            : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+          boxShadow: selected
+            ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.1)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`
+            : riskColor
+              ? `inset 3px 0 0 0 ${riskColor}, 0 1px 3px ${alpha(theme.palette.common.black, 0.04)}`
+              : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.04)}`,
+          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          '&:hover': onClick ? {
+            transform: 'translateY(-1px)',
+            boxShadow: selected
+              ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.12)}`
+              : riskColor
+                ? `inset 3px 0 0 0 ${riskColor}, 0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`
+                : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
+            bgcolor: selected
+              ? alpha(theme.palette.primary.main, dark ? 0.14 : 0.07)
+              : dark ? alpha(theme.palette.common.white, 0.04) : '#fff',
+          } : {},
         };
       }}
     >
@@ -761,12 +775,12 @@ export function OpsJobRow({
           sx={{
             width: 32,
             height: 32,
-            borderRadius: 1.25,
+            borderRadius: 1.5,
             fontSize: '0.68rem',
             fontWeight: 900,
-            bgcolor: alpha(clientAccent(job), 0.18),
+            bgcolor: alpha(clientAccent(job), 0.14),
             color: clientAccent(job),
-            border: `1px solid ${alpha(clientAccent(job), 0.28)}`,
+            border: `1.5px solid ${alpha(clientAccent(job), 0.2)}`,
             flexShrink: 0,
           }}
         >
@@ -972,22 +986,28 @@ export function EntityLinkCard({
     <Box
       component={href ? Link : 'div'}
       href={href}
-      sx={(theme) => ({
-        display: 'block',
-        px: 0.15,
-        py: 1,
-        textDecoration: 'none',
-        color: 'inherit',
-        borderTop: '1px solid',
-        borderColor: 'divider',
-        transition: 'background-color 140ms ease, transform 140ms ease',
-        '&:hover': isLink
-          ? {
-              bgcolor: alpha(theme.palette.action.hover, 0.04),
-              transform: 'translateX(2px)',
-            }
-          : undefined,
-      })}
+      sx={(theme) => {
+        const dark = theme.palette.mode === 'dark';
+        return {
+          display: 'block',
+          px: 1.25,
+          py: 1,
+          textDecoration: 'none',
+          color: 'inherit',
+          borderRadius: 2.5,
+          border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          bgcolor: dark ? alpha(theme.palette.common.white, 0.015) : alpha(theme.palette.common.black, 0.015),
+          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          '&:hover': isLink
+            ? {
+                bgcolor: alpha(accent || OPS_ACCENT, 0.06),
+                borderColor: alpha(accent || OPS_ACCENT, 0.2),
+                transform: 'translateY(-1px)',
+                boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.06)}`,
+              }
+            : undefined,
+        };
+      }}
     >
       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
         <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
@@ -1199,22 +1219,29 @@ export function OperationCard({
     <Box
       onClick={onClick}
       sx={(theme) => {
-        const riskGlow = risk.level === 'critical'
-          ? `inset 3px 0 0 0 ${theme.palette.error.main}`
+        const dark = theme.palette.mode === 'dark';
+        const riskColor = risk.level === 'critical'
+          ? theme.palette.error.main
           : risk.level === 'high'
-            ? `inset 3px 0 0 0 ${alpha(theme.palette.warning.main, 0.7)}`
-            : 'none';
+            ? theme.palette.warning.main
+            : null;
         return {
           cursor: onClick ? 'pointer' : 'default',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          py: 1.5,
-          boxShadow: riskGlow,
-          transition: 'background-color 140ms ease, transform 140ms ease',
-          '&:hover': {
-            bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
-            transform: onClick ? 'translateX(2px)' : 'none',
-          },
+          p: 2,
+          my: 0.75,
+          borderRadius: 3,
+          border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+          boxShadow: riskColor
+            ? `inset 3px 0 0 0 ${riskColor}, 0 1px 4px ${alpha(theme.palette.common.black, 0.05)}`
+            : `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          '&:hover': onClick ? {
+            transform: 'translateY(-1px)',
+            boxShadow: riskColor
+              ? `inset 3px 0 0 0 ${riskColor}, 0 6px 16px ${alpha(theme.palette.common.black, 0.12)}`
+              : `0 6px 16px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
+          } : {},
         };
       }}
     >
@@ -1455,12 +1482,14 @@ export function OperationsContextRail({
 }) {
   return (
     <Box
-      sx={{
-        position: 'sticky',
-        top: 104,
-        pl: { xs: 0, md: 2.5 },
-        borderLeft: { xs: 'none', md: '1px solid' },
-        borderColor: { xs: 'transparent', md: 'divider' },
+      sx={(theme) => {
+        const dark = theme.palette.mode === 'dark';
+        return {
+          position: 'sticky',
+          top: 104,
+          pl: { xs: 0, md: 2.5 },
+          borderLeft: { xs: 'none', md: `2px solid ${alpha(theme.palette.primary.main, dark ? 0.15 : 0.12)}` },
+        };
       }}
     >
       <Stack spacing={2}>

@@ -8,7 +8,6 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -144,14 +143,18 @@ export default function OperationsRadarClient() {
                 }
               >
                 <Stack spacing={2.5}>
-                  <Paper
-                    variant="outlined"
-                    sx={(theme) => ({
-                      px: 2,
-                      py: 2,
-                      borderRadius: 3,
-                      borderLeft: `3px solid ${theme.palette.error.main}`,
-                    })}
+                  <Box
+                    sx={(theme) => {
+                      const dark = theme.palette.mode === 'dark';
+                      return {
+                        px: 2,
+                        py: 2,
+                        borderRadius: 4,
+                        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                        bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                        boxShadow: `inset 3px 0 0 0 ${theme.palette.error.main}, 0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+                      };
+                    }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                       <Box>
@@ -175,16 +178,20 @@ export default function OperationsRadarClient() {
                         <EmptyOperationState title={OPS_COPY.radar.emptyCriticalTitle} description={OPS_COPY.radar.emptyCriticalDescription} />
                       )}
                     </Stack>
-                  </Paper>
+                  </Box>
 
-                  <Paper
-                    variant="outlined"
-                    sx={(theme) => ({
-                      px: 2,
-                      py: 2,
-                      borderRadius: 3,
-                      borderLeft: `3px solid ${theme.palette.warning.main}`,
-                    })}
+                  <Box
+                    sx={(theme) => {
+                      const dark = theme.palette.mode === 'dark';
+                      return {
+                        px: 2,
+                        py: 2,
+                        borderRadius: 4,
+                        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                        bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                        boxShadow: `inset 3px 0 0 0 ${theme.palette.warning.main}, 0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+                      };
+                    }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                       <Box>
@@ -207,7 +214,7 @@ export default function OperationsRadarClient() {
                         <EmptyOperationState title="Sem risco alto" description={OPS_COPY.radar.emptyHigh} />
                       )}
                     </Stack>
-                  </Paper>
+                  </Box>
                 </Stack>
               </OpsSection>
             </Stack>

@@ -148,7 +148,12 @@ export default function OperationsJobsClient() {
           <Grid size={{ xs: 12, lg: 8 }}>
             <Stack spacing={2}>
               {/* Search + filter bar */}
-              <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+              <Box sx={{
+                borderRadius: 4, overflow: 'hidden',
+                border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+              }}>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: 1 }}>
                   <TextField
                     fullWidth
@@ -226,7 +231,7 @@ export default function OperationsJobsClient() {
                     </Grid>
                   </Box>
                 </Collapse>
-              </Paper>
+              </Box>
 
               {/* Job buckets */}
               {filteredJobs.length === 0 ? (
@@ -335,41 +340,58 @@ function BucketGroup({
   const color = bucket.color !== 'default' ? theme.palette[bucket.color].main : alpha(theme.palette.text.primary, 0.5);
 
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', borderColor: alpha(color, 0.2) }}>
-      {/* Bucket header */}
+    <Box sx={{
+      borderRadius: 4,
+      overflow: 'hidden',
+      border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+      bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.5),
+      boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+      transition: 'box-shadow 200ms ease',
+      '&:hover': {
+        boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.08)}`,
+      },
+    }}>
+      {/* Bucket header — gradient accent */}
       <Box
         onClick={() => setExpanded(!expanded)}
         sx={{
-          px: 2, py: 1,
+          px: 2, py: 1.1,
           display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
-          bgcolor: alpha(color, dark ? 0.06 : 0.03),
-          borderBottom: expanded ? `1px solid ${alpha(color, 0.12)}` : undefined,
-          transition: 'background 120ms ease',
-          '&:hover': { bgcolor: alpha(color, dark ? 0.1 : 0.06) },
+          background: `linear-gradient(135deg, ${alpha(color, dark ? 0.1 : 0.06)} 0%, ${alpha(color, dark ? 0.03 : 0.01)} 100%)`,
+          borderBottom: expanded ? `1px solid ${alpha(color, 0.1)}` : undefined,
+          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          '&:hover': { background: `linear-gradient(135deg, ${alpha(color, dark ? 0.14 : 0.09)} 0%, ${alpha(color, dark ? 0.05 : 0.03)} 100%)` },
         }}
       >
         <Box sx={{
-          width: 26, height: 26, borderRadius: '50%',
+          width: 28, height: 28, borderRadius: 2,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: alpha(color, 0.14), color,
-          border: `1.5px solid ${alpha(color, 0.35)}`,
+          background: `linear-gradient(135deg, ${color}, ${alpha(color, 0.7)})`,
+          color: '#fff',
+          boxShadow: `0 2px 6px ${alpha(color, 0.3)}`,
         }}>
           {bucket.icon}
         </Box>
         <Typography variant="body2" fontWeight={800}>{bucket.label}</Typography>
-        <Typography variant="body2" sx={{ fontWeight: 900, color, fontSize: '1rem' }}>
+        <Box sx={{
+          px: 0.75, py: 0.15, borderRadius: 100,
+          bgcolor: alpha(color, 0.12), color,
+          fontSize: '0.82rem', fontWeight: 900, minWidth: 22, textAlign: 'center',
+        }}>
           {jobs.length}
-        </Typography>
+        </Box>
         <Box sx={{ flex: 1 }} />
         {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
       </Box>
 
       {/* Job rows */}
       <Collapse in={expanded}>
-        {jobs.sort(sortByOperationalPriority).map((job) => (
-          <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage />
-        ))}
+        <Box sx={{ py: 0.5 }}>
+          {jobs.sort(sortByOperationalPriority).map((job) => (
+            <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage />
+          ))}
+        </Box>
       </Collapse>
-    </Paper>
+    </Box>
   );
 }

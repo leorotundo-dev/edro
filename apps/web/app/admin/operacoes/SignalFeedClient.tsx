@@ -16,7 +16,6 @@ import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
-import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
@@ -112,33 +111,51 @@ function SignalCard({
       sx={{
         px: 2,
         py: 1.5,
+        mx: 1,
+        my: 0.5,
         cursor: 'pointer',
-        borderLeft: `3px solid ${paletteColor}`,
-        bgcolor: selected ? alpha(paletteColor, dark ? 0.08 : 0.04) : 'transparent',
-        transition: 'all 120ms ease',
-        '&:hover': { bgcolor: alpha(paletteColor, dark ? 0.06 : 0.03) },
-        '&:not(:last-child)': {
-          borderBottom: `1px solid ${theme.palette.divider}`,
+        borderRadius: 3,
+        border: selected
+          ? `1.5px solid ${alpha(paletteColor, 0.4)}`
+          : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05)}`,
+        bgcolor: selected
+          ? alpha(paletteColor, dark ? 0.1 : 0.05)
+          : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+        boxShadow: selected
+          ? `0 0 0 3px ${alpha(paletteColor, 0.08)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.06)}`
+          : `inset 3px 0 0 0 ${paletteColor}, 0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+        transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+        '&:hover': {
+          transform: 'translateY(-1px)',
+          boxShadow: selected
+            ? `0 0 0 3px ${alpha(paletteColor, 0.12)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`
+            : `inset 3px 0 0 0 ${paletteColor}, 0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.08)}`,
         },
       }}
     >
       <Stack spacing={0.75}>
         {/* Header row */}
         <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ color: paletteColor, display: 'flex' }}>{cfg.icon}</Box>
+          <Box sx={{
+            width: 22, height: 22, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: alpha(paletteColor, 0.14), color: paletteColor,
+          }}>
+            {cfg.icon}
+          </Box>
           <Chip
             size="small"
             label={cfg.label}
             color={cfg.color}
             variant="outlined"
-            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderRadius: 1 }}
+            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderRadius: 100 }}
           />
           <Chip
             size="small"
             label={domainLabel(signal.domain)}
             icon={domainIcon(signal.domain) || undefined}
             variant="filled"
-            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.text.primary, dark ? 0.06 : 0.05), color: 'text.secondary' }}
+            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.text.primary, dark ? 0.06 : 0.05), color: 'text.secondary', borderRadius: 100 }}
           />
           {signal.client_name && (
             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -174,7 +191,7 @@ function SignalCard({
                 size="small"
                 variant={idx === 0 ? 'contained' : 'text'}
                 color={idx === 0 && cfg.color !== 'default' ? cfg.color : undefined}
-                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 1, px: 1.25, textTransform: 'none' }}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 100, px: 1.5, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
@@ -183,7 +200,7 @@ function SignalCard({
                 key={idx}
                 size="small"
                 variant="text"
-                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 1, px: 1.25, textTransform: 'none' }}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 100, px: 1.5, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
@@ -261,14 +278,19 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
   if (!ownerStats.length) return null;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+    <Box sx={{
+      p: 2, borderRadius: 3,
+      border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+      bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+      boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+    }}>
       <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
         <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.68rem', color: 'text.secondary' }}>
           Capacidade do time
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Button component={Link} href="/admin/operacoes/semana" size="small" endIcon={<IconChevronRight size={14} />}
-          sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
+          sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: 100 }}>
           Ver semana
         </Button>
       </Stack>
@@ -298,7 +320,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
           );
         })}
       </Stack>
-    </Paper>
+    </Box>
   );
 }
 
@@ -383,9 +405,13 @@ export default function SignalFeedClient() {
           <Skeleton variant="rounded" height={300} sx={{ borderRadius: 2 }} />
         </Stack>
       ) : (
-        <Stack spacing={2.5}>
-          {/* ── Hero KPI Strip ── */}
-          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+        <Stack spacing={3}>
+          {/* ── Hero KPI Strip — glass cards with glow ── */}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+            gap: 1.5,
+          }}>
             {[
               { value: signals.length, label: 'Sinais', color: theme.palette.primary.main, pulse: false },
               { value: criticalSignals, label: 'Críticos', color: theme.palette.error.main, pulse: criticalSignals > 0 },
@@ -393,69 +419,114 @@ export default function SignalFeedClient() {
               { value: blockedCount, label: 'Bloqueados', color: '#FA896B', pulse: blockedCount > 0 },
               { value: unassignedCount, label: 'Sem dono', color: '#FFAE1F', pulse: false },
               { value: activeJobs.length, label: 'Ativos', color: theme.palette.success.main, pulse: false },
-            ].map((kpi) => (
-              <Paper
-                key={kpi.label}
-                variant="outlined"
-                sx={{
-                  flex: '1 1 100px',
-                  minWidth: 90,
-                  p: 1.5,
-                  borderRadius: 2.5,
-                  textAlign: 'center',
-                  borderColor: kpi.value > 0 ? alpha(kpi.color, 0.3) : 'divider',
-                  bgcolor: kpi.value > 0 ? alpha(kpi.color, 0.04) : 'transparent',
-                  transition: 'all 200ms ease',
-                  ...(kpi.pulse && {
-                    animation: 'kpiPulse 2s ease-in-out infinite',
-                    '@keyframes kpiPulse': {
-                      '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(kpi.color, 0.3)}` },
-                      '50%': { boxShadow: `0 0 0 4px ${alpha(kpi.color, 0.15)}` },
-                    },
-                  }),
-                }}
-              >
-                <Typography
-                  variant="h4"
+            ].map((kpi) => {
+              const dark = theme.palette.mode === 'dark';
+              const active = kpi.value > 0;
+              return (
+                <Box
+                  key={kpi.label}
                   sx={{
-                    fontWeight: 900,
-                    lineHeight: 1,
-                    color: kpi.value > 0 ? kpi.color : 'text.disabled',
-                    fontSize: { xs: '1.5rem', md: '2rem' },
+                    p: 2,
+                    borderRadius: 4,
+                    textAlign: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: `1px solid ${active ? alpha(kpi.color, 0.25) : dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                    bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                    boxShadow: active
+                      ? `0 2px 12px ${alpha(kpi.color, 0.12)}`
+                      : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+                    transition: 'all 300ms cubic-bezier(0.4,0,0.2,1)',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 6px 20px ${alpha(kpi.color, active ? 0.2 : 0.08)}`,
+                    },
+                    ...(kpi.pulse && {
+                      animation: 'kpiGlow 2.5s ease-in-out infinite',
+                      '@keyframes kpiGlow': {
+                        '0%, 100%': { boxShadow: `0 2px 12px ${alpha(kpi.color, 0.12)}` },
+                        '50%': { boxShadow: `0 4px 24px ${alpha(kpi.color, 0.3)}` },
+                      },
+                    }),
+                    // Subtle gradient accent at top
+                    '&::before': active ? {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 3,
+                      background: `linear-gradient(90deg, ${kpi.color}, ${alpha(kpi.color, 0.3)})`,
+                      borderRadius: '16px 16px 0 0',
+                    } : {},
                   }}
                 >
-                  {kpi.value}
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {kpi.label}
-                </Typography>
-              </Paper>
-            ))}
-          </Stack>
+                  <Typography
+                    sx={{
+                      fontWeight: 900,
+                      lineHeight: 1,
+                      fontSize: { xs: '1.6rem', md: '2.2rem' },
+                      color: active ? kpi.color : 'text.disabled',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {kpi.value}
+                  </Typography>
+                  <Typography variant="caption" sx={{
+                    fontWeight: 700, color: 'text.secondary', fontSize: '0.62rem',
+                    textTransform: 'uppercase', letterSpacing: '0.1em', mt: 0.5, display: 'block',
+                  }}>
+                    {kpi.label}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
 
           <Grid container spacing={2.5}>
             {/* Signal feed (main content) */}
             <Grid size={{ xs: 12, lg: 8 }}>
-              <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+              <Box sx={{
+                borderRadius: 4,
+                overflow: 'hidden',
+                border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.6),
+                boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.12 : 0.04)}`,
+              }}>
                 {/* Feed header */}
-                <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Box sx={{
+                  px: 2, py: 1.25,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  background: theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.common.white, 0.02)
+                    : `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.95)}, ${alpha(theme.palette.background.default, 0.5)})`,
+                }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <IconInbox size={16} style={{ opacity: 0.5 }} />
+                      <Box sx={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main,
+                      }}>
+                        <IconInbox size={13} />
+                      </Box>
                       <Typography variant="body2" sx={{ fontWeight: 800 }}>
                         Feed de sinais
                       </Typography>
                       {signals.length > 0 && (
                         <Box sx={{
-                          px: 0.75, py: 0.1, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.12),
-                          color: theme.palette.primary.main, fontSize: '0.7rem', fontWeight: 800,
+                          px: 0.75, py: 0.15, borderRadius: 100,
+                          bgcolor: alpha(theme.palette.primary.main, 0.12),
+                          color: theme.palette.primary.main, fontSize: '0.68rem', fontWeight: 800,
                         }}>
                           {signals.length}
                         </Box>
                       )}
                     </Stack>
                     <Tooltip title="Recalcular sinais">
-                      <IconButton size="small" onClick={handleRefreshAll} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                      <IconButton size="small" onClick={handleRefreshAll} sx={{
+                        opacity: 0.5, '&:hover': { opacity: 1, bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                      }}>
                         <IconRefresh size={16} />
                       </IconButton>
                     </Tooltip>
@@ -463,65 +534,78 @@ export default function SignalFeedClient() {
                 </Box>
 
                 {/* Signal list */}
-                {signals.length === 0 ? (
-                  <EmptySignals />
-                ) : (
-                  signals.map((signal) => (
-                    <SignalCard
-                      key={signal.id}
-                      signal={signal}
-                      selected={selectedSignal?.id === signal.id}
-                      onClick={() => handleSelectSignal(signal)}
-                      onResolve={() => handleResolve(signal.id)}
-                      onSnooze={() => handleSnooze(signal.id)}
-                    />
-                  ))
-                )}
-              </Paper>
+                <Box sx={{ py: 0.5 }}>
+                  {signals.length === 0 ? (
+                    <EmptySignals />
+                  ) : (
+                    signals.map((signal) => (
+                      <SignalCard
+                        key={signal.id}
+                        signal={signal}
+                        selected={selectedSignal?.id === signal.id}
+                        onClick={() => handleSelectSignal(signal)}
+                        onResolve={() => handleResolve(signal.id)}
+                        onSnooze={() => handleSnooze(signal.id)}
+                      />
+                    ))
+                  )}
+                </Box>
+              </Box>
             </Grid>
 
             {/* Right sidebar: quick stats + capacity */}
             <Grid size={{ xs: 12, lg: 4 }}>
-              <Stack spacing={2}>
-                {/* Quick action links — big visual blocks */}
+              <Stack spacing={1.5}>
+                {/* Quick action links — modern floating cards */}
                 {[
                   { label: 'Sem dono', value: unassignedCount, href: '/admin/operacoes/jobs?unassigned=true', color: theme.palette.warning.main, icon: <IconClock size={18} /> },
                   { label: 'Bloqueados', value: blockedCount, href: '/admin/operacoes/radar', color: theme.palette.error.main, icon: <IconFlag size={18} /> },
                   { label: 'Aprovação', value: activeJobs.filter((j) => j.status === 'awaiting_approval').length, href: '/admin/operacoes/jobs', color: theme.palette.info.main, icon: <IconCheck size={18} /> },
-                ].map((item) => (
-                  <Paper
-                    key={item.label}
-                    component={Link}
-                    href={item.href}
-                    variant="outlined"
-                    sx={{
-                      display: 'flex', alignItems: 'center', gap: 1.5,
-                      px: 2, py: 1.5, borderRadius: 2.5,
-                      textDecoration: 'none', color: 'inherit',
-                      borderColor: item.value > 0 ? alpha(item.color, 0.3) : 'divider',
-                      transition: 'all 140ms ease',
-                      '&:hover': { bgcolor: alpha(item.color, 0.04), transform: 'translateX(2px)' },
-                    }}
-                  >
-                    <Box sx={{
-                      width: 36, height: 36, borderRadius: 1.5,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      bgcolor: alpha(item.color, item.value > 0 ? 0.14 : 0.06),
-                      color: item.value > 0 ? item.color : 'text.disabled',
-                    }}>
-                      {item.icon}
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.68rem' }}>
-                        {item.label}
+                ].map((item) => {
+                  const dark = theme.palette.mode === 'dark';
+                  const active = item.value > 0;
+                  return (
+                    <Box
+                      key={item.label}
+                      component={Link}
+                      href={item.href}
+                      sx={{
+                        display: 'flex', alignItems: 'center', gap: 1.5,
+                        px: 2, py: 1.5, borderRadius: 3,
+                        textDecoration: 'none', color: 'inherit',
+                        border: `1px solid ${active ? alpha(item.color, 0.2) : dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                        bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                        boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+                        transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 4px 16px ${alpha(item.color, active ? 0.18 : 0.08)}`,
+                          borderColor: alpha(item.color, 0.3),
+                        },
+                      }}
+                    >
+                      <Box sx={{
+                        width: 38, height: 38, borderRadius: 2,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: active
+                          ? `linear-gradient(135deg, ${alpha(item.color, 0.2)}, ${alpha(item.color, 0.08)})`
+                          : alpha(theme.palette.text.primary, 0.04),
+                        color: active ? item.color : 'text.disabled',
+                      }}>
+                        {item.icon}
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.68rem' }}>
+                          {item.label}
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ fontWeight: 900, color: active ? item.color : 'text.disabled', fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.value}
                       </Typography>
+                      <IconChevronRight size={16} style={{ opacity: 0.3 }} />
                     </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: item.value > 0 ? item.color : 'text.disabled' }}>
-                      {item.value}
-                    </Typography>
-                    <IconChevronRight size={16} style={{ opacity: 0.3 }} />
-                  </Paper>
-                ))}
+                  );
+                })}
 
                 {/* Team capacity */}
                 <TeamCapacityMini jobs={jobs} owners={lookups.owners} />

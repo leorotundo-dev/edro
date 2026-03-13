@@ -226,25 +226,23 @@ function JobCard({
         sx={{
           px: 1,
           py: 0.75,
-          borderRadius: 1,
+          borderRadius: 2.5,
           cursor: 'grab',
-          borderLeft: `3px solid ${color}`,
           bgcolor: selected
-            ? alpha(color, dark ? 0.16 : 0.1)
-            : dark ? alpha(theme.palette.common.white, 0.03) : theme.palette.background.paper,
+            ? alpha(color, dark ? 0.16 : 0.08)
+            : dark ? alpha(theme.palette.common.white, 0.025) : '#fff',
           border: selected
-            ? `1px solid ${alpha(color, 0.4)}`
-            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
-          borderLeftWidth: '3px',
-          borderLeftColor: color,
-          boxShadow: risk.level === 'critical'
-            ? `inset 0 0 0 1px ${alpha(theme.palette.error.main, 0.35)}`
-            : 'none',
-          transition: 'all 120ms ease',
+            ? `1.5px solid ${alpha(color, 0.4)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          boxShadow: selected
+            ? `0 0 0 2px ${alpha(color, 0.1)}, 0 2px 6px ${alpha(theme.palette.common.black, 0.08)}`
+            : risk.level === 'critical'
+              ? `inset 3px 0 0 0 ${theme.palette.error.main}, 0 1px 3px ${alpha(theme.palette.common.black, 0.04)}`
+              : `inset 3px 0 0 0 ${color}, 0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
           '&:hover': {
-            bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.04),
-            transform: 'translateY(-1px)',
-            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.1)}`,
+            transform: 'translateY(-2px)',
+            boxShadow: `inset 3px 0 0 0 ${color}, 0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.1)}`,
           },
           '&:active': { cursor: 'grabbing' },
         }}
@@ -664,9 +662,10 @@ export default function WeekCalendarClient() {
             sx={{
               px: 2,
               py: 1.25,
-              borderRadius: '12px 12px 0 0',
-              border: `1px solid ${theme.palette.divider}`,
-              bgcolor: dark ? alpha(theme.palette.background.paper, 0.5) : theme.palette.background.paper,
+              borderRadius: '16px 16px 0 0',
+              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+              bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+              boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
