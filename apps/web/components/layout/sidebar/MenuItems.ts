@@ -1,5 +1,6 @@
 import {
   IconHome,
+  IconLayoutDashboard,
   IconClipboardList,
   IconUsers,
   IconCalendar,
@@ -43,6 +44,14 @@ const MenuItems: MenuGroupType[] = [
         title: 'Home',
         icon: IconHome,
         href: '/',
+      },
+      {
+        id: 'operacoes',
+        title: 'Central de Operações',
+        icon: IconLayoutDashboard,
+        href: '/admin/operacoes',
+        badge: 'Beta',
+        badgeColor: 'warning',
       },
       {
         id: 'briefings',
@@ -90,9 +99,11 @@ const MenuItems: MenuGroupType[] = [
       },
       {
         id: 'kanban',
-        title: 'Kanban',
+        title: 'Kanban (legado)',
         icon: IconLayoutKanban,
         href: '/board',
+        badge: 'Old',
+        badgeColor: 'secondary',
       },
     ],
   },
