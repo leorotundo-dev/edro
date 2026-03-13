@@ -7,7 +7,7 @@
 import { generateWithTools as claudeWithTools } from './claudeService';
 import { generateWithTools as openaiWithTools } from './openaiService';
 import { generateWithTools as geminiWithTools } from './geminiService';
-import { executeTool, type ToolContext } from './toolExecutor';
+import { executeTool, type ToolContext, type ToolResult } from './toolExecutor';
 import { toClaudeTools, toOpenAITools, toGeminiTools, ToolDefinition } from './toolDefinitions';
 import { fireAndForgetLog } from './copyOrchestrator';
 import type { CopyProvider, UsageContext } from './copyOrchestrator';
@@ -22,16 +22,20 @@ export type LoopMessage = {
   toolName?: string;
 };
 
+export type ToolExecutorFn = (toolName: string, args: Record<string, any>, ctx: any) => Promise<ToolResult>;
+
 export type ToolUseLoopParams = {
   messages: LoopMessage[];
   systemPrompt: string;
   tools: ToolDefinition[];
   provider: CopyProvider;
-  toolContext: ToolContext;
+  toolContext: ToolContext | Record<string, any>;
   maxIterations?: number;
   temperature?: number;
   maxTokens?: number;
   usageContext?: UsageContext;
+  /** Custom tool executor — defaults to executeTool from toolExecutor.ts */
+  toolExecutorFn?: ToolExecutorFn;
 };
 
 export type ToolUseLoopResult = {
@@ -56,6 +60,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
     temperature = 0.7,
     maxTokens = 4096,
     usageContext,
+    toolExecutorFn = executeTool,
   } = params;
 
   const startMs = Date.now();
@@ -117,7 +122,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
       // Execute all tool calls and build tool_result content
       const toolResults: any[] = [];
       for (const block of toolUseBlocks) {
-        const toolResult = await executeTool(block.name!, block.input || {}, toolContext);
+        const toolResult = await toolExecutorFn(block.name!, block.input || {}, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Claude tool=${block.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: block.name!, data: toolResult.data ?? null, success: toolResult.success });
@@ -198,7 +203,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
             : tc.function.arguments || {};
         } catch { /* keep empty args */ }
 
-        const toolResult = await executeTool(tc.function.name, args, toolContext);
+        const toolResult = await toolExecutorFn(tc.function.name, args, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] OpenAI tool=${tc.function.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: tc.function.name, data: toolResult.data ?? null, success: toolResult.success });
@@ -265,7 +270,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
       // Execute and append function responses
       const responseParts: any[] = [];
       for (const fc of functionCalls) {
-        const toolResult = await executeTool(fc.functionCall.name, fc.functionCall.args || {}, toolContext);
+        const toolResult = await toolExecutorFn(fc.functionCall.name, fc.functionCall.args || {}, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Gemini tool=${fc.functionCall.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: fc.functionCall.name, data: toolResult.data ?? null, success: toolResult.success });

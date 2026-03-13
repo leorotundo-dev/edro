@@ -42,6 +42,12 @@ export type ToolContext = {
   userEmail?: string;
 };
 
+export type OperationsToolContext = {
+  tenantId: string;
+  userId?: string;
+  userEmail?: string;
+};
+
 export type ToolResult = {
   success: boolean;
   data?: any;
@@ -2005,4 +2011,370 @@ async function toolGetWhatsAppDigests(args: any, ctx: ToolContext): Promise<Tool
       data: r.created_at,
     })),
   };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── OPERATIONS TOOLS (tenant-scoped, no clientId) ────────────────
+// ══════════════════════════════════════════════════════════════════
+
+import {
+  buildOverviewSnapshot,
+  buildRiskSnapshot,
+  upsertJobAllocation,
+  syncOperationalRuntimeForJob,
+} from '../../services/jobs/operationsRuntimeService';
+import { calculatePriority } from '../../services/jobs/priorityService';
+import { estimateMinutes } from '../../services/jobs/estimationService';
+
+const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
+  list_operations_jobs: opsListJobs,
+  get_operations_job: opsGetJob,
+  get_operations_overview: opsGetOverview,
+  get_operations_risks: opsGetRisks,
+  get_operations_signals: opsGetSignals,
+  get_operations_team: opsGetTeam,
+  get_operations_lookups: opsGetLookups,
+  create_operations_job: opsCreateJob,
+  update_operations_job: opsUpdateJob,
+  change_job_status: opsChangeJobStatus,
+  assign_job_owner: opsAssignOwner,
+  resolve_operations_signal: opsResolveSignal,
+  snooze_operations_signal: opsSnoozeSignal,
+  manage_job_allocation: opsManageAllocation,
+};
+
+export async function executeOperationsTool(
+  toolName: string,
+  args: Record<string, any>,
+  ctx: OperationsToolContext,
+): Promise<ToolResult> {
+  const handler = OPS_TOOL_MAP[toolName];
+  if (!handler) {
+    return { success: false, error: `Operations tool '${toolName}' not found` };
+  }
+  try {
+    const result = await Promise.race([
+      handler(args, ctx),
+      new Promise<ToolResult>((_, reject) =>
+        setTimeout(() => reject(new Error('TOOL_TIMEOUT_10s')), 10000),
+      ),
+    ]);
+    return truncateResult(result);
+  } catch (err: any) {
+    console.error(`[opsToolExecutor] ${toolName} failed:`, err.message);
+    return { success: false, error: err.message || 'Tool execution failed' };
+  }
+}
+
+// ── Operations Tool Implementations ──────────────────────────────
+
+async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const values: any[] = [ctx.tenantId];
+  const where = [`j.tenant_id = $1`, `j.status <> 'archived'`];
+
+  if (args.status) { values.push(args.status); where.push(`j.status = $${values.length}`); }
+  if (args.priority_band) { values.push(args.priority_band); where.push(`j.priority_band = $${values.length}`); }
+  if (args.owner_id) { values.push(args.owner_id); where.push(`j.owner_id = $${values.length}`); }
+  if (args.client_id) { values.push(args.client_id); where.push(`j.client_id = $${values.length}`); }
+  if (args.urgent === true) { where.push(`j.is_urgent = true`); }
+  if (args.unassigned === true) { where.push(`j.owner_id IS NULL`); }
+
+  const limit = Math.min(args.limit || 20, 50);
+
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.status, j.priority_band, j.job_type, j.complexity,
+            j.is_urgent, j.deadline_at, j.estimated_minutes, j.created_at,
+            c.name AS client_name,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name
+     FROM jobs j
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       CASE j.priority_band WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 WHEN 'p3' THEN 3 ELSE 4 END,
+       j.deadline_at ASC NULLS LAST,
+       j.created_at DESC
+     LIMIT $${values.length + 1}`,
+    [...values, limit],
+  );
+
+  return { success: true, data: safeData(rows, 30), metadata: { row_count: rows.length } };
+}
+
+async function opsGetJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const { rows } = await query(
+    `SELECT j.*,
+            c.name AS client_name,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+            u.email AS owner_email
+     FROM jobs j
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     WHERE j.tenant_id = $1 AND j.id = $2
+     LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+
+  const history = await query(
+    `SELECT h.from_status, h.to_status, h.reason, h.changed_at,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS changed_by_name
+     FROM job_status_history h
+     LEFT JOIN edro_users u ON u.id = h.changed_by
+     WHERE h.job_id = $1
+     ORDER BY h.changed_at DESC LIMIT 10`,
+    [args.job_id],
+  );
+
+  const comments = await query(
+    `SELECT jc.body, jc.created_at,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS author_name
+     FROM job_comments jc
+     LEFT JOIN edro_users u ON u.id = jc.author_id
+     WHERE jc.job_id = $1
+     ORDER BY jc.created_at DESC LIMIT 10`,
+    [args.job_id],
+  );
+
+  return {
+    success: true,
+    data: {
+      ...rows[0],
+      history: history.rows,
+      comments: comments.rows,
+    },
+  };
+}
+
+async function opsGetOverview(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const data = await buildOverviewSnapshot(ctx.tenantId);
+  return { success: true, data };
+}
+
+async function opsGetRisks(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const data = await buildRiskSnapshot(ctx.tenantId);
+  return { success: true, data };
+}
+
+async function opsGetSignals(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 20, 50);
+  const { rows } = await query(
+    `SELECT id, domain, signal_type, severity, title, summary,
+            entity_type, entity_id, client_id, client_name,
+            actions, created_at, snoozed_until
+     FROM operational_signals
+     WHERE tenant_id = $1 AND resolved_at IS NULL
+       AND (snoozed_until IS NULL OR snoozed_until < now())
+     ORDER BY severity DESC, created_at DESC
+     LIMIT $2`,
+    [ctx.tenantId, limit],
+  );
+  return { success: true, data: safeData(rows, 20), metadata: { row_count: rows.length } };
+}
+
+async function opsGetTeam(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const { rows } = await query(
+    `SELECT
+       u.id,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+       u.email,
+       tu.role,
+       fp.specialty,
+       CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+       (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status NOT IN ('done','archived')) AS active_jobs,
+       (SELECT COALESCE(SUM(j.estimated_minutes),0) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status NOT IN ('done','archived')) AS total_estimated_minutes
+     FROM tenant_users tu
+     JOIN edro_users u ON u.id = tu.user_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+     WHERE tu.tenant_id = $1
+     ORDER BY name ASC`,
+    [ctx.tenantId],
+  );
+  return { success: true, data: safeData(rows, 20) };
+}
+
+async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const [jobTypesRes, skillsRes, channelsRes, clientsRes, ownersRes] = await Promise.all([
+    query(`SELECT code, label FROM job_types ORDER BY label ASC`),
+    query(`SELECT code, label, category FROM skills ORDER BY label ASC`),
+    query(`SELECT code, label FROM channels ORDER BY label ASC`),
+    query(`SELECT id, name FROM clients WHERE tenant_id = $1 ORDER BY name ASC`, [ctx.tenantId]),
+    query(
+      `SELECT u.id, COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name
+       FROM tenant_users tu JOIN edro_users u ON u.id = tu.user_id
+       WHERE tu.tenant_id = $1 ORDER BY name ASC`,
+      [ctx.tenantId],
+    ),
+  ]);
+  return {
+    success: true,
+    data: {
+      job_types: jobTypesRes.rows,
+      skills: skillsRes.rows,
+      channels: channelsRes.rows,
+      clients: clientsRes.rows,
+      owners: ownersRes.rows,
+    },
+  };
+}
+
+async function opsCreateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const estMinutes = args.estimated_minutes || estimateMinutes({
+    jobType: args.job_type,
+    complexity: args.complexity,
+    channel: args.channel,
+  });
+  const { priorityScore, priorityBand } = calculatePriority({
+    deadlineAt: args.deadline_at,
+    impactLevel: args.impact_level ?? 2,
+    dependencyLevel: args.dependency_level ?? 2,
+    clientWeight: 3,
+    isUrgent: args.is_urgent,
+    intakeComplete: Boolean(args.client_id && args.owner_id && args.deadline_at),
+    blocked: false,
+  });
+
+  const { rows } = await query(
+    `INSERT INTO jobs (
+       tenant_id, client_id, title, summary, job_type, complexity, channel, source,
+       status, priority_score, priority_band, impact_level, dependency_level,
+       owner_id, deadline_at, estimated_minutes, is_urgent, urgency_reason,
+       created_by, metadata
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,$8,'intake',$9,$10,2,2,$11,$12,$13,$14,$15,$16,'{}'::jsonb
+     ) RETURNING *`,
+    [
+      ctx.tenantId,
+      args.client_id ?? null,
+      args.title,
+      args.summary ?? null,
+      args.job_type,
+      args.complexity,
+      args.channel ?? null,
+      args.source || 'jarvis',
+      priorityScore,
+      priorityBand,
+      args.owner_id ?? null,
+      args.deadline_at ?? null,
+      estMinutes,
+      args.is_urgent ?? false,
+      args.urgency_reason ?? null,
+      ctx.userId ?? null,
+    ],
+  );
+
+  await query(
+    `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
+     VALUES ($1, NULL, 'intake', $2, 'created_by_jarvis')`,
+    [rows[0].id, ctx.userId ?? null],
+  );
+  await syncOperationalRuntimeForJob(ctx.tenantId, rows[0].id);
+
+  return { success: true, data: { id: rows[0].id, title: rows[0].title, status: rows[0].status, priority_band: rows[0].priority_band } };
+}
+
+async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const existingRes = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [ctx.tenantId, args.job_id]);
+  if (!existingRes.rows.length) return { success: false, error: 'Job não encontrado.' };
+
+  const existing = existingRes.rows[0];
+  const sets: string[] = [];
+  const values: any[] = [ctx.tenantId, args.job_id];
+
+  const updatable: Record<string, string> = {
+    title: 'title', summary: 'summary', owner_id: 'owner_id',
+    deadline_at: 'deadline_at', complexity: 'complexity',
+    is_urgent: 'is_urgent', urgency_reason: 'urgency_reason',
+  };
+
+  for (const [argKey, col] of Object.entries(updatable)) {
+    if (args[argKey] !== undefined) {
+      values.push(args[argKey]);
+      sets.push(`${col} = $${values.length}`);
+    }
+  }
+
+  if (!sets.length) return { success: false, error: 'Nenhum campo para atualizar.' };
+
+  const { rows } = await query(
+    `UPDATE jobs SET ${sets.join(', ')} WHERE tenant_id = $1 AND id = $2 RETURNING id, title, status, owner_id, deadline_at`,
+    values,
+  );
+  await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
+
+  return { success: true, data: rows[0] };
+}
+
+async function opsChangeJobStatus(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const currentRes = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [ctx.tenantId, args.job_id]);
+  if (!currentRes.rows.length) return { success: false, error: 'Job não encontrado.' };
+  const current = currentRes.rows[0];
+
+  if (current.status === args.status) return { success: true, data: { message: 'Status já é ' + args.status } };
+
+  const completedAt = args.status === 'done' ? new Date().toISOString() : current.completed_at;
+
+  const { rows } = await query(
+    `UPDATE jobs SET status = $3, completed_at = $4 WHERE tenant_id = $1 AND id = $2 RETURNING id, title, status`,
+    [ctx.tenantId, args.job_id, args.status, completedAt],
+  );
+
+  await query(
+    `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [args.job_id, current.status, args.status, ctx.userId ?? null, args.reason ?? 'changed_by_jarvis'],
+  );
+  await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
+
+  return { success: true, data: { ...rows[0], from_status: current.status } };
+}
+
+async function opsAssignOwner(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const { rows } = await query(
+    `UPDATE jobs SET owner_id = $3 WHERE tenant_id = $1 AND id = $2 RETURNING id, title, owner_id`,
+    [ctx.tenantId, args.job_id, args.owner_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
+
+  // Resolve owner name
+  const ownerRes = await query(
+    `SELECT COALESCE(NULLIF(name, ''), split_part(email, '@', 1)) AS name FROM edro_users WHERE id = $1`,
+    [args.owner_id],
+  );
+  return { success: true, data: { ...rows[0], owner_name: ownerRes.rows[0]?.name ?? args.owner_id } };
+}
+
+async function opsResolveSignal(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  await query(
+    `UPDATE operational_signals SET resolved_at = now(), resolved_by = $3
+     WHERE id = $1 AND tenant_id = $2`,
+    [args.signal_id, ctx.tenantId, ctx.userId ?? null],
+  );
+  return { success: true, data: { signal_id: args.signal_id, resolved: true } };
+}
+
+async function opsSnoozeSignal(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const hours = Math.min(args.hours || 4, 72);
+  await query(
+    `UPDATE operational_signals SET snoozed_until = now() + ($3 || ' hours')::interval
+     WHERE id = $1 AND tenant_id = $2`,
+    [args.signal_id, ctx.tenantId, String(hours)],
+  );
+  return { success: true, data: { signal_id: args.signal_id, snoozed_hours: hours } };
+}
+
+async function opsManageAllocation(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const data = await upsertJobAllocation(ctx.tenantId, {
+    jobId: args.job_id,
+    ownerId: args.owner_id,
+    status: args.status || 'committed',
+    plannedMinutes: args.planned_minutes,
+    startsAt: args.starts_at ?? null,
+    endsAt: args.ends_at ?? null,
+    notes: args.notes ?? null,
+    changedBy: ctx.userId ?? null,
+  });
+  await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
+  return { success: true, data };
 }

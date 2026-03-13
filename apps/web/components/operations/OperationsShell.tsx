@@ -3,8 +3,8 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { useJarvis } from '@/contexts/JarvisContext';
 import { OPS_COPY } from './copy';
+import OperationsJarvisDrawer from './OperationsJarvisDrawer';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -56,12 +56,14 @@ const COMMANDS: CommandOption[] = [
   { label: 'Alocação da semana', subtitle: 'Abrir carga da equipe e dos freelancers', kind: 'route', href: '/admin/operacoes/planner' },
   { label: 'Agenda operacional', subtitle: 'Ver impacto temporal supra-cliente', kind: 'route', href: '/admin/operacoes/agenda' },
   { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', kind: 'route', href: '/admin/operacoes/radar' },
-  { label: 'Jarvis, reorganize minha semana', subtitle: 'Enviar comando direto ao Jarvis', kind: 'jarvis', prompt: 'Reorganize minha semana operacional priorizando risco, prazo e capacidade.' },
-  { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Pedir leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
+  { label: 'Jarvis, o que tá pegando fogo?', subtitle: 'Ver riscos críticos e bloqueios', kind: 'jarvis', prompt: 'O que tá pegando fogo? Me mostra os jobs atrasados, bloqueados e sem dono que precisam de ação agora.' },
+  { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
+  { label: 'Jarvis, quem tá sobrecarregado?', subtitle: 'Ver capacidade da equipe', kind: 'jarvis', prompt: 'Me mostra a carga de trabalho de cada pessoa da equipe. Quem tá sobrecarregado e quem tem espaço?' },
+  { label: 'Jarvis, resumo da operação', subtitle: 'Snapshot completo da operação', kind: 'jarvis', prompt: 'Me dá um resumo executivo da operação: quantos jobs por status, gargalos, riscos e próximas ações.' },
 ];
 
-function dispatchJarvisPrompt(prompt: string) {
-  window.dispatchEvent(new CustomEvent('jarvis-home-send', { detail: { message: prompt } }));
+function dispatchOpsJarvisPrompt(prompt: string) {
+  window.dispatchEvent(new CustomEvent('jarvis-ops-send', { detail: { message: prompt } }));
 }
 
 export default function OperationsShell({
@@ -74,8 +76,8 @@ export default function OperationsShell({
   summary?: ReactNode;
 }) {
   const router = useRouter();
-  const { open } = useJarvis();
   const [commandInput, setCommandInput] = useState('');
+  const [jarvisOpen, setJarvisOpen] = useState(false);
   const copy = SECTION_COPY[section];
 
   const commandOptions = useMemo(() => COMMANDS, []);
@@ -88,15 +90,15 @@ export default function OperationsShell({
       if (value.kind === 'route' && value.href) {
         router.push(value.href);
       } else if (value.kind === 'jarvis' && value.prompt) {
-        open();
-        setTimeout(() => dispatchJarvisPrompt(value.prompt!), 120);
+        setJarvisOpen(true);
+        setTimeout(() => dispatchOpsJarvisPrompt(value.prompt!), 200);
       }
       setCommandInput('');
       return;
     }
 
-    open();
-    setTimeout(() => dispatchJarvisPrompt(trimmed), 120);
+    setJarvisOpen(true);
+    setTimeout(() => dispatchOpsJarvisPrompt(trimmed), 200);
     setCommandInput('');
   };
 
@@ -250,6 +252,9 @@ export default function OperationsShell({
       <Box>
         {children}
       </Box>
+
+      {/* Operations Jarvis Drawer */}
+      <OperationsJarvisDrawer open={jarvisOpen} onClose={() => setJarvisOpen(false)} />
     </AppShell>
   );
 }

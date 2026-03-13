@@ -14,6 +14,11 @@ import {
 } from '../services/jobs/operationsRuntimeService';
 import { query } from '../db';
 import { rebuildOperationalSignals } from '../services/signalService';
+import crypto from 'crypto';
+import { getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
+import { executeOperationsTool, type OperationsToolContext } from '../services/ai/toolExecutor';
+import { runToolUseLoop, type LoopMessage } from '../services/ai/toolUseLoop';
+import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
 
 const allocationSchema = z.object({
   job_id: z.string().uuid(),
@@ -141,4 +146,153 @@ export default async function operationsRoutes(app: FastifyInstance) {
     await rebuildOperationalSignals(tenantId);
     return { success: true };
   });
+
+  // ─── Jarvis Operations Chat ───
+
+  const opsChatSchema = z.object({
+    message: z.string().min(1),
+    provider: z.enum(['openai', 'anthropic', 'google']).optional().default('openai'),
+    conversationId: z.string().uuid().nullish(),
+  });
+
+  app.post('/operations/chat', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const startMs = Date.now();
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+    const userEmail = (request.user as any)?.email as string | undefined;
+
+    let body: z.infer<typeof opsChatSchema>;
+    try {
+      body = opsChatSchema.parse(request.body);
+    } catch {
+      return reply.status(400).send({ success: false, error: 'Mensagem inválida.' });
+    }
+
+    const providerMap: Record<string, 'openai' | 'claude' | 'gemini'> = {
+      openai: 'openai', anthropic: 'claude', google: 'gemini',
+    };
+    const resolvedProvider = getFallbackProvider(providerMap[body.provider] || 'openai');
+
+    const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
+      ? { tenant_id: tenantId, feature: 'operations_chat' }
+      : undefined;
+
+    // Load conversation history
+    let conversationHistory: LoopMessage[] = [];
+    if (body.conversationId) {
+      try {
+        const { rows } = await query(
+          `SELECT messages FROM operations_conversations WHERE id = $1 AND tenant_id = $2`,
+          [body.conversationId, tenantId],
+        );
+        if (rows[0]?.messages) {
+          conversationHistory = (rows[0].messages as any[])
+            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+            .slice(-20)
+            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
+        }
+      } catch { /* ignore */ }
+    }
+
+    const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
+
+    const loopMessages: LoopMessage[] = [
+      ...conversationHistory,
+      { role: 'user', content: body.message },
+    ];
+
+    const systemPrompt = buildOperationsSystemPrompt();
+
+    try {
+      const agentTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('OPS_AGENT_TIMEOUT_60s')), 60000),
+      );
+      const loopResult = await Promise.race([
+        runToolUseLoop({
+          messages: loopMessages,
+          systemPrompt,
+          tools: getOperationsToolDefinitions(),
+          provider: resolvedProvider,
+          toolContext: toolCtx,
+          maxIterations: 5,
+          temperature: 0.5,
+          maxTokens: 4096,
+          usageContext: usageCtx,
+          toolExecutorFn: executeOperationsTool,
+        }),
+        agentTimeout,
+      ]);
+
+      // Persist conversation
+      const convId = body.conversationId || crypto.randomUUID();
+      const allMessages = [
+        ...conversationHistory,
+        { role: 'user', content: body.message, timestamp: new Date().toISOString() },
+        { role: 'assistant', content: loopResult.finalText, timestamp: new Date().toISOString(), provider: loopResult.provider },
+      ];
+
+      await query(
+        `INSERT INTO operations_conversations (id, tenant_id, user_id, messages, updated_at)
+         VALUES ($1, $2, $3, $4::jsonb, now())
+         ON CONFLICT (id) DO UPDATE SET messages = $4::jsonb, updated_at = now()`,
+        [convId, tenantId, userId, JSON.stringify(allMessages)],
+      ).catch(() => {/* table may not exist yet — non-critical */});
+
+      const elapsed = Date.now() - startMs;
+      console.log(`[ops_chat] ok in ${elapsed}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
+
+      return {
+        success: true,
+        data: {
+          message: loopResult.finalText,
+          conversationId: convId,
+          provider: loopResult.provider,
+          model: loopResult.model,
+          toolsUsed: loopResult.toolCallsExecuted,
+          durationMs: elapsed,
+        },
+      };
+    } catch (err: any) {
+      const elapsed = Date.now() - startMs;
+      console.error(`[ops_chat] FAILED in ${elapsed}ms: ${err?.message || err}`);
+      return reply.status(500).send({
+        success: false,
+        error: `Falha no agente de operações (${err?.message || 'unknown'}). Tempo: ${elapsed}ms.`,
+      });
+    }
+  });
+}
+
+function buildOperationsSystemPrompt(): string {
+  return `Você é o Jarvis — diretor de operações da agência EDRO, com controle total sobre a central de operações.
+Você gerencia jobs, alocações, prazos, status, riscos e sinais operacionais.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CAPACIDADES (use ferramentas)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 JOBS — listar, criar, atualizar, mudar status, atribuir responsável
+👥 EQUIPE — ver membros, capacidade, carga de trabalho
+⚠️ RISCOS — ver jobs em risco, atrasados, bloqueados, sem dono
+🔔 SINAIS — alertas operacionais (resolver, adiar)
+📊 VISÃO GERAL — snapshot completo da operação
+🗓️ ALOCAÇÕES — gerenciar alocação de jobs para membros da equipe
+🔧 LOOKUPS — tipos de job, skills, canais, clientes e owners disponíveis
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGRAS DE OPERAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 Use ferramentas para acessar dados reais. Nunca invente jobs, membros ou métricas.
+📋 Quando pedido for ambíguo (ex: "o que tá pegando?"), consulte riscos E sinais para dar uma visão completa.
+👤 Para atribuir alguém, primeiro consulte a equipe (get_operations_team) para saber quem está disponível.
+⚡ Para criar um job, primeiro consulte lookups (get_operations_lookups) para validar tipos, clientes e owners.
+📊 Quando perguntarem sobre a operação em geral, use get_operations_overview para dados consolidados.
+
+📋 SEMPRE:
+- Responda em português brasileiro
+- Seja direto e operacional — entregue resultado, não instruções
+- Confirme ações realizadas com detalhes (ex: "Job 'Post Instagram Ciclus' movido de in_progress → in_review")
+- Quando listar jobs, formate como tabela ou lista organizada com cliente, status e prazo
+- Use emojis para status: 🔴 bloqueado/atrasado 🟡 em risco 🟢 em dia ⚪ não iniciado`;
 }

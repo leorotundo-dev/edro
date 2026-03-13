@@ -660,6 +660,171 @@ export const TOOLS: ToolDefinition[] = [
   },
 ];
 
+// ── Operations Tools (tenant-scoped, no clientId required) ────
+
+export const OPERATIONS_TOOLS: ToolDefinition[] = [
+  // ── Read ──
+  {
+    name: 'list_operations_jobs',
+    description: 'Lista jobs/demandas operacionais da agência com filtros. Retorna título, cliente, status, prioridade, responsável, prazo e risco.',
+    parameters: {
+      status: { type: 'string', description: 'Filtrar por status', enum: ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'blocked', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'] },
+      priority_band: { type: 'string', description: 'Filtrar por faixa de prioridade', enum: ['p0', 'p1', 'p2', 'p3'] },
+      owner_id: { type: 'string', description: 'Filtrar por responsável (UUID)' },
+      client_id: { type: 'string', description: 'Filtrar por cliente (ID)' },
+      urgent: { type: 'boolean', description: 'Mostrar apenas urgentes' },
+      unassigned: { type: 'boolean', description: 'Mostrar apenas sem responsável' },
+      limit: { type: 'number', description: 'Máximo de resultados (default 20, max 50)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_job',
+    description: 'Retorna detalhes completos de um job: título, cliente, status, prioridade, responsável, prazo, histórico de status e comentários.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+    },
+    required: ['job_id'],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_overview',
+    description: 'Retorna snapshot da visão geral operacional: contagens por status, jobs em risco, gargalos, capacidade da equipe.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_risks',
+    description: 'Retorna jobs em risco: atrasados, bloqueados, sem responsável com prazo próximo, P0 parados. Inclui nível de risco e sugestão de ação.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_signals',
+    description: 'Retorna sinais operacionais ativos (alertas, avisos): atrasos, gargalos, capacidade excedida, deadlines próximos.',
+    parameters: {
+      limit: { type: 'number', description: 'Máximo de sinais (default 20)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_team',
+    description: 'Retorna membros da equipe com dados de alocação: nome, email, tipo (interno/freelancer), especialidade, jobs atribuídos, capacidade.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_lookups',
+    description: 'Retorna dados de referência para criação de jobs: tipos de job, skills, canais, clientes e owners disponíveis.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+
+  // ── Write ──
+  {
+    name: 'create_operations_job',
+    description: 'Cria um novo job/demanda operacional. Use quando o gestor pedir para criar uma demanda, tarefa ou job.',
+    parameters: {
+      title: { type: 'string', description: 'Título do job' },
+      client_id: { type: 'string', description: 'ID do cliente' },
+      job_type: { type: 'string', description: 'Tipo de job (ex: copy, design_static, design_carousel, campaign, stories, reels, video, strategy, report)' },
+      complexity: { type: 'string', description: 'Complexidade', enum: ['s', 'm', 'l'] },
+      source: { type: 'string', description: 'Origem da demanda (ex: jarvis, client_request, internal, briefing)' },
+      summary: { type: 'string', description: 'Descrição / resumo do job' },
+      owner_id: { type: 'string', description: 'UUID do responsável (opcional)' },
+      deadline_at: { type: 'string', description: 'Prazo no formato ISO (YYYY-MM-DDTHH:MM:SS)' },
+      channel: { type: 'string', description: 'Canal (instagram, linkedin, tiktok, etc)' },
+      is_urgent: { type: 'boolean', description: 'Se é urgente' },
+      urgency_reason: { type: 'string', description: 'Motivo da urgência' },
+    },
+    required: ['title', 'job_type', 'complexity', 'source'],
+    category: 'write',
+  },
+  {
+    name: 'update_operations_job',
+    description: 'Atualiza campos de um job existente: título, responsável, prazo, prioridade, complexidade, etc.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job a atualizar' },
+      title: { type: 'string', description: 'Novo título' },
+      owner_id: { type: 'string', description: 'UUID do novo responsável' },
+      deadline_at: { type: 'string', description: 'Novo prazo (ISO)' },
+      summary: { type: 'string', description: 'Nova descrição' },
+      complexity: { type: 'string', description: 'Nova complexidade', enum: ['s', 'm', 'l'] },
+      is_urgent: { type: 'boolean', description: 'Marcar como urgente' },
+      urgency_reason: { type: 'string', description: 'Motivo da urgência' },
+    },
+    required: ['job_id'],
+    category: 'write',
+  },
+
+  // ── Action ──
+  {
+    name: 'change_job_status',
+    description: 'Muda o status de um job. Use para avançar, bloquear, concluir ou retroceder um job na pipeline.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      status: { type: 'string', description: 'Novo status', enum: ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'blocked', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done'] },
+      reason: { type: 'string', description: 'Motivo da mudança (opcional mas recomendado)' },
+    },
+    required: ['job_id', 'status'],
+    category: 'action',
+  },
+  {
+    name: 'assign_job_owner',
+    description: 'Atribui um responsável a um job. Use quando o gestor pedir para atribuir, delegar ou alocar alguém a um job.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      owner_id: { type: 'string', description: 'UUID do responsável a atribuir' },
+    },
+    required: ['job_id', 'owner_id'],
+    category: 'action',
+  },
+  {
+    name: 'resolve_operations_signal',
+    description: 'Resolve (fecha) um sinal/alerta operacional. Use quando o gestor indicar que um alerta foi resolvido.',
+    parameters: {
+      signal_id: { type: 'string', description: 'UUID do sinal' },
+    },
+    required: ['signal_id'],
+    category: 'action',
+  },
+  {
+    name: 'snooze_operations_signal',
+    description: 'Adia um sinal/alerta operacional por N horas. Use quando o gestor quiser adiar um alerta.',
+    parameters: {
+      signal_id: { type: 'string', description: 'UUID do sinal' },
+      hours: { type: 'number', description: 'Horas para adiar (default 4, max 72)' },
+    },
+    required: ['signal_id'],
+    category: 'action',
+  },
+  {
+    name: 'manage_job_allocation',
+    description: 'Cria ou atualiza a alocação de um job: responsável, tempo planejado, janela de trabalho, notas.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      owner_id: { type: 'string', description: 'UUID do responsável' },
+      planned_minutes: { type: 'number', description: 'Tempo planejado em minutos' },
+      starts_at: { type: 'string', description: 'Início da janela (ISO datetime)' },
+      ends_at: { type: 'string', description: 'Fim da janela (ISO datetime)' },
+      notes: { type: 'string', description: 'Notas sobre a alocação' },
+      status: { type: 'string', description: 'Status da alocação', enum: ['tentative', 'committed', 'blocked', 'done', 'dropped'] },
+    },
+    required: ['job_id', 'owner_id'],
+    category: 'action',
+  },
+];
+
+export function getOperationsToolDefinitions(): ToolDefinition[] {
+  return OPERATIONS_TOOLS;
+}
+
 // ── Provider Format Converters ──────────────────────────────────
 
 function buildJsonSchema(tool: ToolDefinition) {
