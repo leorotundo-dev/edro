@@ -863,8 +863,8 @@ export default async function meetingRoutes(app: FastifyInstance) {
     description: z.string().optional(),
     invite_contacts: z.array(z.object({
       name: z.string(),
-      email: z.string().optional(),
-      phone: z.string().optional(),
+      email: z.string().nullish(),
+      phone: z.string().nullish(),
       send_via: z.enum(['whatsapp', 'email', 'both']).default('email'),
     })).optional(),
     schedule_bot: z.boolean().default(true),
