@@ -118,10 +118,7 @@ export default function OperationsShell({
           px: { xs: 2, sm: 3 },
           pt: 1.5,
           pb: summary ? 0 : 1.5,
-          background: dark
-            ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.6)} 0%, ${alpha(theme.palette.background.default, 0.3)} 100%)`
-            : `linear-gradient(180deg, ${alpha('#fff', 0.9)} 0%, ${alpha(theme.palette.background.default, 0.5)} 100%)`,
-          backdropFilter: 'blur(16px)',
+          bgcolor: 'background.paper',
           borderBottom: `1px solid ${alpha(theme.palette.divider, dark ? 0.15 : 0.12)}`,
         }}
       >
@@ -137,7 +134,7 @@ export default function OperationsShell({
                 overflowX: 'auto',
                 py: 0.25,
                 px: 0.5,
-                borderRadius: 100,
+                borderRadius: 2,
                 bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.04),
                 '&::-webkit-scrollbar': { display: 'none' },
               }}
@@ -154,7 +151,7 @@ export default function OperationsShell({
                       gap: 0.6,
                       px: 1.75,
                       py: 0.7,
-                      borderRadius: 100,
+                      borderRadius: 1.5,
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       fontSize: '0.78rem',
@@ -162,12 +159,9 @@ export default function OperationsShell({
                       color: isActive
                         ? '#fff'
                         : dark ? alpha(theme.palette.text.primary, 0.6) : alpha(theme.palette.text.primary, 0.55),
-                      background: isActive
-                        ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
+                      bgcolor: isActive
+                        ? 'primary.main'
                         : 'transparent',
-                      boxShadow: isActive
-                        ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.35)}`
-                        : 'none',
                       transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
                       '&:hover': isActive ? {} : {
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05),
@@ -228,7 +222,7 @@ export default function OperationsShell({
                 flexShrink: 0,
                 '& .MuiOutlinedInput-root': {
                   height: 36,
-                  borderRadius: 100,
+                  borderRadius: 2,
                   fontSize: '0.8rem',
                   bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
                 },
@@ -253,13 +247,7 @@ export default function OperationsShell({
       </Box>
 
       {/* Page content */}
-      <Box sx={{
-        animation: 'edroOpsEnter 300ms cubic-bezier(0.4,0,0.2,1)',
-        '@keyframes edroOpsEnter': {
-          from: { opacity: 0, transform: 'translateY(10px)' },
-          to: { opacity: 1, transform: 'translateY(0)' },
-        },
-      }}>
+      <Box>
         {children}
       </Box>
     </AppShell>

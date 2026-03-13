@@ -234,13 +234,11 @@ function JobCard({
           border: selected
             ? `1.5px solid ${alpha(color, 0.4)}`
             : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-          boxShadow: selected
-            ? `0 0 0 2px ${alpha(color, 0.1)}, 0 2px 6px ${alpha(theme.palette.common.black, 0.08)}`
-            : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
-          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          transition: 'all 150ms ease',
           '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.1)}`,
+            bgcolor: selected
+              ? alpha(color, dark ? 0.2 : 0.1)
+              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
           },
           '&:active': { cursor: 'grabbing' },
         }}
@@ -660,10 +658,9 @@ export default function WeekCalendarClient() {
             sx={{
               px: 2,
               py: 1.25,
-              borderRadius: '16px 16px 0 0',
+              borderRadius: '8px 8px 0 0',
               border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
               bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-              boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
@@ -754,7 +751,7 @@ export default function WeekCalendarClient() {
             sx={{
               border: `1px solid ${theme.palette.divider}`,
               borderTop: 'none',
-              borderRadius: '0 0 12px 12px',
+              borderRadius: '0 0 8px 8px',
               bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
             }}
           >

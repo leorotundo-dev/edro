@@ -99,7 +99,7 @@ export default function OperationsRadarClient() {
             { value: clientRisk.filter((c) => c.critical > 0).length, label: OPS_COPY.radar.summaryClients, color: clientRisk.some((c) => c.critical > 0) ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
           ].map((kpi) => (
             <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline"
-              sx={kpi.pulse ? { animation: 'radarPulse 2s ease-in-out infinite', '@keyframes radarPulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.5 } } } : undefined}>
+              sx={undefined}>
               <Typography variant="body1" sx={{ fontWeight: 900, color: kpi.color, lineHeight: 1, fontSize: '1.1rem' }}>
                 {kpi.value}
               </Typography>
@@ -152,7 +152,6 @@ export default function OperationsRadarClient() {
                         borderRadius: 2,
                         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                        boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
                       };
                     }}
                   >
@@ -162,7 +161,7 @@ export default function OperationsRadarClient() {
                         <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.criticalSubtitle}</Typography>
                       </Box>
                       <Typography variant="h4" sx={{ fontWeight: 900, color: critical.length > 0 ? 'error.main' : 'text.disabled', lineHeight: 1,
-                        ...(critical.length > 0 && { animation: 'radarPulse 2s ease-in-out infinite' }) }}>
+                         }}>
                         {critical.length}
                       </Typography>
                     </Stack>
@@ -189,7 +188,6 @@ export default function OperationsRadarClient() {
                         borderRadius: 2,
                         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                        boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
                       };
                     }}
                   >

@@ -121,15 +121,11 @@ function SignalCard({
         bgcolor: selected
           ? alpha(paletteColor, dark ? 0.1 : 0.05)
           : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-        boxShadow: selected
-          ? `0 0 0 3px ${alpha(paletteColor, 0.08)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.06)}`
-          : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
-        transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+        transition: 'all 150ms ease',
         '&:hover': {
-          transform: 'translateY(-1px)',
-          boxShadow: selected
-            ? `0 0 0 3px ${alpha(paletteColor, 0.12)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`
-            : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.08)}`,
+          bgcolor: selected
+            ? alpha(paletteColor, dark ? 0.14 : 0.07)
+            : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
         },
       }}
     >
@@ -148,14 +144,14 @@ function SignalCard({
             label={cfg.label}
             color={cfg.color}
             variant="outlined"
-            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderRadius: 100 }}
+            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderRadius: 2 }}
           />
           <Chip
             size="small"
             label={domainLabel(signal.domain)}
             icon={domainIcon(signal.domain) || undefined}
             variant="filled"
-            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.text.primary, dark ? 0.06 : 0.05), color: 'text.secondary', borderRadius: 100 }}
+            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.text.primary, dark ? 0.06 : 0.05), color: 'text.secondary', borderRadius: 2 }}
           />
           {signal.client_name && (
             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -191,7 +187,7 @@ function SignalCard({
                 size="small"
                 variant={idx === 0 ? 'contained' : 'text'}
                 color={idx === 0 && cfg.color !== 'default' ? cfg.color : undefined}
-                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 100, px: 1.5, textTransform: 'none' }}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 2, px: 1.5, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
@@ -200,7 +196,7 @@ function SignalCard({
                 key={idx}
                 size="small"
                 variant="text"
-                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 100, px: 1.5, textTransform: 'none' }}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 2, px: 1.5, textTransform: 'none' }}
               >
                 {action.label}
               </Button>
@@ -290,7 +286,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Button component={Link} href="/admin/operacoes/semana" size="small" endIcon={<IconChevronRight size={14} />}
-          sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: 100 }}>
+          sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: 2 }}>
           Ver semana
         </Button>
       </Stack>
@@ -433,32 +429,7 @@ export default function SignalFeedClient() {
                     overflow: 'hidden',
                     border: `1px solid ${active ? alpha(kpi.color, 0.25) : dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                     bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                    boxShadow: active
-                      ? `0 2px 12px ${alpha(kpi.color, 0.12)}`
-                      : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
-                    transition: 'all 300ms cubic-bezier(0.4,0,0.2,1)',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: `0 6px 20px ${alpha(kpi.color, active ? 0.2 : 0.08)}`,
-                    },
-                    ...(kpi.pulse && {
-                      animation: 'kpiGlow 2.5s ease-in-out infinite',
-                      '@keyframes kpiGlow': {
-                        '0%, 100%': { boxShadow: `0 2px 12px ${alpha(kpi.color, 0.12)}` },
-                        '50%': { boxShadow: `0 4px 24px ${alpha(kpi.color, 0.3)}` },
-                      },
-                    }),
-                    // Subtle gradient accent at top
-                    '&::before': active ? {
-                      content: '""',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 3,
-                      background: `linear-gradient(90deg, ${kpi.color}, ${alpha(kpi.color, 0.3)})`,
-                      borderRadius: '16px 16px 0 0',
-                    } : {},
+                    transition: 'all 150ms ease',
                   }}
                 >
                   <Typography
@@ -491,15 +462,12 @@ export default function SignalFeedClient() {
                 overflow: 'hidden',
                 border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                 bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.6),
-                boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.12 : 0.04)}`,
               }}>
                 {/* Feed header */}
                 <Box sx={{
                   px: 2, py: 1.25,
                   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                  background: theme.palette.mode === 'dark'
-                    ? alpha(theme.palette.common.white, 0.02)
-                    : `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.95)}, ${alpha(theme.palette.background.default, 0.5)})`,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.02),
                 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
                     <Stack direction="row" spacing={1} alignItems="center">
@@ -515,7 +483,7 @@ export default function SignalFeedClient() {
                       </Typography>
                       {signals.length > 0 && (
                         <Box sx={{
-                          px: 0.75, py: 0.15, borderRadius: 100,
+                          px: 0.75, py: 0.15, borderRadius: 2,
                           bgcolor: alpha(theme.palette.primary.main, 0.12),
                           color: theme.palette.primary.main, fontSize: '0.68rem', fontWeight: 800,
                         }}>
@@ -575,11 +543,9 @@ export default function SignalFeedClient() {
                         textDecoration: 'none', color: 'inherit',
                         border: `1px solid ${active ? alpha(item.color, 0.2) : dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                        boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
-                        transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+                        transition: 'all 150ms ease',
                         '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: `0 4px 16px ${alpha(item.color, active ? 0.18 : 0.08)}`,
+                          bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
                           borderColor: alpha(item.color, 0.3),
                         },
                       }}
@@ -587,8 +553,8 @@ export default function SignalFeedClient() {
                       <Box sx={{
                         width: 38, height: 38, borderRadius: 2,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: active
-                          ? `linear-gradient(135deg, ${alpha(item.color, 0.2)}, ${alpha(item.color, 0.08)})`
+                        bgcolor: active
+                          ? alpha(item.color, 0.1)
                           : alpha(theme.palette.text.primary, 0.04),
                         color: active ? item.color : 'text.disabled',
                       }}>

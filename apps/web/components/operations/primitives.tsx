@@ -284,14 +284,6 @@ export function StatusDot({ status, size = 22 }: { status: string; size?: number
           color: vis.color,
           border: `1.5px solid ${alpha(vis.color, 0.45)}`,
           flexShrink: 0,
-          ...(isBlocked && {
-            animation: 'opsShake 0.5s ease-in-out infinite',
-            '@keyframes opsShake': {
-              '0%, 100%': { transform: 'translateX(0)' },
-              '25%': { transform: 'translateX(-1.5px)' },
-              '75%': { transform: 'translateX(1.5px)' },
-            },
-          }),
         }}
       >
         {vis.icon}
@@ -346,13 +338,6 @@ export function DeadlineCountdown({ deadline, compact = false }: { deadline?: st
         fontWeight: 800,
         color,
         lineHeight: 1,
-        ...(pulse && {
-          animation: 'opsPulse 1.2s ease-in-out infinite',
-          '@keyframes opsPulse': {
-            '0%, 100%': { opacity: 1 },
-            '50%': { opacity: 0.4 },
-          },
-        }),
       }}
     >
       {text}
@@ -677,13 +662,7 @@ export function AutomationPipeline({
                 color: dotColor,
                 border: `1.5px solid ${alpha(dotColor, done ? 0.5 : active ? 0.4 : 0.15)}`,
                 transition: 'all 200ms ease',
-                ...(loading && {
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                  '@keyframes pulse': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.5 },
-                  },
-                }),
+                ...(loading && { opacity: 0.5 }),
               }}
             >
               {loading ? <IconLoader2 size={compact ? 10 : 12} /> : step.icon}
@@ -746,18 +725,11 @@ export function OpsJobRow({
           bgcolor: selected
             ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.05)
             : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-          boxShadow: selected
-            ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.1)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`
-            : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.04)}`,
-          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          transition: 'all 150ms ease',
           '&:hover': onClick ? {
-            transform: 'translateY(-1px)',
-            boxShadow: selected
-              ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.12)}`
-              : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
             bgcolor: selected
               ? alpha(theme.palette.primary.main, dark ? 0.14 : 0.07)
-              : dark ? alpha(theme.palette.common.white, 0.04) : '#fff',
+              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
           } : {},
         };
       }}
@@ -993,13 +965,11 @@ export function EntityLinkCard({
           borderRadius: 2,
           border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: dark ? alpha(theme.palette.common.white, 0.015) : alpha(theme.palette.common.black, 0.015),
-          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          transition: 'all 150ms ease',
           '&:hover': isLink
             ? {
                 bgcolor: alpha(accent || OPS_ACCENT, 0.06),
                 borderColor: alpha(accent || OPS_ACCENT, 0.2),
-                transform: 'translateY(-1px)',
-                boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.06)}`,
               }
             : undefined,
         };
@@ -1228,11 +1198,9 @@ export function OperationCard({
           borderRadius: 2,
           border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-          boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
-          transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
+          transition: 'all 150ms ease',
           '&:hover': onClick ? {
-            transform: 'translateY(-1px)',
-            boxShadow: `0 6px 16px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
+            bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
           } : {},
         };
       }}
