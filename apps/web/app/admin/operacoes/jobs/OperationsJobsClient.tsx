@@ -114,27 +114,35 @@ export default function OperationsJobsClient() {
     <OperationsShell
       section="jobs"
       summary={
-        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
-          {BUCKETS.map((b) => {
-            const cnt = b.stages.flatMap((s) => grouped[s] || []).length;
-            const bColor = b.color !== 'default' ? theme.palette[b.color].main : alpha(theme.palette.text.primary, 0.5);
-            return (
-              <Stack key={b.key} direction="row" spacing={0.5} alignItems="center"
-                sx={{ px: 1, py: 0.4, borderRadius: 1.5, bgcolor: cnt > 0 ? alpha(bColor, 0.08) : 'transparent' }}>
-                <Box sx={{ color: bColor, display: 'flex' }}>{b.icon}</Box>
-                <Typography variant="caption" sx={{ fontWeight: 900, color: cnt > 0 ? bColor : 'text.disabled', fontSize: '0.85rem' }}>
-                  {cnt}
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
-                  {b.label}
-                </Typography>
-              </Stack>
-            );
-          })}
-          <Box sx={{ width: 1, height: 16, bgcolor: 'divider', borderRadius: 1 }} />
-          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>
-            {filteredJobs.length} total
-          </Typography>
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+            {BUCKETS.map((b) => {
+              const cnt = b.stages.flatMap((s) => grouped[s] || []).length;
+              const bColor = b.color !== 'default' ? theme.palette[b.color].main : alpha(theme.palette.text.primary, 0.5);
+              return (
+                <Stack key={b.key} direction="row" spacing={0.6} alignItems="baseline">
+                  <Typography sx={{ fontWeight: 900, color: cnt > 0 ? bColor : 'text.disabled', fontSize: '1.1rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                    {cnt}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.7rem' }}>
+                    {b.label}
+                  </Typography>
+                </Stack>
+              );
+            })}
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', fontSize: '0.7rem' }}>
+              {filteredJobs.length} total
+            </Typography>
+          </Stack>
+          {/* Segmented progress bar */}
+          <Stack direction="row" sx={{ height: 4, borderRadius: 1, overflow: 'hidden', bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06) }}>
+            {BUCKETS.map((b) => {
+              const cnt = b.stages.flatMap((s) => grouped[s] || []).length;
+              const bColor = b.color !== 'default' ? theme.palette[b.color].main : alpha(theme.palette.text.primary, 0.3);
+              const pct = filteredJobs.length > 0 ? (cnt / filteredJobs.length) * 100 : 0;
+              return pct > 0 ? <Box key={b.key} sx={{ width: `${pct}%`, bgcolor: bColor, transition: 'width 300ms ease' }} /> : null;
+            })}
+          </Stack>
         </Stack>
       }
     >
@@ -350,30 +358,25 @@ function BucketGroup({
       <Box
         onClick={() => setExpanded(!expanded)}
         sx={{
-          px: 2, py: 1.1,
-          display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
-          bgcolor: alpha(color, dark ? 0.06 : 0.04),
+          px: 2, py: 1.25,
+          display: 'flex', alignItems: 'center', gap: 1.25, cursor: 'pointer',
           borderBottom: expanded ? `1px solid ${alpha(color, 0.1)}` : undefined,
           transition: 'all 150ms ease',
-          '&:hover': { bgcolor: alpha(color, dark ? 0.1 : 0.07) },
+          '&:hover': { bgcolor: alpha(color, dark ? 0.06 : 0.03) },
         }}
       >
+        <Typography sx={{ fontSize: '1.35rem', fontWeight: 900, color, lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 28, textAlign: 'center' }}>
+          {jobs.length}
+        </Typography>
         <Box sx={{
-          width: 28, height: 28, borderRadius: 1.5,
+          width: 24, height: 24, borderRadius: 1,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: alpha(color, 0.15),
+          bgcolor: alpha(color, 0.12),
           color,
         }}>
           {bucket.icon}
         </Box>
-        <Typography variant="body2" fontWeight={800}>{bucket.label}</Typography>
-        <Box sx={{
-          px: 0.75, py: 0.15, borderRadius: 1.5,
-          bgcolor: alpha(color, 0.12), color,
-          fontSize: '0.82rem', fontWeight: 900, minWidth: 22, textAlign: 'center',
-        }}>
-          {jobs.length}
-        </Box>
+        <Typography variant="body2" fontWeight={700}>{bucket.label}</Typography>
         <Box sx={{ flex: 1 }} />
         {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
       </Box>

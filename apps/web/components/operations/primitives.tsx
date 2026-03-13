@@ -702,93 +702,106 @@ export function OpsJobRow({
 }) {
   const risk = getRisk(job);
 
+  const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
+  const stageIdx = getStageIndex(job.status);
+  const stagePct = Math.round(((stageIdx + 1) / STAGE_FLOW.length) * 100);
+
   return (
     <Box
       onClick={onClick}
       sx={(theme) => {
         const dark = theme.palette.mode === 'dark';
-        const riskColor = risk.level === 'critical'
-          ? theme.palette.error.main
-          : risk.level === 'high'
-            ? theme.palette.warning.main
-            : null;
         return {
-          px: 1.5,
-          py: 1.25,
-          mx: 0.75,
-          my: 0.4,
+          display: 'flex',
           cursor: onClick ? 'pointer' : 'default',
+          mx: 0.5,
+          my: 0.35,
           borderRadius: 2,
+          overflow: 'hidden',
           border: selected
             ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
             : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: selected
-            ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.05)
+            ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
             : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
           transition: 'all 150ms ease',
           '&:hover': onClick ? {
             bgcolor: selected
-              ? alpha(theme.palette.primary.main, dark ? 0.14 : 0.07)
-              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
+              ? alpha(theme.palette.primary.main, dark ? 0.12 : 0.06)
+              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.015),
           } : {},
         };
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center">
-        <StatusDot status={job.status} size={24} />
+      {/* Status color bar */}
+      <Box sx={{ width: 4, flexShrink: 0, bgcolor: vis.color }} />
 
-        <Avatar
-          src={job.client_logo_url || undefined}
-          alt={job.client_name || 'Cliente'}
-          sx={{
-            width: 32,
-            height: 32,
-            borderRadius: 1.5,
-            fontSize: '0.68rem',
-            fontWeight: 900,
-            bgcolor: alpha(clientAccent(job), 0.14),
-            color: clientAccent(job),
-            border: `1.5px solid ${alpha(clientAccent(job), 0.2)}`,
-            flexShrink: 0,
-          }}
-        >
-          {initials(job.client_name)}
-        </Avatar>
+      <Box sx={{ flex: 1, px: 1.5, py: 1.1 }}>
+        <Stack direction="row" spacing={1.25} alignItems="center">
+          <Avatar
+            src={job.client_logo_url || undefined}
+            alt={job.client_name || 'Cliente'}
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: 1.5,
+              fontSize: '0.72rem',
+              fontWeight: 900,
+              bgcolor: alpha(clientAccent(job), 0.14),
+              color: clientAccent(job),
+              border: `2px solid ${alpha(clientAccent(job), 0.25)}`,
+              flexShrink: 0,
+            }}
+          >
+            {initials(job.client_name)}
+          </Avatar>
 
-        <Stack spacing={0.15} sx={{ minWidth: 0, flex: 1 }}>
-          <Stack direction="row" spacing={0.6} alignItems="center">
-            <JobTypeIcon jobType={job.job_type} size={20} />
-            <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-              {job.title}
-            </Typography>
+          <Stack spacing={0.2} sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" spacing={0.6} alignItems="center">
+              <JobTypeIcon jobType={job.job_type} size={18} />
+              <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
+                {job.title}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.72rem' }}>
+                {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
+              </Typography>
+              {job.automation_status && job.automation_status !== 'none' ? (
+                <AutomationPipeline automationStatus={job.automation_status} compact />
+              ) : null}
+            </Stack>
+            {/* Inline stage progress */}
+            {showStage ? (
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.4 }}>
+                <Box sx={{ flex: 1, height: 3, borderRadius: 1, bgcolor: alpha(vis.color, 0.15), overflow: 'hidden' }}>
+                  <Box sx={{ width: `${stagePct}%`, height: '100%', bgcolor: vis.color, borderRadius: 1 }} />
+                </Box>
+                <Typography variant="caption" sx={{ fontSize: '0.58rem', fontWeight: 700, color: vis.color, whiteSpace: 'nowrap' }}>
+                  {vis.label}
+                </Typography>
+              </Stack>
+            ) : null}
           </Stack>
-          <Stack direction="row" spacing={0.75} alignItems="center">
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
-            </Typography>
-            {job.automation_status && job.automation_status !== 'none' ? (
-              <AutomationPipeline automationStatus={job.automation_status} compact />
+
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+            {job.is_urgent ? (
+              <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
+            ) : null}
+            <PriorityPill priorityBand={job.priority_band} />
+          </Stack>
+
+          <Stack spacing={0.25} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
+            <DeadlineCountdown deadline={timeValue ?? job.deadline_at} />
+            {job.estimated_delivery_at ? (
+              <Stack direction="row" spacing={0.4} alignItems="center">
+                <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>ETA</Typography>
+                <DeadlineCountdown deadline={job.estimated_delivery_at} compact />
+              </Stack>
             ) : null}
           </Stack>
         </Stack>
-
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
-          {job.is_urgent ? (
-            <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
-          ) : null}
-          <PriorityPill priorityBand={job.priority_band} />
-        </Stack>
-
-        <Stack spacing={0.25} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
-          <DeadlineCountdown deadline={timeValue ?? job.deadline_at} />
-          {job.estimated_delivery_at ? (
-            <Stack direction="row" spacing={0.4} alignItems="center">
-              <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>ETA</Typography>
-              <DeadlineCountdown deadline={job.estimated_delivery_at} compact />
-            </Stack>
-          ) : null}
-        </Stack>
-      </Stack>
+      </Box>
     </Box>
   );
 }
@@ -1065,25 +1078,35 @@ export function NextActionBar({
 
   return (
     <Box
-      sx={{
-        px: 1.25,
-        py: 1.25,
-        borderLeft: '2px solid',
-        borderColor: 'primary.main',
-        borderRadius: 1,
-        bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.02),
+      sx={(theme) => {
+        const intentColor = nextAction.intent === 'error' ? theme.palette.error.main
+          : nextAction.intent === 'warning' ? theme.palette.warning.main
+          : theme.palette.primary.main;
+        const dark = theme.palette.mode === 'dark';
+        return {
+          p: 2,
+          borderRadius: 2,
+          bgcolor: alpha(intentColor, dark ? 0.08 : 0.05),
+          border: `1px solid ${alpha(intentColor, 0.2)}`,
+        };
       }}
     >
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} justifyContent="space-between">
-        <Stack spacing={0.5}>
-          <Typography variant="caption" color="text.secondary">Próximo passo</Typography>
-          <Typography variant="body1" fontWeight={800}>{primaryLabel || nextAction.label}</Typography>
+        <Stack spacing={0.25}>
+          <Typography variant="overline" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', color: 'text.secondary' }}>Próximo passo</Typography>
+          <Typography variant="body1" fontWeight={900}>{primaryLabel || nextAction.label}</Typography>
           <Typography variant="caption" color="text.secondary">
             {job.owner_name ? `Responsável atual: ${job.owner_name}` : 'Ainda sem responsável definido'} · {job.deadline_at ? formatDateTime(job.deadline_at) : 'Sem prazo definido'}
           </Typography>
         </Stack>
         {onPrimaryAction ? (
-          <Button variant={nextAction.intent === 'default' ? 'outlined' : 'contained'} color={nextAction.intent === 'default' ? 'inherit' : nextAction.intent} onClick={onPrimaryAction} endIcon={<IconArrowRight size={16} />}>
+          <Button
+            variant="contained"
+            color={nextAction.intent === 'default' ? 'primary' : nextAction.intent}
+            onClick={onPrimaryAction}
+            endIcon={<IconArrowRight size={16} />}
+            sx={{ borderRadius: 2, px: 3, fontWeight: 800, textTransform: 'none', flexShrink: 0 }}
+          >
             {primaryLabel || nextAction.label}
           </Button>
         ) : null}
@@ -1512,57 +1535,64 @@ export function OperationsContextRail({
               </Typography>
             </Box>
 
-            <Grid container spacing={1.25}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <ContextMetaRow
-                  icon={<IconUser size={15} />}
-                  label="Responsável"
-                  value={job.owner_name || 'Sem responsável'}
-                  accent="#5D87FF"
-                />
+            <Box sx={(theme) => ({
+              p: 1.5,
+              borderRadius: 2,
+              bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.02),
+              border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05)}`,
+            })}>
+              <Grid container spacing={1.25}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <ContextMetaRow
+                    icon={<IconUser size={15} />}
+                    label="Responsável"
+                    value={job.owner_name || 'Sem responsável'}
+                    accent="#5D87FF"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Stack direction="row" spacing={1.1} alignItems="center">
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: alpha('#13DEB9', 0.10),
+                        color: '#13DEB9',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <IconCalendarTime size={15} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.1 }}>
+                        Prazo
+                      </Typography>
+                      <DeadlineCountdown deadline={job.deadline_at} />
+                    </Box>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <ContextMetaRow
+                    icon={sourceIcon(job.source, job.job_type)}
+                    label="Origem"
+                    value={formatSourceLabel(job.source)}
+                    accent={OPS_ACCENT}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <ContextMetaRow
+                    icon={<IconBriefcase size={15} />}
+                    label="Especialidade"
+                    value={formatSkillLabel(job.required_skill)}
+                    accent="#FFAE1F"
+                  />
+                </Grid>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Stack direction="row" spacing={1.1} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: alpha('#13DEB9', 0.10),
-                      color: '#13DEB9',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <IconCalendarTime size={15} />
-                  </Box>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.1 }}>
-                      Prazo
-                    </Typography>
-                    <DeadlineCountdown deadline={job.deadline_at} />
-                  </Box>
-                </Stack>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <ContextMetaRow
-                  icon={sourceIcon(job.source, job.job_type)}
-                  label="Origem"
-                  value={formatSourceLabel(job.source)}
-                  accent={OPS_ACCENT}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <ContextMetaRow
-                  icon={<IconBriefcase size={15} />}
-                  label="Especialidade"
-                  value={formatSkillLabel(job.required_skill)}
-                  accent="#FFAE1F"
-                />
-              </Grid>
-            </Grid>
+            </Box>
 
             <StageRail status={job.status} />
 
