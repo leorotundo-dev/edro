@@ -432,6 +432,23 @@ export function getNextAction(job: Partial<OperationsJob>) {
   return { label: 'Revisar contexto', intent: 'default' as const };
 }
 
+/** Returns the next status a job should advance to, or null if already terminal. */
+export function getNextStatus(job: Partial<OperationsJob>): string | null {
+  const STATUS_ADVANCE: Record<string, string> = {
+    intake: 'planned',
+    planned: 'ready',
+    ready: 'allocated',
+    allocated: 'in_progress',
+    in_progress: 'in_review',
+    in_review: 'awaiting_approval',
+    awaiting_approval: 'approved',
+    approved: 'scheduled',
+    scheduled: 'published',
+    published: 'done',
+  };
+  return STATUS_ADVANCE[job.status || ''] || null;
+}
+
 export function groupBy<T>(list: T[], keyFn: (item: T) => string) {
   return list.reduce<Record<string, T[]>>((acc, item) => {
     const key = keyFn(item);

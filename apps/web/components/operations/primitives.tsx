@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -15,6 +16,8 @@ import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { Theme } from '@mui/material/styles';
@@ -27,6 +30,7 @@ import {
   IconCalendarTime,
   IconCamera,
   IconCheck,
+  IconChevronRight,
   IconCircleCheckFilled,
   IconClock,
   IconClockPause,
@@ -60,12 +64,14 @@ import {
   formatDateTime,
   formatMinutes,
   getNextAction,
+  getNextStatus,
   getRisk,
   getStageIndex,
   PRIORITY_LABELS,
   STAGE_FLOW,
   STAGE_LABELS,
   type OperationsJob,
+  type OperationsOwner,
 } from './model';
 
 const OPS_ACCENT = '#E85219';
@@ -693,18 +699,26 @@ export function OpsJobRow({
   onClick,
   showStage = false,
   timeValue,
+  onAdvance,
+  onAssign,
+  owners,
 }: {
   job: OperationsJob;
   selected?: boolean;
   onClick?: () => void;
   showStage?: boolean;
   timeValue?: string | null;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
 }) {
   const risk = getRisk(job);
 
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const stageIdx = getStageIndex(job.status);
   const stagePct = Math.round(((stageIdx + 1) / STAGE_FLOW.length) * 100);
+  const nextStatus = getNextStatus(job);
+  const nextAction = getNextAction(job);
 
   return (
     <Box
@@ -729,6 +743,7 @@ export function OpsJobRow({
             bgcolor: selected
               ? alpha(theme.palette.primary.main, dark ? 0.12 : 0.06)
               : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.015),
+            '& .ops-row-actions': { opacity: 1 },
           } : {},
         };
       }}
@@ -784,6 +799,23 @@ export function OpsJobRow({
             ) : null}
           </Stack>
 
+          {/* Inline actions (show on hover) */}
+          <Stack className="ops-row-actions" direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0, opacity: 0, transition: 'opacity 120ms' }}>
+            {!job.owner_id && onAssign && owners && owners.length > 0 ? (
+              <InlineOwnerAssign owners={owners} onAssign={(ownerId) => { onAssign(job.id, ownerId); }} />
+            ) : null}
+            {nextStatus && onAdvance ? (
+              <Tooltip title={nextAction.label} arrow>
+                <Chip
+                  size="small"
+                  label={<IconChevronRight size={14} />}
+                  onClick={(e) => { e.stopPropagation(); onAdvance(job.id, nextStatus); }}
+                  sx={{ height: 22, minWidth: 22, bgcolor: alpha(vis.color, 0.12), color: vis.color, cursor: 'pointer', '& .MuiChip-label': { px: 0.25 } }}
+                />
+              </Tooltip>
+            ) : null}
+          </Stack>
+
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
             {job.is_urgent ? (
               <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
@@ -803,6 +835,53 @@ export function OpsJobRow({
         </Stack>
       </Box>
     </Box>
+  );
+}
+
+function InlineOwnerAssign({
+  owners,
+  onAssign,
+}: {
+  owners: OperationsOwner[];
+  onAssign: (ownerId: string) => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  return (
+    <>
+      <Chip
+        size="small"
+        label="Atribuir"
+        onClick={(e) => { e.stopPropagation(); setAnchorEl(e.currentTarget); }}
+        sx={(theme) => ({
+          height: 22, fontSize: '0.62rem', fontWeight: 800,
+          bgcolor: alpha(theme.palette.warning.main, 0.12),
+          color: theme.palette.warning.main,
+          cursor: 'pointer',
+          '& .MuiChip-label': { px: 0.75 },
+        })}
+      />
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={(e: React.SyntheticEvent) => { e.stopPropagation?.(); setAnchorEl(null); }}
+        onClick={(e) => e.stopPropagation()}
+        slotProps={{ paper: { sx: { maxHeight: 240, minWidth: 160 } } }}
+      >
+        {owners.map((o) => (
+          <MenuItem
+            key={o.id}
+            onClick={(e) => { e.stopPropagation(); onAssign(o.id); setAnchorEl(null); }}
+            sx={{ fontSize: '0.75rem', py: 0.5 }}
+          >
+            <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', mr: 1 }}>
+              {initials(o.name)}
+            </Avatar>
+            {o.name}
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
   );
 }
 
@@ -1650,6 +1729,438 @@ export function OperationsContextRail({
             </Box>
           </Box>
         ))}
+      </Stack>
+    </Box>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PIPELINE BOARD — Kanban-style columns for job lifecycle
+   ═══════════════════════════════════════════════════════════════════ */
+
+const PIPELINE_COLUMNS = [
+  { key: 'entrada', label: 'Entrada', stages: ['intake', 'planned', 'ready'], color: '#5D87FF' },
+  { key: 'producao', label: 'Produção', stages: ['allocated', 'in_progress', 'in_review'], color: '#E85219' },
+  { key: 'esperando', label: 'Esperando', stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'], color: '#FFAE1F' },
+  { key: 'entregue', label: 'Entregue', stages: ['published', 'done'], color: '#13DEB9' },
+] as const;
+
+const MAX_PIPELINE_CARDS = 5;
+
+export function PipelineCard({
+  job,
+  selected,
+  onClick,
+  onAdvance,
+}: {
+  job: OperationsJob;
+  selected?: boolean;
+  onClick?: () => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+}) {
+  const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
+  const nextStatus = getNextStatus(job);
+
+  return (
+    <Box
+      onClick={onClick}
+      sx={(theme) => {
+        const dark = theme.palette.mode === 'dark';
+        return {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.25,
+          py: 0.75,
+          borderRadius: 1.5,
+          cursor: onClick ? 'pointer' : 'default',
+          border: selected
+            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          bgcolor: selected
+            ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
+            : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+          transition: 'all 120ms ease',
+          '&:hover': {
+            bgcolor: dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
+            '& .pipeline-advance': { opacity: 1 },
+          },
+        };
+      }}
+    >
+      <Avatar
+        src={job.client_logo_url || undefined}
+        sx={{
+          width: 24, height: 24, borderRadius: 0.75,
+          fontSize: '0.6rem', fontWeight: 900,
+          bgcolor: alpha(clientAccent(job), 0.14),
+          color: clientAccent(job),
+          flexShrink: 0,
+        }}
+      >
+        {initials(job.client_name)}
+      </Avatar>
+
+      <Typography variant="caption" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0, fontSize: '0.72rem', lineHeight: 1.2 }}>
+        {job.title}
+      </Typography>
+
+      {job.owner_name ? (
+        <Tooltip title={job.owner_name} arrow>
+          <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', flexShrink: 0 }}>
+            {initials(job.owner_name)}
+          </Avatar>
+        </Tooltip>
+      ) : null}
+
+      <DeadlineCountdown deadline={job.deadline_at} compact />
+
+      {nextStatus && onAdvance ? (
+        <Tooltip title={getNextAction(job).label} arrow>
+          <Box
+            className="pipeline-advance"
+            onClick={(e) => { e.stopPropagation(); onAdvance(job.id, nextStatus); }}
+            sx={{
+              width: 20, height: 20, borderRadius: 0.75,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: alpha(vis.color, 0.12), color: vis.color,
+              opacity: 0, cursor: 'pointer', flexShrink: 0,
+              transition: 'opacity 120ms',
+              '&:hover': { bgcolor: alpha(vis.color, 0.24) },
+            }}
+          >
+            <IconChevronRight size={14} />
+          </Box>
+        </Tooltip>
+      ) : null}
+    </Box>
+  );
+}
+
+export function PipelineColumn({
+  columnKey,
+  label,
+  color,
+  jobs,
+  allJobsCount,
+  selectedJob,
+  onSelectJob,
+  onAdvance,
+  onShowAll,
+}: {
+  columnKey: string;
+  label: string;
+  color: string;
+  jobs: OperationsJob[];
+  allJobsCount: number;
+  selectedJob: OperationsJob | null;
+  onSelectJob: (job: OperationsJob) => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+  onShowAll?: (columnKey: string) => void;
+}) {
+  const visible = jobs.slice(0, MAX_PIPELINE_CARDS);
+  const remaining = allJobsCount - visible.length;
+
+  return (
+    <Box sx={(theme) => {
+      const dark = theme.palette.mode === 'dark';
+      return {
+        flex: 1,
+        minWidth: 0,
+        borderRadius: 2,
+        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+        bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.015),
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      };
+    }}>
+      {/* Column header with colored top border */}
+      <Box sx={{ borderTop: `3px solid ${color}`, px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.72rem' }}>
+          {label}
+        </Typography>
+        <Box sx={{
+          minWidth: 20, height: 20, borderRadius: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: alpha(color, 0.12), color,
+          fontSize: '0.68rem', fontWeight: 900, px: 0.5,
+        }}>
+          {allJobsCount}
+        </Box>
+      </Box>
+
+      {/* Cards */}
+      <Stack spacing={0.5} sx={{ px: 0.75, pb: 1, flex: 1 }}>
+        {visible.length === 0 ? (
+          <Typography variant="caption" sx={(theme) => ({ textAlign: 'center', py: 2, color: alpha(theme.palette.text.primary, 0.3), fontSize: '0.7rem' })}>
+            Nenhum item
+          </Typography>
+        ) : (
+          visible.map((job) => (
+            <PipelineCard
+              key={job.id}
+              job={job}
+              selected={selectedJob?.id === job.id}
+              onClick={() => onSelectJob(job)}
+              onAdvance={onAdvance}
+            />
+          ))
+        )}
+        {remaining > 0 && onShowAll ? (
+          <Button
+            size="small"
+            onClick={() => onShowAll(columnKey)}
+            sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', color, py: 0.25 }}
+          >
+            +{remaining} mais
+          </Button>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
+export function PipelineBoard({
+  jobs,
+  selectedJob,
+  onSelectJob,
+  onAdvance,
+  onShowAll,
+}: {
+  jobs: OperationsJob[];
+  selectedJob: OperationsJob | null;
+  onSelectJob: (job: OperationsJob) => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+  onShowAll?: (columnKey: string) => void;
+}) {
+  const grouped = useMemo(() => {
+    const map: Record<string, OperationsJob[]> = {};
+    jobs.forEach((job) => {
+      const status = job.status || 'intake';
+      if (!map[status]) map[status] = [];
+      map[status].push(job);
+    });
+    return map;
+  }, [jobs]);
+
+  // Find bottleneck column (most items)
+  const columnCounts = PIPELINE_COLUMNS.map((col) =>
+    col.stages.reduce((sum, s) => sum + (grouped[s]?.length || 0), 0)
+  );
+  const maxCount = Math.max(...columnCounts);
+
+  return (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: '100%' }}>
+      {PIPELINE_COLUMNS.map((col, idx) => {
+        const colJobs = col.stages.flatMap((s) => grouped[s] || []);
+        const isBottleneck = colJobs.length === maxCount && maxCount > 0 && columnCounts.filter((c) => c === maxCount).length === 1;
+        return (
+          <Box key={col.key} sx={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            {isBottleneck ? (
+              <Box sx={{
+                position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
+                px: 1, py: 0.15, borderRadius: 1,
+                bgcolor: alpha(col.color, 0.12), color: col.color,
+                fontSize: '0.58rem', fontWeight: 900, whiteSpace: 'nowrap', zIndex: 1,
+              }}>
+                Gargalo
+              </Box>
+            ) : null}
+            <PipelineColumn
+              columnKey={col.key}
+              label={col.label}
+              color={col.color}
+              jobs={colJobs}
+              allJobsCount={colJobs.length}
+              selectedJob={selectedJob}
+              onSelectJob={onSelectJob}
+              onAdvance={onAdvance}
+              onShowAll={onShowAll}
+            />
+          </Box>
+        );
+      })}
+    </Stack>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTION STRIP — Critical alerts + team pulse at top
+   ═══════════════════════════════════════════════════════════════════ */
+
+export function AlertCard({
+  job,
+  onClick,
+}: {
+  job: OperationsJob;
+  onClick?: () => void;
+}) {
+  const risk = getRisk(job);
+  const riskColor = risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : '#5D87FF';
+
+  return (
+    <Box
+      onClick={onClick}
+      sx={(theme) => {
+        const dark = theme.palette.mode === 'dark';
+        return {
+          display: 'flex', alignItems: 'center', gap: 1,
+          px: 1.25, py: 0.75,
+          borderRadius: 1.5, cursor: onClick ? 'pointer' : 'default',
+          border: `1px solid ${alpha(riskColor, 0.3)}`,
+          bgcolor: alpha(riskColor, dark ? 0.08 : 0.04),
+          minWidth: 180, maxWidth: 260, flexShrink: 0,
+          transition: 'all 120ms ease',
+          '&:hover': onClick ? { bgcolor: alpha(riskColor, dark ? 0.14 : 0.08) } : {},
+        };
+      }}
+    >
+      <Avatar
+        src={job.client_logo_url || undefined}
+        sx={{
+          width: 24, height: 24, borderRadius: 0.75,
+          fontSize: '0.6rem', fontWeight: 900,
+          bgcolor: alpha(clientAccent(job), 0.14),
+          color: clientAccent(job), flexShrink: 0,
+        }}
+      >
+        {initials(job.client_name)}
+      </Avatar>
+      <Stack spacing={0} sx={{ minWidth: 0, flex: 1 }}>
+        <Typography variant="caption" fontWeight={700} noWrap sx={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
+          {job.title}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: '0.58rem', color: riskColor, fontWeight: 800, lineHeight: 1 }}>
+          {risk.label}
+        </Typography>
+      </Stack>
+      <DeadlineCountdown deadline={job.deadline_at} compact />
+    </Box>
+  );
+}
+
+export function TeamPulseStrip({
+  owners,
+  jobs,
+  onFilterOwner,
+  allocableMinutesFn,
+  committedMinutesFn,
+}: {
+  owners: OperationsOwner[];
+  jobs: OperationsJob[];
+  onFilterOwner?: (ownerId: string) => void;
+  allocableMinutesFn: (owner: OperationsOwner) => number;
+  committedMinutesFn: (jobs: OperationsJob[], ownerId: string) => number;
+}) {
+  const MAX_VISIBLE = 6;
+  const visible = owners.slice(0, MAX_VISIBLE);
+  const extra = owners.length - MAX_VISIBLE;
+
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      {visible.map((owner) => {
+        const capacity = allocableMinutesFn(owner);
+        const committed = committedMinutesFn(jobs, owner.id);
+        const pct = capacity > 0 ? Math.min((committed / capacity) * 100, 100) : 0;
+        const barColor = pct > 90 ? '#FA896B' : pct > 75 ? '#FFAE1F' : '#13DEB9';
+
+        return (
+          <Tooltip key={owner.id} title={`${owner.name} — ${Math.round(pct)}% capacidade`} arrow>
+            <Stack
+              spacing={0.25}
+              alignItems="center"
+              onClick={() => onFilterOwner?.(owner.id)}
+              sx={{ cursor: onFilterOwner ? 'pointer' : 'default', minWidth: 32 }}
+            >
+              <Avatar sx={{
+                width: 26, height: 26, fontSize: '0.55rem', fontWeight: 900,
+                bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF',
+              }}>
+                {initials(owner.name)}
+              </Avatar>
+              <Box sx={{ width: 26, height: 3, borderRadius: 1, bgcolor: alpha(barColor, 0.2), overflow: 'hidden' }}>
+                <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: barColor, borderRadius: 1 }} />
+              </Box>
+            </Stack>
+          </Tooltip>
+        );
+      })}
+      {extra > 0 ? (
+        <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 800, color: 'text.secondary' }}>
+          +{extra}
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+}
+
+export function ActionStrip({
+  alerts,
+  owners,
+  jobs,
+  onSelectJob,
+  onFilterOwner,
+  allocableMinutesFn,
+  committedMinutesFn,
+}: {
+  alerts: OperationsJob[];
+  owners: OperationsOwner[];
+  jobs: OperationsJob[];
+  onSelectJob: (job: OperationsJob) => void;
+  onFilterOwner?: (ownerId: string) => void;
+  allocableMinutesFn: (owner: OperationsOwner) => number;
+  committedMinutesFn: (jobs: OperationsJob[], ownerId: string) => number;
+}) {
+  return (
+    <Box sx={(theme) => {
+      const dark = theme.palette.mode === 'dark';
+      return {
+        borderRadius: 2,
+        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+        bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.01),
+        px: 2, py: 1.25,
+      };
+    }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+        {/* Alerts side */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {alerts.length > 0 ? (
+            <Stack spacing={0.5}>
+              <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Atenção agora
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: 3 } }}>
+                {alerts.map((job) => (
+                  <AlertCard key={job.id} job={job} onClick={() => onSelectJob(job)} />
+                ))}
+              </Stack>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#13DEB9' }} />
+              <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.72rem', color: '#13DEB9' }}>
+                Controlado — nenhum alerta crítico
+              </Typography>
+            </Stack>
+          )}
+        </Box>
+
+        {/* Team pulse side */}
+        {owners.length > 0 ? (
+          <Box sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
+              Equipe
+            </Typography>
+            <TeamPulseStrip
+              owners={owners}
+              jobs={jobs}
+              onFilterOwner={onFilterOwner}
+              allocableMinutesFn={allocableMinutesFn}
+              committedMinutesFn={committedMinutesFn}
+            />
+          </Box>
+        ) : null}
       </Stack>
     </Box>
   );

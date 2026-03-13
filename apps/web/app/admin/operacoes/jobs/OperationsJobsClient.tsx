@@ -23,27 +23,33 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconFilter,
+  IconFlag,
   IconInbox,
+  IconLayoutList,
   IconLoader2,
   IconPlayerPlay,
   IconSearch,
   IconTruck,
+  IconUser,
+  IconUsers,
   IconUserOff,
   IconUrgent,
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
+  ActionStrip,
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
   JobFocusRail,
   OpsJobRow,
   PersonThumb,
+  PipelineBoard,
   SourceThumb,
   StatusDot,
 } from '@/components/operations/primitives';
-import { sortByOperationalPriority } from '@/components/operations/derived';
+import { criticalAlerts, groupJobsByClient, groupJobsByOwner, groupJobsByRisk, ownerAllocableMinutes, ownerCommittedMinutes, sortByOperationalPriority, type GroupedSection } from '@/components/operations/derived';
 import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
@@ -74,6 +80,7 @@ export default function OperationsJobsClient() {
   const [ownerFilter, setOwnerFilter] = useState('');
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [groupMode, setGroupMode] = useState<'status' | 'client' | 'owner' | 'risk'>('status');
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
@@ -100,13 +107,32 @@ export default function OperationsJobsClient() {
 
   const grouped = useMemo(() => groupBy(filteredJobs, (job) => job.status), [filteredJobs]);
 
+  const groupedSections = useMemo((): GroupedSection[] => {
+    if (groupMode === 'client') return groupJobsByClient(filteredJobs);
+    if (groupMode === 'owner') return groupJobsByOwner(filteredJobs);
+    if (groupMode === 'risk') return groupJobsByRisk(filteredJobs);
+    // 'status' — default bucket view handled by BucketGroup below
+    return [];
+  }, [filteredJobs, groupMode]);
+
   useEffect(() => {
     if (!selectedJob) { setSelectedJob(filteredJobs[0] || null); return; }
     const fresh = filteredJobs.find((j) => j.id === selectedJob.id) || jobs.find((j) => j.id === selectedJob.id);
     if (fresh) setSelectedJob(fresh);
   }, [filteredJobs, jobs, selectedJob]);
 
+  const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
+
+  const handleAdvance = async (jobId: string, nextStatus: string) => {
+    await changeStatus(jobId, nextStatus);
+    await refresh();
+  };
+
+  const handleAssign = async (jobId: string, ownerId: string) => {
+    await updateJob(jobId, { owner_id: ownerId });
+    await refresh();
+  };
   const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter);
   const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter].filter(Boolean).length;
 
@@ -147,6 +173,21 @@ export default function OperationsJobsClient() {
       }
     >
       {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+
+      {/* Action Strip — alerts + team pulse */}
+      {!loading && jobs.length > 0 ? (
+        <Box sx={{ mb: 2 }}>
+          <ActionStrip
+            alerts={alerts}
+            owners={lookups.owners}
+            jobs={jobs}
+            onSelectJob={(job) => { setSelectedJob(job); setDetailOpen(true); }}
+            onFilterOwner={(ownerId) => setOwnerFilter(ownerId)}
+            allocableMinutesFn={ownerAllocableMinutes}
+            committedMinutesFn={ownerCommittedMinutes}
+          />
+        </Box>
+      ) : null}
 
       {loading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
@@ -241,16 +282,65 @@ export default function OperationsJobsClient() {
                 </Collapse>
               </Box>
 
-              {/* Job buckets */}
+              {/* Pipeline Board — Kanban overview */}
+              {filteredJobs.length > 0 ? (
+                <PipelineBoard
+                  jobs={filteredJobs}
+                  selectedJob={selectedJob}
+                  onSelectJob={(job) => { setSelectedJob(job); }}
+                  onAdvance={async (jobId, nextStatus) => {
+                    await changeStatus(jobId, nextStatus);
+                    await refresh();
+                  }}
+                  onShowAll={(columnKey) => {
+                    const col = BUCKETS.find((b) => b.key === columnKey);
+                    if (col) setStatusFilter(col.stages[0]);
+                  }}
+                />
+              ) : null}
+
+              {/* Group-by selector */}
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem', mr: 0.5 }}>
+                  Agrupar:
+                </Typography>
+                <ToggleButtonGroup
+                  value={groupMode}
+                  exclusive
+                  onChange={(_e, v) => { if (v) setGroupMode(v); }}
+                  size="small"
+                >
+                  <ToggleButton value="status" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                    <IconLayoutList size={13} style={{ marginRight: 3 }} /> Status
+                  </ToggleButton>
+                  <ToggleButton value="client" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                    <IconUsers size={13} style={{ marginRight: 3 }} /> Cliente
+                  </ToggleButton>
+                  <ToggleButton value="owner" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                    <IconUser size={13} style={{ marginRight: 3 }} /> Dono
+                  </ToggleButton>
+                  <ToggleButton value="risk" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                    <IconFlag size={13} style={{ marginRight: 3 }} /> Risco
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Stack>
+
+              {/* Job list */}
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
-              ) : (
+              ) : groupMode === 'status' ? (
                 <Stack spacing={1.5}>
                   {BUCKETS.map((bucket) => {
                     const bucketJobs = bucket.stages.flatMap((s) => grouped[s] || []);
                     if (!bucketJobs.length) return null;
-                    return <BucketGroup key={bucket.key} bucket={bucket} jobs={bucketJobs} selectedJob={selectedJob} onSelectJob={setSelectedJob} />;
+                    return <BucketGroup key={bucket.key} bucket={bucket} jobs={bucketJobs} selectedJob={selectedJob} onSelectJob={setSelectedJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />;
                   })}
+                </Stack>
+              ) : (
+                <Stack spacing={1.5}>
+                  {groupedSections.map((section) => (
+                    <GroupSection key={section.key} section={section} selectedJob={selectedJob} onSelectJob={setSelectedJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
+                  ))}
                 </Stack>
               )}
             </Stack>
@@ -336,11 +426,17 @@ function BucketGroup({
   jobs,
   selectedJob,
   onSelectJob,
+  onAdvance,
+  onAssign,
+  owners,
 }: {
   bucket: { key: string; label: string; icon: React.ReactNode; color: 'info' | 'success' | 'warning' | 'default' };
   jobs: OperationsJob[];
   selectedJob: OperationsJob | null;
   onSelectJob: (job: OperationsJob) => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: Array<{ id: string; name: string; email: string; role: string; specialty?: string | null; person_type?: 'internal' | 'freelancer' }>;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -385,7 +481,66 @@ function BucketGroup({
       <Collapse in={expanded}>
         <Box sx={{ py: 0.5 }}>
           {jobs.sort(sortByOperationalPriority).map((job) => (
-            <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage />
+            <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage onAdvance={onAdvance} onAssign={onAssign} owners={owners} />
+          ))}
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
+/* ─── Group Section (for client/owner/risk grouping) ─── */
+
+function GroupSection({
+  section,
+  selectedJob,
+  onSelectJob,
+  onAdvance,
+  onAssign,
+  owners,
+}: {
+  section: GroupedSection;
+  selectedJob: OperationsJob | null;
+  onSelectJob: (job: OperationsJob) => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: Array<{ id: string; name: string; email: string; role: string; specialty?: string | null; person_type?: 'internal' | 'freelancer' }>;
+}) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const [expanded, setExpanded] = useState(true);
+  const sectionColor = section.color || theme.palette.primary.main;
+
+  return (
+    <Box sx={{
+      borderRadius: 2,
+      overflow: 'hidden',
+      border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+      bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.5),
+    }}>
+      <Box
+        onClick={() => setExpanded(!expanded)}
+        sx={{
+          px: 2, py: 1.25,
+          display: 'flex', alignItems: 'center', gap: 1.25, cursor: 'pointer',
+          borderBottom: expanded ? `1px solid ${alpha(sectionColor, 0.1)}` : undefined,
+          transition: 'all 150ms ease',
+          '&:hover': { bgcolor: alpha(sectionColor, dark ? 0.06 : 0.03) },
+        }}
+      >
+        <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: sectionColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}>
+          {section.count}
+        </Typography>
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: sectionColor, flexShrink: 0 }} />
+        <Typography variant="body2" fontWeight={700}>{section.label}</Typography>
+        <Box sx={{ flex: 1 }} />
+        {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
+      </Box>
+
+      <Collapse in={expanded}>
+        <Box sx={{ py: 0.5 }}>
+          {section.jobs.sort(sortByOperationalPriority).map((job) => (
+            <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage onAdvance={onAdvance} onAssign={onAssign} owners={owners} />
           ))}
         </Box>
       </Collapse>

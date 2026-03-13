@@ -79,6 +79,64 @@ export function jobsByAttentionClient(jobs: OperationsJob[]) {
   return Array.from(map.values()).sort((a, b) => (b.critical - a.critical) || (b.total - a.total));
 }
 
+export type GroupedSection = {
+  key: string;
+  label: string;
+  color?: string;
+  count: number;
+  jobs: OperationsJob[];
+};
+
+export function groupJobsByClient(jobs: OperationsJob[]): GroupedSection[] {
+  const map = new Map<string, { label: string; color?: string; jobs: OperationsJob[] }>();
+  jobs.forEach((job) => {
+    const key = job.client_id || '__none__';
+    const entry = map.get(key) || { label: job.client_name || 'Sem cliente', color: job.client_brand_color || undefined, jobs: [] };
+    entry.jobs.push(job);
+    map.set(key, entry);
+  });
+  return Array.from(map.entries())
+    .map(([key, val]) => ({ key, label: val.label, color: val.color, count: val.jobs.length, jobs: val.jobs }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function groupJobsByOwner(jobs: OperationsJob[]): GroupedSection[] {
+  const map = new Map<string, { label: string; jobs: OperationsJob[] }>();
+  jobs.forEach((job) => {
+    const key = job.owner_id || '__none__';
+    const entry = map.get(key) || { label: job.owner_name || 'Sem responsável', jobs: [] };
+    entry.jobs.push(job);
+    map.set(key, entry);
+  });
+  return Array.from(map.entries())
+    .map(([key, val]) => ({ key, label: val.label, count: val.jobs.length, jobs: val.jobs }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function groupJobsByRisk(jobs: OperationsJob[]): GroupedSection[] {
+  const bands: Array<{ level: string; label: string; color: string }> = [
+    { level: 'critical', label: 'Crítico', color: '#FA896B' },
+    { level: 'high', label: 'Alto', color: '#FFAE1F' },
+    { level: 'medium', label: 'Médio', color: '#5D87FF' },
+    { level: 'low', label: 'Controlado', color: '#13DEB9' },
+  ];
+  return bands
+    .map((band) => {
+      const matched = jobs.filter((j) => getRisk(j).level === band.level);
+      return { key: band.level, label: band.label, color: band.color, count: matched.length, jobs: matched };
+    })
+    .filter((s) => s.count > 0);
+}
+
+/** Jobs that are critical risk OR P0 without an owner. Max 6 returned. */
+export function criticalAlerts(jobs: OperationsJob[]): OperationsJob[] {
+  return jobs
+    .filter((j) => !isClosedStatus(j.status))
+    .filter((j) => getRisk(j).level === 'critical' || (j.priority_band === 'p0' && !j.owner_id))
+    .sort((a, b) => getRisk(b).score - getRisk(a).score)
+    .slice(0, 6);
+}
+
 export function sortByOperationalPriority(a: OperationsJob, b: OperationsJob) {
   const priorityRank = { p0: 0, p1: 1, p2: 2, p3: 3, p4: 4 } as const;
   const riskRank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
