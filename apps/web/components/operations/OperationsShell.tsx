@@ -1,18 +1,14 @@
 'use client';
 
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ConfirmProvider } from '@/hooks/useConfirm';
+import AppShell from '@/components/AppShell';
 import { useJarvis } from '@/contexts/JarvisContext';
-import JarvisDrawer from '@/components/jarvis/JarvisDrawer';
 import { OPS_COPY } from './copy';
 import Autocomplete from '@mui/material/Autocomplete';
-import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import Container from '@mui/material/Container';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -20,7 +16,6 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import {
-  IconArrowUpRight,
   IconLayoutKanban,
   IconPlus,
   IconSearch,
@@ -128,193 +123,131 @@ export default function OperationsShell({
   };
 
   return (
-    <ConfirmProvider>
+    <AppShell
+      title={copy.title}
+      meta={copy.subtitle}
+      action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => router.push('/admin/operacoes/jobs?new=1') }}
+    >
+      {/* Ops sub-header: command bar + tabs */}
       <Box
         sx={(theme) => ({
-          minHeight: '100vh',
-          bgcolor: theme.palette.background.default,
-          backgroundImage: `
-            radial-gradient(circle at top left, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.16 : 0.08)}, transparent 26%),
-            radial-gradient(circle at top right, ${alpha(theme.palette.info.main, theme.palette.mode === 'dark' ? 0.12 : 0.08)}, transparent 22%),
-            linear-gradient(180deg, ${theme.palette.mode === 'dark' ? '#0b0b0d' : alpha(theme.palette.background.paper, 0.96)} 0%, ${theme.palette.background.default} 100%)
-          `,
+          mx: -3,
+          mt: -3,
+          mb: 2,
+          px: 3,
+          pt: 1.5,
+          pb: 0,
+          borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
+          bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.3 : 0.6),
         })}
       >
+        <Stack spacing={1.25}>
+          {/* Command bar */}
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={commandOptions}
+            getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
+            inputValue={commandInput}
+            onInputChange={(_event, value) => setCommandInput(value)}
+            onChange={(_event, value) => handleRunCommand(value)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder={OPS_COPY.shell.commandPlaceholder}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleRunCommand(commandInput);
+                  }
+                }}
+                InputProps={{
+                  ...params.InputProps,
+                  startAdornment: <IconSearch size={16} style={{ marginRight: 8, opacity: 0.72 }} />,
+                }}
+              />
+            )}
+            renderOption={(props, option) => (
+              <Box component="li" {...props} key={option.label}>
+                <Stack spacing={0.25}>
+                  <Typography variant="body2" fontWeight={800}>{option.label}</Typography>
+                  <Typography variant="caption" color="text.secondary">{option.subtitle}</Typography>
+                </Stack>
+              </Box>
+            )}
+            sx={(theme) => ({
+              '& .MuiOutlinedInput-root': {
+                minHeight: 40,
+                borderRadius: 1.5,
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.035) : alpha(theme.palette.background.paper, 0.82),
+              },
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.14),
+              },
+              '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.24),
+              },
+            })}
+          />
+
+          {/* Section tabs */}
+          <Tabs
+            value={section}
+            onChange={(_event, value) => router.push(SECTIONS.find((item) => item.key === value)?.href || '/admin/operacoes')}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            sx={{
+              minHeight: 36,
+              '& .MuiTabs-indicator': { display: 'none' },
+            }}
+          >
+            {SECTIONS.map((item) => (
+              <Tab
+                key={item.key}
+                value={item.key}
+                label={item.label}
+                icon={item.icon}
+                iconPosition="start"
+                sx={(theme) => ({
+                  minHeight: 0,
+                  minWidth: 80,
+                  px: 1.25,
+                  py: 0.7,
+                  color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.68 : 0.74),
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  borderRadius: 1.25,
+                  mr: 0.5,
+                  border: '1px solid transparent',
+                  '&.Mui-selected': {
+                    color: theme.palette.text.primary,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05),
+                    borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.14),
+                  },
+                })}
+              />
+            ))}
+          </Tabs>
+        </Stack>
+      </Box>
+
+      {/* Summary stats row */}
+      {summary ? (
         <Box
           sx={(theme) => ({
-            position: 'sticky',
-            top: 0,
-            zIndex: 20,
-            backdropFilter: 'blur(18px)',
-            borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`,
-            bgcolor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.84 : 0.9),
+            py: 1.15,
+            px: 0.5,
+            mb: 2,
+            borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.07 : 0.1)}`,
           })}
         >
-        <Container maxWidth={false} sx={{ px: { xs: 2, md: 3 } }}>
-            <Stack spacing={1.25} sx={{ py: 1.15 }}>
-              <Stack direction="row" spacing={1.75} alignItems="center">
-                <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0, flexShrink: 0 }}>
-                  <Avatar
-                    variant="rounded"
-                    sx={(theme) => ({
-                      width: 32,
-                      height: 32,
-                      borderRadius: 1,
-                      bgcolor: alpha(theme.palette.primary.main, 0.16),
-                      color: theme.palette.primary.main,
-                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                    })}
-                  >
-                    <IconTargetArrow size={18} />
-                  </Avatar>
-                  <Box sx={{ minWidth: 0, lineHeight: 1 }}>
-                    <Typography variant="caption" sx={(theme) => ({ color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.52 : 0.62), textTransform: 'uppercase', letterSpacing: '0.14em', display: 'block', lineHeight: 1.1 })}>
-                      Edro Ops
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1 }}>
-                        {copy.title}
-                      </Typography>
-                      <Chip size="small" label={OPS_COPY.shell.badge} color="warning" sx={{ height: 18, fontWeight: 800, borderRadius: 1 }} />
-                    </Stack>
-                  </Box>
-                </Stack>
-
-                <Autocomplete
-                  freeSolo
-                  size="small"
-                  options={commandOptions}
-                  getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
-                  inputValue={commandInput}
-                  onInputChange={(_event, value) => setCommandInput(value)}
-                  onChange={(_event, value) => handleRunCommand(value)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      placeholder={OPS_COPY.shell.commandPlaceholder}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          handleRunCommand(commandInput);
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: <IconSearch size={16} style={{ marginRight: 8, opacity: 0.72 }} />,
-                      }}
-                    />
-                  )}
-                  renderOption={(props, option) => (
-                    <Box component="li" {...props} key={option.label}>
-                      <Stack spacing={0.25}>
-                        <Typography variant="body2" fontWeight={800}>{option.label}</Typography>
-                        <Typography variant="caption" color="text.secondary">{option.subtitle}</Typography>
-                      </Stack>
-                    </Box>
-                  )}
-                  sx={(theme) => ({
-                    flex: 1,
-                    '& .MuiOutlinedInput-root': {
-                      minHeight: 48,
-                      borderRadius: 1.5,
-                      bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.035) : alpha(theme.palette.background.paper, 0.82),
-                    },
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.14),
-                    },
-                    '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.24),
-                    },
-                  })}
-                />
-
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<IconPlus size={16} />}
-                    onClick={() => router.push('/admin/operacoes/jobs?new=1')}
-                    sx={{ borderRadius: 1.25, fontWeight: 800, px: 1.75 }}
-                  >
-                    {OPS_COPY.shell.newDemand}
-                  </Button>
-                  <Button
-                    component={Link}
-                    href="/home"
-                    variant="text"
-                    endIcon={<IconArrowUpRight size={16} />}
-                    sx={(theme) => ({ color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.72 : 0.76), whiteSpace: 'nowrap', minWidth: 0, px: 0.5 })}
-                  >
-                    {OPS_COPY.shell.modules}
-                  </Button>
-                </Stack>
-              </Stack>
-
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
-                <Tabs
-                  value={section}
-                  onChange={(_event, value) => router.push(SECTIONS.find((item) => item.key === value)?.href || '/admin/operacoes')}
-                  variant="scrollable"
-                  allowScrollButtonsMobile
-                  sx={{
-                    flex: 1,
-                    minHeight: 36,
-                    '& .MuiTabs-indicator': {
-                      display: 'none',
-                    },
-                  }}
-                >
-                  {SECTIONS.map((item) => (
-                    <Tab
-                      key={item.key}
-                      value={item.key}
-                      label={item.label}
-                      icon={item.icon}
-                      iconPosition="start"
-                      sx={(theme) => ({
-                        minHeight: 0,
-                        minWidth: 96,
-                        px: 1.25,
-                        py: 0.7,
-                        color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.68 : 0.74),
-                        fontWeight: 800,
-                        borderRadius: 1.25,
-                        mr: 0.5,
-                        border: '1px solid transparent',
-                        '&.Mui-selected': {
-                          color: theme.palette.text.primary,
-                          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.04),
-                          borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.12),
-                        },
-                      })}
-                    />
-                  ))}
-                </Tabs>
-              </Stack>
-            </Stack>
-          </Container>
+          {summary}
         </Box>
+      ) : null}
 
-        <Container maxWidth={false} sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
-          <Stack spacing={3}>
-            {summary ? (
-              <Box
-                sx={(theme) => ({
-                  py: 1.15,
-                  px: 0.5,
-                  borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.07 : 0.1)}`,
-                  borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.07 : 0.1)}`,
-                })}
-              >
-                {summary}
-              </Box>
-            ) : null}
-            <Box sx={{ animation: 'edroOpsEnter 180ms ease-out' }}>
-              {children}
-            </Box>
-          </Stack>
-        </Container>
-
-        <JarvisDrawer />
+      {/* Page content */}
+      <Box sx={{ animation: 'edroOpsEnter 180ms ease-out' }}>
+        {children}
       </Box>
 
       <Box
@@ -325,6 +258,6 @@ export default function OperationsShell({
           },
         }}
       />
-    </ConfirmProvider>
+    </AppShell>
   );
 }
