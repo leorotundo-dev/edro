@@ -157,7 +157,7 @@ function TeamHeatStrip({
               maxWidth: 160,
               px: 1.75,
               py: 1.5,
-              borderRadius: 3,
+              borderRadius: 2,
               cursor: 'pointer',
               flexShrink: 0,
               bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.18 : 0.12),

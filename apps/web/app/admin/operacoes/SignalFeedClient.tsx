@@ -114,7 +114,7 @@ function SignalCard({
         mx: 1,
         my: 0.5,
         cursor: 'pointer',
-        borderRadius: 3,
+        borderRadius: 2,
         border: selected
           ? `1.5px solid ${alpha(paletteColor, 0.4)}`
           : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05)}`,
@@ -123,13 +123,13 @@ function SignalCard({
           : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
         boxShadow: selected
           ? `0 0 0 3px ${alpha(paletteColor, 0.08)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.06)}`
-          : `inset 3px 0 0 0 ${paletteColor}, 0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+          : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
         transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
         '&:hover': {
           transform: 'translateY(-1px)',
           boxShadow: selected
             ? `0 0 0 3px ${alpha(paletteColor, 0.12)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`
-            : `inset 3px 0 0 0 ${paletteColor}, 0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.08)}`,
+            : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.16 : 0.08)}`,
         },
       }}
     >
@@ -279,7 +279,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
 
   return (
     <Box sx={{
-      p: 2, borderRadius: 3,
+      p: 2, borderRadius: 2,
       border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
       bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
       boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
@@ -427,7 +427,7 @@ export default function SignalFeedClient() {
                   key={kpi.label}
                   sx={{
                     p: 2,
-                    borderRadius: 4,
+                    borderRadius: 2,
                     textAlign: 'center',
                     position: 'relative',
                     overflow: 'hidden',
@@ -487,7 +487,7 @@ export default function SignalFeedClient() {
             {/* Signal feed (main content) */}
             <Grid size={{ xs: 12, lg: 8 }}>
               <Box sx={{
-                borderRadius: 4,
+                borderRadius: 2,
                 overflow: 'hidden',
                 border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                 bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.6),
@@ -571,7 +571,7 @@ export default function SignalFeedClient() {
                       href={item.href}
                       sx={{
                         display: 'flex', alignItems: 'center', gap: 1.5,
-                        px: 2, py: 1.5, borderRadius: 3,
+                        px: 2, py: 1.5, borderRadius: 2,
                         textDecoration: 'none', color: 'inherit',
                         border: `1px solid ${active ? alpha(item.color, 0.2) : dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',

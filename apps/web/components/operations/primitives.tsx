@@ -462,7 +462,7 @@ export function OpsPanel({
         position: sticky ? 'sticky' : 'relative',
         top: sticky ? 112 : 'auto',
         p: { xs: 2, md: 2.25 },
-        borderRadius: 3,
+        borderRadius: 2,
         ...sx,
       }}
     >
@@ -544,7 +544,7 @@ export function OpsToolbar({
       sx={{
         px: { xs: 1.5, md: 2 },
         py: 1.5,
-        borderRadius: 3,
+        borderRadius: 2,
       }}
     >
       {children}
@@ -563,7 +563,7 @@ export function OpsSurface({
       sx={{
         px: { xs: 1.5, md: 2 },
         py: { xs: 1.75, md: 2 },
-        borderRadius: 3,
+        borderRadius: 2,
       }}
     >
       {children}
@@ -739,7 +739,7 @@ export function OpsJobRow({
           mx: 0.75,
           my: 0.4,
           cursor: onClick ? 'pointer' : 'default',
-          borderRadius: 3,
+          borderRadius: 2,
           border: selected
             ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
             : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
@@ -748,17 +748,13 @@ export function OpsJobRow({
             : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
           boxShadow: selected
             ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.1)}, 0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`
-            : riskColor
-              ? `inset 3px 0 0 0 ${riskColor}, 0 1px 3px ${alpha(theme.palette.common.black, 0.04)}`
-              : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.04)}`,
+            : `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.04)}`,
           transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
           '&:hover': onClick ? {
             transform: 'translateY(-1px)',
             boxShadow: selected
               ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}, 0 4px 12px ${alpha(theme.palette.common.black, 0.12)}`
-              : riskColor
-                ? `inset 3px 0 0 0 ${riskColor}, 0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`
-                : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
+              : `0 4px 12px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
             bgcolor: selected
               ? alpha(theme.palette.primary.main, dark ? 0.14 : 0.07)
               : dark ? alpha(theme.palette.common.white, 0.04) : '#fff',
@@ -994,7 +990,7 @@ export function EntityLinkCard({
           py: 1,
           textDecoration: 'none',
           color: 'inherit',
-          borderRadius: 2.5,
+          borderRadius: 2,
           border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: dark ? alpha(theme.palette.common.white, 0.015) : alpha(theme.palette.common.black, 0.015),
           transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
@@ -1229,18 +1225,14 @@ export function OperationCard({
           cursor: onClick ? 'pointer' : 'default',
           p: 2,
           my: 0.75,
-          borderRadius: 3,
+          borderRadius: 2,
           border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-          boxShadow: riskColor
-            ? `inset 3px 0 0 0 ${riskColor}, 0 1px 4px ${alpha(theme.palette.common.black, 0.05)}`
-            : `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+          boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
           transition: 'all 200ms cubic-bezier(0.4,0,0.2,1)',
           '&:hover': onClick ? {
             transform: 'translateY(-1px)',
-            boxShadow: riskColor
-              ? `inset 3px 0 0 0 ${riskColor}, 0 6px 16px ${alpha(theme.palette.common.black, 0.12)}`
-              : `0 6px 16px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
+            boxShadow: `0 6px 16px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.1)}`,
           } : {},
         };
       }}
@@ -1394,7 +1386,7 @@ export function EmptyOperationState({
     <Paper
       variant="outlined"
       sx={(theme) => ({
-        borderRadius: 3,
+        borderRadius: 2,
         borderStyle: 'dashed',
         borderColor: alpha(theme.palette.text.secondary, 0.2),
         p: 3,

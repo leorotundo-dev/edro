@@ -149,10 +149,10 @@ export default function OperationsRadarClient() {
                       return {
                         px: 2,
                         py: 2,
-                        borderRadius: 4,
+                        borderRadius: 2,
                         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                        boxShadow: `inset 3px 0 0 0 ${theme.palette.error.main}, 0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+                        boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
                       };
                     }}
                   >
@@ -186,10 +186,10 @@ export default function OperationsRadarClient() {
                       return {
                         px: 2,
                         py: 2,
-                        borderRadius: 4,
+                        borderRadius: 2,
                         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                         bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                        boxShadow: `inset 3px 0 0 0 ${theme.palette.warning.main}, 0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
+                        boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, dark ? 0.12 : 0.05)}`,
                       };
                     }}
                   >

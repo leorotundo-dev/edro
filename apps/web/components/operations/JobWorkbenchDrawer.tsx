@@ -758,7 +758,7 @@ export default function JobWorkbenchDrawer({
                 <Stack spacing={1.25}>
                   <Typography variant="h6" fontWeight={800}>Linha do tempo</Typography>
                   {detailJob.history.slice(0, 8).map((item) => (
-                    <Box key={item.id} sx={{ p: 1.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+                    <Box key={item.id} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
                       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
                         <Typography variant="body2" fontWeight={700}>
                           {item.from_status ? `${item.from_status} → ` : ''}{item.to_status}

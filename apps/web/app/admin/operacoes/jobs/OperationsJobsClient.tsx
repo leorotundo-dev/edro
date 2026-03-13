@@ -149,7 +149,7 @@ export default function OperationsJobsClient() {
             <Stack spacing={2}>
               {/* Search + filter bar */}
               <Box sx={{
-                borderRadius: 4, overflow: 'hidden',
+                borderRadius: 2, overflow: 'hidden',
                 border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                 bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
                 boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
@@ -341,7 +341,7 @@ function BucketGroup({
 
   return (
     <Box sx={{
-      borderRadius: 4,
+      borderRadius: 2,
       overflow: 'hidden',
       border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
       bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.5),
