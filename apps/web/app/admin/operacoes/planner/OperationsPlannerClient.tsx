@@ -48,6 +48,33 @@ function ownerAccent(personType?: string | null) {
   return personType === 'freelancer' ? '#E85219' : '#5D87FF';
 }
 
+/** Returns a color interpolated from green (free) → yellow (mid) → red (full) */
+function heatColor(usage: number) {
+  const u = Math.max(0, Math.min(1.2, usage));
+  if (u <= 0.5) {
+    // green → yellow
+    const t = u / 0.5;
+    const r = Math.round(19 + (255 - 19) * t);
+    const g = Math.round(222 + (174 - 222) * t);
+    const b = Math.round(185 + (31 - 185) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+  // yellow → red
+  const t = Math.min(1, (u - 0.5) / 0.5);
+  const r = Math.round(255 - (255 - 250) * t);
+  const g = Math.round(174 - (174 - 56) * t);
+  const b = Math.round(31 - (31 - 75) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function formatHours(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!h) return `${m}min`;
+  if (!m) return `${h}h`;
+  return `${h}h${m}`;
+}
+
 function toDateInputValue(value?: string | null) {
   if (!value) return '';
   const date = new Date(value);
@@ -87,6 +114,101 @@ function plannerWeekSummary(jobs: OperationsJob[]) {
     }, 0);
     return { ...day, jobs: dayJobs, plannedMinutes };
   });
+}
+
+function TeamHeatStrip({
+  rows,
+  selectedOwnerId,
+  onSelect,
+}: {
+  rows: Array<{
+    owner: { id: string; name: string; role?: string | null; specialty?: string | null; person_type?: 'internal' | 'freelancer' };
+    allocableMinutes: number;
+    committedMinutes: number;
+    usage: number;
+    activeJobs: OperationsJob[];
+  }>;
+  selectedOwnerId?: string | null;
+  onSelect?: (ownerId: string) => void;
+}) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        gap: 1.5,
+        overflowX: 'auto',
+        pb: 1,
+        px: 0.5,
+        '&::-webkit-scrollbar': { height: 4 },
+        '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.12)', borderRadius: 2 },
+      }}
+    >
+      {rows.map((row) => {
+        const color = heatColor(row.usage);
+        const freeMinutes = Math.max(0, row.allocableMinutes - row.committedMinutes);
+        const selected = selectedOwnerId === row.owner.id;
+        const accent = ownerAccent(row.owner.person_type);
+
+        return (
+          <Box
+            key={row.owner.id}
+            onClick={() => onSelect?.(row.owner.id)}
+            sx={(theme) => ({
+              minWidth: 140,
+              maxWidth: 160,
+              px: 1.75,
+              py: 1.5,
+              borderRadius: 3,
+              cursor: 'pointer',
+              flexShrink: 0,
+              bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.18 : 0.12),
+              border: selected
+                ? `2px solid ${color}`
+                : `1px solid ${alpha(color, 0.25)}`,
+              transition: 'all 180ms ease',
+              '&:hover': {
+                bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.25 : 0.18),
+                transform: 'translateY(-2px)',
+              },
+            })}
+          >
+            <Stack spacing={0.75} alignItems="center" textAlign="center">
+              <PersonThumb name={row.owner.name} accent={accent} size={40} />
+              <Box>
+                <Typography variant="body2" fontWeight={900} noWrap sx={{ maxWidth: 120 }}>
+                  {row.owner.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', display: 'block', maxWidth: 120 }}>
+                  {row.owner.specialty || row.owner.role || 'Equipe'}
+                </Typography>
+              </Box>
+              <Typography
+                variant="caption"
+                fontWeight={800}
+                sx={{ color, fontSize: '0.72rem' }}
+              >
+                {freeMinutes > 0 ? formatHours(freeMinutes) + ' livre' : 'Lotado'}
+              </Typography>
+              <Box sx={{ width: '100%', height: 4, borderRadius: 2, bgcolor: alpha(color, 0.15) }}>
+                <Box
+                  sx={{
+                    height: 4,
+                    borderRadius: 2,
+                    bgcolor: color,
+                    width: `${Math.min(100, Math.round(row.usage * 100))}%`,
+                    transition: 'width 300ms ease',
+                  }}
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                {row.activeJobs.length} job{row.activeJobs.length !== 1 ? 's' : ''}
+              </Typography>
+            </Stack>
+          </Box>
+        );
+      })}
+    </Box>
+  );
 }
 
 export default function OperationsPlannerClient() {
@@ -274,6 +396,15 @@ export default function OperationsPlannerClient() {
                   </Stack>
                 }
               >
+                <TeamHeatStrip
+                  rows={ownerRows}
+                  selectedOwnerId={selectedJob?.owner_id}
+                  onSelect={(ownerId) => {
+                    const ownerRow = ownerRows.find((r) => r.owner.id === ownerId);
+                    const firstJob = ownerRow?.activeJobs[0];
+                    if (firstJob) setSelectedJob(firstJob);
+                  }}
+                />
                 <OpsSurface>
                   <Stack spacing={0}>
                     {ownerRows.map((row, index) => {
