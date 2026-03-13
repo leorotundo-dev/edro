@@ -29,7 +29,6 @@ import {
   IconCalendarTime,
   IconCircleCheckFilled,
   IconFlag,
-  IconFocus2,
   IconLink,
   IconMessageCircle,
   IconCalendarDue,
@@ -455,7 +454,6 @@ export function OpsJobRow({
   showStage?: boolean;
   timeValue?: string | null;
 }) {
-  const nextAction = getNextAction(job);
   const risk = getRisk(job);
 
   return (
@@ -463,75 +461,62 @@ export function OpsJobRow({
       onClick={onClick}
       sx={(theme) => ({
         px: 1.25,
-        py: 1.15,
+        py: 0.9,
         mx: -1,
         cursor: onClick ? 'pointer' : 'default',
         borderRadius: 2,
         border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : '1px solid transparent',
         bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
-        transition: 'background-color 140ms ease, border-color 140ms ease, transform 140ms ease',
+        transition: 'background-color 140ms ease, border-color 140ms ease',
         '&:hover': {
           bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
-          transform: onClick ? 'translateX(2px)' : 'none',
         },
       })}
     >
-      <Stack spacing={1}>
-        <Stack direction="row" spacing={1.25} justifyContent="space-between" alignItems="flex-start">
-          <Stack direction="row" spacing={1.25} sx={{ minWidth: 0, flex: 1 }}>
-            <Avatar
-              src={job.client_logo_url || undefined}
-              alt={job.client_name || 'Cliente'}
-              sx={{
-                width: 34,
-                height: 34,
-                borderRadius: 1.5,
-                fontSize: '0.72rem',
-                fontWeight: 900,
-                bgcolor: alpha(clientAccent(job), 0.18),
-                color: clientAccent(job),
-                border: `1px solid ${alpha(clientAccent(job), 0.34)}`,
-                flexShrink: 0,
-              }}
-            >
-              {initials(job.client_name)}
-            </Avatar>
-            <Stack spacing={0.5} sx={{ minWidth: 0, flex: 1 }}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip
-                  size="small"
-                icon={sourceIcon(job.source, job.job_type)}
-                label={formatSourceLabel(job.source)}
-                variant="outlined"
-                  sx={{ height: 22, borderRadius: 1 }}
-              />
-              {showStage ? <Chip size="small" variant="outlined" label={STAGE_LABELS[job.status] || job.status} /> : null}
-              <PriorityPill priorityBand={job.priority_band} />
-              <RiskFlag job={job} />
-              {job.is_urgent ? <Chip size="small" color="error" label="Urgente" /> : null}
-              </Stack>
-              <Typography variant="body1" fontWeight={800} sx={{ lineHeight: 1.15 }}>
-                {job.title}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'} · {formatSkillLabel(job.required_skill)}
-              </Typography>
-            </Stack>
-          </Stack>
-          <Stack spacing={0.35} alignItems="flex-end" sx={{ flexShrink: 0 }}>
-            <Typography variant="caption" color={risk.level === 'critical' ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 800 }}>
-              {formatDateTime(timeValue ?? job.deadline_at)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {formatMinutes(job.estimated_minutes)}
-            </Typography>
-          </Stack>
-        </Stack>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary">
-            Próximo passo: {nextAction.label}
+      <Stack direction="row" spacing={1.25} alignItems="center">
+        <Avatar
+          src={job.client_logo_url || undefined}
+          alt={job.client_name || 'Cliente'}
+          sx={{
+            width: 32,
+            height: 32,
+            borderRadius: 1.25,
+            fontSize: '0.68rem',
+            fontWeight: 900,
+            bgcolor: alpha(clientAccent(job), 0.18),
+            color: clientAccent(job),
+            border: `1px solid ${alpha(clientAccent(job), 0.28)}`,
+            flexShrink: 0,
+          }}
+        >
+          {initials(job.client_name)}
+        </Avatar>
+
+        <Stack spacing={0.15} sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
+            {job.title}
           </Typography>
-          <Chip size="small" icon={<IconFocus2 size={12} />} label={job.status === 'blocked' ? 'resolver' : 'ver'} variant="outlined" sx={{ height: 22 }} />
+          <Typography variant="caption" color="text.secondary" noWrap>
+            {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
+          </Typography>
+        </Stack>
+
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+          {job.is_urgent ? (
+            <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
+          ) : null}
+          <PriorityPill priorityBand={job.priority_band} />
+        </Stack>
+
+        <Stack spacing={0.15} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
+          <Typography variant="caption" color={risk.level === 'critical' ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 700 }}>
+            {formatDateTime(timeValue ?? job.deadline_at)}
+          </Typography>
+          {showStage ? (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+              {STAGE_LABELS[job.status] || job.status}
+            </Typography>
+          ) : null}
         </Stack>
       </Stack>
     </Box>
