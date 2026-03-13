@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import OperationsShell from '@/components/operations/OperationsShell';
 import { useOperationsData } from '@/components/operations/useOperationsData';
-import { OpsSummaryStat } from '@/components/operations/primitives';
+import { StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
 import { isClosedStatus } from '@/components/operations/derived';
 import { formatMinutes, getRisk, type OperationsJob } from '@/components/operations/model';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
@@ -370,107 +370,165 @@ export default function SignalFeedClient() {
   const attentionSignals = signals.filter((s) => s.severity >= 70 && s.severity < 90).length;
   const loading = jobsLoading || signalsLoading;
 
-  const summary = (
-    <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap>
-      <OpsSummaryStat value={signals.length} label="sinais ativos" />
-      <OpsSummaryStat value={criticalSignals} label="críticos" tone={criticalSignals > 0 ? 'error' : 'default'} />
-      <OpsSummaryStat value={attentionSignals} label="atenção" tone={attentionSignals > 0 ? 'warning' : 'default'} />
-      <OpsSummaryStat value={activeJobs.length} label="jobs ativos" />
-    </Stack>
-  );
+  const blockedCount = activeJobs.filter((j) => j.status === 'blocked').length;
+  const unassignedCount = activeJobs.filter((j) => !j.owner_id).length;
+
+  const summary = null; // KPIs moved to hero strip below
 
   return (
     <OperationsShell section="overview" summary={summary}>
       {loading ? (
         <Stack spacing={2}>
-          <Skeleton variant="rounded" height={80} sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" height={90} sx={{ borderRadius: 2 }} />
           <Skeleton variant="rounded" height={300} sx={{ borderRadius: 2 }} />
-          <Skeleton variant="rounded" height={80} sx={{ borderRadius: 2 }} />
         </Stack>
       ) : (
-        <Grid container spacing={2.5}>
-          {/* Signal feed (main content) */}
-          <Grid size={{ xs: 12, lg: 8 }}>
-            <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              {/* Feed header */}
-              <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <IconInbox size={16} style={{ opacity: 0.5 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      Feed de sinais
-                    </Typography>
-                    {signals.length > 0 && (
-                      <Chip size="small" label={signals.length} color="primary" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />
-                    )}
-                  </Stack>
-                  <Tooltip title="Recalcular sinais">
-                    <IconButton size="small" onClick={handleRefreshAll} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
-                      <IconRefresh size={16} />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              </Box>
+        <Stack spacing={2.5}>
+          {/* ── Hero KPI Strip ── */}
+          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+            {[
+              { value: signals.length, label: 'Sinais', color: theme.palette.primary.main, pulse: false },
+              { value: criticalSignals, label: 'Críticos', color: theme.palette.error.main, pulse: criticalSignals > 0 },
+              { value: attentionSignals, label: 'Atenção', color: theme.palette.warning.main, pulse: false },
+              { value: blockedCount, label: 'Bloqueados', color: '#FA896B', pulse: blockedCount > 0 },
+              { value: unassignedCount, label: 'Sem dono', color: '#FFAE1F', pulse: false },
+              { value: activeJobs.length, label: 'Ativos', color: theme.palette.success.main, pulse: false },
+            ].map((kpi) => (
+              <Paper
+                key={kpi.label}
+                variant="outlined"
+                sx={{
+                  flex: '1 1 100px',
+                  minWidth: 90,
+                  p: 1.5,
+                  borderRadius: 2.5,
+                  textAlign: 'center',
+                  borderColor: kpi.value > 0 ? alpha(kpi.color, 0.3) : 'divider',
+                  bgcolor: kpi.value > 0 ? alpha(kpi.color, 0.04) : 'transparent',
+                  transition: 'all 200ms ease',
+                  ...(kpi.pulse && {
+                    animation: 'kpiPulse 2s ease-in-out infinite',
+                    '@keyframes kpiPulse': {
+                      '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(kpi.color, 0.3)}` },
+                      '50%': { boxShadow: `0 0 0 4px ${alpha(kpi.color, 0.15)}` },
+                    },
+                  }),
+                }}
+              >
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    color: kpi.value > 0 ? kpi.color : 'text.disabled',
+                    fontSize: { xs: '1.5rem', md: '2rem' },
+                  }}
+                >
+                  {kpi.value}
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {kpi.label}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
 
-              {/* Signal list */}
-              {signals.length === 0 ? (
-                <EmptySignals />
-              ) : (
-                signals.map((signal) => (
-                  <SignalCard
-                    key={signal.id}
-                    signal={signal}
-                    selected={selectedSignal?.id === signal.id}
-                    onClick={() => handleSelectSignal(signal)}
-                    onResolve={() => handleResolve(signal.id)}
-                    onSnooze={() => handleSnooze(signal.id)}
-                  />
-                ))
-              )}
-            </Paper>
-          </Grid>
-
-          {/* Right sidebar: quick stats + capacity */}
-          <Grid size={{ xs: 12, lg: 4 }}>
-            <Stack spacing={2}>
-              {/* Quick links */}
+          <Grid container spacing={2.5}>
+            {/* Signal feed (main content) */}
+            <Grid size={{ xs: 12, lg: 8 }}>
               <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                {/* Feed header */}
+                <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconInbox size={16} style={{ opacity: 0.5 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                        Feed de sinais
+                      </Typography>
+                      {signals.length > 0 && (
+                        <Box sx={{
+                          px: 0.75, py: 0.1, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.12),
+                          color: theme.palette.primary.main, fontSize: '0.7rem', fontWeight: 800,
+                        }}>
+                          {signals.length}
+                        </Box>
+                      )}
+                    </Stack>
+                    <Tooltip title="Recalcular sinais">
+                      <IconButton size="small" onClick={handleRefreshAll} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                        <IconRefresh size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </Box>
+
+                {/* Signal list */}
+                {signals.length === 0 ? (
+                  <EmptySignals />
+                ) : (
+                  signals.map((signal) => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      selected={selectedSignal?.id === signal.id}
+                      onClick={() => handleSelectSignal(signal)}
+                      onResolve={() => handleResolve(signal.id)}
+                      onSnooze={() => handleSnooze(signal.id)}
+                    />
+                  ))
+                )}
+              </Paper>
+            </Grid>
+
+            {/* Right sidebar: quick stats + capacity */}
+            <Grid size={{ xs: 12, lg: 4 }}>
+              <Stack spacing={2}>
+                {/* Quick action links — big visual blocks */}
                 {[
-                  { label: 'Demandas sem dono', value: activeJobs.filter((j) => !j.owner_id).length, href: '/admin/operacoes/jobs?unassigned=true', color: 'warning' as const },
-                  { label: 'Bloqueadas', value: activeJobs.filter((j) => j.status === 'blocked').length, href: '/admin/operacoes/radar', color: 'error' as const },
-                  { label: 'Aguardando aprovação', value: activeJobs.filter((j) => j.status === 'awaiting_approval').length, href: '/admin/operacoes/jobs', color: 'info' as const },
-                ].map((item, idx) => (
-                  <Box
+                  { label: 'Sem dono', value: unassignedCount, href: '/admin/operacoes/jobs?unassigned=true', color: theme.palette.warning.main, icon: <IconClock size={18} /> },
+                  { label: 'Bloqueados', value: blockedCount, href: '/admin/operacoes/radar', color: theme.palette.error.main, icon: <IconFlag size={18} /> },
+                  { label: 'Aprovação', value: activeJobs.filter((j) => j.status === 'awaiting_approval').length, href: '/admin/operacoes/jobs', color: theme.palette.info.main, icon: <IconCheck size={18} /> },
+                ].map((item) => (
+                  <Paper
                     key={item.label}
                     component={Link}
                     href={item.href}
+                    variant="outlined"
                     sx={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      px: 2, py: 1.25, textDecoration: 'none', color: 'inherit',
-                      borderBottom: idx < 2 ? `1px solid ${theme.palette.divider}` : undefined,
-                      transition: 'background 120ms ease',
-                      '&:hover': { bgcolor: 'action.hover' },
+                      display: 'flex', alignItems: 'center', gap: 1.5,
+                      px: 2, py: 1.5, borderRadius: 2.5,
+                      textDecoration: 'none', color: 'inherit',
+                      borderColor: item.value > 0 ? alpha(item.color, 0.3) : 'divider',
+                      transition: 'all 140ms ease',
+                      '&:hover': { bgcolor: alpha(item.color, 0.04), transform: 'translateX(2px)' },
                     }}
                   >
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      {item.label}
+                    <Box sx={{
+                      width: 36, height: 36, borderRadius: 1.5,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      bgcolor: alpha(item.color, item.value > 0 ? 0.14 : 0.06),
+                      color: item.value > 0 ? item.color : 'text.disabled',
+                    }}>
+                      {item.icon}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.68rem' }}>
+                        {item.label}
+                      </Typography>
+                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 900, color: item.value > 0 ? item.color : 'text.disabled' }}>
+                      {item.value}
                     </Typography>
-                    <Chip
-                      size="small"
-                      label={item.value}
-                      color={item.value > 0 ? item.color : 'default'}
-                      variant={item.value > 0 ? 'filled' : 'outlined'}
-                      sx={{ height: 22, fontWeight: 800, minWidth: 32 }}
-                    />
-                  </Box>
+                    <IconChevronRight size={16} style={{ opacity: 0.3 }} />
+                  </Paper>
                 ))}
-              </Paper>
 
-              {/* Team capacity */}
-              <TeamCapacityMini jobs={jobs} owners={lookups.owners} />
-            </Stack>
+                {/* Team capacity */}
+                <TeamCapacityMini jobs={jobs} owners={lookups.owners} />
+              </Stack>
+            </Grid>
           </Grid>
-        </Grid>
+        </Stack>
       )}
 
       {/* Job Detail Drawer */}

@@ -27,7 +27,6 @@ import {
   OpsDivider,
   OpsJobRow,
   OpsSection,
-  OpsSummaryStat,
   OpsSurface,
   PersonThumb,
   SourceThumb,
@@ -362,10 +361,21 @@ export default function OperationsPlannerClient() {
     <OperationsShell
       section="planner"
       summary={
-        <Stack direction="row" spacing={2.25} flexWrap="wrap" useFlexGap alignItems="center">
-          <OpsSummaryStat value={ownerRows.length} label={OPS_COPY.planner.summaryPeople} />
-          <OpsSummaryStat value={overloaded} label={OPS_COPY.planner.summaryOverload} tone={overloaded ? 'error' : 'default'} />
-          <OpsSummaryStat value={unassignedJobs.length} label={OPS_COPY.planner.summaryUnassigned} tone={unassignedJobs.length ? 'warning' : 'default'} />
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+          {[
+            { value: ownerRows.length, label: OPS_COPY.planner.summaryPeople, color: undefined },
+            { value: overloaded, label: OPS_COPY.planner.summaryOverload, color: overloaded ? '#FA896B' : undefined },
+            { value: unassignedJobs.length, label: OPS_COPY.planner.summaryUnassigned, color: unassignedJobs.length ? '#FFAE1F' : undefined },
+          ].map((kpi) => (
+            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
+              <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1, ...(kpi.color ? { color: kpi.color } : {}) }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                {kpi.label}
+              </Typography>
+            </Stack>
+          ))}
         </Stack>
       }
     >

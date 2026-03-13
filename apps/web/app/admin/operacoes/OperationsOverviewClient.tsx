@@ -33,7 +33,6 @@ import {
   OpsDivider,
   OpsJobRow,
   OpsPanel,
-  OpsSummaryStat,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
@@ -185,11 +184,22 @@ export default function OperationsOverviewClient() {
     <OperationsShell
       section="overview"
       summary={
-        <Stack direction="row" spacing={2.25} flexWrap="wrap" useFlexGap alignItems="center">
-          <OpsSummaryStat value={criticalJobs.length} label={OPS_COPY.overview.summaryExceptions} tone={criticalJobs.length ? 'error' : 'default'} />
-          <OpsSummaryStat value={unassignedJobs.length} label={OPS_COPY.overview.summaryUnassigned} tone={unassignedJobs.length ? 'warning' : 'default'} />
-          <OpsSummaryStat value={todayJobs.length} label={OPS_COPY.overview.summaryToday} tone={todayJobs.length ? 'warning' : 'default'} />
-          <OpsSummaryStat value={overviewRuntime.summary.checkpoints_total} label={OPS_COPY.overview.summaryCheckpoints} tone={overviewRuntime.summary.checkpoints_total ? 'warning' : 'default'} />
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+          {[
+            { value: criticalJobs.length, label: OPS_COPY.overview.summaryExceptions, color: criticalJobs.length ? '#FA896B' : undefined },
+            { value: unassignedJobs.length, label: OPS_COPY.overview.summaryUnassigned, color: unassignedJobs.length ? '#FFAE1F' : undefined },
+            { value: todayJobs.length, label: OPS_COPY.overview.summaryToday, color: todayJobs.length ? '#FFAE1F' : undefined },
+            { value: overviewRuntime.summary.checkpoints_total, label: OPS_COPY.overview.summaryCheckpoints, color: overviewRuntime.summary.checkpoints_total ? '#FFAE1F' : undefined },
+          ].map((kpi) => (
+            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
+              <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1, ...(kpi.color ? { color: kpi.color } : {}) }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                {kpi.label}
+              </Typography>
+            </Stack>
+          ))}
         </Stack>
       }
     >

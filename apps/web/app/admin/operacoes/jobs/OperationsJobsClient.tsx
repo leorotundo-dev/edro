@@ -39,9 +39,9 @@ import {
   EntityLinkCard,
   JobFocusRail,
   OpsJobRow,
-  OpsSummaryStat,
   PersonThumb,
   SourceThumb,
+  StatusDot,
 } from '@/components/operations/primitives';
 import { sortByOperationalPriority } from '@/components/operations/derived';
 import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
@@ -114,11 +114,27 @@ export default function OperationsJobsClient() {
     <OperationsShell
       section="jobs"
       summary={
-        <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap alignItems="center">
-          <OpsSummaryStat value={filteredJobs.length} label={OPS_COPY.jobs.summaryVisible} />
-          <OpsSummaryStat value={filteredJobs.filter((j) => !j.owner_id).length} label={OPS_COPY.jobs.summaryUnassigned} tone={filteredJobs.some((j) => !j.owner_id) ? 'warning' : 'default'} />
-          <OpsSummaryStat value={filteredJobs.filter((j) => j.is_urgent).length} label={OPS_COPY.jobs.summaryUrgent} tone={filteredJobs.some((j) => j.is_urgent) ? 'error' : 'default'} />
-          <OpsSummaryStat value={Object.keys(grouped).length} label={OPS_COPY.jobs.summaryStages} />
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
+          {BUCKETS.map((b) => {
+            const cnt = b.stages.flatMap((s) => grouped[s] || []).length;
+            const bColor = b.color !== 'default' ? theme.palette[b.color].main : alpha(theme.palette.text.primary, 0.5);
+            return (
+              <Stack key={b.key} direction="row" spacing={0.5} alignItems="center"
+                sx={{ px: 1, py: 0.4, borderRadius: 1.5, bgcolor: cnt > 0 ? alpha(bColor, 0.08) : 'transparent' }}>
+                <Box sx={{ color: bColor, display: 'flex' }}>{b.icon}</Box>
+                <Typography variant="caption" sx={{ fontWeight: 900, color: cnt > 0 ? bColor : 'text.disabled', fontSize: '0.85rem' }}>
+                  {cnt}
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                  {b.label}
+                </Typography>
+              </Stack>
+            );
+          })}
+          <Box sx={{ width: 1, height: 16, bgcolor: 'divider', borderRadius: 1 }} />
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+            {filteredJobs.length} total
+          </Typography>
         </Stack>
       }
     >
@@ -332,9 +348,18 @@ function BucketGroup({
           '&:hover': { bgcolor: alpha(color, dark ? 0.1 : 0.06) },
         }}
       >
-        <Box sx={{ color, display: 'flex' }}>{bucket.icon}</Box>
+        <Box sx={{
+          width: 26, height: 26, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: alpha(color, 0.14), color,
+          border: `1.5px solid ${alpha(color, 0.35)}`,
+        }}>
+          {bucket.icon}
+        </Box>
         <Typography variant="body2" fontWeight={800}>{bucket.label}</Typography>
-        <Chip size="small" label={jobs.length} sx={{ height: 20, fontWeight: 800, fontSize: '0.7rem', bgcolor: alpha(color, dark ? 0.15 : 0.1), color }} />
+        <Typography variant="body2" sx={{ fontWeight: 900, color, fontSize: '1rem' }}>
+          {jobs.length}
+        </Typography>
         <Box sx={{ flex: 1 }} />
         {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
       </Box>

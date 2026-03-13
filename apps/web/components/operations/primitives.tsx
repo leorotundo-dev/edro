@@ -19,16 +19,23 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { Theme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
 import {
   IconArrowRight,
   IconBriefcase,
   IconCalendarEvent,
   IconCalendarTime,
+  IconCamera,
   IconCheck,
   IconCircleCheckFilled,
+  IconClock,
+  IconClockPause,
   IconFlag,
+  IconInbox,
+  IconLayoutList,
   IconLink,
   IconLoader2,
+  IconLock,
   IconMessageCircle,
   IconCalendarDue,
   IconBrandWhatsapp,
@@ -36,9 +43,13 @@ import {
   IconBrush,
   IconPencil,
   IconPhoto,
+  IconPlayerPlay,
+  IconRocket,
+  IconSend,
   IconUserCheck,
   IconVideo,
   IconFileText,
+  IconEye,
   IconSparkles,
   IconUser,
 } from '@tabler/icons-react';
@@ -237,6 +248,157 @@ export function SourceThumb({
 
 function clientAccent(job: Partial<OperationsJob>) {
   return job.client_brand_color || OPS_ACCENT;
+}
+
+// ── STATUS DOT — colored circle with icon, replaces text chips ───────────
+const STATUS_VISUALS: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
+  intake:             { color: '#A0AEC0', icon: <IconInbox size={11} />,          label: 'Entrada' },
+  planned:            { color: '#5D87FF', icon: <IconLayoutList size={11} />,     label: 'Classificado' },
+  ready:              { color: '#5D87FF', icon: <IconCheck size={11} />,          label: 'Pronto' },
+  allocated:          { color: '#FFAE1F', icon: <IconUser size={11} />,           label: 'Planejado' },
+  in_progress:        { color: '#E85219', icon: <IconPlayerPlay size={11} />,     label: 'Produzindo' },
+  blocked:            { color: '#FA896B', icon: <IconLock size={11} />,           label: 'Bloqueado' },
+  in_review:          { color: '#7B61FF', icon: <IconEye size={11} />,            label: 'Revisão' },
+  awaiting_approval:  { color: '#FFAE1F', icon: <IconClockPause size={11} />,     label: 'Aprovação' },
+  approved:           { color: '#13DEB9', icon: <IconCheck size={11} />,          label: 'Aprovado' },
+  scheduled:          { color: '#13DEB9', icon: <IconClock size={11} />,          label: 'Agendado' },
+  published:          { color: '#13DEB9', icon: <IconSend size={11} />,           label: 'Entregue' },
+  done:               { color: '#13DEB9', icon: <IconCircleCheckFilled size={11} />, label: 'Fechado' },
+  archived:           { color: '#A0AEC0', icon: <IconCircleCheckFilled size={11} />, label: 'Arquivado' },
+};
+
+export function StatusDot({ status, size = 22 }: { status: string; size?: number }) {
+  const vis = STATUS_VISUALS[status] || STATUS_VISUALS.intake;
+  const isBlocked = status === 'blocked';
+  return (
+    <Tooltip title={vis.label} arrow placement="top">
+      <Box
+        sx={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: alpha(vis.color, 0.16),
+          color: vis.color,
+          border: `1.5px solid ${alpha(vis.color, 0.45)}`,
+          flexShrink: 0,
+          ...(isBlocked && {
+            animation: 'opsShake 0.5s ease-in-out infinite',
+            '@keyframes opsShake': {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '25%': { transform: 'translateX(-1.5px)' },
+              '75%': { transform: 'translateX(1.5px)' },
+            },
+          }),
+        }}
+      >
+        {vis.icon}
+      </Box>
+    </Tooltip>
+  );
+}
+
+// ── DEADLINE COUNTDOWN — relative time with heat color ───────────────────
+export function DeadlineCountdown({ deadline, compact = false }: { deadline?: string | null; compact?: boolean }) {
+  if (!deadline) return <Typography variant="caption" color="text.disabled" sx={{ fontSize: compact ? '0.65rem' : '0.75rem' }}>Sem prazo</Typography>;
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) return <Typography variant="caption" color="text.disabled">Sem prazo</Typography>;
+
+  const diffMs = date.getTime() - Date.now();
+  const diffH = diffMs / 3600000;
+  const diffD = diffH / 24;
+
+  let text: string;
+  let color: string;
+  let pulse = false;
+
+  if (diffH <= 0) {
+    const absH = Math.abs(diffH);
+    text = absH < 24 ? `${Math.round(absH)}h atrasado` : `${Math.round(absH / 24)}d atrasado`;
+    color = '#FA896B';
+    pulse = true;
+  } else if (diffH <= 6) {
+    text = `${Math.round(diffH)}h`;
+    color = '#FA896B';
+  } else if (diffH <= 24) {
+    text = `${Math.round(diffH)}h`;
+    color = '#FFAE1F';
+  } else if (diffD <= 3) {
+    const d = Math.floor(diffD);
+    const h = Math.round((diffD - d) * 24);
+    text = h > 0 ? `${d}d ${h}h` : `${d}d`;
+    color = '#FFAE1F';
+  } else if (diffD <= 7) {
+    text = `${Math.round(diffD)}d`;
+    color = '#13DEB9';
+  } else {
+    text = `${Math.round(diffD)}d`;
+    color = '#A0AEC0';
+  }
+
+  return (
+    <Typography
+      variant="caption"
+      sx={{
+        fontSize: compact ? '0.65rem' : '0.75rem',
+        fontWeight: 800,
+        color,
+        lineHeight: 1,
+        ...(pulse && {
+          animation: 'opsPulse 1.2s ease-in-out infinite',
+          '@keyframes opsPulse': {
+            '0%, 100%': { opacity: 1 },
+            '50%': { opacity: 0.4 },
+          },
+        }),
+      }}
+    >
+      {text}
+    </Typography>
+  );
+}
+
+// ── JOB TYPE ICON — visual icon per job type ─────────────────────────────
+const JOB_TYPE_VISUALS: Record<string, { icon: React.ReactNode; color: string }> = {
+  briefing:         { icon: <IconFileText size={14} />,  color: '#5D87FF' },
+  copy:             { icon: <IconPencil size={14} />,    color: '#7B61FF' },
+  design_static:    { icon: <IconBrush size={14} />,     color: '#E85219' },
+  design_carousel:  { icon: <IconPhoto size={14} />,     color: '#E85219' },
+  video_edit:       { icon: <IconVideo size={14} />,     color: '#FA896B' },
+  video:            { icon: <IconVideo size={14} />,     color: '#FA896B' },
+  stories:          { icon: <IconCamera size={14} />,    color: '#FFAE1F' },
+  reels:            { icon: <IconCamera size={14} />,    color: '#FFAE1F' },
+  campaign:         { icon: <IconRocket size={14} />,    color: '#13DEB9' },
+  meeting:          { icon: <IconCalendarDue size={14} />, color: '#5D87FF' },
+  approval:         { icon: <IconCheck size={14} />,     color: '#13DEB9' },
+  publication:      { icon: <IconSend size={14} />,      color: '#13DEB9' },
+  urgent_request:   { icon: <IconFlag size={14} />,      color: '#FA896B' },
+};
+
+export function JobTypeIcon({ jobType, size = 26 }: { jobType?: string | null; size?: number }) {
+  const vis = JOB_TYPE_VISUALS[jobType || ''] || { icon: <IconBriefcase size={14} />, color: '#A0AEC0' };
+  return (
+    <Tooltip title={jobType?.replace(/_/g, ' ') || 'job'} arrow placement="top">
+      <Box
+        sx={{
+          width: size,
+          height: size,
+          borderRadius: 1.25,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: alpha(vis.color, 0.12),
+          color: vis.color,
+          border: `1px solid ${alpha(vis.color, 0.22)}`,
+          flexShrink: 0,
+        }}
+      >
+        {vis.icon}
+      </Box>
+    </Tooltip>
+  );
 }
 
 export function PriorityPill({ priorityBand }: { priorityBand?: string | null }) {
@@ -564,25 +726,35 @@ export function OpsJobRow({
   return (
     <Box
       onClick={onClick}
-      sx={(theme) => ({
-        px: 1.5,
-        py: 1.25,
-        cursor: onClick ? 'pointer' : 'default',
-        borderRadius: 2,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : undefined,
-        bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
-        transition: 'background-color 140ms ease, border-color 140ms ease',
-        '&:hover': {
-          bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
-        },
-        '&:last-child': {
-          borderBottom: selected ? undefined : 'none',
-        },
-      })}
+      sx={(theme) => {
+        const riskGlow = risk.level === 'critical'
+          ? `inset 3px 0 0 0 ${theme.palette.error.main}`
+          : risk.level === 'high'
+            ? `inset 3px 0 0 0 ${alpha(theme.palette.warning.main, 0.7)}`
+            : 'none';
+        return {
+          px: 1.5,
+          py: 1.25,
+          cursor: onClick ? 'pointer' : 'default',
+          borderRadius: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          border: selected ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : undefined,
+          bgcolor: selected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.05) : 'transparent',
+          boxShadow: riskGlow,
+          transition: 'background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease',
+          '&:hover': {
+            bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
+          },
+          '&:last-child': {
+            borderBottom: selected ? undefined : 'none',
+          },
+        };
+      }}
     >
-      <Stack direction="row" spacing={1.25} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center">
+        <StatusDot status={job.status} size={24} />
+
         <Avatar
           src={job.client_logo_url || undefined}
           alt={job.client_name || 'Cliente'}
@@ -602,9 +774,12 @@ export function OpsJobRow({
         </Avatar>
 
         <Stack spacing={0.15} sx={{ minWidth: 0, flex: 1 }}>
-          <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-            {job.title}
-          </Typography>
+          <Stack direction="row" spacing={0.6} alignItems="center">
+            <JobTypeIcon jobType={job.job_type} size={20} />
+            <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
+              {job.title}
+            </Typography>
+          </Stack>
           <Stack direction="row" spacing={0.75} alignItems="center">
             <Typography variant="caption" color="text.secondary" noWrap>
               {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
@@ -622,18 +797,13 @@ export function OpsJobRow({
           <PriorityPill priorityBand={job.priority_band} />
         </Stack>
 
-        <Stack spacing={0.15} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
-          <Typography variant="caption" color={risk.level === 'critical' ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 700 }}>
-            {formatDateTime(timeValue ?? job.deadline_at)}
-          </Typography>
+        <Stack spacing={0.25} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
+          <DeadlineCountdown deadline={timeValue ?? job.deadline_at} />
           {job.estimated_delivery_at ? (
-            <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>
-              ETA {formatDateTime(job.estimated_delivery_at)}
-            </Typography>
-          ) : showStage ? (
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
-              {STAGE_LABELS[job.status] || job.status}
-            </Typography>
+            <Stack direction="row" spacing={0.4} alignItems="center">
+              <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>ETA</Typography>
+              <DeadlineCountdown deadline={job.estimated_delivery_at} compact />
+            </Stack>
           ) : null}
         </Stack>
       </Stack>
@@ -1028,34 +1198,45 @@ export function OperationCard({
   return (
     <Box
       onClick={onClick}
-      sx={{
-        cursor: onClick ? 'pointer' : 'default',
-        borderTop: '1px solid',
-        borderColor: 'divider',
-        py: 1.5,
-        transition: 'background-color 140ms ease, transform 140ms ease',
-        '&:hover': {
-          bgcolor: onClick ? (theme) => alpha(theme.palette.action.hover, 0.04) : 'transparent',
-          transform: onClick ? 'translateX(2px)' : 'none',
-        },
+      sx={(theme) => {
+        const riskGlow = risk.level === 'critical'
+          ? `inset 3px 0 0 0 ${theme.palette.error.main}`
+          : risk.level === 'high'
+            ? `inset 3px 0 0 0 ${alpha(theme.palette.warning.main, 0.7)}`
+            : 'none';
+        return {
+          cursor: onClick ? 'pointer' : 'default',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          py: 1.5,
+          boxShadow: riskGlow,
+          transition: 'background-color 140ms ease, transform 140ms ease',
+          '&:hover': {
+            bgcolor: onClick ? alpha(theme.palette.action.hover, 0.04) : 'transparent',
+            transform: onClick ? 'translateX(2px)' : 'none',
+          },
+        };
       }}
     >
       <Stack spacing={1.5}>
         <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
           <Stack spacing={1} sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+              <StatusDot status={job.status} size={24} />
               <PriorityPill priorityBand={job.priority_band} />
               <RiskFlag job={job} />
-              <Chip size="small" variant="outlined" label={STAGE_LABELS[job.status] || job.status} />
             </Stack>
-            <Box>
-              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2 }}>
-                {job.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'} · {formatSkillLabel(job.required_skill)}
-              </Typography>
-            </Box>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <JobTypeIcon jobType={job.job_type} size={24} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2 }}>
+                  {job.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'} · {formatSkillLabel(job.required_skill)}
+                </Typography>
+              </Box>
+            </Stack>
           </Stack>
           {primaryAction}
         </Stack>
@@ -1069,7 +1250,9 @@ export function OperationCard({
         <Grid container spacing={1.25}>
           <Grid size={{ xs: 6, md: 3 }}>
             <Typography variant="caption" color="text.secondary">Prazo</Typography>
-            <Typography variant="body2" fontWeight={700}>{formatDateTime(job.deadline_at)}</Typography>
+            <Box sx={{ mt: 0.25 }}>
+              <DeadlineCountdown deadline={job.deadline_at} />
+            </Box>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Typography variant="caption" color="text.secondary">Estimativa</Typography>
@@ -1093,9 +1276,10 @@ export function OperationCard({
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pt: 0.5 }}>
             <AutomationPipeline automationStatus={job.automation_status} />
             {job.estimated_delivery_at ? (
-              <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700 }}>
-                ETA {formatDateTime(job.estimated_delivery_at)}
-              </Typography>
+              <Stack direction="row" spacing={0.4} alignItems="center">
+                <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ETA</Typography>
+                <DeadlineCountdown deadline={job.estimated_delivery_at} compact />
+              </Stack>
             ) : null}
           </Stack>
         ) : null}
@@ -1309,6 +1493,7 @@ export function OperationsContextRail({
               }}
             >
               <Stack direction="row" spacing={1.15} alignItems="center" sx={{ minWidth: 0 }}>
+                <StatusDot status={job.status} size={28} />
                 <ClientThumb
                   name={job.client_name}
                   logoUrl={job.client_logo_url}
@@ -1319,16 +1504,18 @@ export function OperationsContextRail({
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.15 }}>
                     {job.client_name || 'Sem cliente'}
                   </Typography>
-                  <Typography variant="body1" fontWeight={900} sx={{ lineHeight: 1.1 }}>
-                    {job.title}
-                  </Typography>
+                  <Stack direction="row" spacing={0.6} alignItems="center">
+                    <JobTypeIcon jobType={job.job_type} size={20} />
+                    <Typography variant="body1" fontWeight={900} sx={{ lineHeight: 1.1 }}>
+                      {job.title}
+                    </Typography>
+                  </Stack>
                 </Box>
               </Stack>
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.1 }}>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.1 }}>
                 <PriorityPill priorityBand={job.priority_band} />
                 <RiskFlag job={job} />
-                <Chip size="small" variant="outlined" label={STAGE_LABELS[job.status] || job.status} sx={{ borderRadius: 1 }} />
               </Stack>
 
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1.1 }}>
@@ -1346,12 +1533,29 @@ export function OperationsContextRail({
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                <ContextMetaRow
-                  icon={<IconCalendarTime size={15} />}
-                  label="Prazo"
-                  value={formatDateTime(job.deadline_at)}
-                  accent="#13DEB9"
-                />
+                <Stack direction="row" spacing={1.1} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: alpha('#13DEB9', 0.10),
+                      color: '#13DEB9',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <IconCalendarTime size={15} />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.1 }}>
+                      Prazo
+                    </Typography>
+                    <DeadlineCountdown deadline={job.deadline_at} />
+                  </Box>
+                </Stack>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <ContextMetaRow
@@ -1378,9 +1582,10 @@ export function OperationsContextRail({
                 <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>Pipeline IA</Typography>
                 <AutomationPipeline automationStatus={job.automation_status} />
                 {job.estimated_delivery_at ? (
-                  <Typography variant="caption" color="primary.main" sx={{ display: 'block', mt: 0.75, fontWeight: 700 }}>
-                    Entrega estimada: {formatDateTime(job.estimated_delivery_at)}
-                  </Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.75 }}>
+                    <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700 }}>Entrega estimada:</Typography>
+                    <DeadlineCountdown deadline={job.estimated_delivery_at} />
+                  </Stack>
                 ) : null}
               </Box>
             ) : null}

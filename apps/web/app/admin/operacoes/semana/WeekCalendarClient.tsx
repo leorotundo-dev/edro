@@ -10,7 +10,7 @@ import {
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
-import { ClientThumb, OpsSummaryStat } from '@/components/operations/primitives';
+import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 
 import Box from '@mui/material/Box';
@@ -237,6 +237,9 @@ function JobCard({
             : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
           borderLeftWidth: '3px',
           borderLeftColor: color,
+          boxShadow: risk.level === 'critical'
+            ? `inset 0 0 0 1px ${alpha(theme.palette.error.main, 0.35)}`
+            : 'none',
           transition: 'all 120ms ease',
           '&:hover': {
             bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.04),
@@ -246,7 +249,8 @@ function JobCard({
           '&:active': { cursor: 'grabbing' },
         }}
       >
-        <Stack direction="row" spacing={0.75} alignItems="center">
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <StatusDot status={job.status} size={16} />
           <ClientThumb
             name={job.client_name}
             logoUrl={job.client_logo_url}
@@ -272,7 +276,7 @@ function JobCard({
             </Box>
           )}
         </Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 3.25 }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 2.5 }}>
           <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.55), fontWeight: 600, fontSize: '0.68rem' })}>
             {ownerFirstName}
           </Typography>
@@ -281,6 +285,8 @@ function JobCard({
               {hours}
             </Typography>
           )}
+          <Box sx={{ flex: 1 }} />
+          <DeadlineCountdown deadline={job.deadline_at} compact />
         </Stack>
       </Box>
     </Tooltip>
@@ -625,11 +631,22 @@ export default function WeekCalendarClient() {
   const selectedJob = selectedJobId ? jobs.find((j) => j.id === selectedJobId) : null;
 
   const summary = (
-    <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap>
-      <OpsSummaryStat value={totalWeekJobs} label="jobs na semana" />
-      <OpsSummaryStat value={formatMinutes(totalWeekMinutes)} label="total estimado" />
-      <OpsSummaryStat value={backlogJobs.length} label="sem data" tone={backlogJobs.length > 5 ? 'warning' : 'default'} />
-      <OpsSummaryStat value={criticalJobs} label="riscos críticos" tone={criticalJobs > 0 ? 'error' : 'default'} />
+    <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+      {[
+        { value: totalWeekJobs, label: 'Jobs', color: theme.palette.primary.main },
+        { value: formatMinutes(totalWeekMinutes), label: 'Estimado', color: theme.palette.success.main },
+        { value: backlogJobs.length, label: 'Sem data', color: backlogJobs.length > 5 ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.5) },
+        { value: criticalJobs, label: 'Críticos', color: criticalJobs > 0 ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.5) },
+      ].map((kpi) => (
+        <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
+          <Typography variant="body1" sx={{ fontWeight: 900, color: kpi.color, lineHeight: 1 }}>
+            {kpi.value}
+          </Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+            {kpi.label}
+          </Typography>
+        </Stack>
+      ))}
     </Stack>
   );
 

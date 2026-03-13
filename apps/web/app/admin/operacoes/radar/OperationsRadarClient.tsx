@@ -11,6 +11,7 @@ import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { alpha, useTheme } from '@mui/material/styles';
 import { apiGet } from '@/lib/api';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
@@ -21,7 +22,6 @@ import {
   OperationsContextRail,
   OpsJobRow,
   OpsSection,
-  OpsSummaryStat,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
@@ -30,6 +30,7 @@ import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
 export default function OperationsRadarClient() {
+  const theme = useTheme();
   const router = useRouter();
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
@@ -92,10 +93,22 @@ export default function OperationsRadarClient() {
     <OperationsShell
       section="radar"
       summary={
-        <Stack direction="row" spacing={2.25} flexWrap="wrap" useFlexGap alignItems="center">
-          <OpsSummaryStat value={critical.length} label={OPS_COPY.radar.summaryCritical} tone={critical.length ? 'error' : 'default'} />
-          <OpsSummaryStat value={high.length} label={OPS_COPY.radar.summaryHigh} tone={high.length ? 'warning' : 'default'} />
-          <OpsSummaryStat value={clientRisk.filter((item) => item.critical > 0).length} label={OPS_COPY.radar.summaryClients} tone={clientRisk.some((item) => item.critical > 0) ? 'error' : 'default'} />
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+          {[
+            { value: critical.length, label: OPS_COPY.radar.summaryCritical, color: critical.length ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4), pulse: critical.length > 0 },
+            { value: high.length, label: OPS_COPY.radar.summaryHigh, color: high.length ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
+            { value: clientRisk.filter((c) => c.critical > 0).length, label: OPS_COPY.radar.summaryClients, color: clientRisk.some((c) => c.critical > 0) ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
+          ].map((kpi) => (
+            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline"
+              sx={kpi.pulse ? { animation: 'radarPulse 2s ease-in-out infinite', '@keyframes radarPulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.5 } } } : undefined}>
+              <Typography variant="body1" sx={{ fontWeight: 900, color: kpi.color, lineHeight: 1, fontSize: '1.1rem' }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                {kpi.label}
+              </Typography>
+            </Stack>
+          ))}
         </Stack>
       }
     >
@@ -145,7 +158,10 @@ export default function OperationsRadarClient() {
                         <Typography variant="body1" fontWeight={900}>Crítico</Typography>
                         <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.criticalSubtitle}</Typography>
                       </Box>
-                      <Chip size="small" color="error" label={`${critical.length}`} />
+                      <Typography variant="h4" sx={{ fontWeight: 900, color: critical.length > 0 ? 'error.main' : 'text.disabled', lineHeight: 1,
+                        ...(critical.length > 0 && { animation: 'radarPulse 2s ease-in-out infinite' }) }}>
+                        {critical.length}
+                      </Typography>
                     </Stack>
                     <Stack spacing={0.5}>
                       {critical.length ? critical.map((job) => (
@@ -175,7 +191,9 @@ export default function OperationsRadarClient() {
                         <Typography variant="body1" fontWeight={900}>Risco alto</Typography>
                         <Typography variant="caption" color="text.secondary">{OPS_COPY.radar.highSubtitle}</Typography>
                       </Box>
-                      <Chip size="small" color={high.length ? 'warning' : 'default'} label={`${high.length}`} />
+                      <Typography variant="h4" sx={{ fontWeight: 900, color: high.length > 0 ? 'warning.main' : 'text.disabled', lineHeight: 1 }}>
+                        {high.length}
+                      </Typography>
                     </Stack>
                     <Stack spacing={0.5}>
                       {high.length ? high.map((job) => (

@@ -27,7 +27,6 @@ import {
   OpsDivider,
   OpsJobRow,
   OpsSection,
-  OpsSummaryStat,
   OpsSurface,
   OpsToolbar,
   PersonThumb,
@@ -232,11 +231,22 @@ export default function OperationsAgendaClient() {
     <OperationsShell
       section="agenda"
       summary={
-        <Stack direction="row" spacing={2.25} flexWrap="wrap" useFlexGap alignItems="center">
-          <OpsSummaryStat value={groupedDays.length} label={OPS_COPY.agenda.summaryDays} />
-          <OpsSummaryStat value={filteredJobs.length} label={OPS_COPY.agenda.summaryItems} />
-          <OpsSummaryStat value={layers.length} label={OPS_COPY.agenda.summaryLayers} />
-          <OpsSummaryStat value={plannerData.owners.length} label={OPS_COPY.agenda.summaryDistributed} />
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+          {[
+            { value: groupedDays.length, label: OPS_COPY.agenda.summaryDays },
+            { value: filteredJobs.length, label: OPS_COPY.agenda.summaryItems },
+            { value: layers.length, label: OPS_COPY.agenda.summaryLayers },
+            { value: plannerData.owners.length, label: OPS_COPY.agenda.summaryDistributed },
+          ].map((kpi) => (
+            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
+              <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+                {kpi.label}
+              </Typography>
+            </Stack>
+          ))}
         </Stack>
       }
     >
