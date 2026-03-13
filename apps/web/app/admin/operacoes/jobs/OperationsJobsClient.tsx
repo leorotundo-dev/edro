@@ -5,14 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -24,12 +22,8 @@ import {
   IconChevronUp,
   IconFilter,
   IconFlag,
-  IconInbox,
   IconLayoutList,
-  IconLoader2,
-  IconPlayerPlay,
   IconSearch,
-  IconTruck,
   IconUser,
   IconUsers,
   IconUserOff,
@@ -38,7 +32,6 @@ import {
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
-  ActionStrip,
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
@@ -47,20 +40,19 @@ import {
   PersonThumb,
   PipelineBoard,
   SourceThumb,
-  StatusDot,
 } from '@/components/operations/primitives';
-import { criticalAlerts, groupJobsByClient, groupJobsByOwner, groupJobsByRisk, ownerAllocableMinutes, ownerCommittedMinutes, sortByOperationalPriority, type GroupedSection } from '@/components/operations/derived';
-import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
+import { groupJobsByClient, groupJobsByOwner, groupJobsByRisk, sortByOperationalPriority, type GroupedSection } from '@/components/operations/derived';
+import { formatSkillLabel, formatSourceLabel, getNextAction, groupBy, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
 const STAGE_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'blocked'];
 
 const BUCKETS = [
-  { key: 'entrou', label: 'Entrou', icon: <IconInbox size={16} />, color: 'info' as const, stages: ['intake', 'planned', 'ready'] },
-  { key: 'producao', label: 'Em produção', icon: <IconPlayerPlay size={16} />, color: 'success' as const, stages: ['allocated', 'in_progress', 'in_review'] },
-  { key: 'esperando', label: 'Esperando', icon: <IconLoader2 size={16} />, color: 'warning' as const, stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'] },
-  { key: 'entregue', label: 'Entregue', icon: <IconTruck size={16} />, color: 'default' as const, stages: ['published', 'done'] },
+  { key: 'entrou', label: 'Entrou', stages: ['intake', 'planned', 'ready'], color: 'info' as const },
+  { key: 'producao', label: 'Em produção', stages: ['allocated', 'in_progress', 'in_review'], color: 'success' as const },
+  { key: 'esperando', label: 'Esperando', stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'], color: 'warning' as const },
+  { key: 'entregue', label: 'Entregue', stages: ['published', 'done'], color: 'default' as const },
 ] as const;
 
 export default function OperationsJobsClient() {
@@ -111,7 +103,6 @@ export default function OperationsJobsClient() {
     if (groupMode === 'client') return groupJobsByClient(filteredJobs);
     if (groupMode === 'owner') return groupJobsByOwner(filteredJobs);
     if (groupMode === 'risk') return groupJobsByRisk(filteredJobs);
-    // 'status' — default bucket view handled by BucketGroup below
     return [];
   }, [filteredJobs, groupMode]);
 
@@ -121,7 +112,6 @@ export default function OperationsJobsClient() {
     if (fresh) setSelectedJob(fresh);
   }, [filteredJobs, jobs, selectedJob]);
 
-  const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
 
   const handleAdvance = async (jobId: string, nextStatus: string) => {
@@ -133,6 +123,7 @@ export default function OperationsJobsClient() {
     await updateJob(jobId, { owner_id: ownerId });
     await refresh();
   };
+
   const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter);
   const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter].filter(Boolean).length;
 
@@ -160,7 +151,6 @@ export default function OperationsJobsClient() {
               {filteredJobs.length} total
             </Typography>
           </Stack>
-          {/* Segmented progress bar */}
           <Stack direction="row" sx={{ height: 4, borderRadius: 1, overflow: 'hidden', bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06) }}>
             {BUCKETS.map((b) => {
               const cnt = b.stages.flatMap((s) => grouped[s] || []).length;
@@ -174,34 +164,18 @@ export default function OperationsJobsClient() {
     >
       {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
 
-      {/* Action Strip — alerts + team pulse */}
-      {!loading && jobs.length > 0 ? (
-        <Box sx={{ mb: 2 }}>
-          <ActionStrip
-            alerts={alerts}
-            owners={lookups.owners}
-            jobs={jobs}
-            onSelectJob={(job) => { setSelectedJob(job); setDetailOpen(true); }}
-            onFilterOwner={(ownerId) => setOwnerFilter(ownerId)}
-            allocableMinutesFn={ownerAllocableMinutes}
-            committedMinutesFn={ownerCommittedMinutes}
-          />
-        </Box>
-      ) : null}
-
       {loading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
       ) : (
         <Grid container spacing={2.5}>
           {/* Main column */}
           <Grid size={{ xs: 12, lg: 8 }}>
-            <Stack spacing={2}>
-              {/* Search + filter bar */}
+            <Stack spacing={1.5}>
+              {/* Search + filters + group-by — all in one bar */}
               <Box sx={{
                 borderRadius: 2, overflow: 'hidden',
                 border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
                 bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-                boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
               }}>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: 1 }}>
                   <TextField
@@ -231,8 +205,8 @@ export default function OperationsJobsClient() {
                   </IconButton>
                 </Stack>
 
-                {/* Quick filters */}
-                <Stack direction="row" spacing={0.75} sx={{ px: 2, pb: 1.25 }}>
+                {/* Quick filters + group-by in same row */}
+                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ px: 2, pb: 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
                     <ToggleButton value="urgent" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
                       <IconUrgent size={14} style={{ marginRight: 4 }} /> Urgentes
@@ -244,12 +218,31 @@ export default function OperationsJobsClient() {
                   {hasActiveFilters && (
                     <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); }}
                       sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
-                      Limpar filtros
+                      Limpar
                     </Button>
                   )}
+                  <Box sx={{ flex: 1 }} />
+                  <ToggleButtonGroup
+                    value={groupMode}
+                    exclusive
+                    onChange={(_e, v) => { if (v) setGroupMode(v); }}
+                    size="small"
+                  >
+                    <ToggleButton value="status" sx={{ px: 0.75, py: 0.2, fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', borderRadius: '6px !important' }}>
+                      <IconLayoutList size={12} style={{ marginRight: 2 }} /> Status
+                    </ToggleButton>
+                    <ToggleButton value="client" sx={{ px: 0.75, py: 0.2, fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', borderRadius: '6px !important' }}>
+                      <IconUsers size={12} style={{ marginRight: 2 }} /> Cliente
+                    </ToggleButton>
+                    <ToggleButton value="owner" sx={{ px: 0.75, py: 0.2, fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', borderRadius: '6px !important' }}>
+                      <IconUser size={12} style={{ marginRight: 2 }} /> Dono
+                    </ToggleButton>
+                    <ToggleButton value="risk" sx={{ px: 0.75, py: 0.2, fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', borderRadius: '6px !important' }}>
+                      <IconFlag size={12} style={{ marginRight: 2 }} /> Risco
+                    </ToggleButton>
+                  </ToggleButtonGroup>
                 </Stack>
 
-                {/* Advanced filters */}
                 <Collapse in={filtersOpen}>
                   <Box sx={{ px: 2, pb: 1.5, borderTop: `1px solid ${theme.palette.divider}`, pt: 1.5 }}>
                     <Grid container spacing={1.5}>
@@ -282,16 +275,13 @@ export default function OperationsJobsClient() {
                 </Collapse>
               </Box>
 
-              {/* Pipeline Board — Kanban overview */}
+              {/* Pipeline Board — spatial overview */}
               {filteredJobs.length > 0 ? (
                 <PipelineBoard
                   jobs={filteredJobs}
                   selectedJob={selectedJob}
                   onSelectJob={(job) => { setSelectedJob(job); }}
-                  onAdvance={async (jobId, nextStatus) => {
-                    await changeStatus(jobId, nextStatus);
-                    await refresh();
-                  }}
+                  onAdvance={handleAdvance}
                   onShowAll={(columnKey) => {
                     const col = BUCKETS.find((b) => b.key === columnKey);
                     if (col) setStatusFilter(col.stages[0]);
@@ -299,45 +289,17 @@ export default function OperationsJobsClient() {
                 />
               ) : null}
 
-              {/* Group-by selector */}
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem', mr: 0.5 }}>
-                  Agrupar:
-                </Typography>
-                <ToggleButtonGroup
-                  value={groupMode}
-                  exclusive
-                  onChange={(_e, v) => { if (v) setGroupMode(v); }}
-                  size="small"
-                >
-                  <ToggleButton value="status" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconLayoutList size={13} style={{ marginRight: 3 }} /> Status
-                  </ToggleButton>
-                  <ToggleButton value="client" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUsers size={13} style={{ marginRight: 3 }} /> Cliente
-                  </ToggleButton>
-                  <ToggleButton value="owner" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUser size={13} style={{ marginRight: 3 }} /> Dono
-                  </ToggleButton>
-                  <ToggleButton value="risk" sx={{ px: 1, py: 0.25, fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconFlag size={13} style={{ marginRight: 3 }} /> Risco
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Stack>
-
-              {/* Job list */}
+              {/* Job list — flat when status mode (pipeline already groups), grouped otherwise */}
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
               ) : groupMode === 'status' ? (
-                <Stack spacing={1.5}>
-                  {BUCKETS.map((bucket) => {
-                    const bucketJobs = bucket.stages.flatMap((s) => grouped[s] || []);
-                    if (!bucketJobs.length) return null;
-                    return <BucketGroup key={bucket.key} bucket={bucket} jobs={bucketJobs} selectedJob={selectedJob} onSelectJob={setSelectedJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />;
-                  })}
-                </Stack>
+                <Box>
+                  {filteredJobs.map((job) => (
+                    <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
+                  ))}
+                </Box>
               ) : (
-                <Stack spacing={1.5}>
+                <Stack spacing={1}>
                   {groupedSections.map((section) => (
                     <GroupSection key={section.key} section={section} selectedJob={selectedJob} onSelectJob={setSelectedJob} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
                   ))}
@@ -419,76 +381,6 @@ export default function OperationsJobsClient() {
   );
 }
 
-/* ─── Bucket Group ─── */
-
-function BucketGroup({
-  bucket,
-  jobs,
-  selectedJob,
-  onSelectJob,
-  onAdvance,
-  onAssign,
-  owners,
-}: {
-  bucket: { key: string; label: string; icon: React.ReactNode; color: 'info' | 'success' | 'warning' | 'default' };
-  jobs: OperationsJob[];
-  selectedJob: OperationsJob | null;
-  onSelectJob: (job: OperationsJob) => void;
-  onAdvance?: (jobId: string, nextStatus: string) => void;
-  onAssign?: (jobId: string, ownerId: string) => void;
-  owners?: Array<{ id: string; name: string; email: string; role: string; specialty?: string | null; person_type?: 'internal' | 'freelancer' }>;
-}) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
-  const [expanded, setExpanded] = useState(true);
-  const color = bucket.color !== 'default' ? theme.palette[bucket.color].main : alpha(theme.palette.text.primary, 0.5);
-
-  return (
-    <Box sx={{
-      borderRadius: 2,
-      overflow: 'hidden',
-      border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-      bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.background.paper, 0.5),
-    }}>
-      {/* Bucket header */}
-      <Box
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          px: 2, py: 1.25,
-          display: 'flex', alignItems: 'center', gap: 1.25, cursor: 'pointer',
-          borderBottom: expanded ? `1px solid ${alpha(color, 0.1)}` : undefined,
-          transition: 'all 150ms ease',
-          '&:hover': { bgcolor: alpha(color, dark ? 0.06 : 0.03) },
-        }}
-      >
-        <Typography sx={{ fontSize: '1.35rem', fontWeight: 900, color, lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 28, textAlign: 'center' }}>
-          {jobs.length}
-        </Typography>
-        <Box sx={{
-          width: 24, height: 24, borderRadius: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: alpha(color, 0.12),
-          color,
-        }}>
-          {bucket.icon}
-        </Box>
-        <Typography variant="body2" fontWeight={700}>{bucket.label}</Typography>
-        <Box sx={{ flex: 1 }} />
-        {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
-      </Box>
-
-      {/* Job rows */}
-      <Collapse in={expanded}>
-        <Box sx={{ py: 0.5 }}>
-          {jobs.sort(sortByOperationalPriority).map((job) => (
-            <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage onAdvance={onAdvance} onAssign={onAssign} owners={owners} />
-          ))}
-        </Box>
-      </Collapse>
-    </Box>
-  );
-}
-
 /* ─── Group Section (for client/owner/risk grouping) ─── */
 
 function GroupSection({
@@ -521,24 +413,24 @@ function GroupSection({
       <Box
         onClick={() => setExpanded(!expanded)}
         sx={{
-          px: 2, py: 1.25,
-          display: 'flex', alignItems: 'center', gap: 1.25, cursor: 'pointer',
+          px: 2, py: 1,
+          display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
           borderBottom: expanded ? `1px solid ${alpha(sectionColor, 0.1)}` : undefined,
           transition: 'all 150ms ease',
           '&:hover': { bgcolor: alpha(sectionColor, dark ? 0.06 : 0.03) },
         }}
       >
-        <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: sectionColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}>
+        <Typography sx={{ fontSize: '0.9rem', fontWeight: 900, color: sectionColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 20, textAlign: 'center' }}>
           {section.count}
         </Typography>
-        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: sectionColor, flexShrink: 0 }} />
-        <Typography variant="body2" fontWeight={700}>{section.label}</Typography>
+        <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: sectionColor, flexShrink: 0 }} />
+        <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.8rem' }}>{section.label}</Typography>
         <Box sx={{ flex: 1 }} />
-        {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
+        {expanded ? <IconChevronUp size={14} style={{ opacity: 0.4 }} /> : <IconChevronDown size={14} style={{ opacity: 0.4 }} />}
       </Box>
 
       <Collapse in={expanded}>
-        <Box sx={{ py: 0.5 }}>
+        <Box sx={{ py: 0.25 }}>
           {section.jobs.sort(sortByOperationalPriority).map((job) => (
             <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => onSelectJob(job)} showStage onAdvance={onAdvance} onAssign={onAssign} owners={owners} />
           ))}
