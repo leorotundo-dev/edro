@@ -137,7 +137,7 @@ async function handleScheduleJob(job: any): Promise<void> {
     const bot = await createRecallBot({
       meetingUrl: videoUrl,
       joinAt: scheduledAt.toISOString(),
-      botName: `Edro Meeting Bot - ${clientName}`,
+      botName: `Edro.Studio - ${clientName}`,
       platform,
       metadata: {
         tenant_id: tenantId,
@@ -618,7 +618,7 @@ export async function sendMeetingSummaryToWhatsApp(
     return `${emoji} ${prio} ${action.title}`;
   }).join('\n');
 
-  const messageText = `🤖 *Jarvis — Analise de Reuniao*\n\n` +
+  const messageText = `🤖 *Edro.Studio — Análise de Reunião*\n\n` +
     `👤 *Cliente:* ${clientName}\n\n` +
     `📝 *Resumo:*\n${(analysis.summary ?? '').slice(0, 500)}\n\n` +
     (actionCount > 0
