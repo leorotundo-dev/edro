@@ -645,7 +645,7 @@ async function syncPublicationSchedule(tenantId: string) {
        b.title,
        COALESCE(b.main_client_id, fallback.id) AS client_id
      FROM edro_publish_schedule ps
-     JOIN edro_briefings b ON b.id = ps.briefing_id
+     JOIN edro_briefings b ON b.id::text = ps.briefing_id
      LEFT JOIN edro_clients ec ON ec.id = b.client_id
      LEFT JOIN clients fallback ON LOWER(fallback.name) = LOWER(ec.name) AND fallback.tenant_id = $1
     WHERE ps.status IN ('scheduled', 'processing', 'failed')
