@@ -8,9 +8,9 @@ type RecallBotResponse = {
   recordings?: Array<Record<string, any>>;
 };
 
-function recallBaseUrl(): string {
+function recallBaseUrl(version: 'v1' | 'v2' = 'v1'): string {
   const region = env.RECALL_REGION || 'us-west-2';
-  return `https://${region}.recall.ai/api/v1`;
+  return `https://${region}.recall.ai/api/${version}`;
 }
 
 function recallHeaders(): Record<string, string> {
@@ -83,7 +83,8 @@ export async function getRecallBot(botId: string): Promise<RecallBotResponse> {
 }
 
 export async function getRecallBotTranscript(botId: string): Promise<string> {
-  const res = await fetch(`${recallBaseUrl()}/bot/${botId}/transcript/`, {
+  // Recall deprecated /api/v1/bot/{id}/transcript/ — use v2 endpoint
+  const res = await fetch(`${recallBaseUrl('v2')}/bot/${botId}/transcript/`, {
     headers: recallHeaders(),
   });
 
