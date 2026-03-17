@@ -717,11 +717,20 @@ async function syncPipelineApprovals(tenantId: string) {
 export async function syncOperationalSources(tenantId: string): Promise<SyncSummary> {
   const ownerLookup = await loadOwnerLookup(tenantId);
 
+  const safeSync = async (name: string, fn: () => Promise<SyncCounter>): Promise<SyncCounter> => {
+    try {
+      return await fn();
+    } catch (err: any) {
+      console.error(`[sourceSyncService] ${name} tenant=${tenantId} failed:`, err?.message || err);
+      return emptyCounter();
+    }
+  };
+
   const [meetingActions, whatsapp, publication, approval] = await Promise.all([
-    syncMeetingActions(tenantId, ownerLookup),
-    syncWhatsappDigests(tenantId, ownerLookup),
-    syncPublicationSchedule(tenantId),
-    syncPipelineApprovals(tenantId),
+    safeSync('syncMeetingActions', () => syncMeetingActions(tenantId, ownerLookup)),
+    safeSync('syncWhatsappDigests', () => syncWhatsappDigests(tenantId, ownerLookup)),
+    safeSync('syncPublicationSchedule', () => syncPublicationSchedule(tenantId)),
+    safeSync('syncPipelineApprovals', () => syncPipelineApprovals(tenantId)),
   ]);
 
   return {
