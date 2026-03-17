@@ -39,12 +39,45 @@ export async function getClientPreferences(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<LearnedPreferences | null> {
-  const { rows } = await query<any>(
-    `SELECT preferences FROM copy_performance_preferences
-     WHERE tenant_id = $1 AND client_id = $2`,
-    [params.tenant_id, params.client_id],
-  );
-  return rows[0]?.preferences ?? null;
+  const [prefsRows, directivesRows] = await Promise.all([
+    query<any>(
+      `SELECT preferences FROM copy_performance_preferences
+       WHERE tenant_id = $1 AND client_id = $2`,
+      [params.tenant_id, params.client_id],
+    ),
+    query<{ directive_type: string; directive: string }>(
+      `SELECT directive_type, directive FROM client_directives
+       WHERE tenant_id = $1 AND client_id = $2
+       ORDER BY created_at DESC`,
+      [params.tenant_id, params.client_id],
+    ),
+  ]);
+
+  const base: LearnedPreferences | null = prefsRows.rows[0]?.preferences ?? null;
+  if (directivesRows.rows.length === 0) return base;
+
+  const humanBoost = directivesRows.rows.filter((d) => d.directive_type === 'boost').map((d) => d.directive);
+  const humanAvoid = directivesRows.rows.filter((d) => d.directive_type === 'avoid').map((d) => d.directive);
+
+  if (!base) {
+    // No learning history yet, but we have permanent directives — return a minimal structure
+    return {
+      version: 1,
+      rebuilt_at: new Date().toISOString(),
+      copy_feedback: { top_angles: [], preferred_formats: [], anti_patterns: [], overall_avg_score: 0, total_scored_copies: 0, editorial_insights: [] },
+      amd_performance: [],
+      reportei_performance: { top_formats: [], period_insights: [] },
+      directives: { boost: humanBoost, avoid: humanAvoid },
+    } as any;
+  }
+
+  return {
+    ...base,
+    directives: {
+      boost: [...humanBoost, ...(base.directives?.boost ?? [])],
+      avoid: [...humanAvoid, ...(base.directives?.avoid ?? [])],
+    },
+  };
 }
 
 export async function rebuildClientPreferences(params: {
