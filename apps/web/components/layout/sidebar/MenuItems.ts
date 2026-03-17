@@ -15,6 +15,7 @@ import {
   IconBrandWhatsapp,
   IconMicrophone,
   IconSparkles,
+  IconChartBar,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -51,6 +52,12 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/operacoes',
         badge: 'Beta',
         badgeColor: 'warning',
+      },
+      {
+        id: 'intelligence',
+        title: 'Inteligência IA',
+        icon: IconChartBar,
+        href: '/admin/intelligence',
       },
       {
         id: 'briefings',
