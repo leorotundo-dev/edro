@@ -26,10 +26,18 @@ export async function runOperationsRuntimeWorkerOnce(): Promise<void> {
 
       try {
         await syncOperationalSources(tenantId);
+      } catch (error: any) {
+        console.error(`[operationsRuntime] syncSources tenant ${tenantId} failed:`, error?.message || error);
+      }
+      try {
         await rebuildOperationalRuntime(tenantId);
+      } catch (error: any) {
+        console.error(`[operationsRuntime] rebuildRuntime tenant ${tenantId} failed:`, error?.message || error);
+      }
+      try {
         await rebuildOperationalSignals(tenantId);
       } catch (error: any) {
-        console.error(`[operationsRuntime] tenant ${tenantId} failed:`, error?.message || error);
+        console.error(`[operationsRuntime] rebuildSignals tenant ${tenantId} failed:`, error?.message || error);
       }
     }
 
