@@ -647,7 +647,7 @@ async function syncPublicationSchedule(tenantId: string) {
      FROM edro_publish_schedule ps
      JOIN edro_briefings b ON b.id = ps.briefing_id
      LEFT JOIN edro_clients ec ON ec.id = b.client_id
-     LEFT JOIN clients fallback ON LOWER(fallback.name) = LOWER(ec.name) AND fallback.tenant_id = $1
+     LEFT JOIN clients fallback ON LOWER(fallback.name) = LOWER(ec.name) AND fallback.tenant_id::text = $1
     WHERE ps.status IN ('scheduled', 'processing', 'failed')
       AND ps.scheduled_for >= NOW() - INTERVAL '2 days'
       AND ps.scheduled_for <= NOW() + INTERVAL '30 days'
@@ -686,7 +686,7 @@ async function syncPipelineApprovals(tenantId: string) {
      LEFT JOIN edro_clients ec ON ec.id = b.client_id
      LEFT JOIN clients fallback
        ON LOWER(fallback.name) = LOWER(ec.name)
-      AND fallback.tenant_id = $1
+      AND fallback.tenant_id::text = $1
      LEFT JOIN LATERAL (
        SELECT decision, feedback, section, created_at
        FROM pipeline_client_approvals pca
