@@ -253,7 +253,9 @@ export default async function meetingRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
-      await archiveStaleUncapturedMeetings(tenantId);
+      await archiveStaleUncapturedMeetings(tenantId).catch((err: any) => {
+        console.error('[meetings/dashboard] archiveStale failed:', err?.message);
+      });
 
       const [statsRes, recentRes, pendingRes, clientsRes] = await Promise.all([
         query(
@@ -268,7 +270,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE status <> 'archived' AND recorded_at > NOW() - INTERVAL '30 days')::int AS last_30_days
            FROM meetings WHERE tenant_id = $1`,
           [tenantId],
-        ),
+        ).catch((err: any) => { console.error('[meetings/dashboard] stats failed:', err?.message); return { rows: [{}] }; }),
         query(
           `SELECT m.id, m.title, m.client_id, c.name AS client_name,
                   m.platform, m.recorded_at, m.status, m.summary, m.analysis_payload,
@@ -283,13 +285,13 @@ export default async function meetingRoutes(app: FastifyInstance) {
            ORDER BY m.recorded_at DESC
            LIMIT 50`,
           [tenantId],
-        ),
+        ).catch((err: any) => { console.error('[meetings/dashboard] recent failed:', err?.message); return { rows: [] }; }),
         query(
           `SELECT COUNT(*)::int AS total_pending
            FROM meeting_actions
            WHERE tenant_id = $1 AND status = 'pending'`,
           [tenantId],
-        ),
+        ).catch((err: any) => { console.error('[meetings/dashboard] pending failed:', err?.message); return { rows: [{ total_pending: 0 }] }; }),
         query(
           `SELECT m.client_id, c.name AS client_name,
                   COUNT(DISTINCT m.id)::int AS meeting_count,
@@ -303,7 +305,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
            ORDER BY meeting_count DESC
            LIMIT 20`,
           [tenantId],
-        ),
+        ).catch((err: any) => { console.error('[meetings/dashboard] by_client failed:', err?.message); return { rows: [] }; }),
       ]);
 
       return reply.send({
