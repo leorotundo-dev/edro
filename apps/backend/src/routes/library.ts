@@ -290,6 +290,10 @@ export default async function libraryRoutes(app: FastifyInstance) {
       const buffer = await data.toBuffer();
       console.log(`[library] Buffer: ${buffer.length} bytes`);
 
+      // Accept category and subcategory from query params
+      const qCategory = (request.query as any)?.category as string | undefined;
+      const qSubcategory = (request.query as any)?.subcategory as string | undefined;
+
       const mimeType = data.mimetype || (mime.lookup(data.filename) as string) || 'application/octet-stream';
       const key = buildKey((request.user as any).tenant_id, request.params.clientId, data.filename);
 
@@ -301,8 +305,8 @@ export default async function libraryRoutes(app: FastifyInstance) {
         client_id: request.params.clientId,
         type: 'file',
         title: data.filename,
-        category: 'geral',
-        tags: [],
+        category: qCategory || 'geral',
+        tags: qSubcategory ? [qSubcategory] : [],
         weight: 'medium',
         use_in_ai: true,
         file_key: key,
