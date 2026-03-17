@@ -645,7 +645,7 @@ async function syncPublicationSchedule(tenantId: string) {
        b.title,
        COALESCE(b.main_client_id, fallback.id) AS client_id
      FROM edro_publish_schedule ps
-     JOIN edro_briefings b ON b.id::text = ps.briefing_id
+     JOIN edro_briefings b ON b.id = ps.briefing_id
      LEFT JOIN edro_clients ec ON ec.id = b.client_id
      LEFT JOIN clients fallback ON LOWER(fallback.name) = LOWER(ec.name) AND fallback.tenant_id = $1
     WHERE ps.status IN ('scheduled', 'processing', 'failed')
@@ -682,7 +682,7 @@ async function syncPipelineApprovals(tenantId: string) {
        latest.section AS latest_section,
        latest.created_at AS latest_decided_at
      FROM pipeline_share_tokens pst
-     JOIN edro_briefings b ON b.id::text = pst.briefing_id
+     JOIN edro_briefings b ON b.id = pst.briefing_id
      LEFT JOIN edro_clients ec ON ec.id = b.client_id
      LEFT JOIN clients fallback
        ON LOWER(fallback.name) = LOWER(ec.name)
@@ -690,7 +690,7 @@ async function syncPipelineApprovals(tenantId: string) {
      LEFT JOIN LATERAL (
        SELECT decision, feedback, section, created_at
        FROM pipeline_client_approvals pca
-       WHERE pca.briefing_id::text = pst.briefing_id
+       WHERE pca.briefing_id = pst.briefing_id
          AND pca.share_token = pst.token
        ORDER BY pca.created_at DESC
        LIMIT 1
