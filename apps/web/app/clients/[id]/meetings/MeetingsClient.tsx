@@ -97,8 +97,15 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
     if (detail || loadingDetail) return;
     setLoadingDetail(true);
     try {
-      const res = await apiGet<{ data: Meeting }>(`/clients/${clientId}/meetings/${initialMeeting.id}`);
-      if (res?.data) setDetail(res.data);
+      const [meetingRes, directivesRes] = await Promise.all([
+        apiGet<{ data: Meeting }>(`/clients/${clientId}/meetings/${initialMeeting.id}`),
+        apiGet<{ data: Array<{ directive: string }> }>(`/clients/${clientId}/directives`).catch(() => ({ data: [] as Array<{ directive: string }> })),
+      ]);
+      if (meetingRes?.data) setDetail(meetingRes.data);
+      const savedTexts = (directivesRes?.data ?? []).map((d) => d.directive);
+      if (savedTexts.length) {
+        setConfirmedDirectives(new Set(savedTexts));
+      }
     } finally {
       setLoadingDetail(false);
     }
