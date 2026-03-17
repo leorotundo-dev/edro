@@ -1940,10 +1940,16 @@ export async function buildOverviewSnapshot(tenantId: string) {
 }
 
 export async function rebuildOperationalRuntime(tenantId: string) {
+  const safe = async (name: string, fn: () => Promise<any>) => {
+    try { return await fn(); } catch (err: any) {
+      console.error(`[rebuildRuntime] ${name} tenant=${tenantId} failed:`, err?.message || err);
+      return null;
+    }
+  };
   const [allocations, calendar, risks] = await Promise.all([
-    syncAllocations(tenantId),
-    syncCalendarItems(tenantId),
-    syncRiskSignals(tenantId),
+    safe('syncAllocations', () => syncAllocations(tenantId)),
+    safe('syncCalendarItems', () => syncCalendarItems(tenantId)),
+    safe('syncRiskSignals', () => syncRiskSignals(tenantId)),
   ]);
 
   return { allocations, calendar, risks };
