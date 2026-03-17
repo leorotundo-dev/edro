@@ -93,6 +93,7 @@ export type IntelligenceContext = {
       attention_level?: string;
       meeting_kind?: string;
       account_pulse?: string;
+      production_directives?: string[];
     }[];
     pending_actions: { type: string; title: string; description: string; responsible: string; deadline: string | null; priority: string; excerpt: string }[];
     total_meetings: number;
@@ -292,6 +293,7 @@ export async function buildIntelligenceContext(params: {
         m.analysis_payload->'intelligence'->>'attention_level' AS attention_level,
         m.analysis_payload->'intelligence'->>'meeting_kind' AS meeting_kind,
         m.analysis_payload->'intelligence'->>'account_pulse' AS account_pulse,
+        m.analysis_payload->'intelligence'->'production_directives' AS production_directives,
         (SELECT COUNT(*) FROM meeting_actions ma WHERE ma.meeting_id = m.id) AS action_count
       FROM meetings m
       WHERE m.client_id = $1 AND m.tenant_id = $2
@@ -664,6 +666,7 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
         sections.push(`- ${date} [${m.platform}] "${m.title}" (${m.action_count} ações${qualifiers ? ` | ${qualifiers}` : ''})`);
         if (m.summary) sections.push(`  Resumo: ${m.summary}`);
         if (m.account_pulse) sections.push(`  Pulso: ${m.account_pulse}`);
+        if (m.production_directives?.length) sections.push(`  Regras de produção: ${m.production_directives.join(' | ')}`);
       });
     }
     if (mi.pending_actions.length) {
@@ -815,6 +818,7 @@ function buildMeetingIntelligence(
       attention_level: m.attention_level || undefined,
       meeting_kind: m.meeting_kind || undefined,
       account_pulse: m.account_pulse || undefined,
+      production_directives: Array.isArray(m.production_directives) ? m.production_directives : [],
     })),
     pending_actions: pendingActions.slice(0, 10).map((a: any) => ({
       type: a.type,

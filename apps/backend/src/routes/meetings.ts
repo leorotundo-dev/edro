@@ -1360,6 +1360,44 @@ export default async function meetingRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  meetingDirectiveRoutes(app);
+}
+
+// ── Confirm a production directive from a meeting ─────────────────────────
+// Called when the user clicks "Tornar diretiva permanente" on an item
+// from intelligence.production_directives in the meeting detail panel.
+export function meetingDirectiveRoutes(app: FastifyInstance) {
+  app.post<{ Params: { meetingId: string }; Body: { directive: string; directive_type: 'boost' | 'avoid' } }>(
+    '/meetings/:meetingId/confirm-directive',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const userId = (request.user as any).sub as string | undefined;
+      const { meetingId } = request.params;
+      const { directive, directive_type } = (request.body ?? {}) as any;
+
+      if (!directive?.trim()) return reply.code(400).send({ error: 'directive required' });
+      if (!['boost', 'avoid'].includes(directive_type)) return reply.code(400).send({ error: 'directive_type must be boost or avoid' });
+
+      const { rows } = await query(
+        `SELECT client_id FROM meetings WHERE id = $1 AND tenant_id = $2`,
+        [meetingId, tenantId],
+      );
+      const meeting = rows[0];
+      if (!meeting) return reply.code(404).send({ error: 'not_found' });
+
+      await query(
+        `INSERT INTO client_directives
+           (tenant_id, client_id, source, source_id, directive_type, directive, confirmed_by)
+         VALUES ($1, $2, 'meeting_intelligence', $3, $4, $5, $6)
+         ON CONFLICT (tenant_id, client_id, directive) DO NOTHING`,
+        [tenantId, meeting.client_id, meetingId, directive_type, directive.trim(), userId ?? null],
+      );
+
+      return reply.send({ success: true });
+    },
+  );
 }
 
 // ── Execute approved action in system ─────────────────────────────────────

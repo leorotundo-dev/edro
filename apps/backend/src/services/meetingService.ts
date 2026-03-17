@@ -75,6 +75,7 @@ export interface MeetingIntelligence {
   owner_hint?: string | null;
   deadlines_cited: string[];
   decisions_taken: string[];
+  production_directives: string[]; // explicit production/content rules stated in the meeting
   blockers: string[];
   risks: string[];
   opportunities: string[];
@@ -174,6 +175,7 @@ Retorne APENAS JSON válido no formato:
     "owner_hint": "área ou pessoa sugerida, ou null",
     "deadlines_cited": ["YYYY-MM-DD"],
     "decisions_taken": ["..."],
+    "production_directives": ["regra de produção/conteúdo explícita — ex: 'Emails sempre 600px', 'Nunca mencionar concorrente X', 'Tom sempre formal no LinkedIn'"],
     "blockers": ["..."],
     "risks": ["..."],
     "opportunities": ["..."],
@@ -1503,6 +1505,7 @@ function normalizeIntelligence(value: unknown, clientId: string | null | undefin
     owner_hint: normalizeOptionalText(raw.owner_hint),
     deadlines_cited: normalizeStringArray(raw.deadlines_cited, 6).map((entry) => normalizeDeadline(entry) ?? entry).slice(0, 6),
     decisions_taken: normalizeStringArray(raw.decisions_taken, 6),
+    production_directives: normalizeStringArray(raw.production_directives, 8),
     blockers: normalizeStringArray(raw.blockers, 6),
     risks: normalizeStringArray(raw.risks, 6),
     opportunities: normalizeStringArray(raw.opportunities, 6),
@@ -1635,6 +1638,7 @@ async function persistMeetingIntoClientIntelligence(params: {
       owner_hint: params.intelligence.owner_hint ?? null,
       deadlines_cited: params.intelligence.deadlines_cited,
       decisions_taken: params.intelligence.decisions_taken,
+      production_directives: params.intelligence.production_directives,
       blockers: params.intelligence.blockers,
       risks: params.intelligence.risks,
       opportunities: params.intelligence.opportunities,
