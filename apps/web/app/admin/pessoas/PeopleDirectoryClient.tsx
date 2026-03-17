@@ -30,9 +30,9 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
-  IconAddressBook, IconBrandWhatsapp, IconBuilding,
+  IconAddressBook, IconBrandGoogle, IconBrandWhatsapp, IconBuilding,
   IconEdit, IconMail, IconGitMerge, IconMicrophone,
-  IconPhone, IconSearch, IconTrash, IconUser, IconUsersGroup, IconX,
+  IconPhone, IconRefresh, IconSearch, IconTrash, IconUser, IconUsersGroup, IconX,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 
@@ -414,6 +414,28 @@ export default function PeopleDirectoryClient() {
   // Cleanup nameless
   const [cleaningNameless, setCleaningNameless] = useState(false);
 
+  // Google Contacts sync
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const handleSyncContacts = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await apiPost<{ success: boolean; upserted: number; skipped: number; error?: string; message?: string }>('/people/sync-contacts', {});
+      if (res?.error === 'needs_reauth') {
+        setSyncResult('Reconecte o Gmail em Integrações para autorizar o acesso aos contatos.');
+      } else {
+        setSyncResult(`${res?.upserted ?? 0} contatos sincronizados.`);
+        await load(q, filter);
+      }
+    } catch (err: any) {
+      setSyncResult(err?.message ?? 'Erro ao sincronizar contatos.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Manual merge selection
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -514,7 +536,7 @@ export default function PeopleDirectoryClient() {
           }}>
             <IconAddressBook size={22} />
           </Box>
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="h6" fontWeight={800}>Diretório de Pessoas</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="caption" color="text.secondary">
@@ -526,7 +548,30 @@ export default function PeopleDirectoryClient() {
               )}
             </Stack>
           </Box>
+          <Tooltip title="Importar contatos do Google Contacts">
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleSyncContacts}
+              disabled={syncing}
+              startIcon={syncing ? <CircularProgress size={14} color="inherit" /> : <IconBrandGoogle size={14} />}
+              sx={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+            >
+              {syncing ? 'Sincronizando...' : 'Google Contacts'}
+            </Button>
+          </Tooltip>
         </Stack>
+
+        {syncResult && (
+          <Alert
+            severity={syncResult.includes('Reconecte') ? 'warning' : 'success'}
+            onClose={() => setSyncResult(null)}
+            sx={{ mb: 2 }}
+            icon={<IconRefresh size={16} />}
+          >
+            {syncResult}
+          </Alert>
+        )}
 
         {/* Search + filters */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>

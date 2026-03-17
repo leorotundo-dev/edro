@@ -10,7 +10,7 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import {
@@ -18,6 +18,7 @@ import {
   exchangeGmailCode,
   watchGmailInbox,
 } from '../services/integrations/gmailService';
+import { syncGoogleContacts } from '../services/integrations/googleContactsService';
 
 function getIntegrationsRedirectUrl(query: string) {
   const webUrl = (process.env.WEB_URL ?? 'https://edro-production.up.railway.app').replace(/\/$/, '');
@@ -59,6 +60,11 @@ export default async function gmailRoutes(app: FastifyInstance) {
       const { tenantId, email } = await exchangeGmailCode(code, state);
       await watchGmailInbox(tenantId);
 
+      // Non-blocking: sync Google Contacts in background after OAuth
+      syncGoogleContacts(tenantId).catch((err) =>
+        console.error('[gmailRoutes] contacts sync after OAuth failed:', err?.message),
+      );
+
       return reply.redirect(getIntegrationsRedirectUrl(`gmail_connected=${encodeURIComponent(email)}`));
     } catch (err: any) {
       console.error('[gmailRoutes] OAuth callback error:', err?.message);
@@ -98,6 +104,22 @@ export default async function gmailRoutes(app: FastifyInstance) {
         processedThreads: parseInt(r.processed_threads),
       },
     });
+  });
+
+  // ── Sync Google Contacts → people directory ─────────────────────────────
+  app.post('/people/sync-contacts', {
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    try {
+      const result = await syncGoogleContacts(tenantId);
+      return reply.send({ success: true, ...result });
+    } catch (err: any) {
+      if (err.message?.startsWith('needs_reauth')) {
+        return reply.code(403).send({ error: 'needs_reauth', message: err.message.replace('needs_reauth: ', '') });
+      }
+      return reply.code(500).send({ error: err.message });
+    }
   });
 
   // ── Disconnect ──────────────────────────────────────────────────────────

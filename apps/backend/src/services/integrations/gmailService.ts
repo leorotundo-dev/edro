@@ -63,6 +63,7 @@ export function gmailOAuthUrl(tenantId: string): string {
     scope: [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/contacts.readonly',
     ].join(' '),
     access_type: 'offline',
     prompt: 'consent',
