@@ -355,6 +355,72 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: rows });
   });
 
+  // ── Intelligence aggregate for client page ──────────────────────────────
+  app.get<{ Params: { clientId: string } }>('/clients/:clientId/whatsapp-intelligence', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const { clientId } = request.params;
+
+    const [msgRes, insightRes, digestRes, sentimentRes] = await Promise.all([
+      query<{ messages_7d: number; messages_30d: number }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int  AS messages_7d,
+           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::int AS messages_30d
+         FROM whatsapp_group_messages
+         WHERE client_id = $1 AND tenant_id = $2`,
+        [clientId, tenantId],
+      ),
+      query(
+        `SELECT i.id, i.insight_type, i.summary, i.sentiment, i.urgency,
+                i.entities, i.created_at,
+                COALESCE(cc.name, fp.display_name, m.sender_name) AS sender_name,
+                m.content AS message_content
+         FROM whatsapp_message_insights i
+         JOIN whatsapp_group_messages m ON m.id = i.message_id
+         LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
+         LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
+         WHERE i.client_id = $1 AND i.tenant_id = $2 AND i.actioned = false
+         ORDER BY
+           CASE i.urgency WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+           i.created_at DESC
+         LIMIT 20`,
+        [clientId, tenantId],
+      ),
+      query(
+        `SELECT * FROM whatsapp_group_digests
+         WHERE client_id = $1 AND tenant_id = $2
+         ORDER BY period_start DESC LIMIT 1`,
+        [clientId, tenantId],
+      ),
+      query<{ unactioned: number; urgent_unactioned: number; dominant_sentiment: string | null }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE actioned = false)::int AS unactioned,
+           COUNT(*) FILTER (WHERE urgency = 'urgent' AND actioned = false)::int AS urgent_unactioned,
+           MODE() WITHIN GROUP (ORDER BY sentiment) AS dominant_sentiment
+         FROM whatsapp_message_insights
+         WHERE client_id = $1 AND tenant_id = $2`,
+        [clientId, tenantId],
+      ),
+    ]);
+
+    const msg = msgRes.rows[0] ?? { messages_7d: 0, messages_30d: 0 };
+    const sent = sentimentRes.rows[0] ?? { unactioned: 0, urgent_unactioned: 0, dominant_sentiment: null };
+
+    return reply.send({
+      success: true,
+      stats: {
+        messages_7d: msg.messages_7d,
+        messages_30d: msg.messages_30d,
+        unactioned: sent.unactioned,
+        urgent_unactioned: sent.urgent_unactioned,
+        dominant_sentiment: sent.dominant_sentiment,
+      },
+      insights: insightRes.rows,
+      digest: digestRes.rows[0] ?? null,
+    });
+  });
+
   // ── Intelligence: summary across all clients ────────────────────────────
   app.get('/whatsapp-groups/intelligence/summary', {
     preHandler: [authGuard, tenantGuard()],

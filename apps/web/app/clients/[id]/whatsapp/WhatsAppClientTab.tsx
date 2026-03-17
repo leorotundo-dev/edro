@@ -8,10 +8,13 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconBrandWhatsapp, IconRefresh, IconSend } from '@tabler/icons-react';
+import { IconBrandWhatsapp, IconBulb, IconMessageCircle, IconRefresh, IconSend } from '@tabler/icons-react';
+import WhatsAppIntelligencePanel from './WhatsAppIntelligencePanel';
 
 const EDRO_GREEN = '#25D366';
 
@@ -22,7 +25,7 @@ type Message = {
   contact_type: 'client_contact' | 'freelancer' | null;
 };
 
-export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
+function ConversasTab({ clientId }: { clientId: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendText, setSendText] = useState('');
@@ -50,7 +53,6 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Poll every 10s for new messages
   useEffect(() => {
     const id = setInterval(() => load(true), 10_000);
     return () => clearInterval(id);
@@ -74,16 +76,16 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
   const inboundCount = messages.filter(m => m.direction === 'inbound').length;
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box>
       {/* Header stats */}
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
-        <IconBrandWhatsapp size={20} style={{ color: EDRO_GREEN }} />
-        <Typography variant="subtitle1" fontWeight={700}>WhatsApp</Typography>
         <Chip size="small" label={`${messages.length} mensagens`} sx={{ bgcolor: `${EDRO_GREEN}20`, color: EDRO_GREEN }} />
         {briefingsCount > 0 && <Chip size="small" label={`${briefingsCount} briefings gerados`} color="primary" />}
         {inboundCount > 0 && <Chip size="small" label={`${inboundCount} recebidas`} />}
         <Box sx={{ flex: 1 }} />
-        <IconButton size="small" onClick={() => load()} disabled={loading}>{loading ? <CircularProgress size={14} /> : <IconRefresh size={14} />}</IconButton>
+        <IconButton size="small" onClick={() => load()} disabled={loading}>
+          {loading ? <CircularProgress size={14} /> : <IconRefresh size={14} />}
+        </IconButton>
       </Stack>
 
       {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
@@ -108,8 +110,13 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
                         {msg.sender_name}{msg.group_name ? ` · ${msg.group_name}` : ''}
                       </Typography>
                       {msg.contact_type && (
-                        <Chip size="small" label={msg.contact_type === 'freelancer' ? 'Equipe' : 'Contato'}
-                          sx={{ height: 14, fontSize: '0.55rem', bgcolor: msg.contact_type === 'freelancer' ? '#E8EAF6' : '#E3F2FD', color: msg.contact_type === 'freelancer' ? '#3949AB' : '#1565C0', '& .MuiChip-label': { px: 0.5 } }} />
+                        <Chip size="small"
+                          label={msg.contact_type === 'freelancer' ? 'Equipe' : 'Contato'}
+                          sx={{ height: 14, fontSize: '0.55rem',
+                            bgcolor: msg.contact_type === 'freelancer' ? '#E8EAF6' : '#E3F2FD',
+                            color: msg.contact_type === 'freelancer' ? '#3949AB' : '#1565C0',
+                            '& .MuiChip-label': { px: 0.5 } }}
+                        />
                       )}
                     </Stack>
                   )}
@@ -125,7 +132,9 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center" sx={{ mt: 0.25 }}>
                       {msg.briefing_id && (
                         <Tooltip title="Briefing gerado">
-                          <Chip label="📋" size="small" sx={{ height: 14, fontSize: '0.55rem', bgcolor: isOut ? 'rgba(255,255,255,0.3)' : '#E3F2FD', '& .MuiChip-label': { px: 0.5 } }} />
+                          <Chip label="📋" size="small" sx={{ height: 14, fontSize: '0.55rem',
+                            bgcolor: isOut ? 'rgba(255,255,255,0.3)' : '#E3F2FD',
+                            '& .MuiChip-label': { px: 0.5 } }} />
                         </Tooltip>
                       )}
                       <Typography variant="caption" sx={{ color: isOut ? 'rgba(255,255,255,0.7)' : 'text.disabled', fontSize: '0.65rem' }}>
@@ -152,11 +161,40 @@ export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
         />
         <IconButton
           onClick={handleSend} disabled={!sendText.trim() || sending}
-          sx={{ bgcolor: EDRO_GREEN, color: 'white', '&:hover': { bgcolor: '#1ea855' }, '&.Mui-disabled': { bgcolor: 'action.disabledBackground' }, width: 40, height: 40 }}
+          sx={{ bgcolor: EDRO_GREEN, color: 'white', '&:hover': { bgcolor: '#1ea855' },
+            '&.Mui-disabled': { bgcolor: 'action.disabledBackground' }, width: 40, height: 40 }}
         >
           {sending ? <CircularProgress size={18} color="inherit" /> : <IconSend size={18} />}
         </IconButton>
       </Stack>
+    </Box>
+  );
+}
+
+export default function WhatsAppClientTab({ clientId }: { clientId: string }) {
+  const [tab, setTab] = useState(0);
+
+  return (
+    <Box sx={{ p: 2 }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+        <IconBrandWhatsapp size={20} style={{ color: EDRO_GREEN }} />
+        <Typography variant="subtitle1" fontWeight={700}>WhatsApp</Typography>
+      </Stack>
+
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        sx={{
+          mb: 2, borderBottom: 1, borderColor: 'divider',
+          '& .MuiTab-root': { fontSize: '0.8rem', minHeight: 40, textTransform: 'none', fontWeight: 600 },
+        }}
+      >
+        <Tab icon={<IconMessageCircle size={15} />} iconPosition="start" label="Conversas" />
+        <Tab icon={<IconBulb size={15} />} iconPosition="start" label="Inteligência" />
+      </Tabs>
+
+      {tab === 0 && <ConversasTab clientId={clientId} />}
+      {tab === 1 && <WhatsAppIntelligencePanel clientId={clientId} />}
     </Box>
   );
 }
