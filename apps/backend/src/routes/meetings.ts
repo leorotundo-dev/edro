@@ -253,6 +253,31 @@ export default async function meetingRoutes(app: FastifyInstance) {
     },
   );
 
+  // ── Archived meetings list ───────────────────────────────────────────────
+  app.get(
+    '/meetings/archived',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { rows } = await query(
+        `SELECT m.id, m.title, m.client_id, c.name AS client_name,
+                m.platform, m.recorded_at, m.status, m.summary, m.analysis_payload, m.bot_id,
+                COUNT(ma.id)::int AS total_actions,
+                COUNT(ma.id) FILTER (WHERE ma.status = 'pending')::int AS pending_actions
+         FROM meetings m
+         LEFT JOIN clients c ON c.id = m.client_id
+         LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
+         WHERE m.tenant_id = $1
+           AND m.status = 'archived'
+         GROUP BY m.id, c.name
+         ORDER BY m.recorded_at DESC
+         LIMIT 30`,
+        [tenantId],
+      ).catch(() => ({ rows: [] }));
+      return reply.send({ data: rows });
+    },
+  );
+
   // ── Global dashboard stats ──────────────────────────────────────────────
   app.get(
     '/meetings/dashboard',
@@ -661,6 +686,44 @@ export default async function meetingRoutes(app: FastifyInstance) {
         provider,
         transcript_length: transcript.length,
       });
+    },
+  );
+
+  // ── Unarchive meeting ────────────────────────────────────────────────────
+  app.post<{ Params: { meetingId: string } }>(
+    '/meetings/:meetingId/unarchive',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply) => {
+      const tenantId = request.user.tenant_id;
+      const userEmail = request.user.email ?? null;
+      const meeting = await getMeetingStatus(tenantId, request.params.meetingId);
+      if (!meeting) return reply.code(404).send({ error: 'not_found' });
+      if (meeting.status !== 'archived') return reply.code(422).send({ error: 'Reunião não está arquivada.' });
+
+      const newStatus = meeting.transcript ? 'transcribed' : meeting.bot_id ? 'transcript_pending' : 'failed';
+
+      await updateMeetingState({
+        meetingId: meeting.id,
+        tenantId,
+        changes: {
+          status: newStatus,
+          completed_at: null,
+          failed_stage: null,
+          failed_reason: null,
+          last_processed_at: new Date(),
+        },
+        event: {
+          eventType: 'meeting.unarchived',
+          stage: 'meeting',
+          status: newStatus,
+          message: 'Reunião restaurada manualmente.',
+          actorType: 'user',
+          actorId: userEmail,
+          payload: { previous_status: 'archived' },
+        },
+      });
+
+      return reply.send({ success: true, status: newStatus });
     },
   );
 

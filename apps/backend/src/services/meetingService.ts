@@ -964,6 +964,7 @@ export async function archiveStaleUncapturedMeetings(tenantId: string): Promise<
        FROM meetings m
       WHERE m.tenant_id = $1
         AND m.status IN ('scheduled', 'bot_scheduled', 'joining', 'in_call', 'recorded', 'transcript_pending', 'analysis_pending', 'failed')
+        AND m.bot_id IS NULL
         AND COALESCE(NULLIF(trim(m.transcript), ''), NULL) IS NULL
         AND COALESCE(NULLIF(trim(m.summary), ''), NULL) IS NULL
         AND COALESCE(m.last_processed_at, m.recorded_at) < (

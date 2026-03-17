@@ -121,7 +121,7 @@ type CalendarStatus = {
 };
 
 type Platform = 'meet' | 'zoom' | 'teams' | 'other';
-type RecentMeetingFilter = 'all' | 'active' | 'approval' | 'failed' | 'done';
+type RecentMeetingFilter = 'all' | 'active' | 'approval' | 'failed' | 'done' | 'archived';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -339,6 +339,7 @@ function matchesRecentMeetingFilter(meeting: RecentMeeting, filter: RecentMeetin
   if (filter === 'failed') return meeting.status === 'failed';
   if (filter === 'approval') return meeting.status === 'approval_pending' || meeting.status === 'partially_approved';
   if (filter === 'done') return meeting.status === 'completed' || meeting.status === 'analyzed' || meeting.status === 'approved';
+  if (filter === 'archived') return meeting.status === 'archived';
   if (filter === 'active') {
     return !['failed', 'completed', 'analyzed', 'approved', 'archived'].includes(meeting.status)
       && meeting.status !== 'approval_pending'
@@ -651,7 +652,7 @@ type MeetingAuditData = {
   jobs: MeetingAuditJob[];
 };
 
-type OperationKey = 'retry-bot' | 'reprocess-transcript' | 'reanalyze' | 'resend-whatsapp';
+type OperationKey = 'retry-bot' | 'reprocess-transcript' | 'reanalyze' | 'resend-whatsapp' | 'unarchive';
 type FeedbackState = { severity: 'success' | 'error'; message: string } | null;
 
 function OpsInfoCard({
@@ -680,7 +681,7 @@ function OpsInfoCard({
   );
 }
 
-function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
+function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onUnarchive?: () => void }) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [ops, setOps] = useState<MeetingStatusData | null>(null);
   const [audit, setAudit] = useState<MeetingAuditData | null>(null);
@@ -757,6 +758,10 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
         path: `/meetings/${meetingId}/resend-whatsapp`,
         success: 'Resumo reenviado ao grupo do cliente.',
       },
+      'unarchive': {
+        path: `/meetings/${meetingId}/unarchive`,
+        success: 'Reuniao restaurada com sucesso.',
+      },
     };
 
     setOperationLoading(operation);
@@ -765,6 +770,7 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
       await apiPost(operationMap[operation].path, {});
       setFeedback({ severity: 'success', message: operationMap[operation].success });
       await loadDetail();
+      if (operation === 'unarchive') onUnarchive?.();
     } catch (error: any) {
       setFeedback({ severity: 'error', message: error?.message ?? 'Falha ao executar operacao.' });
     } finally {
@@ -885,6 +891,18 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
           )}
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+            {operational.status === 'archived' && (
+              <Button
+                size="small"
+                variant="contained"
+                color="warning"
+                startIcon={operationLoading === 'unarchive' ? <CircularProgress size={14} /> : <IconPlayerPlay size={14} />}
+                disabled={operationLoading !== null}
+                onClick={() => void handleOperation('unarchive')}
+              >
+                Reativar reuniao
+              </Button>
+            )}
             {operational.auto_join_id && (
               <Button
                 size="small"
@@ -1287,6 +1305,8 @@ export default function MeetingsDashboardClient() {
   const [createError, setCreateError] = useState('');
   const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
   const [recentFilter, setRecentFilter] = useState<RecentMeetingFilter>('all');
+  const [archivedMeetings, setArchivedMeetings] = useState<RecentMeeting[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const requestedMeetingId = searchParams.get('meetingId');
 
   // ── Load dashboard data ────────────────────────────────────────────
@@ -1326,6 +1346,15 @@ export default function MeetingsDashboardClient() {
       setExpandedMeetingId(requestedMeetingId);
     }
   }, [requestedMeetingId, recent]);
+
+  useEffect(() => {
+    if (recentFilter !== 'archived' || archivedMeetings.length > 0) return;
+    setArchivedLoading(true);
+    apiGet<{ data: RecentMeeting[] }>('/meetings/archived')
+      .then((res) => setArchivedMeetings(res.data ?? []))
+      .catch(() => {})
+      .finally(() => setArchivedLoading(false));
+  }, [recentFilter, archivedMeetings.length]);
 
   // Load clients
   useEffect(() => {
@@ -1450,8 +1479,11 @@ export default function MeetingsDashboardClient() {
     approval: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'approval')).length,
     failed: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'failed')).length,
     done: recent.filter((meeting) => matchesRecentMeetingFilter(meeting, 'done')).length,
+    archived: archivedMeetings.length,
   };
-  const filteredRecent = recent.filter((meeting) => matchesRecentMeetingFilter(meeting, recentFilter));
+  const filteredRecent = recentFilter === 'archived'
+    ? archivedMeetings
+    : recent.filter((meeting) => matchesRecentMeetingFilter(meeting, recentFilter));
 
   return (
     <AppShell title="Reunioes">
@@ -1809,6 +1841,7 @@ export default function MeetingsDashboardClient() {
                         ['approval', 'Aprovacao'],
                         ['failed', 'Falhas'],
                         ['done', 'Concluidas'],
+                        ['archived', 'Arquivadas'],
                       ] as Array<[RecentMeetingFilter, string]>).map(([value, label]) => (
                         <Chip
                           key={value}
@@ -1822,7 +1855,9 @@ export default function MeetingsDashboardClient() {
                       ))}
                     </Stack>
                   </Stack>
-                  {recent.length === 0 ? (
+                  {archivedLoading && recentFilter === 'archived' ? (
+                    <Box sx={{ py: 3, textAlign: 'center' }}><CircularProgress size={24} /></Box>
+                  ) : recent.length === 0 && recentFilter !== 'archived' ? (
                     <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                       Nenhuma reuniao encontrada. Crie sua primeira reuniao acima.
                     </Typography>
@@ -1914,7 +1949,13 @@ export default function MeetingsDashboardClient() {
                                 {isExpanded && (
                                   <TableRow>
                                     <TableCell colSpan={7} sx={{ p: 0, bgcolor: '#fafbfc', borderBottom: 1, borderColor: 'divider' }}>
-                                      <MeetingDetailPanel meetingId={m.id} />
+                                      <MeetingDetailPanel
+                                        meetingId={m.id}
+                                        onUnarchive={() => {
+                                          setArchivedMeetings(prev => prev.filter(a => a.id !== m.id));
+                                          void load();
+                                        }}
+                                      />
                                     </TableCell>
                                   </TableRow>
                                 )}
