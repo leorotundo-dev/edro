@@ -24,6 +24,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import {
   IconBrain, IconRefresh, IconAlertTriangle, IconTrendingUp, IconChevronRight,
   IconBolt, IconTarget, IconArrowUpRight, IconCircleCheck, IconAlertCircle,
+  IconBrandWhatsapp, IconCheck, IconX, IconMessageCircle,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch } from '@/lib/api';
 
@@ -40,6 +41,19 @@ type Alert_t = {
   roi_score: number | null;
   status: string;
   computed_at: string;
+};
+
+type PendingInsight = {
+  id: string;
+  insight_type: string;
+  summary: string;
+  urgency: 'urgent' | 'normal' | 'low';
+  sentiment: string;
+  confidence: number | null;
+  created_at: string;
+  client_id: string;
+  client_name: string;
+  pending_count: number;
 };
 
 type RoiRow = {
@@ -59,9 +73,10 @@ type RoiRow = {
 };
 
 type IntelData = {
-  alerts:   Alert_t[];
-  top_roi:  RoiRow[];
-  workers:  { meta_last_sync: string | null; meta_connectors: number };
+  alerts:           Alert_t[];
+  top_roi:          RoiRow[];
+  workers:          { meta_last_sync: string | null; meta_connectors: number };
+  pending_insights: PendingInsight[];
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -105,6 +120,7 @@ export default function AdminIntelligencePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actioning, setActioning] = useState<string | null>(null);
+  const [actioningInsight, setActioningInsight] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -137,10 +153,31 @@ export default function AdminIntelligencePage() {
     }
   };
 
+  const handleInsightAction = async (insightId: string, action: 'confirm' | 'discard') => {
+    setActioningInsight(insightId);
+    try {
+      await apiPatch(`/whatsapp-groups/insights/${insightId}/${action}`, {});
+      setData((prev) => prev ? {
+        ...prev,
+        pending_insights: prev.pending_insights.filter((i) => i.id !== insightId),
+      } : prev);
+    } catch { /* silent */ } finally {
+      setActioningInsight(null);
+    }
+  };
+
   const urgentCount  = data?.alerts.filter((a) => a.priority === 'urgent').length ?? 0;
   const churnCount   = data?.alerts.filter((a) => a.alert_type === 'churn_risk').length ?? 0;
   const upsellCount  = data?.alerts.filter((a) => a.alert_type === 'upsell' || a.alert_type === 'expand_services').length ?? 0;
   const topRoiScore  = data?.top_roi[0]?.roi_score ?? 0;
+  const pendingInsightCount = data?.pending_insights.length ?? 0;
+
+  // Group pending insights by client
+  const insightsByClient = data?.pending_insights.reduce((acc, ins) => {
+    if (!acc[ins.client_id]) acc[ins.client_id] = { client_name: ins.client_name, items: [] };
+    acc[ins.client_id].items.push(ins);
+    return acc;
+  }, {} as Record<string, { client_name: string; items: PendingInsight[] }>) ?? {};
 
   return (
     <AppShell title="Inteligência IA">
@@ -152,7 +189,7 @@ export default function AdminIntelligencePage() {
           <Box>
             <Typography variant="h5" fontWeight={700}>Inteligência IA</Typography>
             <Typography variant="caption" color="text.secondary">
-              Account Manager alerts + Copy ROI — todos os clientes em um lugar
+              Account Manager alerts · Copy ROI · Insights WhatsApp — todos os clientes em um lugar
             </Typography>
           </Box>
         </Stack>
@@ -203,6 +240,14 @@ export default function AdminIntelligencePage() {
               </CardContent>
             </Card>
           </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Card variant="outlined" sx={{ borderColor: pendingInsightCount > 0 ? '#25D366' : undefined }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="h4" fontWeight={700} sx={{ color: '#25D366' }}>{pendingInsightCount}</Typography>
+                <Typography variant="caption" color="text.secondary">Insights Pendentes</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       )}
 
@@ -213,6 +258,7 @@ export default function AdminIntelligencePage() {
       )}
 
       {data && (
+        <>
         <Grid container spacing={3}>
           {/* ── Account Manager Alerts ── */}
           <Grid size={{ xs: 12, lg: 7 }}>
@@ -322,7 +368,7 @@ export default function AdminIntelligencePage() {
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                   <IconTrendingUp size={18} color="#13DEB9" />
                   <Typography variant="h6">Top Copy ROI</Typography>
-                  <Chip size="small" label="Top 20" sx={{ height: 20, fontSize: '0.65rem' }} />
+                  <Chip size="small" label={`Top ${data.top_roi.length}`} sx={{ height: 20, fontSize: '0.65rem' }} />
                 </Stack>
 
                 {data.top_roi.length === 0 ? (
@@ -395,6 +441,116 @@ export default function AdminIntelligencePage() {
             </Card>
           </Grid>
         </Grid>
+
+        {/* ── Pending WhatsApp Insights ── */}
+        {data.pending_insights.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <IconBrandWhatsapp size={18} color="#25D366" />
+                    <Typography variant="h6">Insights WhatsApp Pendentes</Typography>
+                    <Chip size="small" label={data.pending_insights.length}
+                      sx={{ height: 20, fontSize: '0.65rem', bgcolor: 'rgba(37,211,102,0.12)', color: '#25D366' }} />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    Confirmar → vira regra permanente do cliente · Descartar → remove do radar
+                  </Typography>
+                </Stack>
+
+                <Stack spacing={2}>
+                  {Object.entries(insightsByClient).map(([clientId, group]) => (
+                    <Box key={clientId}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                        <IconMessageCircle size={14} color="#25D366" />
+                        <Typography
+                          component={Link}
+                          href={`/clients/${clientId}/whatsapp`}
+                          sx={{ fontSize: '0.78rem', fontWeight: 700, color: 'text.primary',
+                            textDecoration: 'none', '&:hover': { color: 'primary.main' } }}
+                        >
+                          {group.client_name}
+                        </Typography>
+                        <Chip size="small" label={`${group.items.length} pendente${group.items.length !== 1 ? 's' : ''}`}
+                          sx={{ height: 18, fontSize: '0.62rem' }} />
+                      </Stack>
+
+                      <Stack spacing={0.75} sx={{ pl: 2.5 }}>
+                        {group.items.map((ins) => (
+                          <Box key={ins.id}
+                            sx={{
+                              p: 1.25, borderRadius: 1.5, border: '1px solid',
+                              borderColor: ins.urgency === 'urgent' ? 'rgba(37,211,102,0.4)' : 'divider',
+                              bgcolor: ins.urgency === 'urgent' ? 'rgba(37,211,102,0.04)' : 'transparent',
+                            }}
+                          >
+                            <Stack direction="row" alignItems="flex-start" spacing={1}>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.5 }}>
+                                  {ins.urgency === 'urgent' && (
+                                    <Chip size="small" label="urgente"
+                                      sx={{ height: 16, fontSize: '0.55rem', bgcolor: 'rgba(37,211,102,0.15)', color: '#25D366' }} />
+                                  )}
+                                  <Chip size="small" label={ins.insight_type}
+                                    sx={{ height: 16, fontSize: '0.55rem', bgcolor: 'rgba(93,135,255,0.12)', color: '#5D87FF' }} />
+                                  {ins.confidence != null && (
+                                    <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>
+                                      {(ins.confidence * 100).toFixed(0)}% conf.
+                                    </Typography>
+                                  )}
+                                </Stack>
+                                <Typography sx={{ fontSize: '0.76rem', lineHeight: 1.4 }}>{ins.summary}</Typography>
+                              </Box>
+                              <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                                <Button size="small" variant="contained"
+                                  disabled={actioningInsight === ins.id}
+                                  onClick={() => handleInsightAction(ins.id, 'confirm')}
+                                  startIcon={<IconCheck size={11} />}
+                                  sx={{ fontSize: '0.6rem', textTransform: 'none', py: 0.25, px: 0.75,
+                                    bgcolor: '#25D366', '&:hover': { bgcolor: '#1da851' } }}>
+                                  Confirmar
+                                </Button>
+                                <Button size="small" variant="outlined"
+                                  disabled={actioningInsight === ins.id}
+                                  onClick={() => handleInsightAction(ins.id, 'discard')}
+                                  startIcon={<IconX size={11} />}
+                                  sx={{ fontSize: '0.6rem', textTransform: 'none', py: 0.25, px: 0.75,
+                                    color: 'text.disabled', borderColor: 'divider' }}>
+                                  Descartar
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+
+                      <Divider sx={{ mt: 2 }} />
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {data.pending_insights.length === 0 && !loading && (
+          <Box sx={{ mt: 3 }}>
+            <Card variant="outlined" sx={{ borderColor: '#25D36633' }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconBrandWhatsapp size={18} color="#25D366" />
+                  <Typography variant="h6">Insights WhatsApp Pendentes</Typography>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 2, justifyContent: 'center', py: 2 }}>
+                  <IconCircleCheck size={20} color="#25D366" />
+                  <Typography color="text.secondary">Nenhum insight pendente — tudo revisado</Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+        </>
       )}
     </AppShell>
   );

@@ -32,6 +32,7 @@ import {
   getClientPreferenceContext,
   recordPreferenceFeedback,
 } from '../services/preferenceEngine';
+import { syncClientContactPerson } from '../repos/peopleRepo';
 
 type PlanExtraction = {
   name?: string;
@@ -1434,7 +1435,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     try {
-      const [alertsRes, roiRes, workersRes] = await Promise.all([
+      const [alertsRes, roiRes, workersRes, insightsRes] = await Promise.all([
         // All active alerts across clients
         query(
           `SELECT ama.id, ama.client_id, cl.name AS client_name,
@@ -1472,12 +1473,31 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
            FROM connectors WHERE tenant_id = $1`,
           [tenantId],
         ),
+        // Pending WhatsApp insights awaiting human confirmation (last 14 days)
+        query(
+          `SELECT i.id, i.insight_type, i.summary, i.urgency, i.sentiment,
+                  i.confidence, i.created_at,
+                  c.id AS client_id, c.name AS client_name,
+                  COUNT(*) OVER (PARTITION BY i.client_id)::int AS pending_count
+           FROM whatsapp_message_insights i
+           JOIN clients c ON c.id = i.client_id
+           WHERE i.tenant_id = $1
+             AND COALESCE(i.confirmation_status, 'pending') = 'pending'
+             AND i.actioned = false
+             AND i.created_at > NOW() - INTERVAL '14 days'
+           ORDER BY
+             CASE i.urgency WHEN 'urgent' THEN 0 ELSE 1 END,
+             i.created_at DESC
+           LIMIT 120`,
+          [tenantId],
+        ).catch(() => ({ rows: [] as any[] })),
       ]);
 
       return reply.send({
-        alerts:    alertsRes.rows,
-        top_roi:   roiRes.rows,
-        workers:   workersRes.rows[0] ?? {},
+        alerts:           alertsRes.rows,
+        top_roi:          roiRes.rows,
+        workers:          workersRes.rows[0] ?? {},
+        pending_insights: insightsRes.rows,
       });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -1574,6 +1594,17 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
             body.notes ?? null,
           ],
         );
+        if (rows[0]?.id) {
+          rows[0].person_id = await syncClientContactPerson({
+            contactId: rows[0].id,
+            tenantId,
+            name: rows[0].name,
+            email: rows[0].email,
+            phone: rows[0].phone,
+            whatsappJid: rows[0].whatsapp_jid,
+            existingPersonId: rows[0].person_id ?? null,
+          });
+        }
         return reply.status(201).send(rows[0]);
       } catch (err: any) {
         return reply.status(500).send({ error: err.message });
@@ -1647,6 +1678,15 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         if (!rows[0]) {
           return reply.status(404).send({ error: 'contact_not_found' });
         }
+        rows[0].person_id = await syncClientContactPerson({
+          contactId: rows[0].id,
+          tenantId,
+          name: rows[0].name,
+          email: rows[0].email,
+          phone: rows[0].phone,
+          whatsappJid: rows[0].whatsapp_jid,
+          existingPersonId: rows[0].person_id ?? null,
+        });
         return reply.send(rows[0]);
       } catch (err: any) {
         return reply.status(500).send({ error: err.message });
