@@ -22,7 +22,13 @@ import {
   IconBrandGmail,
   IconBrandGoogle,
   IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandMeta,
+  IconBrandTiktok,
+  IconBrandWhatsapp,
   IconCalendar,
+  IconChartBar,
+  IconExternalLink,
   IconRobot,
   IconPlugConnected,
   IconRefresh,
@@ -71,6 +77,26 @@ type AutoJoin = {
   attempt_count: number | null;
   processed_at: string | null;
   created_at: string;
+};
+
+type WhatsAppStatus = {
+  connected: boolean;
+  state?: string;
+  profileName?: string;
+  instanceName?: string;
+};
+
+type IntegrationHealth = {
+  google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
+  ai:                 { gemini: boolean; openai: boolean };
+  search:             { serper: boolean; tavily: boolean; google_trends: boolean };
+  whatsapp_evolution: { api_key: boolean; api_url: boolean };
+  whatsapp_meta:      { token: boolean; phone_id: boolean; verify_token: boolean };
+  recall:             { api_key: boolean; webhook_secret: boolean; google_login_group: boolean };
+  reportei:           { token: boolean; base_url: boolean };
+  omie:               { app_key: boolean; app_secret: boolean };
+  analytics:          { youtube: boolean };
+  auth:               { oidc_issuer: boolean; oidc_client_id: boolean };
 };
 
 type OAuthStartResponse = {
@@ -139,6 +165,8 @@ export default function IntegrationsClient() {
   const requestedAutoJoinId = searchParams.get('autoJoinId');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
+  const [health, setHealth] = useState<IntegrationHealth | null>(null);
   const [autoJoins, setAutoJoins] = useState<AutoJoin[]>([]);
   const [loading, setLoading] = useState(true);
   const [renewingCalendar, setRenewingCalendar] = useState(false);
@@ -149,14 +177,18 @@ export default function IntegrationsClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [gmailRes, calRes, autoJoinRes] = await Promise.all([
+      const [gmailRes, calRes, autoJoinRes, waRes, healthRes] = await Promise.all([
         apiGet<GmailStatus>('/gmail/status').catch(() => ({ configured: false } as GmailStatus)),
         apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
         apiGet<{ data: AutoJoin[] }>('/calendar/auto-joins').catch(() => ({ data: [] as AutoJoin[] })),
+        apiGet<WhatsAppStatus>('/whatsapp-groups/status').catch(() => ({ connected: false } as WhatsAppStatus)),
+        apiGet<IntegrationHealth>('/admin/integrations/health').catch(() => null),
       ]);
       setGmail(gmailRes ?? { configured: false });
       setCalendar(calRes ?? { configured: false });
       setAutoJoins(autoJoinRes.data ?? []);
+      setWhatsapp(waRes ?? { connected: false });
+      setHealth(healthRes ?? null);
     } finally {
       setLoading(false);
     }
@@ -253,7 +285,7 @@ export default function IntegrationsClient() {
           <Box>
             <Typography variant="h5" fontWeight={700}>Integrações da Agência</Typography>
             <Typography variant="body2" color="text.secondary">
-              Canais de captura de informação dos clientes — Gmail, Google Calendar, Instagram DMs.
+              Todas as integrações do sistema — Google, WhatsApp, Meta, social media, analytics e APIs de IA.
             </Typography>
           </Box>
         </Stack>
@@ -630,14 +662,319 @@ export default function IntegrationsClient() {
 
                 <Stack spacing={1}>
                   <Typography variant="caption" color="text.secondary" fontWeight={600}>Configuração necessária:</Typography>
-                  <Typography variant="caption" color="text.secondary" component="div">
-                    <ol style={{ margin: 0, paddingLeft: 16, lineHeight: 2 }}>
-                      <li>No painel Meta Developers → Seu App → Webhooks → Instagram → Subscribe: <code>messages</code></li>
-                      <li>URL do callback: <code>https://api.edro.digital/webhook/instagram</code></li>
-                      <li>Verify Token: valor da variável <code>META_VERIFY_TOKEN</code> no servidor</li>
-                      <li>Conecte a conta Instagram via OAuth em cada cliente (já disponível)</li>
-                    </ol>
-                  </Typography>
+                  <Box component="ol" sx={{ m: 0, pl: 2, lineHeight: 2 }}>
+                    {[
+                      <>No painel Meta Developers → Seu App → Webhooks → Instagram → Subscribe: <code>messages</code></>,
+                      <>URL do callback: <code>https://api.edro.digital/webhook/instagram</code></>,
+                      <>Verify Token: valor da variável <code>META_VERIFY_TOKEN</code> no servidor</>,
+                      <>Conecte a conta Instagram via OAuth em cada cliente (já disponível)</>,
+                    ].map((item, i) => (
+                      <Box key={i} component="li" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{item}</Box>
+                    ))}
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── WhatsApp (Evolution API) ── */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#25D366', width: 40, height: 40 }}>
+                      <IconBrandWhatsapp size={22} />
+                    </Avatar>
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="subtitle1" fontWeight={700}>WhatsApp (Evolution API)</Typography>
+                        {whatsapp?.connected
+                          ? <Chip label="Conectado" size="small" color="success" />
+                          : <Chip label="Desconectado" size="small" color="default" />}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {whatsapp?.connected
+                          ? `${whatsapp.profileName ?? whatsapp.instanceName ?? 'Instância ativa'} · Grupos de clientes monitorados`
+                          : 'Monitora grupos de WhatsApp e captura pedidos via Jarvis'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Button size="small" variant="outlined" href="/admin/whatsapp-groups" endIcon={<IconExternalLink size={13} />}>
+                    Gerenciar grupos
+                  </Button>
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`EVOLUTION_API_URL: ${health?.whatsapp_evolution.api_url ? '✓' : '✗'}`} size="small"
+                    color={health?.whatsapp_evolution.api_url ? 'success' : 'error'} variant="outlined" />
+                  <Chip label={`EVOLUTION_API_KEY: ${health?.whatsapp_evolution.api_key ? '✓' : '✗'}`} size="small"
+                    color={health?.whatsapp_evolution.api_key ? 'success' : 'error'} variant="outlined" />
+                  <Chip label={`META_VERIFY_TOKEN: ${health?.whatsapp_meta.verify_token ? '✓' : '✗'}`} size="small"
+                    color={health?.whatsapp_meta.verify_token ? 'success' : 'default'} variant="outlined" />
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: IAs & LLMs ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              IAs & LLMs
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  {[
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#4285F4', width: 36, height: 36 }}><IconBrandGoogle size={20} /></Avatar>,
+                      name: 'Google Gemini',
+                      desc: 'Modelo principal para geração de copy, análise de reuniões e briefings',
+                      configured: health?.ai.gemini,
+                      keys: ['GEMINI_API_KEY', 'GEMINI_MODEL'],
+                      status: health?.ai.gemini,
+                    },
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#10a37f', width: 36, height: 36 }}><IconRobot size={20} /></Avatar>,
+                      name: 'OpenAI',
+                      desc: 'Fallback para geração de copy e orquestração multi-provider',
+                      configured: health?.ai.openai,
+                      keys: ['OPENAI_API_KEY', 'OPENAI_MODEL'],
+                      status: health?.ai.openai,
+                    },
+                  ].map((item) => (
+                    <Stack key={item.name} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        {item.icon}
+                        <Box>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography variant="body2" fontWeight={700}>{item.name}</Typography>
+                            <Chip label={item.configured ? 'Configurado' : 'Não configurado'} size="small"
+                              color={item.configured ? 'success' : 'default'} />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">{item.desc}</Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        {item.keys.map((k) => (
+                          <Chip key={k} label={k} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                        ))}
+                      </Stack>
+                    </Stack>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: Pesquisa & Web ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              Pesquisa & Inteligência Web
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  {[
+                    {
+                      name: 'Serper',
+                      desc: 'Google Search API — clipping, social listening, tendências',
+                      configured: health?.search.serper,
+                      key: 'SERPER_API_KEY',
+                    },
+                    {
+                      name: 'Tavily',
+                      desc: 'Web scraping inteligente para enriquecimento de clientes',
+                      configured: health?.search.tavily,
+                      key: 'TAVILY_API_KEY',
+                    },
+                    {
+                      name: 'Google Trends',
+                      desc: 'Microservice de tendências de busca para inspiração de pauta',
+                      configured: health?.search.google_trends,
+                      key: 'GOOGLE_TRENDS_SERVICE_URL',
+                    },
+                  ].map((item) => (
+                    <Stack key={item.name} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                      <Box>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2" fontWeight={700}>{item.name}</Typography>
+                          <Chip label={item.configured ? 'Configurado' : 'Não configurado'} size="small"
+                            color={item.configured ? 'success' : 'default'} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">{item.desc}</Typography>
+                      </Box>
+                      <Chip label={item.key} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                    </Stack>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: Analytics ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              Analytics & Reportes
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  {[
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#E85219', width: 36, height: 36 }}><IconChartBar size={20} /></Avatar>,
+                      name: 'Reportei',
+                      desc: 'Métricas de posts do Instagram, Facebook, LinkedIn. Sync automático diário.',
+                      configured: health?.reportei.token,
+                      href: '/admin/reportei',
+                      keys: ['REPORTEI_TOKEN', 'REPORTEI_BASE_URL'],
+                    },
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#FF0000', width: 36, height: 36 }}><IconChartBar size={20} /></Avatar>,
+                      name: 'YouTube Data API',
+                      desc: 'Métricas de vídeos publicados pelos clientes',
+                      configured: health?.analytics.youtube,
+                      keys: ['YOUTUBE_API_KEY'],
+                    },
+                  ].map((item) => (
+                    <Stack key={item.name} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        {item.icon}
+                        <Box>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography variant="body2" fontWeight={700}>{item.name}</Typography>
+                            <Chip label={item.configured ? 'Configurado' : 'Não configurado'} size="small"
+                              color={item.configured ? 'success' : 'default'} />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">{item.desc}</Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
+                        {item.keys.map((k) => (
+                          <Chip key={k} label={k} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                        ))}
+                        {item.href && (
+                          <Button size="small" href={item.href} endIcon={<IconExternalLink size={13} />}>Gerenciar</Button>
+                        )}
+                      </Stack>
+                    </Stack>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: Social Media ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              Social Media (por cliente)
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  {[
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#E1306C', width: 36, height: 36 }}><IconBrandInstagram size={20} /></Avatar>,
+                      name: 'Meta / Instagram',
+                      desc: 'OAuth por cliente — DMs, métricas de posts, Meta Ads',
+                      configured: health?.whatsapp_meta.token,
+                      keys: ['META_VERIFY_TOKEN', 'META_GRAPH_VERSION'],
+                    },
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#0A66C2', width: 36, height: 36 }}><IconBrandLinkedin size={20} /></Avatar>,
+                      name: 'LinkedIn',
+                      desc: 'Métricas de posts e analytics por cliente via OAuth',
+                      configured: false,
+                      keys: ['Configurável por cliente'],
+                    },
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#010101', width: 36, height: 36 }}><IconBrandTiktok size={20} /></Avatar>,
+                      name: 'TikTok',
+                      desc: 'Métricas de vídeos e analytics por cliente',
+                      configured: false,
+                      keys: ['Configurável por cliente'],
+                    },
+                    {
+                      icon: <Avatar sx={{ bgcolor: '#1877F2', width: 36, height: 36 }}><IconBrandMeta size={20} /></Avatar>,
+                      name: 'Meta Ads',
+                      desc: 'Dados de campanhas pagas por cliente via Meta API',
+                      configured: health?.whatsapp_meta.token,
+                      keys: ['META_VERIFY_TOKEN'],
+                    },
+                  ].map((item) => (
+                    <Stack key={item.name} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        {item.icon}
+                        <Box>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography variant="body2" fontWeight={700}>{item.name}</Typography>
+                            <Chip label={item.configured ? 'Configurado' : 'Não configurado'} size="small"
+                              color={item.configured ? 'success' : 'default'} />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">{item.desc}</Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        {item.keys.map((k) => (
+                          <Chip key={k} label={k} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                        ))}
+                      </Stack>
+                    </Stack>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: Financeiro ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              Financeiro & ERP
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#FF6B00', width: 36, height: 36 }}><IconChartBar size={20} /></Avatar>
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="body2" fontWeight={700}>Omie ERP</Typography>
+                        <Chip label={health?.omie.app_key ? 'Configurado' : 'Não configurado'} size="small"
+                          color={health?.omie.app_key ? 'success' : 'default'} />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Emissão de NF, boletos e integração financeira
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {['OMIE_APP_KEY', 'OMIE_APP_SECRET', 'OMIE_BASE_URL'].map((k) => (
+                      <Chip key={k} label={k} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                    ))}
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* ── Section: Auth / SSO ── */}
+            <Typography variant="overline" fontWeight={800} color="text.secondary" sx={{ pt: 1, display: 'block' }}>
+              Auth & SSO
+            </Typography>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#7C3AED', width: 36, height: 36 }}><IconPlugConnected size={20} /></Avatar>
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="body2" fontWeight={700}>OIDC / SSO</Typography>
+                        <Chip label={health?.auth.oidc_issuer ? 'Configurado' : 'Não configurado'} size="small"
+                          color={health?.auth.oidc_issuer ? 'success' : 'default'} />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Login federado via OpenID Connect (Google, Auth0, etc.)
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {['OIDC_ISSUER_URL', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET'].map((k) => (
+                      <Chip key={k} label={k} size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 18, fontFamily: 'monospace' }} />
+                    ))}
+                  </Stack>
                 </Stack>
               </CardContent>
             </Card>

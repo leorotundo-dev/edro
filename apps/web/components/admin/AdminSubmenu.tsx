@@ -61,9 +61,10 @@ const ENTRIES: Entry[] = [
   {
     label: 'Integrações', value: 'group-integracoes',
     children: [
+      { label: 'Canais & APIs',   value: 'integracoes',    kind: 'route', href: '/admin/integrations' },
+      { label: 'WhatsApp Grupos', value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
       { label: 'Reportei',        value: 'reportei',       kind: 'route', href: '/admin/reportei' },
       { label: 'Import Events',   value: 'import-events',  kind: 'route', href: '/admin/events/import' },
-      { label: 'WhatsApp Grupos', value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
     ],
   },
   { label: 'Settings', value: 'settings', kind: 'route', href: '/settings' },
