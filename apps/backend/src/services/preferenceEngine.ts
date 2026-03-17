@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 
 export type PreferenceContext = {
   editorial: {
@@ -594,13 +594,13 @@ export async function syncCreativeFeedbackToProfile(
         const avoidHint = avoidPatterns.length
           ? `\nPatterns previously rejected by this client: ${avoidPatterns.join(', ')}.`
           : '';
-        const res = await generateCompletion({
+        const res = await generateWithProvider('gemini', {
           prompt: `Analyze these approved creative scene descriptions for an advertising client and synthesize a concise visual aesthetic profile (max 350 words) that an art director can use as reference.\n\nFocus on: preferred lighting style, color palette, composition approach, mood/atmosphere, subject matter tendencies, and any recurring visual metaphors.\n\nApproved creative scenes:\n${promptList}${avoidHint}\n\nOutput: a single concise paragraph in English, written as a reference briefing for an art director. No labels, no lists — flowing prose.`,
           systemPrompt: 'You are a creative director synthesizing a client visual identity profile from a history of approved advertising images.',
           temperature: 0.3,
           maxTokens: 450,
         });
-        aestheticProfile = res.text.trim() || undefined;
+        aestheticProfile = res.output.trim() || undefined;
       } catch { /* non-blocking */ }
     }
 

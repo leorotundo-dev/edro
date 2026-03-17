@@ -4,7 +4,7 @@
  */
 
 import { query } from '../db';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 import { buildIntelligenceContext } from './intelligenceEngine';
 import { sendOutboundMessage, isJarvisOnCooldown } from './groupOutboundService';
 
@@ -88,14 +88,14 @@ export async function handleJarvisReply(params: {
   }
 
   // Generate AI reply
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Contexto do cliente:\n${contextPrompt}\n\nPergunta de ${senderName}:\n"${content}"`,
     systemPrompt: JARVIS_REPLY_PROMPT,
     temperature: 0.3,
     maxTokens: 1024,
   });
 
-  let replyText = result.text.trim();
+  let replyText = result.output.trim();
   if (replyText.length > MAX_REPLY_LENGTH) {
     replyText = replyText.slice(0, MAX_REPLY_LENGTH - 3) + '...';
   }
@@ -108,7 +108,7 @@ export async function handleJarvisReply(params: {
     scenario: 'jarvis_reply',
     triggerKey: `jarvis_reply:${waMessageId}`,
     messageText: replyText,
-    aiTokensIn: result.usage?.input_tokens ?? 0,
-    aiTokensOut: result.usage?.output_tokens ?? 0,
+    aiTokensIn: 0,
+    aiTokensOut: 0,
   });
 }

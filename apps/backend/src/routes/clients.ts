@@ -27,7 +27,7 @@ import {
   type EnrichmentSection,
 } from '../services/clientEnrichmentService';
 import { analyzeClientVisualStyle, loadCachedStyle } from '../services/visualStyleAnalyzer';
-import { generateCompletion } from '../services/ai/claudeService';
+import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import {
   getClientPreferenceContext,
   recordPreferenceFeedback,
@@ -1913,7 +1913,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
             .join('\n');
 
           try {
-            const aiRes = await generateCompletion({
+            const aiRes = await generateWithProvider('gemini', {
               systemPrompt: `Você é um analista de conta de agência digital. Resuma as mensagens de WhatsApp de um grupo com cliente.
 Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1", "tópico 2"], "sentiment": "positivo|neutro|negativo|misto", "blind_spots": ["coisa que a equipe pode estar ignorando"] }`,
               prompt: `Mensagens recentes do grupo:\n${msgBlock}`,
@@ -1921,7 +1921,7 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
               maxTokens: 500,
             });
 
-            const jsonMatch = aiRes.text.match(/\{[\s\S]*\}/);
+            const jsonMatch = aiRes.output.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
               aiSummary = parsed.summary || null;

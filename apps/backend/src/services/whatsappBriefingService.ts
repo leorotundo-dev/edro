@@ -14,7 +14,7 @@
 import FormData from 'form-data';
 import { sendWhatsAppText } from './whatsappService';
 import { createBriefing } from '../repositories/edroBriefingRepository';
-import { ClaudeService } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 import { query } from '../db/db';
 
 const WA_API_BASE = 'https://graph.facebook.com';
@@ -109,9 +109,9 @@ Retorne APENAS um JSON válido com os campos:
   "additional_notes": "outras informações relevantes"
 }`;
 
-  const aiRes = await ClaudeService.generateCompletion({ prompt, maxTokens: 400, temperature: 0.2 });
+  const aiRes = await generateWithProvider('gemini', { prompt, maxTokens: 400, temperature: 0.2 });
   try {
-    const json = aiRes.text.match(/\{[\s\S]*\}/)?.[0] || '{}';
+    const json = aiRes.output.match(/\{[\s\S]*\}/)?.[0] || '{}';
     return JSON.parse(json);
   } catch {
     return {

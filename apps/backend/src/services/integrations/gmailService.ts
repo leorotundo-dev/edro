@@ -19,7 +19,7 @@
 
 import crypto from 'crypto';
 import { query } from '../../db';
-import { generateCompletion } from '../ai/claudeService';
+import { generateWithProvider } from '../ai/copyOrchestrator';
 import { createBriefing } from '../../repositories/edroBriefingRepository';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -311,14 +311,14 @@ async function autoCreateBriefingFromEmail(params: {
 }) {
   const { tenantId, clientId, fromName, subject, content, threadDbId } = params;
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Email de ${fromName}, assunto: "${subject}"\n\n${content.slice(0, 2000)}`,
     systemPrompt: EMAIL_BRIEFING_PROMPT,
     temperature: 0.1,
     maxTokens: 512,
   });
 
-  const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = result.output.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return;
   const parsed = JSON.parse(jsonMatch[0]);
   if (parsed.skip) return;

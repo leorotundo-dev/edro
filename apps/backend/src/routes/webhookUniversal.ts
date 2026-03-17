@@ -12,7 +12,7 @@
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
-import { generateCompletion } from '../services/ai/claudeService';
+import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { createBriefing } from '../repositories/edroBriefingRepository';
 import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
@@ -129,14 +129,14 @@ async function processWebhookMessage(params: {
 }) {
   const { tenantId, clientId, clientName, message, source, eventId } = params;
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Mensagem recebida via ${source} do cliente ${clientName}:\n"${message}"`,
     systemPrompt: BRIEFING_PROMPT,
     temperature: 0.1,
     maxTokens: 512,
   });
 
-  const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = result.output.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return;
   const parsed = JSON.parse(jsonMatch[0]);
   if (parsed.skip) return;

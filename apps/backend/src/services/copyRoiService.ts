@@ -19,7 +19,7 @@
  */
 
 import { query } from '../db/db';
-import { ClaudeService } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 
 const USD_TO_BRL = 5.80;
 // Conservative flat-rate estimate for copy generation AI cost
@@ -102,8 +102,8 @@ async function generateSummary(data: {
 
   const prompt = `Você é um analista de performance de marketing. Em 1-2 frases curtas em português, explique o resultado do copy abaixo.\n\nCopy (hook): "${data.hook?.slice(0, 100) || 'sem hook'}"\nPlataforma: ${data.platform}\nScore Fogg: ${data.fogg}/10\n${perfLine}\nROI Score: ${data.roi_score}/100 (${data.roi_label})\n${data.roi_pct !== null ? `ROI real: ${data.roi_pct.toFixed(0)}%` : ''}\n\nSeja direto e objetivo.`;
   try {
-    const res = await ClaudeService.generateCompletion({ prompt, maxTokens: 80, temperature: 0.3 });
-    return res.text.trim();
+    const res = await generateWithProvider('gemini', { prompt, maxTokens: 80, temperature: 0.3 });
+    return res.output.trim();
   } catch {
     return `Copy com ROI score ${data.roi_score}/100. ${perfLine}`;
   }

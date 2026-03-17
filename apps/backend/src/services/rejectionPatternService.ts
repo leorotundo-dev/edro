@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 
 export async function syncRejectionPatternsToProfile(clientId: string, tenantId: string): Promise<void> {
   const { rows } = await query<{ reason: string }>(
@@ -16,7 +16,7 @@ export async function syncRejectionPatternsToProfile(clientId: string, tenantId:
 
   const reasonsText = rows.map((r, i) => `${i + 1}. ${r.reason}`).join('\n');
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Analise estes ${rows.length} motivos de rejeição de copy e extraia padrões recorrentes:\n\n${reasonsText}\n\nRetorne JSON: {"patterns": ["padrão1", "padrão2", "padrão3"]} — máximo 5, em português, cada padrão em 1 frase curta e objetiva.`,
     systemPrompt: 'Você analisa feedbacks de copy. Retorne apenas JSON válido.',
     temperature: 0.2,
@@ -25,7 +25,7 @@ export async function syncRejectionPatternsToProfile(clientId: string, tenantId:
 
   let patterns: string[] = [];
   try {
-    const match = result.text.match(/\{[\s\S]*\}/);
+    const match = result.output.match(/\{[\s\S]*\}/);
     if (match) {
       const parsed = JSON.parse(match[0]);
       patterns = Array.isArray(parsed.patterns) ? parsed.patterns.slice(0, 5) : [];

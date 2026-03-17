@@ -8,7 +8,7 @@ import { OpenAIService } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
-import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
+import { getFallbackProvider, generateWithProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 import PDFDocument from 'pdfkit';
 import { computeClientCopyRoi, getClientCopyRoiScores } from '../services/copyRoiService';
 
@@ -999,12 +999,12 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
 
     let narrative = '';
     try {
-      const aiRes = await ClaudeService.generateCompletion({
+      const aiRes = await generateWithProvider('gemini', {
         prompt: `Você é o analista estratégico da agência Edro. Gere um relatório executivo mensal em português para o cliente abaixo.\n\nDados:\n${dataSnap}\n\nO relatório deve ter:\n1. Parágrafo de visão geral (2-3 frases sobre o período)\n2. Destaques do período (3 bullet points positivos)\n3. Pontos de atenção (1-2 bullet points de riscos ou gaps)\n4. Recomendação principal para o próximo mês (1 parágrafo)\n\nUse linguagem executiva, direta e em português brasileiro. Sem jargão técnico excessivo.`,
         maxTokens: 600,
         temperature: 0.5,
       });
-      narrative = aiRes.text.trim();
+      narrative = aiRes.output.trim();
     } catch {
       narrative = `Relatório do período ${dateFrom} a ${dateTo} para ${clientName}. Total de ${summary?.total || 0} briefings, com taxa de conclusão de ${completionRate}%.`;
     }

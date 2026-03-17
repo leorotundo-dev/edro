@@ -10,12 +10,12 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
 import { transcribeAudioBuffer } from '../services/meetingService';
-import { generateCompletion } from '../services/ai/claudeService';
-import { instanceName } from '../services/integrations/evolutionApiService';
+import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { sendOutboundMessage } from '../services/groupOutboundService';
 import { shouldJarvisReply, handleJarvisReply } from '../services/groupJarvisReplyService';
 import { persistWhatsAppInsightMemory, persistWhatsAppMessageMemory } from '../services/whatsappClientMemoryService';
 import { env } from '../env';
+import { resolveOrCreatePerson } from '../repos/peopleRepo';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
 const URGENT_KEYWORDS = /\b(urgente|deadline|amanhã|hoje|cancelar|problema|erro|bug|reclamação|atraso|emergência|prazo)\b/i;
@@ -123,6 +123,7 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
   const group = groupRows[0];
   const senderJid = (key.participant ?? msg.participant ?? '') as string;
   const senderName = msg.pushName ?? senderJid.split('@')[0] ?? 'Desconhecido';
+  const senderPhone = senderJid.includes('@') ? `+${senderJid.split('@')[0]}` : null;
 
   // Extract content based on message type
   const { type, content, mediaUrl } = await extractContent(msg, tenantId);
@@ -133,14 +134,36 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
   const replyToWaId = message.extendedTextMessage?.contextInfo?.stanzaId
     ?? message.ephemeralMessage?.message?.extendedTextMessage?.contextInfo?.stanzaId
     ?? null;
+  const senderPerson = senderJid
+    ? await resolveOrCreatePerson({
+        tenantId,
+        displayName: senderName,
+        identities: [
+          { type: 'whatsapp_jid', value: senderJid, primary: true },
+          { type: 'phone_e164', value: senderPhone, primary: false },
+        ],
+      }).catch(() => null)
+    : null;
 
   // Save message
   await query(
     `INSERT INTO whatsapp_group_messages
-       (tenant_id, group_id, client_id, wa_message_id, sender_jid, sender_name, type, content, media_url, processed, reply_to_wa_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10)
+       (tenant_id, group_id, client_id, wa_message_id, sender_jid, sender_name, sender_person_id, type, content, media_url, processed, reply_to_wa_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11)
      ON CONFLICT (wa_message_id) DO NOTHING`,
-    [tenantId, group.id, group.client_id ?? null, waMessageId, senderJid, senderName, type, content ?? null, mediaUrl ?? null, replyToWaId],
+    [
+      tenantId,
+      group.id,
+      group.client_id ?? null,
+      waMessageId,
+      senderJid,
+      senderName,
+      senderPerson?.personId ?? null,
+      type,
+      content ?? null,
+      mediaUrl ?? null,
+      replyToWaId,
+    ],
   );
 
   // Update group last_message_at
@@ -166,7 +189,13 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
 
   // Auto-create/update client contact from sender if not yet known
   if (senderJid) {
-    await upsertContactFromMessage(tenantId, group.client_id, senderJid, senderName).catch(() => {});
+    await upsertContactFromMessage(
+      tenantId,
+      group.client_id,
+      senderJid,
+      senderName,
+      senderPerson?.personId ?? null,
+    ).catch(() => {});
   }
 
   // Urgent fast-path: detect urgent keywords and insert insight immediately (no worker delay)
@@ -307,14 +336,14 @@ async function autoCreateBriefingFromMessage(params: {
   const { tenantId, clientId, senderName, content, groupMessageId, threadContext, groupId, groupJid } = params;
 
   const contextBlock = threadContext ? `\n\nContexto da conversa recente:\n${threadContext}\n` : '';
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `${contextBlock}Mensagem de ${senderName}:\n"${content}"`,
     systemPrompt: BRIEFING_EXTRACT_PROMPT,
     temperature: 0.1,
     maxTokens: 512,
   });
 
-  const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = result.output.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return;
   const parsed = JSON.parse(jsonMatch[0]);
   if (parsed.skip) return;
@@ -428,6 +457,7 @@ async function upsertContactFromMessage(
   clientId: string,
   senderJid: string,
   senderName: string,
+  personId: string | null,
 ) {
   // Extract phone from JID: "5511999999999@s.whatsapp.net" → "+5511999999999"
   const phone = senderJid.includes('@')
@@ -435,15 +465,16 @@ async function upsertContactFromMessage(
     : null;
 
   await query(
-    `INSERT INTO client_contacts (tenant_id, client_id, name, whatsapp_jid, phone)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO client_contacts (tenant_id, client_id, person_id, name, whatsapp_jid, phone)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (whatsapp_jid) WHERE whatsapp_jid IS NOT NULL
      DO UPDATE SET
+       person_id = COALESCE(client_contacts.person_id, EXCLUDED.person_id),
        name = CASE WHEN client_contacts.name = client_contacts.whatsapp_jid
                         OR client_contacts.name = split_part(client_contacts.whatsapp_jid, '@', 1)
                    THEN EXCLUDED.name
                    ELSE client_contacts.name END,
        updated_at = now()`,
-    [tenantId, clientId, senderName, senderJid, phone],
+    [tenantId, clientId, personId, senderName, senderJid, phone],
   );
 }

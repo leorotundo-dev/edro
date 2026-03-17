@@ -4,7 +4,7 @@
  */
 
 import { query } from '../db';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 import { sendOutboundMessage } from './groupOutboundService';
 import { persistWhatsAppDigestMemory } from './whatsappClientMemoryService';
 
@@ -89,14 +89,14 @@ export async function generateDigest(
 
   const periodLabel = period === 'daily' ? 'último dia' : 'última semana';
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Cliente: ${clientName}\nPeríodo: ${periodLabel} (${periodStart.toLocaleDateString('pt-BR')} a ${periodEnd.toLocaleDateString('pt-BR')})\n\nMensagens (${messages.length} total):\n${msgText}${insightText}`,
     systemPrompt: DIGEST_SYSTEM_PROMPT,
     temperature: 0.2,
     maxTokens: 2048,
   });
 
-  const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+  const jsonMatch = result.output.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
 
   let parsed: any;

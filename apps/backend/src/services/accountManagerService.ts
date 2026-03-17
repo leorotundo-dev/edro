@@ -21,7 +21,7 @@
  */
 
 import { query } from '../db/db';
-import { ClaudeService } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 
 export type AlertType =
   | 'churn_risk'
@@ -232,8 +232,8 @@ Retorne APENAS um JSON válido:
 Seja direto e acionável. Não repita alertas óbvios se os dados forem positivos.`;
 
   try {
-    const res = await ClaudeService.generateCompletion({ prompt, maxTokens: 600, temperature: 0.3 });
-    const json = res.text.match(/\[[\s\S]*\]/)?.[0] || '[]';
+    const res = await generateWithProvider('gemini', { prompt, maxTokens: 600, temperature: 0.3 });
+    const json = res.output.match(/\[[\s\S]*\]/)?.[0] || '[]';
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed)) return [];
     return parsed
