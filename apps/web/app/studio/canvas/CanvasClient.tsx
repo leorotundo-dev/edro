@@ -38,6 +38,11 @@ import BoldnessSlider from './components/BoldnessSlider';
 import CampaignCanvasView from './components/CampaignCanvasView';
 import { useCanvasLayers } from './hooks/useCanvasLayers';
 import type { GenerateLayoutResponse, GenerateCampaignResponse, CampaignPieceResult } from './types';
+import {
+  buildStudioHref,
+  persistStudioWorkflowContext,
+  syncLegacyStudioStorageFromCreativeContext,
+} from '../studioWorkflow';
 
 const EDRO_ORANGE = '#E85219';
 const DARK_BG = '#111';
@@ -126,9 +131,13 @@ function readBriefingContext(): BriefingContext {
 // ── Main Component ────────────────────────────────────────────────────
 export default function CanvasClient() {
   const searchParams = useSearchParams();
+  const queryJobId = searchParams.get('jobId') || '';
+  const querySessionId = searchParams.get('sessionId') || '';
 
   // Briefing context
   const [briefCtx, setBriefCtx] = useState<BriefingContext>(readBriefingContext);
+  const [creativeJobId, setCreativeJobId] = useState(queryJobId);
+  const [creativeSessionId, setCreativeSessionId] = useState(querySessionId);
 
   // Chat state
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -200,6 +209,7 @@ export default function CanvasClient() {
   const [styleMenuAnchor, setStyleMenuAnchor] = useState<null | HTMLElement>(null);
   const [cartoonMenuAnchor, setCartoonMenuAnchor] = useState<null | HTMLElement>(null);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
+  const lastSavedDraftRef = useRef('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +218,126 @@ export default function CanvasClient() {
 
   const currentImage = imageUrls[imageIdx] || null;
   const hasBriefing = !!(briefCtx.briefingId || briefCtx.briefingTitle);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCreativeContext = async () => {
+      const storedJobId = typeof window !== 'undefined' ? (window.localStorage.getItem('edro_job_id') || '') : '';
+      const storedSessionId = typeof window !== 'undefined' ? (window.localStorage.getItem('edro_creative_session_id') || '') : '';
+      const resolvedJobId = queryJobId || storedJobId;
+      const resolvedSessionId = querySessionId || storedSessionId;
+      if (!resolvedJobId) return;
+
+      try {
+        let ctx: any = null;
+        if (resolvedSessionId) {
+          const res = await apiPost<{ success: boolean; data: any }>(`/creative-sessions/${resolvedSessionId}/canvas/open`, {});
+          ctx = res?.data;
+        } else {
+          const res = await apiPost<{ success: boolean; data: any }>(`/jobs/${resolvedJobId}/creative-session/open`, {});
+          ctx = res?.data;
+        }
+        if (cancelled || !ctx?.session) return;
+        syncLegacyStudioStorageFromCreativeContext(ctx);
+
+        setCreativeJobId(ctx.job?.id || resolvedJobId);
+        setCreativeSessionId(ctx.session.id);
+        setBriefCtx((prev) => ({
+          ...prev,
+          briefingId: ctx.session?.briefing_id || prev.briefingId,
+          briefingTitle: ctx.briefing?.title || prev.briefingTitle || ctx.job?.title || null,
+          clientId: ctx.job?.client_id || prev.clientId,
+          clientName: ctx.job?.client_name || prev.clientName,
+          tone: ctx.briefing?.tone || prev.tone,
+          event: ctx.briefing?.event || prev.event,
+          date: ctx.briefing?.date || prev.date,
+          message: ctx.briefing?.message || prev.message,
+          objective: ctx.briefing?.objective || prev.objective,
+          pillars: prev.pillars,
+        }));
+
+        if (typeof window !== 'undefined') {
+          persistStudioWorkflowContext({
+            jobId: ctx.job?.id || resolvedJobId,
+            sessionId: ctx.session.id,
+          });
+        }
+
+        if (!clientId && ctx.job?.client_id) setClientId(ctx.job.client_id);
+        if (!clientName && ctx.job?.client_name) setClientName(ctx.job.client_name);
+
+        const selectedCopy = ctx.selected_copy_version?.payload || {};
+        if (!copy.headline && !copy.body && !copy.cta && Object.keys(selectedCopy).length) {
+          setCopy({
+            headline: selectedCopy.headline || selectedCopy.title || selectedCopy.text || '',
+            body: selectedCopy.body || selectedCopy.caption || '',
+            cta: selectedCopy.cta || '',
+          });
+        }
+
+        const selectedAsset = ctx.selected_asset;
+        if (!currentImage && selectedAsset?.file_url) {
+          setImageUrls([selectedAsset.file_url]);
+          setImageIdx(0);
+        }
+
+        if (!currentPrompt && ctx.session?.last_canvas_snapshot?.prompt) {
+          setCurrentPrompt(String(ctx.session.last_canvas_snapshot.prompt || ''));
+        }
+      } catch {
+        // keep legacy flow
+      }
+    };
+
+    loadCreativeContext();
+    return () => { cancelled = true; };
+  }, [queryJobId, querySessionId]);
+
+  useEffect(() => {
+    if (!creativeSessionId || !creativeJobId) return;
+
+    const snapshot = {
+      prompt: currentPrompt || '',
+      copy,
+      format,
+      platform,
+      provider,
+      falModel,
+      client_id: clientId || null,
+      current_image_url: currentImage || null,
+    };
+    const signature = JSON.stringify(snapshot);
+    if (signature === lastSavedDraftRef.current) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        await apiPost(`/creative-sessions/${creativeSessionId}/canvas/save-draft`, {
+          job_id: creativeJobId,
+          snapshot,
+          ...(currentImage ? {
+            draft_asset: {
+              asset_type: 'image',
+              file_url: currentImage,
+              thumb_url: currentImage,
+              metadata: {
+                prompt: currentPrompt || '',
+                provider,
+                fal_model: falModel,
+                platform,
+                format,
+              },
+            },
+          } : {}),
+        });
+        lastSavedDraftRef.current = signature;
+      } catch {
+        // keep canvas resilient; save failures should not break editing
+      }
+    }, 1500);
+
+    return () => window.clearTimeout(timer);
+  }, [creativeSessionId, creativeJobId, currentPrompt, copy, format, platform, provider, falModel, clientId, currentImage]);
 
   // ── Push history entry ─────────────────────────────────────────
   const pushHistory = useCallback(() => {
@@ -276,7 +406,7 @@ export default function CanvasClient() {
         setShowLayerPanel(true);
         if (imageUrl) setImageUrls([imageUrl]);
         if (paramClientId) setClientId(paramClientId);
-        window.history.replaceState({}, '', '/studio/canvas');
+        window.history.replaceState({}, '', buildStudioHref('/studio/canvas', searchParams, { jobId: creativeJobId, sessionId: creativeSessionId }));
       } catch {
         // Invalid layout param — ignore
       }
@@ -287,7 +417,7 @@ export default function CanvasClient() {
       setCampaignId(paramCampaignId);
       if (paramCampaignName) setCampaignName(decodeURIComponent(paramCampaignName));
       if (paramClientId) setClientId(paramClientId);
-      window.history.replaceState({}, '', '/studio/canvas');
+      window.history.replaceState({}, '', buildStudioHref('/studio/canvas', searchParams, { jobId: creativeJobId, sessionId: creativeSessionId }));
       // Trigger campaign generation after mount
       setTimeout(() => generateCampaignPieces(paramCampaignId), 100);
     }
@@ -500,6 +630,8 @@ export default function CanvasClient() {
         current_prompt: currentPrompt || undefined,
         current_copy: (copy.headline || copy.body || copy.cta) ? copy : undefined,
         client_id: clientId || undefined, client_name: clientName || undefined,
+        job_id: creativeJobId || undefined,
+        briefing_id: briefCtx.briefingId || undefined,
         assets: assets.map(a => ({ url: a.url, type: a.type, name: a.name })),
         image_provider: provider, fal_model: provider === 'fal' ? falModel : undefined,
         format, platform,
@@ -873,7 +1005,7 @@ export default function CanvasClient() {
         {/* Header */}
         <Box sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Voltar ao Studio">
-            <IconButton size="small" component={Link} href="/studio" sx={{ color: '#888', '&:hover': { color: '#fff' } }}>
+            <IconButton size="small" component={Link} href={buildStudioHref('/studio', searchParams, { jobId: creativeJobId, sessionId: creativeSessionId })} sx={{ color: '#888', '&:hover': { color: '#fff' } }}>
               <IconArrowLeft size={18} />
             </IconButton>
           </Tooltip>

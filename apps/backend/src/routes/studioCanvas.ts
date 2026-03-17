@@ -56,6 +56,9 @@ const chatSchema = z.object({
   /** Client context */
   client_id: z.string().optional(),
   client_name: z.string().optional(),
+  /** Job / briefing context for brand-aware generation */
+  job_id: z.string().optional(),
+  briefing_id: z.string().optional(),
   /** Uploaded asset URLs (logos, product photos, references) */
   assets: z.array(z.object({
     url: z.string(),
@@ -102,6 +105,9 @@ REGRAS:
 - Seja direto e criativo, sem enrolacao
 - Se o pedido e vago, faca sua melhor interpretacao e execute — nao fique perguntando
 - Escolha o modelo ideal no campo "recommended_model" baseado no tipo de pedido
+- IDENTIDADE VISUAL: Se houver dados de marca no CONTEXTO ATUAL (cores, estilo, mood), OBRIGATORIAMENTE incorpore-os no image_prompt. A cor primaria da marca deve aparecer naturalmente na cena. O estilo visual deve refletir o da marca.
+- BRIEFING/JOB: Se houver titulo do job ou mensagem-chave no contexto, o image_prompt DEVE refletir exatamente esse conceito — nao gere imagens genericas.
+- O image_prompt deve ser em INGLES, especifico, com terminologia fotografica/cinematografica profissional, max 250 tokens.
 
 Responda SEMPRE com JSON valido neste formato:
 {
@@ -129,11 +135,81 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
     const body = chatSchema.parse(request.body || {});
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
 
-    // Build context for Claude
+    // ── Load client profile (brand identity, LoRA, colors, style) ──────────────
+    let clientProfile: any = null;
+    if (body.client_id && tenantId) {
+      clientProfile = await getClientById(tenantId, body.client_id).catch(() => null);
+    }
+
+    // ── Load briefing if provided ───────────────────────────────────────────────
+    let briefing: any = null;
+    if (body.briefing_id && tenantId) {
+      const bRes = await pool.query(
+        `SELECT title, payload, tone, objective FROM edro_briefings WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [body.briefing_id, tenantId],
+      ).catch(() => ({ rows: [] }));
+      briefing = bRes.rows[0] ?? null;
+    }
+
+    // ── Load job if provided ────────────────────────────────────────────────────
+    let job: any = null;
+    if (body.job_id && tenantId) {
+      const jRes = await pool.query(
+        `SELECT title, description, job_type, platform, copy_text FROM jobs WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [body.job_id, tenantId],
+      ).catch(() => ({ rows: [] }));
+      job = jRes.rows[0] ?? null;
+    }
+
+    // ── Build rich context for Claude ───────────────────────────────────────────
     let contextBlock = '';
-    if (body.client_name) contextBlock += `\nCliente: ${body.client_name}`;
+    if (body.client_name || clientProfile?.name) {
+      contextBlock += `\nCliente: ${clientProfile?.name ?? body.client_name}`;
+    }
     if (body.format) contextBlock += `\nFormato: ${body.format}`;
     if (body.platform) contextBlock += `\nPlataforma: ${body.platform}`;
+
+    // Brand visual identity — the key missing piece
+    if (clientProfile) {
+      const vi = clientProfile.profile?.visual_identity ?? clientProfile.profile?.brand_tokens ?? {};
+      const bv = clientProfile.profile?.brand_voice ?? {};
+      const brandColors = vi.colors ?? clientProfile.profile?.brand_colors ?? [];
+      if (brandColors.length) contextBlock += `\nCores da marca: ${brandColors.join(', ')}`;
+      if (vi.imageStyle ?? vi.style) contextBlock += `\nEstilo visual: ${vi.imageStyle ?? vi.style}`;
+      if (vi.moodWords?.length) contextBlock += `\nMood/keywords visuais: ${vi.moodWords.join(', ')}`;
+      if (vi.typography) contextBlock += `\nTipografia: ${vi.typography}`;
+      if (vi.avoidElements?.length ?? bv.donts?.length) {
+        contextBlock += `\nELEMENTOS A EVITAR: ${(vi.avoidElements ?? bv.donts ?? []).join(', ')}`;
+      }
+      if (bv.personality) contextBlock += `\nPersonalidade da marca: ${bv.personality}`;
+      if (clientProfile.segment) contextBlock += `\nSegmento: ${clientProfile.segment}`;
+      if (clientProfile.profile?.fal_lora_id) {
+        contextBlock += `\nLoRA da marca disponivel: ${clientProfile.profile.fal_lora_id} (use modelo flux-lora no recommended_model)`;
+      }
+    }
+
+    // Briefing context
+    if (briefing) {
+      contextBlock += `\n\nBRIEFING ATIVO:`;
+      if (briefing.title) contextBlock += `\n- Titulo: ${briefing.title}`;
+      if (briefing.objective) contextBlock += `\n- Objetivo: ${briefing.objective}`;
+      if (briefing.tone) contextBlock += `\n- Tom de voz: ${briefing.tone}`;
+      const payload = briefing.payload ?? {};
+      if (payload.message) contextBlock += `\n- Mensagem-chave: ${payload.message}`;
+      if (payload.pillars?.length) contextBlock += `\n- Pilares: ${payload.pillars.join(', ')}`;
+      if (payload.event) contextBlock += `\n- Evento: ${payload.event}`;
+    }
+
+    // Job context
+    if (job) {
+      contextBlock += `\n\nJOB CRIATIVO:`;
+      if (job.title) contextBlock += `\n- Titulo: ${job.title}`;
+      if (job.description) contextBlock += `\n- Descricao: ${job.description}`;
+      if (job.job_type) contextBlock += `\n- Tipo: ${job.job_type}`;
+      if (job.platform) contextBlock += `\n- Plataforma do job: ${job.platform}`;
+      if (job.copy_text) contextBlock += `\n- Copy do job: ${job.copy_text}`;
+    }
+
     if (body.current_image_url) contextBlock += `\nImagem atual no canvas: ${body.current_image_url}`;
     if (body.current_prompt) contextBlock += `\nPrompt da imagem atual: ${body.current_prompt}`;
     if (body.current_copy) {
@@ -226,19 +302,25 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
               provider: 'leonardo',
             };
           } else {
-            // fal.ai — direct call with selected model (or AI-recommended)
+            // fal.ai — use LoRA if client has one, otherwise use selected/recommended model
             if (!isFalConfigured()) throw new Error('FAL_API_KEY nao configurada');
-            const chosenModel = (body.fal_model === 'auto' && action.recommended_model)
-              ? action.recommended_model
-              : body.fal_model;
+            const loraId = clientProfile?.profile?.fal_lora_id ?? null;
+            const loraScale = clientProfile?.profile?.fal_lora_scale ?? 0.85;
+            const chosenModel: FalModel = loraId
+              ? 'flux-lora'
+              : ((body.fal_model === 'auto' && action.recommended_model)
+                ? action.recommended_model as FalModel
+                : body.fal_model as FalModel);
+            const loras = loraId ? [{ path: loraId, scale: loraScale }] : undefined;
             const result = await generateImageWithFal({
               prompt: imagePrompt,
               aspectRatio,
               negativePrompt: action.negative_prompt,
-              model: chosenModel as FalModel,
+              model: chosenModel,
               numImages: 3,
               referenceImageUrl: refAsset?.url,
               referenceImageStrength: refAsset ? 0.2 : undefined,
+              loras,
             });
             results.image = {
               success: true,
