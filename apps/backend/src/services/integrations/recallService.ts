@@ -5,7 +5,11 @@ type RecallBotResponse = {
   status?: { code?: string; sub_code?: string; message?: string } | string;
   // Recall v1 API: status as an array of status_changes
   status_changes?: Array<{ code?: string; sub_code?: string | null; message?: string | null; created_at?: string }>;
-  recordings?: Array<Record<string, any>>;
+  recordings?: Array<{
+    id?: string;
+    transcript?: { id?: string } | null;
+    [key: string]: any;
+  }>;
 };
 
 function recallBaseUrl(version: 'v1' | 'v2' = 'v1'): string {
@@ -83,23 +87,35 @@ export async function getRecallBot(botId: string): Promise<RecallBotResponse> {
 }
 
 export async function getRecallBotTranscript(botId: string): Promise<string> {
-  // Recall deprecated /api/v1/bot/{id}/transcript/ — use v2 endpoint
-  const res = await fetch(`${recallBaseUrl('v2')}/bot/${botId}/transcript/`, {
-    headers: recallHeaders(),
-  });
+  // Recall v2: transcript is a separate resource with its own ID.
+  // Step 1: get bot to find the transcript ID from recordings[].transcript.id
+  const bot = await getRecallBot(botId);
+  const transcriptId = bot.recordings?.[0]?.transcript?.id ?? null;
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`Recall transcript failed (${res.status}): ${err.slice(0, 300)}`);
-  }
-
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
+  if (transcriptId) {
+    // Step 2: fetch via /api/v2/transcript/{id}/
+    const res = await fetch(`${recallBaseUrl('v2')}/transcript/${transcriptId}/`, {
+      headers: recallHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => '');
+      throw new Error(`Recall transcript failed (${res.status}): ${err.slice(0, 300)}`);
+    }
     const data = await res.json();
     return transcriptPayloadToText(data);
   }
 
-  return (await res.text()).trim();
+  // Fallback: no dedicated transcript resource — extract from recordings directly
+  if (bot.recordings && bot.recordings.length > 0) {
+    const lines: string[] = [];
+    for (const rec of bot.recordings) {
+      const text = transcriptPayloadToText(rec.transcript ?? rec);
+      if (text) lines.push(text);
+    }
+    if (lines.length) return lines.join('\n');
+  }
+
+  throw new Error('Recall transcript not available: no transcript_id and no recordings data');
 }
 
 export function getRecallBotStatus(bot: RecallBotResponse): string {
