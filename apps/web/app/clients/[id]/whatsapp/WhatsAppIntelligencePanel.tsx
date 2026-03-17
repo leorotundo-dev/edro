@@ -23,15 +23,18 @@ import {
   IconBriefcase,
   IconBulb,
   IconCheck,
-  IconClock,
+  IconEdit,
   IconFileText,
   IconMessageCircle,
   IconRefresh,
   IconThumbDown,
   IconThumbUp,
+  IconX,
 } from '@tabler/icons-react';
 
 const EDRO_GREEN = '#25D366';
+
+type ConfirmStatus = 'pending' | 'confirmed' | 'corrected' | 'discarded';
 
 type Insight = {
   id: string;
@@ -43,6 +46,9 @@ type Insight = {
   created_at: string;
   sender_name: string | null;
   message_content: string | null;
+  confidence: number | null;
+  confirmation_status: ConfirmStatus | null;
+  corrected_summary: string | null;
 };
 
 type Digest = {
@@ -90,10 +96,21 @@ function SentimentChip({ sentiment }: { sentiment: string | null }) {
   return (
     <Chip
       size="small"
-      icon={cfg.icon ? <span style={{ display: 'flex', marginLeft: 4 }}>{cfg.icon}</span> : undefined}
+      icon={cfg.icon ? <Box sx={{ display: 'flex', ml: 0.5 }}>{cfg.icon}</Box> : undefined}
       label={cfg.label}
       sx={{ height: 18, fontSize: '0.62rem', bgcolor: `${cfg.color}15`, color: cfg.color, fontWeight: 600 }}
     />
+  );
+}
+
+function ConfidenceDot({ confidence }: { confidence: number | null }) {
+  const score = confidence ?? 0.72;
+  const color = score >= 0.88 ? '#2e7d32' : score >= 0.65 ? '#f57c00' : '#c62828';
+  const label = score >= 0.88 ? 'Alta confiança' : score >= 0.65 ? 'Confiança média — confirme' : 'Baixa confiança — revise';
+  return (
+    <Tooltip title={label}>
+      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+    </Tooltip>
   );
 }
 
@@ -202,40 +219,58 @@ function CreateJobPopover({
 function InsightRow({
   insight,
   clientId,
-  onActioned,
+  onRemove,
   onJobCreated,
 }: {
   insight: Insight;
   clientId: string;
-  onActioned: (id: string) => void;
+  onRemove: (id: string) => void;
   onJobCreated: () => void;
 }) {
   const router = useRouter();
-  const [actioning, setActioning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
+  const [correctedText, setCorrectedText] = useState('');
   const [jobAnchor, setJobAnchor] = useState<HTMLElement | null>(null);
 
-  const handleAction = async () => {
-    setActioning(true);
-    try {
-      await apiPatch(`/whatsapp-groups/insights/${insight.id}/action`, {});
-      onActioned(insight.id);
-    } finally {
-      setActioning(false);
-    }
-  };
-
+  const status = insight.confirmation_status ?? 'pending';
+  const isConfirmed = status === 'confirmed' || status === 'corrected';
+  const isUrgent = insight.urgency === 'urgent';
   const showJobBtn = ['request', 'deadline', 'complaint'].includes(insight.insight_type);
   const showPautaBtn = ['request', 'feedback', 'deadline'].includes(insight.insight_type);
-  const isUrgent = insight.urgency === 'urgent';
+
+  const call = async (endpoint: string, body?: object) => {
+    setBusy(true);
+    try { await apiPatch(endpoint, body ?? {}); } finally { setBusy(false); }
+  };
+
+  const handleConfirm = async () => {
+    await call(`/whatsapp-groups/insights/${insight.id}/confirm`);
+    onRemove(insight.id);
+  };
+
+  const handleDiscard = async () => {
+    await call(`/whatsapp-groups/insights/${insight.id}/discard`);
+    onRemove(insight.id);
+  };
+
+  const handleCorrect = async () => {
+    if (!correctedText.trim()) return;
+    await call(`/whatsapp-groups/insights/${insight.id}/correct`, { corrected_summary: correctedText.trim() });
+    onRemove(insight.id);
+  };
+
+  const displayText = insight.corrected_summary || insight.summary;
 
   return (
     <Box sx={{
-      p: 1.5, borderRadius: 1.5,
-      border: 1,
-      borderColor: isUrgent ? '#f4433640' : 'divider',
-      bgcolor: isUrgent ? '#fff5f5' : 'background.paper',
+      p: 1.5, borderRadius: 1.5, border: 1,
+      borderColor: isUrgent ? '#f4433640' : isConfirmed ? '#388e3c40' : 'divider',
+      bgcolor: isUrgent ? '#fff5f5' : isConfirmed ? '#f1f8e9' : 'background.paper',
     }}>
+      {/* Header row */}
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.75 }}>
+        <ConfidenceDot confidence={insight.confidence} />
         <Chip
           size="small"
           label={TYPE_LABEL[insight.insight_type] ?? insight.insight_type}
@@ -250,60 +285,123 @@ function InsightRow({
             sx={{ height: 18, fontSize: '0.62rem', bgcolor: '#fdecea', color: '#c62828', fontWeight: 700 }}
           />
         )}
+        {isConfirmed && (
+          <Chip size="small" label={status === 'corrected' ? 'Corrigido' : 'Confirmado'} icon={<IconCheck size={10} />}
+            sx={{ height: 18, fontSize: '0.62rem', bgcolor: '#e8f5e9', color: '#2e7d32', fontWeight: 700 }}
+          />
+        )}
         <SentimentChip sentiment={insight.sentiment} />
         <Typography variant="caption" color="text.disabled" sx={{ ml: 'auto' }}>
           {insight.sender_name && `${insight.sender_name} · `}{fmtAgo(insight.created_at)}
         </Typography>
       </Stack>
 
-      <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.5, mb: 1 }}>
-        {insight.summary}
+      {/* AI interpretation */}
+      <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.5, mb: 0.75 }}>
+        {displayText}
       </Typography>
 
+      {/* Original message quote */}
       {insight.message_content && (
         <Typography variant="caption" color="text.secondary"
-          sx={{ display: 'block', fontStyle: 'italic', mb: 0.75,
+          sx={{ display: 'block', fontStyle: 'italic', mb: 1,
             borderLeft: 2, borderColor: 'divider', pl: 1, lineHeight: 1.4 }}>
-          "{insight.message_content.slice(0, 120)}{insight.message_content.length > 120 ? '…' : ''}"
+          &ldquo;{insight.message_content.slice(0, 140)}{insight.message_content.length > 140 ? '…' : ''}&rdquo;
         </Typography>
       )}
 
-      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-        <Button
-          size="small" variant="outlined" color="success"
-          startIcon={actioning ? <CircularProgress size={11} color="inherit" /> : <IconCheck size={13} />}
-          disabled={actioning}
-          onClick={handleAction}
-          sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
-        >
-          Feito
-        </Button>
-        {showPautaBtn && (
-          <Button
-            size="small" variant="outlined"
-            startIcon={<IconFileText size={13} />}
-            onClick={() => router.push(`/admin/editais/novo?client_id=${clientId}`)}
-            sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
-          >
-            Criar pauta
-          </Button>
-        )}
-        {showJobBtn && (
-          <Button
-            size="small" variant="outlined" color="secondary"
-            startIcon={<IconBriefcase size={13} />}
-            onClick={e => setJobAnchor(e.currentTarget)}
-            sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
-          >
-            Criar job
-          </Button>
-        )}
-      </Stack>
+      {/* Correction input */}
+      {correcting && (
+        <Stack spacing={0.75} sx={{ mb: 1 }}>
+          <TextField
+            fullWidth size="small" multiline maxRows={3}
+            placeholder="Escreva a interpretação correta…"
+            value={correctedText}
+            onChange={e => setCorrectedText(e.target.value)}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.8rem' } }}
+            autoFocus
+          />
+          <Stack direction="row" spacing={0.5}>
+            <Button size="small" variant="contained" color="primary"
+              disabled={!correctedText.trim() || busy}
+              onClick={handleCorrect}
+              startIcon={busy ? <CircularProgress size={11} color="inherit" /> : <IconCheck size={12} />}
+              sx={{ fontSize: '0.7rem', height: 26 }}
+            >
+              Salvar correção
+            </Button>
+            <Button size="small" onClick={() => { setCorrecting(false); setCorrectedText(''); }}
+              sx={{ fontSize: '0.7rem', height: 26 }}>
+              Cancelar
+            </Button>
+          </Stack>
+        </Stack>
+      )}
+
+      {/* Action buttons */}
+      {!correcting && (
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          {/* Confirmation trio — only when pending */}
+          {status === 'pending' && (
+            <>
+              <Button
+                size="small" variant="contained" color="success"
+                startIcon={busy ? <CircularProgress size={11} color="inherit" /> : <IconCheck size={13} />}
+                disabled={busy}
+                onClick={handleConfirm}
+                sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
+              >
+                Correto
+              </Button>
+              <Button
+                size="small" variant="outlined"
+                startIcon={<IconEdit size={13} />}
+                disabled={busy}
+                onClick={() => { setCorrecting(true); setCorrectedText(insight.summary); }}
+                sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
+              >
+                Corrigir
+              </Button>
+              <Button
+                size="small" variant="outlined" color="inherit"
+                startIcon={<IconX size={13} />}
+                disabled={busy}
+                onClick={handleDiscard}
+                sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5, color: 'text.disabled' }}
+              >
+                Irrelevante
+              </Button>
+              <Box sx={{ flex: 1 }} />
+            </>
+          )}
+          {/* Operational actions — always visible */}
+          {showPautaBtn && (
+            <Button
+              size="small" variant="outlined"
+              startIcon={<IconFileText size={13} />}
+              onClick={() => router.push(`/admin/editais/novo?client_id=${clientId}`)}
+              sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
+            >
+              Criar pauta
+            </Button>
+          )}
+          {showJobBtn && (
+            <Button
+              size="small" variant="outlined" color="secondary"
+              startIcon={<IconBriefcase size={13} />}
+              onClick={e => setJobAnchor(e.currentTarget)}
+              sx={{ fontSize: '0.7rem', height: 26, borderRadius: 1.5 }}
+            >
+              Criar job
+            </Button>
+          )}
+        </Stack>
+      )}
 
       <CreateJobPopover
         clientId={clientId}
         anchorEl={jobAnchor}
-        prefill={insight.summary}
+        prefill={displayText}
         isUrgent={isUrgent}
         onClose={() => setJobAnchor(null)}
         onCreated={onJobCreated}
@@ -431,7 +529,7 @@ export default function WhatsAppIntelligencePanel({ clientId }: { clientId: stri
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleActioned = (id: string) => {
+  const handleRemove = (id: string) => {
     setData(prev => prev ? { ...prev, insights: prev.insights.filter(i => i.id !== id) } : prev);
   };
 
@@ -553,7 +651,7 @@ export default function WhatsAppIntelligencePanel({ clientId }: { clientId: stri
           <Stack spacing={1}>
             {urgentInsights.map(i => (
               <InsightRow key={i.id} insight={i} clientId={clientId}
-                onActioned={handleActioned} onJobCreated={handleJobCreated} />
+                onRemove={handleRemove} onJobCreated={handleJobCreated} />
             ))}
           </Stack>
         </Box>
@@ -579,7 +677,7 @@ export default function WhatsAppIntelligencePanel({ clientId }: { clientId: stri
           <Stack spacing={1}>
             {otherInsights.map(i => (
               <InsightRow key={i.id} insight={i} clientId={clientId}
-                onActioned={handleActioned} onJobCreated={handleJobCreated} />
+                onRemove={handleRemove} onJobCreated={handleJobCreated} />
             ))}
           </Stack>
         </Box>

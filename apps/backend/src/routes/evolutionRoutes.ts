@@ -373,16 +373,19 @@ export default async function evolutionRoutes(app: FastifyInstance) {
       ),
       query(
         `SELECT i.id, i.insight_type, i.summary, i.sentiment, i.urgency,
-                i.entities, i.created_at,
+                i.entities, i.created_at, i.confidence, i.confirmation_status, i.corrected_summary,
                 COALESCE(cc.name, fp.display_name, m.sender_name) AS sender_name,
                 m.content AS message_content
          FROM whatsapp_message_insights i
          JOIN whatsapp_group_messages m ON m.id = i.message_id
          LEFT JOIN client_contacts cc ON cc.whatsapp_jid = m.sender_jid AND cc.active = true
          LEFT JOIN freelancer_profiles fp ON fp.whatsapp_jid = m.sender_jid
-         WHERE i.client_id = $1 AND i.tenant_id = $2 AND i.actioned = false
+         WHERE i.client_id = $1 AND i.tenant_id = $2
+           AND i.actioned = false
+           AND COALESCE(i.confirmation_status, 'pending') != 'discarded'
          ORDER BY
            CASE i.urgency WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+           CASE COALESCE(i.confirmation_status,'pending') WHEN 'pending' THEN 0 ELSE 1 END,
            i.created_at DESC
          LIMIT 20`,
         [clientId, tenantId],
@@ -469,6 +472,78 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     await query(
       `UPDATE whatsapp_message_insights SET actioned = true WHERE id = $1 AND tenant_id = $2`,
       [request.params.insightId, tenantId],
+    );
+    return reply.send({ success: true });
+  });
+
+  // ── Confirm insight interpretation (human says: "yes, correct") ─────────
+  app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/confirm', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const userId = (request.user as any).sub as string | undefined;
+
+    const { rows } = await query(
+      `UPDATE whatsapp_message_insights
+         SET confirmation_status = 'confirmed', confirmed_by = $3, confirmed_at = NOW(), actioned = true
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING id, client_id, insight_type, summary, sentiment`,
+      [request.params.insightId, tenantId, userId ?? null],
+    );
+    const insight = rows[0];
+    if (!insight) return reply.code(404).send({ error: 'not_found' });
+
+    // Persist as permanent client directive for preference/complaint/approval types
+    await maybePersistDirective({ tenantId, insight, userId });
+
+    return reply.send({ success: true });
+  });
+
+  // ── Correct insight interpretation (human provides the right reading) ────
+  app.patch<{ Params: { insightId: string }; Body: { corrected_summary: string } }>(
+    '/whatsapp-groups/insights/:insightId/correct',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const userId = (request.user as any).sub as string | undefined;
+      const { corrected_summary } = (request.body ?? {}) as any;
+
+      if (!corrected_summary?.trim()) {
+        return reply.code(400).send({ error: 'corrected_summary required' });
+      }
+
+      const { rows } = await query(
+        `UPDATE whatsapp_message_insights
+           SET confirmation_status = 'corrected',
+               corrected_summary = $3,
+               confirmed_by = $4,
+               confirmed_at = NOW(),
+               actioned = true
+         WHERE id = $1 AND tenant_id = $2
+         RETURNING id, client_id, insight_type, summary, sentiment`,
+        [request.params.insightId, tenantId, corrected_summary.trim(), userId ?? null],
+      );
+      const insight = rows[0];
+      if (!insight) return reply.code(404).send({ error: 'not_found' });
+
+      // Use corrected text as the directive
+      await maybePersistDirective({ tenantId, insight: { ...insight, summary: corrected_summary.trim() }, userId });
+
+      return reply.send({ success: true });
+    },
+  );
+
+  // ── Discard insight (human says: "this is noise, ignore") ───────────────
+  app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/discard', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request, reply) => {
+    const tenantId = (request.user as any).tenant_id;
+    const userId = (request.user as any).sub as string | undefined;
+    await query(
+      `UPDATE whatsapp_message_insights
+         SET confirmation_status = 'discarded', confirmed_by = $3, confirmed_at = NOW(), actioned = true
+       WHERE id = $1 AND tenant_id = $2`,
+      [request.params.insightId, tenantId, userId ?? null],
     );
     return reply.send({ success: true });
   });
@@ -619,4 +694,37 @@ export default async function evolutionRoutes(app: FastifyInstance) {
       inserted,
     });
   });
+}
+
+// ── Helper: persist confirmed insight as permanent client directive ─────────
+async function maybePersistDirective(params: {
+  tenantId: string;
+  insight: { id: string; client_id: string; insight_type: string; summary: string; sentiment: string };
+  userId?: string;
+}) {
+  const { tenantId, insight, userId } = params;
+  const { insight_type, summary, sentiment, client_id } = insight;
+
+  // Only preference, complaint, and approval generate permanent directives
+  const directiveTypes: Record<string, { type: string; fmt: (s: string) => string } | null> = {
+    preference: { type: sentiment === 'negative' ? 'avoid' : 'boost', fmt: (s) => s },
+    complaint:  { type: 'avoid', fmt: (s) => s },
+    approval:   { type: 'boost', fmt: (s) => s },
+  };
+
+  const mapping = directiveTypes[insight_type];
+  if (!mapping) return;
+
+  const directive = mapping.fmt(summary).trim();
+  if (directive.length < 5) return;
+
+  try {
+    await query(
+      `INSERT INTO client_directives
+         (tenant_id, client_id, source, source_id, directive_type, directive, confirmed_by)
+       VALUES ($1, $2, 'whatsapp_insight', $3, $4, $5, $6)
+       ON CONFLICT (tenant_id, client_id, directive) DO NOTHING`,
+      [tenantId, client_id, insight.id, mapping.type, directive, userId ?? null],
+    );
+  } catch { /* non-blocking — directive already exists or schema not yet migrated */ }
 }

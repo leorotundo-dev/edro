@@ -128,6 +128,7 @@ export async function buildIntelligenceContext(params: {
     learnedPrefsData,
     predictiveTimesData,
     groupInsightsData,
+    clientDirectivesData,
     meetingSummariesData,
     meetingActionsData,
   ] = await Promise.allSettled([
@@ -265,14 +266,24 @@ export async function buildIntelligenceContext(params: {
       LIMIT 10
     `, [params.tenant_id, params.client_id]),
 
-    // WhatsApp group intelligence insights (últimos 30 dias)
+    // WhatsApp group intelligence insights (últimos 30 dias, excluindo descartados)
     query(`
-      SELECT insight_type, summary, sentiment, urgency, actioned, created_at
+      SELECT insight_type, summary, sentiment, urgency, actioned, created_at,
+             confidence, COALESCE(confirmation_status, 'pending') AS confirmation_status
       FROM whatsapp_message_insights
       WHERE client_id = $1 AND tenant_id = $2
         AND created_at > NOW() - INTERVAL '30 days'
+        AND COALESCE(confirmation_status, 'pending') != 'discarded'
       ORDER BY created_at DESC
       LIMIT 20
+    `, [params.client_id, params.tenant_id]),
+
+    // Permanent client directives (human-confirmed from WhatsApp/meetings)
+    query(`
+      SELECT directive_type, directive
+      FROM client_directives
+      WHERE client_id = $1 AND tenant_id = $2
+      ORDER BY created_at DESC
     `, [params.client_id, params.tenant_id]),
 
     // Meeting summaries (últimos 90 dias)
@@ -328,6 +339,7 @@ export async function buildIntelligenceContext(params: {
   const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
   const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
   const groupInsights = groupInsightsData.status === 'fulfilled' ? groupInsightsData.value.rows : [];
+  const clientDirectives = clientDirectivesData.status === 'fulfilled' ? clientDirectivesData.value.rows : [];
   const meetingSummaries = meetingSummariesData.status === 'fulfilled' ? meetingSummariesData.value.rows : [];
   const meetingActions = meetingActionsData.status === 'fulfilled' ? meetingActionsData.value.rows : [];
 
@@ -440,14 +452,29 @@ export async function buildIntelligenceContext(params: {
       totalDocuments: clientDocuments.length,
       latestInsight: latestInsight?.summary || null,
     },
-    learned_preferences: learnedPrefs ? {
-      top_angles: learnedPrefs.copy_feedback.top_angles.slice(0, 5).map((a) => ({ angle: a.angle, avg_score: a.avg_score })),
-      preferred_formats: learnedPrefs.copy_feedback.preferred_formats.slice(0, 5).map((f) => ({ format: f.format, avg_score: f.avg_score })),
-      anti_patterns: learnedPrefs.copy_feedback.anti_patterns.slice(0, 3).map((p) => ({ pattern: p.pattern, avg_score: p.avg_score })),
-      boost_directives: learnedPrefs.directives.boost,
-      avoid_directives: learnedPrefs.directives.avoid,
-      reportei_top_formats: learnedPrefs.reportei_performance.top_formats.slice(0, 5),
-    } : null,
+    learned_preferences: (() => {
+      // Human-confirmed WhatsApp/meeting directives — always included, highest priority
+      const humanBoost = clientDirectives.filter((d: any) => d.directive_type === 'boost').map((d: any) => d.directive);
+      const humanAvoid = clientDirectives.filter((d: any) => d.directive_type === 'avoid').map((d: any) => d.directive);
+      if (!learnedPrefs && (humanBoost.length || humanAvoid.length)) {
+        return {
+          top_angles: [], preferred_formats: [], anti_patterns: [],
+          boost_directives: humanBoost,
+          avoid_directives: humanAvoid,
+          reportei_top_formats: [],
+        };
+      }
+      if (!learnedPrefs) return null;
+      return {
+        top_angles: learnedPrefs.copy_feedback.top_angles.slice(0, 5).map((a) => ({ angle: a.angle, avg_score: a.avg_score })),
+        preferred_formats: learnedPrefs.copy_feedback.preferred_formats.slice(0, 5).map((f) => ({ format: f.format, avg_score: f.avg_score })),
+        anti_patterns: learnedPrefs.copy_feedback.anti_patterns.slice(0, 3).map((p) => ({ pattern: p.pattern, avg_score: p.avg_score })),
+        // Human-confirmed directives prepended — they override learned patterns
+        boost_directives: [...humanBoost, ...learnedPrefs.directives.boost],
+        avoid_directives: [...humanAvoid, ...learnedPrefs.directives.avoid],
+        reportei_top_formats: learnedPrefs.reportei_performance.top_formats.slice(0, 5),
+      };
+    })(),
     predictive: predictiveTimes.length > 0 ? {
       best_times: predictiveTimes.slice(0, 5).map((t: any) => ({
         platform: t.platform,

@@ -32,6 +32,7 @@ Formato:
     "summary": "Cliente aprovou o carrossel mas pediu ajuste na cor de fundo",
     "sentiment": "positive",
     "urgency": "normal",
+    "confidence": "high",
     "entities": { "topics": ["carrossel", "cor de fundo"], "deliverables": ["ajuste visual"] }
   }
 ]
@@ -39,9 +40,13 @@ Formato:
 Campos:
 - message_index: índice da mensagem no array (0-based)
 - insight_type: um dos tipos acima
-- summary: frase concisa em português descrevendo o insight
+- summary: frase concisa em português descrevendo o insight (escreva como regra permanente se for preference/complaint)
 - sentiment: positive | negative | neutral
 - urgency: urgent | normal | low
+- confidence: grau de certeza da sua interpretação
+  - "high": declaração explícita e inequívoca ("precisa ter X", "aprovamos Y", "sempre fazer Z")
+  - "medium": bastante claro mas pode ter contexto implícito que você não tem
+  - "low": ambíguo, irônico, incompleto, curto demais, ou sem contexto suficiente para ter certeza
 - entities: { people?: string[], dates?: string[], topics?: string[], deliverables?: string[] }`;
 
 type MessageRow = {
@@ -53,12 +58,15 @@ type MessageRow = {
   created_at: string;
 };
 
+const CONFIDENCE_SCORE: Record<string, number> = { high: 0.92, medium: 0.72, low: 0.50 };
+
 type InsightResult = {
   message_index: number;
   insight_type: string;
   summary: string;
   sentiment: string;
   urgency: string;
+  confidence?: string;
   entities: Record<string, any>;
 };
 
@@ -138,10 +146,12 @@ export async function extractInsightsFromBatch(
         const msg = groupMessages[insight.message_index];
         if (!msg) continue;
 
+        const confidenceScore = CONFIDENCE_SCORE[insight.confidence ?? 'medium'] ?? 0.72;
+
         const { rows: insertedInsightRows } = await query<{ id: string; created_at: string }>(
           `INSERT INTO whatsapp_message_insights
-             (tenant_id, client_id, message_id, insight_type, summary, sentiment, urgency, entities, confidence)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0.8)
+             (tenant_id, client_id, message_id, insight_type, summary, sentiment, urgency, entities, confidence, confirmation_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
            ON CONFLICT DO NOTHING
            RETURNING id, created_at`,
           [
@@ -153,6 +163,7 @@ export async function extractInsightsFromBatch(
             insight.sentiment || 'neutral',
             insight.urgency || 'normal',
             JSON.stringify(insight.entities || {}),
+            confidenceScore,
           ],
         );
         const insertedInsight = insertedInsightRows[0];
