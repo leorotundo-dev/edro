@@ -20,6 +20,7 @@ import {
   IconMicrophone, IconUpload, IconChevronDown, IconChevronUp,
   IconCheck, IconX, IconChecks, IconBriefcase, IconBulb,
   IconListCheck, IconNote, IconClock, IconUser, IconRobot, IconCalendarPlus,
+  IconShieldCheck,
 } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
@@ -48,6 +49,11 @@ type Meeting = {
   pending_actions: number;
   total_actions: number;
   actions?: MeetingAction[];
+  analysis_payload?: {
+    intelligence?: {
+      production_directives?: string[];
+    };
+  };
 };
 
 function actionIcon(type: string) {
@@ -83,6 +89,8 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
   const [approvingAll, setApprovingAll] = useState(false);
+  const [confirmingDirective, setConfirmingDirective] = useState<string | null>(null);
+  const [confirmedDirectives, setConfirmedDirectives] = useState<Set<string>>(new Set());
   const meeting = detail ?? initialMeeting;
 
   const loadDetail = async () => {
@@ -99,6 +107,16 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
   const handleToggle = () => {
     if (!expanded) loadDetail();
     setExpanded(e => !e);
+  };
+
+  const confirmDirective = async (directive: string, directive_type: 'boost' | 'avoid') => {
+    setConfirmingDirective(directive);
+    try {
+      await apiPost(`/meetings/${initialMeeting.id}/confirm-directive`, { directive, directive_type });
+      setConfirmedDirectives(prev => { const s = new Set(prev); s.add(directive); return s; });
+    } finally {
+      setConfirmingDirective(null);
+    }
   };
 
   const approveAction = async (actionId: string) => {
@@ -192,6 +210,49 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
                 </Typography>
               </Box>
             )}
+
+            {(() => {
+              const directives = detail?.analysis_payload?.intelligence?.production_directives ?? [];
+              if (!directives.length) return null;
+              return (
+                <Box sx={{ border: 1, borderColor: 'warning.light', borderRadius: 1.5, p: 1.5, mb: 2, bgcolor: 'warning.light' + '18' }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
+                    <IconBulb size={14} color="#E85219" />
+                    <Typography variant="caption" fontWeight={700} color="warning.dark" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Regras de produção detectadas
+                    </Typography>
+                  </Stack>
+                  <Stack spacing={0.75}>
+                    {directives.map((directive) => {
+                      const isConfirmed = confirmedDirectives.has(directive);
+                      const isConfirming = confirmingDirective === directive;
+                      return (
+                        <Stack key={directive} direction="row" alignItems="center" justifyContent="space-between" spacing={1}
+                          sx={{ bgcolor: 'background.paper', borderRadius: 1, px: 1, py: 0.75 }}>
+                          <Typography variant="caption" sx={{ flex: 1, fontSize: '0.78rem' }}>{directive}</Typography>
+                          {isConfirmed ? (
+                            <Chip icon={<IconShieldCheck size={11} />} label="Salvo" size="small" color="success"
+                              sx={{ fontSize: '0.62rem', height: 20 }} />
+                          ) : (
+                            <Stack direction="row" spacing={0.5}>
+                              <Tooltip title="Salvar como diretiva permanente (boost)">
+                                <span>
+                                  <Button size="small" variant="outlined" color="success" disabled={isConfirming}
+                                    onClick={() => confirmDirective(directive, 'boost')}
+                                    sx={{ fontSize: '0.65rem', py: 0.25, px: 0.75, minWidth: 0 }}>
+                                    {isConfirming ? <CircularProgress size={10} /> : '💾 Salvar'}
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            </Stack>
+                          )}
+                        </Stack>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              );
+            })()}
 
             {pendingCount > 1 && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
