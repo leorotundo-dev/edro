@@ -753,15 +753,35 @@ export default async function meetingRoutes(app: FastifyInstance) {
         },
       });
 
-      const analysis = await analyzeMeetingTranscript({
-        transcript: String(meeting.transcript),
-        clientName,
-        tenantId,
-        clientId: meeting.client_id,
-        meetingTitle: meeting.title,
-        platform: meeting.platform,
-        source: meeting.source,
-      });
+      let analysis: Awaited<ReturnType<typeof analyzeMeetingTranscript>>;
+      try {
+        analysis = await analyzeMeetingTranscript({
+          transcript: String(meeting.transcript),
+          clientName,
+          tenantId,
+          clientId: meeting.client_id,
+          meetingTitle: meeting.title,
+          platform: meeting.platform,
+          source: meeting.source,
+        });
+      } catch (err: any) {
+        const reason = err?.message ?? 'analysis_failed';
+        await updateMeetingState({
+          meetingId: meeting.id,
+          tenantId,
+          changes: { status: 'transcribed', failed_stage: 'analysis', failed_reason: reason },
+          event: {
+            eventType: 'meeting.analysis_failed',
+            stage: 'analysis',
+            status: 'transcribed',
+            message: reason,
+            actorType: 'user',
+            actorId: userEmail,
+          },
+        });
+        return reply.code(502).send({ error: `Claude error: ${reason}` });
+      }
+
       const result = await saveMeetingAnalysis(meeting.id, String(meeting.transcript), analysis, tenantId, meeting.client_id, {
         transcriptProvider: (meeting.transcript_provider ?? 'manual') as 'recall' | 'whisper' | 'manual',
         replacePendingActions: true,
