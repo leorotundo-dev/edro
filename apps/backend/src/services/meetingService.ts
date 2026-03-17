@@ -7,7 +7,7 @@
 import crypto from 'crypto';
 import { query } from '../db';
 import { env } from '../env';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 import { getClientById, isInternalClientId } from '../repos/clientsRepo';
 import {
   hasClientDocumentHash,
@@ -448,14 +448,14 @@ export async function analyzeMeetingTranscript(
     params.transcript.slice(0, 16000),
   ].filter(Boolean).join('\n');
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt,
     systemPrompt: ANALYSIS_PROMPT,
     temperature: 0.2,
     maxTokens: 4096,
   });
 
-  const text = result.text.trim();
+  const text = result.output.trim();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do modelo não continha JSON válido');
 
@@ -510,14 +510,14 @@ export async function generateMeetingPrep(params: {
     JSON.stringify(context, null, 2),
   ].filter(Boolean).join('\n');
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt,
     systemPrompt: PREP_PROMPT,
     temperature: 0.2,
     maxTokens: 2600,
   });
 
-  const text = result.text.trim();
+  const text = result.output.trim();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do modelo não continha JSON válido para o preparo da reunião');
 
