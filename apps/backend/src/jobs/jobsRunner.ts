@@ -27,6 +27,8 @@ import { runGroupDigestWorkerOnce } from './groupDigestWorker';
 import { runGroupDeadlineAlertWorkerOnce } from './groupDeadlineAlertWorker';
 import { runOperationsRuntimeWorkerOnce } from './operationsRuntimeWorker';
 import { runJobAutomationWorkerOnce } from './jobAutomationWorker';
+import { runWhatsAppMemoryBackfillWorkerOnce } from './whatsappMemoryBackfillWorker';
+import { runWhatsAppHealthWorkerOnce } from './whatsappHealthWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -119,4 +121,8 @@ export function startJobsRunner() {
   startWorkerLoop('operationsRuntime', runOperationsRuntimeWorkerOnce, 13500, 180_000);
   // Job Automation Pipeline — auto-copy, auto-image, auto-assign, ETA recalc
   startWorkerLoop('jobAutomation', runJobAutomationWorkerOnce, 14000, 120_000);
+  // One-shot admin backfills for persistent WhatsApp client memory
+  startWorkerLoop('whatsappMemoryBackfill', runWhatsAppMemoryBackfillWorkerOnce, 14500, 600_000);
+  // WhatsApp connection health — auto-reconnect disconnected Evolution instances (every 5min)
+  startWorkerLoop('whatsappHealth', runWhatsAppHealthWorkerOnce, 15000, 30_000);
 }
