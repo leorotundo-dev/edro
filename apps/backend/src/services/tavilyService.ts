@@ -1,13 +1,16 @@
 /**
- * Tavily API service — web search, extract, and research for AI agents.
- * Requires TAVILY_API_KEY environment variable.
- * Free tier: 1000 calls/month. See https://tavily.com
+ * Web search and extract service.
+ * Search: Serper.dev (cheap, Google results) — requires SERPER_API_KEY.
+ * Extract: Jina Reader (r.jina.ai) — free, no key required.
+ *
+ * Drop-in replacement for Tavily. All callers unchanged.
  */
 
-const TAVILY_BASE = 'https://api.tavily.com';
+const SERPER_BASE = 'https://google.serper.dev';
+const JINA_BASE = 'https://r.jina.ai';
 
 export function isTavilyConfigured(): boolean {
-  return !!process.env.TAVILY_API_KEY;
+  return !!process.env.SERPER_API_KEY;
 }
 
 export type TavilySearchResult = {
@@ -21,7 +24,7 @@ export type TavilyExtractResult = {
 };
 
 /**
- * Search the web for a query.
+ * Search the web via Serper.dev (Google results).
  */
 export async function tavilySearch(
   query: string,
@@ -32,79 +35,70 @@ export async function tavilySearch(
     timeoutMs?: number;
   }
 ): Promise<TavilySearchResult> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new Error('TAVILY_API_KEY not configured');
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) throw new Error('SERPER_API_KEY not configured');
 
-  const body = {
-    api_key: apiKey,
-    query: query.slice(0, 400),
-    search_depth: options?.searchDepth ?? 'basic',
-    max_results: options?.maxResults ?? 5,
-    include_answer: options?.includeAnswer ?? false,
-  };
-
-  const res = await fetch(`${TAVILY_BASE}/search`, {
+  const res = await fetch(`${SERPER_BASE}/search`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-KEY': apiKey,
+    },
+    body: JSON.stringify({
+      q: query.slice(0, 400),
+      num: options?.maxResults ?? 5,
+    }),
     signal: AbortSignal.timeout(options?.timeoutMs ?? 9000),
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => res.status.toString());
-    throw new Error(`Tavily search error ${res.status}: ${errText.slice(0, 200)}`);
+    throw new Error(`Serper search error ${res.status}: ${errText.slice(0, 200)}`);
   }
 
   const data = await res.json() as {
-    answer?: string;
-    results?: Array<{ title: string; url: string; content: string; score?: number }>;
+    answerBox?: { answer?: string; snippet?: string };
+    organic?: Array<{ title: string; link: string; snippet?: string }>;
   };
 
+  const answer = data.answerBox?.answer || data.answerBox?.snippet || undefined;
+
   return {
-    answer: data.answer || undefined,
-    results: (data.results || []).map((r) => ({
+    answer,
+    results: (data.organic || []).slice(0, options?.maxResults ?? 5).map((r) => ({
       title: r.title || '',
-      url: r.url || '',
-      snippet: (r.content || '').slice(0, 600),
+      url: r.link || '',
+      snippet: (r.snippet || '').slice(0, 600),
     })),
   };
 }
 
 /**
- * Extract full content from one or more URLs.
+ * Extract full content from URLs via Jina Reader (free, no key).
  */
 export async function tavilyExtract(
   urls: string[],
   options?: { timeoutMs?: number }
 ): Promise<TavilyExtractResult> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new Error('TAVILY_API_KEY not configured');
+  const safeUrls = urls.slice(0, 3);
+  const results: TavilyExtractResult['results'] = [];
+  const failed_results: TavilyExtractResult['failed_results'] = [];
 
-  const safeUrls = urls.slice(0, 3); // Hard cap at 3 to save credits
+  await Promise.all(
+    safeUrls.map(async (url) => {
+      try {
+        const res = await fetch(`${JINA_BASE}/${url}`, {
+          headers: { Accept: 'text/plain' },
+          signal: AbortSignal.timeout(options?.timeoutMs ?? 15000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        results.push({ url, content: text.slice(0, 4000) });
+      } catch (err: any) {
+        failed_results.push({ url, error: err?.message || 'extract failed' });
+      }
+    })
+  );
 
-  const res = await fetch(`${TAVILY_BASE}/extract`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey, urls: safeUrls }),
-    signal: AbortSignal.timeout(options?.timeoutMs ?? 15000),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => res.status.toString());
-    throw new Error(`Tavily extract error ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json() as {
-    results?: Array<{ url: string; raw_content?: string; title?: string }>;
-    failed_results?: Array<{ url: string; error: string }>;
-  };
-
-  return {
-    results: (data.results || []).map((r) => ({
-      url: r.url,
-      content: (r.raw_content || '').slice(0, 4000),
-      title: r.title || undefined,
-    })),
-    failed_results: data.failed_results,
-  };
+  return { results, failed_results };
 }
