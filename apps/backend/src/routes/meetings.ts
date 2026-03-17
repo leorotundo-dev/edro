@@ -182,35 +182,41 @@ export default async function meetingRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
-      const { rows } = await query(
-        `SELECT
-           m.id             AS meeting_id,
-           m.title          AS meeting_title,
-           m.client_id,
-           m.recorded_at,
-           m.summary,
-           m.status         AS meeting_status,
-           m.platform,
-           ma.id            AS action_id,
-           ma.type,
-           ma.title,
-           ma.description,
-           ma.responsible,
-           ma.deadline,
-           ma.priority,
-           ma.status,
-           ma.raw_excerpt
-         FROM meeting_actions ma
-         JOIN meetings m ON m.id = ma.meeting_id
-         WHERE ma.tenant_id = $1
-           AND ma.status = 'pending'
-           AND m.status IN ('analyzed', 'approval_pending', 'partially_approved')
-         ORDER BY
-           CASE ma.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-           m.recorded_at DESC
-         LIMIT 200`,
-        [tenantId],
-      );
+      let rows: any[] = [];
+      try {
+        const res = await query(
+          `SELECT
+             m.id             AS meeting_id,
+             m.title          AS meeting_title,
+             m.client_id,
+             m.recorded_at,
+             m.summary,
+             m.status         AS meeting_status,
+             m.platform,
+             ma.id            AS action_id,
+             ma.type,
+             ma.title,
+             ma.description,
+             ma.responsible,
+             ma.deadline,
+             ma.priority,
+             ma.status,
+             ma.raw_excerpt
+           FROM meeting_actions ma
+           JOIN meetings m ON m.id = ma.meeting_id
+           WHERE ma.tenant_id = $1
+             AND ma.status = 'pending'
+             AND m.status IN ('analyzed', 'approval_pending', 'partially_approved')
+           ORDER BY
+             CASE ma.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+             m.recorded_at DESC
+           LIMIT 200`,
+          [tenantId],
+        );
+        rows = res.rows;
+      } catch (err: any) {
+        console.error('[meetings/proposals] query failed:', err?.message);
+      }
 
       // Group by meeting
       const meetingMap = new Map<string, any>();
