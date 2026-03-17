@@ -28,6 +28,7 @@ type PulseData = {
   groups: Array<{ id: string; name: string; last_activity: string | null }>;
   message_count_7d: number;
   insight_count_7d: number;
+  pending_confirmations: number;
   summary: string | null;
   topics: string[];
   sentiment: string | null;
@@ -246,6 +247,28 @@ export default function WhatsAppPulseCard({ clientId }: { clientId: string }) {
                 </Typography>
               ))}
             </Stack>
+          </>
+        )}
+
+        {(data.pending_confirmations ?? 0) > 0 && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Tooltip title="Revisar interpretações de IA do WhatsApp — confirmar as corretas gera regras permanentes para o cliente">
+              <Chip
+                component={Link}
+                href={`/clients/${clientId}/whatsapp`}
+                size="small"
+                icon={<IconBulb size={12} />}
+                label={`${data.pending_confirmations} insight${data.pending_confirmations !== 1 ? 's' : ''} para confirmar`}
+                clickable
+                sx={{
+                  bgcolor: 'rgba(37,211,102,0.1)', color: WA_GREEN,
+                  fontWeight: 700, fontSize: '0.68rem',
+                  border: `1px solid rgba(37,211,102,0.25)`,
+                  '& .MuiChip-icon': { color: WA_GREEN },
+                }}
+              />
+            </Tooltip>
           </>
         )}
       </CardContent>

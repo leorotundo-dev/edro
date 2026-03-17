@@ -1842,14 +1842,25 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         [groupIds],
       );
 
-      // Count insights last 7 days
-      const { rows: [insightStats] } = await pool.query(
-        `SELECT COUNT(*) AS cnt
-         FROM whatsapp_message_insights
-         WHERE client_id = $1 AND tenant_id = $2
-           AND created_at > NOW() - INTERVAL '7 days'`,
-        [clientId, tenantId],
-      );
+      // Count insights last 7 days + pending confirmations
+      const [{ rows: [insightStats] }, { rows: [confirmStats] }] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) AS cnt
+           FROM whatsapp_message_insights
+           WHERE client_id = $1 AND tenant_id = $2
+             AND created_at > NOW() - INTERVAL '7 days'`,
+          [clientId, tenantId],
+        ),
+        pool.query(
+          `SELECT COUNT(*) AS pending
+           FROM whatsapp_message_insights
+           WHERE client_id = $1 AND tenant_id = $2
+             AND COALESCE(confirmation_status, 'pending') = 'pending'
+             AND actioned = false
+             AND created_at > NOW() - INTERVAL '14 days'`,
+          [clientId, tenantId],
+        ),
+      ]);
 
       // Get latest digest
       const { rows: digests } = await pool.query(
@@ -1952,6 +1963,7 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
         })),
         message_count_7d: msgCount,
         insight_count_7d: Number(insightStats.cnt),
+        pending_confirmations: Number(confirmStats?.pending ?? 0),
         summary: aiSummary,
         topics: topics.slice(0, 8),
         sentiment: overallSentiment,
