@@ -509,8 +509,8 @@ async function fetchOperationalJobs(tenantId: string) {
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
      LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
     WHERE j.tenant_id = $1
       AND j.status <> 'archived'
@@ -612,8 +612,8 @@ export async function upsertJobAllocation(tenantId: string, input: UpsertAllocat
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
      LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
@@ -722,8 +722,8 @@ export async function dropJobAllocation(tenantId: string, jobId: string, changed
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
      LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
@@ -1488,8 +1488,8 @@ export async function buildCalendarSnapshot(tenantId: string) {
      FROM calendar_items ci
      JOIN jobs j ON j.id = ci.job_id
      LEFT JOIN clients c ON c.id = ci.client_id
-     LEFT JOIN edro_users u ON u.id = ci.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
+     LEFT JOIN edro_users u ON u.id::text = ci.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
      LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
     WHERE ci.tenant_id = $1
     ORDER BY ci.starts_at ASC, j.priority_score DESC`,
@@ -1703,7 +1703,7 @@ export async function buildRiskSnapshot(tenantId: string) {
      JOIN jobs j ON j.id = rs.job_id
      LEFT JOIN clients c ON c.id = rs.client_id
      LEFT JOIN edro_users u ON u.id = rs.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = rs.owner_id AND tu.tenant_id::text = rs.tenant_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = rs.owner_id AND tu.tenant_id::text = rs.tenant_id
      LEFT JOIN freelancer_profiles fp ON fp.user_id = rs.owner_id
      LEFT JOIN job_allocations ja
        ON ja.job_id = j.id
@@ -1860,8 +1860,8 @@ export async function buildOverviewSnapshot(tenantId: string) {
        FROM calendar_items ci
        JOIN jobs j ON j.id = ci.job_id
        LEFT JOIN clients c ON c.id = ci.client_id
-       LEFT JOIN edro_users u ON u.id = ci.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
+       LEFT JOIN edro_users u ON u.id::text = ci.owner_id
+       LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
        LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
       WHERE ci.tenant_id = $1
         AND ci.source_type = 'checkpoint'
@@ -1883,8 +1883,8 @@ export async function buildOverviewSnapshot(tenantId: string) {
          CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
-       LEFT JOIN edro_users u ON u.id = j.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
+       LEFT JOIN edro_users u ON u.id::text = j.owner_id
+       LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
        LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
       WHERE j.tenant_id = $1
         AND j.source = 'approval'
