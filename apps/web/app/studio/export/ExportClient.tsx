@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -17,6 +17,17 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import { IconMail, IconSparkles, IconCircleCheckFilled } from '@tabler/icons-react';
+import {
+  buildStudioHref,
+  loadStudioCreativeSession,
+  markStudioReadyToPublish,
+  openStudioCreativeSession,
+  resolveStudioWorkflowContext,
+  sendStudioCreativeReview,
+  syncLegacyStudioStorageFromCreativeContext,
+  type CreativeSessionContextDto,
+  updateStudioCreativeMetadata,
+} from '../studioWorkflow';
 
 type BriefingPayload = {
   id: string;
@@ -57,6 +68,10 @@ const readTextResponse = (payload: any) => {
 
 export default function ExportClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
+  const [sessionId, setSessionId] = useState(workflowContext.sessionId);
+  const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [briefing, setBriefing] = useState<BriefingPayload | null>(null);
   const [mockups, setMockups] = useState<MockupItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -66,19 +81,51 @@ export default function ExportClient() {
   const [success, setSuccess] = useState('');
   const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null);
   const [generatingEmail, setGeneratingEmail] = useState(false);
+  const [approvalLink, setApprovalLink] = useState('');
+  const hydratedExportMetadataRef = useRef('');
+  const persistedExportMetadataRef = useRef('');
+  const exportMetadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+  useEffect(() => {
+    if (workflowContext.sessionId) setSessionId(workflowContext.sessionId);
+  }, [workflowContext.sessionId]);
 
   const loadData = useCallback(async () => {
-    if (!briefingId) {
+    setLoading(true);
+    setError('');
+    let resolvedBriefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (workflowContext.jobId) {
+      const context = sessionId
+        ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+        : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: resolvedBriefingId }).catch(() => null);
+      if (context) {
+        setCreativeContext(context);
+        if (context.session?.id) setSessionId(context.session.id);
+        syncLegacyStudioStorageFromCreativeContext(context);
+        resolvedBriefingId = context.session?.briefing_id || resolvedBriefingId;
+        const exportMeta = context.session?.metadata?.export as Record<string, any> | undefined;
+        const exportMetaKey = JSON.stringify(exportMeta || {});
+        if (exportMeta && hydratedExportMetadataRef.current !== exportMetaKey) {
+          if (Array.isArray(exportMeta.selectedIds)) setSelectedIds(exportMeta.selectedIds);
+          if (exportMeta.emailDraft && typeof exportMeta.emailDraft === 'object') {
+            setEmailDraft({
+              subject: String(exportMeta.emailDraft.subject || ''),
+              body: String(exportMeta.emailDraft.body || ''),
+            });
+          }
+          if (typeof exportMeta.approvalLink === 'string') setApprovalLink(exportMeta.approvalLink);
+          hydratedExportMetadataRef.current = exportMetaKey;
+          persistedExportMetadataRef.current = exportMetaKey;
+        }
+      }
+    }
+    if (!resolvedBriefingId) {
       setError('Nenhum briefing ativo encontrado. Volte ao passo 1.');
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError('');
     try {
-      const response = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${briefingId}`);
+      const response = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${resolvedBriefingId}`);
       const data = response?.data;
       setBriefing(data?.briefing || null);
     } catch (err: any) {
@@ -86,23 +133,57 @@ export default function ExportClient() {
     }
 
     try {
-      const response = await apiGet<MockupItem[]>(`/mockups?briefing_id=${briefingId}`);
+      const response = await apiGet<MockupItem[]>(`/mockups?briefing_id=${resolvedBriefingId}`);
       setMockups(response || []);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar mockups.');
     } finally {
       setLoading(false);
     }
-  }, [briefingId]);
+  }, [sessionId, workflowContext.jobId]);
 
   useEffect(() => {
+    const briefingId =
+      creativeContext?.session?.briefing_id ||
+      (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
     if (!briefingId) return;
     apiPatch(`/edro/briefings/${briefingId}/stages/entrega`, { status: 'in_progress' }).catch(() => null);
-  }, [briefingId]);
+  }, [creativeContext?.session?.briefing_id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const exportSessionMetadata = useMemo(() => ({
+    selectedIds,
+    emailDraft,
+    approvalLink,
+  }), [approvalLink, emailDraft, selectedIds]);
+
+  useEffect(() => {
+    if (!workflowContext.jobId || !sessionId) return;
+    const nextKey = JSON.stringify(exportSessionMetadata);
+    if (persistedExportMetadataRef.current === nextKey) return;
+
+    if (exportMetadataTimerRef.current) clearTimeout(exportMetadataTimerRef.current);
+    exportMetadataTimerRef.current = setTimeout(() => {
+      updateStudioCreativeMetadata(sessionId, {
+        job_id: workflowContext.jobId,
+        metadata: { export: exportSessionMetadata },
+        reason: 'export_state_updated',
+      })
+        .then((context) => {
+          setCreativeContext(context);
+          if (context?.session?.id) setSessionId(context.session.id);
+          persistedExportMetadataRef.current = nextKey;
+        })
+        .catch(() => {});
+    }, 800);
+
+    return () => {
+      if (exportMetadataTimerRef.current) clearTimeout(exportMetadataTimerRef.current);
+    };
+  }, [exportSessionMetadata, sessionId, workflowContext.jobId]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -161,8 +242,41 @@ export default function ExportClient() {
   };
 
   const finishDelivery = async () => {
+    const briefingId =
+      creativeContext?.session?.briefing_id ||
+      (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
     if (!briefingId) return;
     try {
+      if (workflowContext.jobId) {
+        const context = creativeContext
+          || (sessionId
+            ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+            : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null));
+        if (context?.session?.id) {
+          const ids = selectedIds.length ? selectedIds : mockups.map((item) => item.id);
+          const preferred = ids.length
+            ? mockups.filter((item) => ids.includes(item.id))
+            : mockups;
+          const first = preferred[0] || mockups[0] || null;
+          const next = await markStudioReadyToPublish(context.session.id, {
+            job_id: workflowContext.jobId,
+            channel: first?.platform || null,
+            metadata: {
+              selected_mockup_ids: ids,
+              formats: preferred.map((item) => ({
+                id: item.id,
+                platform: item.platform || null,
+                format: item.format || null,
+                status: item.status || null,
+              })),
+            },
+          }).catch(() => null);
+          if (next) {
+            setCreativeContext(next);
+            setSessionId(next.session.id);
+          }
+        }
+      }
       await apiPatch(`/edro/briefings/${briefingId}/stages/entrega`, { status: 'done' });
       setSuccess('Entrega finalizada.');
       router.push('/clients');
@@ -174,6 +288,44 @@ export default function ExportClient() {
   const handleGenerateEmailDraft = async () => {
     setGeneratingEmail(true);
     try {
+      const briefingId =
+        creativeContext?.session?.briefing_id ||
+        (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
+      let nextApprovalLink = '';
+      if (briefingId) {
+        const approvalRes = await apiPost<{ success?: boolean; data?: { approvalUrl?: string } }>(
+          `/edro/briefings/${briefingId}/approval-link`,
+          { expiresInDays: 7 }
+        ).catch(() => null);
+        nextApprovalLink = approvalRes?.data?.approvalUrl || '';
+        setApprovalLink(nextApprovalLink);
+      }
+
+      if (workflowContext.jobId) {
+        const context = creativeContext
+          || (sessionId
+            ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+            : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null));
+        if (context?.session?.id) {
+          const pendingApproval = context.reviews?.find((item) => item.review_type === 'client_approval' && item.status === 'pending');
+          if (!pendingApproval) {
+            const next = await sendStudioCreativeReview(context.session.id, {
+              job_id: workflowContext.jobId,
+              review_type: 'client_approval',
+              payload: {
+                source: 'export_email_draft',
+                approval_link: nextApprovalLink || null,
+                selected_mockup_ids: selectedIds.length ? selectedIds : mockups.map((item) => item.id),
+              },
+            }).catch(() => null);
+            if (next) {
+              setCreativeContext(next);
+              setSessionId(next.session.id);
+            }
+          }
+        }
+      }
+
       const formatList = mockups.slice(0, 10).map((m) => `${m.platform} — ${m.format}`).filter(Boolean);
       const res = await apiPost<{ success: boolean; data: { subject: string; body: string } }>('/ai/email-draft', {
         briefing_id: briefingId || undefined,
@@ -181,7 +333,14 @@ export default function ExportClient() {
         title: briefing?.title || undefined,
         format_list: formatList,
       });
-      if (res?.data) setEmailDraft(res.data);
+      if (res?.data) {
+        setEmailDraft({
+          subject: res.data.subject,
+          body: nextApprovalLink
+            ? `${res.data.body}\n\nLink de aprovação:\n${nextApprovalLink}`
+            : res.data.body,
+        });
+      }
     } catch {
       // silently fail
     } finally {
@@ -372,18 +531,41 @@ export default function ExportClient() {
                       value={emailDraft.body}
                       onChange={(e) => setEmailDraft((d) => d ? { ...d, body: e.target.value } : d)}
                       sx={{ mb: 1.5 }} />
+                    {approvalLink ? (
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Link de aprovação"
+                        value={approvalLink}
+                        InputProps={{ readOnly: true }}
+                        sx={{ mb: 1.5 }}
+                      />
+                    ) : null}
                     <Stack direction="row" spacing={1}>
                       <Button variant="contained" size="small" color="primary"
-                        onClick={() => briefing?.id && apiPost(`/edro/briefings/${briefing.id}/send-email`, emailDraft).catch(() => {})}>
-                        Enviar email
+                        onClick={() => {
+                          const subject = encodeURIComponent(emailDraft.subject || '');
+                          const body = encodeURIComponent(emailDraft.body || '');
+                          if (typeof window !== 'undefined') {
+                            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                          }
+                        }}>
+                        Abrir email
                       </Button>
                       <Button variant="text" size="small"
-                        onClick={() => navigator.clipboard?.writeText(emailDraft.body).catch(() => {})}
+                        onClick={() => navigator.clipboard?.writeText(`${emailDraft.subject}\n\n${emailDraft.body}`).catch(() => {})}
                         sx={{ textTransform: 'none', color: 'text.secondary' }}>
-                        Copiar texto
+                        Copiar email
                       </Button>
+                      {approvalLink ? (
+                        <Button variant="text" size="small"
+                          onClick={() => navigator.clipboard?.writeText(approvalLink).catch(() => {})}
+                          sx={{ textTransform: 'none', color: 'text.secondary' }}>
+                          Copiar link
+                        </Button>
+                      ) : null}
                       <Button variant="text" size="small"
-                        onClick={() => setEmailDraft(null)}
+                        onClick={() => { setEmailDraft(null); setApprovalLink(''); }}
                         sx={{ textTransform: 'none', color: 'text.secondary' }}>
                         Resetar
                       </Button>
@@ -418,7 +600,7 @@ export default function ExportClient() {
 
       {/* Footer actions */}
       <Stack direction="row" justifyContent="flex-end" spacing={2}>
-        <Button variant="outlined" onClick={() => router.push('/studio/mockups')}>
+        <Button variant="outlined" onClick={() => router.push(buildStudioHref('/studio/mockups', searchParams))}>
           Voltar ao Passo 4
         </Button>
       </Stack>

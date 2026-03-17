@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 
 type StudioSearchParams = {
+  jobId?: string | string[];
+  sessionId?: string | string[];
   client?: string | string[];
   clientId?: string | string[];
   clientIds?: string | string[];
@@ -27,6 +29,8 @@ export default function Page({ searchParams }: { searchParams?: StudioSearchPara
   const params = new URLSearchParams();
   const allowedKeys: Array<keyof StudioSearchParams> = [
     'client',
+    'jobId',
+    'sessionId',
     'clientId',
     'clientIds',
     'clients',

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -22,17 +22,19 @@ import {
   IconExternalLink,
   IconX,
 } from '@tabler/icons-react';
+import { buildStudioHref } from './studioWorkflow';
 
 type StudioLayoutProps = {
   children: React.ReactNode;
 };
 
 function PipelineLink() {
+  const searchParams = useSearchParams();
   const [href, setHref] = useState<string>('/edro');
   useEffect(() => {
     const id = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-    setHref(id ? `/studio/pipeline/${id}` : '/edro');
-  }, []);
+    setHref(id ? buildStudioHref(`/studio/pipeline/${id}`, searchParams) : '/edro');
+  }, [searchParams]);
   return (
     <Box
       component={Link}
@@ -97,10 +99,12 @@ type UserInfo = { name?: string; email?: string };
 
 export default function StudioLayout({ children }: StudioLayoutProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const currentStep = getCurrentStep(pathname);
   const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
   const [user, setUser] = useState<UserInfo>({});
+  const recipesHref = useMemo(() => buildStudioHref('/studio/recipes', searchParams), [searchParams]);
 
   // Canvas and Pipeline get full-screen — no Studio chrome
   const isFullscreen = pathname.startsWith('/studio/canvas') || pathname.startsWith('/studio/pipeline');
@@ -208,7 +212,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
               <Box
                 key={step.path}
                 component={Link}
-                href={step.path}
+                href={buildStudioHref(step.path, searchParams)}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -267,7 +271,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
         <Box sx={{ px: 2, pb: 1 }}>
           <Box
             component={Link}
-            href="/studio/recipes"
+            href={recipesHref}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1.5,
               px: 2, py: 1, borderRadius: 3, textDecoration: 'none',

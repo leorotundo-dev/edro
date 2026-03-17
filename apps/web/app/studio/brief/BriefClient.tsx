@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Box from '@mui/material/Box';
@@ -50,6 +50,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
+import { syncLegacyStudioStorageFromCreativeContext } from '../studioWorkflow';
 
 type ClientRow = {
   id: string;
@@ -228,6 +229,8 @@ export default function BriefClient() {
   const { open: openJarvis } = useJarvis();
 
   const queryClientId = searchParams.get('clientId') || '';
+  const queryJobId = searchParams.get('jobId') || '';
+  const querySessionId = searchParams.get('sessionId') || '';
   const queryClientName = searchParams.get('client') || '';
   const queryClientIds = searchParams.get('clientIds') || '';
   const queryClientNames = searchParams.get('clients') || '';
@@ -276,6 +279,9 @@ export default function BriefClient() {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState('');
   const [manualEventName, setManualEventName] = useState('');
+  const [creativeSession, setCreativeSession] = useState<{ jobId: string; sessionId: string } | null>(
+    queryJobId ? { jobId: queryJobId, sessionId: querySessionId || '' } : null
+  );
   const [form, setForm] = useState<BriefForm>({
     title: queryTitle || (queryEvent ? `Briefing: ${queryEvent}` : ''),
     objective: queryObjective,
@@ -296,6 +302,15 @@ export default function BriefClient() {
     campaign_phase_id: queryCampaignPhaseId,
     behavior_intent_id: queryBehaviorIntentId,
   });
+
+  const buildStudioQuery = useCallback((sessionIdOverride?: string | null) => {
+    const params = new URLSearchParams();
+    const resolvedJobId = creativeSession?.jobId || queryJobId;
+    const resolvedSessionId = sessionIdOverride || creativeSession?.sessionId || querySessionId;
+    if (resolvedJobId) params.set('jobId', resolvedJobId);
+    if (resolvedSessionId) params.set('sessionId', resolvedSessionId);
+    return params.toString();
+  }, [creativeSession, queryJobId, querySessionId]);
 
   // Write studio context to localStorage so Jarvis can read it
   useEffect(() => {
@@ -542,6 +557,59 @@ export default function BriefClient() {
     const template = window.localStorage.getItem('edro_studio_template') || '';
     if (template) setSelectedTemplateId(template);
   }, [queryFresh]);
+
+  useEffect(() => {
+    if (!queryJobId) return;
+    let cancelled = false;
+
+    const openCreativeSession = async () => {
+      try {
+        const res = await apiPost<{ success: boolean; data: any }>(`/jobs/${queryJobId}/creative-session/open`, {});
+        const ctx = res?.data;
+        if (cancelled || !ctx?.session) return;
+
+        const nextSession = {
+          jobId: ctx.job?.id || queryJobId,
+          sessionId: ctx.session.id,
+        };
+        setCreativeSession(nextSession);
+        syncLegacyStudioStorageFromCreativeContext(ctx);
+
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('edro_job_id', nextSession.jobId);
+          window.localStorage.setItem('edro_creative_session_id', nextSession.sessionId);
+        }
+
+        if (ctx.job?.client_id) {
+          setActiveClientId((prev) => prev || ctx.job.client_id);
+        }
+
+        if (ctx.briefing) {
+          setForm((prev) => ({
+            ...prev,
+            title: prev.title || ctx.briefing.title || ctx.job?.title || '',
+            objective: prev.objective || ctx.briefing.objective || '',
+            message: prev.message || ctx.briefing.message || '',
+            tone: prev.tone || ctx.briefing.tone || '',
+            notes: prev.notes || ctx.briefing.notes || '',
+            event: prev.event || ctx.briefing.event || '',
+            date: prev.date || ctx.briefing.date || '',
+          }));
+        } else if (ctx.job) {
+          setForm((prev) => ({
+            ...prev,
+            title: prev.title || ctx.job.title || '',
+            message: prev.message || ctx.job.summary || '',
+          }));
+        }
+      } catch {
+        // keep legacy flow working
+      }
+    };
+
+    openCreativeSession();
+    return () => { cancelled = true; };
+  }, [queryJobId]);
 
   useEffect(() => {
     const clientId = queryClientId || activeClientId;
@@ -875,6 +943,12 @@ export default function BriefClient() {
         window.localStorage.setItem('edro_briefing_id', briefingId);
         window.localStorage.setItem('edro_briefing_title', form.title.trim());
         window.localStorage.setItem('edro_studio_step', 'platforms');
+        if (creativeSession?.jobId || queryJobId) {
+          window.localStorage.setItem('edro_job_id', creativeSession?.jobId || queryJobId);
+        }
+        if (creativeSession?.sessionId) {
+          window.localStorage.setItem('edro_creative_session_id', creativeSession.sessionId);
+        }
         if (activeClientId) window.localStorage.setItem('edro_client_id', activeClientId);
         if (activeClientId) window.localStorage.setItem('edro_active_client_id', activeClientId);
         const context = {
@@ -899,8 +973,32 @@ export default function BriefClient() {
         window.dispatchEvent(new CustomEvent('edro-studio-context-change'));
       }
 
+      if (creativeSession?.sessionId) {
+        await apiPost(`/creative-sessions/${creativeSession.sessionId}/save-brief`, {
+          briefing_id: briefingId,
+          title: form.title.trim(),
+          objective: form.objective,
+          message: form.message,
+          tone: form.tone,
+          event: form.event || null,
+          date: form.date || null,
+          notes: form.notes || null,
+          platforms: [],
+          metadata: {
+            source: form.source || 'manual',
+            production_type: queryProductionType || null,
+          },
+        }).catch(() => {});
+
+        await apiPost(`/creative-sessions/${creativeSession.sessionId}/stage`, {
+          current_stage: 'copy',
+          reason: 'briefing_saved',
+        }).catch(() => {});
+      }
+
       setSuccess('Briefing criado com sucesso.');
-      router.push('/studio/platforms');
+      const studioQuery = buildStudioQuery(creativeSession?.sessionId || null);
+      router.push(studioQuery ? `/studio/platforms?${studioQuery}` : '/studio/platforms');
     } catch (err: any) {
       setError(err?.message || 'Falha ao criar briefing.');
     } finally {
@@ -1038,7 +1136,10 @@ export default function BriefClient() {
               <Button
                 size="small"
                 variant="contained"
-                href={`/studio/${draftRecovery.step}`}
+                href={(() => {
+                  const studioQuery = buildStudioQuery();
+                  return studioQuery ? `/studio/${draftRecovery.step}?${studioQuery}` : `/studio/${draftRecovery.step}`;
+                })()}
                 sx={{
                   bgcolor: '#E85219',
                   '&:hover': { bgcolor: '#c43e10' },

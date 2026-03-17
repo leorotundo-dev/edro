@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -238,7 +242,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
             >
               {regenerating === 'image' ? 'Gerando...' : 'Regenerar'}
             </Button>
-            <Button size="small" variant="outlined" color="warning" startIcon={<IconBrush size={14} />}>
+            <Button size="small" variant="outlined" color="warning" startIcon={<IconBrush size={14} />} href={`/studio/canvas?jobId=${jobId}`}>
               Refinar no Canvas
             </Button>
           </Stack>
@@ -330,6 +334,7 @@ export default function JobWorkbenchDrawer({
   onClose,
   onCreate,
   onUpdate,
+  onDelete,
   onStatusChange,
   onFetchDetail,
 }: {
@@ -345,11 +350,15 @@ export default function JobWorkbenchDrawer({
   onClose: () => void;
   onCreate: (payload: Record<string, any>) => Promise<OperationsJob>;
   onUpdate: (jobId: string, payload: Record<string, any>) => Promise<OperationsJob>;
+  onDelete?: (jobId: string) => Promise<void>;
   onStatusChange: (jobId: string, status: string, reason?: string | null) => Promise<OperationsJob>;
   onFetchDetail?: (jobId: string) => Promise<OperationsJob>;
 }) {
   const [form, setForm] = useState<JobDraft>(() => buildDraft(job, { jobTypes }));
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [error, setError] = useState('');
   const [detailJob, setDetailJob] = useState<OperationsJob | null>(job);
 
@@ -358,6 +367,8 @@ export default function JobWorkbenchDrawer({
     setForm(buildDraft(job, { jobTypes }));
     setDetailJob(job);
     setError('');
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmation('');
   }, [open, job, jobTypes]);
 
   useEffect(() => {
@@ -473,6 +484,21 @@ export default function JobWorkbenchDrawer({
       setError(err?.message || 'Falha ao assumir a demanda.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!detailJob || !onDelete) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await onDelete(detailJob.id);
+      setDeleteConfirmOpen(false);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao excluir demanda.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -702,6 +728,19 @@ export default function JobWorkbenchDrawer({
                     Assumir demanda
                   </Button>
                 ) : null}
+                {mode === 'edit' && onDelete ? (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => {
+                      setDeleteConfirmation('');
+                      setDeleteConfirmOpen(true);
+                    }}
+                    disabled={submitting || deleting}
+                  >
+                    Excluir demanda
+                  </Button>
+                ) : null}
               </>
             ) : null}
           </Stack>
@@ -726,7 +765,7 @@ export default function JobWorkbenchDrawer({
                   </Grid>
                 ) : null}
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href="/studio" subtitle="Execução criativa continua como domínio de detalhe" />
+                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href={`/studio?jobId=${detailJob.id}`} subtitle="Execução criativa vinculada à demanda atual" />
                 </Grid>
                 {detailJob.source === 'meeting' ? (
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -776,6 +815,43 @@ export default function JobWorkbenchDrawer({
           </>
         ) : null}
       </Stack>
+
+      <Dialog open={deleteConfirmOpen} onClose={() => !deleting && setDeleteConfirmOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Tem certeza que deseja excluir esta demanda?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {detailJob
+                ? `A demanda "${detailJob.title}" será removida da Central de Operações.`
+                : 'A demanda selecionada será removida da Central de Operações.'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Essa ação é permanente e remove também alocação, agenda, riscos e histórico vinculados.
+            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              label='Digite EXCLUIR para confirmar'
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              autoFocus
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDelete}
+            disabled={!detailJob || deleting || deleteConfirmation.trim().toUpperCase() !== 'EXCLUIR'}
+          >
+            {deleting ? 'Excluindo...' : 'Excluir demanda'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ContextDrawer>
   );
 }

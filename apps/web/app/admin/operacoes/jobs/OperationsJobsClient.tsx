@@ -8,6 +8,10 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -78,10 +82,14 @@ export default function OperationsJobsClient() {
   const searchParams = useSearchParams();
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
-  const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
+  const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -117,9 +125,13 @@ export default function OperationsJobsClient() {
   const grouped = useMemo(() => groupBy(filteredJobs, (job) => job.status), [filteredJobs]);
 
   useEffect(() => {
-    if (!selectedJob) { setSelectedJob(filteredJobs[0] || null); return; }
+    if (!selectedJob) return;
     const fresh = filteredJobs.find((j) => j.id === selectedJob.id) || jobs.find((j) => j.id === selectedJob.id);
-    if (fresh) setSelectedJob(fresh);
+    if (fresh) {
+      setSelectedJob(fresh);
+      return;
+    }
+    setSelectedJob(null);
   }, [filteredJobs, jobs, selectedJob]);
 
   const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
@@ -151,6 +163,34 @@ export default function OperationsJobsClient() {
   const handleAssign = async (jobId: string, ownerId: string) => {
     await updateJob(jobId, { owner_id: ownerId });
     await refresh();
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    const nextSelection =
+      filteredJobs.find((job) => job.id !== jobId) ||
+      jobs.find((job) => job.id !== jobId) ||
+      null;
+
+    await deleteJob(jobId);
+    setDetailOpen(false);
+    setSelectedJob(nextSelection);
+    await refresh();
+  };
+
+  const handleDeleteSelectedJob = async () => {
+    if (!selectedJob) return;
+
+    setDeleting(true);
+    setDeleteError('');
+
+    try {
+      await handleDeleteJob(selectedJob.id);
+      setDeleteDialogOpen(false);
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Falha ao excluir demanda.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
@@ -464,6 +504,19 @@ export default function OperationsJobsClient() {
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button variant="contained" size="small" onClick={() => setDetailOpen(true)} disabled={!selectedJob}>{OPS_COPY.common.openDetail}</Button>
                   <Button variant="outlined" size="small" onClick={refresh}>{OPS_COPY.jobs.refresh}</Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="error"
+                    onClick={() => {
+                      setDeleteError('');
+                      setDeleteConfirmation('');
+                      setDeleteDialogOpen(true);
+                    }}
+                    disabled={!selectedJob}
+                  >
+                    Excluir demanda
+                  </Button>
                 </Stack>
               }
             />
@@ -491,9 +544,53 @@ export default function OperationsJobsClient() {
         onClose={() => setDetailOpen(false)}
         onCreate={createJob}
         onUpdate={async (id, p) => { const u = await updateJob(id, p); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
+        onDelete={handleDeleteJob}
         onStatusChange={async (id, s, r) => { const u = await changeStatus(id, s, r); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
         onFetchDetail={fetchJob}
       />
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !deleting && setDeleteDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Tem certeza que deseja excluir esta demanda?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {selectedJob
+                ? `A demanda "${selectedJob.title}" será removida da Central de Operações.`
+                : 'A demanda selecionada será removida da Central de Operações.'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Essa ação é permanente e também remove alocação, agenda, riscos e histórico vinculados à demanda.
+            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              label='Digite EXCLUIR para confirmar'
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              autoFocus
+            />
+            {deleteError ? <Alert severity="error">{deleteError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDeleteSelectedJob}
+            disabled={!selectedJob || deleting || deleteConfirmation.trim().toUpperCase() !== 'EXCLUIR'}
+          >
+            {deleting ? 'Excluindo...' : 'Excluir demanda'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </OperationsShell>
   );
 }

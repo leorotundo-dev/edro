@@ -46,6 +46,15 @@ type ClientInsight = {
   created_at?: string | null;
 };
 
+type ClientMemory = {
+  id: string;
+  source_type: string;
+  title: string;
+  excerpt: string;
+  published_at?: string | null;
+  metadata?: Record<string, any> | null;
+};
+
 type ClientSource = {
   id: string;
   source_type: string;
@@ -347,9 +356,12 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
   const [planMissing, setPlanMissing] = useState<string[]>([]);
   const [intel, setIntel] = useState<ClientInsight | null>(null);
   const [intelSources, setIntelSources] = useState<ClientSource[]>([]);
+  const [intelMemories, setIntelMemories] = useState<ClientMemory[]>([]);
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelActionLoading, setIntelActionLoading] = useState(false);
   const [intelError, setIntelError] = useState('');
+  const [intelMemoryBackfillLoading, setIntelMemoryBackfillLoading] = useState(false);
+  const [intelMemoryBackfillAllLoading, setIntelMemoryBackfillAllLoading] = useState(false);
   const [bulkIntelLoading, setBulkIntelLoading] = useState(false);
   const [reporteiItems, setReporteiItems] = useState<ReporteiInsight[]>([]);
   const [reporteiUpdatedAt, setReporteiUpdatedAt] = useState<string | null>(null);
@@ -384,15 +396,17 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
     setIntelLoading(true);
     setIntelError('');
     try {
-      const response = await apiGet<{ insight: ClientInsight | null; sources: ClientSource[] }>(
+      const response = await apiGet<{ insight: ClientInsight | null; sources: ClientSource[]; memories?: ClientMemory[] }>(
         `/clients/${clientId}/intelligence`
       );
       setIntel(response?.insight ?? null);
       setIntelSources(response?.sources ?? []);
+      setIntelMemories(response?.memories ?? []);
     } catch (err: any) {
       setIntelError(err?.message || 'Falha ao carregar inteligência.');
       setIntel(null);
       setIntelSources([]);
+      setIntelMemories([]);
     } finally {
       setIntelLoading(false);
     }
@@ -506,6 +520,48 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
     }
   }, []);
 
+  const backfillWhatsAppMemory = useCallback(async (clientId: string) => {
+    setIntelMemoryBackfillLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiPost<{ queued?: boolean }>(
+        '/whatsapp/memory/backfill',
+        { client_id: clientId, async: true }
+      );
+      if (response?.queued) {
+        setSuccess('Backfill de WhatsApp enfileirado para este cliente.');
+        setTimeout(() => loadIntelligence(clientId), 4000);
+      } else {
+        await loadIntelligence(clientId);
+        setSuccess('Memória de WhatsApp reprocessada para este cliente.');
+      }
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao reprocessar a memória de WhatsApp.');
+    } finally {
+      setIntelMemoryBackfillLoading(false);
+    }
+  }, [loadIntelligence]);
+
+  const backfillAllWhatsAppMemory = useCallback(async () => {
+    setIntelMemoryBackfillAllLoading(true);
+    setIntelError('');
+    try {
+      const response = await apiPost<{ queued?: boolean }>(
+        '/whatsapp/memory/backfill',
+        { async: true }
+      );
+      if (response?.queued) {
+        setSuccess('Backfill global de WhatsApp enfileirado.');
+      } else {
+        setSuccess('Backfill global de WhatsApp executado.');
+      }
+    } catch (err: any) {
+      setIntelError(err?.message || 'Falha ao enfileirar o backfill global de WhatsApp.');
+    } finally {
+      setIntelMemoryBackfillAllLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isLocked && lockedClientId) {
       setIsNew(false);
@@ -542,6 +598,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
       setConnectors([]);
       setIntel(null);
       setIntelSources([]);
+      setIntelMemories([]);
       setReporteiItems([]);
       setReporteiUpdatedAt(null);
       setReporteiError('');
@@ -1473,6 +1530,14 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                       >
                         {intelActionLoading ? 'Atualizando...' : 'Atualizar inteligência'}
                       </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => backfillAllWhatsAppMemory()}
+                        disabled={intelMemoryBackfillAllLoading || intelLoading}
+                      >
+                        {intelMemoryBackfillAllLoading ? 'Enfileirando...' : 'Backfill WhatsApp (todos)'}
+                      </Button>
                       <Stack direction="row" alignItems="center" spacing={0.5}>
                         <Switch
                           size="small"
@@ -1535,6 +1600,61 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                       ) : (
                         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 1 }}>
                           Nenhuma fonte sincronizada.
+                        </Typography>
+                      )}
+                    </Box>
+
+                    <Box sx={{ mb: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2">Memória de conversas</Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Chip size="small" variant="outlined" label={`${intelMemories.length} itens`} />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => selectedId && backfillWhatsAppMemory(selectedId)}
+                            disabled={!selectedId || intelMemoryBackfillLoading || intelLoading}
+                          >
+                            {intelMemoryBackfillLoading ? 'Reprocessando...' : 'Backfill WhatsApp'}
+                          </Button>
+                        </Stack>
+                      </Stack>
+                      {intelMemories.length ? (
+                        <Stack spacing={1}>
+                          {intelMemories.map((memory) => {
+                            const sourceLabel =
+                              memory.source_type === 'whatsapp_message' ? 'WhatsApp' :
+                              memory.source_type === 'whatsapp_insight' ? 'Insight WhatsApp' :
+                              memory.source_type === 'whatsapp_digest' ? 'Digest WhatsApp' :
+                              memory.source_type === 'meeting' ? 'Reunião' :
+                              memory.source_type;
+                            return (
+                              <Card key={memory.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                                <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                                        <Chip size="small" label={sourceLabel} sx={{ height: 20, fontSize: '0.65rem' }} />
+                                        <Typography variant="caption" color="text.secondary">
+                                          {memory.published_at ? new Date(memory.published_at).toLocaleString('pt-BR') : 'Sem data'}
+                                        </Typography>
+                                      </Stack>
+                                      <Typography variant="subtitle2" sx={{ lineHeight: 1.3 }}>
+                                        {memory.title || sourceLabel}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                        {memory.excerpt || 'Sem resumo disponível.'}
+                                      </Typography>
+                                    </Box>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 1 }}>
+                          Nenhuma memória de conversa consolidada ainda.
                         </Typography>
                       )}
                     </Box>

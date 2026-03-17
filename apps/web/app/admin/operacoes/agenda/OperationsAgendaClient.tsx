@@ -219,12 +219,13 @@ export default function OperationsAgendaClient() {
   }
 
   useEffect(() => {
-    if (!selectedJob) {
-      setSelectedJob(filteredJobs[0] || null);
+    if (!selectedJob) return;
+    const fresh = filteredJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
+    if (fresh) {
+      setSelectedJob(fresh);
       return;
     }
-    const fresh = filteredJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
-    if (fresh) setSelectedJob(fresh);
+    setSelectedJob(null);
   }, [filteredJobs, jobs, selectedJob]);
 
   return (

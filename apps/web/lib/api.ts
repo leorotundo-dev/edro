@@ -202,7 +202,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(parsed?.error || parsed?.message || `HTTP ${response.status}`);
+    const error = new Error(parsed?.error || parsed?.message || `HTTP ${response.status}`) as Error & {
+      status?: number;
+      code?: string;
+      details?: any;
+      payload?: any;
+    };
+    error.status = response.status;
+    error.code = parsed?.error_code;
+    error.details = parsed?.details;
+    error.payload = parsed;
+    throw error;
   }
   return parsed as T;
 }

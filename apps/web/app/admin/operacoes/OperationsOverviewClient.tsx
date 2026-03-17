@@ -154,17 +154,18 @@ export default function OperationsOverviewClient() {
   }, []);
 
   useEffect(() => {
-    if (!selectedJob) {
-      setSelectedJob(criticalJobs[0] || overviewRuntime.checkpoints[0] || overviewRuntime.approvals[0] || unassignedJobs[0] || todayJobs[0] || jobs[0] || null);
-      return;
-    }
+    if (!selectedJob) return;
     const fresh = jobs.find((job) => job.id === selectedJob.id);
     if (fresh) {
       setSelectedJob(fresh);
       return;
     }
     const runtimeJob = [...overviewRuntime.checkpoints, ...overviewRuntime.approvals].find((job) => job.id === selectedJob.id);
-    if (runtimeJob) setSelectedJob(runtimeJob);
+    if (runtimeJob) {
+      setSelectedJob(runtimeJob);
+      return;
+    }
+    setSelectedJob(null);
   }, [criticalJobs, jobs, overviewRuntime.approvals, overviewRuntime.checkpoints, selectedJob, todayJobs, unassignedJobs]);
 
   useEffect(() => {

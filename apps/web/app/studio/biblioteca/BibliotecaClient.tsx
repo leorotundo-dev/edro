@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -25,6 +26,7 @@ import {
   IconExternalLink,
 } from '@tabler/icons-react';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
+import { buildStudioHref } from '../studioWorkflow';
 
 type Creative = {
   id: string;
@@ -58,6 +60,7 @@ const STATUS_CHIP: Record<string, { label: string; color: string }> = {
 };
 
 export default function BibliotecaClient() {
+  const searchParams = useSearchParams();
   const [creatives, setCreatives] = useState<Creative[]>([]);
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState('');
@@ -340,7 +343,7 @@ export default function BibliotecaClient() {
                       <Button
                         variant="outlined" size="small" fullWidth
                         component="a"
-                        href={`/studio/pipeline/${selected.briefing_id}`}
+                        href={buildStudioHref(`/studio/pipeline/${selected.briefing_id}`, searchParams)}
                         startIcon={<IconExternalLink size={14} />}
                         sx={{ textTransform: 'none', fontSize: '0.78rem', borderColor: '#5D87FF66', color: '#5D87FF',
                           '&:hover': { borderColor: '#5D87FF', bgcolor: 'rgba(93,135,255,0.06)' } }}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -49,6 +49,15 @@ import {
   IconAd,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
+import {
+  buildStudioHref,
+  loadStudioCreativeSession,
+  openStudioCreativeSession,
+  resolveStudioWorkflowContext,
+  syncLegacyStudioStorageFromCreativeContext,
+  type CreativeSessionContextDto,
+  updateStudioCreativeMetadata,
+} from '../studioWorkflow';
 
 type RecommendedFormat = {
   format_id: string;
@@ -265,10 +274,14 @@ const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: st
 
 export default function PlatformClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
   const [loading, setLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [sessionId, setSessionId] = useState(workflowContext.sessionId);
+  const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -291,6 +304,28 @@ export default function PlatformClient() {
       let clientName: string | undefined;
       let productionType: string | undefined;
       let objective: string | undefined;
+
+      if (creativeContext) {
+        clientId = creativeContext.job?.client_id || undefined;
+        clientName = creativeContext.job?.client_name || undefined;
+        const brief = creativeContext.briefing || creativeContext.session?.metadata?.brief || {};
+        objective =
+          typeof brief?.objective === 'string' && brief.objective
+            ? brief.objective
+            : objective;
+        productionType =
+          typeof creativeContext.job?.required_skill === 'string'
+            ? creativeContext.job.required_skill
+            : productionType;
+        briefingText = [
+          brief?.title || creativeContext.job?.title,
+          brief?.objective,
+          brief?.message || creativeContext.job?.summary,
+          brief?.notes,
+        ]
+          .filter(Boolean)
+          .join(' | ') || briefingText;
+      }
 
       if (typeof window !== 'undefined') {
         const contextRaw = window.localStorage.getItem('edro_studio_context');
@@ -330,7 +365,9 @@ export default function PlatformClient() {
         }
       }
 
-      const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+      const briefingId =
+        creativeContext?.session?.briefing_id ||
+        (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
       if (briefingId) {
         const briefingResponse = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${briefingId}`);
         const briefing = briefingResponse?.data?.briefing;
@@ -373,7 +410,7 @@ export default function PlatformClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [creativeContext]);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -396,6 +433,34 @@ export default function PlatformClient() {
     loadRecommendation();
     loadCatalog();
   }, [loadRecommendation, loadCatalog]);
+
+  useEffect(() => {
+    if (workflowContext.sessionId) setSessionId(workflowContext.sessionId);
+  }, [workflowContext.sessionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCreativeContext = async () => {
+      if (!workflowContext.jobId) return;
+      try {
+        const context = sessionId
+          ? await loadStudioCreativeSession(workflowContext.jobId)
+          : await openStudioCreativeSession(workflowContext.jobId);
+        if (cancelled || !context) return;
+        setCreativeContext(context);
+        if (context.session?.id) setSessionId(context.session.id);
+        syncLegacyStudioStorageFromCreativeContext(context);
+      } catch {
+        // keep legacy flow
+      }
+    };
+
+    loadCreativeContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, workflowContext.jobId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -713,11 +778,37 @@ export default function PlatformClient() {
         }
       }
 
+      if (workflowContext.jobId && sessionId) {
+        const context = await updateStudioCreativeMetadata(sessionId, {
+          job_id: workflowContext.jobId,
+          metadata: {
+            platforms: {
+              inventory,
+              formatsByPlatform,
+              selectedPlatforms: Object.keys(formatsByPlatform),
+              selectedFormats: selectedFormats.map((format) => ({
+                id: format.id,
+                platform: format.platform,
+                format_name: format.format_name,
+                production_type: format.production_type,
+                recommendation_score: format.recommendation_score,
+              })),
+            },
+          },
+          reason: 'studio_platforms_selected',
+        }).catch(() => null);
+        if (context) {
+          setCreativeContext(context);
+          if (context.session?.id) setSessionId(context.session.id);
+          syncLegacyStudioStorageFromCreativeContext(context);
+        }
+      }
+
       try {
-        router.push('/studio/editor');
+        router.push(buildStudioHref('/studio/editor', searchParams));
       } catch {
         if (typeof window !== 'undefined') {
-          window.location.href = '/studio/editor';
+          window.location.href = buildStudioHref('/studio/editor', searchParams);
         }
       }
     } catch (err: any) {

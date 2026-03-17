@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
@@ -57,6 +57,20 @@ import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Slider from '@mui/material/Slider';
 import MockupsPage from '@/app/studio/mockups/page';
+import {
+  addStudioCreativeAsset,
+  addStudioCreativeVersion,
+  buildStudioHref,
+  loadStudioCreativeSession,
+  openStudioCreativeSession,
+  persistStudioWorkflowContext,
+  readStudioInventoryFromSession,
+  resolveStudioWorkflowContext,
+  syncLegacyStudioStorageFromCreativeContext,
+  updateStudioCreativeMetadata,
+  type CreativeSessionContextDto,
+  updateStudioCreativeStage,
+} from '../studioWorkflow';
 
 type CopyVersion = {
   id: string;
@@ -435,7 +449,11 @@ function CharCounter({ text, max }: { text: string; max?: number }) {
 
 export default function EditorClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { open: openJarvis, clientId: jarvisClientId } = useJarvis();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
+  const [sessionId, setSessionId] = useState(workflowContext.sessionId);
+  const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [briefing, setBriefing] = useState<BriefingResponse['briefing'] | null>(null);
   const [copies, setCopies] = useState<CopyVersion[]>([]);
   const [orchestrator, setOrchestrator] = useState<OrchestratorInfo | null>(null);
@@ -512,6 +530,15 @@ export default function EditorClient() {
   // Tabs: 0 = Gerador de Copy, 1 = Grade de Mockups
   const [criarTab, setCriarTab] = useState<0 | 1>(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const hydratedEditorMetadataRef = useRef('');
+  const persistedEditorMetadataRef = useRef('');
+  const editorMetadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (workflowContext.sessionId) {
+      setSessionId(workflowContext.sessionId);
+    }
+  }, [workflowContext.sessionId]);
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -577,16 +604,88 @@ export default function EditorClient() {
     return { done, total: inventory.length, items };
   }, [inventory, copyProgressTick]);
 
+  const applyCreativeContext = useCallback((context: CreativeSessionContextDto | null) => {
+    if (!context) return;
+    setCreativeContext(context);
+    if (context.session?.id) {
+      setSessionId(context.session.id);
+      persistStudioWorkflowContext({ jobId: context.job?.id, sessionId: context.session.id });
+    }
+    syncLegacyStudioStorageFromCreativeContext(context);
+
+    const brief = context.briefing as Record<string, any> | null | undefined;
+    if (brief && !tone && typeof brief.tone === 'string') {
+      setTone(brief.tone);
+    }
+    if (context.job?.client_brand_color) {
+      setClientBrandColor(context.job.client_brand_color);
+    }
+    if (context.selected_copy_version?.payload) {
+      const payload = context.selected_copy_version.payload;
+      const text = String(payload.output || payload.text || '').trim();
+      if (text) {
+        const parsed = parseOptions(text);
+        setOutput(text);
+        setOptions(parsed);
+        setSelectedOption(0);
+      }
+    }
+    if (context.selected_asset?.file_url) {
+      setArteImageUrl(context.selected_asset.file_url);
+    }
+    const workflowInventory = readStudioInventoryFromSession(context);
+    if (workflowInventory.length) {
+      setInventory(
+        workflowInventory.map((item) => ({
+          id: item.id || `${item.platform || item.platformId || 'plataforma'}-${item.format || item.name || 'formato'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          platform: item.platform || item.platformId || '',
+          format: item.format || item.name || '',
+          production_type: item.production_type,
+        }))
+      );
+      if (!activeFormatId && workflowInventory[0]?.id) {
+        setActiveFormatId(workflowInventory[0].id);
+      }
+    }
+    const editorMeta = context.session?.metadata?.editor as Record<string, any> | undefined;
+    const editorMetaKey = JSON.stringify(editorMeta || {});
+    if (editorMeta && hydratedEditorMetadataRef.current !== editorMetaKey) {
+      if (typeof editorMeta.activeFormatId === 'string') setActiveFormatId(editorMeta.activeFormatId);
+      if (typeof editorMeta.pipeline === 'string' && ['simple', 'standard', 'premium', 'collaborative', 'adversarial'].includes(editorMeta.pipeline)) {
+        setPipeline(editorMeta.pipeline as 'simple' | 'standard' | 'premium' | 'collaborative' | 'adversarial');
+      }
+      if (typeof editorMeta.taskType === 'string') setTaskType(editorMeta.taskType);
+      if (typeof editorMeta.forceProvider === 'string') setForceProvider(editorMeta.forceProvider);
+      if (typeof editorMeta.tone === 'string' && editorMeta.tone) setTone(editorMeta.tone);
+      if (typeof editorMeta.selectedOption === 'number') setSelectedOption(editorMeta.selectedOption);
+      if (typeof editorMeta.criarTab === 'number' && (editorMeta.criarTab === 0 || editorMeta.criarTab === 1)) {
+        setCriarTab(editorMeta.criarTab);
+      }
+      if (typeof editorMeta.selectedArteIndex === 'number') setSelectedArteIndex(editorMeta.selectedArteIndex);
+      hydratedEditorMetadataRef.current = editorMetaKey;
+      persistedEditorMetadataRef.current = editorMetaKey;
+    }
+  }, [tone]);
+
   const loadBriefing = useCallback(async () => {
     setLoading(true);
     setError('');
     setSuccess('');
     try {
-      const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-      if (!briefingId) {
+      let resolvedBriefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+      if (workflowContext.jobId) {
+        const context = sessionId
+          ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+          : await openStudioCreativeSession(workflowContext.jobId).catch(() => null);
+        if (context) {
+          resolvedBriefingId = context.session?.briefing_id || resolvedBriefingId;
+          applyCreativeContext(context);
+        }
+      }
+      if (!resolvedBriefingId) {
         throw new Error('Nenhum briefing ativo encontrado. Volte para o passo 1.');
       }
-      const response = await apiGet<{ success: boolean; data: BriefingResponse }>(`/edro/briefings/${briefingId}`);
+      const response = await apiGet<{ success: boolean; data: BriefingResponse }>(`/edro/briefings/${resolvedBriefingId}`);
       const data = response?.data;
       if (!data?.briefing) throw new Error('Briefing não encontrado.');
       setBriefing(data.briefing);
@@ -617,7 +716,7 @@ export default function EditorClient() {
     } finally {
       setLoading(false);
     }
-  }, [tone]);
+  }, [applyCreativeContext, sessionId, tone, workflowContext.jobId]);
 
   const loadOrchestrator = useCallback(async () => {
     try {
@@ -630,7 +729,12 @@ export default function EditorClient() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (creativeContext) {
+      const workflowInventory = readStudioInventoryFromSession(creativeContext);
+      if (workflowInventory.length) return;
+    }
     const parsed = readLocalStorage<any[]>('edro_selected_inventory', []);
+    if (workflowContext.jobId && activeFormatId) return;
     if (Array.isArray(parsed) && parsed.length) {
       setInventory(
         parsed.map((item: any) => ({
@@ -642,7 +746,42 @@ export default function EditorClient() {
       );
       if (parsed[0]?.id) setActiveFormatId(parsed[0].id);
     }
-  }, []);
+  }, [activeFormatId, creativeContext, workflowContext.jobId]);
+
+  const editorSessionMetadata = useMemo(() => ({
+    activeFormatId,
+    pipeline,
+    taskType,
+    forceProvider,
+    tone,
+    selectedOption,
+    criarTab,
+    selectedArteIndex,
+  }), [activeFormatId, criarTab, forceProvider, pipeline, selectedArteIndex, selectedOption, taskType, tone]);
+
+  useEffect(() => {
+    if (!workflowContext.jobId || !sessionId) return;
+    const nextKey = JSON.stringify(editorSessionMetadata);
+    if (persistedEditorMetadataRef.current === nextKey) return;
+
+    if (editorMetadataTimerRef.current) clearTimeout(editorMetadataTimerRef.current);
+    editorMetadataTimerRef.current = setTimeout(() => {
+      updateStudioCreativeMetadata(sessionId, {
+        job_id: workflowContext.jobId,
+        metadata: { editor: editorSessionMetadata },
+        reason: 'editor_state_updated',
+      })
+        .then((context) => {
+          persistedEditorMetadataRef.current = nextKey;
+          applyCreativeContext(context);
+        })
+        .catch(() => {});
+    }, 800);
+
+    return () => {
+      if (editorMetadataTimerRef.current) clearTimeout(editorMetadataTimerRef.current);
+    };
+  }, [applyCreativeContext, editorSessionMetadata, sessionId, workflowContext.jobId]);
 
   useEffect(() => {
     let isActive = true;
@@ -1217,6 +1356,81 @@ export default function EditorClient() {
     return window.localStorage.getItem('edro_copy_version_id') || '';
   };
 
+  const syncApprovedCopyToCreativeSession = useCallback(async (option: ParsedOption | null, sourceCopyId?: string | null) => {
+    if (!workflowContext.jobId || !option) return null;
+    const context = sessionId
+      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
+      : await openStudioCreativeSession(workflowContext.jobId, {
+          briefing_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null,
+        }).catch(() => null);
+    if (!context?.session?.id) return null;
+
+    const next = await addStudioCreativeVersion(context.session.id, {
+      job_id: workflowContext.jobId,
+      version_type: 'copy',
+      source: 'studio',
+      payload: {
+        output: optionToText(option),
+        title: option.title || '',
+        body: option.body || '',
+        cta: option.cta || '',
+        legenda: option.legenda || '',
+        hashtags: option.hashtags || '',
+        source_copy_version_id: sourceCopyId || null,
+        briefing_id: briefing?.id || null,
+        platform: activeFormat?.platform || null,
+        format: activeFormat?.format || null,
+      },
+      select: true,
+    }).catch(() => null);
+
+    if (next) {
+      applyCreativeContext(next);
+      await updateStudioCreativeStage(next.session.id, {
+        current_stage: 'arte',
+        reason: 'copy_aprovada_no_editor',
+      }).then(applyCreativeContext).catch(() => null);
+    }
+
+    return next;
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, briefing?.id, creativeContext, sessionId, workflowContext.jobId]);
+
+  const syncApprovedAssetToCreativeSession = useCallback(async (imageUrl: string | null) => {
+    if (!workflowContext.jobId || !imageUrl) return null;
+    const context = sessionId
+      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
+      : await openStudioCreativeSession(workflowContext.jobId, {
+          briefing_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null,
+        }).catch(() => null);
+    if (!context?.session?.id) return null;
+
+    const next = await addStudioCreativeAsset(context.session.id, {
+      job_id: workflowContext.jobId,
+      asset_type: isVideoFormat(activeFormat?.format) ? 'video' : isCarouselFormat(activeFormat?.format) ? 'carousel' : 'image',
+      source: 'studio',
+      file_url: imageUrl,
+      thumb_url: imageUrl,
+      metadata: {
+        briefing_id: briefing?.id || null,
+        prompt: arteGeneratedPrompt || artePrompt || null,
+        platform: activeFormat?.platform || null,
+        format: activeFormat?.format || null,
+        source_copy_version_id: resolveActiveCopyId() || null,
+      },
+      select: true,
+    }).catch(() => null);
+
+    if (next) {
+      applyCreativeContext(next);
+      await updateStudioCreativeStage(next.session.id, {
+        current_stage: 'revisao',
+        reason: 'arte_aprovada_no_editor',
+      }).then(applyCreativeContext).catch(() => null);
+    }
+
+    return next;
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, arteGeneratedPrompt, artePrompt, briefing?.id, creativeContext, sessionId, workflowContext.jobId]);
+
   // Fase 1: busca as referências visuais e monta o prompt sem gerar a imagem
   const handleGenerateArte = async () => {
     const copyVersionId = resolveActiveCopyId();
@@ -1410,9 +1624,9 @@ export default function EditorClient() {
     } catch { /* best-effort — feedback nunca bloqueia */ }
   };
 
-  const handleApproveCreative = () => {
+  const handleApproveCreative = async () => {
     sendCreativeFeedback('approved');
-    // mantém a imagem na tela — usuário continua trabalhando
+    await syncApprovedAssetToCreativeSession(arteImageUrl);
   };
 
   const handleDiscardCreative = async (tags: string[], reason?: string) => {
@@ -1448,6 +1662,7 @@ export default function EditorClient() {
         approved_text: optionToText(resolvedOption),
         feedback: 'Aprovada no Creative Studio',
       });
+      await syncApprovedCopyToCreativeSession(resolvedOption, copyId);
       setSuccess('Opção aprovada e aprendizado salvo no perfil do cliente.');
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar aprovação.');
@@ -1577,7 +1792,7 @@ export default function EditorClient() {
             <Button
               size="small"
               component={Link}
-              href={`/studio/pipeline/${briefing.id}`}
+              href={buildStudioHref(`/studio/pipeline/${briefing.id}`, searchParams)}
               variant="outlined"
               sx={{
                 mr: 1.5, textTransform: 'none', fontSize: '0.72rem', fontWeight: 600,
@@ -2850,7 +3065,7 @@ export default function EditorClient() {
               <Button
                 variant="contained"
                 component={arteImageUrl ? Link : 'button'}
-                href={arteImageUrl ? '/studio/export' : undefined}
+                href={arteImageUrl ? buildStudioHref('/studio/export', searchParams) : undefined}
                 disabled={!arteImageUrl}
                 sx={!arteImageUrl ? { opacity: 0.45 } : {}}
               >

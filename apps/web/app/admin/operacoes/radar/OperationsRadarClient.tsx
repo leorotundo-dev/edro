@@ -80,12 +80,13 @@ export default function OperationsRadarClient() {
   const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
 
   useEffect(() => {
-    if (!selectedJob) {
-      setSelectedJob(critical[0] || high[0] || null);
+    if (!selectedJob) return;
+    const fresh = jobs.find((job) => job.id === selectedJob.id);
+    if (fresh) {
+      setSelectedJob(fresh);
       return;
     }
-    const fresh = jobs.find((job) => job.id === selectedJob.id);
-    if (fresh) setSelectedJob(fresh);
+    setSelectedJob(null);
   }, [critical, high, jobs, selectedJob]);
 
   return (

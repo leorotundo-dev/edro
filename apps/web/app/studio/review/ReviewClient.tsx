@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -22,6 +22,17 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import { IconShieldCheck, IconShieldExclamation, IconShieldX, IconSparkles, IconAlertTriangle, IconCircleCheckFilled, IconEye } from '@tabler/icons-react';
+import {
+  buildStudioHref,
+  loadStudioCreativeSession,
+  openStudioCreativeSession,
+  resolveStudioWorkflowContext,
+  resolveStudioCreativeReview,
+  sendStudioCreativeReview,
+  syncLegacyStudioStorageFromCreativeContext,
+  type CreativeSessionContextDto,
+  updateStudioCreativeMetadata,
+} from '../studioWorkflow';
 
 type CopyVersion = {
   id: string;
@@ -105,6 +116,10 @@ const resolveProviderLabel = (copy: CopyVersion) => {
 
 export default function ReviewClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
+  const [sessionId, setSessionId] = useState(workflowContext.sessionId);
+  const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [briefing, setBriefing] = useState<BriefingPayload | null>(null);
   const [copies, setCopies] = useState<CopyVersion[]>([]);
   const [mockups, setMockups] = useState<MockupItem[]>([]);
@@ -117,19 +132,44 @@ export default function ReviewClient() {
   const [detailMockup, setDetailMockup] = useState<MockupItem | null>(null);
   const [editCopy, setEditCopy] = useState('');
   const [savingCopy, setSavingCopy] = useState(false);
+  const hydratedReviewMetadataRef = useRef('');
+  const persistedReviewMetadataRef = useRef('');
+  const reviewMetadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const briefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+  useEffect(() => {
+    if (workflowContext.sessionId) setSessionId(workflowContext.sessionId);
+  }, [workflowContext.sessionId]);
 
   const loadData = useCallback(async () => {
-    if (!briefingId) {
+    setLoading(true);
+    setError('');
+    let resolvedBriefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+    if (workflowContext.jobId) {
+      const context = sessionId
+        ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+        : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: resolvedBriefingId }).catch(() => null);
+      if (context) {
+        setCreativeContext(context);
+        if (context.session?.id) setSessionId(context.session.id);
+        syncLegacyStudioStorageFromCreativeContext(context);
+        resolvedBriefingId = context.session?.briefing_id || resolvedBriefingId;
+        const reviewMeta = context.session?.metadata?.review as Record<string, any> | undefined;
+        const reviewMetaKey = JSON.stringify(reviewMeta || {});
+        if (reviewMeta && hydratedReviewMetadataRef.current !== reviewMetaKey) {
+          if (typeof reviewMeta.selectedCopyId === 'string') setSelectedCopyId(reviewMeta.selectedCopyId);
+          if (Array.isArray(reviewMeta.selectedMockups)) setSelectedMockups(reviewMeta.selectedMockups);
+          hydratedReviewMetadataRef.current = reviewMetaKey;
+          persistedReviewMetadataRef.current = reviewMetaKey;
+        }
+      }
+    }
+    if (!resolvedBriefingId) {
       setError('Nenhum briefing ativo encontrado. Volte ao passo 1.');
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError('');
     try {
-      const response = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${briefingId}`);
+      const response = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${resolvedBriefingId}`);
       const data = response?.data;
       setBriefing(data?.briefing || null);
       setCopies(data?.copies || []);
@@ -141,23 +181,62 @@ export default function ReviewClient() {
     }
 
     try {
-      const response = await apiGet<MockupItem[]>(`/mockups?briefing_id=${briefingId}`);
+      const response = await apiGet<MockupItem[]>(`/mockups?briefing_id=${resolvedBriefingId}`);
       setMockups(response || []);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar mockups.');
     } finally {
       setLoading(false);
     }
-  }, [briefingId]);
+  }, [sessionId, workflowContext.jobId]);
 
   useEffect(() => {
+    const briefingId =
+      creativeContext?.session?.briefing_id ||
+      (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
     if (!briefingId) return;
     apiPatch(`/edro/briefings/${briefingId}/stages/revisao`, { status: 'in_progress' }).catch(() => null);
-  }, [briefingId]);
+  }, [creativeContext?.session?.briefing_id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (creativeContext?.selected_copy_version?.id && copies.some((copy) => copy.id === creativeContext.selected_copy_version?.id)) {
+      setSelectedCopyId(creativeContext.selected_copy_version.id);
+    }
+  }, [copies, creativeContext?.selected_copy_version?.id]);
+
+  const reviewSessionMetadata = useMemo(() => ({
+    selectedCopyId,
+    selectedMockups,
+  }), [selectedCopyId, selectedMockups]);
+
+  useEffect(() => {
+    if (!workflowContext.jobId || !sessionId) return;
+    const nextKey = JSON.stringify(reviewSessionMetadata);
+    if (persistedReviewMetadataRef.current === nextKey) return;
+
+    if (reviewMetadataTimerRef.current) clearTimeout(reviewMetadataTimerRef.current);
+    reviewMetadataTimerRef.current = setTimeout(() => {
+      updateStudioCreativeMetadata(sessionId, {
+        job_id: workflowContext.jobId,
+        metadata: { review: reviewSessionMetadata },
+        reason: 'review_state_updated',
+      })
+        .then((context) => {
+          setCreativeContext(context);
+          if (context?.session?.id) setSessionId(context.session.id);
+          persistedReviewMetadataRef.current = nextKey;
+        })
+        .catch(() => {});
+    }, 800);
+
+    return () => {
+      if (reviewMetadataTimerRef.current) clearTimeout(reviewMetadataTimerRef.current);
+    };
+  }, [reviewSessionMetadata, sessionId, workflowContext.jobId]);
 
   // Auto-load AI review summary once copies/mockups are loaded
   useEffect(() => {
@@ -204,6 +283,11 @@ export default function ReviewClient() {
       await Promise.all(
         selectedMockups.map((id) => apiPatch(`/mockups/${id}`, { status: 'changes_requested' }))
       );
+      await syncInternalReview('changes_requested', {
+        source: 'review_client',
+        mockup_ids: selectedMockups,
+        note: 'Revisões solicitadas na etapa de revisão.',
+      });
       setSuccess('Revisões solicitadas.');
       await loadData();
       setSelectedMockups([]);
@@ -213,10 +297,19 @@ export default function ReviewClient() {
   };
 
   const markDone = async () => {
+    const briefingId =
+      creativeContext?.session?.briefing_id ||
+      (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
     if (!briefingId) return;
     try {
+      await syncInternalReview('approved', {
+        source: 'review_client',
+        approved_mockup_ids: selectedMockups,
+        selected_copy_id: selectedCopyId || null,
+        note: 'Revisão interna concluída no Creative Studio.',
+      });
       await apiPatch(`/edro/briefings/${briefingId}/stages/revisao`, { status: 'done' });
-      router.push('/studio/export');
+      router.push(buildStudioHref('/studio/export', searchParams));
     } catch (err: any) {
       setError(err?.message || 'Falha ao avançar etapa.');
     }
@@ -246,6 +339,48 @@ export default function ReviewClient() {
   };
 
   const selectedCopy = useMemo(() => copies.find((copy) => copy.id === selectedCopyId) || null, [copies, selectedCopyId]);
+
+  const syncInternalReview = useCallback(async (status: 'approved' | 'changes_requested', feedback: Record<string, any>) => {
+    if (!workflowContext.jobId) return null;
+    const resolvedBriefingId =
+      creativeContext?.session?.briefing_id ||
+      (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
+    const context = creativeContext
+      || (sessionId
+        ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+        : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: resolvedBriefingId }).catch(() => null));
+    if (!context?.session?.id) return null;
+
+    let reviewId = context.reviews?.find((item) => item.review_type === 'internal' && item.status === 'pending')?.id || '';
+    let nextContext = context;
+
+    if (!reviewId) {
+      const created = await sendStudioCreativeReview(context.session.id, {
+        job_id: workflowContext.jobId,
+        review_type: 'internal',
+        payload: feedback,
+      }).catch(() => null);
+      if (!created) return null;
+      nextContext = created;
+      setCreativeContext(created);
+      setSessionId(created.session.id);
+      reviewId = created.reviews?.find((item) => item.review_type === 'internal' && item.status === 'pending')?.id || '';
+    }
+
+    if (!reviewId) return nextContext;
+    const resolved = await resolveStudioCreativeReview(nextContext.session.id, {
+      job_id: workflowContext.jobId,
+      review_id: reviewId,
+      status,
+      feedback,
+    }).catch(() => null);
+
+    if (resolved) {
+      setCreativeContext(resolved);
+      setSessionId(resolved.session.id);
+    }
+    return resolved || nextContext;
+  }, [creativeContext, sessionId, workflowContext.jobId]);
 
   if (loading) {
     return (
@@ -404,9 +539,6 @@ export default function ReviewClient() {
                     value={selectedCopyId}
                     onChange={(event) => {
                       setSelectedCopyId(event.target.value);
-                      if (typeof window !== 'undefined') {
-                        window.localStorage.setItem('edro_copy_version_id', event.target.value);
-                      }
                     }}
                   >
                     {copies.map((copy) => (

@@ -15,13 +15,11 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
-import Switch from '@mui/material/Switch';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -64,6 +62,12 @@ type RecentMeeting = {
   recorded_at: string;
   status: string;
   summary: string | null;
+  analysis_payload?: {
+    intelligence?: {
+      attention_level?: string;
+      meeting_kind?: string;
+    } | null;
+  } | null;
   total_actions: number;
   pending_actions: number;
 };
@@ -110,6 +114,11 @@ type Contact = {
 };
 
 type InviteContact = Contact & { send_via: 'whatsapp' | 'email' | 'both' };
+type CalendarStatus = {
+  configured: boolean;
+  email?: string;
+  watchStatus?: string;
+};
 
 type Platform = 'meet' | 'zoom' | 'teams' | 'other';
 type RecentMeetingFilter = 'all' | 'active' | 'approval' | 'failed' | 'done';
@@ -257,6 +266,72 @@ function jobStatusColor(status: string): 'default' | 'info' | 'warning' | 'succe
   if (status === 'pending' || status === 'scheduled' || status === 'running') return 'warning';
   if (status === 'failed') return 'error';
   return 'default';
+}
+
+function attentionColor(level?: string | null): 'default' | 'info' | 'warning' | 'success' | 'error' {
+  if (level === 'critical') return 'error';
+  if (level === 'high') return 'warning';
+  if (level === 'medium') return 'info';
+  if (level === 'low') return 'success';
+  return 'default';
+}
+
+function describeCreateMeetingError(err: any) {
+  const code = err?.code ?? err?.payload?.error_code ?? null;
+  const message = err?.message ?? err?.payload?.error ?? 'Erro ao criar reunião';
+
+  if (code === 'invalid_meeting_payload') {
+    const fieldErrors = err?.details?.fieldErrors as Record<string, string[] | undefined> | undefined;
+    const flattened = fieldErrors
+      ? Object.values(fieldErrors).flat().filter(Boolean)
+      : [];
+    return flattened.length ? flattened.join(' ') : message;
+  }
+
+  if (code === 'invalid_scheduled_at') return 'A data e hora da reunião estão inválidas. Revise o horário e tente novamente.';
+  if (code === 'invalid_meeting_client' || code === 'client_not_found') return 'O cliente selecionado não existe mais. Atualize a página e selecione o cliente novamente.';
+  if (code === 'google_calendar_not_configured') return 'Google Calendar não está conectado para este tenant. Conecte a integração ou use Video com link manual.';
+  if (code === 'google_meet_create_failed') return message;
+
+  return message;
+}
+
+function meetingKindLabel(kind?: string | null) {
+  const map: Record<string, string> = {
+    client_status: 'Status de cliente',
+    client_briefing: 'Briefing de cliente',
+    client_review: 'Revisão de cliente',
+    internal_ops: 'Operação interna',
+    commercial: 'Comercial',
+    alignment: 'Alinhamento',
+    other: 'Outro',
+  };
+  return map[kind || ''] ?? 'Leitura operacional';
+}
+
+function temperatureLabel(value?: string | null) {
+  const map: Record<string, string> = {
+    engaged: 'Engajado',
+    neutral: 'Neutro',
+    pressured: 'Pressionado',
+    at_risk: 'Em risco',
+    blocked: 'Travado',
+    internal: 'Interno',
+  };
+  return map[value || ''] ?? 'Sem leitura';
+}
+
+function operationLaneLabel(value?: string | null) {
+  const map: Record<string, string> = {
+    atendimento: 'Atendimento',
+    operacao: 'Operação',
+    criacao: 'Criação',
+    midia: 'Mídia',
+    estrategia: 'Estratégia',
+    cliente: 'Cliente',
+    comercial: 'Comercial',
+  };
+  return map[value || ''] ?? value ?? '';
 }
 
 function matchesRecentMeetingFilter(meeting: RecentMeeting, filter: RecentMeetingFilter) {
@@ -450,6 +525,47 @@ type MeetingDetail = {
   transcript: string | null;
   status: string;
   meeting_url: string | null;
+  analysis_payload?: {
+    intelligence?: {
+      meeting_kind?: string;
+      attention_level?: string;
+      client_temperature?: string;
+      account_pulse?: string;
+      recommended_next_step?: string;
+      owner_hint?: string | null;
+      deadlines_cited?: string[];
+      decisions_taken?: string[];
+      blockers?: string[];
+      risks?: string[];
+      opportunities?: string[];
+      approvals_needed?: string[];
+      follow_up_questions?: string[];
+      suggested_tags?: string[];
+    } | null;
+    action_hints?: Array<{
+      title?: string;
+      type?: string;
+      priority?: string;
+      operation_lane?: string | null;
+      required_skill?: string | null;
+      owner_hint?: string | null;
+      should_create_job?: boolean | null;
+      needs_approval?: boolean | null;
+      urgency_reason?: string | null;
+    }> | null;
+  } | null;
+  prep_payload?: {
+    meeting_goal?: string;
+    opening_question?: string;
+    suggested_agenda?: string[];
+    agency_defense_points?: string[];
+    likely_client_pushbacks?: string[];
+    materials_to_prepare?: string[];
+    internal_alignment_notes?: string[];
+    red_flags?: string[];
+    success_criteria?: string[];
+    recommended_positioning?: string;
+  } | null;
   actions: Array<{
     id: string;
     type: string;
@@ -459,6 +575,14 @@ type MeetingDetail = {
     status: string;
     responsible: string | null;
     deadline: string | null;
+    metadata?: {
+      operation_lane?: string | null;
+      required_skill?: string | null;
+      owner_hint?: string | null;
+      should_create_job?: boolean | null;
+      needs_approval?: boolean | null;
+      urgency_reason?: string | null;
+    } | null;
   }> | null;
 };
 
@@ -613,6 +737,7 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
 
   const operational = ops ?? audit?.meeting ?? null;
   const actions = detail?.actions ?? [];
+  const intelligence = detail?.analysis_payload?.intelligence ?? null;
 
   const handleOperation = async (operation: OperationKey) => {
     const operationMap: Record<OperationKey, { path: string; success: string }> = {
@@ -830,6 +955,125 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
         </Box>
       )}
 
+      {intelligence && (
+        <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.2 }}>
+            <Chip label={meetingKindLabel(intelligence.meeting_kind)} size="small" variant="outlined" />
+            <Chip label={`Atenção ${intelligence.attention_level ?? 'média'}`} size="small" color={attentionColor(intelligence.attention_level)} />
+            <Chip label={temperatureLabel(intelligence.client_temperature)} size="small" variant="outlined" />
+            {intelligence.owner_hint && (
+              <Chip label={`Puxar com ${intelligence.owner_hint}`} size="small" variant="outlined" />
+            )}
+          </Stack>
+
+          <Grid container spacing={1.25}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <OpsInfoCard
+                label="Pulso da conta"
+                value={intelligence.account_pulse || 'Sem pulso consolidado'}
+                helper={intelligence.suggested_tags?.length ? `Tags: ${intelligence.suggested_tags.join(' · ')}` : undefined}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <OpsInfoCard
+                label="Próximo movimento"
+                value={intelligence.recommended_next_step || 'Sem próximo passo sugerido'}
+                helper={intelligence.deadlines_cited?.length ? `Prazos citados: ${intelligence.deadlines_cited.join(' · ')}` : undefined}
+              />
+            </Grid>
+          </Grid>
+
+          <Grid container spacing={1.25} sx={{ mt: 0.5 }}>
+            {[
+              { label: 'Decisões', values: intelligence.decisions_taken },
+              { label: 'Bloqueios', values: intelligence.blockers },
+              { label: 'Riscos', values: intelligence.risks },
+              { label: 'Oportunidades', values: intelligence.opportunities },
+              { label: 'Aprovações', values: intelligence.approvals_needed },
+              { label: 'Perguntas em aberto', values: intelligence.follow_up_questions },
+            ].map((section) => (
+              <Grid key={section.label} size={{ xs: 12, md: 6 }}>
+                <Box sx={{ p: 1.25, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: '#fcfcfd', minHeight: '100%' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.7, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    {section.label}
+                  </Typography>
+                  {section.values?.length ? (
+                    <Stack spacing={0.5}>
+                      {section.values.map((entry, idx) => (
+                        <Typography key={`${section.label}-${idx}`} variant="body2" sx={{ fontSize: '0.78rem', lineHeight: 1.55 }}>
+                          • {entry}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                      Nenhum item relevante nessa faixa.
+                    </Typography>
+                  )}
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
+      {detail?.prep_payload && (
+        <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: '#fffaf4' }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            Briefing pré-reunião da equipe
+          </Typography>
+
+          <Grid container spacing={1.25}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <OpsInfoCard
+                label="Objetivo"
+                value={detail.prep_payload.meeting_goal || 'Sem objetivo sugerido'}
+                helper={detail.prep_payload.opening_question ? `Pergunta de abertura: ${detail.prep_payload.opening_question}` : undefined}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <OpsInfoCard
+                label="Postura recomendada"
+                value={detail.prep_payload.recommended_positioning || 'Sem postura sugerida'}
+              />
+            </Grid>
+          </Grid>
+
+          <Grid container spacing={1.25} sx={{ mt: 0.5 }}>
+            {[
+              { label: 'Pauta sugerida', values: detail.prep_payload.suggested_agenda },
+              { label: 'Defesa da agência', values: detail.prep_payload.agency_defense_points },
+              { label: 'Objeções prováveis', values: detail.prep_payload.likely_client_pushbacks },
+              { label: 'Materiais para levar', values: detail.prep_payload.materials_to_prepare },
+              { label: 'Alinhamento interno', values: detail.prep_payload.internal_alignment_notes },
+              { label: 'Red flags', values: detail.prep_payload.red_flags },
+              { label: 'Critérios de sucesso', values: detail.prep_payload.success_criteria },
+            ].map((section) => (
+              <Grid key={section.label} size={{ xs: 12, md: 6 }}>
+                <Box sx={{ p: 1.25, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', minHeight: '100%' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.7, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    {section.label}
+                  </Typography>
+                  {section.values?.length ? (
+                    <Stack spacing={0.5}>
+                      {section.values.map((entry, idx) => (
+                        <Typography key={`${section.label}-${idx}`} variant="body2" sx={{ fontSize: '0.78rem', lineHeight: 1.55 }}>
+                          • {entry}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                      Nenhum item sugerido.
+                    </Typography>
+                  )}
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
       {/* Actions extracted */}
       {actions.length > 0 && (
         <Box sx={{ mb: 2 }}>
@@ -845,6 +1089,12 @@ function MeetingDetailPanel({ meetingId }: { meetingId: string }) {
                 </Typography>
                 <Chip label={typeLabel(a.type)} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
                 <Chip label={a.priority} size="small" color={priorityColor(a.priority)} sx={{ fontSize: '0.6rem', height: 18 }} />
+                {a.metadata?.operation_lane && (
+                  <Chip label={operationLaneLabel(a.metadata.operation_lane)} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
+                )}
+                {a.metadata?.required_skill && (
+                  <Chip label={a.metadata.required_skill} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
+                )}
                 {a.status === 'approved' && <IconCheck size={14} style={{ color: '#4caf50' }} />}
                 {a.status === 'rejected' && <IconX size={14} style={{ color: '#f44336' }} />}
                 {a.status === 'pending' && <IconClock size={14} style={{ color: '#ff9800' }} />}
@@ -1016,16 +1266,17 @@ export default function MeetingsDashboardClient() {
   const [totalPending, setTotalPending] = useState(0);
   const [proposals, setProposals] = useState<MeetingProposal[]>([]);
   const [error, setError] = useState('');
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
+  const [connectingCalendar, setConnectingCalendar] = useState(false);
 
   // ── New meeting form state ─────────────────────────────────────────
-  const [platform, setPlatform] = useState<Platform>('meet');
+  const [platform, setPlatform] = useState<Platform>('other');
   const [title, setTitle] = useState('');
   const [scheduledAt, setScheduledAt] = useState(toLocalISO(new Date(Date.now() + 3600_000)));
   const [duration, setDuration] = useState(60);
   const [description, setDescription] = useState('');
   const [clientId, setClientId] = useState<string | null>(null);
   const [meetingUrl, setMeetingUrl] = useState('');
-  const [scheduleBot, setScheduleBot] = useState(true);
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [teamMembers, setTeamMembers] = useState<Contact[]>([]);
@@ -1043,10 +1294,12 @@ export default function MeetingsDashboardClient() {
     setLoading(true);
     setError('');
     try {
-      const [dashRes, propRes] = await Promise.all([
+      const [calendarRes, dashRes, propRes] = await Promise.all([
+        apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
         apiGet<{ stats: Stats; recent: RecentMeeting[]; total_pending: number; by_client: ClientBreakdown[] }>('/meetings/dashboard'),
         apiGet<{ data: MeetingProposal[]; total_pending: number }>('/meetings/proposals'),
       ]);
+      setCalendarStatus(calendarRes ?? { configured: false });
       setStats(dashRes.stats);
       setRecent(dashRes.recent);
       setByClient(dashRes.by_client);
@@ -1060,6 +1313,12 @@ export default function MeetingsDashboardClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (calendarStatus && !calendarStatus.configured && platform === 'meet') {
+      setPlatform('other');
+    }
+  }, [calendarStatus, platform]);
 
   useEffect(() => {
     if (!requestedMeetingId || !recent.length) return;
@@ -1116,10 +1375,30 @@ export default function MeetingsDashboardClient() {
   const availableContacts = [...allContacts, ...teamMembers].filter(
     c => !selectedInvites.find(s => s.id === c.id),
   );
+  const calendarConnected = Boolean(calendarStatus?.configured);
+
+  const handleCalendarConnect = useCallback(async () => {
+    setConnectingCalendar(true);
+    setCreateError('');
+    try {
+      const response = await apiGet<{ url: string }>('/auth/google/calendar/start?mode=json');
+      if (!response?.url) {
+        throw new Error('URL de autenticacao do Google Calendar indisponivel.');
+      }
+      window.location.assign(response.url);
+    } catch (e: any) {
+      setCreateError(e?.message ?? 'Falha ao iniciar autenticacao do Google Calendar.');
+      setConnectingCalendar(false);
+    }
+  }, []);
 
   // ── Create meeting ─────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!title.trim()) { setCreateError('Titulo obrigatorio'); return; }
+    if (platform === 'meet' && !calendarConnected) {
+      setCreateError('Google Calendar nao esta conectado. Conecte o Calendar ou use Video e cole um link Meet/Zoom/Teams manualmente.');
+      return;
+    }
     if ((platform === 'zoom' || platform === 'teams' || platform === 'other') && !meetingUrl.trim()) {
       setCreateError('Insira o link da reuniao para esta plataforma');
       return;
@@ -1142,9 +1421,11 @@ export default function MeetingsDashboardClient() {
           name: c.name,
           email: c.email,
           phone: c.phone,
+          role: c.role,
+          source: c.source,
           send_via: c.send_via,
         })),
-        schedule_bot: scheduleBot,
+        schedule_bot: true,
       });
       setCreateResult(res);
       // Reset form
@@ -1156,7 +1437,7 @@ export default function MeetingsDashboardClient() {
       // Refresh dashboard
       load();
     } catch (err: any) {
-      setCreateError(err?.message ?? 'Erro ao criar reuniao');
+      setCreateError(describeCreateMeetingError(err));
     } finally {
       setCreating(false);
     }
@@ -1241,6 +1522,7 @@ export default function MeetingsDashboardClient() {
                 <ToggleButton
                   key={p}
                   value={p}
+                  disabled={p === 'meet' && !calendarConnected}
                   sx={{
                     flex: 1,
                     border: '1.5px solid',
@@ -1261,13 +1543,35 @@ export default function MeetingsDashboardClient() {
                     <Typography variant="caption" fontWeight={600}>{platformLabel(p)}</Typography>
                     {p === 'meet' && (
                       <Typography variant="caption" sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>
-                        Link automatico
+                        {calendarConnected ? 'Link automatico' : 'Conecte o Calendar'}
                       </Typography>
                     )}
                   </Stack>
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
+            {!calendarConnected ? (
+              <Alert
+                severity="warning"
+                sx={{ mt: 1.5 }}
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => void handleCalendarConnect()}
+                    disabled={connectingCalendar}
+                  >
+                    {connectingCalendar ? 'Conectando...' : 'Conectar Calendar'}
+                  </Button>
+                }
+              >
+                Google Calendar nao esta conectado. Para criar Google Meet automaticamente, conecte o Calendar. Sem isso, o bot ainda funciona em Meet, Zoom e Teams usando a opcao Video com link manual.
+              </Alert>
+            ) : calendarStatus?.email ? (
+              <Alert severity="info" sx={{ mt: 1.5 }}>
+                Google Calendar conectado como {calendarStatus.email}.
+              </Alert>
+            ) : null}
           </Box>
 
           {/* Meeting URL for non-Meet platforms */}
@@ -1279,7 +1583,11 @@ export default function MeetingsDashboardClient() {
               onChange={e => setMeetingUrl(e.target.value)}
               size="small"
               fullWidth
-              helperText="Cole o link da reuniao criada na plataforma"
+              helperText={
+                platform === 'other'
+                  ? 'Cole um link do Google Meet, Zoom, Teams ou outra plataforma.'
+                  : 'Cole o link da reuniao criada na plataforma.'
+              }
               sx={{ mb: 2 }}
             />
           )}
@@ -1332,20 +1640,24 @@ export default function MeetingsDashboardClient() {
                 slotProps={{ htmlInput: { min: 15, max: 480, step: 15 } }}
               />
             </Grid>
-            <Grid size={{ xs: 3, sm: 1 }}>
-              <Stack justifyContent="center" sx={{ height: '100%' }}>
-                <FormControlLabel
-                  control={<Switch checked={scheduleBot} onChange={e => setScheduleBot(e.target.checked)} size="small" color="warning" />}
-                  label={
-                    <Stack direction="row" alignItems="center" spacing={0.5}>
-                      <IconRobot size={14} />
-                      <Typography variant="caption" fontWeight={600}>Bot</Typography>
-                    </Stack>
-                  }
-                />
+            <Grid size={{ xs: 12, sm: 1 }}>
+              <Stack justifyContent="center" sx={{ height: '100%', minHeight: 40 }}>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <IconRobot size={14} color={EDRO_ORANGE} />
+                  <Typography variant="caption" fontWeight={700} color="warning.main">
+                    Bot sempre ativo
+                  </Typography>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>
+                  Entra sozinho no horário agendado.
+                </Typography>
               </Stack>
             </Grid>
           </Grid>
+
+          <Alert severity="info" sx={{ mb: 2 }}>
+            O bot é sempre agendado para entrar sozinho. Sua presença não é necessária para a tentativa de entrada. Se a plataforma exigir admissão manual ou se a sala não estiver aberta, ele pode ficar em espera ou falhar.
+          </Alert>
 
           <TextField
             label="Descricao (opcional)"
@@ -1559,6 +1871,25 @@ export default function MeetingsDashboardClient() {
                                     <Typography variant="body2" noWrap sx={{ fontSize: '0.78rem' }}>
                                       {m.title || 'Sem titulo'}
                                     </Typography>
+                                    {m.analysis_payload?.intelligence && (
+                                      <Stack direction="row" spacing={0.5} sx={{ mt: 0.35 }} flexWrap="wrap" useFlexGap>
+                                        <Chip
+                                          label={meetingKindLabel(m.analysis_payload.intelligence.meeting_kind)}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ fontSize: '0.58rem', height: 18 }}
+                                        />
+                                        {m.analysis_payload.intelligence.attention_level && (
+                                          <Chip
+                                            label={`Atenção ${m.analysis_payload.intelligence.attention_level}`}
+                                            size="small"
+                                            color={attentionColor(m.analysis_payload.intelligence.attention_level)}
+                                            variant="outlined"
+                                            sx={{ fontSize: '0.58rem', height: 18 }}
+                                          />
+                                        )}
+                                      </Stack>
+                                    )}
                                   </TableCell>
                                   <TableCell sx={{ fontSize: '0.75rem' }}>
                                     <Stack direction="row" alignItems="center" spacing={0.5}>

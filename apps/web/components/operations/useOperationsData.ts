@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import type { OperationsClientLookup, OperationsJob, OperationsLookup, OperationsOwner } from './model';
 
 type LookupResponse = {
@@ -141,6 +141,12 @@ export function useOperationsData(query = '?active=true') {
     throw new Error('Job não encontrado.');
   }, []);
 
+  const deleteJob = useCallback(async (jobId: string) => {
+    await apiDelete(`/jobs/${jobId}`);
+    setJobs((current) => current.filter((item) => item.id !== jobId));
+    return true;
+  }, []);
+
   const jobsById = useMemo(
     () => jobs.reduce<Record<string, OperationsJob>>((acc, item) => {
       acc[item.id] = item;
@@ -163,6 +169,7 @@ export function useOperationsData(query = '?active=true') {
     updateJob,
     changeStatus,
     fetchJob,
+    deleteJob,
     setJobs,
   };
 }

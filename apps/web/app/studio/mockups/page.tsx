@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, apiPost } from '@/lib/api';
 import { renderHeadlineAccented } from '@/lib/renderHeadlineAccented';
 import { InstagramFeedMockup } from '@/components/mockups/instagram/InstagramFeedMockup';
@@ -46,6 +47,13 @@ import {
   IconWand,
   IconCheck,
 } from '@tabler/icons-react';
+import {
+  buildStudioHref,
+  loadStudioCreativeSession,
+  openStudioCreativeSession,
+  resolveStudioWorkflowContext,
+  syncLegacyStudioStorageFromCreativeContext,
+} from '../studioWorkflow';
 
 type InventoryItem = {
   id?: string;
@@ -629,6 +637,8 @@ const rebuildInventoryFromList = () => {
 type PageProps = { embedded?: boolean };
 
 export default function Page({ embedded }: PageProps = {}) {
+  const searchParams = useSearchParams();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
   const [mockups, setMockups] = useState<MockupItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [focusedMockupId, setFocusedMockupId] = useState<string | null>(null);
@@ -685,6 +695,28 @@ export default function Page({ embedded }: PageProps = {}) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map());
   const gridRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCreativeContext = async () => {
+      if (!workflowContext.jobId) return;
+      try {
+        const context = workflowContext.sessionId
+          ? await loadStudioCreativeSession(workflowContext.jobId)
+          : await openStudioCreativeSession(workflowContext.jobId);
+        if (cancelled || !context) return;
+        syncLegacyStudioStorageFromCreativeContext(context);
+      } catch {
+        // keep mockups resilient in legacy mode
+      }
+    };
+
+    loadCreativeContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowContext.jobId, workflowContext.sessionId]);
 
   const buildMeasureRef = useCallback(
     (key: string) => (node: HTMLDivElement | null) => {
@@ -2609,7 +2641,7 @@ export default function Page({ embedded }: PageProps = {}) {
                   Não encontramos formatos selecionados para gerar mockups. Volte ao passo 2 e selecione as peças.
                 </Typography>
                 <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-                  <Button variant="contained" component={Link} href="/studio/platforms">
+                  <Button variant="contained" component={Link} href={buildStudioHref('/studio/platforms', searchParams)}>
                     Voltar ao passo 2
                   </Button>
                   <Button
@@ -2793,7 +2825,7 @@ export default function Page({ embedded }: PageProps = {}) {
           <Button
             variant="text"
             component={Link}
-            href="/studio/editor"
+            href={buildStudioHref('/studio/editor', searchParams)}
             startIcon={<IconArrowLeft size={18} />}
             sx={{ color: 'text.disabled', fontWeight: 700, '&:hover': { color: 'text.primary' } }}
           >
@@ -2810,7 +2842,7 @@ export default function Page({ embedded }: PageProps = {}) {
             <Button
               variant="contained"
               component={Link}
-              href="/studio/export"
+              href={buildStudioHref('/studio/export', searchParams)}
               onClick={updateStageDone}
               endIcon={<IconArrowRight size={18} />}
               sx={{ boxShadow: 2 }}

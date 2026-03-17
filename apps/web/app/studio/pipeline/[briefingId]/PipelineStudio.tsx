@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   ReactFlow, ReactFlowProvider, Background, MiniMap, Controls,
   useNodesState, useEdgesState, useReactFlow, type Node, type Edge,
@@ -54,6 +55,18 @@ import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
 import CanvasToolbar from '@/components/pipeline/CanvasToolbar';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import {
+  addStudioCreativeAsset,
+  addStudioCreativeVersion,
+  loadStudioCreativeSession,
+  openStudioCreativeSession,
+  resolveStudioWorkflowContext,
+  updateStudioCreativeMetadata,
+  type CreativePipelineMetadata,
+  type CreativeStage,
+  type CreativeSessionContextDto,
+  updateStudioCreativeStage,
+} from '../../studioWorkflow';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -249,6 +262,32 @@ function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
       data: { status: 'active', accentColor: '#EC4899' }, style: { strokeDasharray: '8 4' } });
   }
   return edges;
+}
+
+const CREATIVE_STAGE_ORDER: CreativeStage[] = [
+  'briefing',
+  'copy',
+  'arte',
+  'refino_canvas',
+  'revisao',
+  'aprovacao',
+  'exportacao',
+];
+
+function isCreativeStageAtLeast(current: CreativeStage | null | undefined, target: CreativeStage) {
+  if (!current) return false;
+  return CREATIVE_STAGE_ORDER.indexOf(current) >= CREATIVE_STAGE_ORDER.indexOf(target);
+}
+
+function normalizePipelineMetadata(value: CreativePipelineMetadata | null | undefined) {
+  return JSON.stringify({
+    selectedTrigger: value?.selectedTrigger || null,
+    tone: value?.tone || '',
+    amd: value?.amd || '',
+    funnelPhase: value?.funnelPhase || 'awareness',
+    targetPlatforms: Array.isArray(value?.targetPlatforms) ? [...value!.targetPlatforms!] : [],
+    activeFormat: value?.activeFormat || null,
+  });
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -517,6 +556,12 @@ function RightPanel({ briefingId }: { briefingId: string }) {
 
 function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // ── Core state ──────────────────────────────────────────────────────────────
+  const searchParams = useSearchParams();
+  const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
+  const isWorkflowDriven = Boolean(workflowContext.jobId);
+  const [sessionId, setSessionId] = useState(workflowContext.sessionId);
+  const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
+  const [workflowStageOverride, setWorkflowStageOverride] = useState<CreativeStage | null>(null);
   const [interactionMode, setInteractionMode] = useState<'select' | 'hand' | 'draw'>('select');
   const [briefing, setBriefing] = useState<PipelineBriefing | null>(null);
   const [activeFormat, setActiveFormat] = useState<PipelineFormat | null>(null);
@@ -590,24 +635,325 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
 
   // Full client profile — loaded on mount, injected into ingredient nodes
   const [clientProfile, setClientProfile] = useState<Record<string, any>>({});
+  const hydratedWorkflowMetadataRef = useRef('');
+  const persistedWorkflowMetadataRef = useRef('');
+
+  useEffect(() => {
+    if (workflowContext.sessionId) {
+      setSessionId(workflowContext.sessionId);
+    }
+  }, [workflowContext.sessionId]);
+
+  const effectiveCreativeStage = useMemo<CreativeStage | null>(() => {
+    if (!isWorkflowDriven) return null;
+    return workflowStageOverride || creativeContext?.session?.current_stage || null;
+  }, [creativeContext?.session?.current_stage, isWorkflowDriven, workflowStageOverride]);
+
+  const effectiveBriefingConfirmed = isWorkflowDriven
+    ? Boolean(effectiveCreativeStage)
+    : briefingConfirmed;
+  const effectiveTriggerConfirmed = isWorkflowDriven
+    ? isCreativeStageAtLeast(effectiveCreativeStage, 'copy')
+    : triggerConfirmed;
+  const effectiveCopyApproved = isWorkflowDriven
+    ? isCreativeStageAtLeast(effectiveCreativeStage, 'arte')
+    : copyApproved;
+  const effectiveArteApproved = isWorkflowDriven
+    ? isCreativeStageAtLeast(effectiveCreativeStage, 'revisao')
+    : arteApproved;
 
   // Copy is stale when params changed after it was generated
   const copyIsStale = useMemo(() => {
-    if (!copyGeneratedWith || !copyOptions.length) return false;
+    if (!copyGeneratedWith || !copyOptions.length || !effectiveCopyApproved) return false;
     return copyGeneratedWith.trigger !== selectedTrigger ||
            copyGeneratedWith.tone !== tone ||
            copyGeneratedWith.amd !== amd;
-  }, [copyGeneratedWith, selectedTrigger, tone, amd, copyOptions.length]);
+  }, [copyGeneratedWith, selectedTrigger, tone, amd, copyOptions.length, effectiveCopyApproved]);
+
+  const applyCreativeContext = useCallback((context: CreativeSessionContextDto | null) => {
+    if (!context) return;
+    setWorkflowStageOverride(null);
+    setCreativeContext(context);
+    if (context.session?.id) setSessionId(context.session.id);
+    if (context.job?.client_brand_color) setClientBrandColor(context.job.client_brand_color);
+
+    const pipelineMetadata = (context.session?.metadata?.pipeline || null) as CreativePipelineMetadata | null;
+    const pipelineMetadataKey = normalizePipelineMetadata(pipelineMetadata);
+    if (pipelineMetadata && hydratedWorkflowMetadataRef.current !== pipelineMetadataKey) {
+      if (typeof pipelineMetadata.selectedTrigger !== 'undefined') {
+        setSelectedTrigger(pipelineMetadata.selectedTrigger || null);
+      }
+      if (typeof pipelineMetadata.tone === 'string') {
+        setTone(pipelineMetadata.tone);
+      }
+      if (typeof pipelineMetadata.amd === 'string') {
+        setAmd(pipelineMetadata.amd);
+      }
+      if (pipelineMetadata.funnelPhase && ['awareness', 'consideracao', 'conversao'].includes(pipelineMetadata.funnelPhase)) {
+        setFunnelPhase(pipelineMetadata.funnelPhase as FunnelPhase);
+      }
+      if (Array.isArray(pipelineMetadata.targetPlatforms) && pipelineMetadata.targetPlatforms.length) {
+        setTargetPlatforms(pipelineMetadata.targetPlatforms);
+      }
+      if (pipelineMetadata.activeFormat?.platform || pipelineMetadata.activeFormat?.format) {
+        setActiveFormat((prev) => ({
+          id: pipelineMetadata.activeFormat?.id || prev?.id,
+          platform: pipelineMetadata.activeFormat?.platform || prev?.platform,
+          format: pipelineMetadata.activeFormat?.format || prev?.format,
+          production_type: pipelineMetadata.activeFormat?.production_type || prev?.production_type,
+        }));
+      }
+      hydratedWorkflowMetadataRef.current = pipelineMetadataKey;
+      persistedWorkflowMetadataRef.current = pipelineMetadataKey;
+    }
+
+    const brief = context.briefing as Record<string, any> | null | undefined;
+    if (!briefing && brief?.title) {
+      setBriefing((prev) => prev || {
+        id: String(brief.id || context.session?.briefing_id || briefingId),
+        title: String(brief.title),
+        payload: brief,
+      } as PipelineBriefing);
+    }
+    if (brief?.tone && !tone) setTone(String(brief.tone));
+
+    const stage = context.session?.current_stage;
+    if (!stage) return;
+
+    const selectedCopyPayload = context.selected_copy_version?.payload || {};
+    const selectedCopyText = String(
+      selectedCopyPayload.output
+      || selectedCopyPayload.text
+      || ''
+    ).trim();
+    if (selectedCopyText) {
+      setCopyOptions(parseOptions(selectedCopyText));
+      setCopyVersionId(context.selected_copy_version?.id || null);
+      setSelectedCopyIdx(0);
+    }
+
+    if (!isWorkflowDriven && ['briefing', 'copy', 'arte', 'refino_canvas', 'revisao', 'aprovacao', 'exportacao'].includes(stage)) {
+      setBriefingConfirmed(true);
+      setNodes((prev) => prev.some((node) => node.id === 'trigger')
+        ? prev
+        : [...prev, { id: 'trigger', type: 'trigger', position: { x: 360, y: 120 }, data: { entering: true } }]);
+    }
+    if (!isWorkflowDriven && ['copy', 'arte', 'refino_canvas', 'revisao', 'aprovacao', 'exportacao'].includes(stage)) {
+      setTriggerConfirmed(true);
+    }
+    if (!isWorkflowDriven && ['arte', 'refino_canvas', 'revisao', 'aprovacao', 'exportacao'].includes(stage)) {
+      setCopyApproved(true);
+      setNodes((prev) => {
+        const ids = new Set(prev.map((node) => node.id));
+        const additions: Node[] = [];
+        if (!ids.has('copy')) additions.push({ id: 'copy', type: 'copy', position: { x: 720, y: 160 }, data: { entering: true } });
+        if (!ids.has('learningRules')) additions.push({ id: 'learningRules', type: 'learningRules', position: { x: 40, y: 660 }, data: { rules: [], loading: true } });
+        if (!ids.has('formatHints')) additions.push({ id: 'formatHints', type: 'formatHints', position: { x: 40, y: 880 }, data: {} });
+        if (!ids.has('personasDNA')) additions.push({ id: 'personasDNA', type: 'personasDNA', position: { x: 290, y: 440 }, data: {} });
+        if (!ids.has('brandVoice')) additions.push({ id: 'brandVoice', type: 'brandVoice', position: { x: 560, y: 440 }, data: {} });
+        if (!ids.has('promptDNA')) additions.push({ id: 'promptDNA', type: 'promptDNA', position: { x: 290, y: 660 }, data: {} });
+        if (!ids.has('critica')) additions.push({ id: 'critica', type: 'critica', position: { x: 1120, y: 360 }, data: { entering: true } });
+        if (!ids.has('arte')) additions.push({ id: 'arte', type: 'arte', position: { x: 1080, y: 160 }, data: { entering: true } });
+        return additions.length ? [...prev, ...additions] : prev;
+      });
+    }
+    if (!isWorkflowDriven && ['revisao', 'aprovacao', 'exportacao'].includes(stage)) {
+      setArteApproved(true);
+      if (context.selected_asset?.file_url) {
+        setArteImageUrl(context.selected_asset.file_url);
+        setArteImageUrls([context.selected_asset.file_url]);
+      }
+      setNodes((prev) => prev.some((node) => node.id === 'export')
+        ? prev
+        : [...prev, { id: 'export', type: 'export', position: { x: 1440, y: 160 }, data: { entering: true } }]);
+    }
+  }, [briefing, briefingId, isWorkflowDriven, tone]);
+
+  const syncCreativeStage = useCallback(async (stage: 'briefing' | 'copy' | 'arte' | 'revisao', reason: string) => {
+    if (!workflowContext.jobId) return;
+    const context = sessionId
+      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
+      : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null);
+    if (!context?.session?.id) return;
+    const next = await updateStudioCreativeStage(context.session.id, {
+      current_stage: stage,
+      reason,
+    }).catch(() => null);
+    applyCreativeContext(next || context);
+  }, [applyCreativeContext, briefingId, creativeContext, sessionId, workflowContext.jobId]);
+
+  const syncApprovedPipelineCopy = useCallback(async (idx: number) => {
+    if (!workflowContext.jobId) return;
+    const option = copyOptions[idx];
+    if (!option) return;
+    const context = sessionId
+      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
+      : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null);
+    if (!context?.session?.id) return;
+
+    const next = await addStudioCreativeVersion(context.session.id, {
+      job_id: workflowContext.jobId,
+      version_type: 'copy',
+      source: 'studio',
+      payload: {
+        output: [option.title && `Título: ${option.title}`, option.body && `Texto: ${option.body}`, option.cta && `CTA: ${option.cta}`, option.legenda && `Legenda: ${option.legenda}`].filter(Boolean).join('\n'),
+        title: option.title || '',
+        body: option.body || '',
+        cta: option.cta || '',
+        legenda: option.legenda || '',
+        hashtags: option.hashtags || '',
+        source_copy_version_id: copyVersionId || null,
+        briefing_id: briefingId,
+        platform: targetPlatforms[0] || activeFormat?.platform || null,
+        format: activeFormat?.format || null,
+        source: 'pipeline',
+      },
+      select: true,
+    }).catch(() => null);
+
+    applyCreativeContext(next || context);
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, briefingId, copyOptions, copyVersionId, creativeContext, sessionId, targetPlatforms, workflowContext.jobId]);
+
+  const syncApprovedPipelineAsset = useCallback(async (url: string) => {
+    if (!workflowContext.jobId || !url) return;
+    const context = sessionId
+      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
+      : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null);
+    if (!context?.session?.id) return;
+
+    const next = await addStudioCreativeAsset(context.session.id, {
+      job_id: workflowContext.jobId,
+      asset_type: 'image',
+      source: 'studio',
+      file_url: url,
+      thumb_url: url,
+      metadata: {
+        briefing_id: briefingId,
+        prompt_layout: artDirLayout || null,
+        platform: activeFormat?.platform || null,
+        format: activeFormat?.format || null,
+        source_copy_version_id: copyVersionId || null,
+        source: 'pipeline',
+      },
+      select: true,
+    }).catch(() => null);
+
+    applyCreativeContext(next || context);
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, artDirLayout, briefingId, copyVersionId, creativeContext, sessionId, workflowContext.jobId]);
+
+  useEffect(() => {
+    if (!isWorkflowDriven) return;
+
+    const allowedNodeIds = new Set<string>(['briefing', 'clientDNA']);
+    if (effectiveBriefingConfirmed) {
+      allowedNodeIds.add('trigger');
+    }
+    if (effectiveTriggerConfirmed) {
+      allowedNodeIds.add('copy');
+      allowedNodeIds.add('learningRules');
+      allowedNodeIds.add('formatHints');
+      allowedNodeIds.add('personasDNA');
+      allowedNodeIds.add('brandVoice');
+      allowedNodeIds.add('promptDNA');
+    }
+    if (effectiveCopyApproved) {
+      allowedNodeIds.add('critica');
+      allowedNodeIds.add('arte');
+    }
+    if (effectiveArteApproved) {
+      allowedNodeIds.add('export');
+    }
+
+    setNodes((prev) => {
+      const next = prev.filter((node) => {
+        if (allowedNodeIds.has(node.id)) return true;
+        if (![
+          'trigger',
+          'copy',
+          'learningRules',
+          'formatHints',
+          'personasDNA',
+          'brandVoice',
+          'promptDNA',
+          'critica',
+          'arte',
+          'export',
+        ].includes(node.id)) {
+          return true;
+        }
+        return false;
+      });
+
+      const existingIds = new Set(next.map((node) => node.id));
+      const additions: Node[] = [];
+      if (allowedNodeIds.has('trigger') && !existingIds.has('trigger')) {
+        additions.push({ id: 'trigger', type: 'trigger', position: { x: 360, y: 120 }, data: { entering: true } });
+      }
+      if (allowedNodeIds.has('copy') && !existingIds.has('copy')) {
+        additions.push({ id: 'copy', type: 'copy', position: { x: 720, y: 160 }, data: { entering: true } });
+      }
+      if (allowedNodeIds.has('learningRules') && !existingIds.has('learningRules')) {
+        additions.push({ id: 'learningRules', type: 'learningRules', position: { x: 40, y: 660 }, data: { rules: [], loading: true } });
+      }
+      if (allowedNodeIds.has('formatHints') && !existingIds.has('formatHints')) {
+        additions.push({ id: 'formatHints', type: 'formatHints', position: { x: 40, y: 880 }, data: {} });
+      }
+      if (allowedNodeIds.has('personasDNA') && !existingIds.has('personasDNA')) {
+        additions.push({ id: 'personasDNA', type: 'personasDNA', position: { x: 290, y: 440 }, data: {
+          personas: clientProfile.personas ?? [],
+          audience: clientProfile.audience ?? null,
+        } });
+      }
+      if (allowedNodeIds.has('brandVoice') && !existingIds.has('brandVoice')) {
+        additions.push({ id: 'brandVoice', type: 'brandVoice', position: { x: 560, y: 440 }, data: {
+          brand_voice: clientProfile.brand_voice,
+          must_mentions: clientProfile.must_mentions,
+          rejection_patterns: clientProfile.rejection_patterns,
+          formality_level: clientProfile.formality_level,
+          emoji_usage: clientProfile.emoji_usage,
+          risk_tolerance: clientProfile.risk_tolerance,
+        } });
+      }
+      if (allowedNodeIds.has('promptDNA') && !existingIds.has('promptDNA')) {
+        additions.push({ id: 'promptDNA', type: 'promptDNA', position: { x: 290, y: 660 }, data: {} });
+      }
+      if (allowedNodeIds.has('critica') && !existingIds.has('critica')) {
+        additions.push({ id: 'critica', type: 'critica', position: { x: 1120, y: 360 }, data: { entering: true } });
+      }
+      if (allowedNodeIds.has('arte') && !existingIds.has('arte')) {
+        additions.push({ id: 'arte', type: 'arte', position: { x: 1080, y: 160 }, data: { entering: true } });
+      }
+      if (allowedNodeIds.has('export') && !existingIds.has('export')) {
+        additions.push({ id: 'export', type: 'export', position: { x: 1440, y: 160 }, data: { entering: true } });
+      }
+
+      return additions.length ? [...next, ...additions] : next;
+    });
+  }, [
+    clientProfile.audience,
+    clientProfile.brand_voice,
+    clientProfile.emoji_usage,
+    clientProfile.formality_level,
+    clientProfile.must_mentions,
+    clientProfile.personas,
+    clientProfile.rejection_patterns,
+    clientProfile.risk_tolerance,
+    effectiveArteApproved,
+    effectiveBriefingConfirmed,
+    effectiveCopyApproved,
+    effectiveTriggerConfirmed,
+    isWorkflowDriven,
+  ]);
 
   // ── Derived node status ─────────────────────────────────────────────────────
   // Order: Briefing → Trigger → Copy → Arte → Export
   const nodeStatus: NodeStatusMap = useMemo(() => ({
-    briefing: briefingConfirmed ? 'done' : 'active',
-    trigger:  briefingConfirmed ? (triggerConfirmed ? 'done' : 'active') : 'locked',
-    copy:     triggerConfirmed ? (copyApproved ? 'done' : copyGenerating ? 'running' : 'active') : 'locked',
-    arte:     copyApproved ? (arteApproved ? 'done' : arteGenerating ? 'running' : 'active') : 'locked',
-    export:   arteApproved ? 'active' : 'locked',
-  }), [briefingConfirmed, triggerConfirmed, copyApproved, copyGenerating, arteApproved, arteGenerating]);
+    briefing: effectiveBriefingConfirmed ? 'done' : 'active',
+    trigger:  effectiveBriefingConfirmed ? (effectiveTriggerConfirmed ? 'done' : 'active') : 'locked',
+    copy:     effectiveTriggerConfirmed ? (effectiveCopyApproved ? 'done' : copyGenerating ? 'running' : 'active') : 'locked',
+    arte:     effectiveCopyApproved ? (effectiveArteApproved ? 'done' : arteGenerating ? 'running' : 'active') : 'locked',
+    export:   effectiveArteApproved ? 'active' : 'locked',
+  }), [effectiveBriefingConfirmed, effectiveTriggerConfirmed, effectiveCopyApproved, copyGenerating, effectiveArteApproved, arteGenerating]);
 
   // ── React Flow state ────────────────────────────────────────────────────────
   const [nodes, setNodes, onNodesChange] = useNodesState(buildInitialNodes());
@@ -623,6 +969,12 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   useEffect(() => {
     const load = async () => {
       try {
+        if (workflowContext.jobId) {
+          const context = sessionId
+            ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+            : await openStudioCreativeSession(workflowContext.jobId, { briefing_id: briefingId }).catch(() => null);
+          applyCreativeContext(context);
+        }
         const res = await apiGet<{ success: boolean; data: { briefing: PipelineBriefing; copies: CopyVersion[] } }>(
           `/edro/briefings/${briefingId}`
         );
@@ -632,20 +984,22 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     };
     load();
 
-    // Load active format from localStorage (same source as EditorClient)
     if (typeof window !== 'undefined') {
-      try {
-        const inv = JSON.parse(window.localStorage.getItem('edro_selected_inventory') || '[]');
-        if (Array.isArray(inv) && inv.length > 0) {
-          const first = inv[0];
-          setActiveFormat({
-            id: first.id,
-            platform: first.platform || first.platformId,
-            format: first.format,
-            production_type: first.production_type,
-          });
-        }
-      } catch {}
+      // Load active format from localStorage only in legacy mode.
+      if (!isWorkflowDriven) {
+        try {
+          const inv = JSON.parse(window.localStorage.getItem('edro_selected_inventory') || '[]');
+          if (Array.isArray(inv) && inv.length > 0) {
+            const first = inv[0];
+            setActiveFormat({
+              id: first.id,
+              platform: first.platform || first.platformId,
+              format: first.format,
+              production_type: first.production_type,
+            });
+          }
+        } catch {}
+      }
 
       // Load brand color + learning rules count from active client
       const clientId = window.localStorage.getItem('edro_active_client_id');
@@ -665,11 +1019,12 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
         setLearningRulesCount(0);
       }
     }
-  }, [briefingId]);
+  }, [applyCreativeContext, briefingId, isWorkflowDriven, sessionId, workflowContext.jobId]);
 
   // ── Session restore — load saved state after briefing is set ───────────────
   const sessionLoaded = useRef(false);
   useEffect(() => {
+    if (workflowContext.jobId) return;
     if (sessionLoaded.current) return;
     sessionLoaded.current = true;
     apiGet<{ success: boolean; state: Record<string, any> }>(`/studio/pipeline/${briefingId}/session`)
@@ -710,11 +1065,12 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [briefingId]);
+  }, [briefingId, workflowContext.jobId]);
 
   // ── Session auto-save — debounced 1500ms on key state changes ──────────────
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (workflowContext.jobId) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       const state = {
@@ -727,7 +1083,48 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     }, 1500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [briefingConfirmed, triggerConfirmed, copyApproved, arteApproved, arteImageUrl, nodes.length]);
+  }, [arteApproved, arteImageUrl, briefingConfirmed, copyApproved, nodes.length, triggerConfirmed, workflowContext.jobId]);
+
+  const workflowMetadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pipelineWorkflowMetadata = useMemo<CreativePipelineMetadata>(() => ({
+    selectedTrigger: selectedTrigger || null,
+    tone: tone || '',
+    amd: amd || '',
+    funnelPhase,
+    targetPlatforms,
+    activeFormat: activeFormat ? {
+      id: activeFormat.id,
+      platform: activeFormat.platform,
+      format: activeFormat.format,
+      production_type: activeFormat.production_type,
+    } : null,
+  }), [activeFormat, amd, funnelPhase, selectedTrigger, targetPlatforms, tone]);
+
+  useEffect(() => {
+    if (!isWorkflowDriven || !workflowContext.jobId || !sessionId) return;
+    const metadataKey = normalizePipelineMetadata(pipelineWorkflowMetadata);
+    if (persistedWorkflowMetadataRef.current === metadataKey) return;
+
+    if (workflowMetadataTimerRef.current) clearTimeout(workflowMetadataTimerRef.current);
+    workflowMetadataTimerRef.current = setTimeout(() => {
+      updateStudioCreativeMetadata(sessionId, {
+        job_id: workflowContext.jobId,
+        metadata: {
+          pipeline: pipelineWorkflowMetadata,
+        },
+        reason: 'pipeline_state_updated',
+      })
+        .then((context) => {
+          persistedWorkflowMetadataRef.current = metadataKey;
+          applyCreativeContext(context);
+        })
+        .catch(() => {});
+    }, 800);
+
+    return () => {
+      if (workflowMetadataTimerRef.current) clearTimeout(workflowMetadataTimerRef.current);
+    };
+  }, [applyCreativeContext, isWorkflowDriven, pipelineWorkflowMetadata, sessionId, workflowContext.jobId]);
 
   // ── When copy node appears: load learning rules into node data ──────────────
   // (context edges are now managed by buildEdges — no need to add them manually)
@@ -769,13 +1166,15 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
 
   const confirmBriefing = useCallback(() => {
     setBriefingConfirmed(true);
+    if (isWorkflowDriven) setWorkflowStageOverride('briefing');
+    syncCreativeStage('briefing', 'pipeline_briefing_confirmed').catch(() => {});
     // Progressive reveal: Trigger appears first — it defines the creative angle BEFORE copy
     setNodes((prev) => {
       const ids = new Set(prev.map((n) => n.id));
       if (ids.has('trigger')) return prev;
       return [...prev, { id: 'trigger', type: 'trigger', position: { x: 360, y: 120 }, data: { entering: true } }];
     });
-  }, [setNodes]);
+  }, [isWorkflowDriven, setNodes, syncCreativeStage]);
 
   const AMD_LABELS: Record<string, string> = {
     salvar: 'Salvar', compartilhar: 'Compartilhar', clicar: 'Clicar',
@@ -845,6 +1244,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   const approveCopy = useCallback((idx: number) => {
     setSelectedCopyIdx(idx);
     setCopyApproved(true);
+    if (isWorkflowDriven) setWorkflowStageOverride('arte');
+    syncApprovedPipelineCopy(idx).catch(() => {});
+    syncCreativeStage('arte', 'pipeline_copy_approved').catch(() => {});
     // Progressive reveal: inject CriticaNode (auto-QA) + ArteNode
     setNodes((prev) => {
       const ids = new Set(prev.map((n) => n.id));
@@ -855,7 +1257,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       if (!ids.has('arte'))    additions.push({ id: 'arte',    type: 'arte',    position: { x: 1080, y: 160 }, data: { entering: true } });
       return additions.length ? [...prev, ...additions] : prev;
     });
-  }, [setNodes]);
+  }, [isWorkflowDriven, setNodes, syncApprovedPipelineCopy, syncCreativeStage]);
 
   // rerunCopy — called by CriticaNode's auto-loop with critique feedback as extra instructions
   const rerunCopy = useCallback(async (extraInstructions: string) => {
@@ -965,12 +1367,18 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     setArteImageUrl(null);
     setArteImageUrls([]);
     setArtDirLayout(null);
+    if (isWorkflowDriven) {
+      setWorkflowStageOverride('copy');
+      syncCreativeStage('copy', 'pipeline_copy_reopened').catch(() => {});
+    }
     // Remove arte + export (and critica resets itself via effect) — trigger stays confirmed
     setNodes((prev) => prev.filter((n) => !['arte', 'export', 'critica'].includes(n.id)));
-  }, [setNodes]);
+  }, [isWorkflowDriven, setNodes, syncCreativeStage]);
 
   const confirmTrigger = useCallback(() => {
     setTriggerConfirmed(true);
+    if (isWorkflowDriven) setWorkflowStageOverride('copy');
+    syncCreativeStage('copy', 'pipeline_trigger_confirmed').catch(() => {});
     // Progressive reveal: CopyNode + all context/ingredient nodes
     setNodes((prev) => {
       const ids = new Set(prev.map((n) => n.id));
@@ -995,7 +1403,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       if (!ids.has('promptDNA'))     additions.push({ id: 'promptDNA',     type: 'promptDNA',     position: { x: 290,  y: 660 }, data: {} });
       return additions.length ? [...prev, ...additions] : prev;
     });
-  }, [setNodes, activeFormat, clientProfile]);
+  }, [setNodes, activeFormat, clientProfile, isWorkflowDriven, syncCreativeStage]);
 
   const editTrigger = useCallback(() => {
     setTriggerConfirmed(false);
@@ -1004,9 +1412,13 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     setArteImageUrl(null);
     setArteImageUrls([]);
     setArtDirLayout(null);
+    if (isWorkflowDriven) {
+      setWorkflowStageOverride('briefing');
+      syncCreativeStage('briefing', 'pipeline_trigger_reopened').catch(() => {});
+    }
     // Remove copy + arte + export — copy must be regenerated with the new trigger
     setNodes((prev) => prev.filter((n) => !['copy', 'learningRules', 'formatHints', 'personasDNA', 'brandVoice', 'promptDNA', 'arte', 'export'].includes(n.id)));
-  }, [setNodes]);
+  }, [isWorkflowDriven, setNodes, syncCreativeStage]);
 
   const handleGenerateArte = useCallback(async (withImage: boolean, opts?: {
     aspectRatio?: string; negativePrompt?: string; refinement?: string; provider?: string; model?: string;
@@ -1047,19 +1459,26 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   const useArte = useCallback((url: string) => {
     setArteImageUrl(url);
     setArteApproved(true);
+    if (isWorkflowDriven) setWorkflowStageOverride('revisao');
+    syncApprovedPipelineAsset(url).catch(() => {});
+    syncCreativeStage('revisao', 'pipeline_arte_selected').catch(() => {});
     // Progressive reveal: inject ExportNode
     setNodes((prev) => {
       if (prev.some((n) => n.id === 'export')) return prev;
       return [...prev, { id: 'export', type: 'export', position: { x: 1440, y: 160 }, data: { entering: true } }];
     });
-  }, [setNodes]);
+  }, [isWorkflowDriven, setNodes, syncApprovedPipelineAsset, syncCreativeStage]);
 
   const editArte = useCallback(() => {
     setArteApproved(false);
     setArteImageUrl(null);
     setArteImageUrls([]);
     setArtDirLayout(null);
-  }, []);
+    if (isWorkflowDriven) {
+      setWorkflowStageOverride('arte');
+      syncCreativeStage('arte', 'pipeline_arte_reopened').catch(() => {});
+    }
+  }, [isWorkflowDriven, syncCreativeStage]);
 
   // ── Director AI (non-blocking) ──────────────────────────────────────────────
   const analyzeWithDirector = useCallback(async (step: string, content: string) => {
@@ -1088,7 +1507,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
 
   // ── Fetch step recommendations (Chef hints) ─────────────────────────────────
   useEffect(() => {
-    if (!briefingConfirmed || !briefing) return;
+    if (!effectiveBriefingConfirmed || !briefing) return;
     // Ask Director what pipeline/count to use for this briefing
     apiPost<any>('/studio/creative/director-analyze', {
       briefing_title: briefing.title,
@@ -1101,7 +1520,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [briefingConfirmed]);
+  }, [effectiveBriefingConfirmed]);
 
   // ── Recipe handlers ─────────────────────────────────────────────────────────
 
@@ -1185,19 +1604,19 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   // ── Context value ───────────────────────────────────────────────────────────
   const ctxValue: PipelineContextValue = {
     briefing, activeFormat, clientBrandColor,
-    briefingConfirmed, confirmBriefing,
+    briefingConfirmed: effectiveBriefingConfirmed, confirmBriefing,
     tone, setTone, amd, setAmd,
     targetPlatforms, setTargetPlatforms,
     funnelPhase, setFunnelPhase,
     ocasiao, setOcasiao, ocasiaoConfirmed, confirmOcasiao,
     copyGenerating, copyOptions, selectedCopyIdx, setSelectedCopyIdx,
-    copyApproved, copyVersionId, copyError,
+    copyApproved: effectiveCopyApproved, copyVersionId, copyError,
     handleGenerateCopy, rerunCopy, approveCopy, editCopy,
     copyIsStale,
-    selectedTrigger, setSelectedTrigger, triggerConfirmed, confirmTrigger, editTrigger,
+    selectedTrigger, setSelectedTrigger, triggerConfirmed: effectiveTriggerConfirmed, confirmTrigger, editTrigger,
     arteGenerating, artDirLayout, arteImageUrl, arteImageUrls,
     selectedArteIdx, setSelectedArteIdx,
-    arteApproved, arteError, handleGenerateArte, useArte, editArte,
+    arteApproved: effectiveArteApproved, arteError, handleGenerateArte, useArte, editArte,
     nodeStatus,
     recommendations,
     triggerRanking,

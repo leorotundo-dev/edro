@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -12,6 +13,7 @@ import { IconChefHat, IconTrash, IconArrowRight, IconClock } from '@tabler/icons
 import Link from 'next/link';
 import { apiGet, apiPost } from '@/lib/api';
 import type { CreativeRecipe } from '@/components/pipeline/PipelineContext';
+import { buildStudioHref } from '../studioWorkflow';
 
 const TRIGGER_COLORS: Record<string, string> = {
   G01: '#FF4D4D', G02: '#00B4FF', G03: '#13DEB9',
@@ -23,6 +25,7 @@ const TRIGGER_NAMES: Record<string, string> = {
 };
 
 export default function RecipesPage() {
+  const searchParams = useSearchParams();
   const [recipes, setRecipes] = useState<CreativeRecipe[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +60,7 @@ export default function RecipesPage() {
         <Box sx={{ ml: 'auto' }}>
           <Button
             variant="outlined" size="small"
-            component={Link} href="/studio"
+            component={Link} href={buildStudioHref('/studio', searchParams)}
             endIcon={<IconArrowRight size={14} />}
             sx={{ textTransform: 'none' }}
           >
@@ -149,7 +152,7 @@ export default function RecipesPage() {
                   <Button
                     size="small" variant="text"
                     component={Link}
-                    href="/studio"
+                    href={buildStudioHref('/studio', searchParams)}
                     endIcon={<IconArrowRight size={12} />}
                     sx={{ textTransform: 'none', fontSize: '0.65rem', color: '#F8A800', p: 0,
                       '&:hover': { bgcolor: 'transparent', color: '#ffc234' } }}

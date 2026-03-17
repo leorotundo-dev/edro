@@ -283,12 +283,13 @@ export default function OperationsPlannerClient() {
   );
 
   useEffect(() => {
-    if (!selectedJob) {
-      setSelectedJob(plannerJobs[0] || null);
+    if (!selectedJob) return;
+    const fresh = plannerJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
+    if (fresh) {
+      setSelectedJob(fresh);
       return;
     }
-    const fresh = plannerJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
-    if (fresh) setSelectedJob(fresh);
+    setSelectedJob(null);
   }, [jobs, plannerJobs, selectedJob]);
 
   useEffect(() => {
