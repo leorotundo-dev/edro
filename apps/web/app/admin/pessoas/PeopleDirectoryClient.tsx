@@ -12,6 +12,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -85,13 +86,16 @@ function identityLabel(id: Identity) {
 // ── PersonCard ────────────────────────────────────────────────────────────
 
 function PersonCard({
-  person, allPeople, onEdit, onDelete, onMerge,
+  person, allPeople, onEdit, onDelete, onMerge, selectMode, selected, onSelect,
 }: {
   person: Person;
   allPeople: Person[];
   onEdit: (p: Person) => void;
   onDelete: (p: Person) => void;
   onMerge: (keep: Person, discard: Person) => void;
+  selectMode: boolean;
+  selected: boolean;
+  onSelect: (id: string) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -106,17 +110,33 @@ function PersonCard({
   );
 
   return (
-    <Box sx={{
-      borderRadius: 2,
-      border: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
-      bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-      p: 2,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1.25,
-      position: 'relative',
-      '&:hover .person-actions': { opacity: 1 },
-    }}>
+    <Box
+      onClick={selectMode ? () => onSelect(person.id) : undefined}
+      sx={{
+        borderRadius: 2,
+        border: `1px solid ${selected ? theme.palette.warning.main : dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
+        bgcolor: selected ? alpha(theme.palette.warning.main, 0.08) : dark ? alpha('#fff', 0.02) : '#fff',
+        p: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.25,
+        position: 'relative',
+        cursor: selectMode ? 'pointer' : 'default',
+        transition: 'border-color 0.15s, background-color 0.15s',
+        '&:hover .person-actions': { opacity: selectMode ? 0 : 1 },
+      }}>
+      {/* Select checkbox (merge mode) */}
+      {selectMode && (
+        <Checkbox
+          checked={selected}
+          onChange={() => onSelect(person.id)}
+          onClick={(e) => e.stopPropagation()}
+          size="small"
+          color="warning"
+          sx={{ position: 'absolute', top: 4, left: 4, p: 0.5 }}
+        />
+      )}
+
       {/* Actions */}
       <Stack
         className="person-actions"
@@ -394,6 +414,24 @@ export default function PeopleDirectoryClient() {
   // Cleanup nameless
   const [cleaningNameless, setCleaningNameless] = useState(false);
 
+  // Manual merge selection
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); return next; }
+      if (next.size >= 2) return prev; // max 2
+      next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const selectedPeople = people.filter((p) => selectedIds.has(p.id));
+
   const load = useCallback(async (search: string, f: typeof filter) => {
     setLoading(true);
     setError('');
@@ -512,7 +550,46 @@ export default function PeopleDirectoryClient() {
               <IconUser size={13} style={{ marginRight: 4 }} />Externos
             </ToggleButton>
           </ToggleButtonGroup>
+          <Tooltip title="Selecione 2 cards para unificar manualmente">
+            <Button
+              size="small"
+              variant={selectMode ? 'contained' : 'outlined'}
+              color="warning"
+              startIcon={<IconGitMerge size={14} />}
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              sx={{ flexShrink: 0, fontWeight: 700, fontSize: '0.72rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+            >
+              {selectMode ? 'Cancelar' : 'Merge manual'}
+            </Button>
+          </Tooltip>
         </Stack>
+
+        {/* Merge mode toolbar */}
+        {selectMode && (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{
+            px: 2, py: 1, borderRadius: 2,
+            bgcolor: alpha(theme.palette.warning.main, 0.08),
+            border: `1px solid ${alpha(theme.palette.warning.main, 0.3)}`,
+          }}>
+            <Typography variant="body2" fontWeight={700} color="warning.dark" sx={{ flex: 1 }}>
+              {selectedIds.size === 0 && 'Selecione 2 cards para unificar'}
+              {selectedIds.size === 1 && 'Selecione mais 1 card'}
+              {selectedIds.size === 2 && `${selectedPeople[0]?.display_name} + ${selectedPeople[1]?.display_name}`}
+            </Typography>
+            {selectedIds.size === 2 && (
+              <Button size="small" variant="contained" color="warning" startIcon={<IconGitMerge size={14} />}
+                onClick={() => {
+                  setMergeKeep(selectedPeople[0]);
+                  setMergeDiscard(selectedPeople[1]);
+                  setMergeError('');
+                  exitSelectMode();
+                }}>
+                Merge
+              </Button>
+            )}
+            <Button size="small" variant="outlined" color="inherit" onClick={exitSelectMode}>Cancelar</Button>
+          </Stack>
+        )}
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -550,6 +627,9 @@ export default function PeopleDirectoryClient() {
                   onEdit={setEditPerson}
                   onDelete={setDeletePerson}
                   onMerge={(keep, discard) => { setMergeKeep(keep); setMergeDiscard(discard); setMergeError(''); }}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(person.id)}
+                  onSelect={toggleSelect}
                 />
               </Grid>
             ))}
