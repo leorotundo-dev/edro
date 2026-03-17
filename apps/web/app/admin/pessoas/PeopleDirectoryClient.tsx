@@ -53,8 +53,13 @@ type Person = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+function isNameless(p: Person) {
+  const n = (p.display_name || '').trim();
+  return n === '' || n === 'Pessoa sem nome';
+}
+
 function initials(name: string) {
-  return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  return (name || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
 
 function primaryEmail(ids: Identity[] | null) {
@@ -95,9 +100,9 @@ function PersonCard({
   const clients = person.client_links ?? [];
   const meetings = Number(person.meeting_count);
 
-  // Duplicates: same display_name, different id
-  const dups = allPeople.filter(
-    (p) => p.id !== person.id && p.display_name.trim().toLowerCase() === person.display_name.trim().toLowerCase(),
+  // Duplicates: same real display_name, different id — nameless people are NOT flagged
+  const dups = isNameless(person) ? [] : allPeople.filter(
+    (p) => !isNameless(p) && p.id !== person.id && p.display_name.trim().toLowerCase() === person.display_name.trim().toLowerCase(),
   );
 
   return (
@@ -386,6 +391,9 @@ export default function PeopleDirectoryClient() {
   const [merging, setMerging] = useState(false);
   const [mergeError, setMergeError] = useState('');
 
+  // Cleanup nameless
+  const [cleaningNameless, setCleaningNameless] = useState(false);
+
   const load = useCallback(async (search: string, f: typeof filter) => {
     setLoading(true);
     setError('');
@@ -439,10 +447,21 @@ export default function PeopleDirectoryClient() {
     }
   };
 
+  const handleCleanupNameless = async () => {
+    setCleaningNameless(true);
+    try {
+      await apiDelete('/people/nameless');
+      await load(q, filter);
+    } finally {
+      setCleaningNameless(false);
+    }
+  };
+
   const internal = people.filter((p) => p.is_internal).length;
   const external = people.filter((p) => !p.is_internal).length;
+  const namelessPeople = people.filter(isNameless);
   const duplicateGroups = people.filter((p) =>
-    people.some((other) => other.id !== p.id && other.display_name.trim().toLowerCase() === p.display_name.trim().toLowerCase()),
+    !isNameless(p) && people.some((other) => !isNameless(other) && other.id !== p.id && other.display_name.trim().toLowerCase() === p.display_name.trim().toLowerCase()),
   ).length;
 
   return (
@@ -496,6 +515,18 @@ export default function PeopleDirectoryClient() {
         </Stack>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+        {namelessPeople.length > 0 && (
+          <Alert severity="error" sx={{ mb: 2 }}
+            action={
+              <Button size="small" color="inherit" variant="outlined" onClick={handleCleanupNameless} disabled={cleaningNameless}
+                sx={{ whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.72rem' }}>
+                {cleaningNameless ? <CircularProgress size={14} color="inherit" /> : `Limpar ${namelessPeople.length} sem nome`}
+              </Button>
+            }>
+            <strong>{namelessPeople.length} pessoas sem nome</strong> detectadas (registros em branco sem dados vinculados serão removidos).
+          </Alert>
+        )}
 
         {duplicateGroups > 0 && (
           <Alert severity="warning" sx={{ mb: 2 }}>

@@ -122,6 +122,26 @@ export default async function peopleRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── DELETE /people/nameless — bulk-delete orphan records with no name and no linked data ──
+  app.delete('/people/nameless', {
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+
+    const { rows } = await query(
+      `DELETE FROM people p
+       WHERE p.tenant_id = $1
+         AND (COALESCE(TRIM(p.display_name), '') = '' OR p.display_name = 'Pessoa sem nome')
+         AND NOT EXISTS (SELECT 1 FROM person_identities pi WHERE pi.person_id = p.id AND pi.tenant_id = $1)
+         AND NOT EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.person_id = p.id AND mp.tenant_id = $1)
+         AND NOT EXISTS (SELECT 1 FROM client_contacts cc WHERE cc.person_id = p.id AND cc.tenant_id = $1)
+       RETURNING id`,
+      [tenantId],
+    );
+
+    return reply.send({ success: true, deleted: rows.length });
+  });
+
   // ── POST /people/:id/merge — merge targetId INTO id ──────────────────────
   // Re-parents all identities, contacts and meeting_participants from targetId to id,
   // then deletes targetId.
