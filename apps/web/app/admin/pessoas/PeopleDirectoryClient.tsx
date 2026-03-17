@@ -33,6 +33,7 @@ import {
   IconUser,
   IconUsersGroup,
 } from '@tabler/icons-react';
+import AppShell from '@/components/AppShell';
 
 type PersonIdentity = { type: string; value: string; primary: boolean };
 
@@ -95,6 +96,7 @@ export default function PeopleDirectoryClient() {
   const external = people.filter((p) => !p.is_internal).length;
 
   return (
+    <AppShell title="Pessoas">
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1100, mx: 'auto' }}>
       {/* Header */}
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
@@ -292,5 +294,6 @@ export default function PeopleDirectoryClient() {
         </Paper>
       )}
     </Box>
+    </AppShell>
   );
 }
