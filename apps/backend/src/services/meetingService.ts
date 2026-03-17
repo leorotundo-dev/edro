@@ -14,6 +14,7 @@ import {
   insertClientDocument,
   insertClientInsight,
 } from '../repos/clientIntelligenceRepo';
+import { generatePautaSuggestionsFromMeetings } from './pautaSuggestionService';
 
 export type MeetingStatus =
   | 'scheduled'
@@ -900,6 +901,11 @@ export async function saveMeetingAnalysis(
     actions: normalizedActions,
     analysisVersion,
   });
+
+  // Non-blocking: generate pauta suggestions from newly created meeting actions
+  if (meetingRow.client_id && !isInternalClientId(meetingRow.client_id) && normalizedActions.length > 0) {
+    generatePautaSuggestionsFromMeetings({ client_id: meetingRow.client_id, tenant_id: tenantId }).catch(() => {});
+  }
 
   return {
     analysisVersion,

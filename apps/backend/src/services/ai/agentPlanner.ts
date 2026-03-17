@@ -59,6 +59,7 @@ interface PlannerInput {
   }>;
   behaviorClusters?: BehaviorClusterSummary[];
   learningRules?: LearningRuleSummary[];
+  clientIntelBlock?: string; // meeting + WhatsApp intelligence summary
 }
 
 function parseJsonFromText(text: string): GeneratedCampaignStrategy {
@@ -78,7 +79,7 @@ function parseJsonFromText(text: string): GeneratedCampaignStrategy {
 export async function generateCampaignStrategy(
   input: PlannerInput
 ): Promise<GeneratedCampaignStrategy> {
-  const { campaignName, campaignObjective, clientSegment, personas, behaviorClusters, learningRules } = input;
+  const { campaignName, campaignObjective, clientSegment, personas, behaviorClusters, learningRules, clientIntelBlock } = input;
 
   const clustersBlock = behaviorClusters?.length
     ? `\nPERFIS COMPORTAMENTAIS REAIS DA AUDIÊNCIA (dados históricos de performance):\n${
@@ -112,6 +113,10 @@ export async function generateCampaignStrategy(
         .join('\n')
     : '  - id: "p1", nome: "Público principal", momento_consciencia: "problema"';
 
+  const intelBlock = clientIntelBlock
+    ? `\n\nINTELIGÊNCIA ATUAL DO CLIENTE (reuniões + WhatsApp):\n${clientIntelBlock}\nINSTRUCAO: Use esta inteligência para calibrar os objetivos de cada fase, os gatilhos dos behavior_intents e os territórios criativos. Este é o estado real da conta hoje — ações pendentes e sinais do cliente devem informar as prioridades estratégicas.`
+    : '';
+
   const prompt = `Você é o Planejador Estratégico Comportamental da Edro Digital.
 Seu papel é gerar planos de campanha baseados em mudança de comportamento — não em formatos de conteúdo.
 
@@ -119,7 +124,7 @@ CAMPANHA: ${campaignName}
 OBJETIVO: ${campaignObjective || 'Não informado — use contexto do segmento'}
 SEGMENTO DO CLIENTE: ${clientSegment || 'Não informado'}
 PERSONAS DISPONÍVEIS:
-${personasSummary}${clustersBlock}${rulesBlock}
+${personasSummary}${clustersBlock}${rulesBlock}${intelBlock}
 
 Gere um plano estratégico comportamental completo. Retorne APENAS JSON válido, sem markdown, sem texto adicional.
 

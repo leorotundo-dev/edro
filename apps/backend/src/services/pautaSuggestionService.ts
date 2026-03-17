@@ -175,6 +175,47 @@ ${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}`,
   }
 }
 
+/**
+ * Queries pending meeting actions and generates pauta suggestions from them.
+ * Called non-blocking after a meeting is analyzed.
+ */
+export async function generatePautaSuggestionsFromMeetings(params: {
+  client_id: string;
+  tenant_id: string;
+}): Promise<void> {
+  const { client_id, tenant_id } = params;
+
+  const { rows: actions } = await query(
+    `SELECT ma.id, ma.title, ma.description, ma.type, ma.deadline, ma.priority,
+            m.title AS meeting_title, m.recorded_at
+       FROM meeting_actions ma
+       JOIN meetings m ON m.id = ma.meeting_id
+      WHERE ma.client_id=$1 AND ma.tenant_id=$2
+        AND ma.status='pending'
+        AND ma.created_at > NOW() - INTERVAL '30 days'
+      ORDER BY CASE ma.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, ma.created_at DESC
+      LIMIT 10`,
+    [client_id, tenant_id]
+  );
+
+  if (actions.length === 0) return;
+
+  const sources: PautaSource[] = actions.map((a: any) => ({
+    type: 'meeting_action',
+    id: a.id,
+    title: a.title,
+    summary: [
+      a.description || a.title,
+      a.meeting_title ? `Originado de: ${a.meeting_title}` : null,
+      a.deadline ? `Prazo: ${new Date(a.deadline).toLocaleDateString('pt-BR')}` : null,
+    ].filter(Boolean).join(' — '),
+    date: a.deadline || a.recorded_at,
+    score: a.priority === 'high' ? 8.5 : 7.0,
+  }));
+
+  await generatePautaSuggestions({ client_id, tenant_id, sources });
+}
+
 export async function generatePautaSuggestions(params: {
   client_id: string;
   tenant_id: string;

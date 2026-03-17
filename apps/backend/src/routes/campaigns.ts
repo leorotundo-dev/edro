@@ -948,6 +948,60 @@ export default async function campaignRoutes(app: FastifyInstance) {
         ]);
       } catch { /* non-blocking */ }
 
+      // 3b. Load live client intelligence (meetings + WhatsApp) for strategy context
+      let clientIntelBlock = '';
+      try {
+        const [meetingActionsRes, whatsappRes, latestMeetingRes] = await Promise.all([
+          pool.query(
+            `SELECT ma.title, ma.description, ma.priority, ma.deadline, ma.type
+               FROM meeting_actions ma
+              WHERE ma.client_id=$1 AND ma.tenant_id=$2 AND ma.status='pending'
+                AND ma.created_at > NOW() - INTERVAL '60 days'
+              ORDER BY CASE ma.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, ma.created_at DESC
+              LIMIT 6`,
+            [campaign.client_id, tenantId]
+          ),
+          pool.query(
+            `SELECT insight_type, summary, urgency
+               FROM whatsapp_message_insights
+              WHERE client_id=$1 AND tenant_id=$2 AND actioned=false
+                AND created_at > NOW() - INTERVAL '30 days'
+              ORDER BY CASE urgency WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC
+              LIMIT 5`,
+            [campaign.client_id, tenantId]
+          ),
+          pool.query(
+            `SELECT title, summary,
+                    analysis_payload->'intelligence'->>'account_pulse' AS account_pulse
+               FROM meetings
+              WHERE client_id=$1 AND tenant_id=$2
+                AND status IN ('analyzed','approval_pending','approved','completed')
+              ORDER BY recorded_at DESC LIMIT 1`,
+            [campaign.client_id, tenantId]
+          ),
+        ]);
+        const parts: string[] = [];
+        const latestMtg = latestMeetingRes.rows[0];
+        if (latestMtg) {
+          parts.push(`Última reunião: "${latestMtg.title}"${latestMtg.account_pulse ? ` — pulso da conta: ${latestMtg.account_pulse}` : ''}`);
+          if (latestMtg.summary) parts.push(`  Resumo: ${String(latestMtg.summary).slice(0, 300)}`);
+        }
+        if (meetingActionsRes.rows.length) {
+          parts.push(`Ações pendentes de reuniões (${meetingActionsRes.rows.length}):`);
+          for (const a of meetingActionsRes.rows) {
+            const dl = a.deadline ? ` — prazo ${new Date(a.deadline).toLocaleDateString('pt-BR')}` : '';
+            parts.push(`  - [${a.type}/${a.priority}] ${a.title}${dl}: ${String(a.description || '').slice(0, 150)}`);
+          }
+        }
+        if (whatsappRes.rows.length) {
+          parts.push('Sinais recentes do cliente via WhatsApp:');
+          for (const i of whatsappRes.rows) {
+            parts.push(`  - [${i.insight_type}${i.urgency === 'urgent' ? '/URGENTE' : ''}] ${i.summary}`);
+          }
+        }
+        if (parts.length) clientIntelBlock = parts.join('\n');
+      } catch { /* non-blocking — intel enrichment is best-effort */ }
+
       // 4. Call AgentPlanner
       const strategy = await generateCampaignStrategy({
         campaignName: campaign.name,
@@ -956,6 +1010,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
         personas,
         behaviorClusters: behaviorClusters.length ? behaviorClusters : undefined,
         learningRules: learningRules.length ? learningRules : undefined,
+        clientIntelBlock: clientIntelBlock || undefined,
       });
 
       // 5. PATCH campaign with generated behavioral data
@@ -1131,7 +1186,47 @@ export default async function campaignRoutes(app: FastifyInstance) {
           }\nINSTRUCAO: A copy deve refletir os padrões de AMD e gatilhos com uplift comprovado para esta audiência.`
         : '';
 
-      // 7. AgentWriter — generates DraftContent (enriched with learning rules)
+      // 6b. Load live client intelligence (meetings + WhatsApp) for copy context
+      let copyIntelBlock = '';
+      try {
+        const [actionsRes, whatsappRes] = await Promise.all([
+          pool.query(
+            `SELECT ma.title, ma.type, ma.priority, ma.deadline, ma.description
+               FROM meeting_actions ma
+              WHERE ma.client_id=$1 AND ma.tenant_id=$2 AND ma.status='pending'
+                AND ma.created_at > NOW() - INTERVAL '60 days'
+              ORDER BY CASE ma.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, ma.created_at DESC
+              LIMIT 5`,
+            [campaign.client_id, tenantId]
+          ),
+          pool.query(
+            `SELECT insight_type, summary, urgency
+               FROM whatsapp_message_insights
+              WHERE client_id=$1 AND tenant_id=$2 AND actioned=false
+                AND created_at > NOW() - INTERVAL '30 days'
+              ORDER BY CASE urgency WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC
+              LIMIT 4`,
+            [campaign.client_id, tenantId]
+          ),
+        ]);
+        const parts: string[] = [];
+        if (actionsRes.rows.length) {
+          parts.push('AÇÕES PENDENTES DE REUNIÕES:');
+          for (const a of actionsRes.rows) {
+            const dl = a.deadline ? ` (prazo ${new Date(a.deadline).toLocaleDateString('pt-BR')})` : '';
+            parts.push(`- [${a.type}] ${a.title}${dl}`);
+          }
+        }
+        if (whatsappRes.rows.length) {
+          parts.push('SINAIS DO CLIENTE VIA WHATSAPP:');
+          for (const i of whatsappRes.rows) {
+            parts.push(`- [${i.insight_type}${i.urgency === 'urgent' ? ' URGENTE' : ''}] ${i.summary}`);
+          }
+        }
+        if (parts.length) copyIntelBlock = '\n\nCONTEXTO ATUAL DO CLIENTE:\n' + parts.join('\n');
+      } catch { /* non-blocking */ }
+
+      // 7. AgentWriter — generates DraftContent (enriched with learning rules + live client intel)
       const draft = await generateBehavioralDraft({
         platform: body.platform,
         format: body.format,
@@ -1140,7 +1235,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
         campaignObjective: campaign.objective,
         clientName: client?.name,
         clientSegment: client?.segment_primary,
-        knowledgeBlock: ((clientProfile.knowledge_block || '') + rulesBlock).trim() || undefined,
+        knowledgeBlock: ((clientProfile.knowledge_block || '') + rulesBlock + copyIntelBlock).trim() || undefined,
       });
 
       // 8. AgentAuditor — validates and optionally revises
