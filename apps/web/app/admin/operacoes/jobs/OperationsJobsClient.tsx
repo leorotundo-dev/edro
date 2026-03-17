@@ -23,19 +23,15 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
-import Avatar from '@mui/material/Avatar';
-import Tooltip from '@mui/material/Tooltip';
 import {
   IconAlertTriangle,
   IconChevronDown,
-  IconChevronRight,
   IconChevronUp,
   IconFilter,
   IconInbox,
   IconLoader2,
   IconPlayerPlay,
   IconSearch,
-  IconShieldCheck,
   IconTruck,
   IconUserOff,
   IconUsers,
@@ -44,12 +40,14 @@ import {
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
+  ActionStrip,
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
   JobFocusRail,
   OpsJobRow,
   PersonThumb,
+  PipelineBoard,
   SourceThumb,
   StatusDot,
 } from '@/components/operations/primitives';
@@ -320,86 +318,25 @@ export default function OperationsJobsClient() {
                 </Collapse>
               </Box>
 
-              {/* Alert strip — critical jobs */}
-              {alerts.length > 0 && (
-                <Box sx={{
-                  display: 'flex', gap: 1.25, overflowX: 'auto', py: 0.5,
-                  '&::-webkit-scrollbar': { display: 'none' },
-                }}>
-                  {alerts.map((job) => {
-                    const risk = getRisk(job);
-                    return (
-                      <Box
-                        key={job.id}
-                        onClick={() => { setSelectedJob(job); setDetailOpen(true); }}
-                        sx={{
-                          minWidth: 200, maxWidth: 260, flexShrink: 0,
-                          px: 1.5, py: 1, borderRadius: 2, cursor: 'pointer',
-                          border: `1px solid ${alpha('#FA896B', 0.25)}`,
-                          bgcolor: alpha('#FA896B', dark ? 0.08 : 0.04),
-                          transition: 'all 150ms ease',
-                          '&:hover': { bgcolor: alpha('#FA896B', dark ? 0.14 : 0.08), borderColor: alpha('#FA896B', 0.4) },
-                        }}
-                      >
-                        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.5 }}>
-                          <IconAlertTriangle size={14} style={{ color: '#FA896B', flexShrink: 0 }} />
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: '#FA896B', fontSize: '0.65rem', textTransform: 'uppercase' }}>
-                            {risk.level === 'critical' ? 'Crítico' : 'P0 sem dono'}
-                          </Typography>
-                        </Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {job.title}
-                        </Typography>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
-                          {job.client_name && (
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>{job.client_name}</Typography>
-                          )}
-                          {job.owner_name ? (
-                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>· {job.owner_name}</Typography>
-                          ) : (
-                            <Chip label="Sem dono" size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: alpha('#FA896B', 0.12), color: '#FA896B' }} />
-                          )}
-                        </Stack>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              )}
+              {/* Zone 1: Action strip — alerts + team pulse */}
+              <ActionStrip
+                alerts={alerts}
+                owners={teamPulse}
+                jobs={jobs}
+                onSelectJob={(job) => { setSelectedJob(job); setDetailOpen(true); }}
+                onFilterOwner={(id) => setOwnerFilter(ownerFilter === id ? '' : id)}
+                allocableMinutesFn={ownerAllocableMinutes}
+                committedMinutesFn={ownerCommittedMinutes}
+              />
 
-              {/* Team pulse strip */}
-              {teamPulse.length > 0 && (
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ py: 0.5 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.68rem', mr: 0.5 }}>Equipe:</Typography>
-                  {teamPulse.map((o) => {
-                    const barColor = o.pct > 90 ? '#FA896B' : o.pct > 75 ? '#FFAE1F' : '#13DEB9';
-                    return (
-                      <Tooltip key={o.id} title={`${o.name}: ${o.pct}% (${Math.round(o.committed / 60)}h / ${Math.round(o.cap / 60)}h)`} arrow>
-                        <Stack
-                          direction="row" spacing={0.5} alignItems="center"
-                          onClick={() => setOwnerFilter(ownerFilter === o.id ? '' : o.id)}
-                          sx={{
-                            px: 0.75, py: 0.3, borderRadius: 1.5, cursor: 'pointer',
-                            bgcolor: ownerFilter === o.id ? alpha(barColor, 0.15) : 'transparent',
-                            border: ownerFilter === o.id ? `1px solid ${alpha(barColor, 0.3)}` : '1px solid transparent',
-                            '&:hover': { bgcolor: alpha(barColor, 0.08) },
-                          }}
-                        >
-                          <Avatar sx={{ width: 22, height: 22, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha(barColor, 0.15), color: barColor }}>
-                            {o.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                          </Avatar>
-                          <Box sx={{ width: 32, height: 4, borderRadius: 2, bgcolor: alpha(barColor, 0.15), overflow: 'hidden' }}>
-                            <Box sx={{ width: `${Math.min(o.pct, 100)}%`, height: '100%', borderRadius: 2, bgcolor: barColor }} />
-                          </Box>
-                        </Stack>
-                      </Tooltip>
-                    );
-                  })}
-                  {alerts.length === 0 && (
-                    <Chip icon={<IconShieldCheck size={12} />} label="Controlado" size="small"
-                      sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: alpha('#13DEB9', 0.1), color: '#13DEB9', ml: 'auto' }} />
-                  )}
-                </Stack>
-              )}
+              {/* Zone 2: Pipeline Board — horizontal kanban */}
+              <PipelineBoard
+                jobs={filteredJobs}
+                selectedJob={selectedJob}
+                onSelectJob={setSelectedJob}
+                onAdvance={handleAdvance}
+                onShowAll={() => setGroupMode('status')}
+              />
 
               {/* Group-by selector */}
               <Stack direction="row" spacing={1} alignItems="center">
