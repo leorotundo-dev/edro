@@ -61,6 +61,7 @@ import webhookGoogleCalendarRoutes from './webhookGoogleCalendar';
 import webhookRecallRoutes from './webhookRecall';
 import jobsRoutes from './jobs';
 import operationsRoutes from './operations';
+import peopleRoutes from './people';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -104,6 +105,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(learningRulesRoutes, { prefix: '/api' });
   app.register(adminReporteiRoutes, { prefix: '/api' });
   app.register(freelancersRoutes, { prefix: '/api' });
+  app.register(peopleRoutes, { prefix: '/api' });
   app.register(financialRoutes, { prefix: '/api' });
   app.register(portalClientRoutes, { prefix: '/api' });
   app.register(artworksRoutes, { prefix: '/api' });

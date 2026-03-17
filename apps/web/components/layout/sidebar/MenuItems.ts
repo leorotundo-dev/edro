@@ -16,6 +16,7 @@ import {
   IconMicrophone,
   IconSparkles,
   IconChartBar,
+  IconAddressBook,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -96,6 +97,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Reuniões',
         icon: IconMicrophone,
         href: '/admin/reunioes',
+      },
+      {
+        id: 'pessoas',
+        title: 'Pessoas',
+        icon: IconAddressBook,
+        href: '/admin/pessoas',
       },
       {
         id: 'calendar',

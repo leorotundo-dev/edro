@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -8,10 +8,20 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
+import {
+  IconAlertTriangle,
+  IconBell,
+  IconCheck,
+  IconClockPause,
+  IconRefresh,
+} from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
@@ -34,6 +44,73 @@ export default function OperationsRadarClient() {
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // ── Operational signals ──────────────────────────────────────────────────
+  type Signal = {
+    id: string;
+    domain: string;
+    signal_type: string;
+    severity: number;
+    title: string;
+    summary?: string | null;
+    entity_type?: string | null;
+    entity_id?: string | null;
+    client_id?: string | null;
+    client_name?: string | null;
+    actions?: Array<{ label: string; href?: string; action_type?: string }>;
+    created_at: string;
+  };
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [signalsLoading, setSignalsLoading] = useState(true);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [snoozingId, setSnoozingId] = useState<string | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+
+  const loadSignals = useCallback(async () => {
+    setSignalsLoading(true);
+    try {
+      const res = await apiGet<{ success: boolean; data: Signal[] }>('/operations/signals?limit=20');
+      setSignals(res?.data ?? []);
+    } catch {
+      // signals are non-critical; fail silently
+    } finally {
+      setSignalsLoading(false);
+    }
+  }, []);
+
+  const resolveSignal = async (id: string) => {
+    setResolvingId(id);
+    try {
+      await apiPost(`/operations/signals/${id}/resolve`, {});
+      setSignals((prev) => prev.filter((s) => s.id !== id));
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const snoozeSignal = async (id: string) => {
+    setSnoozingId(id);
+    try {
+      await apiPost(`/operations/signals/${id}/snooze`, { hours: 4 });
+      setSignals((prev) => prev.filter((s) => s.id !== id));
+    } finally {
+      setSnoozingId(null);
+    }
+  };
+
+  const rebuildSignals = async () => {
+    setRebuilding(true);
+    try {
+      await apiPost('/operations/signals/rebuild', {});
+      await loadSignals();
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
+  useEffect(() => { loadSignals(); }, [loadSignals]);
+
+  // ── Risk data ─────────────────────────────────────────────────────────────
   const [riskLoading, setRiskLoading] = useState(true);
   const [riskError, setRiskError] = useState('');
   const [riskData, setRiskData] = useState<{
@@ -121,6 +198,105 @@ export default function OperationsRadarClient() {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, lg: 7.6 }}>
             <Stack spacing={3}>
+
+              {/* ── Operational Signals ─────────────────────────────── */}
+              {(signalsLoading || signals.length > 0) && (
+                <Box>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                    <Stack direction="row" spacing={0.75} alignItems="center">
+                      <IconBell size={15} style={{ color: theme.palette.warning.main }} />
+                      <Typography variant="body2" fontWeight={800} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.72rem' }}>
+                        Sinais Operacionais
+                      </Typography>
+                      {!signalsLoading && (
+                        <Chip size="small" label={signals.length} color={signals.length > 0 ? 'warning' : 'default'}
+                          sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }} />
+                      )}
+                    </Stack>
+                    <Stack direction="row" spacing={0.5}>
+                      <Tooltip title="Recomputar sinais">
+                        <span>
+                          <IconButton size="small" onClick={rebuildSignals} disabled={rebuilding}>
+                            {rebuilding ? <CircularProgress size={14} /> : <IconRefresh size={14} />}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+
+                  {signalsLoading ? (
+                    <Box sx={{ py: 3, display: 'flex', justifyContent: 'center' }}><CircularProgress size={20} /></Box>
+                  ) : (
+                    <Stack spacing={0.75}>
+                      {signals.map((signal) => {
+                        const sevColor =
+                          signal.severity >= 90 ? theme.palette.error.main
+                            : signal.severity >= 70 ? theme.palette.warning.main
+                            : signal.severity >= 50 ? theme.palette.info.main
+                            : theme.palette.text.disabled;
+                        return (
+                          <Box key={signal.id} sx={{
+                            px: 1.5, py: 1,
+                            borderRadius: 2,
+                            border: `1px solid`,
+                            borderColor: alpha(sevColor, 0.25),
+                            bgcolor: alpha(sevColor, 0.04),
+                          }}>
+                            <Stack direction="row" spacing={1} alignItems="flex-start" justifyContent="space-between">
+                              <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                                <Box sx={{ mt: 0.3, color: sevColor, flexShrink: 0 }}>
+                                  <IconAlertTriangle size={14} />
+                                </Box>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem', lineHeight: 1.3 }}>
+                                    {signal.title}
+                                  </Typography>
+                                  {signal.summary && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.3 }}>
+                                      {signal.summary}
+                                    </Typography>
+                                  )}
+                                  {(signal.actions ?? []).filter((a) => a.href).length > 0 && (
+                                    <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
+                                      {(signal.actions ?? []).filter((a) => a.href).map((a, i) => (
+                                        <Link key={i} href={a.href!} underline="hover"
+                                          sx={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                                          {a.label} →
+                                        </Link>
+                                      ))}
+                                    </Stack>
+                                  )}
+                                </Box>
+                              </Stack>
+                              <Stack direction="row" spacing={0.25} flexShrink={0}>
+                                <Tooltip title="Soneca 4h">
+                                  <span>
+                                    <IconButton size="small" onClick={() => snoozeSignal(signal.id)}
+                                      disabled={snoozingId === signal.id}
+                                      sx={{ color: 'text.disabled', '&:hover': { color: 'warning.main' } }}>
+                                      {snoozingId === signal.id ? <CircularProgress size={12} /> : <IconClockPause size={13} />}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title="Resolver">
+                                  <span>
+                                    <IconButton size="small" onClick={() => resolveSignal(signal.id)}
+                                      disabled={resolvingId === signal.id}
+                                      sx={{ color: 'text.disabled', '&:hover': { color: 'success.main' } }}>
+                                      {resolvingId === signal.id ? <CircularProgress size={12} /> : <IconCheck size={13} />}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </Stack>
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </Box>
+              )}
+
               <OpsSection
                 eyebrow="Pontos de atenção"
                 title={OPS_COPY.radar.title}
