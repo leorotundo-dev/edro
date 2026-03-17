@@ -9,6 +9,7 @@ import {
   updateMeetingState,
   recordMeetingEvent,
 } from '../services/meetingService';
+import { syncMeetingParticipantsFromAutoJoin } from '../repos/meetingParticipantsRepo';
 import {
   createRecallBot,
   getRecallBot,
@@ -396,10 +397,10 @@ async function handleFinalizeJob(job: any): Promise<void> {
         eventType: 'meeting.analysis_started',
         stage: 'analysis',
         status: 'analysis_pending',
-        message: 'Análise Claude iniciada',
+        message: 'Análise Gemini iniciada',
         actorType: 'system',
         actorId: 'meetBotWorker',
-        payload: { provider: 'claude' },
+        payload: { provider: 'gemini' },
       },
     });
 
@@ -540,6 +541,12 @@ async function createRecallMeeting(params: {
       status: 'meeting_created',
       last_error: null,
     });
+    await syncMeetingParticipantsFromAutoJoin({
+      meetingId: params.explicitMeetingId,
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      autoJoinId: params.autoJoinId,
+    }).catch((err) => console.error('[meetBotWorker] syncMeetingParticipantsFromAutoJoin failed:', err?.message));
     return params.explicitMeetingId;
   }
 
@@ -562,6 +569,12 @@ async function createRecallMeeting(params: {
     status: 'meeting_created',
     last_error: null,
   });
+  await syncMeetingParticipantsFromAutoJoin({
+    meetingId: meeting.id,
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    autoJoinId: params.autoJoinId,
+  }).catch((err) => console.error('[meetBotWorker] syncMeetingParticipantsFromAutoJoin failed:', err?.message));
 
   return meeting.id;
 }

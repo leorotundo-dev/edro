@@ -5,6 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
+import { syncFreelancerPerson } from '../repos/peopleRepo';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,24 @@ function formatHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+async function loadFreelancerIdentitySnapshot(freelancerId: string) {
+  const res = await pool.query(
+    `SELECT fp.id,
+            fp.person_id,
+            fp.user_id,
+            fp.display_name,
+            fp.email_personal,
+            fp.phone,
+            fp.whatsapp_jid,
+            eu.email
+       FROM freelancer_profiles fp
+       JOIN edro_users eu ON eu.id = fp.user_id
+      WHERE fp.id = $1`,
+    [freelancerId],
+  );
+  return res.rows[0] ?? null;
 }
 
 // ── PDF generation (requires: pnpm add pdfkit @types/pdfkit in apps/backend) ──
@@ -222,6 +241,20 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
        body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null],
     );
+    const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
+    if (snapshot) {
+      res.rows[0].person_id = await syncFreelancerPerson({
+        freelancerId: snapshot.id,
+        tenantId,
+        displayName: snapshot.display_name,
+        userId: snapshot.user_id,
+        email: snapshot.email,
+        emailPersonal: snapshot.email_personal,
+        phone: snapshot.phone,
+        whatsappJid: snapshot.whatsapp_jid,
+        existingPersonId: snapshot.person_id ?? null,
+      });
+    }
     return reply.status(201).send(res.rows[0]);
   });
 
@@ -292,6 +325,21 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       vals,
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
+    const tenantId = (request as any).user?.tenant_id;
+    const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
+    if (snapshot) {
+      res.rows[0].person_id = await syncFreelancerPerson({
+        freelancerId: snapshot.id,
+        tenantId,
+        displayName: snapshot.display_name,
+        userId: snapshot.user_id,
+        email: snapshot.email,
+        emailPersonal: snapshot.email_personal,
+        phone: snapshot.phone,
+        whatsappJid: snapshot.whatsapp_jid,
+        existingPersonId: snapshot.person_id ?? null,
+      });
+    }
     return reply.send(res.rows[0]);
   });
 
@@ -564,6 +612,21 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       `UPDATE freelancer_profiles SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
       vals,
     );
+    const tenantId = request.user?.tenant_id;
+    const snapshot = res.rows[0]?.id ? await loadFreelancerIdentitySnapshot(res.rows[0].id) : null;
+    if (snapshot) {
+      res.rows[0].person_id = await syncFreelancerPerson({
+        freelancerId: snapshot.id,
+        tenantId,
+        displayName: snapshot.display_name,
+        userId: snapshot.user_id,
+        email: snapshot.email,
+        emailPersonal: snapshot.email_personal,
+        phone: snapshot.phone,
+        whatsappJid: snapshot.whatsapp_jid,
+        existingPersonId: snapshot.person_id ?? null,
+      });
+    }
     return reply.send(res.rows[0]);
   });
 

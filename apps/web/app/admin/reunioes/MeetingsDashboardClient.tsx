@@ -103,10 +103,12 @@ type MeetingProposal = {
 
 type Contact = {
   id: string;
+  person_id?: string;
   name: string;
   role?: string;
   email?: string;
   phone?: string;
+  whatsapp_jid?: string;
   client_id?: string;
   client_name?: string;
   is_primary?: boolean;
@@ -585,6 +587,23 @@ type MeetingDetail = {
       urgency_reason?: string | null;
     } | null;
   }> | null;
+  participants?: Array<{
+    id: string;
+    person_id?: string | null;
+    display_name: string;
+    email?: string | null;
+    phone?: string | null;
+    is_internal: boolean;
+    is_organizer: boolean;
+    is_attendee: boolean;
+    is_invited: boolean;
+    response_status?: string | null;
+    invited_via?: string | null;
+    source_type?: string | null;
+  }> | null;
+  participant_count?: number;
+  internal_participant_count?: number;
+  external_participant_count?: number;
 };
 
 type MeetingStatusData = {
@@ -610,6 +629,9 @@ type MeetingStatusData = {
   pending_actions: number;
   approved_actions: number;
   rejected_actions: number;
+  participant_count: number;
+  internal_participant_count: number;
+  external_participant_count: number;
   auto_join_id: string | null;
   auto_join_status: string | null;
   auto_join_bot_id: string | null;
@@ -738,6 +760,7 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
 
   const operational = ops ?? audit?.meeting ?? null;
   const actions = detail?.actions ?? [];
+  const participants = detail?.participants ?? [];
   const intelligence = detail?.analysis_payload?.intelligence ?? null;
 
   const handleOperation = async (operation: OperationKey) => {
@@ -1260,12 +1283,42 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
         </Stack>
       )}
 
+      {participants.length > 0 && (
+        <Stack spacing={1} sx={{ mt: 1.5 }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <IconUser size={16} color={EDRO_ORANGE} />
+            <Typography variant="caption" color="text.secondary">
+              Participantes: {participants.length}
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            {participants.map((participant) => (
+              <Chip
+                key={participant.id}
+                size="small"
+                variant="outlined"
+                color={participant.is_internal ? 'warning' : 'default'}
+                label={[
+                  participant.display_name,
+                  participant.is_organizer ? 'organizador' : null,
+                  participant.response_status ? participant.response_status : null,
+                ].filter(Boolean).join(' · ')}
+                sx={{ maxWidth: '100%' }}
+              />
+            ))}
+          </Stack>
+        </Stack>
+      )}
+
       {operational && (
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
           <Typography variant="caption" color="text.secondary">Aprovada em: {fmtDateTime(operational.approved_at)}</Typography>
           <Typography variant="caption" color="text.secondary">WhatsApp: {fmtDateTime(operational.summary_sent_at)}</Typography>
           <Typography variant="caption" color="text.secondary">Concluida em: {fmtDateTime(operational.completed_at)}</Typography>
           <Typography variant="caption" color="text.secondary">Bot: {shortText(operational.bot_id)}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Pessoas: {operational.participant_count} ({operational.internal_participant_count} Edro / {operational.external_participant_count} externas)
+          </Typography>
         </Stack>
       )}
     </Box>
@@ -1447,9 +1500,12 @@ export default function MeetingsDashboardClient() {
         duration_minutes: duration,
         description: description.trim() || undefined,
         invite_contacts: selectedInvites.map(c => ({
+          id: c.id,
+          person_id: c.person_id,
           name: c.name,
           email: c.email,
           phone: c.phone,
+          whatsapp_jid: c.whatsapp_jid,
           role: c.role,
           source: c.source,
           send_via: c.send_via,

@@ -623,6 +623,36 @@ export async function ensureMeetingTables() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS meeting_participants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      tenant_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL,
+      person_id UUID,
+      client_contact_id UUID,
+      edro_user_id UUID,
+      display_name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      whatsapp_jid TEXT,
+      is_internal BOOLEAN NOT NULL DEFAULT false,
+      is_organizer BOOLEAN NOT NULL DEFAULT false,
+      is_attendee BOOLEAN NOT NULL DEFAULT true,
+      is_invited BOOLEAN NOT NULL DEFAULT false,
+      is_speaker BOOLEAN NOT NULL DEFAULT false,
+      response_status TEXT,
+      invited_via TEXT,
+      source_type TEXT,
+      source_ref_id TEXT,
+      metadata JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT meeting_participants_meeting_dedupe_unique UNIQUE (meeting_id, dedupe_key)
+    )
+  `);
+
   await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_payload JSONB`);
   await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_input_context JSONB`);
   await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_model TEXT`);
@@ -630,6 +660,7 @@ export async function ensureMeetingTables() {
   await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS prep_generated_at TIMESTAMPTZ`);
   await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS prep_model TEXT`);
   await query(`ALTER TABLE meeting_actions ADD COLUMN IF NOT EXISTS metadata JSONB`);
+  await query(`ALTER TABLE calendar_auto_joins ADD COLUMN IF NOT EXISTS organizer_name TEXT`).catch(() => {});
 
   await query(`ALTER TABLE calendar_auto_joins ADD COLUMN IF NOT EXISTS client_id TEXT`).catch(() => {});
   await query(`ALTER TABLE calendar_auto_joins ADD COLUMN IF NOT EXISTS bot_id TEXT`).catch(() => {});
@@ -925,8 +956,11 @@ export async function getMeeting(tenantId: string, meetingId: string) {
             caj.last_error AS auto_join_last_error,
             caj.attempt_count AS auto_join_attempt_count,
             caj.scheduled_at AS auto_join_scheduled_at,
-            json_agg(ma.* ORDER BY ma.analysis_version DESC, ma.created_at)
-              FILTER (WHERE ma.id IS NOT NULL) AS actions
+            COALESCE(action_rows.actions, '[]'::json) AS actions,
+            COALESCE(participant_rows.participants, '[]'::json) AS participants,
+            COALESCE(participant_rows.participant_count, 0) AS participant_count,
+            COALESCE(participant_rows.internal_participant_count, 0) AS internal_participant_count,
+            COALESCE(participant_rows.external_participant_count, 0) AS external_participant_count
        FROM meetings m
        LEFT JOIN LATERAL (
          SELECT id, status, bot_id, last_error, attempt_count, scheduled_at
@@ -935,9 +969,43 @@ export async function getMeeting(tenantId: string, meetingId: string) {
           ORDER BY created_at DESC
           LIMIT 1
        ) caj ON true
-       LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
-      WHERE m.id = $1 AND m.tenant_id = $2
-      GROUP BY m.id, caj.id, caj.status, caj.bot_id, caj.last_error, caj.attempt_count, caj.scheduled_at`,
+       LEFT JOIN LATERAL (
+         SELECT json_agg(ma.* ORDER BY ma.analysis_version DESC, ma.created_at) AS actions
+           FROM meeting_actions ma
+          WHERE ma.meeting_id = m.id
+       ) action_rows ON true
+       LEFT JOIN LATERAL (
+         SELECT
+           json_agg(
+             json_build_object(
+               'id', mp.id,
+               'person_id', mp.person_id,
+               'client_contact_id', mp.client_contact_id,
+               'edro_user_id', mp.edro_user_id,
+               'display_name', mp.display_name,
+               'email', mp.email,
+               'phone', mp.phone,
+               'whatsapp_jid', mp.whatsapp_jid,
+               'is_internal', mp.is_internal,
+               'is_organizer', mp.is_organizer,
+               'is_attendee', mp.is_attendee,
+               'is_invited', mp.is_invited,
+               'is_speaker', mp.is_speaker,
+               'response_status', mp.response_status,
+               'invited_via', mp.invited_via,
+               'source_type', mp.source_type,
+               'source_ref_id', mp.source_ref_id,
+               'metadata', mp.metadata
+             )
+             ORDER BY mp.is_organizer DESC, mp.is_internal DESC, mp.display_name ASC
+           ) FILTER (WHERE mp.id IS NOT NULL) AS participants,
+           COUNT(*)::int AS participant_count,
+           COUNT(*) FILTER (WHERE mp.is_internal)::int AS internal_participant_count,
+           COUNT(*) FILTER (WHERE NOT mp.is_internal)::int AS external_participant_count
+          FROM meeting_participants mp
+          WHERE mp.meeting_id = m.id
+       ) participant_rows ON true
+      WHERE m.id = $1 AND m.tenant_id = $2`,
     [meetingId, tenantId],
   );
   return rows[0] ?? null;
@@ -1025,6 +1093,9 @@ export async function getMeetingStatus(tenantId: string, meetingId: string) {
         COALESCE(action_stats.pending_actions, 0) AS pending_actions,
         COALESCE(action_stats.approved_actions, 0) AS approved_actions,
         COALESCE(action_stats.rejected_actions, 0) AS rejected_actions,
+        COALESCE(participant_stats.participant_count, 0) AS participant_count,
+        COALESCE(participant_stats.internal_participant_count, 0) AS internal_participant_count,
+        COALESCE(participant_stats.external_participant_count, 0) AS external_participant_count,
         caj.id AS auto_join_id,
         caj.status AS auto_join_status,
         caj.bot_id AS auto_join_bot_id,
@@ -1045,6 +1116,14 @@ export async function getMeetingStatus(tenantId: string, meetingId: string) {
            FROM meeting_actions
           WHERE meeting_id = m.id
        ) action_stats ON true
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*)::int AS participant_count,
+           COUNT(*) FILTER (WHERE is_internal)::int AS internal_participant_count,
+           COUNT(*) FILTER (WHERE NOT is_internal)::int AS external_participant_count
+           FROM meeting_participants
+          WHERE meeting_id = m.id
+       ) participant_stats ON true
        LEFT JOIN LATERAL (
          SELECT id, status, bot_id, last_error, attempt_count, scheduled_at
            FROM calendar_auto_joins

@@ -36,6 +36,11 @@ import { sendDirectMessage, isConfigured as isEvolutionConfigured } from '../ser
 import { sendEmail } from '../services/emailService';
 import { getRecallBotTranscript, isRecallConfigured } from '../services/integrations/recallService';
 import { sendMeetingSummaryToWhatsApp } from '../jobs/meetBotWorker';
+import {
+  syncMeetingOrganizerFromUserEmail,
+  syncMeetingParticipantsFromInviteContacts,
+  syncMeetingParticipantsFromCalendarPayload,
+} from '../repos/meetingParticipantsRepo';
 
 const AUDIO_MIMES = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/m4a',
@@ -121,13 +126,33 @@ export default async function meetingRoutes(app: FastifyInstance) {
         recordedAt: startAt,
       });
 
+      await syncMeetingOrganizerFromUserEmail({
+        meetingId: meeting.id,
+        tenantId,
+        clientId: clientId!,
+        email: userEmail,
+        sourceType: 'instant_organizer',
+      }).catch((err) => console.error('[meetings/instant] sync organizer failed:', err?.message));
+
+      await syncMeetingParticipantsFromCalendarPayload({
+        meetingId: meeting.id,
+        tenantId,
+        clientId: clientId!,
+        organizerEmail: userEmail,
+        attendees: body.attendee_emails.map((email) => ({ email })),
+        calendarEventId: event.eventId,
+      }).catch((err) => console.error('[meetings/instant] sync attendees failed:', err?.message));
+
       // Upsert to calendar_auto_joins for tracking
       await query(
         `INSERT INTO calendar_auto_joins
-           (tenant_id, calendar_event_id, event_title, video_url, video_platform, scheduled_at, meeting_id, client_id, job_enqueued_at, status)
-         VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7, $8, $9)
+           (tenant_id, calendar_event_id, event_title, video_url, video_platform, organizer_email, organizer_name, attendees, scheduled_at, meeting_id, client_id, job_enqueued_at, status)
+         VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
          ON CONFLICT (calendar_event_id) DO UPDATE
            SET video_url = EXCLUDED.video_url,
+               organizer_email = EXCLUDED.organizer_email,
+               organizer_name = EXCLUDED.organizer_name,
+               attendees = EXCLUDED.attendees,
                meeting_id = EXCLUDED.meeting_id,
                client_id = EXCLUDED.client_id,
                status = EXCLUDED.status,
@@ -137,6 +162,9 @@ export default async function meetingRoutes(app: FastifyInstance) {
           event.eventId,
           body.title,
           event.meetUrl,
+          userEmail,
+          (request.user as any).name ?? userEmail ?? null,
+          JSON.stringify(body.attendee_emails.map((email) => ({ email }))),
           startAt,
           meeting.id,
           clientId,
@@ -991,9 +1019,12 @@ export default async function meetingRoutes(app: FastifyInstance) {
     duration_minutes: z.number().min(15).max(480).default(60),
     description: z.string().optional(),
     invite_contacts: z.array(z.object({
+      id: z.string().optional(),
+      person_id: z.string().optional(),
       name: z.string(),
       email: z.string().nullish(),
       phone: z.string().nullish(),
+      whatsapp_jid: z.string().nullish(),
       role: z.string().nullish(),
       source: z.enum(['client_contact', 'team']).optional().default('client_contact'),
       send_via: z.enum(['whatsapp', 'email', 'both']).default('email'),
@@ -1090,6 +1121,31 @@ export default async function meetingRoutes(app: FastifyInstance) {
         const meetingId = meetingRow.id;
         let meetingPrep: Awaited<ReturnType<typeof generateMeetingPrep>> | null = null;
 
+        await syncMeetingOrganizerFromUserEmail({
+          meetingId,
+          tenantId,
+          clientId: clientId!,
+          email: (request.user as any).email ?? null,
+          sourceType: 'manual_meeting_organizer',
+        }).catch((err) => console.error('[meetings/create] sync organizer failed:', err?.message));
+
+        await syncMeetingParticipantsFromInviteContacts({
+          meetingId,
+          tenantId,
+          clientId: clientId!,
+          inviteContacts: (body.invite_contacts ?? []).map((contact) => ({
+            id: contact.id ?? null,
+            person_id: contact.person_id ?? null,
+            name: contact.name,
+            email: contact.email ?? null,
+            phone: contact.phone ?? null,
+            whatsapp_jid: contact.whatsapp_jid ?? null,
+            role: contact.role ?? null,
+            source: contact.source ?? 'client_contact',
+            send_via: contact.send_via ?? 'email',
+          })),
+        }).catch((err) => console.error('[meetings/create] sync invite participants failed:', err?.message));
+
         const hasAgencyInvite = (body.invite_contacts ?? []).some((contact) => contact.source === 'team');
         if (hasAgencyInvite) {
           try {
@@ -1131,11 +1187,14 @@ export default async function meetingRoutes(app: FastifyInstance) {
         if (body.platform === 'meet' && meetingUrl && calendarEventId) {
           const { rows: autoJoinRows } = await query<{ id: string }>(
             `INSERT INTO calendar_auto_joins
-               (tenant_id, calendar_event_id, event_title, video_url, video_platform, scheduled_at, meeting_id, client_id, status)
-             VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7, 'meeting_created')
+               (tenant_id, calendar_event_id, event_title, video_url, video_platform, organizer_email, organizer_name, attendees, scheduled_at, meeting_id, client_id, status)
+             VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7::jsonb, $8, $9, $10, 'meeting_created')
              ON CONFLICT (calendar_event_id) DO UPDATE
                SET event_title = EXCLUDED.event_title,
                    video_url = EXCLUDED.video_url,
+                   organizer_email = EXCLUDED.organizer_email,
+                   organizer_name = EXCLUDED.organizer_name,
+                   attendees = EXCLUDED.attendees,
                    meeting_id = EXCLUDED.meeting_id,
                    client_id = EXCLUDED.client_id,
                    status = EXCLUDED.status,
@@ -1147,6 +1206,12 @@ export default async function meetingRoutes(app: FastifyInstance) {
               calendarEventId,
               body.title,
               meetingUrl,
+              (request.user as any).email ?? null,
+              (request.user as any).name ?? (request.user as any).email ?? null,
+              JSON.stringify((body.invite_contacts ?? []).map((contact) => ({
+                email: contact.email ?? null,
+                displayName: contact.name,
+              }))),
               startAt,
               meetingId,
               clientId,
@@ -1313,7 +1378,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
 
       // Client contacts
       let contactsSql = `
-        SELECT cc.id, cc.name, cc.role, cc.email, cc.phone, cc.client_id, cc.is_primary,
+        SELECT cc.id, cc.person_id, cc.name, cc.role, cc.email, cc.phone, cc.whatsapp_jid, cc.client_id, cc.is_primary,
                c.name AS client_name, 'client_contact' AS source
         FROM client_contacts cc
         JOIN clients c ON c.id = cc.client_id
@@ -1330,21 +1395,36 @@ export default async function meetingRoutes(app: FastifyInstance) {
 
       // Team members (users of the tenant)
       const { rows: teamMembers } = await query(
-        `SELECT u.id, u.email, u.name, tu.role, 'team' AS source
+        `SELECT
+            u.id,
+            COALESCE(fp.person_id::text, pi.person_id::text) AS person_id,
+            u.email,
+            COALESCE(NULLIF(BTRIM(fp.display_name), ''), NULLIF(BTRIM(u.name), ''), u.email) AS name,
+            COALESCE(NULLIF(BTRIM(fp.role_title), ''), tu.role) AS role,
+            fp.phone,
+            fp.whatsapp_jid,
+            'team' AS source
          FROM tenant_users tu
          JOIN edro_users u ON u.id = tu.user_id
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+         LEFT JOIN person_identities pi
+           ON pi.tenant_id = tu.tenant_id::text
+          AND pi.identity_type = 'edro_user_id'
+          AND pi.normalized_value = LOWER(u.id::text)
          WHERE tu.tenant_id = $1
-         ORDER BY u.name ASC`,
+         ORDER BY name ASC`,
         [tenantId],
       );
 
       return reply.send({
         contacts: clientContacts.map((c: any) => ({
           id: c.id,
+          person_id: c.person_id,
           name: c.name,
           role: c.role,
           email: c.email,
           phone: c.phone,
+          whatsapp_jid: c.whatsapp_jid,
           client_id: c.client_id,
           client_name: c.client_name,
           is_primary: c.is_primary,
@@ -1352,9 +1432,12 @@ export default async function meetingRoutes(app: FastifyInstance) {
         })),
         team: teamMembers.map((u: any) => ({
           id: u.id,
+          person_id: u.person_id,
           name: u.name || u.email,
           email: u.email,
           role: u.role,
+          phone: u.phone,
+          whatsapp_jid: u.whatsapp_jid,
           source: u.source,
         })),
       });

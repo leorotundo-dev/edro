@@ -60,7 +60,7 @@ export async function persistWhatsAppMessageMemory(params: {
   await insertClientDocument({
     tenantId: params.tenantId,
     clientId: params.clientId,
-    sourceId: params.externalMessageId,
+    sourceId: null,
     sourceType: 'whatsapp_message',
     platform: 'whatsapp',
     title: params.senderName
@@ -79,6 +79,7 @@ export async function persistWhatsAppMessageMemory(params: {
       sender_phone: params.senderPhone ?? null,
       message_type: params.messageType ?? null,
       channel: params.channel ?? 'cloud',
+      external_message_id: params.externalMessageId,
       source: 'whatsapp_message',
     },
   });
@@ -120,7 +121,7 @@ export async function persistWhatsAppInsightMemory(params: {
     await insertClientDocument({
       tenantId: params.tenantId,
       clientId: params.clientId,
-      sourceId: params.insightId,
+      sourceId: null,
       sourceType: 'whatsapp_insight',
       platform: 'whatsapp',
       title: params.groupName
@@ -133,6 +134,7 @@ export async function persistWhatsAppInsightMemory(params: {
       contentHash,
       metadata: {
         source: 'whatsapp_message_insight',
+        insight_id: params.insightId,
         insight_type: params.insightType,
         sentiment: params.sentiment ?? null,
         urgency: params.urgency ?? null,
@@ -217,7 +219,7 @@ export async function persistWhatsAppDigestMemory(params: {
     await insertClientDocument({
       tenantId: params.tenantId,
       clientId: params.clientId,
-      sourceId: params.digestId,
+      sourceId: null,
       sourceType: 'whatsapp_digest',
       platform: 'whatsapp',
       title: `Digest de WhatsApp • ${params.period === 'daily' ? 'Diário' : 'Semanal'}`,
@@ -228,6 +230,7 @@ export async function persistWhatsAppDigestMemory(params: {
       contentHash,
       metadata: {
         source: 'whatsapp_group_digest',
+        digest_id: params.digestId,
         period: params.period,
         period_start: params.periodStart.toISOString(),
         period_end: params.periodEnd.toISOString(),

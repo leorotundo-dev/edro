@@ -19,6 +19,7 @@ import crypto from 'crypto';
 import { query } from '../../db';
 import { enqueueJob } from '../../jobs/jobQueue';
 import { ensureInternalClient } from '../../repos/clientsRepo';
+import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
 
 type ResolvedCalendarClient = {
   id: string;
@@ -253,6 +254,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   const platform = detectPlatform(videoLink);
   const organizer = event.organizer?.email ?? null;
+  const organizerName = event.organizer?.displayName ?? null;
   const attendees = (event.attendees ?? []).map((a: any) => ({
     email: a.email,
     displayName: a.displayName,
@@ -260,7 +262,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
   }));
 
   const { rows: existing } = await query(
-    `SELECT id, job_enqueued_at, meeting_id, status
+    `SELECT id, job_enqueued_at, meeting_id, client_id, status
        FROM calendar_auto_joins
       WHERE calendar_event_id = $1`,
     [eventId],
@@ -268,18 +270,33 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   // Always upsert — handles both INSERT (new events) and UPDATE (changed events).
   // The ON CONFLICT DO UPDATE in upsertAutoJoin makes the separate UPDATE redundant.
-  const autoJoinId = await upsertAutoJoin({
+  const autoJoin = await upsertAutoJoin({
     tenantId,
     eventId,
     eventTitle: event.summary ?? 'Reunião',
     videoLink,
     platform,
     organizer,
+    organizerName,
     attendees,
     scheduledAt,
   });
 
-  if (!autoJoinId) return;
+  if (!autoJoin?.id) return;
+
+  const linkedMeetingId = autoJoin.meetingId ?? existing[0]?.meeting_id ?? null;
+  const linkedClientId = autoJoin.clientId ?? existing[0]?.client_id ?? null;
+  if (linkedMeetingId && linkedClientId) {
+    await syncMeetingParticipantsFromCalendarPayload({
+      meetingId: linkedMeetingId,
+      tenantId,
+      clientId: linkedClientId,
+      organizerEmail: organizer,
+      organizerName,
+      attendees,
+      calendarEventId: eventId,
+    }).catch((err) => console.error('[googleCalendarService] syncMeetingParticipants failed:', err?.message));
+  }
 
   console.log(`[googleCalendarService] Detected video meeting: "${event.summary}" at ${scheduledAt.toISOString()} — ${platform} — ${videoLink}`);
 
@@ -295,7 +312,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   await enqueueMeetBotJob(
     tenantId,
-    autoJoinId,
+    autoJoin.id,
     videoLink,
     event.summary ?? 'Reunião',
     scheduledAt,
@@ -498,23 +515,29 @@ async function upsertAutoJoin(params: {
   videoLink: string;
   platform: string;
   organizer: string | null;
+  organizerName: string | null;
   attendees: Array<{ email?: string; displayName?: string; responseStatus?: string }>;
   scheduledAt: Date;
-}): Promise<string | null> {
-  const { rows } = await query(
+}): Promise<{ id: string; meetingId: string | null; clientId: string | null } | null> {
+  const { rows } = await query<{
+    id: string;
+    meeting_id: string | null;
+    client_id: string | null;
+  }>(
     `INSERT INTO calendar_auto_joins
        (tenant_id, calendar_event_id, event_title, video_url, video_platform,
-        organizer_email, attendees, scheduled_at, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 'detected')
+        organizer_email, organizer_name, attendees, scheduled_at, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'detected')
      ON CONFLICT (calendar_event_id) DO UPDATE
        SET event_title = EXCLUDED.event_title,
            video_url = EXCLUDED.video_url,
            video_platform = EXCLUDED.video_platform,
            organizer_email = EXCLUDED.organizer_email,
+           organizer_name = EXCLUDED.organizer_name,
            attendees = EXCLUDED.attendees,
            scheduled_at = EXCLUDED.scheduled_at,
            updated_at = now()
-     RETURNING id`,
+     RETURNING id, meeting_id::text, client_id`,
     [
       params.tenantId,
       params.eventId,
@@ -522,12 +545,18 @@ async function upsertAutoJoin(params: {
       params.videoLink,
       params.platform,
       params.organizer,
+      params.organizerName,
       JSON.stringify(params.attendees),
       params.scheduledAt,
     ],
   );
 
-  return rows[0]?.id ?? null;
+  if (!rows[0]) return null;
+  return {
+    id: rows[0].id,
+    meetingId: rows[0].meeting_id,
+    clientId: rows[0].client_id,
+  };
 }
 
 async function resolveClientForEvent(
