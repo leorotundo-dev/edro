@@ -74,12 +74,15 @@ async function emitJobSignals(tenantId: string): Promise<string[]> {
     client_id: string | null; client_name: string | null;
     deadline_at: string | null; is_urgent: boolean;
   }>(
-    `SELECT id, title, status, priority_band, owner_id, owner_name,
-            client_id, client_name, deadline_at, is_urgent
-     FROM jobs
-     WHERE tenant_id = $1
-       AND status NOT IN ('done','archived')
-     ORDER BY priority_score DESC
+    `SELECT j.id, j.title, j.status, j.priority_band, j.owner_id,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+            j.client_id, c.name AS client_name, j.deadline_at, j.is_urgent
+     FROM jobs j
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     WHERE j.tenant_id = $1
+       AND j.status NOT IN ('done','archived')
+     ORDER BY j.priority_score DESC
      LIMIT 100`,
     [tenantId],
   );
