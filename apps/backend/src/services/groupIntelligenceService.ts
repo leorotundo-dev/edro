@@ -5,7 +5,7 @@
  */
 
 import { query } from '../db';
-import { generateCompletion } from './ai/claudeService';
+import { generateWithProvider } from './ai/copyOrchestrator';
 import { persistWhatsAppInsightMemory } from './whatsappClientMemoryService';
 
 const SYSTEM_PROMPT = `Você é um analista de comunicação de agência de marketing digital.
@@ -82,14 +82,14 @@ export async function analyzeMessages(
     `[${i}] ${m.sender_name} (${m.type}): ${(m.content || '').slice(0, 500)}`
   ).join('\n');
 
-  const result = await generateCompletion({
+  const result = await generateWithProvider('gemini', {
     prompt: `Mensagens do grupo WhatsApp:\n\n${formatted}`,
     systemPrompt: SYSTEM_PROMPT,
     temperature: 0.1,
     maxTokens: 2048,
   });
 
-  const jsonMatch = result.text.match(/\[[\s\S]*\]/);
+  const jsonMatch = result.output.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return [];
 
   try {
