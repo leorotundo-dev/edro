@@ -15,10 +15,12 @@ import {
   createMeeting,
   saveMeetingTranscript,
   saveMeetingAnalysis,
+  generateMeetingPrep,
   getMeeting,
   getMeetingStatus,
   listMeetingAudit,
   listMeetings,
+  archiveStaleUncapturedMeetings,
   approveMeetingAction,
   rejectMeetingAction,
   ensureMeetingTables,
@@ -27,7 +29,7 @@ import {
 } from '../services/meetingService';
 import { query } from '../db';
 import { createBriefing } from '../repositories/edroBriefingRepository';
-import { getClientById } from '../repos/clientsRepo';
+import { ensureInternalClient, getClientById, isInternalClientId } from '../repos/clientsRepo';
 import { enqueueJob } from '../jobs/jobQueue';
 import { createCalendarMeeting } from '../services/integrations/googleCalendarService';
 import { sendDirectMessage, isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
@@ -64,7 +66,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
     description: z.string().max(2000).optional(),
     client_id: z.string().optional(),
     client_name: z.string().optional(),
-    enqueue_bot: z.boolean().default(true),
+    enqueue_bot: z.boolean().optional(),
     start_at: z.string().datetime().optional(), // ISO — defaults to now
   });
 
@@ -75,6 +77,15 @@ export default async function meetingRoutes(app: FastifyInstance) {
       const tenantId = (request.user as any).tenant_id;
       const userEmail = (request.user as any).email as string;
       const body = instantMeetingSchema.parse(request.body ?? {});
+      const shouldScheduleBot = true;
+      const resolvedClient = body.client_id
+        ? await getClientById(tenantId, body.client_id)
+        : await ensureInternalClient(tenantId);
+      if (body.client_id && !resolvedClient) {
+        return reply.code(404).send({ success: false, error: 'Cliente não encontrado.' });
+      }
+      const clientId = resolvedClient?.id ?? body.client_id ?? null;
+      const clientName = body.client_name ?? resolvedClient?.name ?? 'Reunião Interna Edro';
 
       const startAt = body.start_at ? new Date(body.start_at) : new Date(Date.now() + 60_000);
 
@@ -87,8 +98,8 @@ export default async function meetingRoutes(app: FastifyInstance) {
           durationMinutes: body.duration_minutes,
           attendeeEmails: body.attendee_emails,
           description: body.description,
-          clientId: body.client_id ?? 'edro-internal',
-          clientName: body.client_name ?? 'Edro',
+          clientId: clientId ?? undefined,
+          clientName,
         });
       } catch (err: any) {
         const msg = err?.message ?? 'Erro ao criar reunião no Google Calendar';
@@ -99,7 +110,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
       // Save to meetings table
       const meeting = await createMeeting({
         tenantId,
-        clientId: body.client_id ?? 'edro-internal',
+        clientId: clientId!,
         title: body.title,
         platform: 'meet',
         meetingUrl: event.meetUrl,
@@ -128,14 +139,14 @@ export default async function meetingRoutes(app: FastifyInstance) {
           event.meetUrl,
           startAt,
           meeting.id,
-          body.client_id ?? 'edro-internal',
-          body.enqueue_bot ? new Date() : null,
-          body.enqueue_bot ? 'queued' : 'meeting_created',
+          clientId,
+          shouldScheduleBot ? new Date() : null,
+          shouldScheduleBot ? 'queued' : 'meeting_created',
         ],
       ).catch(() => {}); // non-blocking
 
-      // Enqueue Recall bot if requested
-      if (body.enqueue_bot) {
+      // Enqueue Recall bot for every new meeting
+      if (shouldScheduleBot) {
         await enqueueJob(
           tenantId,
           'meet-bot',
@@ -146,8 +157,8 @@ export default async function meetingRoutes(app: FastifyInstance) {
             autoJoinId: null,
             source: 'instant',
             platform: 'meet',
-            clientId: body.client_id ?? 'edro-internal',
-            clientName: body.client_name ?? 'Edro',
+            clientId,
+            clientName,
             meetingId: meeting.id,
           },
         ).catch(() => {});
@@ -242,30 +253,32 @@ export default async function meetingRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard()] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
+      await archiveStaleUncapturedMeetings(tenantId);
 
       const [statsRes, recentRes, pendingRes, clientsRes] = await Promise.all([
         query(
           `SELECT
-             COUNT(*)::int AS total_meetings,
+             COUNT(*) FILTER (WHERE status <> 'archived')::int AS total_meetings,
              COUNT(*) FILTER (WHERE status IN ('analyzed', 'approval_pending', 'partially_approved', 'completed'))::int AS analyzed,
              COUNT(*) FILTER (
                WHERE status IN ('scheduled', 'bot_scheduled', 'joining', 'in_call', 'recorded', 'transcript_pending', 'analysis_pending')
              )::int AS processing,
              COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-             COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days')::int AS last_7_days,
-             COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '30 days')::int AS last_30_days
+             COUNT(*) FILTER (WHERE status <> 'archived' AND recorded_at > NOW() - INTERVAL '7 days')::int AS last_7_days,
+             COUNT(*) FILTER (WHERE status <> 'archived' AND recorded_at > NOW() - INTERVAL '30 days')::int AS last_30_days
            FROM meetings WHERE tenant_id = $1`,
           [tenantId],
         ),
         query(
           `SELECT m.id, m.title, m.client_id, c.name AS client_name,
-                  m.platform, m.recorded_at, m.status, m.summary,
+                  m.platform, m.recorded_at, m.status, m.summary, m.analysis_payload,
                   COUNT(ma.id)::int AS total_actions,
                   COUNT(ma.id) FILTER (WHERE ma.status = 'pending')::int AS pending_actions
            FROM meetings m
            LEFT JOIN clients c ON c.id = m.client_id
            LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
            WHERE m.tenant_id = $1
+             AND m.status <> 'archived'
            GROUP BY m.id, c.name
            ORDER BY m.recorded_at DESC
            LIMIT 50`,
@@ -285,6 +298,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
            LEFT JOIN clients c ON c.id = m.client_id
            LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
            WHERE m.tenant_id = $1 AND m.recorded_at > NOW() - INTERVAL '90 days'
+             AND m.status <> 'archived'
            GROUP BY m.client_id, c.name
            ORDER BY meeting_count DESC
            LIMIT 20`,
@@ -365,7 +379,15 @@ export default async function meetingRoutes(app: FastifyInstance) {
             payload: { provider: 'whisper' },
           },
         });
-        const analysis = await analyzeMeetingTranscript(transcript, clientName);
+        const analysis = await analyzeMeetingTranscript({
+          transcript,
+          clientName,
+          tenantId,
+          clientId,
+          meetingTitle: meeting.title,
+          platform: meeting.platform,
+          source: meeting.source,
+        });
         await saveMeetingAnalysis(meeting.id, transcript, analysis, tenantId, clientId, {
           transcriptProvider: 'whisper',
           replacePendingActions: true,
@@ -602,8 +624,12 @@ export default async function meetingRoutes(app: FastifyInstance) {
       let provider: 'recall' | 'whisper' | 'manual' = 'manual';
 
       if (meeting.bot_id) {
-        transcript = (await getRecallBotTranscript(meeting.bot_id)).trim();
-        provider = 'recall';
+        try {
+          transcript = (await getRecallBotTranscript(meeting.bot_id)).trim();
+          provider = 'recall';
+        } catch (err: any) {
+          return reply.code(502).send({ error: `Recall API error: ${err?.message ?? 'unknown'}` });
+        }
       } else if (transcript) {
         provider = (meeting.transcript_provider ?? 'manual') as 'recall' | 'whisper' | 'manual';
       }
@@ -656,7 +682,15 @@ export default async function meetingRoutes(app: FastifyInstance) {
         },
       });
 
-      const analysis = await analyzeMeetingTranscript(String(meeting.transcript), clientName);
+      const analysis = await analyzeMeetingTranscript({
+        transcript: String(meeting.transcript),
+        clientName,
+        tenantId,
+        clientId: meeting.client_id,
+        meetingTitle: meeting.title,
+        platform: meeting.platform,
+        source: meeting.source,
+      });
       const result = await saveMeetingAnalysis(meeting.id, String(meeting.transcript), analysis, tenantId, meeting.client_id, {
         transcriptProvider: (meeting.transcript_provider ?? 'manual') as 'recall' | 'whisper' | 'manual',
         replacePendingActions: true,
@@ -703,7 +737,11 @@ export default async function meetingRoutes(app: FastifyInstance) {
         meeting.client_id,
         clientName,
         meeting.id,
-        { summary: meeting.summary, actions },
+        {
+          summary: meeting.summary,
+          actions,
+          intelligence: meeting.analysis_payload?.intelligence ?? null,
+        },
         true,
       );
 
@@ -865,9 +903,11 @@ export default async function meetingRoutes(app: FastifyInstance) {
       name: z.string(),
       email: z.string().nullish(),
       phone: z.string().nullish(),
+      role: z.string().nullish(),
+      source: z.enum(['client_contact', 'team']).optional().default('client_contact'),
       send_via: z.enum(['whatsapp', 'email', 'both']).default('email'),
     })).optional(),
-    schedule_bot: z.boolean().default(true),
+    schedule_bot: z.boolean().optional(),
   });
 
   app.post(
@@ -875,183 +915,300 @@ export default async function meetingRoutes(app: FastifyInstance) {
     { preHandler: [authGuard, tenantGuard()] },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
-      const body = createMeetingSchema.parse(request.body || {});
-      const startAt = new Date(body.scheduled_at);
-      const clientId = body.client_id ?? 'edro-internal';
-      const client = body.client_id ? await getClientById(tenantId, body.client_id) : null;
-      const clientName = client?.name ?? 'Reunião Interna Edro';
+      const parsed = createMeetingSchema.safeParse(request.body || {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          success: false,
+          error: parsed.error.issues[0]?.message ?? 'Payload inválido para criação de reunião.',
+          error_code: 'invalid_meeting_payload',
+          details: parsed.error.flatten(),
+        });
+      }
 
-      let meetingUrl = body.meeting_url ?? '';
-      let htmlLink = '';
-      let calendarEventId: string | null = null;
-      let autoJoinId: string | null = null;
+      try {
+        const body = parsed.data;
+        const startAt = new Date(body.scheduled_at);
+        if (Number.isNaN(startAt.getTime())) {
+          return reply.code(400).send({
+            success: false,
+            error: 'Data e hora inválidas para a reunião.',
+            error_code: 'invalid_scheduled_at',
+          });
+        }
 
-      // ── 1. Create video meeting link if platform is Google Meet ─────
-      if (body.platform === 'meet') {
-        const attendeeEmails = (body.invite_contacts ?? [])
-          .map(c => c.email).filter(Boolean) as string[];
+        const client = body.client_id
+          ? await getClientById(tenantId, body.client_id)
+          : await ensureInternalClient(tenantId);
+        if (body.client_id && !client) {
+          return reply.code(404).send({ success: false, error: 'Cliente não encontrado.', error_code: 'client_not_found' });
+        }
+        const clientId = client?.id ?? body.client_id ?? null;
+        const clientName = client?.name ?? 'Reunião Interna Edro';
 
-        const calResult = await createCalendarMeeting({
+        let meetingUrl = body.meeting_url ?? '';
+        let htmlLink = '';
+        let calendarEventId: string | null = null;
+        let autoJoinId: string | null = null;
+
+        if (body.platform === 'meet') {
+          const attendeeEmails = (body.invite_contacts ?? [])
+            .map((contact) => contact.email)
+            .filter(Boolean) as string[];
+
+          let calResult: Awaited<ReturnType<typeof createCalendarMeeting>>;
+          try {
+            calResult = await createCalendarMeeting({
+              tenantId,
+              title: body.title,
+              startAt,
+              durationMinutes: body.duration_minutes,
+              attendeeEmails,
+              description: body.description,
+              clientId,
+              clientName,
+            });
+          } catch (err: any) {
+            const message = String(err?.message || 'Erro ao criar reunião no Google Meet.');
+            const isConfigError = message.includes('não configurado') || message.includes('Reconecte');
+            return reply.status(isConfigError ? 503 : 502).send({
+              success: false,
+              error: isConfigError
+                ? 'Google Calendar não está conectado para este tenant. Conecte a integração ou use Video/Zoom/Teams com link manual.'
+                : message,
+              error_code: isConfigError ? 'google_calendar_not_configured' : 'google_meet_create_failed',
+            });
+          }
+
+          meetingUrl = calResult.meetUrl;
+          htmlLink = calResult.htmlLink;
+          calendarEventId = calResult.eventId;
+        }
+
+        const meetingRow = await createMeeting({
           tenantId,
+          clientId: clientId!,
           title: body.title,
-          startAt,
-          durationMinutes: body.duration_minutes,
-          attendeeEmails,
-          description: body.description,
-          clientId,
-          clientName,
+          platform: body.platform,
+          meetingUrl,
+          createdBy: (request.user as any).email ?? 'admin',
+          source: body.platform === 'meet' ? 'calendar' : 'manual_bot',
+          sourceRefId: calendarEventId,
+          status: 'scheduled',
+          recordedAt: startAt,
+        });
+        const meetingId = meetingRow.id;
+        let meetingPrep: Awaited<ReturnType<typeof generateMeetingPrep>> | null = null;
+
+        const hasAgencyInvite = (body.invite_contacts ?? []).some((contact) => contact.source === 'team');
+        if (hasAgencyInvite) {
+          try {
+            meetingPrep = await generateMeetingPrep({
+              tenantId,
+              clientId,
+              clientName,
+              meetingTitle: body.title,
+              description: body.description,
+              platform: body.platform,
+              scheduledAt: startAt,
+            });
+            await updateMeetingState({
+              meetingId,
+              tenantId,
+              changes: {
+                prep_payload: meetingPrep.prep,
+                prep_generated_at: new Date(),
+                prep_model: meetingPrep.model,
+              },
+              event: {
+                eventType: 'meeting.prep_generated',
+                stage: 'pre_meeting',
+                status: 'scheduled',
+                message: 'Briefing pré-reunião gerado para a equipe',
+                actorType: 'system',
+                actorId: 'jarvis',
+                payload: {
+                  model: meetingPrep.model,
+                  meeting_goal: meetingPrep.prep.meeting_goal,
+                },
+              },
+            });
+          } catch (err: any) {
+            console.error('[meetings/create] Failed to generate meeting prep:', err?.message);
+          }
+        }
+
+        if (body.platform === 'meet' && meetingUrl && calendarEventId) {
+          const { rows: autoJoinRows } = await query<{ id: string }>(
+            `INSERT INTO calendar_auto_joins
+               (tenant_id, calendar_event_id, event_title, video_url, video_platform, scheduled_at, meeting_id, client_id, status)
+             VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7, 'meeting_created')
+             ON CONFLICT (calendar_event_id) DO UPDATE
+               SET event_title = EXCLUDED.event_title,
+                   video_url = EXCLUDED.video_url,
+                   meeting_id = EXCLUDED.meeting_id,
+                   client_id = EXCLUDED.client_id,
+                   status = EXCLUDED.status,
+                   scheduled_at = EXCLUDED.scheduled_at,
+                   updated_at = now()
+             RETURNING id`,
+            [
+              tenantId,
+              calendarEventId,
+              body.title,
+              meetingUrl,
+              startAt,
+              meetingId,
+              clientId,
+            ],
+          ).catch(() => ({ rows: [] as Array<{ id: string }> }));
+
+          autoJoinId = autoJoinRows[0]?.id ?? null;
+        }
+
+        const shouldScheduleBot = true;
+
+        if (shouldScheduleBot && meetingUrl) {
+          try {
+            await enqueueJob(tenantId, 'meet-bot', {
+              meetingId,
+              videoUrl: meetingUrl,
+              scheduledAt: startAt.toISOString(),
+              autoJoinId,
+              clientId,
+              clientName,
+              eventTitle: body.title,
+              meeting_url: meetingUrl,
+              scheduled_at: startAt.toISOString(),
+              client_id: clientId,
+              title: body.title,
+              platform: body.platform,
+              client_name: clientName,
+              source: body.platform === 'meet' ? 'calendar' : 'manual_bot',
+            });
+
+            if (autoJoinId) {
+              await query(
+                `UPDATE calendar_auto_joins
+                    SET status = 'queued',
+                        job_enqueued_at = now(),
+                        updated_at = now()
+                  WHERE id = $1`,
+                [autoJoinId],
+              ).catch(() => {});
+            }
+          } catch (err: any) {
+            console.error('[meetings/create] Failed to enqueue bot:', err?.message);
+          }
+        }
+
+        const inviteResults: Array<{ name: string; channel: string; ok: boolean; error?: string }> = [];
+
+        if (body.invite_contacts?.length) {
+          const fmtDate = startAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const fmtTime = startAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+          const platformName = body.platform === 'meet' ? 'Google Meet'
+            : body.platform === 'zoom' ? 'Zoom'
+            : body.platform === 'teams' ? 'Microsoft Teams' : 'Video';
+
+          const waText = `📅 *Convite de Reunião*\n\n` +
+            `*${body.title}*\n` +
+            `🗓 ${fmtDate} às ${fmtTime}\n` +
+            `⏱ ${body.duration_minutes} minutos\n` +
+            `📹 ${platformName}\n` +
+            (meetingUrl ? `\n🔗 ${meetingUrl}\n` : '') +
+            (body.description ? `\n${body.description}\n` : '') +
+            `\n_Enviado via Edro Digital_`;
+
+          for (const contact of body.invite_contacts) {
+            const prepText = contact.source === 'team' && meetingPrep
+              ? buildInternalMeetingPrepText(meetingPrep.prep)
+              : '';
+            const finalWhatsAppText = prepText ? `${waText}\n\n${prepText}` : waText;
+            const finalEmailHtml = buildMeetingInviteEmailHtml({
+              title: body.title,
+              date: fmtDate,
+              time: fmtTime,
+              duration: body.duration_minutes,
+              platformName,
+              meetingUrl,
+              description: body.description,
+              prep: contact.source === 'team' ? meetingPrep?.prep ?? null : null,
+            });
+            const finalEmailText = buildMeetingInviteEmailText({
+              title: body.title,
+              date: fmtDate,
+              time: fmtTime,
+              duration: body.duration_minutes,
+              platformName,
+              meetingUrl,
+              description: body.description,
+              prep: contact.source === 'team' ? meetingPrep?.prep ?? null : null,
+            });
+
+            if ((contact.send_via === 'whatsapp' || contact.send_via === 'both') && contact.phone) {
+              try {
+                if (isEvolutionConfigured()) {
+                  await sendDirectMessage(tenantId, contact.phone, finalWhatsAppText);
+                  inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: true });
+                } else {
+                  inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: 'Evolution API não configurada' });
+                }
+              } catch (err: any) {
+                inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: err?.message });
+              }
+            }
+
+            if ((contact.send_via === 'email' || contact.send_via === 'both') && contact.email) {
+              try {
+                await sendEmail({
+                  to: contact.email,
+                  subject: `Convite: ${body.title} — ${fmtDate} ${fmtTime}`,
+                  text: finalEmailText,
+                  html: finalEmailHtml,
+                });
+                inviteResults.push({ name: contact.name, channel: 'email', ok: true });
+              } catch (err: any) {
+                inviteResults.push({ name: contact.name, channel: 'email', ok: false, error: err?.message });
+              }
+            }
+          }
+        }
+
+        return reply.send({
+          success: true,
+          meeting_id: meetingId,
+          meeting_url: meetingUrl,
+          html_link: htmlLink,
+          platform: body.platform,
+          bot_scheduled: shouldScheduleBot && !!meetingUrl,
+          prep_generated: Boolean(meetingPrep),
+          invites: inviteResults,
+        });
+      } catch (err: any) {
+        const message = err?.message ?? 'Erro interno ao criar reunião.';
+        console.error('[meetings/create] Unhandled failure:', {
+          message,
+          code: err?.code,
+          detail: err?.detail,
+          constraint: err?.constraint,
+          stack: err?.stack,
+          tenantId,
         });
 
-        meetingUrl = calResult.meetUrl;
-        htmlLink = calResult.htmlLink;
-        calendarEventId = calResult.eventId;
-      }
-
-      // ── 2. Create meeting record ─────────────────────────────────────
-      const meetingRow = await createMeeting({
-        tenantId,
-        clientId,
-        title: body.title,
-        platform: body.platform,
-        meetingUrl,
-        createdBy: (request.user as any).email ?? 'admin',
-        source: body.platform === 'meet' ? 'calendar' : 'manual_bot',
-        sourceRefId: calendarEventId,
-        status: 'scheduled',
-        recordedAt: startAt,
-      });
-      const meetingId = meetingRow.id;
-
-      if (body.platform === 'meet' && meetingUrl && calendarEventId) {
-        const { rows: autoJoinRows } = await query<{ id: string }>(
-          `INSERT INTO calendar_auto_joins
-             (tenant_id, calendar_event_id, event_title, video_url, video_platform, scheduled_at, meeting_id, client_id, status)
-           VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7, 'meeting_created')
-           ON CONFLICT (calendar_event_id) DO UPDATE
-             SET event_title = EXCLUDED.event_title,
-                 video_url = EXCLUDED.video_url,
-                 meeting_id = EXCLUDED.meeting_id,
-                 client_id = EXCLUDED.client_id,
-                 status = EXCLUDED.status,
-                 scheduled_at = EXCLUDED.scheduled_at,
-                 updated_at = now()
-           RETURNING id`,
-          [
-            tenantId,
-            calendarEventId,
-            body.title,
-            meetingUrl,
-            startAt,
-            meetingId,
-            clientId,
-          ],
-        ).catch(() => ({ rows: [] as Array<{ id: string }> }));
-
-        autoJoinId = autoJoinRows[0]?.id ?? null;
-      }
-
-      // ── 3. Schedule Recall bot for transcription ─────────────────────
-      if (body.schedule_bot && meetingUrl) {
-        try {
-          await enqueueJob(tenantId, 'meet-bot', {
-            meetingId,
-            videoUrl: meetingUrl,
-            scheduledAt: startAt.toISOString(),
-            autoJoinId,
-            clientId,
-            clientName,
-            eventTitle: body.title,
-            meeting_url: meetingUrl,
-            scheduled_at: startAt.toISOString(),
-            client_id: clientId,
-            title: body.title,
-            platform: body.platform,
-            client_name: clientName,
-            source: body.platform === 'meet' ? 'calendar' : 'manual_bot',
+        if (err?.code === '23503' && err?.constraint === 'meetings_client_id_fkey') {
+          return reply.code(400).send({
+            success: false,
+            error: 'O cliente selecionado para a reunião não existe mais. Atualize a página e tente novamente.',
+            error_code: 'invalid_meeting_client',
           });
-
-          if (autoJoinId) {
-            await query(
-              `UPDATE calendar_auto_joins
-                  SET status = 'queued',
-                      job_enqueued_at = now(),
-                      updated_at = now()
-                WHERE id = $1`,
-              [autoJoinId],
-            ).catch(() => {});
-          }
-        } catch (err: any) {
-          console.error('[meetings/create] Failed to enqueue bot:', err?.message);
         }
+
+        return reply.code(500).send({
+          success: false,
+          error: message,
+          error_code: 'meeting_create_failed',
+        });
       }
-
-      // ── 4. Send invites ──────────────────────────────────────────────
-      const inviteResults: Array<{ name: string; channel: string; ok: boolean; error?: string }> = [];
-
-      if (body.invite_contacts?.length) {
-        const fmtDate = startAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const fmtTime = startAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-        const platformName = body.platform === 'meet' ? 'Google Meet'
-          : body.platform === 'zoom' ? 'Zoom'
-          : body.platform === 'teams' ? 'Microsoft Teams' : 'Video';
-
-        const waText = `📅 *Convite de Reunião*\n\n` +
-          `*${body.title}*\n` +
-          `🗓 ${fmtDate} às ${fmtTime}\n` +
-          `⏱ ${body.duration_minutes} minutos\n` +
-          `📹 ${platformName}\n` +
-          (meetingUrl ? `\n🔗 ${meetingUrl}\n` : '') +
-          (body.description ? `\n${body.description}\n` : '') +
-          `\n_Enviado via Edro Digital_`;
-
-        for (const contact of body.invite_contacts) {
-          // WhatsApp invite
-          if ((contact.send_via === 'whatsapp' || contact.send_via === 'both') && contact.phone) {
-            try {
-              if (isEvolutionConfigured()) {
-                await sendDirectMessage(tenantId, contact.phone, waText);
-                inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: true });
-              } else {
-                inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: 'Evolution API não configurada' });
-              }
-            } catch (err: any) {
-              inviteResults.push({ name: contact.name, channel: 'whatsapp', ok: false, error: err?.message });
-            }
-          }
-
-          // Email invite
-          if ((contact.send_via === 'email' || contact.send_via === 'both') && contact.email) {
-            try {
-              await sendEmail({
-                to: contact.email,
-                subject: `Convite: ${body.title} — ${fmtDate} ${fmtTime}`,
-                html: `
-                  <h2>${body.title}</h2>
-                  <p><strong>Data:</strong> ${fmtDate} às ${fmtTime}</p>
-                  <p><strong>Duração:</strong> ${body.duration_minutes} minutos</p>
-                  <p><strong>Plataforma:</strong> ${platformName}</p>
-                  ${meetingUrl ? `<p><strong>Link:</strong> <a href="${meetingUrl}">${meetingUrl}</a></p>` : ''}
-                  ${body.description ? `<p>${body.description}</p>` : ''}
-                  <hr><p style="color:#999;font-size:12px">Enviado via Edro Digital</p>
-                `,
-              });
-              inviteResults.push({ name: contact.name, channel: 'email', ok: true });
-            } catch (err: any) {
-              inviteResults.push({ name: contact.name, channel: 'email', ok: false, error: err?.message });
-            }
-          }
-        }
-      }
-
-      return reply.send({
-        success: true,
-        meeting_id: meetingId,
-        meeting_url: meetingUrl,
-        html_link: htmlLink,
-        platform: body.platform,
-        bot_scheduled: body.schedule_bot && !!meetingUrl,
-        invites: inviteResults,
-      });
     },
   );
 
@@ -1146,7 +1303,7 @@ async function executeAction(action: any, tenantId: string): Promise<string | un
     let edroClientId: string | null = null;
     let mainClientId: string | null = null;
 
-    if (action.client_id && action.client_id !== 'edro-internal') {
+    if (action.client_id && !isInternalClientId(action.client_id)) {
       const { rows: ecRows } = await query(
         `SELECT id FROM edro_clients WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
         [action.client_id, tenantId],
@@ -1174,6 +1331,12 @@ async function executeAction(action: any, tenantId: string): Promise<string | un
         meeting_title: action.meeting_title ?? null,
         responsible: action.responsible ?? null,
         deadline: action.deadline ?? null,
+        operation_lane: action.metadata?.operation_lane ?? null,
+        required_skill: action.metadata?.required_skill ?? null,
+        owner_hint: action.metadata?.owner_hint ?? null,
+        should_create_job: action.metadata?.should_create_job ?? null,
+        needs_approval: action.metadata?.needs_approval ?? null,
+        urgency_reason: action.metadata?.urgency_reason ?? null,
       },
       createdBy: 'jarvis-meeting',
       trafficOwner: action.responsible ?? null,
@@ -1195,7 +1358,7 @@ function detectMeetingPlatform(url: string): 'meet' | 'zoom' | 'teams' | 'other'
 }
 
 async function resolveMeetingClientName(tenantId: string, clientId: string | null | undefined): Promise<string> {
-  if (!clientId || clientId === 'edro-internal') return 'Reunião Interna Edro';
+  if (!clientId || isInternalClientId(clientId)) return 'Reunião Interna Edro';
 
   const client = await getClientById(tenantId, clientId).catch(() => null);
   if (client?.name) return client.name;
@@ -1206,4 +1369,108 @@ async function resolveMeetingClientName(tenantId: string, clientId: string | nul
   ).catch(() => ({ rows: [] as Array<{ name: string }> }));
 
   return rows[0]?.name ?? 'Cliente';
+}
+
+function renderPrepSection(title: string, items: string[] | undefined | null) {
+  if (!items?.length) return '';
+  return `\n${title}\n${items.map((item) => `- ${item}`).join('\n')}`;
+}
+
+function buildInternalMeetingPrepText(prep: Awaited<ReturnType<typeof generateMeetingPrep>>['prep']) {
+  return `🧠 *Briefing pré-reunião Edro*\n\n` +
+    `🎯 *Objetivo principal:*\n${prep.meeting_goal}\n\n` +
+    `❓ *Pergunta de abertura:*\n${prep.opening_question}\n\n` +
+    renderPrepSection('🗂 *Pauta sugerida:*', prep.suggested_agenda) +
+    renderPrepSection('🛡 *Pontos de defesa da agência:*', prep.agency_defense_points) +
+    renderPrepSection('⚠️ *Possíveis objeções do cliente:*', prep.likely_client_pushbacks) +
+    renderPrepSection('📎 *Materiais para levar:*', prep.materials_to_prepare) +
+    renderPrepSection('🚨 *Red flags:*', prep.red_flags) +
+    renderPrepSection('✅ *Critérios de sucesso:*', prep.success_criteria) +
+    (prep.recommended_positioning ? `\n\n🎙 *Postura recomendada:*\n${prep.recommended_positioning}` : '');
+}
+
+function buildMeetingInviteEmailHtml(input: {
+  title: string;
+  date: string;
+  time: string;
+  duration: number;
+  platformName: string;
+  meetingUrl?: string | null;
+  description?: string | null;
+  prep?: Awaited<ReturnType<typeof generateMeetingPrep>>['prep'] | null;
+}) {
+  const prep = input.prep;
+  const renderList = (title: string, items?: string[] | null) => (
+    items?.length
+      ? `<p><strong>${title}</strong></p><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+      : ''
+  );
+
+  return `
+    <h2>${escapeHtml(input.title)}</h2>
+    <p><strong>Data:</strong> ${input.date} às ${input.time}</p>
+    <p><strong>Duração:</strong> ${input.duration} minutos</p>
+    <p><strong>Plataforma:</strong> ${escapeHtml(input.platformName)}</p>
+    ${input.meetingUrl ? `<p><strong>Link:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ''}
+    ${input.description ? `<p>${escapeHtml(input.description)}</p>` : ''}
+    ${prep ? `
+      <hr />
+      <h3>Briefing pré-reunião da equipe</h3>
+      <p><strong>Objetivo:</strong> ${escapeHtml(prep.meeting_goal)}</p>
+      <p><strong>Pergunta de abertura:</strong> ${escapeHtml(prep.opening_question)}</p>
+      ${renderList('Pauta sugerida', prep.suggested_agenda)}
+      ${renderList('Pontos de defesa da agência', prep.agency_defense_points)}
+      ${renderList('Possíveis objeções do cliente', prep.likely_client_pushbacks)}
+      ${renderList('Materiais para preparar', prep.materials_to_prepare)}
+      ${renderList('Alinhamentos internos', prep.internal_alignment_notes)}
+      ${renderList('Red flags', prep.red_flags)}
+      ${renderList('Critérios de sucesso', prep.success_criteria)}
+      ${prep.recommended_positioning ? `<p><strong>Postura recomendada:</strong> ${escapeHtml(prep.recommended_positioning)}</p>` : ''}
+    ` : ''}
+    <hr><p style="color:#999;font-size:12px">Enviado via Edro Digital</p>
+  `;
+}
+
+function buildMeetingInviteEmailText(input: {
+  title: string;
+  date: string;
+  time: string;
+  duration: number;
+  platformName: string;
+  meetingUrl?: string | null;
+  description?: string | null;
+  prep?: Awaited<ReturnType<typeof generateMeetingPrep>>['prep'] | null;
+}) {
+  const prep = input.prep;
+  return [
+    input.title,
+    `Data: ${input.date} às ${input.time}`,
+    `Duração: ${input.duration} minutos`,
+    `Plataforma: ${input.platformName}`,
+    input.meetingUrl ? `Link: ${input.meetingUrl}` : null,
+    input.description ?? null,
+    prep ? '' : null,
+    prep ? 'BRIEFING PRÉ-REUNIÃO DA EQUIPE' : null,
+    prep ? `Objetivo: ${prep.meeting_goal}` : null,
+    prep ? `Pergunta de abertura: ${prep.opening_question}` : null,
+    prep ? renderPrepSection('Pauta sugerida:', prep.suggested_agenda) : null,
+    prep ? renderPrepSection('Pontos de defesa da agência:', prep.agency_defense_points) : null,
+    prep ? renderPrepSection('Possíveis objeções do cliente:', prep.likely_client_pushbacks) : null,
+    prep ? renderPrepSection('Materiais para preparar:', prep.materials_to_prepare) : null,
+    prep ? renderPrepSection('Alinhamentos internos:', prep.internal_alignment_notes) : null,
+    prep ? renderPrepSection('Red flags:', prep.red_flags) : null,
+    prep ? renderPrepSection('Critérios de sucesso:', prep.success_criteria) : null,
+    prep?.recommended_positioning ? `Postura recomendada: ${prep.recommended_positioning}` : null,
+    '',
+    'Enviado via Edro Digital',
+  ].filter(Boolean).join('\n');
+}
+
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
