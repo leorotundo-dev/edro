@@ -1390,7 +1390,7 @@ export function meetingDirectiveRoutes(app: FastifyInstance) {
       await query(
         `INSERT INTO client_directives
            (tenant_id, client_id, source, source_id, directive_type, directive, confirmed_by)
-         VALUES ($1, $2, 'meeting_intelligence', $3, $4, $5, $6)
+         VALUES ($1, $2, 'meeting', $3, $4, $5, $6)
          ON CONFLICT (tenant_id, client_id, directive) DO NOTHING`,
         [tenantId, meeting.client_id, meetingId, directive_type, directive.trim(), userId ?? null],
       );
