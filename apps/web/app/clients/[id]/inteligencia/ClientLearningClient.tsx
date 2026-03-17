@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -10,18 +10,27 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconArrowDown,
   IconArrowUp,
   IconBrain,
+  IconBrandWhatsapp,
+  IconCalendarEvent,
+  IconPlus,
   IconRefresh,
+  IconShieldCheck,
   IconSparkles,
   IconTarget,
+  IconTrash,
   IconTrendingUp,
+  IconUser,
   IconUsersGroup,
 } from '@tabler/icons-react';
 
@@ -59,6 +68,15 @@ type LearningRule = {
   uplift_value: number;
   confidence_score: number;
   sample_size: number;
+};
+
+type ClientDirective = {
+  id: string;
+  directive_type: 'boost' | 'avoid';
+  directive: string;
+  source: string;
+  confirmed_by: string | null;
+  created_at: string;
 };
 
 type BehaviorCluster = {
@@ -108,15 +126,20 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
   const [prefs, setPrefs] = useState<CopyPreferences | null>(null);
   const [rules, setRules] = useState<LearningRule[]>([]);
   const [clusters, setClusters] = useState<BehaviorCluster[]>([]);
+  const [directives, setDirectives] = useState<ClientDirective[]>([]);
   const [loading, setLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
   const [computing, setComputing] = useState(false);
   const [computingProfiles, setComputingProfiles] = useState(false);
+  const [newDirective, setNewDirective] = useState('');
+  const [newDirectiveType, setNewDirectiveType] = useState<'boost' | 'avoid'>('boost');
+  const [addingDirective, setAddingDirective] = useState(false);
+  const [deletingDirectiveId, setDeletingDirectiveId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [prefsRes, rulesRes, clustersRes] = await Promise.all([
+      const [prefsRes, rulesRes, clustersRes, directivesRes] = await Promise.all([
         apiGet<{ success: boolean; data: CopyPreferences | null }>(
           `/edro/clients/${clientId}/learning/preferences`
         ).catch(() => ({ success: false, data: null })),
@@ -126,14 +149,43 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
         apiGet<{ success: boolean; data: BehaviorCluster[] }>(
           `/clients/${clientId}/behavior-profiles`
         ).catch(() => ({ success: false, data: [] as BehaviorCluster[] })),
+        apiGet<{ success: boolean; data: ClientDirective[] }>(
+          `/clients/${clientId}/directives`
+        ).catch(() => ({ success: false, data: [] as ClientDirective[] })),
       ]);
       setPrefs((prefsRes as any)?.data ?? null);
       setRules((rulesRes as any)?.data ?? []);
       setClusters((clustersRes as any)?.data ?? []);
+      setDirectives((directivesRes as any)?.data ?? []);
     } finally {
       setLoading(false);
     }
   }, [clientId]);
+
+  const handleAddDirective = async () => {
+    if (!newDirective.trim()) return;
+    setAddingDirective(true);
+    try {
+      const res = await apiPost<{ success: boolean; data: ClientDirective }>(
+        `/clients/${clientId}/directives`,
+        { directive: newDirective.trim(), directive_type: newDirectiveType },
+      );
+      if ((res as any)?.data) setDirectives((prev) => [(res as any).data, ...prev]);
+      setNewDirective('');
+    } finally {
+      setAddingDirective(false);
+    }
+  };
+
+  const handleDeleteDirective = async (id: string) => {
+    setDeletingDirectiveId(id);
+    try {
+      await apiDelete(`/clients/directives/${id}`);
+      setDirectives((prev) => prev.filter((d) => d.id !== id));
+    } finally {
+      setDeletingDirectiveId(null);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -226,11 +278,119 @@ export default function ClientLearningClient({ clientId }: { clientId: string })
         </Stack>
       </Stack>
 
-      {!prefs && rules.length === 0 && clusters.length === 0 && (
+      {!prefs && rules.length === 0 && clusters.length === 0 && directives.length === 0 && (
         <Alert severity="info" icon={<IconBrain size={18} />}>
           Nenhum dado de aprendizado ainda. Avalie copies no Studio e registre métricas de performance nas campanhas para gerar padrões.
         </Alert>
       )}
+
+      {/* ── Permanent Directives (human-confirmed, never expire) ── */}
+      <Box>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <IconShieldCheck size={16} color="#E85219" />
+          <Typography variant="subtitle1" fontWeight={700}>Memória Permanente</Typography>
+          <Chip
+            size="small"
+            label={`${directives.length} regra${directives.length !== 1 ? 's' : ''}`}
+            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#fff3e8', color: '#E85219' }}
+          />
+          <Tooltip title="Regras confirmadas pelo humano — jamais expiram e alimentam toda geração de conteúdo">
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', cursor: 'help' }}>
+              ?
+            </Typography>
+          </Tooltip>
+        </Stack>
+
+        {/* Add new directive */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 1.5 }}>
+          <TextField
+            select
+            size="small"
+            value={newDirectiveType}
+            onChange={(e) => setNewDirectiveType(e.target.value as 'boost' | 'avoid')}
+            sx={{ minWidth: 110, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          >
+            <MenuItem value="boost">✅ Reforçar</MenuItem>
+            <MenuItem value="avoid">🚫 Evitar</MenuItem>
+          </TextField>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Ex: Todo e-mail MKT deve ter 600px de largura"
+            value={newDirective}
+            onChange={(e) => setNewDirective(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddDirective(); }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          />
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={addingDirective ? <CircularProgress size={13} color="inherit" /> : <IconPlus size={14} />}
+            onClick={handleAddDirective}
+            disabled={!newDirective.trim() || addingDirective}
+            sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c94215' }, whiteSpace: 'nowrap', borderRadius: 2 }}
+          >
+            Adicionar
+          </Button>
+        </Stack>
+
+        {directives.length === 0 ? (
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>
+            Nenhuma regra permanente ainda. Confirme interpretações do WhatsApp ou de reuniões — elas aparecerão aqui.
+          </Typography>
+        ) : (
+          <Stack spacing={0.5}>
+            {directives.map((d) => {
+              const isBoost = d.directive_type === 'boost';
+              const sourceIcon = d.source === 'whatsapp_insight' ? <IconBrandWhatsapp size={11} />
+                : d.source === 'meeting' ? <IconCalendarEvent size={11} />
+                : <IconUser size={11} />;
+              const sourceLabel = d.source === 'whatsapp_insight' ? 'WhatsApp'
+                : d.source === 'meeting' ? 'Reunião'
+                : 'Manual';
+              return (
+                <Box
+                  key={d.id}
+                  sx={(theme) => ({
+                    display: 'flex', alignItems: 'center', gap: 1,
+                    px: 1.25, py: 0.75, borderRadius: 1.5,
+                    border: `1px solid ${isBoost ? 'rgba(22,163,74,0.2)' : 'rgba(220,38,38,0.2)'}`,
+                    bgcolor: isBoost ? 'rgba(22,163,74,0.04)' : 'rgba(220,38,38,0.04)',
+                  })}
+                >
+                  <Box sx={{ color: isBoost ? 'success.main' : 'error.main', flexShrink: 0, display: 'flex' }}>
+                    {isBoost ? <IconArrowUp size={13} /> : <IconArrowDown size={13} />}
+                  </Box>
+                  <Typography variant="caption" sx={{ flex: 1, fontSize: '0.75rem', lineHeight: 1.4 }}>
+                    {d.directive}
+                  </Typography>
+                  <Tooltip title={`Fonte: ${sourceLabel}${d.confirmed_by ? ` · confirmado por ${d.confirmed_by}` : ''}`}>
+                    <Stack direction="row" spacing={0.4} alignItems="center"
+                      sx={{ color: 'text.disabled', fontSize: '0.6rem', flexShrink: 0 }}>
+                      {sourceIcon}
+                      <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>{sourceLabel}</Typography>
+                    </Stack>
+                  </Tooltip>
+                  <Tooltip title="Remover diretiva permanente">
+                    <IconButton
+                      size="small"
+                      disabled={deletingDirectiveId === d.id}
+                      onClick={() => handleDeleteDirective(d.id)}
+                      sx={{ p: 0.4, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                    >
+                      {deletingDirectiveId === d.id
+                        ? <CircularProgress size={11} />
+                        : <IconTrash size={13} />}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+
+      <Divider />
 
       {/* ── Copy Performance Preferences ── */}
       {prefs && (
