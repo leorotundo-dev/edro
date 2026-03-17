@@ -79,7 +79,7 @@ async function emitJobSignals(tenantId: string): Promise<string[]> {
             j.client_id, c.name AS client_name, j.deadline_at, j.is_urgent
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id::text
      WHERE j.tenant_id = $1
        AND j.status NOT IN ('done','archived')
      ORDER BY j.priority_score DESC
@@ -309,7 +309,7 @@ async function emitInsightSignals(tenantId: string): Promise<string[]> {
   }>(
     `SELECT i.client_id, c.name AS client_name, COUNT(*) AS pending_count
        FROM whatsapp_message_insights i
-       LEFT JOIN clients c ON c.id = i.client_id
+       LEFT JOIN clients c ON c.id::text = i.client_id
       WHERE i.tenant_id = $1
         AND i.confirmation_status = 'pending'
         AND i.created_at > now() - INTERVAL '7 days'
