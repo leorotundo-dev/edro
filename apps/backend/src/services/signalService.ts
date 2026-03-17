@@ -79,7 +79,7 @@ async function emitJobSignals(tenantId: string): Promise<string[]> {
             j.client_id, c.name AS client_name, j.deadline_at, j.is_urgent
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
      WHERE j.tenant_id = $1
        AND j.status NOT IN ('done','archived')
      ORDER BY j.priority_score DESC

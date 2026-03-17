@@ -509,9 +509,9 @@ async function fetchOperationalJobs(tenantId: string) {
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1
       AND j.status <> 'archived'
     ORDER BY j.updated_at DESC`,
@@ -612,9 +612,9 @@ export async function upsertJobAllocation(tenantId: string, input: UpsertAllocat
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
     [tenantId, input.jobId],
@@ -722,9 +722,9 @@ export async function dropJobAllocation(tenantId: string, jobId: string, changed
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
-     LEFT JOIN edro_users u ON u.id = j.owner_id
-     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN edro_users u ON u.id::text = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
     [tenantId, jobId],
@@ -1883,9 +1883,9 @@ export async function buildOverviewSnapshot(tenantId: string) {
          CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
-       LEFT JOIN edro_users u ON u.id = j.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id::text = j.tenant_id
-       LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+       LEFT JOIN edro_users u ON u.id::text = j.owner_id
+       LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
       WHERE j.tenant_id = $1
         AND j.source = 'approval'
         AND j.status IN ('awaiting_approval', 'blocked')
