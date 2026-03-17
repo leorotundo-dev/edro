@@ -32,6 +32,9 @@ import {
   IconSparkles,
 } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
+import IconButton from '@mui/material/IconButton';
+import Collapse from '@mui/material/Collapse';
+import { IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import {
   AutomationPipeline,
   BlockReason,
@@ -361,6 +364,8 @@ export default function JobWorkbenchDrawer({
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [error, setError] = useState('');
   const [detailJob, setDetailJob] = useState<OperationsJob | null>(job);
+  const [clientDirectives, setClientDirectives] = useState<Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }>>([]);
+  const [directivesOpen, setDirectivesOpen] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -386,6 +391,18 @@ export default function JobWorkbenchDrawer({
       cancelled = true;
     };
   }, [open, mode, job?.id, onFetchDetail, jobTypes]);
+
+  useEffect(() => {
+    setClientDirectives([]);
+    if (!form.client_id) return;
+    let cancelled = false;
+    apiGet<{ success: boolean; data: Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }> }>(
+      `/clients/${form.client_id}/directives`
+    ).then((res) => {
+      if (!cancelled) setClientDirectives(res?.data ?? []);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [form.client_id]);
 
   const selectedClient = clients.find((item) => item.id === form.client_id) || null;
   const selectedOwner = owners.find((item) => item.id === form.owner_id) || null;
@@ -589,6 +606,37 @@ export default function JobWorkbenchDrawer({
             </Grid>
           </Grid>
         </GuidedFormSection>
+
+        {clientDirectives.length > 0 && (
+          <Box sx={(theme) => ({
+            borderRadius: 2,
+            border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+            bgcolor: alpha(theme.palette.warning.main, 0.04),
+            px: 1.5, py: 1,
+          })}>
+            <Stack direction="row" spacing={0.75} alignItems="center" onClick={() => setDirectivesOpen(!directivesOpen)} sx={{ cursor: 'pointer' }}>
+              <IconShieldCheck size={14} color="#E85219" />
+              <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem', flex: 1, color: '#E85219' }}>
+                {clientDirectives.length} regra{clientDirectives.length !== 1 ? 's' : ''} permanente{clientDirectives.length !== 1 ? 's' : ''} deste cliente
+              </Typography>
+              <IconButton size="small" sx={{ p: 0.25 }}>
+                {directivesOpen ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+              </IconButton>
+            </Stack>
+            <Collapse in={directivesOpen}>
+              <Stack spacing={0.4} sx={{ mt: 0.75 }}>
+                {clientDirectives.map((d) => (
+                  <Stack key={d.id} direction="row" spacing={0.75} alignItems="flex-start">
+                    <Box sx={{ mt: 0.1, flexShrink: 0, color: d.directive_type === 'boost' ? 'success.main' : 'error.main', fontSize: '0.6rem', fontWeight: 900 }}>
+                      {d.directive_type === 'boost' ? '✅' : '🚫'}
+                    </Box>
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', lineHeight: 1.4 }}>{d.directive}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </Collapse>
+          </Box>
+        )}
 
         <GuidedFormSection
           title="Planejamento e responsável"
