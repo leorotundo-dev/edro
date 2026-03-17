@@ -302,6 +302,44 @@ async function emitConnectorSignals(tenantId: string): Promise<string[]> {
   return emitted;
 }
 
+async function emitInsightSignals(tenantId: string): Promise<string[]> {
+  // One signal per client with pending unconfirmed WhatsApp insights
+  const { rows } = await query<{
+    client_id: string; client_name: string | null; pending_count: string;
+  }>(
+    `SELECT i.client_id, c.name AS client_name, COUNT(*) AS pending_count
+       FROM whatsapp_message_insights i
+       LEFT JOIN clients c ON c.id = i.client_id
+      WHERE i.tenant_id = $1
+        AND i.confirmation_status = 'pending'
+        AND i.created_at > now() - INTERVAL '7 days'
+      GROUP BY i.client_id, c.name
+     HAVING COUNT(*) >= 1
+      ORDER BY pending_count DESC
+      LIMIT 10`,
+    [tenantId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const emitted: string[] = [];
+  for (const r of rows) {
+    const cnt = Number(r.pending_count);
+    const key = `insights-pending-${r.client_id}`;
+    emitted.push(key);
+    await upsertSignal({
+      tenantId, domain: 'whatsapp', signalType: 'insights_pending', severity: 68,
+      title: `${r.client_name ?? 'Cliente'}: ${cnt} insight${cnt !== 1 ? 's' : ''} aguardando confirmação`,
+      summary: `Interpretações do WhatsApp precisam ser revisadas para virar memória permanente.`,
+      entityType: 'client', entityId: r.client_id,
+      clientId: r.client_id, clientName: r.client_name ?? undefined,
+      actions: [
+        { label: 'Revisar insights', href: `/clients/${r.client_id}/whatsapp` },
+      ],
+      dedupKey: key,
+    });
+  }
+  return emitted;
+}
+
 // ─── Main orchestrator ───
 
 export async function rebuildOperationalSignals(tenantId: string): Promise<void> {
@@ -319,6 +357,13 @@ export async function rebuildOperationalSignals(tenantId: string): Promise<void>
     allEmittedKeys.push(...waKeys);
   } catch (err: any) {
     console.error(`[signals] emitWhatsAppSignals failed:`, err?.message);
+  }
+
+  try {
+    const insightKeys = await emitInsightSignals(tenantId);
+    allEmittedKeys.push(...insightKeys);
+  } catch (err: any) {
+    console.error(`[signals] emitInsightSignals failed:`, err?.message);
   }
 
   try {
