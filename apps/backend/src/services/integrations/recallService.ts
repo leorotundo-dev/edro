@@ -3,6 +3,8 @@ import { env } from '../../env';
 type RecallBotResponse = {
   id: string;
   status?: { code?: string; sub_code?: string; message?: string } | string;
+  // Recall v1 API: status as an array of status_changes
+  status_changes?: Array<{ code?: string; sub_code?: string | null; message?: string | null; created_at?: string }>;
   recordings?: Array<Record<string, any>>;
 };
 
@@ -101,7 +103,13 @@ export async function getRecallBotTranscript(botId: string): Promise<string> {
 
 export function getRecallBotStatus(bot: RecallBotResponse): string {
   if (typeof bot.status === 'string') return bot.status.toLowerCase();
-  return String(bot.status?.code || '').toLowerCase();
+  if (bot.status?.code) return String(bot.status.code).toLowerCase();
+  // Recall v1 API returns status history in status_changes; last item is current
+  if (Array.isArray(bot.status_changes) && bot.status_changes.length > 0) {
+    const last = bot.status_changes[bot.status_changes.length - 1];
+    if (last?.code) return String(last.code).toLowerCase();
+  }
+  return '';
 }
 
 function transcriptPayloadToText(payload: any): string {
