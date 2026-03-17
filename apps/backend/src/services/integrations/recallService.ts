@@ -7,7 +7,11 @@ type RecallBotResponse = {
   status_changes?: Array<{ code?: string; sub_code?: string | null; message?: string | null; created_at?: string }>;
   recordings?: Array<{
     id?: string;
-    transcript?: { id?: string } | null;
+    // Recall v1: transcript available via media_shortcuts.transcript.data.download_url
+    media_shortcuts?: {
+      transcript?: { data?: { download_url?: string } };
+      video_mixed?: { data?: { download_url?: string } };
+    };
     [key: string]: any;
   }>;
 };
@@ -87,35 +91,27 @@ export async function getRecallBot(botId: string): Promise<RecallBotResponse> {
 }
 
 export async function getRecallBotTranscript(botId: string): Promise<string> {
-  // Recall v2: transcript is a separate resource with its own ID.
-  // Step 1: get bot to find the transcript ID from recordings[].transcript.id
+  // Recall API flow:
+  // 1. GET /api/v1/bot/{id}/ → recordings[].media_shortcuts.transcript.data.download_url
+  // 2. Fetch that pre-signed URL (no auth) → JSON array of speaker segments
+  // Each segment: { participant: { name }, words: [{ text }] }
   const bot = await getRecallBot(botId);
-  const transcriptId = bot.recordings?.[0]?.transcript?.id ?? null;
 
-  if (transcriptId) {
-    // Step 2: fetch via /api/v2/transcript/{id}/
-    const res = await fetch(`${recallBaseUrl('v2')}/transcript/${transcriptId}/`, {
-      headers: recallHeaders(),
-    });
+  for (const rec of bot.recordings ?? []) {
+    const downloadUrl = rec.media_shortcuts?.transcript?.data?.download_url;
+    if (!downloadUrl) continue;
+
+    const res = await fetch(downloadUrl); // pre-signed URL — no auth headers
     if (!res.ok) {
       const err = await res.text().catch(() => '');
-      throw new Error(`Recall transcript failed (${res.status}): ${err.slice(0, 300)}`);
+      throw new Error(`Recall transcript download failed (${res.status}): ${err.slice(0, 200)}`);
     }
     const data = await res.json();
-    return transcriptPayloadToText(data);
+    const text = transcriptPayloadToText(data);
+    if (text) return text;
   }
 
-  // Fallback: no dedicated transcript resource — extract from recordings directly
-  if (bot.recordings && bot.recordings.length > 0) {
-    const lines: string[] = [];
-    for (const rec of bot.recordings) {
-      const text = transcriptPayloadToText(rec.transcript ?? rec);
-      if (text) lines.push(text);
-    }
-    if (lines.length) return lines.join('\n');
-  }
-
-  throw new Error('Recall transcript not available: no transcript_id and no recordings data');
+  throw new Error('Recall transcript not available: recordings have no transcript download_url');
 }
 
 export function getRecallBotStatus(bot: RecallBotResponse): string {
