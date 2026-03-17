@@ -117,6 +117,32 @@ function buildClientId(name: string) {
   return `cli_${slug}_${crypto.randomUUID().slice(0, 8)}`;
 }
 
+const INTERNAL_CLIENT_PREFIX = 'edro-internal';
+
+export function isInternalClientId(id: string | null | undefined) {
+  if (!id) return false;
+  return id === INTERNAL_CLIENT_PREFIX || id.startsWith(`${INTERNAL_CLIENT_PREFIX}-`);
+}
+
+export async function ensureInternalClient(tenantId: string) {
+  const id = `${INTERNAL_CLIENT_PREFIX}-${tenantId}`;
+
+  const { rows } = await query<any>(
+    `
+    INSERT INTO clients (
+      id, name, country, uf, city, segment_primary, segment_secondary, reportei_account_id, profile, tenant_id, updated_at
+    ) VALUES ($1, $2, 'BR', NULL, NULL, 'interno', ARRAY[]::text[], NULL, '{}'::jsonb, $3, NOW())
+    ON CONFLICT (id) DO UPDATE
+      SET name = EXCLUDED.name,
+          updated_at = NOW()
+    RETURNING *
+    `,
+    [id, 'Reunião Interna Edro', tenantId],
+  );
+
+  return rows[0];
+}
+
 export async function getClientById(tenantId: string, id: string) {
   const { rows } = await query<any>(
     `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,

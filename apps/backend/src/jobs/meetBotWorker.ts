@@ -378,6 +378,15 @@ async function handleFinalizeJob(job: any): Promise<void> {
     last_error: null,
   });
 
+  const { rows: meetingRows } = await query<{ title: string | null; platform: string | null; source: string | null }>(
+    `SELECT title, platform, source
+       FROM meetings
+      WHERE id = $1 AND tenant_id = $2
+      LIMIT 1`,
+    [meetingId, tenantId],
+  ).catch(() => ({ rows: [] as Array<{ title: string | null; platform: string | null; source: string | null }> }));
+  const meetingContext = meetingRows[0] ?? null;
+
   try {
     await updateMeetingState({
       meetingId,
@@ -394,7 +403,15 @@ async function handleFinalizeJob(job: any): Promise<void> {
       },
     });
 
-    const analysis = await analyzeMeetingTranscript(transcript, clientName);
+    const analysis = await analyzeMeetingTranscript({
+      transcript,
+      clientName,
+      tenantId,
+      clientId,
+      meetingTitle: meetingContext?.title ?? null,
+      platform: meetingContext?.platform ?? null,
+      source: meetingContext?.source ?? null,
+    });
     await saveMeetingAnalysis(meetingId, transcript, analysis, tenantId, clientId, {
       transcriptProvider: 'recall',
       replacePendingActions: true,
@@ -587,7 +604,15 @@ export async function sendMeetingSummaryToWhatsApp(
   clientId: string,
   clientName: string,
   meetingId: string,
-  analysis: { summary: string; actions: Array<{ type: string; title: string; priority: string }> },
+  analysis: {
+    summary: string;
+    actions: Array<{ type: string; title: string; priority: string }>;
+    intelligence?: {
+      account_pulse?: string;
+      recommended_next_step?: string;
+      risks?: string[];
+    } | null;
+  },
   force: boolean,
 ): Promise<boolean> {
   const { rows: groups } = await query(
@@ -604,6 +629,7 @@ export async function sendMeetingSummaryToWhatsApp(
   if (!groups.length) return false;
 
   const actionCount = analysis.actions?.length ?? 0;
+  const topRisk = analysis.intelligence?.risks?.[0] ?? null;
   const actionLines = (analysis.actions ?? []).slice(0, 5).map((action) => {
     const emoji = action.type === 'briefing'
       ? '📋'
@@ -620,9 +646,16 @@ export async function sendMeetingSummaryToWhatsApp(
 
   const messageText = `🤖 *Edro.Studio — Análise de Reunião*\n\n` +
     `👤 *Cliente:* ${clientName}\n\n` +
+    (analysis.intelligence?.account_pulse
+      ? `📡 *Pulso da conta:*\n${analysis.intelligence.account_pulse}\n\n`
+      : '') +
     `📝 *Resumo:*\n${(analysis.summary ?? '').slice(0, 500)}\n\n` +
     (actionCount > 0
       ? `⚡ *${actionCount} acao${actionCount > 1 ? 'es' : ''} extraida${actionCount > 1 ? 's' : ''}:*\n${actionLines}\n\n`
+      : '') +
+    (topRisk ? `🚨 *Principal risco:*\n${topRisk}\n\n` : '') +
+    (analysis.intelligence?.recommended_next_step
+      ? `➡️ *Próximo passo sugerido:*\n${analysis.intelligence.recommended_next_step}\n\n`
       : '') +
     `_Acesse o painel para aprovar as acoes sugeridas._`;
 

@@ -6,6 +6,7 @@
 import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
 import { sendOutboundMessage } from './groupOutboundService';
+import { persistWhatsAppDigestMemory } from './whatsappClientMemoryService';
 
 const DIGEST_SYSTEM_PROMPT = `Você é o assistente de inteligência de uma agência de marketing digital.
 Gere um RESUMO EXECUTIVO das conversas de WhatsApp com o cliente no período indicado.
@@ -126,6 +127,22 @@ export async function generateDigest(
   );
 
   if (!inserted[0]) return null;
+
+  await persistWhatsAppDigestMemory({
+    tenantId,
+    clientId,
+    digestId: inserted[0].id,
+    period,
+    periodStart,
+    periodEnd,
+    summary: parsed.summary || '',
+    keyDecisions: parsed.key_decisions || [],
+    pendingActions: parsed.pending_actions || [],
+    messageCount: messages.length,
+    insightCount: insights.length,
+  }).catch((err: any) => {
+    console.error(`[groupDigest] persistWhatsAppDigestMemory failed: ${err.message}`);
+  });
 
   // Send digest summary to linked WhatsApp groups
   sendDigestToGroups(tenantId, clientId, period, clientName, parsed.summary, parsed.key_decisions, parsed.pending_actions)

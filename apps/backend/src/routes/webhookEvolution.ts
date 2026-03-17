@@ -14,6 +14,7 @@ import { generateCompletion } from '../services/ai/claudeService';
 import { instanceName } from '../services/integrations/evolutionApiService';
 import { sendOutboundMessage } from '../services/groupOutboundService';
 import { shouldJarvisReply, handleJarvisReply } from '../services/groupJarvisReplyService';
+import { persistWhatsAppInsightMemory, persistWhatsAppMessageMemory } from '../services/whatsappClientMemoryService';
 import { env } from '../env';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
@@ -148,6 +149,20 @@ async function processMessage(msg: any, instanceId: string, tenantId: string) {
   );
 
   if (!group.client_id) return; // not linked to a client — just store
+
+  await persistWhatsAppMessageMemory({
+    tenantId,
+    clientId: group.client_id,
+    externalMessageId: waMessageId,
+    text: content ?? `[${type}]`,
+    senderName,
+    senderPhone: senderJid || null,
+    direction: 'inbound',
+    messageType: type,
+    channel: 'group',
+  }).catch((err: any) => {
+    console.error(`[webhookEvolution] persistWhatsAppMessageMemory failed: ${err.message}`);
+  });
 
   // Auto-create/update client contact from sender if not yet known
   if (senderJid) {
@@ -358,25 +373,46 @@ async function insertUrgentInsight(
   content: string,
 ) {
   // Resolve message UUID from wa_message_id
-  const { rows } = await query(
-    `SELECT id FROM whatsapp_group_messages WHERE wa_message_id = $1`,
+  const { rows } = await query<{ id: string; content: string | null; sender_name: string | null }>(
+    `SELECT id, content, sender_name FROM whatsapp_group_messages WHERE wa_message_id = $1`,
     [waMessageId],
   );
   if (!rows.length) return;
 
-  await query(
+  const summary = `[URGENTE] ${senderName}: ${content.slice(0, 300)}`;
+  const { rows: insightRows } = await query<{ id: string; created_at: string }>(
     `INSERT INTO whatsapp_message_insights
        (tenant_id, client_id, message_id, insight_type, summary, sentiment, urgency, entities, confidence)
      VALUES ($1, $2, $3, 'request', $4, 'neutral', 'urgent', $5, 0.9)
-     ON CONFLICT DO NOTHING`,
+     ON CONFLICT DO NOTHING
+     RETURNING id, created_at`,
     [
       tenantId,
       clientId,
       rows[0].id,
-      `[URGENTE] ${senderName}: ${content.slice(0, 300)}`,
+      summary,
       JSON.stringify({ people: [senderName], topics: [] }),
     ],
   );
+
+  if (insightRows[0]) {
+    await persistWhatsAppInsightMemory({
+      tenantId,
+      clientId,
+      insightId: insightRows[0].id,
+      messageId: rows[0].id,
+      messageExternalId: waMessageId,
+      senderName: rows[0].sender_name ?? senderName,
+      messageContent: rows[0].content ?? content,
+      insightType: 'request',
+      summary,
+      sentiment: 'neutral',
+      urgency: 'urgent',
+      entities: { people: [senderName], topics: [] },
+      actioned: false,
+      createdAt: insightRows[0].created_at ? new Date(insightRows[0].created_at) : new Date(),
+    }).catch(() => {});
+  }
 
   // Mark as insight_extracted so the worker doesn't re-process
   await query(

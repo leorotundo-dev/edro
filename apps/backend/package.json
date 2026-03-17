@@ -12,7 +12,8 @@
     "calendar:generate": "ts-node --transpile-only src/scripts/generateEdroCalendarMaster.ts",
     "calendar:import": "ts-node --transpile-only src/scripts/importCalendarCsv.ts",
     "calendar:sanitize": "ts-node --transpile-only src/scripts/sanitizeCalendarCsv.ts",
-    "calendar:recalc": "ts-node --transpile-only src/scripts/recalcCalendarRelevance.ts"
+    "calendar:recalc": "ts-node --transpile-only src/scripts/recalcCalendarRelevance.ts",
+    "whatsapp:memory:backfill": "ts-node --transpile-only src/scripts/backfillWhatsAppMemory.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",

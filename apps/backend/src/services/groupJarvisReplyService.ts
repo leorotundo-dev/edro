@@ -63,6 +63,9 @@ export async function handleJarvisReply(params: {
     if (ctx.group_intelligence?.recent_insights?.length) {
       sections.push(`Insights recentes:\n${ctx.group_intelligence.recent_insights.slice(0, 5).map((i: any) => `- [${i.type}] ${i.summary}`).join('\n')}`);
     }
+    if (ctx.clientContent?.conversationMemories?.length) {
+      sections.push(`Memória de conversas:\n${ctx.clientContent.conversationMemories.slice(0, 6).map((m: any) => `- [${m.kind}] ${m.excerpt}`).join('\n')}`);
+    }
     if (ctx.meeting_intelligence?.pending_actions?.length) {
       sections.push(`Ações pendentes de reunião:\n${ctx.meeting_intelligence.pending_actions.slice(0, 5).map((a: any) => `- ${a.title}: ${a.description || ''}`).join('\n')}`);
     }

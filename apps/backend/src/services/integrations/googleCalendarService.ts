@@ -18,6 +18,7 @@
 import crypto from 'crypto';
 import { query } from '../../db';
 import { enqueueJob } from '../../jobs/jobQueue';
+import { ensureInternalClient } from '../../repos/clientsRepo';
 
 type ResolvedCalendarClient = {
   id: string;
@@ -290,7 +291,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
   }
 
   // Always enqueue — for internal Edro meetings we still want Jarvis to transcribe and analyze.
-  const client = resolvedClient ?? { id: 'edro-internal', name: 'Reunião Interna Edro', matchSource: 'fallback_internal' };
+  const client = resolvedClient ?? await buildInternalCalendarClient(tenantId);
 
   await enqueueMeetBotJob(
     tenantId,
@@ -302,6 +303,15 @@ async function processCalendarEvent(tenantId: string, event: any) {
     client,
   )
     .catch(err => console.error('[googleCalendarService] enqueueMeetBot failed:', err?.message));
+}
+
+async function buildInternalCalendarClient(tenantId: string): Promise<ResolvedCalendarClient> {
+  const internalClient = await ensureInternalClient(tenantId);
+  return {
+    id: internalClient.id,
+    name: internalClient.name,
+    matchSource: 'fallback_internal',
+  };
 }
 
 // ── Video link extraction ─────────────────────────────────────────────────

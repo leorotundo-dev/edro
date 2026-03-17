@@ -56,6 +56,7 @@ export type IntelligenceContext = {
   clientContent: {
     recentPosts: { platform: string; title: string; excerpt: string; published_at: string; url: string }[];
     websitePages: { title: string; excerpt: string; url: string }[];
+    conversationMemories: { kind: string; title: string; excerpt: string; published_at: string }[];
     totalDocuments: number;
     latestInsight: Record<string, any> | null;
   };
@@ -83,7 +84,16 @@ export type IntelligenceContext = {
     client_sentiment_trend: string; // improving | stable | declining
   } | null;
   meeting_intelligence: {
-    recent_meetings: { title: string; summary: string; platform: string; recorded_at: string; action_count: number }[];
+    recent_meetings: {
+      title: string;
+      summary: string;
+      platform: string;
+      recorded_at: string;
+      action_count: number;
+      attention_level?: string;
+      meeting_kind?: string;
+      account_pulse?: string;
+    }[];
     pending_actions: { type: string; title: string; description: string; responsible: string; deadline: string | null; priority: string; excerpt: string }[];
     total_meetings: number;
     total_pending_actions: number;
@@ -268,10 +278,13 @@ export async function buildIntelligenceContext(params: {
     // Meeting summaries (últimos 90 dias)
     query(`
       SELECT m.title, m.summary, m.platform, m.recorded_at, m.status,
+        m.analysis_payload->'intelligence'->>'attention_level' AS attention_level,
+        m.analysis_payload->'intelligence'->>'meeting_kind' AS meeting_kind,
+        m.analysis_payload->'intelligence'->>'account_pulse' AS account_pulse,
         (SELECT COUNT(*) FROM meeting_actions ma WHERE ma.meeting_id = m.id) AS action_count
       FROM meetings m
       WHERE m.client_id = $1 AND m.tenant_id = $2
-        AND m.status IN ('analyzed', 'approved', 'archived')
+        AND m.status IN ('analyzed', 'approval_pending', 'partially_approved', 'approved', 'completed', 'archived')
         AND m.recorded_at > NOW() - INTERVAL '90 days'
       ORDER BY m.recorded_at DESC
       LIMIT 10
@@ -415,6 +428,15 @@ export async function buildIntelligenceContext(params: {
           excerpt: (d.content_excerpt || d.content_text || '').slice(0, 200),
           url: d.url || '',
         })),
+      conversationMemories: clientDocuments
+        .filter((d: any) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting'].includes(d.source_type))
+        .slice(0, 12)
+        .map((d: any) => ({
+          kind: d.source_type || 'memory',
+          title: d.title || '',
+          excerpt: (d.content_excerpt || d.content_text || '').slice(0, 220),
+          published_at: d.published_at || d.created_at || '',
+        })),
       totalDocuments: clientDocuments.length,
       latestInsight: latestInsight?.summary || null,
     },
@@ -527,6 +549,15 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
       sections.push(`${idx + 1}. ${page.title} — ${page.excerpt}`);
     });
   }
+  if (context.clientContent.conversationMemories.length > 0) {
+    sections.push(`\n# MEMORIA DE CONVERSAS DO CLIENTE`);
+    context.clientContent.conversationMemories.forEach((memory, idx) => {
+      const date = memory.published_at ? new Date(memory.published_at).toLocaleDateString('pt-BR') : '';
+      const label = memory.kind ? `[${memory.kind}] ` : '';
+      sections.push(`${idx + 1}. ${label}${date} ${memory.title}`.trim());
+      if (memory.excerpt) sections.push(`   ${memory.excerpt}`);
+    });
+  }
   if (context.clientContent.latestInsight) {
     const insight = context.clientContent.latestInsight;
     sections.push(`\n# RESUMO DE INTELIGENCIA DO CLIENTE`);
@@ -602,8 +633,10 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
       sections.push(`## Reuniões Recentes:`);
       mi.recent_meetings.forEach((m) => {
         const date = m.recorded_at ? new Date(m.recorded_at).toLocaleDateString('pt-BR') : '';
-        sections.push(`- ${date} [${m.platform}] "${m.title}" (${m.action_count} ações)`);
+        const qualifiers = [m.meeting_kind, m.attention_level].filter(Boolean).join(' | ');
+        sections.push(`- ${date} [${m.platform}] "${m.title}" (${m.action_count} ações${qualifiers ? ` | ${qualifiers}` : ''})`);
         if (m.summary) sections.push(`  Resumo: ${m.summary}`);
+        if (m.account_pulse) sections.push(`  Pulso: ${m.account_pulse}`);
       });
     }
     if (mi.pending_actions.length) {
@@ -752,6 +785,9 @@ function buildMeetingIntelligence(
       platform: m.platform || 'upload',
       recorded_at: m.recorded_at ? new Date(m.recorded_at).toISOString() : '',
       action_count: Number(m.action_count) || 0,
+      attention_level: m.attention_level || undefined,
+      meeting_kind: m.meeting_kind || undefined,
+      account_pulse: m.account_pulse || undefined,
     })),
     pending_actions: pendingActions.slice(0, 10).map((a: any) => ({
       type: a.type,
@@ -803,6 +839,7 @@ function truncateContext(context: IntelligenceContext, maxTokens: number): Intel
     ...context.clientContent,
     recentPosts: context.clientContent.recentPosts.slice(0, 5),
     websitePages: context.clientContent.websitePages.slice(0, 3),
+    conversationMemories: context.clientContent.conversationMemories.slice(0, 6),
   };
 
   // Keep opportunities and briefings intact (high priority)

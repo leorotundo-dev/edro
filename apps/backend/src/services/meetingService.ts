@@ -8,6 +8,12 @@ import crypto from 'crypto';
 import { query } from '../db';
 import { env } from '../env';
 import { generateCompletion } from './ai/claudeService';
+import { getClientById, isInternalClientId } from '../repos/clientsRepo';
+import {
+  hasClientDocumentHash,
+  insertClientDocument,
+  insertClientInsight,
+} from '../repos/clientIntelligenceRepo';
 
 export type MeetingStatus =
   | 'scheduled'
@@ -44,11 +50,67 @@ export interface MeetingAction {
   priority: 'high' | 'medium' | 'low';
   raw_excerpt: string;
   confidence_score?: number | null;
+  operation_lane?: 'atendimento' | 'operacao' | 'criacao' | 'midia' | 'estrategia' | 'cliente' | 'comercial' | null;
+  required_skill?: string | null;
+  owner_hint?: string | null;
+  should_create_job?: boolean | null;
+  needs_approval?: boolean | null;
+  urgency_reason?: string | null;
+}
+
+export interface MeetingIntelligence {
+  meeting_kind:
+    | 'client_status'
+    | 'client_briefing'
+    | 'client_review'
+    | 'internal_ops'
+    | 'commercial'
+    | 'alignment'
+    | 'other';
+  attention_level: 'critical' | 'high' | 'medium' | 'low';
+  client_temperature: 'engaged' | 'neutral' | 'pressured' | 'at_risk' | 'blocked' | 'internal';
+  account_pulse: string;
+  recommended_next_step: string;
+  owner_hint?: string | null;
+  deadlines_cited: string[];
+  decisions_taken: string[];
+  blockers: string[];
+  risks: string[];
+  opportunities: string[];
+  approvals_needed: string[];
+  follow_up_questions: string[];
+  suggested_tags: string[];
 }
 
 export interface MeetingAnalysis {
   summary: string;
+  intelligence: MeetingIntelligence;
   actions: MeetingAction[];
+  model?: string;
+  context_snapshot?: Record<string, any>;
+}
+
+export interface MeetingPrep {
+  meeting_goal: string;
+  opening_question: string;
+  suggested_agenda: string[];
+  agency_defense_points: string[];
+  likely_client_pushbacks: string[];
+  materials_to_prepare: string[];
+  internal_alignment_notes: string[];
+  red_flags: string[];
+  success_criteria: string[];
+  recommended_positioning: string;
+}
+
+export interface MeetingPrepComparison {
+  overall_alignment: 'high' | 'medium' | 'low';
+  what_matched: string[];
+  what_did_not_happen: string[];
+  unexpected_topics: string[];
+  defense_effectiveness: string;
+  follow_up_gaps: string[];
+  prep_quality_note: string;
 }
 
 type MeetingEventInput = {
@@ -71,21 +133,53 @@ type UpdateMeetingStateParams = {
   event?: Omit<MeetingEventInput, 'meetingId' | 'tenantId' | 'clientId'>;
 };
 
-const ANALYSIS_PROMPT = `Você é um analista de reuniões sênior. Analise a transcrição abaixo e extraia:
+const ANALYSIS_PROMPT = `Você é o Jarvis operacional da Edro.
 
-1. Um RESUMO executivo da reunião (máx 200 palavras, em bullets)
-2. Todas as AÇÕES identificadas — decisões, tarefas, demandas, próximos passos
+Seu trabalho não é só resumir reunião. Seu trabalho é transformar reunião em decisão operacional clara para uma agência de marketing/comunicação.
 
-Para cada ação, classifique como:
-- "briefing": quando envolve criar conteúdo, post, campanha, material de comunicação
-- "campaign": quando é uma campanha completa com objetivo, público e prazo
-- "pauta": quando é sugestão de pauta editorial / assunto para comunicar
-- "task": quando é uma tarefa operacional (reunião, envio, entrega, etc)
-- "note": quando é uma informação relevante sem ação clara, mas que deve ser registrada
+Regras Edro:
+1. Priorize o que vira execução real, gargalo, aprovação, risco, prazo ou decisão.
+2. Não invente. Se algo estiver implícito, baixe confiança e deixe explícito no contexto.
+3. Diferencie:
+- "briefing": criação de conteúdo, peça, post, material, texto, roteiro, campanha, desdobramento criativo
+- "campaign": campanha com objetivo, canal, público, janela e execução mais ampla
+- "pauta": tema editorial, oportunidade de calendário, assunto de conteúdo ainda sem escopo fechado
+- "task": ação operacional, follow-up, envio, ajuste, alinhamento, coleta, reunião, aprovação, publicação
+- "note": informação importante, sem ação fechada
+4. Só use "deadline" quando existir data explícita ou claramente inferível da reunião.
+5. Use "priority=high" quando a ação estiver atrasada, bloquear entrega, envolver cliente pressionando, prazo muito próximo ou risco claro.
+6. Em cada ação, indique a faixa operacional:
+- atendimento
+- operacao
+- criacao
+- midia
+- estrategia
+- cliente
+- comercial
+7. Em cada ação, sugira "required_skill" quando for útil (ex.: atendimento, operacao, design, copy, social_media, video, midia_paga, planejamento).
+8. Em "recommended_next_step", escreva a próxima decisão mais útil para a Central de Operações.
+9. Em "account_pulse", descreva em 1 frase curta o estado da conta/reunião no tom de operação.
+10. Use o contexto da conta/operação fornecido. Se a reunião retoma algo que já existe, deixe isso explícito.
 
-Retorne APENAS um JSON válido no formato:
+Retorne APENAS JSON válido no formato:
 {
-  "summary": "...",
+  "summary": "- bullet 1\\n- bullet 2\\n- bullet 3",
+  "intelligence": {
+    "meeting_kind": "client_status|client_briefing|client_review|internal_ops|commercial|alignment|other",
+    "attention_level": "critical|high|medium|low",
+    "client_temperature": "engaged|neutral|pressured|at_risk|blocked|internal",
+    "account_pulse": "frase curta",
+    "recommended_next_step": "próxima ação decisiva",
+    "owner_hint": "área ou pessoa sugerida, ou null",
+    "deadlines_cited": ["YYYY-MM-DD"],
+    "decisions_taken": ["..."],
+    "blockers": ["..."],
+    "risks": ["..."],
+    "opportunities": ["..."],
+    "approvals_needed": ["..."],
+    "follow_up_questions": ["..."],
+    "suggested_tags": ["..."]
+  },
   "actions": [
     {
       "type": "briefing|task|campaign|pauta|note",
@@ -95,9 +189,77 @@ Retorne APENAS um JSON válido no formato:
       "deadline": "YYYY-MM-DD ou null",
       "priority": "high|medium|low",
       "raw_excerpt": "Trecho da transcrição que originou esta ação",
-      "confidence_score": 0.0
+      "confidence_score": 0.0,
+      "operation_lane": "atendimento|operacao|criacao|midia|estrategia|cliente|comercial|null",
+      "required_skill": "skill ou null",
+      "owner_hint": "papel sugerido ou null",
+      "should_create_job": true,
+      "needs_approval": false,
+      "urgency_reason": "motivo da urgência ou null"
     }
   ]
+}`;
+
+type MeetingAnalysisContext = {
+  client: Record<string, any>;
+  openJobs: Array<Record<string, any>>;
+  pendingMeetingActions: Array<Record<string, any>>;
+  recentMeetings: Array<Record<string, any>>;
+  activeRisks: Array<Record<string, any>>;
+};
+
+const PREP_PROMPT = `Você é o estrategista de preparação de reunião da Edro.
+
+Sua tarefa é preparar a equipe da agência ANTES da reunião acontecer.
+
+Objetivo:
+1. sugerir a pauta mais útil
+2. antecipar temas sensíveis
+3. preparar a defesa da agência quando houver pressão, cobrança, risco, atraso ou questionamento
+4. indicar materiais e alinhamentos que a equipe deve levar
+
+Regras:
+1. Use o contexto operacional da conta.
+2. Seja específico e prático. Nada de genérico vazio.
+3. Se a reunião parecer interna, adapte o tom para operação interna.
+4. Em "agency_defense_points", prepare argumentos curtos, objetivos e profissionais para defender a agência quando o assunto surgir.
+5. Em "likely_client_pushbacks", descreva objeções prováveis do cliente.
+6. Em "red_flags", destaque o que pode dar ruim na reunião.
+7. Em "opening_question", sugira a melhor pergunta para abrir a reunião com clareza.
+
+Retorne APENAS JSON válido no formato:
+{
+  "meeting_goal": "objetivo principal da reunião",
+  "opening_question": "pergunta inicial recomendada",
+  "suggested_agenda": ["..."],
+  "agency_defense_points": ["..."],
+  "likely_client_pushbacks": ["..."],
+  "materials_to_prepare": ["..."],
+  "internal_alignment_notes": ["..."],
+  "red_flags": ["..."],
+  "success_criteria": ["..."],
+  "recommended_positioning": "postura recomendada da agência"
+}`;
+
+const PREP_COMPARISON_PROMPT = `Você é o auditor operacional da Edro.
+
+Compare o briefing pré-reunião com o que de fato aconteceu na reunião.
+
+Objetivo:
+1. medir aderência entre o preparo e o resultado
+2. identificar o que a equipe antecipou certo
+3. mostrar o que faltou preparar
+4. avaliar se a defesa da agência foi suficiente
+
+Retorne APENAS JSON válido no formato:
+{
+  "overall_alignment": "high|medium|low",
+  "what_matched": ["..."],
+  "what_did_not_happen": ["..."],
+  "unexpected_topics": ["..."],
+  "defense_effectiveness": "avaliação curta",
+  "follow_up_gaps": ["..."],
+  "prep_quality_note": "síntese curta e objetiva"
 }`;
 
 // ── Whisper transcription ──────────────────────────────────────────────────
@@ -138,11 +300,150 @@ function resolveExt(mimeType: string): string {
 
 // ── Meeting analysis with Claude ───────────────────────────────────────────
 
-export async function analyzeMeetingTranscript(
-  transcript: string,
+async function buildMeetingAnalysisContext(
+  tenantId: string,
+  clientId: string | null | undefined,
   clientName: string,
+): Promise<MeetingAnalysisContext> {
+  const internalMeeting = isInternalClientId(clientId);
+  const safeClientId = clientId && !internalMeeting ? clientId : null;
+  const clientRow = safeClientId ? await getClientById(tenantId, safeClientId).catch(() => null) : null;
+
+  const [openJobsRes, pendingActionsRes, recentMeetingsRes, riskRes] = await Promise.all([
+    query(
+      `SELECT
+         j.id,
+         j.title,
+         j.status,
+         j.priority_band,
+         j.deadline_at,
+         j.required_skill,
+         j.source,
+         COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name
+       FROM jobs j
+       LEFT JOIN edro_users u ON u.id = j.owner_id
+      WHERE j.tenant_id = $1
+        AND ($2::text IS NULL OR j.client_id = $2)
+        AND j.status <> 'archived'
+      ORDER BY
+        CASE j.priority_band
+          WHEN 'p0' THEN 0
+          WHEN 'p1' THEN 1
+          WHEN 'p2' THEN 2
+          WHEN 'p3' THEN 3
+          ELSE 4
+        END,
+        j.deadline_at ASC NULLS LAST,
+        j.updated_at DESC
+      LIMIT 8`,
+      [tenantId, safeClientId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query(
+      `SELECT title, type, priority, responsible, deadline, description
+         FROM meeting_actions
+        WHERE tenant_id = $1
+          AND ($2::text IS NULL OR client_id = $2)
+          AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 6`,
+      [tenantId, safeClientId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query(
+      `SELECT title, recorded_at, status, summary
+         FROM meetings
+        WHERE tenant_id = $1
+          AND ($2::text IS NULL OR client_id = $2)
+        ORDER BY recorded_at DESC
+        LIMIT 4`,
+      [tenantId, safeClientId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query(
+      `SELECT risk_type, risk_band, summary, suggested_action
+         FROM risk_signals
+        WHERE tenant_id = $1
+          AND ($2::text IS NULL OR client_id = $2)
+          AND resolved_at IS NULL
+        ORDER BY risk_score DESC, updated_at DESC
+        LIMIT 5`,
+      [tenantId, safeClientId],
+    ).catch(() => ({ rows: [] as any[] })),
+  ]);
+
+  const profile = clientRow?.profile ?? {};
+
+  return {
+    client: {
+      id: safeClientId,
+      name: clientRow?.name ?? clientName,
+      segment_primary: clientRow?.segment_primary ?? (internalMeeting ? 'interno' : null),
+      segment_secondary: clientRow?.segment_secondary ?? [],
+      status: clientRow?.status ?? null,
+      tone_profile: profile?.tone_profile ?? null,
+      risk_tolerance: profile?.risk_tolerance ?? null,
+      keywords: Array.isArray(profile?.keywords) ? profile.keywords.slice(0, 12) : [],
+      pillars: Array.isArray(profile?.pillars) ? profile.pillars.slice(0, 10) : [],
+      negative_keywords: Array.isArray(profile?.negative_keywords) ? profile.negative_keywords.slice(0, 10) : [],
+    },
+    openJobs: openJobsRes.rows.map((row) => ({
+      title: row.title,
+      status: row.status,
+      priority_band: row.priority_band,
+      deadline_at: row.deadline_at,
+      required_skill: row.required_skill,
+      source: row.source,
+      owner_name: row.owner_name,
+    })),
+    pendingMeetingActions: pendingActionsRes.rows.map((row) => ({
+      title: row.title,
+      type: row.type,
+      priority: row.priority,
+      responsible: row.responsible,
+      deadline: row.deadline,
+      description: shortText(String(row.description ?? ''), 220),
+    })),
+    recentMeetings: recentMeetingsRes.rows.map((row) => ({
+      title: row.title,
+      recorded_at: row.recorded_at,
+      status: row.status,
+      summary: shortText(String(row.summary ?? ''), 220),
+    })),
+    activeRisks: riskRes.rows.map((row) => ({
+      risk_type: row.risk_type,
+      risk_band: row.risk_band,
+      summary: row.summary,
+      suggested_action: row.suggested_action,
+    })),
+  };
+}
+
+export async function analyzeMeetingTranscript(
+  params: {
+    transcript: string;
+    clientName: string;
+    tenantId: string;
+    clientId: string | null | undefined;
+    meetingTitle?: string | null;
+    platform?: string | null;
+    source?: string | null;
+  },
 ): Promise<MeetingAnalysis> {
-  const prompt = `Cliente: ${clientName}\n\nTRANSCRIÇÃO DA REUNIÃO:\n${transcript.slice(0, 12000)}`;
+  const context = await buildMeetingAnalysisContext(
+    params.tenantId,
+    params.clientId,
+    params.clientName,
+  );
+  const prompt = [
+    `CLIENTE: ${params.clientName}`,
+    params.meetingTitle ? `TITULO DA REUNIAO: ${params.meetingTitle}` : null,
+    params.platform ? `PLATAFORMA: ${params.platform}` : null,
+    params.source ? `ORIGEM: ${params.source}` : null,
+    '',
+    'CONTEXTO DA CONTA E DA OPERACAO:',
+    JSON.stringify(context, null, 2),
+    '',
+    'TRANSCRICAO DA REUNIAO:',
+    params.transcript.slice(0, 16000),
+  ].filter(Boolean).join('\n');
 
   const result = await generateCompletion({
     prompt,
@@ -158,6 +459,7 @@ export async function analyzeMeetingTranscript(
   const parsed = JSON.parse(jsonMatch[0]) as MeetingAnalysis;
   return {
     summary: String(parsed.summary || '').trim(),
+    intelligence: normalizeIntelligence(parsed.intelligence, params.clientId),
     actions: Array.isArray(parsed.actions)
       ? parsed.actions.map((action) => ({
           ...action,
@@ -166,8 +468,61 @@ export async function analyzeMeetingTranscript(
           raw_excerpt: String(action.raw_excerpt || '').trim(),
           confidence_score: normalizeConfidence(action.confidence_score),
           deadline: normalizeDeadline(action.deadline),
+          operation_lane: normalizeOperationLane(action.operation_lane),
+          required_skill: normalizeOptionalText(action.required_skill),
+          owner_hint: normalizeOptionalText(action.owner_hint),
+          should_create_job: normalizeBoolean(action.should_create_job),
+          needs_approval: normalizeBoolean(action.needs_approval),
+          urgency_reason: normalizeOptionalText(action.urgency_reason),
         }))
       : [],
+    model: result.model,
+    context_snapshot: context,
+  };
+}
+
+export async function generateMeetingPrep(params: {
+  tenantId: string;
+  clientId: string | null | undefined;
+  clientName: string;
+  meetingTitle: string;
+  description?: string | null;
+  platform?: string | null;
+  scheduledAt?: string | Date | null;
+}): Promise<{ prep: MeetingPrep; model: string; contextSnapshot: MeetingAnalysisContext }> {
+  const context = await buildMeetingAnalysisContext(
+    params.tenantId,
+    params.clientId,
+    params.clientName,
+  );
+
+  const prompt = [
+    `CLIENTE: ${params.clientName}`,
+    `TITULO DA REUNIAO: ${params.meetingTitle}`,
+    params.platform ? `PLATAFORMA: ${params.platform}` : null,
+    params.scheduledAt ? `DATA DA REUNIAO: ${new Date(params.scheduledAt).toISOString()}` : null,
+    params.description ? `DESCRICAO/OBJETIVO INFORMADO:\n${params.description}` : null,
+    '',
+    'CONTEXTO DA CONTA E DA OPERACAO:',
+    JSON.stringify(context, null, 2),
+  ].filter(Boolean).join('\n');
+
+  const result = await generateCompletion({
+    prompt,
+    systemPrompt: PREP_PROMPT,
+    temperature: 0.2,
+    maxTokens: 2600,
+  });
+
+  const text = result.text.trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Resposta do modelo não continha JSON válido para o preparo da reunião');
+
+  const parsed = JSON.parse(jsonMatch[0]) as Partial<MeetingPrep>;
+  return {
+    prep: normalizeMeetingPrep(parsed),
+    model: result.model,
+    contextSnapshot: context,
   };
 }
 
@@ -196,6 +551,12 @@ export async function ensureMeetingTables() {
       bot_status TEXT,
       transcript_provider TEXT,
       transcript_hash TEXT,
+      analysis_payload JSONB,
+      analysis_input_context JSONB,
+      analysis_model TEXT,
+      prep_payload JSONB,
+      prep_generated_at TIMESTAMPTZ,
+      prep_model TEXT,
       analysis_version INT NOT NULL DEFAULT 1,
       failed_stage TEXT,
       failed_reason TEXT,
@@ -230,6 +591,7 @@ export async function ensureMeetingTables() {
       raw_excerpt TEXT,
       excerpt_hash TEXT,
       idempotency_key TEXT,
+      metadata JSONB,
       confidence_score NUMERIC(5,4),
       analysis_version INT NOT NULL DEFAULT 1,
       approved_by TEXT,
@@ -257,6 +619,14 @@ export async function ensureMeetingTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_payload JSONB`);
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_input_context JSONB`);
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_model TEXT`);
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS prep_payload JSONB`);
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS prep_generated_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS prep_model TEXT`);
+  await query(`ALTER TABLE meeting_actions ADD COLUMN IF NOT EXISTS metadata JSONB`);
 
   await query(`ALTER TABLE calendar_auto_joins ADD COLUMN IF NOT EXISTS client_id TEXT`).catch(() => {});
   await query(`ALTER TABLE calendar_auto_joins ADD COLUMN IF NOT EXISTS bot_id TEXT`).catch(() => {});
@@ -374,13 +744,27 @@ export async function saveMeetingAnalysis(
     actorId?: string;
   },
 ): Promise<{ analysisVersion: number; actionCount: number; supersededCount: number }> {
-  const { rows: meetingRows } = await query<{ analysis_version: number }>(
-    `SELECT analysis_version FROM meetings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+  const { rows: meetingRows } = await query<{
+    analysis_version: number;
+    client_id: string;
+    title: string;
+    platform: string | null;
+    meeting_url: string | null;
+    recorded_at: string | null;
+    source: string | null;
+    bot_id: string | null;
+    transcript_provider: string | null;
+  }>(
+    `SELECT analysis_version, client_id, title, platform, meeting_url, recorded_at, source, bot_id, transcript_provider
+       FROM meetings
+      WHERE id = $1 AND tenant_id = $2
+      LIMIT 1`,
     [meetingId, tenantId],
   );
   if (!meetingRows.length) throw new Error('meeting_not_found');
 
-  let analysisVersion = Number(meetingRows[0].analysis_version || 1);
+  const meetingRow = meetingRows[0];
+  let analysisVersion = Number(meetingRow.analysis_version || 1);
   let supersededCount = 0;
 
   if (options?.replacePendingActions) {
@@ -398,6 +782,7 @@ export async function saveMeetingAnalysis(
   const normalizedActions = analysis.actions
     .map(normalizeAction)
     .filter((action) => action.title && action.type);
+  const normalizedIntelligence = normalizeIntelligence(analysis.intelligence, meetingRow.client_id);
 
   const meetingStatus = normalizedActions.length > 0 ? 'approval_pending' : 'analyzed';
   const transcriptHash = hashText(transcript);
@@ -410,6 +795,22 @@ export async function saveMeetingAnalysis(
       transcript_provider: options?.transcriptProvider ?? null,
       transcript_hash: transcriptHash,
       summary: analysis.summary,
+      analysis_payload: {
+        intelligence: normalizedIntelligence,
+        action_hints: normalizedActions.map((action) => ({
+          title: action.title,
+          type: action.type,
+          priority: action.priority,
+          operation_lane: action.operation_lane ?? null,
+          required_skill: action.required_skill ?? null,
+          owner_hint: action.owner_hint ?? null,
+          should_create_job: action.should_create_job ?? null,
+          needs_approval: action.needs_approval ?? null,
+          urgency_reason: action.urgency_reason ?? null,
+        })),
+      },
+      analysis_input_context: analysis.context_snapshot ?? null,
+      analysis_model: analysis.model ?? null,
       analysis_version: analysisVersion,
       status: meetingStatus,
       failed_stage: null,
@@ -428,6 +829,9 @@ export async function saveMeetingAnalysis(
         superseded_count: supersededCount,
         transcript_hash: transcriptHash,
         action_count: normalizedActions.length,
+        attention_level: normalizedIntelligence.attention_level,
+        meeting_kind: normalizedIntelligence.meeting_kind,
+        analysis_model: analysis.model ?? null,
       },
     },
   });
@@ -437,9 +841,9 @@ export async function saveMeetingAnalysis(
     await query(
       `INSERT INTO meeting_actions
          (meeting_id, tenant_id, client_id, type, title, description, responsible, deadline,
-          priority, raw_excerpt, excerpt_hash, idempotency_key, confidence_score, analysis_version, updated_at)
+          priority, raw_excerpt, excerpt_hash, idempotency_key, metadata, confidence_score, analysis_version, updated_at)
        VALUES
-         ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, now())
+         ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13::jsonb, $14, $15, now())
        ON CONFLICT (meeting_id, analysis_version, idempotency_key)
        DO UPDATE SET
          description = EXCLUDED.description,
@@ -448,6 +852,7 @@ export async function saveMeetingAnalysis(
          priority = EXCLUDED.priority,
          raw_excerpt = EXCLUDED.raw_excerpt,
          excerpt_hash = EXCLUDED.excerpt_hash,
+         metadata = EXCLUDED.metadata,
          confidence_score = EXCLUDED.confidence_score,
          updated_at = now()`,
       [
@@ -463,11 +868,38 @@ export async function saveMeetingAnalysis(
         action.raw_excerpt ?? null,
         hashes.excerptHash,
         hashes.idempotencyKey,
+        JSON.stringify({
+          operation_lane: action.operation_lane ?? null,
+          required_skill: action.required_skill ?? null,
+          owner_hint: action.owner_hint ?? null,
+          should_create_job: action.should_create_job ?? null,
+          needs_approval: action.needs_approval ?? null,
+          urgency_reason: action.urgency_reason ?? null,
+        }),
         action.confidence_score ?? null,
         analysisVersion,
       ],
     );
   }
+
+  await persistMeetingIntoClientIntelligence({
+    meetingId,
+    tenantId,
+    clientId: meetingRow.client_id,
+    meetingTitle: meetingRow.title,
+    platform: meetingRow.platform,
+    meetingUrl: meetingRow.meeting_url,
+    recordedAt: meetingRow.recorded_at,
+    source: meetingRow.source,
+    botId: meetingRow.bot_id,
+    transcriptProvider: options?.transcriptProvider ?? meetingRow.transcript_provider ?? null,
+    transcript,
+    transcriptHash,
+    summary: analysis.summary,
+    intelligence: normalizedIntelligence,
+    actions: normalizedActions,
+    analysisVersion,
+  });
 
   return {
     analysisVersion,
@@ -504,19 +936,76 @@ export async function getMeeting(tenantId: string, meetingId: string) {
 }
 
 export async function listMeetings(tenantId: string, clientId: string, limit = 20) {
+  await archiveStaleUncapturedMeetings(tenantId);
   const { rows } = await query(
     `SELECT m.*,
             COUNT(ma.id) FILTER (WHERE ma.status = 'pending')::int AS pending_actions,
             COUNT(ma.id)::int AS total_actions
        FROM meetings m
        LEFT JOIN meeting_actions ma ON ma.meeting_id = m.id
-      WHERE m.tenant_id = $1 AND m.client_id = $2
+      WHERE m.tenant_id = $1 AND m.client_id = $2 AND m.status <> 'archived'
       GROUP BY m.id
       ORDER BY m.recorded_at DESC
       LIMIT $3`,
     [tenantId, clientId, limit],
   );
   return rows;
+}
+
+export async function archiveStaleUncapturedMeetings(tenantId: string): Promise<number> {
+  const { rows } = await query<{
+    id: string;
+    client_id: string;
+    title: string;
+    status: string;
+    recorded_at: string | null;
+  }>(
+    `SELECT m.id, m.client_id, m.title, m.status, m.recorded_at
+       FROM meetings m
+      WHERE m.tenant_id = $1
+        AND m.status IN ('scheduled', 'bot_scheduled', 'joining', 'in_call', 'recorded', 'transcript_pending', 'analysis_pending', 'failed')
+        AND COALESCE(NULLIF(trim(m.transcript), ''), NULL) IS NULL
+        AND COALESCE(NULLIF(trim(m.summary), ''), NULL) IS NULL
+        AND COALESCE(m.last_processed_at, m.recorded_at) < (
+          NOW()
+          - (COALESCE(m.duration_secs, 3600) * INTERVAL '1 second')
+          - INTERVAL '2 hours'
+        )
+      ORDER BY m.recorded_at ASC
+      LIMIT 200`,
+    [tenantId],
+  );
+
+  if (!rows.length) return 0;
+
+  for (const meeting of rows) {
+    await updateMeetingState({
+      meetingId: meeting.id,
+      tenantId,
+      changes: {
+        status: 'archived',
+        failed_stage: 'bot_finalize',
+        failed_reason: 'no_recording_captured',
+        completed_at: new Date(),
+        last_processed_at: new Date(),
+      },
+      event: {
+        eventType: 'meeting.archived_without_recording',
+        stage: 'bot_finalize',
+        status: 'archived',
+        message: 'Reunião passada sem gravação/transcript foi arquivada automaticamente.',
+        actorType: 'system',
+        actorId: 'meetingService',
+        payload: {
+          previous_status: meeting.status,
+          recorded_at: meeting.recorded_at,
+          archive_reason: 'no_recording_captured',
+        },
+      },
+    });
+  }
+
+  return rows.length;
 }
 
 export async function getMeetingStatus(tenantId: string, meetingId: string) {
@@ -725,34 +1214,40 @@ export async function updateMeetingState(params: UpdateMeetingStateParams) {
   );
   if (!currentRows.length) return null;
 
-  const columnMap: Record<string, string> = {
-    title: 'title',
-    platform: 'platform',
-    meeting_url: 'meeting_url',
-    transcript: 'transcript',
-    summary: 'summary',
-    status: 'status',
-    audio_key: 'audio_key',
-    source: 'source',
-    source_ref_id: 'source_ref_id',
-    bot_provider: 'bot_provider',
-    bot_id: 'bot_id',
-    bot_status: 'bot_status',
-    transcript_provider: 'transcript_provider',
-    transcript_hash: 'transcript_hash',
-    analysis_version: 'analysis_version',
-    failed_stage: 'failed_stage',
-    failed_reason: 'failed_reason',
-    retry_count: 'retry_count',
-    last_retry_at: 'last_retry_at',
-    summary_sent_at: 'summary_sent_at',
-    approved_at: 'approved_at',
-    completed_at: 'completed_at',
-    last_processed_at: 'last_processed_at',
-    duration_secs: 'duration_secs',
-    recorded_at: 'recorded_at',
-    created_by: 'created_by',
-    updated_at: 'updated_at',
+  const columnMap: Record<string, { column: string; cast?: string }> = {
+    title: { column: 'title' },
+    platform: { column: 'platform' },
+    meeting_url: { column: 'meeting_url' },
+    transcript: { column: 'transcript' },
+    summary: { column: 'summary' },
+    status: { column: 'status' },
+    audio_key: { column: 'audio_key' },
+    source: { column: 'source' },
+    source_ref_id: { column: 'source_ref_id' },
+    bot_provider: { column: 'bot_provider' },
+    bot_id: { column: 'bot_id' },
+    bot_status: { column: 'bot_status' },
+    transcript_provider: { column: 'transcript_provider' },
+    transcript_hash: { column: 'transcript_hash' },
+    analysis_payload: { column: 'analysis_payload', cast: 'jsonb' },
+    analysis_input_context: { column: 'analysis_input_context', cast: 'jsonb' },
+    analysis_model: { column: 'analysis_model' },
+    prep_payload: { column: 'prep_payload', cast: 'jsonb' },
+    prep_generated_at: { column: 'prep_generated_at' },
+    prep_model: { column: 'prep_model' },
+    analysis_version: { column: 'analysis_version' },
+    failed_stage: { column: 'failed_stage' },
+    failed_reason: { column: 'failed_reason' },
+    retry_count: { column: 'retry_count' },
+    last_retry_at: { column: 'last_retry_at' },
+    summary_sent_at: { column: 'summary_sent_at' },
+    approved_at: { column: 'approved_at' },
+    completed_at: { column: 'completed_at' },
+    last_processed_at: { column: 'last_processed_at' },
+    duration_secs: { column: 'duration_secs' },
+    recorded_at: { column: 'recorded_at' },
+    created_by: { column: 'created_by' },
+    updated_at: { column: 'updated_at' },
   };
 
   const updates: string[] = [];
@@ -760,10 +1255,10 @@ export async function updateMeetingState(params: UpdateMeetingStateParams) {
   let index = 1;
 
   for (const [key, rawValue] of Object.entries(params.changes)) {
-    const column = columnMap[key];
-    if (!column) continue;
-    updates.push(`${column} = $${index}`);
-    values.push(rawValue);
+    const mapped = columnMap[key];
+    if (!mapped) continue;
+    updates.push(`${mapped.column} = $${index}${mapped.cast ? `::${mapped.cast}` : ''}`);
+    values.push(mapped.cast === 'jsonb' && rawValue != null ? JSON.stringify(rawValue) : rawValue);
     index += 1;
   }
 
@@ -911,6 +1406,105 @@ function normalizeConfidence(value: unknown): number | null {
   return Number(value.toFixed(4));
 }
 
+function normalizeOptionalText(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  return null;
+}
+
+function normalizeOperationLane(value: unknown): MeetingAction['operation_lane'] {
+  const normalized = normalizeOptionalText(value);
+  if (!normalized) return null;
+  const lane = normalized.toLowerCase();
+  if (['atendimento', 'operacao', 'criacao', 'midia', 'estrategia', 'cliente', 'comercial'].includes(lane)) {
+    return lane as MeetingAction['operation_lane'];
+  }
+  return null;
+}
+
+function normalizeStringArray(value: unknown, limit = 8): string[] {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<string>();
+  for (const item of value) {
+    const normalized = normalizeOptionalText(item);
+    if (normalized) unique.add(normalized);
+    if (unique.size >= limit) break;
+  }
+  return Array.from(unique);
+}
+
+function normalizeMeetingPrep(value: Partial<MeetingPrep> | null | undefined): MeetingPrep {
+  const raw = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
+  return {
+    meeting_goal: normalizeOptionalText(raw.meeting_goal) ?? 'Alinhar a reunião com clareza e sair com próximos passos fechados.',
+    opening_question: normalizeOptionalText(raw.opening_question) ?? 'Qual é a principal decisão que precisamos fechar hoje?',
+    suggested_agenda: normalizeStringArray(raw.suggested_agenda, 8),
+    agency_defense_points: normalizeStringArray(raw.agency_defense_points, 8),
+    likely_client_pushbacks: normalizeStringArray(raw.likely_client_pushbacks, 8),
+    materials_to_prepare: normalizeStringArray(raw.materials_to_prepare, 8),
+    internal_alignment_notes: normalizeStringArray(raw.internal_alignment_notes, 8),
+    red_flags: normalizeStringArray(raw.red_flags, 8),
+    success_criteria: normalizeStringArray(raw.success_criteria, 8),
+    recommended_positioning: normalizeOptionalText(raw.recommended_positioning) ?? 'Entrar com postura objetiva, consultiva e orientada a decisão.',
+  };
+}
+
+function normalizeMeetingKind(value: unknown, clientId: string | null | undefined): MeetingIntelligence['meeting_kind'] {
+  const normalized = normalizeOptionalText(value)?.toLowerCase();
+  const fallback = isInternalClientId(clientId) ? 'internal_ops' : 'alignment';
+  if (!normalized) return fallback;
+  if (['client_status', 'client_briefing', 'client_review', 'internal_ops', 'commercial', 'alignment', 'other'].includes(normalized)) {
+    return normalized as MeetingIntelligence['meeting_kind'];
+  }
+  return fallback;
+}
+
+function normalizeAttentionLevel(value: unknown): MeetingIntelligence['attention_level'] {
+  const normalized = normalizeOptionalText(value)?.toLowerCase();
+  if (normalized === 'critical' || normalized === 'high' || normalized === 'medium' || normalized === 'low') {
+    return normalized;
+  }
+  return 'medium';
+}
+
+function normalizeClientTemperature(
+  value: unknown,
+  clientId: string | null | undefined,
+): MeetingIntelligence['client_temperature'] {
+  const normalized = normalizeOptionalText(value)?.toLowerCase();
+  const fallback = isInternalClientId(clientId) ? 'internal' : 'neutral';
+  if (!normalized) return fallback;
+  if (['engaged', 'neutral', 'pressured', 'at_risk', 'blocked', 'internal'].includes(normalized)) {
+    return normalized as MeetingIntelligence['client_temperature'];
+  }
+  return fallback;
+}
+
+function normalizeIntelligence(value: unknown, clientId: string | null | undefined): MeetingIntelligence {
+  const raw = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
+  return {
+    meeting_kind: normalizeMeetingKind(raw.meeting_kind, clientId),
+    attention_level: normalizeAttentionLevel(raw.attention_level),
+    client_temperature: normalizeClientTemperature(raw.client_temperature, clientId),
+    account_pulse: normalizeOptionalText(raw.account_pulse) ?? 'Leitura operacional ainda sem pulso claro.',
+    recommended_next_step: normalizeOptionalText(raw.recommended_next_step) ?? 'Revisar a reunião e decidir a próxima ação.',
+    owner_hint: normalizeOptionalText(raw.owner_hint),
+    deadlines_cited: normalizeStringArray(raw.deadlines_cited, 6).map((entry) => normalizeDeadline(entry) ?? entry).slice(0, 6),
+    decisions_taken: normalizeStringArray(raw.decisions_taken, 6),
+    blockers: normalizeStringArray(raw.blockers, 6),
+    risks: normalizeStringArray(raw.risks, 6),
+    opportunities: normalizeStringArray(raw.opportunities, 6),
+    approvals_needed: normalizeStringArray(raw.approvals_needed, 6),
+    follow_up_questions: normalizeStringArray(raw.follow_up_questions, 6),
+    suggested_tags: normalizeStringArray(raw.suggested_tags, 8),
+  };
+}
+
 function normalizeAction(action: MeetingAction): MeetingAction {
   return {
     type: action.type,
@@ -921,6 +1515,12 @@ function normalizeAction(action: MeetingAction): MeetingAction {
     priority: action.priority || 'medium',
     raw_excerpt: String(action.raw_excerpt || '').trim(),
     confidence_score: normalizeConfidence(action.confidence_score),
+    operation_lane: normalizeOperationLane(action.operation_lane),
+    required_skill: normalizeOptionalText(action.required_skill),
+    owner_hint: normalizeOptionalText(action.owner_hint),
+    should_create_job: normalizeBoolean(action.should_create_job),
+    needs_approval: normalizeBoolean(action.needs_approval),
+    urgency_reason: normalizeOptionalText(action.urgency_reason),
   };
 }
 
@@ -938,6 +1538,119 @@ function buildActionHashes(action: MeetingAction) {
   return { excerptHash, idempotencyKey };
 }
 
+async function persistMeetingIntoClientIntelligence(params: {
+  meetingId: string;
+  tenantId: string;
+  clientId: string;
+  meetingTitle: string;
+  platform: string | null;
+  meetingUrl: string | null;
+  recordedAt: string | null;
+  source: string | null;
+  botId: string | null;
+  transcriptProvider: string | null;
+  transcript: string;
+  transcriptHash: string;
+  summary: string;
+  intelligence: MeetingIntelligence;
+  actions: MeetingAction[];
+  analysisVersion: number;
+}) {
+  if (!params.clientId || isInternalClientId(params.clientId)) return;
+  if (!params.transcript.trim() || !params.summary.trim()) return;
+
+  const meetingHash = hashText(`meeting:${params.meetingId}:${params.transcriptHash}`);
+  const alreadyStored = await hasClientDocumentHash({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    contentHash: meetingHash,
+  });
+
+  if (!alreadyStored) {
+    await insertClientDocument({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      sourceId: params.meetingId,
+      sourceType: 'meeting',
+      platform: params.platform ?? 'meeting',
+      url: params.meetingUrl ?? null,
+      rawUrl: params.meetingUrl ?? null,
+      title: params.meetingTitle,
+      contentText: params.transcript,
+      contentExcerpt: shortText(params.summary, 400),
+      language: 'pt-BR',
+      publishedAt: params.recordedAt ? new Date(params.recordedAt) : null,
+      contentHash: meetingHash,
+      metadata: {
+        meeting_id: params.meetingId,
+        recorded_at: params.recordedAt,
+        source: params.source,
+        bot_present: Boolean(params.botId || params.transcriptProvider === 'recall'),
+        bot_id: params.botId ?? null,
+        transcript_provider: params.transcriptProvider,
+        attention_level: params.intelligence.attention_level,
+        meeting_kind: params.intelligence.meeting_kind,
+        action_count: params.actions.length,
+        suggested_tags: params.intelligence.suggested_tags,
+      },
+    });
+  }
+
+  const period = `meeting:${params.meetingId}:v${params.analysisVersion}`;
+  const { rows: existingInsightRows } = await query<{ id: string }>(
+    `SELECT id
+       FROM client_insights
+      WHERE tenant_id = $1 AND client_id = $2 AND period = $3
+      LIMIT 1`,
+    [params.tenantId, params.clientId, period],
+  );
+
+  if (existingInsightRows[0]) return;
+
+  await insertClientInsight({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    period,
+    summary: {
+      source: 'meeting_intelligence',
+      meeting_id: params.meetingId,
+      meeting_title: params.meetingTitle,
+      recorded_at: params.recordedAt,
+      platform: params.platform ?? 'meeting',
+      transcript_provider: params.transcriptProvider,
+      bot_present: Boolean(params.botId || params.transcriptProvider === 'recall'),
+      summary_text: params.summary,
+      attention_level: params.intelligence.attention_level,
+      meeting_kind: params.intelligence.meeting_kind,
+      client_temperature: params.intelligence.client_temperature,
+      account_pulse: params.intelligence.account_pulse,
+      recommended_next_step: params.intelligence.recommended_next_step,
+      owner_hint: params.intelligence.owner_hint ?? null,
+      deadlines_cited: params.intelligence.deadlines_cited,
+      decisions_taken: params.intelligence.decisions_taken,
+      blockers: params.intelligence.blockers,
+      risks: params.intelligence.risks,
+      opportunities: params.intelligence.opportunities,
+      approvals_needed: params.intelligence.approvals_needed,
+      follow_up_questions: params.intelligence.follow_up_questions,
+      suggested_tags: params.intelligence.suggested_tags,
+      action_count: params.actions.length,
+      actions: params.actions.slice(0, 12).map((action) => ({
+        type: action.type,
+        title: action.title,
+        priority: action.priority,
+        responsible: action.responsible ?? null,
+        deadline: action.deadline ?? null,
+        operation_lane: action.operation_lane ?? null,
+        required_skill: action.required_skill ?? null,
+        needs_approval: action.needs_approval ?? null,
+        should_create_job: action.should_create_job ?? null,
+      })),
+      updated_at: new Date().toISOString(),
+    },
+  });
+}
+
 function normalizeText(value: string): string {
   return value
     .normalize('NFKC')
@@ -948,4 +1661,10 @@ function normalizeText(value: string): string {
 
 function hashText(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function shortText(value: string, limit: number) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, Math.max(0, limit - 1)).trim()}…`;
 }

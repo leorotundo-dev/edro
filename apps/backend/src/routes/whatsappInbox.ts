@@ -2,8 +2,10 @@ import { FastifyInstance } from 'fastify';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
+import { enqueueJob } from '../jobs/jobQueue';
 import { sendWhatsAppText } from '../services/whatsappService';
 import { env } from '../env';
+import { backfillWhatsAppClientMemory, persistWhatsAppMessageMemory } from '../services/whatsappClientMemoryService';
 
 export default async function whatsappInboxRoutes(app: FastifyInstance) {
 
@@ -138,14 +140,61 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
       if (!result.ok) return reply.code(500).send({ error: result.error });
 
       const phoneId = env.WHATSAPP_PHONE_ID || 'outbound';
-      await query(`
+      const outboundMessageId = result.messageId ?? `out_${Date.now()}`;
+      const { rows: outboundRows } = await query<{ created_at: string }>(`
         INSERT INTO whatsapp_messages
           (tenant_id, client_id, phone_number_id, wa_message_id, sender_phone, direction, type, raw_text)
         VALUES ($1, $2, $3, $4, $5, 'outbound', 'text', $6)
         ON CONFLICT (wa_message_id) DO NOTHING
-      `, [tenantId, client_id, phoneId, result.messageId ?? `out_${Date.now()}`, client.whatsapp_phone, message]);
+        RETURNING created_at
+      `, [tenantId, client_id, phoneId, outboundMessageId, client.whatsapp_phone, message]);
+
+      await persistWhatsAppMessageMemory({
+        tenantId,
+        clientId: client_id,
+        externalMessageId: outboundMessageId,
+        text: message,
+        senderName: 'Edro',
+        senderPhone: client.whatsapp_phone,
+        direction: 'outbound',
+        messageType: 'text',
+        createdAt: outboundRows[0]?.created_at ? new Date(outboundRows[0].created_at) : new Date(),
+        channel: 'manual',
+      }).catch(() => {});
 
       return reply.send({ success: true, message_id: result.messageId });
+    },
+  );
+
+  app.post<{ Body: { client_id?: string | null; async?: boolean | null } }>(
+    '/whatsapp/memory/backfill',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (req, reply) => {
+      const tenantId = (req.user as any).tenant_id;
+      const clientId = req.body?.client_id ?? null;
+      const useAsync = Boolean(req.body?.async);
+
+      if (useAsync) {
+        const job = await enqueueJob(tenantId, 'whatsapp.memory_backfill', {
+          tenant_id: tenantId,
+          client_id: clientId,
+          trigger: clientId ? 'client_manual' : 'tenant_manual',
+        });
+        return reply.send({
+          success: true,
+          queued: true,
+          data: {
+            job_id: job.id,
+            client_id: clientId,
+          },
+        });
+      }
+
+      const stats = await backfillWhatsAppClientMemory({
+        tenantId,
+        clientId,
+      });
+      return reply.send({ success: true, data: stats });
     },
   );
 }

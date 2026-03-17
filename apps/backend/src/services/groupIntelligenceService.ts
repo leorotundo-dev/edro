@@ -6,6 +6,7 @@
 
 import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
+import { persistWhatsAppInsightMemory } from './whatsappClientMemoryService';
 
 const SYSTEM_PROMPT = `Você é um analista de comunicação de agência de marketing digital.
 Analise as mensagens de WhatsApp abaixo trocadas entre a equipe da agência e o cliente.
@@ -137,11 +138,12 @@ export async function extractInsightsFromBatch(
         const msg = groupMessages[insight.message_index];
         if (!msg) continue;
 
-        await query(
+        const { rows: insertedInsightRows } = await query<{ id: string; created_at: string }>(
           `INSERT INTO whatsapp_message_insights
              (tenant_id, client_id, message_id, insight_type, summary, sentiment, urgency, entities, confidence)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0.8)
-           ON CONFLICT DO NOTHING`,
+           ON CONFLICT DO NOTHING
+           RETURNING id, created_at`,
           [
             tenantId,
             clientId,
@@ -153,6 +155,27 @@ export async function extractInsightsFromBatch(
             JSON.stringify(insight.entities || {}),
           ],
         );
+        const insertedInsight = insertedInsightRows[0];
+        if (insertedInsight) {
+          await persistWhatsAppInsightMemory({
+            tenantId,
+            clientId,
+            insightId: insertedInsight.id,
+            messageId: msg.id,
+            messageExternalId: msg.wa_message_id,
+            senderName: msg.sender_name,
+            messageContent: msg.content,
+            insightType: insight.insight_type,
+            summary: insight.summary,
+            sentiment: insight.sentiment || 'neutral',
+            urgency: insight.urgency || 'normal',
+            entities: insight.entities || {},
+            actioned: false,
+            createdAt: insertedInsight.created_at ? new Date(insertedInsight.created_at) : new Date(msg.created_at),
+          }).catch((err: any) => {
+            console.error(`[groupIntelligence] persistWhatsAppInsightMemory failed: ${err.message}`);
+          });
+        }
         totalInsights++;
       }
 

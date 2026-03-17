@@ -9,7 +9,7 @@ import { createClient, getClientById, updateClient, deleteClient, listClients } 
 import { ClientIntelligenceService } from '../services/clientIntelligence';
 import { syncReporteiInsightsForClient } from '../services/reporteiInsights';
 import { syncRejectionPatternsToProfile } from '../services/rejectionPatternService';
-import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
+import { getLatestClientInsight, listClientDocuments, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
 import { saveFile, readFile } from '../library/storage';
 import { OpenAIService } from '../services/ai/openaiService';
@@ -551,7 +551,22 @@ export default async function clientsRoutes(app: FastifyInstance) {
 
       const insight = await getLatestClientInsight({ tenantId, clientId: params.id });
       const sources = await listClientSources({ tenantId, clientId: params.id });
-      return reply.send({ insight, sources });
+      const memories = (await listClientDocuments({
+        tenantId,
+        clientId: params.id,
+        limit: 24,
+      }))
+        .filter((doc) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting'].includes(String(doc.source_type || '')))
+        .slice(0, 12)
+        .map((doc) => ({
+          id: doc.id,
+          source_type: doc.source_type || 'memory',
+          title: doc.title || '',
+          excerpt: doc.content_excerpt || doc.content_text || '',
+          published_at: doc.published_at || doc.created_at || null,
+          metadata: doc.metadata || {},
+        }));
+      return reply.send({ insight, sources, memories });
     }
   );
 

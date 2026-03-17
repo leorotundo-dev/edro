@@ -557,6 +557,36 @@ export default async function jobsRoutes(app: FastifyInstance) {
     return { data: rows[0] };
   });
 
+  app.delete('/jobs/:jobId', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const currentRes = await query(
+      `SELECT id, owner_id
+         FROM jobs
+        WHERE tenant_id = $1 AND id = $2
+        LIMIT 1`,
+      [tenantId, jobId]
+    );
+
+    if (!currentRes.rows.length) {
+      return reply.status(404).send({ error: 'Job não encontrado.' });
+    }
+
+    const current = currentRes.rows[0];
+
+    await query(`DELETE FROM jobs WHERE tenant_id = $1 AND id = $2`, [tenantId, jobId]);
+    await rebuildOperationalRuntime(tenantId);
+
+    if (current.owner_id) {
+      await recalculateOwnerETAs(tenantId, current.owner_id).catch((err: any) => {
+        console.error('[jobs] delete recalculateOwnerETAs failed:', err?.message || err);
+      });
+    }
+
+    return { success: true, deleted: jobId };
+  });
+
   // ── GET /jobs/:jobId/creative-drafts ──
   app.get('/jobs/:jobId/creative-drafts', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;

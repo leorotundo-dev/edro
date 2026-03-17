@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 import { query } from '../../db';
+import { isInternalClientId } from '../../repos/clientsRepo';
 import { env } from '../../env';
 import { enqueueJob } from '../../jobs/jobQueue';
 import { getRecallBotTranscript } from './recallService';
@@ -451,7 +452,7 @@ async function enqueueImmediateFinalize(context: MeetingContext): Promise<void> 
 }
 
 async function resolveClientName(tenantId: string, clientId: string): Promise<string> {
-  if (!clientId || clientId === 'edro-internal') return 'Reunião Interna Edro';
+  if (!clientId || isInternalClientId(clientId)) return 'Reunião Interna Edro';
 
   const { rows } = await query<{ name: string }>(
     `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,

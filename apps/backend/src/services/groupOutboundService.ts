@@ -5,6 +5,7 @@
 
 import { query } from '../db';
 import { sendGroupMessage } from './integrations/evolutionApiService';
+import { persistWhatsAppMessageMemory } from './whatsappClientMemoryService';
 
 const MAX_OUTBOUND_PER_DAY = 10;
 const DEFAULT_QUIET_START = 21; // 21:00 BRT
@@ -94,6 +95,21 @@ export async function sendOutboundMessage(params: {
     [tenantId, groupId, clientId ?? null, scenario, triggerKey, messageText,
      params.aiTokensIn ?? 0, params.aiTokensOut ?? 0],
   );
+
+  if (clientId) {
+    await persistWhatsAppMessageMemory({
+      tenantId,
+      clientId,
+      externalMessageId: triggerKey,
+      text: messageText,
+      senderName: 'Jarvis',
+      direction: 'outbound',
+      messageType: 'text',
+      channel: 'group',
+    }).catch((err: any) => {
+      console.error(`[groupOutbound] persistWhatsAppMessageMemory failed: ${err.message}`);
+    });
+  }
 
   await query(
     `UPDATE whatsapp_groups

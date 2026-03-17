@@ -17,6 +17,7 @@
 import { query } from '../../db/db';
 import { decryptJSON } from '../../security/secrets';
 import { env } from '../../env';
+import { persistWhatsAppMessageMemory } from '../whatsappClientMemoryService';
 
 const GRAPH_API = 'https://graph.facebook.com/v18.0';
 
@@ -213,6 +214,30 @@ export async function processWhatsAppMessage(
 
     if (!rawText.trim()) return;
 
+    const { rows: storedMessageRows } = await query<{ id: string; created_at: string }>(
+      `INSERT INTO whatsapp_messages
+         (id, tenant_id, client_id, phone_number_id, wa_message_id, sender_phone, direction, type, raw_text, created_at)
+       VALUES
+         (gen_random_uuid(), $1, $2, $3, $4, $5, 'inbound', $6, $7, now())
+       ON CONFLICT (wa_message_id) DO UPDATE
+         SET raw_text = COALESCE(whatsapp_messages.raw_text, EXCLUDED.raw_text)
+       RETURNING id, created_at`,
+      [tenantId, clientId, phoneNumberId, message.id, senderPhone, message.type, rawText.slice(0, 4000)],
+    ).catch(() => ({ rows: [] as Array<{ id: string; created_at: string }> }));
+
+    await persistWhatsAppMessageMemory({
+      tenantId,
+      clientId,
+      externalMessageId: message.id,
+      text: rawText,
+      senderName: contactName,
+      senderPhone,
+      direction: 'inbound',
+      messageType: message.type,
+      createdAt: storedMessageRows[0]?.created_at ? new Date(storedMessageRows[0].created_at) : new Date(),
+      channel: 'cloud',
+    }).catch(() => {});
+
     // Extract structured brief via Claude
     const brief = await extractBriefFromText(rawText, clientName);
 
@@ -240,16 +265,6 @@ export async function processWhatsAppMessage(
         }),
       ],
     );
-
-    // Log the message in whatsapp_messages for conversation history
-    await query(
-      `INSERT INTO whatsapp_messages
-         (id, tenant_id, client_id, phone_number_id, wa_message_id, sender_phone, direction, type, raw_text, created_at)
-       VALUES
-         (gen_random_uuid(), $1, $2, $3, $4, $5, 'inbound', $6, $7, now())
-       ON CONFLICT (wa_message_id) DO NOTHING`,
-      [tenantId, clientId, phoneNumberId, message.id, senderPhone, message.type, rawText.slice(0, 4000)],
-    ).catch(() => {}); // table may not exist yet — non-blocking
 
     // Send confirmation to client
     await sendWhatsAppText(

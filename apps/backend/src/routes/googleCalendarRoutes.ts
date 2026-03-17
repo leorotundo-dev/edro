@@ -15,6 +15,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { requirePerm } from '../auth/rbac';
 import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
+import { ensureInternalClient, isInternalClientId } from '../repos/clientsRepo';
 import {
   calendarOAuthUrl,
   exchangeCalendarCode,
@@ -200,8 +201,11 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
       });
     }
 
-    const clientId = item.resolved_client_id || 'edro-internal';
-    const clientName = item.resolved_client_name || 'Reunião Interna Edro';
+    const internalClient = (!item.resolved_client_id || isInternalClientId(item.resolved_client_id))
+      ? await ensureInternalClient(tenantId)
+      : null;
+    const clientId = internalClient?.id || item.resolved_client_id!;
+    const clientName = internalClient?.name || item.resolved_client_name || 'Reunião Interna Edro';
 
     const job = await enqueueJob(tenantId, 'meet-bot', {
       videoUrl: item.video_url,
