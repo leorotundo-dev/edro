@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { getClientPreferenceContext, buildPreferencePromptBlock } from './preferenceEngine';
+import { getClientPreferences } from './learningLoopService';
 import { generateWithProvider } from './ai/copyOrchestrator';
 
 export type PautaSource = {
@@ -70,12 +71,13 @@ export async function generateSinglePautaSuggestion(params: {
 }): Promise<GeneratedSuggestion | null> {
   const { client_id, tenant_id, source } = params;
 
-  const [clientRes, preferenceCtx] = await Promise.all([
+  const [clientRes, preferenceCtx, directivesPrefs] = await Promise.all([
     query<ClientRow>(
       `SELECT id, name, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
       [client_id, tenant_id]
     ),
     getClientPreferenceContext(client_id, tenant_id),
+    getClientPreferences({ tenant_id, client_id }).catch(() => null),
   ]);
 
   const client = clientRes.rows[0];
@@ -83,6 +85,15 @@ export async function generateSinglePautaSuggestion(params: {
 
   const profile = client.profile || {};
   const preferenceBlock = buildPreferencePromptBlock(preferenceCtx);
+  const directivesBlock = (() => {
+    const boost = (directivesPrefs?.directives?.boost ?? []).slice(0, 3);
+    const avoid = (directivesPrefs?.directives?.avoid ?? []).slice(0, 2);
+    if (!boost.length && !avoid.length) return '';
+    let block = '\nREGRAS PERMANENTES DO CLIENTE:\n';
+    if (boost.length) block += `REFORÇAR: ${boost.join(' | ')}\n`;
+    if (avoid.length) block += `EVITAR: ${avoid.join(' | ')}`;
+    return block;
+  })();
 
   let parsed: any = null;
   try {
@@ -123,7 +134,7 @@ Título: ${source.title}
 Resumo: ${source.summary}
 ${source.date ? `Data do evento: ${source.date}` : ''}
 
-${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}`,
+${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${directivesBlock}`,
       temperature: 0.4,
       maxTokens: 700,
     });
@@ -223,12 +234,13 @@ export async function generatePautaSuggestions(params: {
 }): Promise<void> {
   const { client_id, tenant_id } = params;
 
-  const [clientRes, preferenceCtx] = await Promise.all([
+  const [clientRes, preferenceCtx, directivesPrefs] = await Promise.all([
     query<ClientRow>(
       `SELECT id, name, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
       [client_id, tenant_id]
     ),
     getClientPreferenceContext(client_id, tenant_id),
+    getClientPreferences({ tenant_id, client_id }).catch(() => null),
   ]);
 
   const client = clientRes.rows[0];
@@ -236,6 +248,15 @@ export async function generatePautaSuggestions(params: {
 
   const profile = client.profile || {};
   const preferenceBlock = buildPreferencePromptBlock(preferenceCtx);
+  const directivesBlock = (() => {
+    const boost = (directivesPrefs?.directives?.boost ?? []).slice(0, 3);
+    const avoid = (directivesPrefs?.directives?.avoid ?? []).slice(0, 2);
+    if (!boost.length && !avoid.length) return '';
+    let block = '\nREGRAS PERMANENTES DO CLIENTE:\n';
+    if (boost.length) block += `REFORÇAR: ${boost.join(' | ')}\n`;
+    if (avoid.length) block += `EVITAR: ${avoid.join(' | ')}`;
+    return block;
+  })();
 
   for (const source of params.sources) {
     // Skip items in editorial cooldown
@@ -291,7 +312,7 @@ Título: ${source.title}
 Resumo: ${source.summary}
 ${source.date ? `Data do evento: ${source.date}` : ''}
 
-${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}`,
+${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${directivesBlock}`,
         temperature: 0.4,
         maxTokens: 700,
       });
