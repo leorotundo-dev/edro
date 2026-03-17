@@ -511,7 +511,7 @@ async function fetchOperationalJobs(tenantId: string) {
      LEFT JOIN clients c ON c.id = j.client_id
      LEFT JOIN edro_users u ON u.id::text = j.owner_id
      LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1
       AND j.status <> 'archived'
     ORDER BY j.updated_at DESC`,
@@ -614,7 +614,7 @@ export async function upsertJobAllocation(tenantId: string, input: UpsertAllocat
      LEFT JOIN clients c ON c.id = j.client_id
      LEFT JOIN edro_users u ON u.id::text = j.owner_id
      LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
     [tenantId, input.jobId],
@@ -724,7 +724,7 @@ export async function dropJobAllocation(tenantId: string, jobId: string, changed
      LEFT JOIN clients c ON c.id = j.client_id
      LEFT JOIN edro_users u ON u.id::text = j.owner_id
      LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
     WHERE j.tenant_id = $1 AND j.id = $2
     LIMIT 1`,
     [tenantId, jobId],
@@ -1490,7 +1490,7 @@ export async function buildCalendarSnapshot(tenantId: string) {
      LEFT JOIN clients c ON c.id = ci.client_id
      LEFT JOIN edro_users u ON u.id::text = ci.owner_id
      LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = ci.owner_id
     WHERE ci.tenant_id = $1
     ORDER BY ci.starts_at ASC, j.priority_score DESC`,
     [tenantId],
@@ -1702,9 +1702,9 @@ export async function buildRiskSnapshot(tenantId: string) {
      FROM risk_signals rs
      JOIN jobs j ON j.id = rs.job_id
      LEFT JOIN clients c ON c.id = rs.client_id
-     LEFT JOIN edro_users u ON u.id = rs.owner_id
+     LEFT JOIN edro_users u ON u.id::text = rs.owner_id
      LEFT JOIN tenant_users tu ON tu.user_id::text = rs.owner_id AND tu.tenant_id::text = rs.tenant_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = rs.owner_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id::text = rs.owner_id
      LEFT JOIN job_allocations ja
        ON ja.job_id = j.id
       AND ja.tenant_id = rs.tenant_id
@@ -1862,7 +1862,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
        LEFT JOIN clients c ON c.id = ci.client_id
        LEFT JOIN edro_users u ON u.id::text = ci.owner_id
        LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
-       LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = ci.owner_id
       WHERE ci.tenant_id = $1
         AND ci.source_type = 'checkpoint'
         AND ci.status = 'active'
@@ -1885,7 +1885,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id::text = j.owner_id
        LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
-       LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
       WHERE j.tenant_id = $1
         AND j.source = 'approval'
         AND j.status IN ('awaiting_approval', 'blocked')
