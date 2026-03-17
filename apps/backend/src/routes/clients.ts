@@ -75,6 +75,14 @@ function normalizeString(value?: string | null) {
   return text || undefined;
 }
 
+function normalizeNullableString(value?: string | null) {
+  return normalizeString(value) ?? null;
+}
+
+function isUniqueViolation(err: any) {
+  return err?.code === '23505';
+}
+
 function normalizeArray(value?: string[] | string | null) {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -1555,45 +1563,99 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       const paramsSchema = z.object({ id: z.string().min(1) });
       const bodySchema = z.object({
         name: z.string().min(1),
-        role: z.string().optional(),
-        department: z.string().optional(),
-        email: z.string().optional(),
-        phone: z.string().optional(),
-        whatsapp_jid: z.string().optional(),
+        role: z.string().nullable().optional(),
+        department: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        whatsapp_jid: z.string().nullable().optional(),
         is_primary: z.boolean().optional(),
-        notes: z.string().optional(),
+        notes: z.string().nullable().optional(),
       });
       const params = paramsSchema.parse(request.params);
       const body = bodySchema.parse(request.body || {});
       const tenantId = (request.user as any).tenant_id;
+      const normalizedContact = {
+        name: body.name.trim(),
+        role: normalizeNullableString(body.role),
+        department: normalizeNullableString(body.department),
+        email: normalizeNullableString(body.email),
+        phone: normalizeNullableString(body.phone),
+        whatsappJid: normalizeNullableString(body.whatsapp_jid),
+        isPrimary: body.is_primary ?? false,
+        notes: normalizeNullableString(body.notes),
+      };
 
       try {
-        if (body.is_primary) {
+        const existingByWhatsapp = normalizedContact.whatsappJid
+          ? (await query(
+              `SELECT *
+                 FROM client_contacts
+                WHERE client_id = $1
+                  AND tenant_id = $2
+                  AND whatsapp_jid = $3
+                ORDER BY active DESC, updated_at DESC, created_at DESC
+                LIMIT 1`,
+              [params.id, tenantId, normalizedContact.whatsappJid],
+            )).rows[0]
+          : null;
+
+        if (normalizedContact.isPrimary) {
+          const primaryParams = existingByWhatsapp?.id
+            ? [params.id, tenantId, existingByWhatsapp.id]
+            : [params.id, tenantId];
           await query(
             `UPDATE client_contacts SET is_primary = false, updated_at = now()
-             WHERE client_id = $1 AND tenant_id = $2`,
-            [params.id, tenantId],
+             WHERE client_id = $1 AND tenant_id = $2${existingByWhatsapp?.id ? ' AND id <> $3' : ''}`,
+            primaryParams,
           );
         }
 
-        const { rows } = await query(
-          `INSERT INTO client_contacts
-             (tenant_id, client_id, name, role, department, email, phone, whatsapp_jid, is_primary, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           RETURNING *`,
-          [
-            tenantId,
-            params.id,
-            body.name,
-            body.role ?? null,
-            body.department ?? null,
-            body.email ?? null,
-            body.phone ?? null,
-            body.whatsapp_jid ?? null,
-            body.is_primary ?? false,
-            body.notes ?? null,
-          ],
-        );
+        const { rows } = existingByWhatsapp?.id
+          ? await query(
+              `UPDATE client_contacts
+                  SET name = $1,
+                      role = $2,
+                      department = $3,
+                      email = $4,
+                      phone = $5,
+                      whatsapp_jid = $6,
+                      is_primary = $7,
+                      notes = $8,
+                      active = true,
+                      updated_at = now()
+                WHERE id = $9 AND tenant_id = $10
+                RETURNING *`,
+              [
+                normalizedContact.name,
+                normalizedContact.role,
+                normalizedContact.department,
+                normalizedContact.email,
+                normalizedContact.phone,
+                normalizedContact.whatsappJid,
+                normalizedContact.isPrimary,
+                normalizedContact.notes,
+                existingByWhatsapp.id,
+                tenantId,
+              ],
+            )
+          : await query(
+              `INSERT INTO client_contacts
+                 (tenant_id, client_id, name, role, department, email, phone, whatsapp_jid, is_primary, notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               RETURNING *`,
+              [
+                tenantId,
+                params.id,
+                normalizedContact.name,
+                normalizedContact.role,
+                normalizedContact.department,
+                normalizedContact.email,
+                normalizedContact.phone,
+                normalizedContact.whatsappJid,
+                normalizedContact.isPrimary,
+                normalizedContact.notes,
+              ],
+            );
         if (rows[0]?.id) {
           rows[0].person_id = await syncClientContactPerson({
             contactId: rows[0].id,
@@ -1605,8 +1667,14 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
             existingPersonId: rows[0].person_id ?? null,
           });
         }
-        return reply.status(201).send(rows[0]);
+        return reply.status(existingByWhatsapp?.id ? 200 : 201).send(rows[0]);
       } catch (err: any) {
+        if (isUniqueViolation(err) && normalizedContact.whatsappJid) {
+          return reply.status(409).send({
+            error: 'contact_whatsapp_already_linked',
+            message: 'Este WhatsApp ja esta vinculado a outro contato deste tenant.',
+          });
+        }
         return reply.status(500).send({ error: err.message });
       }
     }
@@ -1620,13 +1688,13 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       const paramsSchema = z.object({ id: z.string().min(1), contactId: z.string().min(1) });
       const bodySchema = z.object({
         name: z.string().min(1).optional(),
-        role: z.string().optional(),
-        department: z.string().optional(),
-        email: z.string().optional(),
-        phone: z.string().optional(),
-        whatsapp_jid: z.string().optional(),
+        role: z.string().nullable().optional(),
+        department: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        whatsapp_jid: z.string().nullable().optional(),
         is_primary: z.boolean().optional(),
-        notes: z.string().optional(),
+        notes: z.string().nullable().optional(),
         active: z.boolean().optional(),
       });
       const params = paramsSchema.parse(request.params);
@@ -1651,14 +1719,14 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
           sets.push(`${col}=$${queryParams.length}`);
         };
 
-        if (body.name !== undefined) addField('name', body.name);
-        if (body.role !== undefined) addField('role', body.role);
-        if (body.department !== undefined) addField('department', body.department);
-        if (body.email !== undefined) addField('email', body.email);
-        if (body.phone !== undefined) addField('phone', body.phone);
-        if (body.whatsapp_jid !== undefined) addField('whatsapp_jid', body.whatsapp_jid);
+        if (body.name !== undefined) addField('name', body.name.trim());
+        if (body.role !== undefined) addField('role', normalizeNullableString(body.role));
+        if (body.department !== undefined) addField('department', normalizeNullableString(body.department));
+        if (body.email !== undefined) addField('email', normalizeNullableString(body.email));
+        if (body.phone !== undefined) addField('phone', normalizeNullableString(body.phone));
+        if (body.whatsapp_jid !== undefined) addField('whatsapp_jid', normalizeNullableString(body.whatsapp_jid));
         if (body.is_primary !== undefined) addField('is_primary', body.is_primary);
-        if (body.notes !== undefined) addField('notes', body.notes);
+        if (body.notes !== undefined) addField('notes', normalizeNullableString(body.notes));
         if (body.active !== undefined) addField('active', body.active);
 
         if (!sets.length) {
@@ -1689,6 +1757,12 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         });
         return reply.send(rows[0]);
       } catch (err: any) {
+        if (isUniqueViolation(err) && body.whatsapp_jid) {
+          return reply.status(409).send({
+            error: 'contact_whatsapp_already_linked',
+            message: 'Este WhatsApp ja esta vinculado a outro contato deste tenant.',
+          });
+        }
         return reply.status(500).send({ error: err.message });
       }
     }

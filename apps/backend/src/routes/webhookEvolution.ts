@@ -467,7 +467,7 @@ async function upsertContactFromMessage(
   await query(
     `INSERT INTO client_contacts (tenant_id, client_id, person_id, name, whatsapp_jid, phone)
      VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (whatsapp_jid) WHERE whatsapp_jid IS NOT NULL
+     ON CONFLICT (tenant_id, whatsapp_jid) WHERE whatsapp_jid IS NOT NULL
      DO UPDATE SET
        person_id = COALESCE(client_contacts.person_id, EXCLUDED.person_id),
        name = CASE WHEN client_contacts.name = client_contacts.whatsapp_jid

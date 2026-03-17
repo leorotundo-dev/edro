@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -113,6 +114,14 @@ function contactToForm(c: Contact): ContactForm {
     is_primary: c.is_primary ?? false,
     notes: c.notes ?? '',
   };
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    if (message) return message;
+  }
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -377,6 +386,8 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [discoverFeedback, setDiscoverFeedback] = useState<string | null>(null);
 
   // Add form (top)
   const [addingNew, setAddingNew] = useState(false);
@@ -400,12 +411,13 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
 
   useEffect(() => {
     setLoading(true);
+    setFeedback(null);
     apiGet<Contact[] | { contacts: Contact[] }>(`/clients/${clientId}/contacts`)
       .then((res) => {
         const list = Array.isArray(res) ? res : (res as { contacts: Contact[] })?.contacts ?? [];
         setContacts(list);
       })
-      .catch(() => {})
+      .catch((error) => setFeedback(getErrorMessage(error, 'Nao foi possivel carregar os contatos.')))
       .finally(() => setLoading(false));
   }, [clientId]);
 
@@ -416,6 +428,7 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
   const handleCreate = async () => {
     if (!addForm.name.trim()) return;
     setSavingNew(true);
+    setFeedback(null);
     try {
       const res = await apiPost<Contact | { contact: Contact }>(`/clients/${clientId}/contacts`, {
         name: addForm.name.trim(),
@@ -429,15 +442,18 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
       });
       const created = (res as { contact: Contact })?.contact ?? (res as Contact);
       if (created?.id) {
-        setContacts((prev) =>
-          addForm.is_primary
-            ? [created, ...prev.map((c) => ({ ...c, is_primary: false }))]
-            : [created, ...prev]
-        );
+        setContacts((prev) => {
+          const next = prev.filter((c) => c.id !== created.id);
+          return created.is_primary
+            ? [created, ...next.map((c) => ({ ...c, is_primary: false }))]
+            : [created, ...next];
+        });
       }
       setAddingNew(false);
       setAddForm(EMPTY_FORM);
-    } catch { /* silent */ }
+    } catch (error) {
+      setFeedback(getErrorMessage(error, 'Nao foi possivel salvar o contato.'));
+    }
     finally { setSavingNew(false); }
   };
 
@@ -446,6 +462,7 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
   // ---------------------------------------------------------------------------
 
   const openEdit = (c: Contact) => {
+    setFeedback(null);
     setEditingId(c.id);
     setEditForm(contactToForm(c));
     setAddingNew(false); // close add form if open
@@ -454,6 +471,7 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
   const handleUpdate = async () => {
     if (!editingId || !editForm.name.trim()) return;
     setSavingEdit(true);
+    setFeedback(null);
     try {
       const res = await apiPatch<Contact | { contact: Contact }>(
         `/clients/${clientId}/contacts/${editingId}`,
@@ -472,12 +490,14 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
       setContacts((prev) =>
         prev.map((c) => {
           if (c.id === editingId) return updated?.id ? updated : { ...c, ...editForm };
-          if (editForm.is_primary) return { ...c, is_primary: false };
+          if ((updated?.is_primary ?? editForm.is_primary) === true) return { ...c, is_primary: false };
           return c;
         })
       );
       setEditingId(null);
-    } catch { /* silent */ }
+    } catch (error) {
+      setFeedback(getErrorMessage(error, 'Nao foi possivel atualizar o contato.'));
+    }
     finally { setSavingEdit(false); }
   };
 
@@ -487,11 +507,14 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
 
   const handleDelete = async (contactId: string) => {
     setDeletingId(contactId);
+    setFeedback(null);
     try {
       await apiDelete(`/clients/${clientId}/contacts/${contactId}`);
       setContacts((prev) => prev.filter((c) => c.id !== contactId));
       if (editingId === contactId) setEditingId(null);
-    } catch { /* silent */ }
+    } catch (error) {
+      setFeedback(getErrorMessage(error, 'Nao foi possivel excluir o contato.'));
+    }
     finally { setDeletingId(null); }
   };
 
@@ -501,6 +524,7 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
 
   const handleDiscover = async () => {
     setDiscoverOpen(true);
+    setDiscoverFeedback(null);
     if (discovered.length > 0) return; // already loaded
     setDiscovering(true);
     try {
@@ -508,12 +532,15 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
         `/clients/${clientId}/contacts/discover`
       );
       setDiscovered(res?.discovered ?? []);
-    } catch { /* silent */ }
+    } catch (error) {
+      setDiscoverFeedback(getErrorMessage(error, 'Nao foi possivel descobrir contatos do WhatsApp.'));
+    }
     finally { setDiscovering(false); }
   };
 
   const handleLinkDiscovered = async (d: DiscoveredContact) => {
     setLinkingJid(d.sender_jid);
+    setDiscoverFeedback(null);
     try {
       const res = await apiPost<Contact | { contact: Contact }>(`/clients/${clientId}/contacts`, {
         name: d.sender_name || d.sender_jid,
@@ -521,7 +548,7 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
       });
       const created = (res as { contact: Contact })?.contact ?? (res as Contact);
       if (created?.id) {
-        setContacts((prev) => [created, ...prev]);
+        setContacts((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
       }
       // mark as already_linked in the dialog list
       setDiscovered((prev) =>
@@ -529,7 +556,9 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
           item.sender_jid === d.sender_jid ? { ...item, already_linked: true } : item
         )
       );
-    } catch { /* silent */ }
+    } catch (error) {
+      setDiscoverFeedback(getErrorMessage(error, 'Nao foi possivel vincular este contato.'));
+    }
     finally { setLinkingJid(null); }
   };
 
@@ -583,6 +612,12 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
             </Button>
           </Stack>
         </Stack>
+
+        {feedback && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {feedback}
+          </Alert>
+        )}
 
         {/* Inline add form */}
         <Collapse in={addingNew} unmountOnExit>
@@ -670,6 +705,12 @@ export default function ContactsManager({ clientId }: { clientId: string }) {
         </DialogTitle>
 
         <DialogContent dividers sx={{ p: 0 }}>
+          {discoverFeedback && (
+            <Alert severity="error" sx={{ m: 2, mb: 0 }}>
+              {discoverFeedback}
+            </Alert>
+          )}
+
           {discovering && (
             <Stack alignItems="center" justifyContent="center" sx={{ py: 4 }}>
               <CircularProgress size={26} />
