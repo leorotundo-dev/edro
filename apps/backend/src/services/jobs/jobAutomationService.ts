@@ -263,25 +263,30 @@ export async function autoAssignJob(tenantId: string, jobId: string): Promise<vo
   const skill = job.required_skill;
   if (!skill) return;
 
-  // Find owners with matching skill and their current load
+  // Find owners with matching skill and their current load + contact info
   const { rows: owners } = await query<{
     id: string;
     name: string;
+    email: string | null;
+    whatsapp_jid: string | null;
     committed_minutes: number;
   }>(
     `SELECT
        u.id,
        COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+       u.email,
+       fp.whatsapp_jid,
        COALESCE(SUM(CASE
          WHEN j.status IN ('allocated', 'in_progress', 'in_review')
          THEN j.estimated_minutes ELSE 0 END
        ), 0)::int AS committed_minutes
      FROM edro_users u
      JOIN tenant_users tu ON tu.user_id = u.id AND tu.tenant_id::text = $1
+     LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
      LEFT JOIN jobs j ON j.owner_id = u.id AND j.tenant_id = $1
        AND j.status NOT IN ('done', 'archived', 'blocked')
      WHERE tu.role IN ('member', 'admin', 'manager')
-     GROUP BY u.id, u.name, u.email
+     GROUP BY u.id, u.name, u.email, fp.whatsapp_jid
      ORDER BY committed_minutes ASC
      LIMIT 5`,
     [tenantId],
@@ -301,14 +306,20 @@ export async function autoAssignJob(tenantId: string, jobId: string): Promise<vo
       changedBy: null, // system
     });
 
-    // Notify the chosen designer
+    // Notify the chosen designer via in-app + WhatsApp
+    const deadline = job.deadline_at ? new Date(job.deadline_at).toLocaleDateString('pt-BR') : null;
     await notifyEvent({
       event: 'job_assigned',
       tenantId,
       userId: chosen.id,
       title: `Novo job: ${job.title}`,
-      body: `Você recebeu "${job.title}" (${job.client_name || 'Cliente'}). ${job.deadline_at ? `Prazo: ${new Date(job.deadline_at).toLocaleDateString('pt-BR')}` : 'Sem prazo definido.'}`,
-      link: `/admin/operacoes/jobs`,
+      body: [
+        job.client_name ? `Cliente: ${job.client_name}` : null,
+        deadline ? `Prazo: ${deadline}` : 'Sem prazo definido',
+      ].filter(Boolean).join('\n'),
+      link: '/admin/operacoes/jobs',
+      recipientEmail: chosen.email ?? undefined,
+      recipientPhone: chosen.whatsapp_jid ?? undefined,
     });
 
     // Calculate ETA

@@ -9,6 +9,43 @@ import { syncOperationalSources } from '../services/jobs/sourceSyncService';
 import { rebuildOperationalRuntime, syncOperationalRuntimeForJob } from '../services/jobs/operationsRuntimeService';
 import { enqueueJob } from '../jobs/jobQueue';
 import { getNextJobForOwner, recalculateOwnerETAs } from '../services/jobs/jobAutomationService';
+import { notifyEvent } from '../services/notificationService';
+
+/** Look up owner's WhatsApp JID + email, then fire job_assigned notification. */
+async function notifyOwnerAssigned(
+  tenantId: string,
+  ownerId: string,
+  jobTitle: string,
+  clientName?: string | null,
+  deadlineAt?: string | null,
+) {
+  const { rows } = await query<{ whatsapp_jid: string | null; email: string | null }>(
+    `SELECT fp.whatsapp_jid, u.email
+       FROM edro_users u
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+      WHERE u.id = $1 LIMIT 1`,
+    [ownerId],
+  );
+  const owner = rows[0];
+  if (!owner) return;
+
+  const deadline = deadlineAt ? new Date(deadlineAt).toLocaleDateString('pt-BR') : null;
+  const body = [
+    clientName ? `Cliente: ${clientName}` : null,
+    deadline ? `Prazo: ${deadline}` : 'Sem prazo definido',
+  ].filter(Boolean).join('\n');
+
+  await notifyEvent({
+    event: 'job_assigned',
+    tenantId,
+    userId: ownerId,
+    title: `Novo job: ${jobTitle}`,
+    body,
+    link: '/admin/operacoes/jobs',
+    recipientEmail: owner.email ?? undefined,
+    recipientPhone: owner.whatsapp_jid ?? undefined,
+  });
+}
 
 const jobStatusValues = [
   'intake',
@@ -489,6 +526,26 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
     await syncOperationalRuntimeForJob(tenantId, jobId);
 
+    // Notify new owner via in-app + WhatsApp when assignment changes
+    const newOwnerId = rows[0].owner_id as string | null;
+    if (newOwnerId && newOwnerId !== existing.owner_id) {
+      const clientId = rows[0].client_id as string | null;
+      const jobTitle = rows[0].title as string;
+      const deadlineAt = rows[0].deadline_at as string | null;
+      (async () => {
+        try {
+          let clientName: string | null = null;
+          if (clientId) {
+            const cr = await query<{ name: string }>(`SELECT name FROM clients WHERE id = $1 LIMIT 1`, [clientId]);
+            clientName = cr.rows[0]?.name ?? null;
+          }
+          await notifyOwnerAssigned(tenantId, newOwnerId, jobTitle, clientName, deadlineAt);
+        } catch (err: any) {
+          console.error('[jobs] notify owner assigned failed:', err?.message || err);
+        }
+      })();
+    }
+
     return { data: rows[0] };
   });
 
@@ -546,6 +603,10 @@ export default async function jobsRoutes(app: FastifyInstance) {
               [nextJob.id, 'allocated', userId]
             );
             await syncOperationalRuntimeForJob(tenantId, nextJob.id);
+            // Notify owner that their next job auto-started
+            await notifyOwnerAssigned(
+              tenantId, current.owner_id, nextJob.title, nextJob.client_name ?? null, null,
+            ).catch((e: any) => console.error('[jobs] notify auto-next failed:', e?.message));
           }
           await recalculateOwnerETAs(tenantId, current.owner_id);
         } catch (err: any) {
