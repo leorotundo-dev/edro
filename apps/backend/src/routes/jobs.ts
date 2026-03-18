@@ -236,10 +236,13 @@ export default async function jobsRoutes(app: FastifyInstance) {
          c.profile->>'logo_url' AS client_logo_url,
          c.profile->'brand_colors'->>0 AS client_brand_color,
          COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
-         u.email AS owner_email
+         u.email AS owner_email,
+         ja.estimated_delivery_at,
+         ja.queue_position
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id = j.owner_id
+       LEFT JOIN job_allocations ja ON ja.job_id = j.id AND ja.allocation_kind = 'primary'
       WHERE ${where.join(' AND ')}
       ORDER BY
         CASE j.priority_band
