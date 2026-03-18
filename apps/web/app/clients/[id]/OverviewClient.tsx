@@ -1094,7 +1094,17 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>Pipeline de Produção</Typography>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Pipeline de Produção</Typography>
+                <Typography
+                  component={Link}
+                  href={`/clients/${clientId}/demandas`}
+                  variant="caption"
+                  sx={{ color: 'primary.main', fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, fontSize: '0.7rem' }}
+                >
+                  Ver demandas →
+                </Typography>
+              </Stack>
               <Stack spacing={1}>
                 {pipelineByStage.map((stage) => (
                   <Stack key={stage.key} direction="row" alignItems="center" spacing={1.2}>
