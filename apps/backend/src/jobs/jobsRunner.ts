@@ -29,6 +29,7 @@ import { runOperationsRuntimeWorkerOnce } from './operationsRuntimeWorker';
 import { runJobAutomationWorkerOnce } from './jobAutomationWorker';
 import { runWhatsAppMemoryBackfillWorkerOnce } from './whatsappMemoryBackfillWorker';
 import { runWhatsAppHealthWorkerOnce } from './whatsappHealthWorker';
+import { runOpsDigestWorkerOnce } from './opsDigestWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -125,4 +126,6 @@ export function startJobsRunner() {
   startWorkerLoop('whatsappMemoryBackfill', runWhatsAppMemoryBackfillWorkerOnce, 14500, 600_000);
   // WhatsApp connection health — auto-reconnect disconnected Evolution instances (every 5min)
   startWorkerLoop('whatsappHealth', runWhatsAppHealthWorkerOnce, 15000, 30_000);
+  // Ops daily digest — email às 09h com resumo de demandas críticas, vencidas e sem dono
+  startWorkerLoop('opsDigest', runOpsDigestWorkerOnce, 15500, 60_000);
 }

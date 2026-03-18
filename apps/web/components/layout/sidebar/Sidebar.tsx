@@ -17,6 +17,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MenuItems from './MenuItems';
 import { useRole } from '@/hooks/useRole';
+import { useOpsCriticalCount } from '@/hooks/useOpsCriticalCount';
 
 const SIDEBAR_WIDTH = 260;
 const SIDEBAR_MINI_WIDTH = 68;
@@ -47,6 +48,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const theme = useTheme();
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const { role } = useRole();
+  const opsCritical = useOpsCriticalCount();
 
   const [user, setUser] = useState<{ name?: string; email?: string; role?: string }>({});
   useEffect(() => {
@@ -178,19 +180,19 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
                               noWrap: true,
                             }}
                           />
-                          {item.badge && (
+                          {item.id === 'operacoes' && opsCritical > 0 ? (
+                            <Chip
+                              label={opsCritical}
+                              size="small"
+                              sx={{ height: 18, fontSize: '0.6rem', bgcolor: '#dc2626', color: '#fff', fontWeight: 700 }}
+                            />
+                          ) : item.badge && item.id !== 'operacoes' ? (
                             <Chip
                               label={item.badge}
                               size="small"
-                              sx={{
-                                height: 18,
-                                fontSize: '0.6rem',
-                                bgcolor: EDRO_ORANGE,
-                                color: '#fff',
-                                fontWeight: 700,
-                              }}
+                              sx={{ height: 18, fontSize: '0.6rem', bgcolor: EDRO_ORANGE, color: '#fff', fontWeight: 700 }}
                             />
-                          )}
+                          ) : null}
                         </>
                       )}
                     </ListItemButton>

@@ -31,7 +31,7 @@ import {
   IconBrush,
   IconSparkles,
 } from '@tabler/icons-react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -56,6 +56,7 @@ import {
   formatMinutes,
   getNextAction,
   isIntakeComplete,
+  STAGE_LABELS,
   type OperationsJob,
   type OperationsLookup,
   type OperationsOwner,
@@ -380,6 +381,171 @@ function buildDraft(job: OperationsJob | null, lookups: { jobTypes: OperationsLo
     urgency_reason: job?.urgency_reason || '',
     definition_of_done: job?.definition_of_done || '',
   };
+}
+
+/* ─── Time Entries Panel ──────────────────────────────────────── */
+
+type TimeEntry = { id: string; user_name: string; minutes: number; notes?: string | null; logged_at: string };
+
+function TimeEntriesPanel({ jobId }: { jobId: string }) {
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [totalMinutes, setTotalMinutes] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [logOpen, setLogOpen] = useState(false);
+  const [logMinutes, setLogMinutes] = useState('');
+  const [logNotes, setLogNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiGet<{ data: TimeEntry[]; total_minutes: number }>(`/jobs/${jobId}/time-entries`);
+      setEntries(res?.data ?? []);
+      setTotalMinutes(res?.total_minutes ?? 0);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }, [jobId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleLog = async () => {
+    const mins = parseInt(logMinutes, 10);
+    if (!mins || mins < 1) { setError('Informe um valor válido em minutos.'); return; }
+    setSaving(true); setError('');
+    try {
+      await apiPost(`/jobs/${jobId}/time-entries`, { minutes: mins, notes: logNotes.trim() || undefined });
+      setLogMinutes(''); setLogNotes(''); setLogOpen(false);
+      await load();
+    } catch (e: any) { setError(e?.message || 'Erro ao registrar tempo.'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (entryId: string) => {
+    try {
+      await apiDelete(`/jobs/${jobId}/time-entries/${entryId}`);
+      await load();
+    } catch { /* ignore */ }
+  };
+
+  const fmtMins = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? ` ${m % 60}min` : ''}` : `${m}min`;
+
+  return (
+    <Stack spacing={1.25}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Box>
+          <Typography variant="h6" fontWeight={800}>Tempo registrado</Typography>
+          {totalMinutes > 0 && (
+            <Typography variant="caption" color="text.secondary">{fmtMins(totalMinutes)} total</Typography>
+          )}
+        </Box>
+        <Button size="small" variant="outlined" onClick={() => setLogOpen(!logOpen)} sx={{ fontSize: '0.7rem', py: 0.25 }}>
+          + Registrar
+        </Button>
+      </Stack>
+
+      <Collapse in={logOpen}>
+        <Box sx={(theme) => ({ p: 1.5, borderRadius: 2, border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`, bgcolor: alpha(theme.palette.primary.main, 0.03) })}>
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                size="small" label="Minutos" type="number" value={logMinutes}
+                onChange={(e) => setLogMinutes(e.target.value)}
+                inputProps={{ min: 1, max: 1440 }}
+                sx={{ width: 110 }}
+              />
+              <TextField
+                size="small" fullWidth label="Observação (opcional)" value={logNotes}
+                onChange={(e) => setLogNotes(e.target.value)}
+              />
+            </Stack>
+            {error && <Alert severity="error" sx={{ py: 0 }}>{error}</Alert>}
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="contained" onClick={handleLog} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
+              <Button size="small" onClick={() => { setLogOpen(false); setError(''); }}>Cancelar</Button>
+            </Stack>
+          </Stack>
+        </Box>
+      </Collapse>
+
+      {loading ? <Skeleton variant="rounded" height={40} /> : entries.length === 0 ? (
+        <Typography variant="caption" color="text.disabled">Nenhum tempo registrado ainda.</Typography>
+      ) : (
+        <Stack spacing={0.5}>
+          {entries.map((e) => (
+            <Stack key={e.id} direction="row" alignItems="center" spacing={1} sx={{ py: 0.5 }}>
+              <Typography variant="caption" fontWeight={800} sx={{ minWidth: 44 }}>{fmtMins(e.minutes)}</Typography>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="caption" fontWeight={600} noWrap>{e.user_name}</Typography>
+                {e.notes && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{e.notes}</Typography>}
+              </Box>
+              <Typography variant="caption" color="text.disabled" sx={{ whiteSpace: 'nowrap', fontSize: '0.62rem' }}>
+                {new Date(e.logged_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </Typography>
+              <Tooltip title="Remover">
+                <IconButton size="small" onClick={() => handleDelete(e.id)} sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1 } }}>
+                  <IconXMark size={13} />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/* ─── Status Timeline ─────────────────────────────────────────── */
+
+const STATUS_DOT_COLOR: Record<string, string> = {
+  intake: '#29ABE2', planned: '#29ABE2', ready: '#29ABE2',
+  allocated: '#13DEB9', in_progress: '#13DEB9', in_review: '#13DEB9',
+  awaiting_approval: '#FFAE1F', approved: '#FFAE1F', scheduled: '#FFAE1F',
+  blocked: '#FA896B',
+  published: '#13DEB9', done: '#13DEB9',
+};
+
+function StatusTimeline({ history }: { history: NonNullable<OperationsJob['history']> }) {
+  const items = [...history].reverse().slice(0, 12); // newest first
+  return (
+    <Box>
+      {items.map((item, idx) => {
+        const color = STATUS_DOT_COLOR[item.to_status] || '#94a3b8';
+        const isLast = idx === items.length - 1;
+        return (
+          <Box key={item.id} sx={{ display: 'flex', gap: 1.5 }}>
+            {/* dot + line */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20, flexShrink: 0 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, flexShrink: 0, mt: 0.5, boxShadow: `0 0 0 3px ${color}28` }} />
+              {!isLast && <Box sx={{ width: 2, flex: 1, bgcolor: 'divider', my: 0.5 }} />}
+            </Box>
+            {/* content */}
+            <Box sx={{ pb: isLast ? 0 : 1.5, minWidth: 0, flex: 1 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={0.5}>
+                <Box>
+                  {item.from_status && (
+                    <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                      de: {STAGE_LABELS[item.from_status] || item.from_status}
+                    </Typography>
+                  )}
+                  <Typography variant="body2" fontWeight={700} sx={{ color, lineHeight: 1.3 }}>
+                    {STAGE_LABELS[item.to_status] || item.to_status}
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                  {formatDateTime(item.changed_at)}
+                  {item.changed_by_name ? ` · ${item.changed_by_name}` : ''}
+                </Typography>
+              </Stack>
+              {item.reason && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontStyle: 'italic' }}>
+                  {item.reason}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
+  );
 }
 
 export default function JobWorkbenchDrawer({
@@ -1060,24 +1226,15 @@ export default function JobWorkbenchDrawer({
               </>
             ) : null}
 
+            <Divider />
+            <TimeEntriesPanel jobId={detailJob.id} />
+
             {detailJob.history?.length ? (
               <>
                 <Divider />
                 <Stack spacing={1.25}>
                   <Typography variant="h6" fontWeight={800}>Linha do tempo</Typography>
-                  {detailJob.history.slice(0, 8).map((item) => (
-                    <Box key={item.id} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
-                        <Typography variant="body2" fontWeight={700}>
-                          {item.from_status ? `${item.from_status} → ` : ''}{item.to_status}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDateTime(item.changed_at)}{item.changed_by_name ? ` · ${item.changed_by_name}` : ''}
-                        </Typography>
-                      </Stack>
-                      {item.reason ? <Typography variant="caption" color="text.secondary">{item.reason}</Typography> : null}
-                    </Box>
-                  ))}
+                  <StatusTimeline history={detailJob.history} />
                 </Stack>
               </>
             ) : null}

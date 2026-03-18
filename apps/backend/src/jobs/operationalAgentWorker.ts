@@ -184,6 +184,69 @@ async function checkDeadlines() {
   }
 }
 
+async function checkOpsJobsOverdue() {
+  const res = await pool.query(`
+    SELECT j.id, j.title, j.deadline_at, j.tenant_id,
+           c.name AS client_name,
+           COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name
+      FROM jobs j
+      LEFT JOIN clients c ON c.id = j.client_id
+      LEFT JOIN edro_users u ON u.id = j.owner_id
+     WHERE j.status NOT IN ('published', 'done', 'archived')
+       AND j.deadline_at IS NOT NULL
+       AND j.deadline_at < NOW()
+  `);
+
+  for (const job of res.rows) {
+    const key = `ops_job_overdue:${job.id}`;
+    const fired = await tryFire(key, job.tenant_id, { job_id: job.id });
+    if (fired) {
+      await notify(
+        'job.overdue', job.tenant_id,
+        `⏰ Prazo vencido: ${job.title}`,
+        [job.client_name ? `Cliente: ${job.client_name}` : null, job.owner_name ? `Responsável: ${job.owner_name}` : 'Sem responsável'].filter(Boolean).join(' · '),
+        { jobId: job.id },
+      );
+    }
+  }
+}
+
+async function checkOpsJobsUnowned() {
+  const res = await pool.query(`
+    SELECT j.id, j.title, j.priority_band, j.tenant_id,
+           c.name AS client_name
+      FROM jobs j
+      LEFT JOIN clients c ON c.id = j.client_id
+     WHERE j.owner_id IS NULL
+       AND j.status NOT IN ('published', 'done', 'archived')
+       AND j.priority_band IN ('p0', 'p1')
+       AND j.created_at < NOW() - INTERVAL '2 hours'
+  `);
+
+  if (!res.rows.length) return;
+
+  // Group by tenant
+  const byTenant = new Map<string, typeof res.rows>();
+  for (const job of res.rows) {
+    if (!byTenant.has(job.tenant_id)) byTenant.set(job.tenant_id, []);
+    byTenant.get(job.tenant_id)!.push(job);
+  }
+
+  for (const [tenantId, jobs] of byTenant) {
+    const key = `ops_unowned:${tenantId}:${jobs.map((j) => j.id).sort().join(',')}`;
+    const fired = await tryFire(key, tenantId, { count: jobs.length });
+    if (fired) {
+      const sample = jobs.slice(0, 3).map((j) => `${j.priority_band.toUpperCase()} · ${j.title}`).join(', ');
+      await notify(
+        'job.unowned', tenantId,
+        `👤 ${jobs.length} demanda${jobs.length > 1 ? 's' : ''} sem responsável`,
+        sample + (jobs.length > 3 ? ` e mais ${jobs.length - 3}...` : ''),
+        { count: jobs.length },
+      );
+    }
+  }
+}
+
 // ── Entry point ────────────────────────────────────────────────────────────────
 
 export async function runOperationalAgentOnce() {
@@ -198,6 +261,8 @@ export async function runOperationalAgentOnce() {
       checkOverdueInvoices(),
       checkLongTimers(),
       checkDeadlines(),
+      checkOpsJobsOverdue(),
+      checkOpsJobsUnowned(),
     ]);
   } catch (err: any) {
     console.error('[operationalAgent] error:', err?.message);

@@ -17,6 +17,7 @@ import {
   IconSparkles,
   IconChartBar,
   IconAddressBook,
+  IconStack2,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -45,6 +46,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Home',
         icon: IconHome,
         href: '/',
+      },
+      {
+        id: 'minha-fila',
+        title: 'Minha Fila',
+        icon: IconStack2,
+        href: '/meu-trabalho',
       },
       {
         id: 'operacoes',

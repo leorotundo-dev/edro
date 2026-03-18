@@ -13,6 +13,7 @@ import { notifyEvent } from '../services/notificationService';
 import { sendWhatsAppText } from '../services/whatsappService';
 import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
+import { notifyJobBlocked, notifyJobAssigned } from '../services/jobs/opsNotificationService';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -221,6 +222,103 @@ export default async function jobsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', tenantGuard());
 
   // ── GET /jobs/calibration ── estimation accuracy report
+  // ── GET /jobs/sla — SLA report: on-time delivery rate by client and owner ──
+  app.get('/jobs/sla', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { days = '90', client_id, owner_id } = request.query as Record<string, string | undefined>;
+    const daysNum = Math.min(Math.max(Number(days) || 90, 7), 365);
+
+    const filters: string[] = [`tenant_id = $1`, `completed_at > NOW() - INTERVAL '${daysNum} days'`];
+    const values: any[] = [tenantId];
+    if (client_id) { values.push(client_id); filters.push(`client_id = $${values.length}`); }
+    if (owner_id) { values.push(owner_id); filters.push(`owner_id = $${values.length}`); }
+
+    const whereClause = filters.join(' AND ');
+
+    const [overallRes, byClientRes, byOwnerRes, recentRes] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*) FILTER (WHERE sla_met = true)  AS met,
+           COUNT(*) FILTER (WHERE sla_met = false) AS missed,
+           COUNT(*) FILTER (WHERE sla_met IS NULL) AS open,
+           COUNT(*)                                AS total,
+           ROUND(AVG(days_variance)::numeric, 1)   AS avg_days_variance,
+           ROUND(AVG(actual_minutes)::numeric)      AS avg_actual_minutes,
+           ROUND(AVG(estimated_minutes)::numeric)   AS avg_estimated_minutes
+         FROM job_sla_view
+        WHERE ${whereClause}`,
+        values
+      ),
+      query(
+        `SELECT
+           client_id, client_name,
+           COUNT(*) FILTER (WHERE sla_met = true)  AS met,
+           COUNT(*) FILTER (WHERE sla_met = false) AS missed,
+           COUNT(*)                                AS total,
+           ROUND(AVG(days_variance)::numeric, 1)   AS avg_days_variance
+         FROM job_sla_view
+        WHERE ${whereClause}
+        GROUP BY client_id, client_name
+        ORDER BY missed DESC, total DESC
+        LIMIT 20`,
+        values
+      ),
+      query(
+        `SELECT
+           owner_id, owner_name,
+           COUNT(*) FILTER (WHERE sla_met = true)  AS met,
+           COUNT(*) FILTER (WHERE sla_met = false) AS missed,
+           COUNT(*)                                AS total,
+           ROUND(AVG(days_variance)::numeric, 1)   AS avg_days_variance,
+           ROUND(AVG(revision_count)::numeric, 1)  AS avg_revisions
+         FROM job_sla_view
+        WHERE ${whereClause}
+        GROUP BY owner_id, owner_name
+        ORDER BY missed DESC, total DESC
+        LIMIT 20`,
+        values
+      ),
+      query(
+        `SELECT job_id, title, client_name, owner_name, priority_band,
+                deadline_at, completed_at, sla_met, days_variance, revision_count
+           FROM job_sla_view
+          WHERE ${whereClause} AND sla_met = false
+          ORDER BY days_variance DESC NULLS LAST
+          LIMIT 10`,
+        values
+      ),
+    ]);
+
+    const o = overallRes.rows[0] || {};
+    const total = Number(o.met || 0) + Number(o.missed || 0);
+    return {
+      data: {
+        period_days: daysNum,
+        overall: {
+          met: Number(o.met || 0),
+          missed: Number(o.missed || 0),
+          open: Number(o.open || 0),
+          total: Number(o.total || 0),
+          rate: total > 0 ? Math.round((Number(o.met || 0) / total) * 100) : null,
+          avg_days_variance: Number(o.avg_days_variance || 0),
+          avg_actual_minutes: Number(o.avg_actual_minutes || 0),
+          avg_estimated_minutes: Number(o.avg_estimated_minutes || 0),
+        },
+        by_client: byClientRes.rows.map((r) => ({
+          ...r,
+          met: Number(r.met), missed: Number(r.missed), total: Number(r.total),
+          rate: Number(r.total) > 0 ? Math.round((Number(r.met) / Number(r.total)) * 100) : null,
+        })),
+        by_owner: byOwnerRes.rows.map((r) => ({
+          ...r,
+          met: Number(r.met), missed: Number(r.missed), total: Number(r.total),
+          rate: Number(r.total) > 0 ? Math.round((Number(r.met) / Number(r.total)) * 100) : null,
+        })),
+        worst_misses: recentRes.rows,
+      },
+    };
+  });
+
   app.get('/jobs/calibration', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { days } = request.query as { days?: string };
@@ -671,6 +769,12 @@ export default async function jobsRoutes(app: FastifyInstance) {
         .catch((e: any) => console.error('[jobs] notify client approval failed:', e?.message));
     }
 
+    // ── Notify team when job is blocked ──
+    if (body.status === 'blocked') {
+      notifyJobBlocked(tenantId, { id: jobId, title: current.title, client_name: current.client_name, owner_id: current.owner_id }, body.reason ?? null)
+        .catch((e: any) => console.error('[jobs] notify blocked failed:', e?.message));
+    }
+
     // ── Score tracking: update freelancer punctuality + approval when job is done ──
     if ((body.status === 'done' || body.status === 'published') && current.owner_id) {
       const wasLate = current.deadline_at ? new Date() > new Date(current.deadline_at) : false;
@@ -865,5 +969,55 @@ export default async function jobsRoutes(app: FastifyInstance) {
     }
 
     return { success: true, draft: rows[0] };
+  });
+
+  /* ── Time Entries ─────────────────────────────────────────────────── */
+
+  app.get('/jobs/:jobId/time-entries', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const { rows } = await query(
+      `SELECT te.*, COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS user_name
+         FROM job_time_entries te
+         JOIN edro_users u ON u.id = te.user_id
+        WHERE te.tenant_id = $1 AND te.job_id = $2
+        ORDER BY te.logged_at DESC`,
+      [tenantId, jobId]
+    );
+    const total = rows.reduce((acc, r) => acc + Number(r.minutes), 0);
+    return { data: rows, total_minutes: total };
+  });
+
+  app.post('/jobs/:jobId/time-entries', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id) as string;
+    const { jobId } = request.params as { jobId: string };
+    const { minutes, notes, logged_at } = z.object({
+      minutes: z.number().int().min(1).max(1440),
+      notes: z.string().max(500).optional(),
+      logged_at: z.string().datetime().optional(),
+    }).parse(request.body ?? {});
+
+    const { rows } = await query(
+      `INSERT INTO job_time_entries (tenant_id, job_id, user_id, minutes, notes, logged_at)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()))
+       RETURNING *`,
+      [tenantId, jobId, userId, minutes, notes ?? null, logged_at ?? null]
+    );
+    return reply.status(201).send({ data: rows[0] });
+  });
+
+  app.delete('/jobs/:jobId/time-entries/:entryId', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id) as string;
+    const { jobId, entryId } = request.params as { jobId: string; entryId: string };
+    const { rows } = await query(
+      `DELETE FROM job_time_entries
+        WHERE tenant_id = $1 AND job_id = $2 AND id = $3 AND user_id = $4
+        RETURNING id`,
+      [tenantId, jobId, entryId, userId]
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Entrada não encontrada.' });
+    return { success: true };
   });
 }

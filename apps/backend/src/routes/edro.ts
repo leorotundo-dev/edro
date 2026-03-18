@@ -66,6 +66,7 @@ import { buildPlatformRulesBlock } from '../services/platformRules';
 import { buildPromptDNABlock } from '../services/promptDNA';
 import { buildPersonaBlock, buildAMDBlock, buildBehaviorIntentBlock } from '../services/personaPrompt';
 import { tagCopy } from '../services/ai/agentTagger';
+import { autoCreateJobFromBriefing } from '../services/jobs/briefingToJobService';
 import { runPolicyCheck } from '../services/ai/policyChecker';
 import {
   createABTest,
@@ -2673,6 +2674,14 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     await promoteStageIfPending(briefing.id, 'producao', user.email);
 
     await refreshBriefingStatus(briefing.id);
+
+    // Auto-create ops job when briefing enters production
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (tenantId) {
+      autoCreateJobFromBriefing(tenantId, briefing as any).catch((e: any) =>
+        console.error('[edro] auto-create job from briefing failed:', e?.message)
+      );
+    }
 
     return reply.status(201).send({
       success: true,

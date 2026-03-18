@@ -24,6 +24,7 @@ import {
   IconCheck,
   IconClipboardList,
   IconFileText,
+  IconFlame,
   IconPlus,
   IconTrendingUp,
 } from '@tabler/icons-react';
@@ -143,6 +144,7 @@ export default function DashboardClient() {
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventWithDate[]>([]);
   const [pendingByClient, setPendingByClient] = useState<PendingByClient[]>([]);
+  const [opsCritical, setOpsCritical] = useState(0);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -151,7 +153,7 @@ export default function DashboardClient() {
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes] = await Promise.all([
+      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes] = await Promise.all([
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
@@ -159,12 +161,22 @@ export default function DashboardClient() {
           `/calendar/events/${currentMonth}`
         ).catch(() => null),
         apiGet<{ success: boolean; data: PendingByClient[] }>('/edro/briefings/pending-by-client').catch(() => null),
+        apiGet<{ data: { id: string; status: string; is_urgent: boolean; priority_band: string; owner_id: string | null }[] }>('/jobs?active=true').catch(() => null),
       ]);
 
       if (metricsRes?.data) setMetrics(metricsRes.data);
       if (briefingsRes?.data) setRecentBriefings(briefingsRes.data);
       if (tasksRes?.data) setTodayTasks(tasksRes.data);
       if (pendingRes?.data) setPendingByClient(pendingRes.data);
+      if (opsJobsRes?.data) {
+        const closed = new Set(['published', 'done', 'archived']);
+        const criticalIds = new Set(
+          opsJobsRes.data
+            .filter((j) => !closed.has(j.status) && (j.status === 'blocked' || j.is_urgent || (j.priority_band === 'p0' && !j.owner_id)))
+            .map((j) => j.id)
+        );
+        setOpsCritical(criticalIds.size);
+      }
 
       if (calendarRes?.days) {
         const todaysList = calendarRes.days[today] || [];
@@ -259,6 +271,13 @@ export default function DashboardClient() {
             icon={<IconCheck size={22} />}
             color="#6366f1"
             href="/edro"
+          />
+          <StatCard
+            label="Ops críticas"
+            value={opsCritical}
+            icon={<IconFlame size={22} />}
+            color="#dc2626"
+            href="/admin/operacoes/jobs?group=risk"
           />
         </Stack>
 

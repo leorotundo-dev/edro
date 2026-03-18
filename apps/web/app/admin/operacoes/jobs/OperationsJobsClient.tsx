@@ -26,6 +26,7 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconAlertTriangle,
+  IconCalendarDue,
   IconChevronDown,
   IconChevronUp,
   IconFilter,
@@ -97,6 +98,7 @@ export default function OperationsJobsClient() {
   const [clientFilter, setClientFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const rawGroup = searchParams.get('group');
@@ -115,6 +117,9 @@ export default function OperationsJobsClient() {
 
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const weekEnd = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
     return [...jobs]
       .filter((job) => !statusFilter || job.status === statusFilter)
       .filter((job) => !priorityFilter || job.priority_band === priorityFilter)
@@ -126,12 +131,20 @@ export default function OperationsJobsClient() {
         return true;
       })
       .filter((job) => {
+        if (!deadlineFilter) return true;
+        const dl = job.deadline_at ? new Date(job.deadline_at) : null;
+        if (deadlineFilter === 'overdue') return dl !== null && dl < now && !['published', 'done', 'archived'].includes(job.status);
+        if (deadlineFilter === 'today') return dl !== null && dl >= now && dl <= todayEnd;
+        if (deadlineFilter === 'week') return dl !== null && dl > now && dl <= weekEnd;
+        return true;
+      })
+      .filter((job) => {
         if (!q) return true;
         return [job.title, job.summary, job.client_name, job.owner_name, job.required_skill]
           .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
       })
       .sort(sortByOperationalPriority);
-  }, [jobs, statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, query]);
+  }, [jobs, statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, query]);
 
   const grouped = useMemo(() => groupBy(filteredJobs, (job) => job.status), [filteredJobs]);
 
@@ -205,8 +218,8 @@ export default function OperationsJobsClient() {
   };
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
-  const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter);
-  const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter].filter(Boolean).length;
+  const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter || deadlineFilter);
+  const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter].filter(Boolean).length;
 
   return (
     <OperationsShell
@@ -281,7 +294,7 @@ export default function OperationsJobsClient() {
                 </Stack>
 
                 {/* Quick filters */}
-                <Stack direction="row" spacing={0.75} sx={{ px: 2, pb: 1.25 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
                     <ToggleButton value="urgent" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
                       <IconUrgent size={14} style={{ marginRight: 4 }} /> Urgentes
@@ -290,8 +303,19 @@ export default function OperationsJobsClient() {
                       <IconUserOff size={14} style={{ marginRight: 4 }} /> Sem dono
                     </ToggleButton>
                   </ToggleButtonGroup>
+                  <ToggleButtonGroup value={deadlineFilter} exclusive onChange={(_e, v) => setDeadlineFilter(v)} size="small">
+                    <ToggleButton value="overdue" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#dc2626', borderColor: '#dc262640' } }}>
+                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Atrasados
+                    </ToggleButton>
+                    <ToggleButton value="today" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#FFAE1F', borderColor: '#FFAE1F40' } }}>
+                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Hoje
+                    </ToggleButton>
+                    <ToggleButton value="week" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Essa semana
+                    </ToggleButton>
+                  </ToggleButtonGroup>
                   {hasActiveFilters && (
-                    <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); }}
+                    <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); setDeadlineFilter(null); }}
                       sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
                       Limpar filtros
                     </Button>
