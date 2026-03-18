@@ -303,6 +303,104 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send(res.rows[0]);
   });
 
+  // ── GET /freelancers/:id/stats — full profile stats for the lúdic profile page ──
+  app.get('/freelancers/:id/stats', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const { id } = request.params;
+    const tenantId = (request as any).user?.tenant_id;
+
+    // Profile
+    const profileRes = await pool.query(
+      `SELECT fp.*, eu.email
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+        WHERE fp.id = $1`,
+      [id],
+    );
+    if (!profileRes.rows.length) return reply.status(404).send({ error: 'Not found' });
+    const profile = profileRes.rows[0];
+
+    // Recent jobs (last 20 owned by this freelancer in this tenant)
+    const jobsRes = await pool.query(
+      `SELECT j.id, j.title, j.status, j.job_type, j.complexity, j.priority_band,
+              j.deadline_at, j.completed_at, j.estimated_minutes, j.actual_minutes,
+              j.revision_count, j.created_at,
+              c.name AS client_name
+         FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+        WHERE j.tenant_id = $1
+          AND j.owner_id = $2
+          AND j.status NOT IN ('archived')
+        ORDER BY j.created_at DESC
+        LIMIT 20`,
+      [tenantId, profile.user_id],
+    );
+
+    // Workload this week
+    const workloadRes = await pool.query(
+      `SELECT
+         COUNT(*)::int                                          AS active_jobs,
+         COALESCE(SUM(j.estimated_minutes), 0)::int            AS active_minutes
+         FROM jobs j
+        WHERE j.tenant_id = $1
+          AND j.owner_id = $2
+          AND j.status NOT IN ('done', 'published', 'archived', 'cancelled')`,
+      [tenantId, profile.user_id],
+    );
+
+    // Monthly job counts (last 6 months)
+    const trendRes = await pool.query(
+      `SELECT to_char(date_trunc('month', completed_at), 'YYYY-MM') AS month,
+              COUNT(*)::int                                           AS count,
+              AVG(CASE WHEN deadline_at IS NOT NULL AND completed_at > deadline_at THEN 0 ELSE 100 END)::int AS punctuality
+         FROM jobs
+        WHERE tenant_id = $1
+          AND owner_id = $2
+          AND status IN ('done', 'published')
+          AND completed_at > now() - interval '6 months'
+        GROUP BY 1
+        ORDER BY 1`,
+      [tenantId, profile.user_id],
+    );
+
+    // Time accuracy: avg estimated vs actual (last 30 done jobs)
+    const accuracyRes = await pool.query(
+      `SELECT
+         AVG(estimated_minutes)::int  AS avg_estimated,
+         AVG(actual_minutes)::int     AS avg_actual,
+         COUNT(*)::int                AS sample_count
+         FROM jobs
+        WHERE tenant_id = $1
+          AND owner_id = $2
+          AND status IN ('done', 'published')
+          AND actual_minutes IS NOT NULL
+          AND estimated_minutes IS NOT NULL
+        LIMIT 30`,
+      [tenantId, profile.user_id],
+    );
+
+    const wl = workloadRes.rows[0];
+    const acc = accuracyRes.rows[0];
+
+    return reply.send({
+      profile,
+      recentJobs: jobsRes.rows,
+      workload: {
+        activeJobs: wl?.active_jobs ?? 0,
+        activeMinutes: wl?.active_minutes ?? 0,
+        weeklyCapacityMinutes: (profile.weekly_capacity_hours ?? 20) * 60,
+      },
+      monthlyTrend: trendRes.rows,
+      timeAccuracy: acc?.sample_count > 0 ? {
+        avgEstimated: acc.avg_estimated,
+        avgActual: acc.avg_actual,
+        sampleCount: acc.sample_count,
+        driftPercent: acc.avg_estimated > 0
+          ? Math.round(((acc.avg_actual - acc.avg_estimated) / acc.avg_estimated) * 100)
+          : 0,
+      } : null,
+    });
+  });
+
   const freelancerPatchSchema = z.object({
     display_name: z.string().min(1).optional(),
     specialty: z.string().optional().nullable(),

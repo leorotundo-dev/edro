@@ -2,6 +2,7 @@
 
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -42,6 +43,7 @@ import {
   IconClock,
   IconCurrencyDollar,
   IconEdit,
+  IconExternalLink,
   IconId,
   IconMail,
   IconPhone,
@@ -229,6 +231,7 @@ function FreelancerContacts({
   loading: boolean;
   onUpdated: () => Promise<void>;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ContactForm>(EMPTY_CONTACT_FORM);
@@ -400,6 +403,15 @@ function FreelancerContacts({
                         />
                       )}
                     </Box>
+                    <Tooltip title="Ver perfil">
+                      <IconButton
+                        size="small"
+                        onClick={() => router.push(`/admin/equipe/${fl.id}`)}
+                        sx={{ color: 'text.disabled', '&:hover': { color: '#4570EA' } }}
+                      >
+                        <IconExternalLink size={15} />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Editar contato">
                       <IconButton
                         size="small"
