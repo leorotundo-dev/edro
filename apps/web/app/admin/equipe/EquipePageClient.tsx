@@ -87,6 +87,13 @@ type TenantUser = {
   role: string;
 };
 
+type InternalPerson = {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+  identities: { type: string; value: string; primary: boolean }[] | null;
+};
+
 function initials(name: string) {
   return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
@@ -568,8 +575,9 @@ function FreelancerContacts({
 export default function EquipePage() {
   const [tab, setTab] = useState(0);
 
-  const [freelancers, setFreelancers] = useState<FreelancerProfile[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
+  const [internalPeople, setInternalPeople]   = useState<InternalPerson[]>([]);
+  const [loading, setLoading]                 = useState(true);
   const [error, setError]             = useState('');
   const [drawerFl, setDrawerFl]       = useState<FreelancerProfile | null>(null);
   const [flEntries, setFlEntries]     = useState<any[]>([]);
@@ -617,8 +625,12 @@ export default function EquipePage() {
   const load = async () => {
     setLoading(true);
     try {
-      const rows: FreelancerProfile[] = await apiGet('/freelancers');
+      const [rows, peopleRes] = await Promise.all([
+        apiGet<FreelancerProfile[]>('/freelancers'),
+        apiGet<{ success: boolean; data: InternalPerson[] }>('/people?internal=true&limit=200').catch(() => ({ data: [] as InternalPerson[] })),
+      ]);
       setFreelancers(rows);
+      setInternalPeople(peopleRes.data ?? []);
 
       // Fetch hours per freelancer for current month
       const hoursMap: { [id: string]: number } = {};
@@ -997,6 +1009,43 @@ export default function EquipePage() {
           </TableContainer>
         )}
       </Box>
+
+      {/* Internal people from Pessoas directory */}
+      {tab === 0 && internalPeople.length > 0 && (
+        <Box sx={{ mt: 3 }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+            <IconUserCheck size={18} color="#E85219" />
+            <Typography variant="subtitle2" fontWeight={700}>
+              Pessoas Internas ({internalPeople.length})
+            </Typography>
+            <Chip label="do Diretório de Pessoas" size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+          </Stack>
+          <Grid container spacing={1.5}>
+            {internalPeople.map((p) => {
+              const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
+              const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
+              return (
+                <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
+                          {initials(p.display_name)}
+                        </Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
+                          {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
+                          {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      )}
 
       {/* Freelancer detail drawer */}
       <Drawer
