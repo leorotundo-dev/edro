@@ -7,13 +7,21 @@ type RecallBotResponse = {
   status_changes?: Array<{ code?: string; sub_code?: string | null; message?: string | null; created_at?: string }>;
   recordings?: Array<{
     id?: string;
-    // Recall v1: transcript available via media_shortcuts.transcript.data.download_url
     media_shortcuts?: {
-      transcript?: { data?: { download_url?: string } };
-      video_mixed?: { data?: { download_url?: string } };
+      transcript?:   { data?: { download_url?: string } };
+      video_mixed?:  { data?: { download_url?: string } };
+      audio_mixed?:  { data?: { download_url?: string } };
     };
     [key: string]: any;
   }>;
+};
+
+export type RecallParticipant = {
+  id: string;
+  name: string | null;
+  is_host: boolean;
+  platform?: string | null;
+  events: Array<{ code: 'join' | 'leave' | string; created_at: string }>;
 };
 
 function recallBaseUrl(version: 'v1' | 'v2' = 'v1'): string {
@@ -54,6 +62,9 @@ export async function createRecallBot(params: {
           },
         },
       },
+      // Enable full video + audio capture in addition to transcript
+      video: {},
+      audio: {},
     },
   };
 
@@ -88,6 +99,51 @@ export async function getRecallBot(botId: string): Promise<RecallBotResponse> {
   }
 
   return res.json() as Promise<RecallBotResponse>;
+}
+
+export async function getRecallBotVideoUrl(botId: string): Promise<string | null> {
+  const bot = await getRecallBot(botId);
+  for (const rec of bot.recordings ?? []) {
+    const url = rec.media_shortcuts?.video_mixed?.data?.download_url;
+    if (url) return url;
+  }
+  return null;
+}
+
+export async function getRecallBotAudioUrl(botId: string): Promise<string | null> {
+  const bot = await getRecallBot(botId);
+  for (const rec of bot.recordings ?? []) {
+    const url = rec.media_shortcuts?.audio_mixed?.data?.download_url;
+    if (url) return url;
+  }
+  return null;
+}
+
+export async function getRecallBotMediaUrls(botId: string): Promise<{
+  videoUrl: string | null;
+  audioUrl: string | null;
+}> {
+  const bot = await getRecallBot(botId);
+  let videoUrl: string | null = null;
+  let audioUrl: string | null = null;
+  for (const rec of bot.recordings ?? []) {
+    if (!videoUrl) videoUrl = rec.media_shortcuts?.video_mixed?.data?.download_url ?? null;
+    if (!audioUrl) audioUrl = rec.media_shortcuts?.audio_mixed?.data?.download_url ?? null;
+  }
+  return { videoUrl, audioUrl };
+}
+
+export async function getRecallBotParticipants(botId: string): Promise<RecallParticipant[]> {
+  const res = await fetch(`${recallBaseUrl()}/bot/${botId}/participant/`, {
+    headers: recallHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Recall participants fetch failed (${res.status}): ${err.slice(0, 200)}`);
+  }
+  const data = await res.json() as { results?: RecallParticipant[] } | RecallParticipant[];
+  // API may return array directly or paginated { results: [] }
+  return Array.isArray(data) ? data : (data.results ?? []);
 }
 
 export async function getRecallBotTranscript(botId: string): Promise<string> {

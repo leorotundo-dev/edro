@@ -20,7 +20,7 @@ import {
   IconMicrophone, IconUpload, IconChevronDown, IconChevronUp,
   IconCheck, IconX, IconChecks, IconBriefcase, IconBulb,
   IconListCheck, IconNote, IconClock, IconUser, IconRobot, IconCalendarPlus,
-  IconShieldCheck,
+  IconShieldCheck, IconPlayerPlay, IconHeadphones, IconMessage,
 } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
@@ -48,6 +48,17 @@ type Meeting = {
   status: string;
   pending_actions: number;
   total_actions: number;
+  has_recording?: boolean;
+  has_audio_recording?: boolean;
+  chat_count?: number;
+  chat_messages?: Array<{
+    id: string;
+    sender_name: string | null;
+    sender_email: string | null;
+    is_host: boolean;
+    message_text: string;
+    sent_at: string | null;
+  }>;
   actions?: MeetingAction[];
   analysis_payload?: {
     intelligence?: {
@@ -196,6 +207,38 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
                 color="warning"
                 sx={{ fontSize: '0.68rem' }}
               />
+            )}
+            {meeting.has_recording && (
+              <Tooltip title="Assistir gravação" arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  sx={{ minWidth: 0, px: 0.75 }}
+                  onClick={async () => {
+                    const res = await apiGet<{ url: string }>(`/meetings/${meeting.id}/recording`);
+                    if (res?.url) window.open(res.url, '_blank');
+                  }}
+                >
+                  <IconPlayerPlay size={14} />
+                </Button>
+              </Tooltip>
+            )}
+            {meeting.has_audio_recording && (
+              <Tooltip title="Ouvir áudio" arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  sx={{ minWidth: 0, px: 0.75 }}
+                  onClick={async () => {
+                    const res = await apiGet<{ url: string }>(`/meetings/${meeting.id}/audio`);
+                    if (res?.url) window.open(res.url, '_blank');
+                  }}
+                >
+                  <IconHeadphones size={14} />
+                </Button>
+              </Tooltip>
             )}
             <Button size="small" onClick={handleToggle} endIcon={expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}>
               {expanded ? 'Fechar' : 'Ver ações'}
@@ -364,6 +407,35 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
               ))}
             </Stack>
           </Box>
+
+          {/* Chat messages */}
+          {(detail?.chat_messages ?? []).length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={0.75} alignItems="center" mb={1}>
+                <IconMessage size={14} style={{ opacity: 0.5 }} />
+                <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Chat da Reunião ({detail!.chat_count ?? detail!.chat_messages!.length})
+                </Typography>
+              </Stack>
+              <Stack spacing={0.5}>
+                {(detail!.chat_messages ?? []).map((msg) => (
+                  <Box key={msg.id} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <Typography variant="caption" fontWeight={700} sx={{ minWidth: 90, flexShrink: 0, color: msg.is_host ? 'primary.main' : 'text.secondary' }} noWrap>
+                      {msg.sender_name ?? 'Participante'}
+                    </Typography>
+                    <Typography variant="caption" color="text.primary" sx={{ flex: 1 }}>
+                      {msg.message_text}
+                    </Typography>
+                    {msg.sent_at && (
+                      <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
+                        {new Date(msg.sent_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    )}
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          )}
         </Collapse>
       </CardContent>
     </Card>

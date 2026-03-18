@@ -1,5 +1,7 @@
+import crypto from 'crypto';
 import { query } from '../db';
 import { fetchJobs, markJob, enqueueJob } from './jobQueue';
+import { hasClientDocumentHash, insertClientDocument } from '../repos/clientIntelligenceRepo';
 import {
   createMeeting,
   analyzeMeetingTranscript,
@@ -15,6 +17,8 @@ import {
   getRecallBot,
   getRecallBotStatus,
   getRecallBotTranscript,
+  getRecallBotMediaUrls,
+  getRecallBotParticipants,
   isRecallConfigured,
 } from '../services/integrations/recallService';
 import { sendOutboundMessage } from '../services/groupOutboundService';
@@ -374,6 +378,58 @@ async function handleFinalizeJob(job: any): Promise<void> {
     actorId: 'meetBotWorker',
   });
 
+  // Non-blocking: mark available recordings + sync real attendees from Recall
+  Promise.all([
+    getRecallBotMediaUrls(botId),
+    getRecallBotParticipants(botId),
+  ]).then(async ([media, participants]) => {
+    // Update recording flags
+    const hasVideo = Boolean(media.videoUrl);
+    const hasAudio = Boolean(media.audioUrl);
+    if (hasVideo || hasAudio) {
+      await query(
+        `UPDATE meetings
+            SET has_recording       = $3,
+                has_audio_recording = $4,
+                recording_provider  = 'recall'
+          WHERE id = $1 AND tenant_id = $2`,
+        [meetingId, tenantId, hasVideo, hasAudio],
+      ).catch(() => {});
+    }
+
+    // Upsert real participants from Recall into meeting_participants
+    for (const p of participants) {
+      const joinEvent  = p.events.find((e) => e.code === 'join');
+      const leaveEvent = [...p.events].reverse().find((e) => e.code === 'leave');
+      const dedupeKey  = `recall:${p.id}`;
+      await query(
+        `INSERT INTO meeting_participants
+           (meeting_id, tenant_id, client_id, dedupe_key, display_name,
+            is_attendee, source_type, source_ref_id, metadata)
+         VALUES ($1, $2, $3, $4, $5, true, 'recall', $6, $7::jsonb)
+         ON CONFLICT (meeting_id, dedupe_key) DO UPDATE
+           SET display_name  = EXCLUDED.display_name,
+               source_ref_id = EXCLUDED.source_ref_id,
+               metadata      = EXCLUDED.metadata,
+               updated_at    = now()`,
+        [
+          meetingId, tenantId, clientId,
+          dedupeKey,
+          p.name ?? 'Participante',
+          p.id,
+          JSON.stringify({
+            recall_participant_id: p.id,
+            is_host:   p.is_host ?? false,
+            platform:  p.platform ?? null,
+            joined_at: joinEvent?.created_at  ?? null,
+            left_at:   leaveEvent?.created_at ?? null,
+            events:    p.events,
+          }),
+        ],
+      ).catch(() => {});
+    }
+  }).catch((err: any) => console.error('[meetBotWorker] recall media/participants fetch failed:', err?.message));
+
   await touchAutoJoin(autoJoinId, {
     status: 'processing',
     last_error: null,
@@ -387,6 +443,17 @@ async function handleFinalizeJob(job: any): Promise<void> {
     [meetingId, tenantId],
   ).catch(() => ({ rows: [] as Array<{ title: string | null; platform: string | null; source: string | null }> }));
   const meetingContext = meetingRows[0] ?? null;
+
+  const { rows: chatRows } = await query<{
+    sender_name: string; message_text: string; sent_at: string;
+  }>(
+    `SELECT sender_name, message_text, sent_at::text
+       FROM meeting_chat_messages
+      WHERE meeting_id = $1
+      ORDER BY sent_at ASC, created_at ASC
+      LIMIT 200`,
+    [meetingId],
+  ).catch(() => ({ rows: [] as Array<{ sender_name: string; message_text: string; sent_at: string }> }));
 
   try {
     await updateMeetingState({
@@ -412,6 +479,7 @@ async function handleFinalizeJob(job: any): Promise<void> {
       meetingTitle: meetingContext?.title ?? null,
       platform: meetingContext?.platform ?? null,
       source: meetingContext?.source ?? null,
+      chatMessages: chatRows.length > 0 ? chatRows : null,
     });
     await saveMeetingAnalysis(meetingId, transcript, analysis, tenantId, clientId, {
       transcriptProvider: 'recall',
@@ -419,6 +487,28 @@ async function handleFinalizeJob(job: any): Promise<void> {
       actorType: 'system',
       actorId: 'meetBotWorker',
     });
+
+    // Non-blocking: persist meeting chat messages to client_documents for Jarvis memory
+    if (chatRows.length > 0) {
+      const chatText = chatRows
+        .map((m) => `[${m.sent_at}] ${m.sender_name}: ${m.message_text}`)
+        .join('\n');
+      const chatHash = crypto.createHash('sha256').update(`meeting_chat:${meetingId}:${chatText}`).digest('hex');
+      hasClientDocumentHash({ tenantId, clientId, contentHash: chatHash })
+        .then((alreadyStored) => {
+          if (alreadyStored) return;
+          return insertClientDocument({
+            tenantId,
+            clientId,
+            sourceId: meetingId,
+            sourceType: 'meeting_chat',
+            contentText: chatText,
+            contentHash: chatHash,
+            metadata: { meeting_id: meetingId, message_count: chatRows.length },
+          });
+        })
+        .catch((err: any) => console.error('[meetBotWorker] persistChatMemory failed:', err?.message));
+    }
 
     await notifyMeetingActions(tenantId, clientId, meetingId, clientName, analysis.actions?.length ?? 0)
       .catch((err: any) => console.error('[meetBotWorker] notification failed:', err?.message));

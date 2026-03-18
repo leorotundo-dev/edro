@@ -565,7 +565,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
         clientId: params.id,
         limit: 24,
       }))
-        .filter((doc) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting'].includes(String(doc.source_type || '')))
+        .filter((doc) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(String(doc.source_type || '')))
         .slice(0, 12)
         .map((doc) => ({
           id: doc.id,

@@ -16,6 +16,7 @@ import { sendWhatsAppText } from './whatsappService';
 import { createBriefing } from '../repositories/edroBriefingRepository';
 import { generateWithProvider } from './ai/copyOrchestrator';
 import { query } from '../db/db';
+import { persistWhatsAppMessageMemory } from './whatsappClientMemoryService';
 
 const WA_API_BASE = 'https://graph.facebook.com';
 const WA_VERSION  = process.env.WHATSAPP_API_VERSION || 'v21.0';
@@ -165,6 +166,7 @@ function buildReply(fields: ReturnType<typeof extractBriefingFields> extends Pro
 
 // ── Main entry point ────────────────────────────────────────────────────────
 export async function handleWhatsAppMessage(message: {
+  id?:       string;           // Meta message ID — used as idempotency key in memory
   from:      string;           // sender phone (e.g. "5511999887766")
   type:      'text' | 'audio' | 'voice' | string;
   text?:     { body: string };
@@ -211,6 +213,19 @@ export async function handleWhatsAppMessage(message: {
     );
     return;
   }
+
+  // Persist inbound message into client intelligence repository (non-blocking)
+  persistWhatsAppMessageMemory({
+    tenantId,
+    clientId,
+    externalMessageId: message.id || `wa:${from}:${Date.now()}`,
+    text:        rawText,
+    senderPhone: from,
+    direction:   'inbound',
+    messageType: message.type,
+    createdAt:   new Date(),
+    channel:     'cloud',
+  }).catch((err: any) => console.error('[whatsapp-briefing] persistMemory failed:', err?.message));
 
   if (rawText.length < 10) {
     await sendWhatsAppText(from, '🤖 Mensagem muito curta. Descreva melhor o que você precisa para que eu possa criar o briefing.');

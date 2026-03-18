@@ -15,6 +15,10 @@ type RecallWebhookPayload = {
       sub_code?: string | null;
       updated_at?: string | null;
       message?: string | null;
+      // bot.chat.message fields
+      participant?: { name?: string | null; email?: string | null; is_host?: boolean } | null;
+      text?: string | null;
+      created_at?: string | null;
     };
     bot?: {
       id?: string;
@@ -319,6 +323,29 @@ async function applyRecallWebhookToMeeting(context: MeetingContext, payload: Rec
     } catch {
       // The finalize job below remains the durable fallback.
     }
+  }
+
+  if (eventType === 'bot.chat.message') {
+    const chatData = payload.data?.data ?? {};
+    const text = String(chatData.text ?? '').trim();
+    if (text && context.meetingId) {
+      await query(
+        `INSERT INTO meeting_chat_messages
+           (meeting_id, tenant_id, client_id, sender_name, sender_email, is_host, message_text, sent_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          context.meetingId,
+          context.tenantId,
+          context.clientId,
+          chatData.participant?.name ?? null,
+          chatData.participant?.email ?? null,
+          chatData.participant?.is_host ?? false,
+          text,
+          chatData.created_at ?? null,
+        ],
+      ).catch(() => {});
+    }
+    return;
   }
 
   if (['bot.call_ended', 'bot.done', 'recording.done', 'transcript.done'].includes(eventType)) {

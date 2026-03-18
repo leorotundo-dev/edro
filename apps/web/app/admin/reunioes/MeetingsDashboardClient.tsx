@@ -41,7 +41,7 @@ import {
   IconClock, IconUser, IconAlertTriangle, IconChevronRight,
   IconChecks, IconCalendar, IconBrandGoogle, IconBrandZoom,
   IconBrandTeams, IconVideo, IconBrandWhatsapp, IconMail,
-  IconSend, IconRobot, IconFileText, IconPlayerPlay,
+  IconSend, IconRobot, IconFileText, IconPlayerPlay, IconHeadphones,
 } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
@@ -74,6 +74,8 @@ type RecentMeeting = {
   } | null;
   total_actions: number;
   pending_actions: number;
+  has_recording?: boolean;
+  has_audio_recording?: boolean;
 };
 
 type ClientBreakdown = {
@@ -2062,7 +2064,41 @@ export default function MeetingsDashboardClient() {
                                     )}
                                   </TableCell>
                                   <TableCell>
-                                    {isExpanded ? <IconChevronDown size={14} style={{ color: '#999' }} /> : <IconChevronRight size={14} style={{ color: '#999' }} />}
+                                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                                      {m.has_recording && (
+                                        <Tooltip title="Ver gravação de vídeo">
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void apiGet<{ url: string }>(`/meetings/${m.id}/recording`)
+                                                .then((res) => window.open(res.url, '_blank'))
+                                                .catch(() => {});
+                                            }}
+                                            sx={{ color: EDRO_ORANGE }}
+                                          >
+                                            <IconPlayerPlay size={14} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      )}
+                                      {m.has_audio_recording && (
+                                        <Tooltip title="Ouvir gravação de áudio">
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void apiGet<{ url: string }>(`/meetings/${m.id}/audio`)
+                                                .then((res) => window.open(res.url, '_blank'))
+                                                .catch(() => {});
+                                            }}
+                                            sx={{ color: '#666' }}
+                                          >
+                                            <IconHeadphones size={14} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      )}
+                                      {isExpanded ? <IconChevronDown size={14} style={{ color: '#999' }} /> : <IconChevronRight size={14} style={{ color: '#999' }} />}
+                                    </Stack>
                                   </TableCell>
                                 </TableRow>
                                 {isExpanded && (

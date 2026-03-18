@@ -28,6 +28,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     for (const message of value.messages as any[]) {
       if (message.type === 'text' || message.type === 'audio' || message.type === 'voice') {
         handleWhatsAppMessage({
+          id:    message.id,
           from:  message.from,
           type:  message.type,
           text:  message.text,

@@ -17,6 +17,7 @@ import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import Menu from '@mui/material/Menu';
+import Popover from '@mui/material/Popover';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -1777,80 +1778,122 @@ export function PipelineCard({
 }) {
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const nextStatus = getNextStatus(job);
+  const nextAction = getNextAction(job);
+  const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
 
   return (
-    <Box
-      onClick={onClick}
-      sx={(theme) => {
-        const dark = theme.palette.mode === 'dark';
-        return {
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1.25,
-          py: 0.75,
-          borderRadius: 1.5,
-          cursor: onClick ? 'pointer' : 'default',
-          border: selected
-            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
-            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-          bgcolor: selected
-            ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
-            : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-          transition: 'all 120ms ease',
-          '&:hover': {
-            bgcolor: dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
-            '& .pipeline-advance': { opacity: 1 },
-          },
-        };
-      }}
-    >
-      <Avatar
-        src={job.client_logo_url || undefined}
-        sx={{
-          width: 24, height: 24, borderRadius: 0.75,
-          fontSize: '0.6rem', fontWeight: 900,
-          bgcolor: alpha(clientAccent(job), 0.14),
-          color: clientAccent(job),
-          flexShrink: 0,
+    <>
+      <Box
+        onClick={onClick}
+        sx={(theme) => {
+          const dark = theme.palette.mode === 'dark';
+          return {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 1.25,
+            py: 0.75,
+            borderRadius: 1.5,
+            cursor: onClick ? 'pointer' : 'default',
+            border: selected
+              ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
+              : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+            bgcolor: selected
+              ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
+              : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+            transition: 'all 120ms ease',
+            '&:hover': {
+              bgcolor: dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
+              '& .pipeline-advance': { opacity: 1 },
+            },
+          };
         }}
       >
-        {initials(job.client_name)}
-      </Avatar>
+        <Avatar
+          src={job.client_logo_url || undefined}
+          sx={{
+            width: 24, height: 24, borderRadius: 0.75,
+            fontSize: '0.6rem', fontWeight: 900,
+            bgcolor: alpha(clientAccent(job), 0.14),
+            color: clientAccent(job),
+            flexShrink: 0,
+          }}
+        >
+          {initials(job.client_name)}
+        </Avatar>
 
-      <Typography variant="caption" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0, fontSize: '0.72rem', lineHeight: 1.2 }}>
-        {job.title}
-      </Typography>
+        <Typography variant="caption" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0, fontSize: '0.72rem', lineHeight: 1.2 }}>
+          {job.title}
+        </Typography>
 
-      {job.owner_name ? (
-        <Tooltip title={job.owner_name} arrow>
-          <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', flexShrink: 0 }}>
-            {initials(job.owner_name)}
-          </Avatar>
-        </Tooltip>
-      ) : null}
+        {job.owner_name ? (
+          <Tooltip title={job.owner_name} arrow>
+            <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', flexShrink: 0 }}>
+              {initials(job.owner_name)}
+            </Avatar>
+          </Tooltip>
+        ) : null}
 
-      <DeadlineCountdown deadline={job.deadline_at} compact />
+        <DeadlineCountdown deadline={job.deadline_at} compact />
 
-      {nextStatus && onAdvance ? (
-        <Tooltip title={getNextAction(job).label} arrow>
-          <Box
-            className="pipeline-advance"
-            onClick={(e) => { e.stopPropagation(); onAdvance(job.id, nextStatus); }}
-            sx={{
-              width: 20, height: 20, borderRadius: 0.75,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              bgcolor: alpha(vis.color, 0.12), color: vis.color,
-              opacity: 0, cursor: 'pointer', flexShrink: 0,
-              transition: 'opacity 120ms',
-              '&:hover': { bgcolor: alpha(vis.color, 0.24) },
+        {nextStatus && onAdvance ? (
+          <Tooltip title={nextAction.label} arrow>
+            <Box
+              className="pipeline-advance"
+              onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
+              sx={{
+                width: 20, height: 20, borderRadius: 0.75,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                bgcolor: alpha(vis.color, 0.12), color: vis.color,
+                opacity: 0, cursor: 'pointer', flexShrink: 0,
+                transition: 'opacity 120ms',
+                '&:hover': { bgcolor: alpha(vis.color, 0.24) },
+              }}
+            >
+              <IconChevronRight size={14} />
+            </Box>
+          </Tooltip>
+        ) : null}
+      </Box>
+
+      <Popover
+        open={Boolean(confirmAnchor)}
+        anchorEl={confirmAnchor}
+        onClose={() => setConfirmAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { p: 1.5, borderRadius: 2, width: 200 } } }}
+      >
+        <Typography variant="caption" fontWeight={700} display="block" mb={0.5}>
+          Mover para
+        </Typography>
+        <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+          {nextAction.label}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.75 }}>
+          <Button
+            size="small"
+            variant="contained"
+            disableElevation
+            sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
+            onClick={() => {
+              setConfirmAnchor(null);
+              if (nextStatus && onAdvance) onAdvance(job.id, nextStatus);
             }}
           >
-            <IconChevronRight size={14} />
-          </Box>
-        </Tooltip>
-      ) : null}
-    </Box>
+            Confirmar
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
+            onClick={() => setConfirmAnchor(null)}
+          >
+            Cancelar
+          </Button>
+        </Box>
+      </Popover>
+    </>
   );
 }
 

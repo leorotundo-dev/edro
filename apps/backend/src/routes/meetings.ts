@@ -1481,6 +1481,71 @@ export function meetingDirectiveRoutes(app: FastifyInstance) {
       return reply.send({ success: true });
     },
   );
+
+  // ── Recording playback URL ─────────────────────────────────────────────────
+  // Recall pre-signed URLs expire — always re-fetch from the Recall API.
+  app.get<{ Params: { meetingId: string } }>(
+    '/meetings/:meetingId/recording',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read')] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { meetingId } = request.params;
+
+      const { rows } = await query<{ bot_id: string | null; has_recording: boolean; recording_provider: string | null }>(
+        `SELECT bot_id, has_recording, recording_provider FROM meetings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [meetingId, tenantId],
+      );
+      const meeting = rows[0];
+      if (!meeting) return reply.code(404).send({ error: 'not_found' });
+      if (!meeting.has_recording) return reply.code(404).send({ error: 'no_recording' });
+
+      if (meeting.recording_provider === 'recall') {
+        if (!meeting.bot_id) return reply.code(404).send({ error: 'bot_id_missing' });
+        if (!isRecallConfigured()) return reply.code(503).send({ error: 'recall_not_configured' });
+
+        const { getRecallBotVideoUrl: fetchVideoUrl } = await import('../services/integrations/recallService');
+        const videoUrl = await fetchVideoUrl(meeting.bot_id);
+        if (!videoUrl) return reply.code(404).send({ error: 'recording_url_unavailable' });
+
+        // Return the pre-signed URL as JSON — client opens it directly in a new tab.
+        // (Recall URLs are short-lived; ~1h TTL. Do not cache.)
+        return reply.send({ url: videoUrl });
+      }
+
+      return reply.code(404).send({ error: 'unsupported_provider' });
+    },
+  );
+
+  // ── Audio playback URL ─────────────────────────────────────────────────────
+  app.get<{ Params: { meetingId: string } }>(
+    '/meetings/:meetingId/audio',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read')] },
+    async (request, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+      const { meetingId } = request.params;
+
+      const { rows } = await query<{ bot_id: string | null; has_audio_recording: boolean; recording_provider: string | null }>(
+        `SELECT bot_id, has_audio_recording, recording_provider FROM meetings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [meetingId, tenantId],
+      );
+      const meeting = rows[0];
+      if (!meeting) return reply.code(404).send({ error: 'not_found' });
+      if (!meeting.has_audio_recording) return reply.code(404).send({ error: 'no_audio_recording' });
+
+      if (meeting.recording_provider === 'recall') {
+        if (!meeting.bot_id) return reply.code(404).send({ error: 'bot_id_missing' });
+        if (!isRecallConfigured()) return reply.code(503).send({ error: 'recall_not_configured' });
+
+        const { getRecallBotAudioUrl: fetchAudioUrl } = await import('../services/integrations/recallService');
+        const audioUrl = await fetchAudioUrl(meeting.bot_id);
+        if (!audioUrl) return reply.code(404).send({ error: 'audio_url_unavailable' });
+
+        return reply.send({ url: audioUrl });
+      }
+
+      return reply.code(404).send({ error: 'unsupported_provider' });
+    },
+  );
 }
 
 // ── Execute approved action in system ─────────────────────────────────────

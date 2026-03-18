@@ -428,6 +428,7 @@ export async function analyzeMeetingTranscript(
     meetingTitle?: string | null;
     platform?: string | null;
     source?: string | null;
+    chatMessages?: Array<{ sender_name: string; message_text: string; sent_at: string }> | null;
   },
 ): Promise<MeetingAnalysis> {
   const context = await buildMeetingAnalysisContext(
@@ -435,6 +436,18 @@ export async function analyzeMeetingTranscript(
     params.clientId,
     params.clientName,
   );
+
+  const chatBlock = params.chatMessages && params.chatMessages.length > 0
+    ? [
+        '',
+        'CHAT DA REUNIAO (mensagens escritas durante a call):',
+        params.chatMessages
+          .map((m) => `[${m.sent_at}] ${m.sender_name}: ${m.message_text}`)
+          .join('\n')
+          .slice(0, 4000),
+      ].join('\n')
+    : null;
+
   const prompt = [
     `CLIENTE: ${params.clientName}`,
     params.meetingTitle ? `TITULO DA REUNIAO: ${params.meetingTitle}` : null,
@@ -446,6 +459,7 @@ export async function analyzeMeetingTranscript(
     '',
     'TRANSCRICAO DA REUNIAO:',
     params.transcript.slice(0, 16000),
+    chatBlock,
   ].filter(Boolean).join('\n');
 
   const result = await generateWithProvider('gemini', {
@@ -763,6 +777,78 @@ export async function saveMeetingTranscript(params: {
       },
     },
   });
+
+  // Persist raw transcript to client intelligence repository immediately —
+  // analysis may fail, but the transcript must never be lost.
+  persistTranscriptToClientIntelligence({
+    meetingId: params.meetingId,
+    tenantId:  params.tenantId,
+    transcript: params.transcript,
+    transcriptHash,
+    provider:  params.provider,
+  }).catch((err: any) => console.error('[meetingService] persistTranscript failed:', err?.message));
+}
+
+async function persistTranscriptToClientIntelligence(params: {
+  meetingId: string;
+  tenantId: string;
+  transcript: string;
+  transcriptHash: string;
+  provider: string;
+}): Promise<void> {
+  const { rows } = await query<{
+    client_id: string;
+    title: string;
+    platform: string | null;
+    meeting_url: string | null;
+    recorded_at: string | null;
+    source: string | null;
+    bot_id: string | null;
+  }>(
+    `SELECT client_id, title, platform, meeting_url, recorded_at, source, bot_id
+       FROM meetings
+      WHERE id = $1 AND tenant_id = $2
+      LIMIT 1`,
+    [params.meetingId, params.tenantId],
+  );
+  const meeting = rows[0];
+  if (!meeting) return;
+  if (!meeting.client_id || isInternalClientId(meeting.client_id)) return;
+
+  // Use a distinct hash so transcript-only and analyzed documents coexist.
+  // When analysis completes, saveMeetingAnalysis will add an enriched document
+  // with summary + intelligence under the "meeting:" prefix.
+  const contentHash = hashText(`meeting_transcript:${params.meetingId}:${params.transcriptHash}`);
+  const alreadyStored = await hasClientDocumentHash({
+    tenantId: params.tenantId,
+    clientId: meeting.client_id,
+    contentHash,
+  });
+  if (alreadyStored) return;
+
+  await insertClientDocument({
+    tenantId:       params.tenantId,
+    clientId:       meeting.client_id,
+    sourceId:       params.meetingId,
+    sourceType:     'meeting',
+    platform:       meeting.platform ?? 'meeting',
+    url:            meeting.meeting_url ?? null,
+    rawUrl:         meeting.meeting_url ?? null,
+    title:          meeting.title,
+    contentText:    params.transcript,
+    contentExcerpt: shortText(params.transcript, 400),
+    language:       'pt-BR',
+    publishedAt:    meeting.recorded_at ? new Date(meeting.recorded_at) : null,
+    contentHash,
+    metadata: {
+      meeting_id:          params.meetingId,
+      recorded_at:         meeting.recorded_at,
+      source:              meeting.source,
+      bot_id:              meeting.bot_id ?? null,
+      transcript_provider: params.provider,
+      transcript_only:     true, // analysis not yet complete
+    },
+  });
 }
 
 export async function saveMeetingAnalysis(
@@ -960,7 +1046,9 @@ export async function getMeeting(tenantId: string, meetingId: string) {
             COALESCE(participant_rows.participants, '[]'::json) AS participants,
             COALESCE(participant_rows.participant_count, 0) AS participant_count,
             COALESCE(participant_rows.internal_participant_count, 0) AS internal_participant_count,
-            COALESCE(participant_rows.external_participant_count, 0) AS external_participant_count
+            COALESCE(participant_rows.external_participant_count, 0) AS external_participant_count,
+            COALESCE(chat_rows.chat_messages, '[]'::json) AS chat_messages,
+            COALESCE(chat_rows.chat_count, 0) AS chat_count
        FROM meetings m
        LEFT JOIN LATERAL (
          SELECT id, status, bot_id, last_error, attempt_count, scheduled_at
@@ -974,6 +1062,23 @@ export async function getMeeting(tenantId: string, meetingId: string) {
            FROM meeting_actions ma
           WHERE ma.meeting_id = m.id
        ) action_rows ON true
+       LEFT JOIN LATERAL (
+         SELECT
+           json_agg(
+             json_build_object(
+               'id',           mcm.id,
+               'sender_name',  mcm.sender_name,
+               'sender_email', mcm.sender_email,
+               'is_host',      mcm.is_host,
+               'message_text', mcm.message_text,
+               'sent_at',      mcm.sent_at
+             )
+             ORDER BY mcm.sent_at ASC, mcm.created_at ASC
+           ) FILTER (WHERE mcm.id IS NOT NULL) AS chat_messages,
+           COUNT(mcm.id)::int AS chat_count
+           FROM meeting_chat_messages mcm
+          WHERE mcm.meeting_id = m.id
+       ) chat_rows ON true
        LEFT JOIN LATERAL (
          SELECT
            json_agg(
