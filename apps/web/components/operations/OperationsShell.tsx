@@ -20,9 +20,10 @@ import {
   IconTimeline,
   IconCalendarTime,
   IconAlertTriangle,
+  IconChartBar,
 } from '@tabler/icons-react';
 
-export type OperationsSection = 'overview' | 'jobs' | 'semana' | 'planner' | 'agenda' | 'radar';
+export type OperationsSection = 'overview' | 'jobs' | 'semana' | 'planner' | 'agenda' | 'radar' | 'calibracao';
 
 type CommandOption = {
   label: string;
@@ -39,6 +40,7 @@ const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; ico
   { key: 'planner', label: 'Alocação', href: '/admin/operacoes/planner', icon: <IconTimeline size={16} /> },
   { key: 'agenda', label: 'Agenda', href: '/admin/operacoes/agenda', icon: <IconCalendarTime size={16} /> },
   { key: 'radar', label: 'Riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} /> },
+  { key: 'calibracao', label: 'Calibração', href: '/admin/operacoes/calibracao', icon: <IconChartBar size={16} /> },
 ];
 
 const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string }> = {
@@ -48,6 +50,7 @@ const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string 
   planner: { title: 'Alocação', subtitle: 'Carga e responsáveis no mesmo mapa.' },
   agenda: { title: 'Agenda', subtitle: 'Prazos, reuniões e produção no calendário.' },
   radar: { title: 'Riscos', subtitle: 'O que precisa de decisão antes de estourar.' },
+  calibracao: { title: 'Calibração', subtitle: 'Precisão das estimativas com base em dados reais.' },
 };
 
 const COMMANDS: CommandOption[] = [
