@@ -249,7 +249,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     if (role === 'staff') {
       // Find freelancer profile for this user
-      const { rows } = await pool.query(
+      let { rows } = await pool.query(
         `SELECT fp.id AS freelancer_id, tu.tenant_id
          FROM freelancer_profiles fp
          JOIN tenant_users tu ON tu.user_id = fp.user_id
@@ -257,6 +257,40 @@ export default async function authRoutes(app: FastifyInstance) {
          LIMIT 1`,
         [user.id],
       );
+
+      // Setup mode: auto-create minimal profile for admin emails or when echo is enabled
+      if (!rows.length) {
+        const adminEmails = (env.EDRO_ADMIN_EMAILS ?? '').split(',').map((e: string) => e.trim().toLowerCase());
+        const isAdmin = adminEmails.includes(normalized);
+        if (isAdmin || env.EDRO_LOGIN_ECHO_CODE) {
+          // Get the first available tenant
+          const { rows: tenants } = await pool.query(`SELECT id FROM tenants LIMIT 1`);
+          const tenantId = tenants[0]?.id ?? null;
+          if (tenantId) {
+            await pool.query(
+              `INSERT INTO freelancer_profiles (user_id, display_name, specialty)
+               VALUES ($1, $2, 'Admin')
+               ON CONFLICT (user_id) DO NOTHING`,
+              [user.id, normalized.split('@')[0]],
+            );
+            await pool.query(
+              `INSERT INTO tenant_users (user_id, tenant_id, role)
+               VALUES ($1, $2, 'admin')
+               ON CONFLICT (user_id, tenant_id) DO NOTHING`,
+              [user.id, tenantId],
+            );
+            const refetch = await pool.query(
+              `SELECT fp.id AS freelancer_id, tu.tenant_id
+               FROM freelancer_profiles fp
+               JOIN tenant_users tu ON tu.user_id = fp.user_id
+               WHERE fp.user_id = $1 LIMIT 1`,
+              [user.id],
+            );
+            rows = refetch.rows;
+          }
+        }
+      }
+
       if (!rows.length) {
         return reply.status(403).send({ error: 'Nenhum perfil de freelancer vinculado a este e-mail.' });
       }
