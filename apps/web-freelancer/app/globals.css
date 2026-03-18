@@ -946,3 +946,46 @@ img {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Availability day picker ─────────────────────────────────────────────── */
+.portal-day-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.portal-day-btn {
+  min-width: 44px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--portal-border);
+  background: transparent;
+  color: var(--portal-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.portal-day-btn:hover {
+  border-color: var(--portal-accent);
+  color: var(--portal-accent);
+}
+
+.portal-day-btn-active {
+  background: var(--portal-accent);
+  border-color: var(--portal-accent);
+  color: #fff;
+}
+
+/* ── Profile value states ────────────────────────────────────────────────── */
+.portal-profile-value-warning {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+/* ── Error pill ──────────────────────────────────────────────────────────── */
+.portal-pill-error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}

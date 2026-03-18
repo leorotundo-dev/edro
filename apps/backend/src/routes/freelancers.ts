@@ -751,14 +751,22 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const freelancerId = fpRes.rows[0].id;
 
     const body = request.body as Record<string, any>;
-    const allowed = ['phone', 'whatsapp_jid', 'department', 'role_title', 'email_personal', 'notes'];
+    const scalarAllowed = ['phone', 'whatsapp_jid', 'department', 'role_title', 'email_personal', 'notes',
+      'available_hours_start', 'available_hours_end', 'weekly_capacity_hours', 'unavailable_until'];
+    const arrayAllowed = ['available_days'];
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
-    for (const key of allowed) {
+    for (const key of scalarAllowed) {
       if (body[key] !== undefined) {
         sets.push(`${key} = $${idx++}`);
         vals.push(body[key] || null);
+      }
+    }
+    for (const key of arrayAllowed) {
+      if (body[key] !== undefined) {
+        sets.push(`${key} = $${idx++}::text[]`);
+        vals.push(Array.isArray(body[key]) ? body[key] : null);
       }
     }
     if (!sets.length) return reply.status(400).send({ error: 'No fields to update' });
@@ -814,21 +822,72 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
     if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
-    const freelancerId = fpRes.rows[0].id;
 
-    // Return briefings where this freelancer appears in assignees array
+    // Briefings where in assignees or traffic_owner + ops jobs where owner
     const res = await pool.query(
       `SELECT b.id, b.title, b.status, b.due_at,
-              c.name as client_name
+              c.name as client_name, 'briefing' as source
        FROM edro_briefings b
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
-          OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $2 LIMIT 1)
-       ORDER BY b.created_at DESC
-       LIMIT 50`,
-      [userId, userId],
+          OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
+       UNION ALL
+       SELECT j.id, j.title, j.status, j.deadline_at as due_at,
+              c.name as client_name, 'ops_job' as source
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+       WHERE j.owner_id = $1::text
+         AND j.status NOT IN ('published', 'done', 'archived')
+       ORDER BY due_at ASC NULLS LAST
+       LIMIT 100`,
+      [userId],
     );
     return reply.send({ jobs: res.rows });
+  });
+
+  app.get('/freelancers/portal/me/jobs/:jobId', async (request: any, reply) => {
+    const userId = request.user?.id;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { jobId } = request.params as { jobId: string };
+    const { source } = request.query as { source?: string };
+
+    // Try ops job first (or if source=ops_job)
+    if (!source || source === 'ops_job') {
+      const res = await pool.query(
+        `SELECT j.*, c.name as client_name, jt.name as job_type_name
+         FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+         LEFT JOIN job_types jt ON jt.id = j.job_type_id
+         WHERE j.id = $1 AND j.owner_id = $2::text`,
+        [jobId, userId],
+      );
+      if (res.rows.length) {
+        return reply.send({ job: { ...res.rows[0], source: 'ops_job' } });
+      }
+    }
+
+    // Try briefing (or if source=briefing)
+    if (!source || source === 'briefing') {
+      const res = await pool.query(
+        `SELECT b.id, b.title, b.status, b.due_at, b.payload, b.created_at,
+                b.copy_approved_at, b.copy_approval_comment,
+                c.name as client_name
+         FROM edro_briefings b
+         LEFT JOIN clients c ON c.id = b.client_id
+         WHERE b.id = $1
+           AND (
+             b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $2::text))
+             OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $2 LIMIT 1)
+           )`,
+        [jobId, userId],
+      );
+      if (res.rows.length) {
+        return reply.send({ job: { ...res.rows[0], source: 'briefing' } });
+      }
+    }
+
+    return reply.status(404).send({ error: 'Job não encontrado ou não atribuído a você.' });
   });
 
   app.get('/freelancers/portal/me/payables', async (request: any, reply) => {
