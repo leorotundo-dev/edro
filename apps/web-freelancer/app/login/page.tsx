@@ -30,9 +30,11 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: 'staff' }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? await res.text());
-      if (data.code) {
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { /* not json */ }
+      if (!res.ok) throw new Error(data?.error ?? data?.message ?? text);
+      if (data?.code) {
         setEchoedCode(data.code);
         setCode(data.code);
       }
