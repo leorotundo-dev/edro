@@ -66,6 +66,7 @@ type PlannerRow = {
     role: string | null;
     specialty: string | null;
     person_type: 'internal' | 'freelancer';
+    freelancer_profile_id: string | null;
   };
   allocable_minutes: number;
   committed_minutes: number;
