@@ -897,6 +897,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     <>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
+      {/* ══ WhatsApp Pulse — AI summary of group conversations ════════ */}
+      <WhatsAppPulseCard clientId={clientId} />
+
       {/* ══ Setup Checklist (novos clientes / perfil incompleto) ══════ */}
       {(() => {
         const hasCalendar = calendarItems.length > 0;
@@ -1161,11 +1164,6 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
               </Grid>
             ))}
           </Grid>
-
-          {/* WhatsApp Pulse — AI summary of group conversations */}
-          <Box sx={{ my: 3 }}>
-            <WhatsAppPulseCard clientId={clientId} />
-          </Box>
 
           <Divider sx={{ my: 3 }} />
 
