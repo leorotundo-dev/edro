@@ -599,7 +599,15 @@ export default function OperationsOverviewClient() {
                                 accent={clientsById.get(item.clientId)?.brand_color || '#E85219'}
                               />
                               <Box>
-                                <Typography variant="body2" fontWeight={800}>{item.clientName}</Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight={800}
+                                  component={Link}
+                                  href={`/clients/${item.clientId}/demandas`}
+                                  sx={{ textDecoration: 'none', color: 'inherit', '&:hover': { color: 'primary.main' } }}
+                                >
+                                  {item.clientName}
+                                </Typography>
                                 <Typography variant="caption" color="text.secondary">
                                   {item.open} demandas ativas · {item.total} min previstos
                                 </Typography>
