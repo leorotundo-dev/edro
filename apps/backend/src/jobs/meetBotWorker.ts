@@ -10,6 +10,7 @@ import {
   notifyMeetingActions,
   updateMeetingState,
   recordMeetingEvent,
+  generateMeetingPrep,
 } from '../services/meetingService';
 import { syncMeetingParticipantsFromAutoJoin } from '../repos/meetingParticipantsRepo';
 import {
@@ -36,6 +37,7 @@ export async function runMeetBotWorkerOnce(): Promise<void> {
   try {
     await processJobs('meet-bot', handleScheduleJob);
     await processJobs('meet-bot.finalize', handleFinalizeJob);
+    await processJobs('meet-bot.prep', handlePrepJob);
   } finally {
     running = false;
   }
@@ -206,6 +208,14 @@ async function handleScheduleJob(job: any): Promise<void> {
       finalizeAttempt: 0,
       autoJoinId,
     });
+
+    // Enqueue prep brief 25 min before meeting start (at least 2 min from now)
+    const prepAt = new Date(Math.max(
+      scheduledAt.getTime() - 25 * 60 * 1000,
+      Date.now() + 2 * 60 * 1000,
+    ));
+    await enqueueJob(tenantId, 'meet-bot.prep', { tenantId, clientId, clientName, meetingId }, { scheduledFor: prepAt })
+      .catch((err: any) => console.error('[meetBotWorker] enqueuePrepJob failed:', err?.message));
 
     await touchAutoJoin(autoJoinId, {
       status: 'waiting',
@@ -553,6 +563,105 @@ async function handleFinalizeJob(job: any): Promise<void> {
     });
     throw err;
   }
+}
+
+async function handlePrepJob(job: any): Promise<void> {
+  const payload = job.payload || {};
+  const tenantId = String(payload.tenantId || payload.tenant_id || job.tenant_id || '');
+  const clientId = String(payload.clientId || payload.client_id || '');
+  const clientName = String(payload.clientName || payload.client_name || '');
+  const meetingId = String(payload.meetingId || payload.meeting_id || '');
+
+  if (!tenantId || !clientId || !meetingId) throw new Error('invalid_meet_bot_prep_payload');
+
+  const { rows } = await query<{
+    title: string | null;
+    platform: string | null;
+    recorded_at: string | null;
+    prep_payload: any;
+  }>(
+    `SELECT title, platform, recorded_at, prep_payload
+       FROM meetings
+      WHERE id = $1 AND tenant_id = $2
+      LIMIT 1`,
+    [meetingId, tenantId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  if (!rows.length) throw new Error('meeting_not_found');
+  const meetingRow = rows[0];
+
+  let prepPayload = meetingRow.prep_payload;
+  if (!prepPayload) {
+    const { prep } = await generateMeetingPrep({
+      tenantId,
+      clientId,
+      clientName,
+      meetingTitle: meetingRow.title || 'Reunião',
+      platform: meetingRow.platform ?? null,
+      scheduledAt: meetingRow.recorded_at ?? null,
+    });
+    prepPayload = prep;
+    await query(
+      `UPDATE meetings SET prep_payload = $1::jsonb, prep_generated_at = NOW(), updated_at = NOW()
+        WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(prepPayload), meetingId, tenantId],
+    ).catch(() => {});
+  }
+
+  await sendMeetingPrepToWhatsApp(tenantId, clientId, clientName, meetingId, prepPayload)
+    .catch((err: any) => console.error('[meetBotWorker] sendPrepToWhatsApp failed:', err?.message));
+}
+
+export async function sendMeetingPrepToWhatsApp(
+  tenantId: string,
+  clientId: string,
+  clientName: string,
+  meetingId: string,
+  prep: {
+    meeting_goal?: string;
+    opening_question?: string;
+    suggested_agenda?: string[];
+    recommended_positioning?: string;
+    red_flags?: string[];
+    agency_defense_points?: string[];
+  },
+): Promise<boolean> {
+  const { rows: groups } = await query(
+    `SELECT wg.id, wg.group_jid
+       FROM whatsapp_groups wg
+      WHERE wg.client_id = $1
+        AND wg.tenant_id = $2
+        AND wg.active = true
+        AND wg.notify_jarvis = true
+      LIMIT 1`,
+    [clientId, tenantId],
+  );
+  if (!groups.length) return false;
+
+  const agendaLines = (prep.suggested_agenda ?? []).slice(0, 5).map((item) => `• ${item}`).join('\n');
+  const redFlags = (prep.red_flags ?? []).slice(0, 3).map((f) => `🚩 ${f}`).join('\n');
+
+  const messageText = `🎯 *Edro.Studio — Briefing Pré-Reunião*\n\n` +
+    `👤 *Cliente:* ${clientName}\n` +
+    `🎯 *Objetivo:* ${prep.meeting_goal || 'Ver detalhes no painel'}\n\n` +
+    (agendaLines ? `📋 *Pauta sugerida:*\n${agendaLines}\n\n` : '') +
+    (prep.opening_question ? `❓ *Pergunta de abertura:* ${prep.opening_question}\n\n` : '') +
+    (prep.recommended_positioning ? `💡 *Postura:* ${prep.recommended_positioning}\n\n` : '') +
+    (redFlags ? `${redFlags}\n\n` : '') +
+    `_Acesse o painel para o briefing completo._`;
+
+  const group = groups[0];
+  const result = await sendOutboundMessage({
+    tenantId,
+    groupId: group.id,
+    groupJid: group.group_jid,
+    clientId,
+    scenario: 'meeting_prep',
+    triggerKey: `meeting_prep:${meetingId}:${group.id}`,
+    messageText,
+    bypassQuietHours: true,
+  });
+  return result.sent;
 }
 
 async function getExistingScheduledMeeting(

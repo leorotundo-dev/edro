@@ -17,7 +17,8 @@ export type OutboundScenario =
   | 'digest_weekly'
   | 'deadline_alert'
   | 'jarvis_reply'
-  | 'meeting_summary';
+  | 'meeting_summary'
+  | 'meeting_prep';
 
 // Map scenario → group opt-in column
 const SCENARIO_FLAG: Record<OutboundScenario, string> = {
@@ -27,6 +28,7 @@ const SCENARIO_FLAG: Record<OutboundScenario, string> = {
   deadline_alert: 'notify_deadlines',
   jarvis_reply: 'notify_jarvis_reply',
   meeting_summary: 'notify_jarvis',
+  meeting_prep: 'notify_jarvis',
 };
 
 export async function sendOutboundMessage(params: {

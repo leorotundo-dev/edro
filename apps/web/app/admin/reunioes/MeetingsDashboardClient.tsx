@@ -687,7 +687,7 @@ type MeetingAuditData = {
   jobs: MeetingAuditJob[];
 };
 
-type OperationKey = 'retry-bot' | 'reprocess-transcript' | 'reanalyze' | 'resend-whatsapp' | 'unarchive';
+type OperationKey = 'retry-bot' | 'reprocess-transcript' | 'reanalyze' | 'resend-whatsapp' | 'unarchive' | 'send-prep';
 type FeedbackState = { severity: 'success' | 'error'; message: string } | null;
 
 function OpsInfoCard({
@@ -725,6 +725,9 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
   const [showAudit, setShowAudit] = useState(false);
   const [operationLoading, setOperationLoading] = useState<OperationKey | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [approvingAction, setApprovingAction] = useState<Set<string>>(new Set());
+  const [showJarvisContext, setShowJarvisContext] = useState(false);
+  const [jarvisContext, setJarvisContext] = useState<{ conversationMemories: any[]; totalDocuments: number; bySourceType: Record<string, number>; lastMemoryAt: string | null } | null>(null);
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -797,6 +800,10 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
       'unarchive': {
         path: `/meetings/${meetingId}/unarchive`,
         success: 'Reuniao restaurada com sucesso.',
+      },
+      'send-prep': {
+        path: `/meetings/${meetingId}/send-prep`,
+        success: 'Briefing pré-reunião enviado ao WhatsApp do cliente.',
       },
     };
 
@@ -986,6 +993,16 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
             </Button>
             <Button
               size="small"
+              variant="outlined"
+              color="warning"
+              startIcon={operationLoading === 'send-prep' ? <CircularProgress size={14} /> : <IconSend size={14} />}
+              disabled={operationLoading !== null}
+              onClick={() => void handleOperation('send-prep')}
+            >
+              Enviar Prep
+            </Button>
+            <Button
+              size="small"
               variant="text"
               startIcon={<IconChevronDown size={14} style={{ transform: showAudit ? 'rotate(180deg)' : 'none' }} />}
               onClick={() => setShowAudit(v => !v)}
@@ -1131,9 +1148,27 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
       {/* Actions extracted */}
       {actions.length > 0 && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            Acoes extraidas ({actions.length})
-          </Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="caption" fontWeight={700} color="text.secondary">
+              Acoes extraidas ({actions.length})
+            </Typography>
+            {actions.filter(a => a.status === 'pending').length > 1 && (
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                sx={{ fontSize: '0.68rem', py: 0.3, px: 1 }}
+                disabled={approvingAction.size > 0}
+                onClick={() => {
+                  void apiPost(`/meetings/${meetingId}/approve-all`, {})
+                    .then(() => loadDetail())
+                    .catch(() => {});
+                }}
+              >
+                Aprovar tudo
+              </Button>
+            )}
+          </Stack>
           <Stack spacing={0.75}>
             {actions.map(a => (
               <Stack key={a.id} direction="row" alignItems="center" spacing={1} sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
@@ -1151,7 +1186,46 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
                 )}
                 {a.status === 'approved' && <IconCheck size={14} style={{ color: '#4caf50' }} />}
                 {a.status === 'rejected' && <IconX size={14} style={{ color: '#f44336' }} />}
-                {a.status === 'pending' && <IconClock size={14} style={{ color: '#ff9800' }} />}
+                {a.status === 'pending' && (
+                  <>
+                    {approvingAction.has(a.id) ? (
+                      <CircularProgress size={14} />
+                    ) : (
+                      <>
+                        <Tooltip title="Aprovar e criar no sistema">
+                          <IconButton
+                            size="small"
+                            sx={{ color: 'success.main', p: 0.3 }}
+                            onClick={() => {
+                              setApprovingAction(prev => new Set(prev).add(a.id));
+                              void apiPatch(`/meeting-actions/${a.id}/approve`, { create_in_system: true })
+                                .then(() => loadDetail())
+                                .catch(() => {})
+                                .finally(() => setApprovingAction(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
+                            }}
+                          >
+                            <IconCheck size={14} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Rejeitar">
+                          <IconButton
+                            size="small"
+                            sx={{ color: 'error.main', p: 0.3 }}
+                            onClick={() => {
+                              setApprovingAction(prev => new Set(prev).add(a.id));
+                              void apiPatch(`/meeting-actions/${a.id}/reject`, {})
+                                .then(() => loadDetail())
+                                .catch(() => {})
+                                .finally(() => setApprovingAction(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
+                            }}
+                          >
+                            <IconX size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </>
+                )}
               </Stack>
             ))}
           </Stack>
@@ -1179,6 +1253,65 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
                 {detail.transcript}
               </Typography>
             </Box>
+          </Collapse>
+        </Box>
+      )}
+
+      {/* Jarvis memory context */}
+      {operational?.client_id && (
+        <Box sx={{ mt: 1, mb: 1 }}>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<IconRobot size={14} />}
+            sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+            onClick={() => {
+              if (!showJarvisContext && !jarvisContext) {
+                void apiGet<{ totalDocuments: number; bySourceType: Record<string, number>; conversationMemories: any[]; lastMemoryAt: string | null }>(
+                  `/clients/${operational.client_id}/jarvis-context`,
+                ).then(res => setJarvisContext(res)).catch(() => {});
+              }
+              setShowJarvisContext(v => !v);
+            }}
+          >
+            {showJarvisContext ? 'Ocultar memória Jarvis' : 'Ver memória Jarvis'}
+          </Button>
+          <Collapse in={showJarvisContext}>
+            {jarvisContext ? (
+              <Box sx={{ mt: 0.5, p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: '#f8f4ff' }}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.2 }}>
+                  <Chip label={`${jarvisContext.totalDocuments} docs totais`} size="small" variant="outlined" />
+                  {Object.entries(jarvisContext.bySourceType).map(([type, count]) => (
+                    <Chip key={type} label={`${type}: ${count}`} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 20 }} />
+                  ))}
+                </Stack>
+                {jarvisContext.conversationMemories.length > 0 ? (
+                  <Stack spacing={0.6}>
+                    {jarvisContext.conversationMemories.map((m: any) => (
+                      <Box key={m.id} sx={{ p: 0.8, borderRadius: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.3 }}>
+                          <Chip label={m.source_type} size="small" sx={{ fontSize: '0.58rem', height: 16 }} />
+                          {m.created_at && (
+                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                              {fmtDate(m.created_at)}
+                            </Typography>
+                          )}
+                        </Stack>
+                        <Typography variant="body2" sx={{ fontSize: '0.73rem', lineHeight: 1.5, color: 'text.secondary' }}>
+                          {m.excerpt || m.title || '—'}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                    Nenhuma memória de conversa encontrada para este cliente.
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              <Box sx={{ py: 1, textAlign: 'center' }}><CircularProgress size={20} /></Box>
+            )}
           </Collapse>
         </Box>
       )}

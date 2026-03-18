@@ -579,6 +579,46 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Diagnóstico do contexto Jarvis para um cliente ──────────────────────
+  app.get(
+    '/clients/:id/jarvis-context',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const params = paramsSchema.parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+
+      const allDocs = await listClientDocuments({ tenantId, clientId: params.id, limit: 50 });
+
+      const bySourceType: Record<string, number> = {};
+      for (const doc of allDocs) {
+        const t = String(doc.source_type || 'unknown');
+        bySourceType[t] = (bySourceType[t] || 0) + 1;
+      }
+
+      const memoryTypes = ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'];
+      const conversationMemories = allDocs
+        .filter((d) => memoryTypes.includes(String(d.source_type || '')))
+        .slice(0, 20)
+        .map((d) => ({
+          id: d.id,
+          source_type: d.source_type || 'memory',
+          title: d.title || '',
+          excerpt: (String(d.content_excerpt || d.content_text || '')).slice(0, 300),
+          created_at: d.created_at || null,
+        }));
+
+      const lastMemoryAt = conversationMemories[0]?.created_at ?? null;
+
+      return reply.send({
+        totalDocuments: allDocs.length,
+        bySourceType,
+        conversationMemories,
+        lastMemoryAt,
+      });
+    }
+  );
+
   app.get(
     '/clients/:id/insights/reportei',
     { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },

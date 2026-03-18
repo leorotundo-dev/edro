@@ -35,7 +35,7 @@ import { createCalendarMeeting } from '../services/integrations/googleCalendarSe
 import { sendDirectMessage, isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
 import { sendEmail } from '../services/emailService';
 import { getRecallBotTranscript, isRecallConfigured } from '../services/integrations/recallService';
-import { sendMeetingSummaryToWhatsApp } from '../jobs/meetBotWorker';
+import { sendMeetingSummaryToWhatsApp, sendMeetingPrepToWhatsApp } from '../jobs/meetBotWorker';
 import {
   syncMeetingOrganizerFromUserEmail,
   syncMeetingParticipantsFromInviteContacts,
@@ -886,6 +886,52 @@ export default async function meetingRoutes(app: FastifyInstance) {
     },
   );
 
+  // ── Send (or generate + send) meeting prep brief via WhatsApp ─────────────
+  app.post<{ Params: { meetingId: string } }>(
+    '/meetings/:meetingId/send-prep',
+    { preHandler: [authGuard, tenantGuard()] },
+    async (request: any, reply) => {
+      const tenantId = request.user.tenant_id;
+      const { meetingId } = request.params;
+
+      const { rows } = await query<{
+        title: string | null; platform: string | null;
+        recorded_at: string | null; client_id: string; prep_payload: any;
+      }>(
+        `SELECT title, platform, recorded_at, client_id, prep_payload
+           FROM meetings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [meetingId, tenantId],
+      );
+      if (!rows.length) return reply.code(404).send({ error: 'not_found' });
+
+      const mtg = rows[0];
+      const client = await getClientById(tenantId, mtg.client_id).catch(() => null);
+      const clientName = (client as any)?.name || 'Cliente';
+
+      let prepPayload = mtg.prep_payload;
+      if (!prepPayload) {
+        const { prep } = await generateMeetingPrep({
+          tenantId,
+          clientId: mtg.client_id,
+          clientName,
+          meetingTitle: mtg.title || 'Reunião',
+          platform: mtg.platform ?? null,
+          scheduledAt: mtg.recorded_at ?? null,
+        });
+        prepPayload = prep;
+        await query(
+          `UPDATE meetings SET prep_payload = $1::jsonb, prep_generated_at = NOW(), updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3`,
+          [JSON.stringify(prepPayload), meetingId, tenantId],
+        );
+      }
+
+      const sent = await sendMeetingPrepToWhatsApp(tenantId, mtg.client_id, clientName, meetingId, prepPayload)
+        .catch(() => false);
+      return reply.send({ success: true, sent, prep: prepPayload });
+    },
+  );
+
   // ── Approve action → optionally create item in system ────────────────────
   const approveSchema = z.object({
     create_in_system: z.boolean().optional().default(true),
@@ -1620,11 +1666,64 @@ async function executeAction(action: any, tenantId: string): Promise<string | un
       dueAt: action.deadline ? new Date(action.deadline) : null,
       source: 'meeting',
     });
+
+    // Also create an ops job in the production pipeline when Jarvis says so
+    if (action.metadata?.should_create_job && mainClientId) {
+      createOpsJobFromMeetingAction(action, tenantId, mainClientId, briefing.id)
+        .catch((err: any) => console.error('[meetings] createOpsJob failed:', err?.message));
+    }
+
     return briefing.id;
   }
 
   // campaign and note: no immediate system creation
   return undefined;
+}
+
+function deriveJobType(actionType: string, operationLane: string | null | undefined): string {
+  if (actionType === 'task') return 'copy'; // 'task' may not exist in job_types; use copy
+  const lane = String(operationLane || '').toLowerCase();
+  if (lane === 'design') return 'design_static';
+  if (lane === 'video') return 'video';
+  return 'copy';
+}
+
+async function createOpsJobFromMeetingAction(
+  action: any,
+  tenantId: string,
+  clientId: string,
+  briefingId: string,
+): Promise<void> {
+  const jobType = deriveJobType(action.type, action.metadata?.operation_lane);
+  const isUrgent = action.priority === 'high';
+
+  await query(
+    `INSERT INTO jobs
+       (tenant_id, client_id, title, summary, job_type, complexity, source,
+        status, priority_score, priority_band, impact_level, dependency_level,
+        required_skill, deadline_at, is_urgent, urgency_reason, created_by, metadata)
+     VALUES
+       ($1,$2,$3,$4,$5,'medium','meeting',
+        'intake',50,'medium',2,2,
+        $6,$7,$8,$9,'jarvis-meeting',$10::jsonb)`,
+    [
+      tenantId,
+      clientId,
+      action.title,
+      action.description ?? null,
+      jobType,
+      action.metadata?.required_skill ?? null,
+      action.deadline ? new Date(action.deadline) : null,
+      isUrgent,
+      action.metadata?.urgency_reason ?? null,
+      JSON.stringify({
+        origin: 'meeting',
+        meeting_id: action.meeting_id ?? null,
+        meeting_action_id: action.id,
+        briefing_id: briefingId,
+      }),
+    ],
+  );
 }
 
 function detectMeetingPlatform(url: string): 'meet' | 'zoom' | 'teams' | 'other' {
