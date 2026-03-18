@@ -164,6 +164,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     bank_name: z.string().optional().nullable(),
     bank_agency: z.string().optional().nullable(),
     bank_account: z.string().optional().nullable(),
+    skills: z.array(z.string()).optional().nullable(),
+    available_days: z.array(z.string()).optional().nullable(),
+    available_hours_start: z.string().optional().nullable(),
+    available_hours_end: z.string().optional().nullable(),
+    weekly_capacity_hours: z.number().positive().optional().nullable(),
+    contract_type: z.string().optional().nullable(),
   }).superRefine((body, ctx) => {
     if (!body.user_id && !body.user_email) {
       ctx.addIssue({
@@ -214,8 +220,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     const res = await pool.query(
-      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account, skills, available_days, available_hours_start, available_hours_end, weekly_capacity_hours, contract_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        ON CONFLICT (user_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          specialty = EXCLUDED.specialty,
@@ -233,13 +239,21 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          bank_name = EXCLUDED.bank_name,
          bank_agency = EXCLUDED.bank_agency,
          bank_account = EXCLUDED.bank_account,
+         skills = EXCLUDED.skills,
+         available_days = EXCLUDED.available_days,
+         available_hours_start = EXCLUDED.available_hours_start,
+         available_hours_end = EXCLUDED.available_hours_end,
+         weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
+         contract_type = EXCLUDED.contract_type,
          is_active = true,
          updated_at = now()
        RETURNING *`,
       [userId, body.display_name, body.specialty ?? null, body.hourly_rate_brl ?? null, body.pix_key ?? null,
        body.phone ?? null, body.whatsapp_jid ?? null, body.department ?? null, body.role_title ?? null,
        body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
-       body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null],
+       body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null,
+       body.skills ?? null, body.available_days ?? null, body.available_hours_start ?? null,
+       body.available_hours_end ?? null, body.weekly_capacity_hours ?? null, body.contract_type ?? null],
     );
     const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
     if (snapshot) {
@@ -289,6 +303,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     bank_name: z.string().optional().nullable(),
     bank_agency: z.string().optional().nullable(),
     bank_account: z.string().optional().nullable(),
+    skills: z.array(z.string()).optional().nullable(),
+    available_days: z.array(z.string()).optional().nullable(),
+    available_hours_start: z.string().optional().nullable(),
+    available_hours_end: z.string().optional().nullable(),
+    weekly_capacity_hours: z.number().positive().optional().nullable(),
+    contract_type: z.string().optional().nullable(),
   });
 
   app.patch('/freelancers/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -315,6 +335,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (body.bank_name     !== undefined) { sets.push(`bank_name = $${i++}`);          vals.push(body.bank_name); }
     if (body.bank_agency   !== undefined) { sets.push(`bank_agency = $${i++}`);        vals.push(body.bank_agency); }
     if (body.bank_account  !== undefined) { sets.push(`bank_account = $${i++}`);       vals.push(body.bank_account); }
+    if (body.skills              !== undefined) { sets.push(`skills = $${i++}`);                vals.push(body.skills); }
+    if (body.available_days      !== undefined) { sets.push(`available_days = $${i++}`);         vals.push(body.available_days); }
+    if (body.available_hours_start !== undefined) { sets.push(`available_hours_start = $${i++}`); vals.push(body.available_hours_start); }
+    if (body.available_hours_end  !== undefined) { sets.push(`available_hours_end = $${i++}`);   vals.push(body.available_hours_end); }
+    if (body.weekly_capacity_hours !== undefined) { sets.push(`weekly_capacity_hours = $${i++}`); vals.push(body.weekly_capacity_hours); }
+    if (body.contract_type       !== undefined) { sets.push(`contract_type = $${i++}`);          vals.push(body.contract_type); }
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     sets.push(`updated_at = now()`);

@@ -872,12 +872,29 @@ function InlineOwnerAssign({
           <MenuItem
             key={o.id}
             onClick={(e) => { e.stopPropagation(); onAssign(o.id); setAnchorEl(null); }}
-            sx={{ fontSize: '0.75rem', py: 0.5 }}
+            sx={{ fontSize: '0.75rem', py: 0.5, alignItems: 'flex-start' }}
           >
-            <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', mr: 1 }}>
+            <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', mr: 1, mt: 0.25, flexShrink: 0 }}>
               {initials(o.name)}
             </Avatar>
-            {o.name}
+            <Stack spacing={0.25}>
+              <span>{o.name}</span>
+              {o.skills && o.skills.length > 0 && (
+                <Stack direction="row" spacing={0.25} flexWrap="wrap" useFlexGap>
+                  {o.skills.slice(0, 3).map((s) => {
+                    const SKILL_LABELS: Record<string, string> = { copy: 'Redação', design: 'Design', video: 'Vídeo', social: 'Social', estrategia: 'Estratégia', operacao: 'Operação', atendimento: 'Atend.', financeiro: 'Fin.' };
+                    return (
+                      <Chip
+                        key={s}
+                        label={SKILL_LABELS[s] ?? s}
+                        size="small"
+                        sx={{ height: 14, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.5 } }}
+                      />
+                    );
+                  })}
+                </Stack>
+              )}
+            </Stack>
           </MenuItem>
         ))}
       </Menu>

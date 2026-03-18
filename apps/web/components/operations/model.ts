@@ -73,6 +73,7 @@ export type OperationsOwner = {
   email: string;
   role: string;
   specialty?: string | null;
+  skills?: string[] | null;
   person_type?: 'internal' | 'freelancer';
 };
 

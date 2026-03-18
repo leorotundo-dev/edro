@@ -54,6 +54,8 @@ import {
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 type FreelancerProfile = {
@@ -77,6 +79,12 @@ type FreelancerProfile = {
   bank_name: string | null;
   bank_agency: string | null;
   bank_account: string | null;
+  skills: string[] | null;
+  available_days: string[] | null;
+  available_hours_start: string | null;
+  available_hours_end: string | null;
+  weekly_capacity_hours: number | null;
+  contract_type: string | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -144,6 +152,12 @@ type ContactForm = {
   bank_name: string;
   bank_agency: string;
   bank_account: string;
+  skills: string[];
+  available_days: string[];
+  available_hours_start: string;
+  available_hours_end: string;
+  weekly_capacity_hours: string;
+  contract_type: string;
 };
 
 const EMPTY_CONTACT_FORM: ContactForm = {
@@ -160,6 +174,12 @@ const EMPTY_CONTACT_FORM: ContactForm = {
   bank_name: '',
   bank_agency: '',
   bank_account: '',
+  skills: [],
+  available_days: [],
+  available_hours_start: '',
+  available_hours_end: '',
+  weekly_capacity_hours: '',
+  contract_type: '',
 };
 
 const AVATAR_COLORS = [
@@ -217,6 +237,12 @@ function FreelancerContacts({
       bank_name: fl.bank_name ?? '',
       bank_agency: fl.bank_agency ?? '',
       bank_account: fl.bank_account ?? '',
+      skills: fl.skills ?? [],
+      available_days: fl.available_days ?? [],
+      available_hours_start: fl.available_hours_start ?? '',
+      available_hours_end: fl.available_hours_end ?? '',
+      weekly_capacity_hours: fl.weekly_capacity_hours != null ? String(fl.weekly_capacity_hours) : '',
+      contract_type: fl.contract_type ?? '',
     });
   };
 
@@ -238,6 +264,12 @@ function FreelancerContacts({
         bank_name: form.bank_name.trim() || null,
         bank_agency: form.bank_agency.trim() || null,
         bank_account: form.bank_account.trim() || null,
+        skills: form.skills.length > 0 ? form.skills : null,
+        available_days: form.available_days.length > 0 ? form.available_days : null,
+        available_hours_start: form.available_hours_start.trim() || null,
+        available_hours_end: form.available_hours_end.trim() || null,
+        weekly_capacity_hours: form.weekly_capacity_hours ? Number(form.weekly_capacity_hours) : null,
+        contract_type: form.contract_type.trim() || null,
       });
       setEditingId(null);
       await onUpdated();
@@ -539,6 +571,91 @@ function FreelancerContacts({
                           fullWidth size="small" label="Notas" multiline rows={2}
                           value={form.notes}
                           onChange={(e) => set({ notes: e.target.value })}
+                        />
+                      </Grid>
+                    </Grid>
+
+                    <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mt: 1.5, mb: 0.5, display: 'block' }}>Perfil de Trabalho</Typography>
+                    <Grid container spacing={1}>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          select fullWidth size="small" label="Tipo de Contrato"
+                          value={form.contract_type}
+                          onChange={(e) => set({ contract_type: e.target.value })}
+                        >
+                          <MenuItem value="">Selecione...</MenuItem>
+                          <MenuItem value="clt">CLT</MenuItem>
+                          <MenuItem value="pj">PJ</MenuItem>
+                          <MenuItem value="freelancer">Freelancer</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Skills</Typography>
+                        <ToggleButtonGroup
+                          value={form.skills}
+                          onChange={(_, newVal) => set({ skills: newVal as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {[
+                            { value: 'copy', label: 'Redação' },
+                            { value: 'design', label: 'Design' },
+                            { value: 'video', label: 'Vídeo' },
+                            { value: 'social', label: 'Social Media' },
+                            { value: 'estrategia', label: 'Estratégia' },
+                            { value: 'operacao', label: 'Operação' },
+                            { value: 'atendimento', label: 'Atendimento' },
+                            { value: 'financeiro', label: 'Financeiro' },
+                          ].map((opt) => (
+                            <ToggleButton key={opt.value} value={opt.value} size="small" sx={{ fontSize: '0.65rem', py: 0.25, px: 0.75, height: 24 }}>
+                              {opt.label}
+                            </ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Dias disponíveis</Typography>
+                        <ToggleButtonGroup
+                          value={form.available_days}
+                          onChange={(_, newVal) => set({ available_days: newVal as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {[
+                            { value: 'mon', label: 'Seg' },
+                            { value: 'tue', label: 'Ter' },
+                            { value: 'wed', label: 'Qua' },
+                            { value: 'thu', label: 'Qui' },
+                            { value: 'fri', label: 'Sex' },
+                            { value: 'sat', label: 'Sáb' },
+                            { value: 'sun', label: 'Dom' },
+                          ].map((opt) => (
+                            <ToggleButton key={opt.value} value={opt.value} size="small" sx={{ fontSize: '0.65rem', py: 0.25, px: 0.75, height: 24 }}>
+                              {opt.label}
+                            </ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="De" type="time"
+                          value={form.available_hours_start}
+                          onChange={(e) => set({ available_hours_start: e.target.value })}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Até" type="time"
+                          value={form.available_hours_end}
+                          onChange={(e) => set({ available_hours_end: e.target.value })}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          fullWidth size="small" label="Capacidade semanal (horas)" type="number"
+                          value={form.weekly_capacity_hours}
+                          onChange={(e) => set({ weekly_capacity_hours: e.target.value })}
+                          placeholder="40"
                         />
                       </Grid>
                     </Grid>
@@ -1146,6 +1263,46 @@ export default function EquipePage() {
                   {drawerFl.bank_account && (
                     <Typography variant="body2"><strong>Conta:</strong> {drawerFl.bank_account}</Typography>
                   )}
+                </>
+              )}
+
+              {/* Perfil Operacional */}
+              {(drawerFl.skills?.length || drawerFl.available_days?.length || drawerFl.available_hours_start || drawerFl.weekly_capacity_hours || drawerFl.contract_type) && (
+                <>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">Perfil Operacional</Typography>
+                  {drawerFl.contract_type && (
+                    <Typography variant="body2">
+                      <strong>Contrato:</strong>{' '}
+                      {drawerFl.contract_type === 'clt' ? 'CLT' : drawerFl.contract_type === 'pj' ? 'PJ' : drawerFl.contract_type === 'freelancer' ? 'Freelancer' : drawerFl.contract_type}
+                    </Typography>
+                  )}
+                  {drawerFl.weekly_capacity_hours != null && (
+                    <Typography variant="body2"><strong>Capacidade semanal:</strong> {drawerFl.weekly_capacity_hours}h</Typography>
+                  )}
+                  {drawerFl.available_days?.length ? (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 600, mr: 0.5 }}>Dias:</Typography>
+                      {drawerFl.available_days.map((d) => {
+                        const DAY_LABELS: Record<string, string> = { mon: 'Seg', tue: 'Ter', wed: 'Qua', thu: 'Qui', fri: 'Sex', sat: 'Sáb', sun: 'Dom' };
+                        return <Chip key={d} label={DAY_LABELS[d] ?? d} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />;
+                      })}
+                    </Stack>
+                  ) : null}
+                  {(drawerFl.available_hours_start || drawerFl.available_hours_end) && (
+                    <Typography variant="body2">
+                      <strong>Horário:</strong> {drawerFl.available_hours_start ?? '—'} às {drawerFl.available_hours_end ?? '—'}
+                    </Typography>
+                  )}
+                  {drawerFl.skills?.length ? (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 600, mr: 0.5 }}>Skills:</Typography>
+                      {drawerFl.skills.map((s) => {
+                        const SKILL_LABELS: Record<string, string> = { copy: 'Redação', design: 'Design', video: 'Vídeo', social: 'Social Media', estrategia: 'Estratégia', operacao: 'Operação', atendimento: 'Atendimento', financeiro: 'Financeiro' };
+                        return <Chip key={s} label={SKILL_LABELS[s] ?? s} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF', borderColor: 'rgba(93,135,255,0.3)' }} variant="outlined" />;
+                      })}
+                    </Stack>
+                  ) : null}
                 </>
               )}
 
