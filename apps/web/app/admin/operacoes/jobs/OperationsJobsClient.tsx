@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -13,6 +13,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
@@ -77,6 +78,7 @@ const BUCKETS = [
 export default function OperationsJobsClient() {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  const router = useRouter();
   const searchParams = useSearchParams();
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
@@ -95,7 +97,16 @@ export default function OperationsJobsClient() {
   const [ownerFilter, setOwnerFilter] = useState('');
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [groupMode, setGroupMode] = useState<'status' | 'client' | 'owner' | 'risk'>('status');
+
+  const rawGroup = searchParams.get('group');
+  const validGroup = rawGroup === 'client' || rawGroup === 'owner' || rawGroup === 'risk' ? rawGroup : 'status';
+  const [groupMode, setGroupModeState] = useState<'status' | 'client' | 'owner' | 'risk'>(validGroup);
+  const setGroupMode = useCallback((v: 'status' | 'client' | 'owner' | 'risk') => {
+    setGroupModeState(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === 'status') params.delete('group'); else params.set('group', v);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
@@ -437,6 +448,33 @@ export default function OperationsJobsClient() {
                   </Grid>
                 ) : null
               }
+              sections={(() => {
+                if (!selectedJob?.owner_id) return [];
+                const ownerPulse = teamPulse.find((o) => o.id === selectedJob.owner_id);
+                if (!ownerPulse) return [];
+                const barColor = ownerPulse.pct > 90 ? '#FA896B' : ownerPulse.pct > 75 ? '#FFAE1F' : '#13DEB9';
+                return [{
+                  title: 'Capacidade do responsável',
+                  content: (
+                    <Box sx={{ px: 0.5 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                        <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem' }}>{ownerPulse.name}</Typography>
+                        <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.7rem', color: barColor }}>
+                          {ownerPulse.pct}%
+                        </Typography>
+                      </Stack>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(ownerPulse.pct, 100)}
+                        sx={{ borderRadius: 1, height: 5, bgcolor: alpha(barColor, 0.15), '& .MuiLinearProgress-bar': { bgcolor: barColor, borderRadius: 1 } }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem', mt: 0.4, display: 'block' }}>
+                        {Math.round(ownerPulse.committed / 60)}h comprometido · {Math.round(ownerPulse.cap / 60)}h disponível/semana
+                      </Typography>
+                    </Box>
+                  ),
+                }];
+              })()}
               footer={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button variant="contained" size="small" onClick={() => setDetailOpen(true)} disabled={!selectedJob}>{OPS_COPY.common.openDetail}</Button>
