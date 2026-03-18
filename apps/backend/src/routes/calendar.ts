@@ -559,15 +559,38 @@ function pushCalendarDayItem(days: Record<string, any[]>, dateISO: string, item:
   days[dateISO].push(item);
 }
 
+function operationalStatusRank(origin: string, status: string): number {
+  if (origin === 'meeting_recorded') return 10; // fully processed meeting wins
+  if (status === 'processed') return 9;
+  if (status === 'bot_scheduled' || status === 'bot_created') return 5;
+  if (status === 'detected') return 1;
+  return 3;
+}
+
+function dedupeOperationalItems(items: any[]): any[] {
+  const seen = new Map<string, any>();
+  for (const item of items) {
+    const key = `${String(item.name || '').trim().toLowerCase()}|${item.time_label || item.starts_at || ''}`;
+    const existing = seen.get(key);
+    if (!existing || operationalStatusRank(item.origin, item.status) > operationalStatusRank(existing.origin, existing.status)) {
+      seen.set(key, item);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 function recalculateCalendarDays(days: Record<string, any[]>) {
   let totalEvents = 0;
   for (const date of Object.keys(days)) {
     const editorialItems = dedupeCalendarItems(
       days[date].filter((item) => item.layer === 'editorial')
     );
-    const nonEditorialItems = days[date].filter((item) => item.layer !== 'editorial');
+    const operationalItems = dedupeOperationalItems(
+      days[date].filter((item) => item.layer === 'operational')
+    );
+    const otherItems = days[date].filter((item) => item.layer !== 'editorial' && item.layer !== 'operational');
 
-    days[date] = [...nonEditorialItems, ...editorialItems];
+    days[date] = [...operationalItems, ...otherItems, ...editorialItems];
     days[date].sort((a, b) => {
       const layerDelta =
         a.layer === b.layer ? 0 : a.layer === 'operational' ? -1 : 1;

@@ -68,6 +68,11 @@ import {
   IconSearch,
   IconExternalLink,
   IconCalendarPlus,
+  IconRobot,
+  IconCircleCheck,
+  IconAlertCircle,
+  IconPlayerPlay,
+  IconClock,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -383,9 +388,20 @@ function getEventColorByOrigin(origin?: string, fallbackTier?: 'A' | 'B' | 'C') 
   return '#7c8fac';
 }
 
-function getEventMeta(event: Pick<CalendarEventItem, 'name' | 'categories' | 'tags' | 'origin' | 'tier'>) {
+function getMeetingStatusMeta(status?: string | null): { Icon: React.ComponentType<{ size?: number }>; color: string } {
+  if (!status) return { Icon: IconMicrophone2, color: '#2563EB' };
+  if (status === 'completed' || status === 'analyzed' || status === 'approved') return { Icon: IconCircleCheck, color: '#16A34A' };
+  if (status === 'failed') return { Icon: IconAlertCircle, color: '#DC2626' };
+  if (status === 'in_call' || status === 'joining') return { Icon: IconPlayerPlay, color: '#F97316' };
+  if (status === 'bot_scheduled' || status === 'bot_created') return { Icon: IconRobot, color: '#0EA5E9' };
+  if (status === 'recorded' || status === 'transcribed' || status === 'analysis_pending' || status === 'transcript_pending') return { Icon: IconClock, color: '#8B5CF6' };
+  if (status === 'processed' || status === 'bot_scheduled') return { Icon: IconRobot, color: '#0EA5E9' };
+  return { Icon: IconMicrophone2, color: '#2563EB' };
+}
+
+function getEventMeta(event: Pick<CalendarEventItem, 'name' | 'categories' | 'tags' | 'origin' | 'tier'> & { status?: string | null }) {
   if (event.origin === 'meeting_recorded' || event.origin === 'meeting_scheduled') {
-    return { Icon: IconMicrophone2, color: getEventColorByOrigin(event.origin, event.tier) };
+    return getMeetingStatusMeta(event.status);
   }
   if (event.origin === 'briefing_deadline') {
     return { Icon: IconChecklist, color: getEventColorByOrigin(event.origin, event.tier) };
