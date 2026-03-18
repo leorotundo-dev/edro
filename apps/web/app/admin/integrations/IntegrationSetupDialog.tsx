@@ -368,7 +368,32 @@ function GoogleOAuthSetup({
           </Stack>
         </Step>
 
-        <Step n={4} label="Conectar Gmail e Google Calendar" done={false}>
+        <Step n={4} label="Pub/Sub — notificações em tempo real (recomendado)" done={!!health?.google.pubsub_topic}>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              Sem isso o Gmail conecta, mas o sistema não recebe emails automaticamente — só sob demanda.
+              Para ativar: Google Cloud Console → Pub/Sub → Topics → Create Topic.
+            </Typography>
+            <Button size="small" variant="outlined"
+              href="https://console.cloud.google.com/cloudpubsub/topic/list" target="_blank"
+              endIcon={<IconExternalLink size={13} />}>
+              Abrir Pub/Sub no Cloud Console
+            </Button>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              Após criar o tópico, adicione o email <code>serviceAccount:gmail-api-push@system.gserviceaccount.com</code> como <strong>Pub/Sub Publisher</strong> nas permissões do tópico.
+              Depois configure no Railway:
+            </Typography>
+            <RailwayCommand vars={{ GOOGLE_PUBSUB_TOPIC: 'projects/SEU-PROJECT-ID/topics/SEU-TOPICO' }} />
+            <Chip
+              label={`GOOGLE_PUBSUB_TOPIC: ${health?.google.pubsub_topic ? '✓ Configurado' : '✗ Faltando (opcional)'}`}
+              size="small"
+              color={health?.google.pubsub_topic ? 'success' : 'warning'}
+              variant="outlined"
+            />
+          </Stack>
+        </Step>
+
+        <Step n={5} label="Conectar Gmail e Google Calendar" done={false}>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button
               variant="contained"

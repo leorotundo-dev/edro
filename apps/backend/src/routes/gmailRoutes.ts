@@ -58,7 +58,11 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
     try {
       const { tenantId, email } = await exchangeGmailCode(code, state);
-      await watchGmailInbox(tenantId);
+      if (process.env.GOOGLE_PUBSUB_TOPIC) {
+        await watchGmailInbox(tenantId);
+      } else {
+        console.warn('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — skipping watch setup. Gmail connected without real-time notifications.');
+      }
 
       // Non-blocking: sync Google Contacts in background after OAuth
       syncGoogleContacts(tenantId).catch((err) =>
