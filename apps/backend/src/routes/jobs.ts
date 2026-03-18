@@ -10,6 +10,37 @@ import { rebuildOperationalRuntime, syncOperationalRuntimeForJob } from '../serv
 import { enqueueJob } from '../jobs/jobQueue';
 import { getNextJobForOwner, recalculateOwnerETAs } from '../services/jobs/jobAutomationService';
 import { notifyEvent } from '../services/notificationService';
+import { sendWhatsAppText } from '../services/whatsappService';
+
+/** Send approval request directly to the client's primary WhatsApp contact. */
+async function notifyClientApprovalNeeded(
+  tenantId: string,
+  clientId: string,
+  jobTitle: string,
+  deadlineAt?: string | null,
+) {
+  // Primary contact = first contact with a whatsapp_jid for this client
+  const { rows } = await query<{ whatsapp_jid: string; name: string | null }>(
+    `SELECT whatsapp_jid, name
+       FROM client_contacts
+      WHERE client_id = $1 AND tenant_id = $2
+        AND whatsapp_jid IS NOT NULL
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [clientId, tenantId],
+  );
+  const contact = rows[0];
+  if (!contact?.whatsapp_jid) return;
+
+  const deadline = deadlineAt ? new Date(deadlineAt).toLocaleDateString('pt-BR') : null;
+  const lines = [
+    `📋 *${jobTitle}*`,
+    `Uma peça está pronta e aguarda sua aprovação.`,
+    deadline ? `⏰ Prazo: ${deadline}` : null,
+  ].filter(Boolean) as string[];
+
+  await sendWhatsAppText(contact.whatsapp_jid, lines.join('\n'));
+}
 
 /** Look up owner's WhatsApp JID + email, then fire job_assigned notification. */
 async function notifyOwnerAssigned(
@@ -589,6 +620,12 @@ export default async function jobsRoutes(app: FastifyInstance) {
       [jobId, current.status, body.status, userId, body.reason ?? null]
     );
     await syncOperationalRuntimeForJob(tenantId, jobId);
+
+    // ── Notify client when job needs their approval ──
+    if (body.status === 'awaiting_approval' && current.client_id) {
+      notifyClientApprovalNeeded(tenantId, current.client_id, current.title, current.deadline_at)
+        .catch((e: any) => console.error('[jobs] notify client approval failed:', e?.message));
+    }
 
     // ── Automation hook: when job is done, auto-pull next for owner + recalc ETAs ──
     if (body.status === 'done' && current.owner_id) {

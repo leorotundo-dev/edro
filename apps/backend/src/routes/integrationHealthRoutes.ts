@@ -5,8 +5,10 @@
  */
 
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
 
 function has(key: string): boolean {
   const v = process.env[key];
@@ -62,6 +64,36 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         oidc_issuer:     has('OIDC_ISSUER_URL'),
         oidc_client_id:  has('OIDC_CLIENT_ID'),
       },
+    });
+  });
+
+  // POST /admin/integrations/whatsapp/test-send
+  app.post('/admin/integrations/whatsapp/test-send', {
+    preHandler: [authGuard, requirePerm('admin:write'), tenantGuard()],
+  }, async (request, reply) => {
+    const { phone } = z.object({ phone: z.string().min(8) }).parse(request.body);
+
+    if (!isWhatsAppConfigured()) {
+      return reply.status(503).send({ error: 'WHATSAPP_TOKEN ou WHATSAPP_PHONE_ID não configurados.' });
+    }
+
+    const result = await sendWhatsAppText(phone, '✅ Teste Edro.Digital — mensagem enviada com sucesso pelo sistema de notificações.');
+    if (!result.ok) {
+      return reply.status(502).send({ error: result.error || 'Falha ao enviar mensagem.' });
+    }
+    return { ok: true, messageId: result.messageId };
+  });
+
+  // GET /admin/integrations/config-hints
+  app.get('/admin/integrations/config-hints', {
+    preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
+  }, async (_request, reply) => {
+    const publicApiUrl = process.env.PUBLIC_API_URL?.replace(/\/$/, '') || 'https://api.edro.digital';
+    return reply.send({
+      google_redirect_uri_gmail:     `${publicApiUrl}/auth/google/callback`,
+      google_redirect_uri_calendar:  `${publicApiUrl}/auth/google/calendar/callback`,
+      webhook_base_url:              publicApiUrl,
+      meta_verify_token_set:         has('META_VERIFY_TOKEN'),
     });
   });
 }

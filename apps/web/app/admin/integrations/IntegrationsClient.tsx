@@ -16,8 +16,11 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AppShell from '@/components/AppShell';
+import IntegrationSetupDialog, { type IntegrationType } from './IntegrationSetupDialog';
 import {
   IconBrandGmail,
   IconBrandGoogle,
@@ -173,6 +176,10 @@ export default function IntegrationsClient() {
   const [requeueingAutoJoinId, setRequeueingAutoJoinId] = useState<string | null>(null);
   const [autoJoinFilter, setAutoJoinFilter] = useState<AutoJoinFilter>('all');
   const [error, setError] = useState('');
+  const [waTestPhone, setWaTestPhone] = useState('');
+  const [waTestSending, setWaTestSending] = useState(false);
+  const [waTestResult, setWaTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [setupDialog, setSetupDialog] = useState<IntegrationType | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,6 +247,20 @@ export default function IntegrationsClient() {
     }
   };
 
+  const handleWaTestSend = async () => {
+    if (!waTestPhone.trim()) return;
+    setWaTestSending(true);
+    setWaTestResult(null);
+    try {
+      await apiPost('/admin/integrations/whatsapp/test-send', { phone: waTestPhone.trim() });
+      setWaTestResult({ ok: true, msg: 'Mensagem enviada! Verifique o WhatsApp.' });
+    } catch (e: any) {
+      setWaTestResult({ ok: false, msg: e.message || 'Falha ao enviar.' });
+    } finally {
+      setWaTestSending(false);
+    }
+  };
+
   const handleAutoJoinRequeue = async (autoJoinId: string) => {
     setRequeueingAutoJoinId(autoJoinId);
     setError('');
@@ -296,13 +317,22 @@ export default function IntegrationsClient() {
         {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
         {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
 
+        <IntegrationSetupDialog
+          open={Boolean(setupDialog)}
+          type={setupDialog}
+          health={health}
+          onClose={() => setSetupDialog(null)}
+          onRefresh={load}
+        />
+
         {loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
         ) : (
           <Stack spacing={2}>
 
             {/* ── Gmail ── */}
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ cursor: !gmail?.configured ? 'pointer' : 'default', '&:hover': !gmail?.configured ? { boxShadow: 2 } : {} }}
+              onClick={!gmail?.configured ? () => setSetupDialog('google-oauth') : undefined}>
               <CardContent>
                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
@@ -315,7 +345,12 @@ export default function IntegrationsClient() {
                         {gmail?.configured ? (
                           <Chip label="Conectado" size="small" color="success" />
                         ) : (
-                          <Chip label="Desconectado" size="small" color="default" />
+                          <>
+                            <Chip label="Desconectado" size="small" color="default" />
+                            <Chip label="Configurar →" size="small" color="primary" variant="outlined"
+                              onClick={(e) => { e.stopPropagation(); setSetupDialog('google-oauth'); }}
+                              sx={{ cursor: 'pointer', fontSize: '0.65rem' }} />
+                          </>
                         )}
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
@@ -336,18 +371,29 @@ export default function IntegrationsClient() {
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<IconBrandGoogle size={16} />}
-                        onClick={handleGmailConnect}
-                        sx={{ bgcolor: '#EA4335', '&:hover': { bgcolor: '#c0392b' } }}
-                      >
-                        Conectar Gmail
-                      </Button>
+                      <Tooltip title={!health?.google.client_id ? 'Configure GOOGLE_CLIENT_ID e GOOGLE_REDIRECT_URI nas variáveis de ambiente' : ''}>
+                        <span>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<IconBrandGoogle size={16} />}
+                            onClick={handleGmailConnect}
+                            disabled={health !== null && !health.google.client_id}
+                            sx={{ bgcolor: '#EA4335', '&:hover': { bgcolor: '#c0392b' } }}
+                          >
+                            Conectar Gmail
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
                   </Stack>
                 </Stack>
+
+                {health !== null && !health.google.client_id && !gmail?.configured && (
+                  <Alert severity="warning" sx={{ mt: 2, fontSize: '0.8rem' }}>
+                    Variáveis <code>GOOGLE_CLIENT_ID</code> e <code>GOOGLE_REDIRECT_URI</code> não configuradas no ambiente. Configure-as para habilitar Gmail e Calendar.
+                  </Alert>
+                )}
 
                 {gmail?.configured && (
                   <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
@@ -409,15 +455,20 @@ export default function IntegrationsClient() {
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<IconCalendar size={16} />}
-                        onClick={handleCalendarConnect}
-                        sx={{ bgcolor: '#F9AB00', color: '#000', '&:hover': { bgcolor: '#f59e0b' } }}
-                      >
-                        Conectar Calendar
-                      </Button>
+                      <Tooltip title={!health?.google.client_id ? 'Configure GOOGLE_CLIENT_ID e GOOGLE_REDIRECT_URI nas variáveis de ambiente' : ''}>
+                        <span>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<IconCalendar size={16} />}
+                            onClick={handleCalendarConnect}
+                            disabled={health !== null && !health.google.client_id}
+                            sx={{ bgcolor: '#F9AB00', color: '#000', '&:hover': { bgcolor: '#f59e0b' } }}
+                          >
+                            Conectar Calendar
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
                   </Stack>
                 </Stack>
@@ -599,7 +650,8 @@ export default function IntegrationsClient() {
             </Card>
 
             {/* ── Recall Meeting Bot ── */}
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ cursor: !health?.recall.api_key ? 'pointer' : 'default', '&:hover': !health?.recall.api_key ? { boxShadow: 2 } : {} }}
+              onClick={!health?.recall.api_key ? () => setSetupDialog('recall') : undefined}>
               <CardContent>
                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
@@ -610,6 +662,9 @@ export default function IntegrationsClient() {
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="subtitle1" fontWeight={700}>Recall.ai</Typography>
                         <Chip label="Bot de reunião" size="small" color="info" />
+                        {!health?.recall.api_key && (
+                          <Chip label="Configurar →" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.65rem' }} />
+                        )}
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
                         Entrada ao vivo nas calls + transcrição + análise automática no módulo de reuniões.
@@ -639,7 +694,8 @@ export default function IntegrationsClient() {
             </Card>
 
             {/* ── Instagram DMs ── */}
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { boxShadow: 2 } }}
+              onClick={() => setSetupDialog('instagram')}>
               <CardContent>
                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
@@ -650,6 +706,7 @@ export default function IntegrationsClient() {
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="subtitle1" fontWeight={700}>Instagram DMs</Typography>
                         <Chip label="Via Meta Webhook" size="small" color="info" />
+                        <Chip label="Configurar →" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.65rem' }} />
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
                         Mensagens diretas no Instagram chegam ao Jarvis. Conectado ao Meta OAuth.
@@ -677,7 +734,8 @@ export default function IntegrationsClient() {
             </Card>
 
             {/* ── WhatsApp (Evolution API) ── */}
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { boxShadow: 2 } }}
+              onClick={() => setSetupDialog('evolution-whatsapp')}>
               <CardContent>
                 <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
@@ -689,12 +747,15 @@ export default function IntegrationsClient() {
                         <Typography variant="subtitle1" fontWeight={700}>WhatsApp (Evolution API)</Typography>
                         {whatsapp?.connected
                           ? <Chip label="Conectado" size="small" color="success" />
-                          : <Chip label="Desconectado" size="small" color="default" />}
+                          : <>
+                              <Chip label="Desconectado" size="small" color="default" />
+                              <Chip label="Conectar →" size="small" color="success" variant="outlined" sx={{ fontSize: '0.65rem' }} />
+                            </>}
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
                         {whatsapp?.connected
                           ? `${whatsapp.profileName ?? whatsapp.instanceName ?? 'Instância ativa'} · Grupos de clientes monitorados`
-                          : 'Monitora grupos de WhatsApp e captura pedidos via Jarvis'}
+                          : 'Clique para conectar via QR code'}
                       </Typography>
                     </Box>
                   </Stack>
@@ -708,9 +769,51 @@ export default function IntegrationsClient() {
                     color={health?.whatsapp_evolution.api_url ? 'success' : 'error'} variant="outlined" />
                   <Chip label={`EVOLUTION_API_KEY: ${health?.whatsapp_evolution.api_key ? '✓' : '✗'}`} size="small"
                     color={health?.whatsapp_evolution.api_key ? 'success' : 'error'} variant="outlined" />
-                  <Chip label={`META_VERIFY_TOKEN: ${health?.whatsapp_meta.verify_token ? '✓' : '✗'}`} size="small"
-                    color={health?.whatsapp_meta.verify_token ? 'success' : 'default'} variant="outlined" />
+                  <Chip label={`WHATSAPP_TOKEN (Meta): ${health?.whatsapp_meta.token ? '✓' : '✗'}`} size="small"
+                    color={health?.whatsapp_meta.token ? 'success' : 'error'} variant="outlined" />
+                  <Chip label={`WHATSAPP_PHONE_ID: ${health?.whatsapp_meta.phone_id ? '✓' : '✗'}`} size="small"
+                    color={health?.whatsapp_meta.phone_id ? 'success' : 'error'} variant="outlined" />
                 </Stack>
+
+                <Divider sx={{ my: 2 }} />
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">
+                    Notificações WhatsApp (Meta Cloud API)
+                  </Typography>
+                  {!health?.whatsapp_meta.token && (
+                    <Chip label="Configurar →" size="small" color="primary" variant="outlined"
+                      sx={{ fontSize: '0.65rem', cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); setSetupDialog('whatsapp-meta'); }} />
+                  )}
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="flex-start">
+                  <TextField
+                    size="small"
+                    placeholder="Ex: 5511999990000 ou +55 11 99999-0000"
+                    value={waTestPhone}
+                    onChange={(e) => { setWaTestPhone(e.target.value); setWaTestResult(null); }}
+                    disabled={waTestSending || !health?.whatsapp_meta.token}
+                    sx={{ flex: 1, maxWidth: 320 }}
+                  />
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleWaTestSend}
+                    disabled={!waTestPhone.trim() || waTestSending || !health?.whatsapp_meta.token}
+                  >
+                    {waTestSending ? 'Enviando...' : 'Testar envio'}
+                  </Button>
+                </Stack>
+                {waTestResult && (
+                  <Alert severity={waTestResult.ok ? 'success' : 'error'} sx={{ mt: 1, fontSize: '0.8rem' }}>
+                    {waTestResult.msg}
+                  </Alert>
+                )}
+                {!health?.whatsapp_meta.token && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    Configure <code>WHATSAPP_TOKEN</code> e <code>WHATSAPP_PHONE_ID</code> para habilitar.
+                  </Typography>
+                )}
               </CardContent>
             </Card>
 
