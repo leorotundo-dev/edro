@@ -429,7 +429,12 @@ export default function OperationsRadarClient() {
                       <EntityLinkCard
                         label="Responsável"
                         value={selectedJob.owner_name || 'Sem responsável'}
-                        href="/admin/operacoes/planner"
+                        href={(() => {
+                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
+                          return owner?.freelancer_profile_id
+                            ? `/admin/equipe/${owner.freelancer_profile_id}`
+                            : '/admin/operacoes/planner';
+                        })()}
                         subtitle="Quem precisa agir primeiro"
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
                       />
