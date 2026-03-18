@@ -9,6 +9,7 @@ import { authGuard } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
 import { makeHash } from '../utils/hash';
 import { pool } from '../db';
+import { env } from '../env';
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/auth/request', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
