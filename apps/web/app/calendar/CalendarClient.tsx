@@ -1893,7 +1893,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               eventPropGetter={rbcEventPropGetter}
               dayPropGetter={rbcDayPropGetter}
               components={{ event: CalendarEventContent, month: { dateHeader: CustomDateHeader } }}
-              style={{ height: 720 }}
+              style={{ height: 1100 }}
             />
           </CardContent>
         </Card>
