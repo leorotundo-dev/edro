@@ -48,6 +48,7 @@ import { apiGet } from '@/lib/api';
 type FreelancerStats = {
   profile: {
     id: string;
+    user_id: string;
     display_name: string;
     email: string;
     specialty: string | null;
@@ -419,6 +420,14 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
                     Portfólio
                   </Button>
                 )}
+                <Button
+                  size="small"
+                  startIcon={<IconBriefcase size={13} />}
+                  onClick={() => router.push(`/admin/operacoes/jobs?owner_id=${profile.user_id}`)}
+                  sx={{ fontSize: '0.7rem', py: 0.25 }}
+                >
+                  Ver demandas
+                </Button>
                 <Button size="small" startIcon={<IconEdit size={13} />}
                   onClick={() => router.push('/admin/equipe')}
                   sx={{ fontSize: '0.7rem', py: 0.25 }}>

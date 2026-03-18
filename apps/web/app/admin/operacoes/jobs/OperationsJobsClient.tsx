@@ -82,6 +82,7 @@ export default function OperationsJobsClient() {
   const searchParams = useSearchParams();
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
+  const ownerIdParam = searchParams.get('owner_id') || '';
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -110,6 +111,7 @@ export default function OperationsJobsClient() {
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
+  useEffect(() => { if (ownerIdParam) setOwnerFilter(ownerIdParam); }, [ownerIdParam]);
 
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
