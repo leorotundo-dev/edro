@@ -170,6 +170,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     available_hours_end: z.string().optional().nullable(),
     weekly_capacity_hours: z.number().positive().optional().nullable(),
     contract_type: z.string().optional().nullable(),
+    tools: z.array(z.string()).optional().nullable(),
+    ai_tools: z.array(z.string()).optional().nullable(),
+    experience_level: z.enum(['junior', 'mid', 'senior']).optional().nullable(),
+    max_concurrent_jobs: z.number().int().min(1).max(20).optional().nullable(),
+    portfolio_url: z.string().optional().nullable(),
+    platform_expertise: z.array(z.string()).optional().nullable(),
+    languages: z.array(z.string()).optional().nullable(),
   }).superRefine((body, ctx) => {
     if (!body.user_id && !body.user_email) {
       ctx.addIssue({
@@ -220,8 +227,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     const res = await pool.query(
-      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account, skills, available_days, available_hours_start, available_hours_end, weekly_capacity_hours, contract_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      `INSERT INTO freelancer_profiles (user_id, display_name, specialty, hourly_rate_brl, pix_key, phone, whatsapp_jid, department, role_title, email_personal, notes, cpf, rg, birth_date, bank_name, bank_agency, bank_account, skills, available_days, available_hours_start, available_hours_end, weekly_capacity_hours, contract_type, tools, ai_tools, experience_level, max_concurrent_jobs, portfolio_url, platform_expertise, languages)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
        ON CONFLICT (user_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          specialty = EXCLUDED.specialty,
@@ -245,6 +252,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          available_hours_end = EXCLUDED.available_hours_end,
          weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
          contract_type = EXCLUDED.contract_type,
+         tools = EXCLUDED.tools,
+         ai_tools = EXCLUDED.ai_tools,
+         experience_level = EXCLUDED.experience_level,
+         max_concurrent_jobs = COALESCE(EXCLUDED.max_concurrent_jobs, 3),
+         portfolio_url = EXCLUDED.portfolio_url,
+         platform_expertise = EXCLUDED.platform_expertise,
+         languages = EXCLUDED.languages,
          is_active = true,
          updated_at = now()
        RETURNING *`,
@@ -253,7 +267,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
        body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null,
        body.skills ?? null, body.available_days ?? null, body.available_hours_start ?? null,
-       body.available_hours_end ?? null, body.weekly_capacity_hours ?? null, body.contract_type ?? null],
+       body.available_hours_end ?? null, body.weekly_capacity_hours ?? null, body.contract_type ?? null,
+       body.tools ?? null, body.ai_tools ?? null, body.experience_level ?? null,
+       body.max_concurrent_jobs ?? null, body.portfolio_url ?? null,
+       body.platform_expertise ?? null, body.languages ?? null],
     );
     const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
     if (snapshot) {
@@ -309,6 +326,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     available_hours_end: z.string().optional().nullable(),
     weekly_capacity_hours: z.number().positive().optional().nullable(),
     contract_type: z.string().optional().nullable(),
+    tools: z.array(z.string()).optional().nullable(),
+    ai_tools: z.array(z.string()).optional().nullable(),
+    experience_level: z.enum(['junior', 'mid', 'senior']).optional().nullable(),
+    max_concurrent_jobs: z.number().int().min(1).max(20).optional().nullable(),
+    portfolio_url: z.string().optional().nullable(),
+    platform_expertise: z.array(z.string()).optional().nullable(),
+    languages: z.array(z.string()).optional().nullable(),
   });
 
   app.patch('/freelancers/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -341,6 +365,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (body.available_hours_end  !== undefined) { sets.push(`available_hours_end = $${i++}`);   vals.push(body.available_hours_end); }
     if (body.weekly_capacity_hours !== undefined) { sets.push(`weekly_capacity_hours = $${i++}`); vals.push(body.weekly_capacity_hours); }
     if (body.contract_type       !== undefined) { sets.push(`contract_type = $${i++}`);          vals.push(body.contract_type); }
+    if (body.tools               !== undefined) { sets.push(`tools = $${i++}`);                  vals.push(body.tools); }
+    if (body.ai_tools            !== undefined) { sets.push(`ai_tools = $${i++}`);               vals.push(body.ai_tools); }
+    if (body.experience_level    !== undefined) { sets.push(`experience_level = $${i++}`);       vals.push(body.experience_level); }
+    if (body.max_concurrent_jobs !== undefined) { sets.push(`max_concurrent_jobs = $${i++}`);    vals.push(body.max_concurrent_jobs); }
+    if (body.portfolio_url       !== undefined) { sets.push(`portfolio_url = $${i++}`);          vals.push(body.portfolio_url); }
+    if (body.platform_expertise  !== undefined) { sets.push(`platform_expertise = $${i++}`);     vals.push(body.platform_expertise); }
+    if (body.languages           !== undefined) { sets.push(`languages = $${i++}`);              vals.push(body.languages); }
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     sets.push(`updated_at = now()`);

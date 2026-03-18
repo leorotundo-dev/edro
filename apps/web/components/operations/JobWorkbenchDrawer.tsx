@@ -34,7 +34,9 @@ import {
 import { apiGet, apiPost } from '@/lib/api';
 import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
-import { IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import LinearProgress from '@mui/material/LinearProgress';
+import Tooltip from '@mui/material/Tooltip';
+import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt } from '@tabler/icons-react';
 import {
   AutomationPipeline,
   BlockReason,
@@ -367,6 +369,26 @@ export default function JobWorkbenchDrawer({
   const [clientDirectives, setClientDirectives] = useState<Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }>>([]);
   const [directivesOpen, setDirectivesOpen] = useState(true);
 
+  // ── Allocation proposals ──
+  type AllocationProposal = {
+    freelancerId: string;
+    name: string;
+    specialty: string | null;
+    experienceLevel: string | null;
+    score: number;
+    estimatedMinutes: number;
+    estimatedAvailableAt: string;
+    estimatedCompletionAt: string;
+    currentActiveJobs: number;
+    maxConcurrentJobs: number;
+    punctualityScore: number | null;
+    approvalRate: number | null;
+    jobsCompleted: number;
+    rationale: string;
+  };
+  const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
+  const [loadingProposals, setLoadingProposals] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setForm(buildDraft(job, { jobTypes }));
@@ -403,6 +425,18 @@ export default function JobWorkbenchDrawer({
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [form.client_id]);
+
+  useEffect(() => {
+    setAllocationProposals([]);
+    if (mode !== 'edit' || !detailJob?.id) return;
+    let cancelled = false;
+    setLoadingProposals(true);
+    apiGet<{ data: AllocationProposal[] }>(`/jobs/${detailJob.id}/allocation-proposals`)
+      .then((res) => { if (!cancelled) setAllocationProposals(res?.data ?? []); })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setLoadingProposals(false); });
+    return () => { cancelled = true; };
+  }, [mode, detailJob?.id, form.required_skill]);
 
   const selectedClient = clients.find((item) => item.id === form.client_id) || null;
   const selectedOwner = owners.find((item) => item.id === form.owner_id) || null;
@@ -698,6 +732,88 @@ export default function JobWorkbenchDrawer({
                   )}
                 />
               </Grid>
+              {/* ── Allocation proposals panel ── */}
+              {mode === 'edit' && (loadingProposals || allocationProposals.length > 0) && (
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1.5, bgcolor: 'background.paper' }}>
+                    <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: loadingProposals ? 1 : 1.25 }}>
+                      <IconBolt size={14} color="#E85219" />
+                      <Typography variant="caption" fontWeight={700} color="#E85219">
+                        Quem alocar? — Top {allocationProposals.length} candidatos
+                      </Typography>
+                    </Stack>
+                    {loadingProposals && <LinearProgress sx={{ borderRadius: 1 }} />}
+                    {!loadingProposals && allocationProposals.map((p, idx) => {
+                      const scoreColor = p.score >= 75 ? '#059669' : p.score >= 50 ? '#d97706' : '#dc2626';
+                      const levelLabel: Record<string, string> = { junior: 'Jr', mid: 'Pl', senior: 'Sr' };
+                      const isSelected = form.owner_id === p.freelancerId;
+                      const avail = new Date(p.estimatedAvailableAt);
+                      const comp = new Date(p.estimatedCompletionAt);
+                      const availStr = avail <= new Date() ? 'Disponível agora' : avail.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                      const durH = p.estimatedMinutes >= 60 ? `${Math.round(p.estimatedMinutes / 60)}h` : `${p.estimatedMinutes}min`;
+                      return (
+                        <Tooltip key={p.freelancerId} title={p.rationale} placement="left" arrow>
+                          <Box
+                            onClick={() => {
+                              const owner = owners.find((o) => o.id === p.freelancerId);
+                              if (owner) handleChange('owner_id', owner.id);
+                            }}
+                            sx={{
+                              cursor: 'pointer',
+                              p: 1,
+                              mb: 0.75,
+                              borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: isSelected ? 'rgba(232,82,25,0.5)' : 'divider',
+                              bgcolor: isSelected ? 'rgba(232,82,25,0.06)' : 'action.hover',
+                              '&:hover': { borderColor: 'rgba(232,82,25,0.4)', bgcolor: 'rgba(232,82,25,0.04)' },
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <Box sx={{
+                                width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                                bgcolor: scoreColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <Typography variant="caption" fontWeight={800} sx={{ color: '#fff', fontSize: '0.6rem' }}>
+                                  {idx === 0 ? '★' : `#${idx + 1}`}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Stack direction="row" alignItems="center" spacing={0.5}>
+                                  <Typography variant="caption" fontWeight={700} noWrap>{p.name}</Typography>
+                                  {p.experienceLevel && (
+                                    <Chip label={levelLabel[p.experienceLevel] ?? p.experienceLevel} size="small"
+                                      sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700 }} />
+                                  )}
+                                  {p.punctualityScore != null && (
+                                    <Chip label={`${Math.round(p.punctualityScore)}%`} size="small"
+                                      sx={{ height: 16, fontSize: '0.55rem',
+                                        bgcolor: p.punctualityScore >= 85 ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                                        color: p.punctualityScore >= 85 ? '#059669' : '#d97706' }} />
+                                  )}
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem' }}>
+                                  {availStr} · {durH} · {p.currentActiveJobs}/{p.maxConcurrentJobs} jobs ativos
+                                </Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                <Typography variant="caption" fontWeight={800} sx={{ color: scoreColor, fontSize: '0.75rem' }}>
+                                  {p.score}
+                                </Typography>
+                                <LinearProgress variant="determinate" value={p.score}
+                                  sx={{ width: 36, height: 3, borderRadius: 2, mt: 0.25,
+                                    '& .MuiLinearProgress-bar': { bgcolor: scoreColor } }} />
+                              </Box>
+                            </Stack>
+                          </Box>
+                        </Tooltip>
+                      );
+                    })}
+                  </Box>
+                </Grid>
+              )}
+
               <Grid size={{ xs: 12, md: 4 }}>
                 <Stack spacing={1.5} sx={{ pt: 0.5 }}>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">

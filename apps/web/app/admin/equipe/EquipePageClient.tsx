@@ -85,6 +85,16 @@ type FreelancerProfile = {
   available_hours_end: string | null;
   weekly_capacity_hours: number | null;
   contract_type: string | null;
+  tools: string[] | null;
+  ai_tools: string[] | null;
+  experience_level: 'junior' | 'mid' | 'senior' | null;
+  max_concurrent_jobs: number | null;
+  portfolio_url: string | null;
+  platform_expertise: string[] | null;
+  languages: string[] | null;
+  punctuality_score: number | null;
+  approval_rate: number | null;
+  jobs_completed: number | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -158,6 +168,13 @@ type ContactForm = {
   available_hours_end: string;
   weekly_capacity_hours: string;
   contract_type: string;
+  tools: string[];
+  ai_tools: string[];
+  experience_level: string;
+  max_concurrent_jobs: string;
+  portfolio_url: string;
+  platform_expertise: string[];
+  languages: string[];
 };
 
 const EMPTY_CONTACT_FORM: ContactForm = {
@@ -180,6 +197,13 @@ const EMPTY_CONTACT_FORM: ContactForm = {
   available_hours_end: '',
   weekly_capacity_hours: '',
   contract_type: '',
+  tools: [],
+  ai_tools: [],
+  experience_level: '',
+  max_concurrent_jobs: '',
+  portfolio_url: '',
+  platform_expertise: [],
+  languages: [],
 };
 
 const AVATAR_COLORS = [
@@ -243,6 +267,13 @@ function FreelancerContacts({
       available_hours_end: fl.available_hours_end ?? '',
       weekly_capacity_hours: fl.weekly_capacity_hours != null ? String(fl.weekly_capacity_hours) : '',
       contract_type: fl.contract_type ?? '',
+      tools: fl.tools ?? [],
+      ai_tools: fl.ai_tools ?? [],
+      experience_level: fl.experience_level ?? '',
+      max_concurrent_jobs: fl.max_concurrent_jobs != null ? String(fl.max_concurrent_jobs) : '',
+      portfolio_url: fl.portfolio_url ?? '',
+      platform_expertise: fl.platform_expertise ?? [],
+      languages: fl.languages ?? [],
     });
   };
 
@@ -270,6 +301,13 @@ function FreelancerContacts({
         available_hours_end: form.available_hours_end.trim() || null,
         weekly_capacity_hours: form.weekly_capacity_hours ? Number(form.weekly_capacity_hours) : null,
         contract_type: form.contract_type.trim() || null,
+        tools: form.tools.length > 0 ? form.tools : null,
+        ai_tools: form.ai_tools.length > 0 ? form.ai_tools : null,
+        experience_level: form.experience_level.trim() || null,
+        max_concurrent_jobs: form.max_concurrent_jobs ? Number(form.max_concurrent_jobs) : null,
+        portfolio_url: form.portfolio_url.trim() || null,
+        platform_expertise: form.platform_expertise.length > 0 ? form.platform_expertise : null,
+        languages: form.languages.length > 0 ? form.languages : null,
       });
       setEditingId(null);
       await onUpdated();
@@ -455,6 +493,40 @@ function FreelancerContacts({
                     >
                       {fl.notes}
                     </Typography>
+                  )}
+
+                  {/* Scores + creative capacity badges */}
+                  {!isEditing && (fl.punctuality_score != null || fl.approval_rate != null || fl.experience_level || (fl.skills?.length ?? 0) > 0) && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                      {fl.experience_level && (
+                        <Chip size="small" label={{ junior: 'Jr', mid: 'Pl', senior: 'Sr' }[fl.experience_level] ?? fl.experience_level}
+                          sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700,
+                            bgcolor: fl.experience_level === 'senior' ? 'rgba(69,112,234,0.12)' : fl.experience_level === 'mid' ? 'rgba(245,158,11,0.12)' : 'rgba(156,163,175,0.15)',
+                            color: fl.experience_level === 'senior' ? '#3b5cc6' : fl.experience_level === 'mid' ? '#d97706' : '#6b7280' }} />
+                      )}
+                      {fl.punctuality_score != null && (
+                        <Tooltip title="Pontualidade">
+                          <Chip size="small" icon={<IconClock size={10} />}
+                            label={`${Math.round(fl.punctuality_score)}%`}
+                            sx={{ height: 18, fontSize: '0.62rem',
+                              bgcolor: fl.punctuality_score >= 85 ? 'rgba(16,185,129,0.12)' : fl.punctuality_score >= 65 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+                              color: fl.punctuality_score >= 85 ? '#059669' : fl.punctuality_score >= 65 ? '#d97706' : '#dc2626' }} />
+                        </Tooltip>
+                      )}
+                      {fl.approval_rate != null && (
+                        <Tooltip title="Taxa de aprovação">
+                          <Chip size="small" icon={<IconUserCheck size={10} />}
+                            label={`${Math.round(fl.approval_rate)}%`}
+                            sx={{ height: 18, fontSize: '0.62rem',
+                              bgcolor: fl.approval_rate >= 85 ? 'rgba(16,185,129,0.12)' : fl.approval_rate >= 65 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+                              color: fl.approval_rate >= 85 ? '#059669' : fl.approval_rate >= 65 ? '#d97706' : '#dc2626' }} />
+                        </Tooltip>
+                      )}
+                      {fl.jobs_completed != null && fl.jobs_completed > 0 && (
+                        <Chip size="small" icon={<IconChartBar size={10} />} label={`${fl.jobs_completed} jobs`}
+                          sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'action.hover' }} />
+                      )}
+                    </Stack>
                   )}
 
                   {/* Inline edit form */}
@@ -656,6 +728,82 @@ function FreelancerContacts({
                           value={form.weekly_capacity_hours}
                           onChange={(e) => set({ weekly_capacity_hours: e.target.value })}
                           placeholder="40"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          select fullWidth size="small" label="Nível"
+                          value={form.experience_level}
+                          onChange={(e) => set({ experience_level: e.target.value })}
+                        >
+                          <MenuItem value="">Selecione...</MenuItem>
+                          <MenuItem value="junior">Júnior</MenuItem>
+                          <MenuItem value="mid">Pleno</MenuItem>
+                          <MenuItem value="senior">Sênior</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Max jobs simultâneos" type="number"
+                          value={form.max_concurrent_jobs}
+                          onChange={(e) => set({ max_concurrent_jobs: e.target.value })}
+                          placeholder="3"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Ferramentas</Typography>
+                        <ToggleButtonGroup
+                          value={form.tools}
+                          onChange={(_, v) => set({ tools: v as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {['Figma','Canva','Premiere','After Effects','Photoshop','Illustrator','CapCut','DaVinci'].map((t) => (
+                            <ToggleButton key={t} value={t} size="small" sx={{ fontSize: '0.63rem', py: 0.25, px: 0.75, height: 24 }}>{t}</ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>IAs</Typography>
+                        <ToggleButtonGroup
+                          value={form.ai_tools}
+                          onChange={(_, v) => set({ ai_tools: v as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {['ChatGPT','Claude','Gemini','Midjourney','DALL-E','Sora','ElevenLabs','HeyGen'].map((t) => (
+                            <ToggleButton key={t} value={t} size="small" sx={{ fontSize: '0.63rem', py: 0.25, px: 0.75, height: 24 }}>{t}</ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Plataformas</Typography>
+                        <ToggleButtonGroup
+                          value={form.platform_expertise}
+                          onChange={(_, v) => set({ platform_expertise: v as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {['instagram','tiktok','linkedin','youtube','facebook','pinterest','twitter','threads'].map((p) => (
+                            <ToggleButton key={p} value={p} size="small" sx={{ fontSize: '0.63rem', py: 0.25, px: 0.75, height: 24, textTransform: 'capitalize' }}>{p}</ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Idiomas</Typography>
+                        <ToggleButtonGroup
+                          value={form.languages}
+                          onChange={(_, v) => set({ languages: v as string[] })}
+                          sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                        >
+                          {[{ value: 'pt', label: 'PT' },{ value: 'en', label: 'EN' },{ value: 'es', label: 'ES' }].map((l) => (
+                            <ToggleButton key={l.value} value={l.value} size="small" sx={{ fontSize: '0.63rem', py: 0.25, px: 0.75, height: 24 }}>{l.label}</ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          fullWidth size="small" label="Portfólio URL"
+                          value={form.portfolio_url}
+                          onChange={(e) => set({ portfolio_url: e.target.value })}
+                          placeholder="https://..."
                         />
                       </Grid>
                     </Grid>

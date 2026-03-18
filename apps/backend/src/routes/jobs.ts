@@ -11,6 +11,7 @@ import { enqueueJob } from '../jobs/jobQueue';
 import { getNextJobForOwner, recalculateOwnerETAs } from '../services/jobs/jobAutomationService';
 import { notifyEvent } from '../services/notificationService';
 import { sendWhatsAppText } from '../services/whatsappService';
+import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -627,6 +628,15 @@ export default async function jobsRoutes(app: FastifyInstance) {
         .catch((e: any) => console.error('[jobs] notify client approval failed:', e?.message));
     }
 
+    // ── Score tracking: update freelancer punctuality + approval when job is done ──
+    if ((body.status === 'done' || body.status === 'published') && current.owner_id) {
+      const wasLate = current.deadline_at ? new Date() > new Date(current.deadline_at) : false;
+      const wasRevised = (current.revision_count ?? 0) > 0;
+      updateFreelancerScores(tenantId, jobId, { wasLate, wasRevised }).catch((e: any) =>
+        console.error('[jobs] updateFreelancerScores failed:', e?.message),
+      );
+    }
+
     // ── Automation hook: when job is done, auto-pull next for owner + recalc ETAs ──
     if (body.status === 'done' && current.owner_id) {
       (async () => {
@@ -686,6 +696,19 @@ export default async function jobsRoutes(app: FastifyInstance) {
     }
 
     return { success: true, deleted: jobId };
+  });
+
+  // ── GET /jobs/:jobId/allocation-proposals ──
+  app.get('/jobs/:jobId/allocation-proposals', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    try {
+      const proposals = await proposeAllocations(tenantId, jobId);
+      return { data: proposals };
+    } catch (err: any) {
+      if (err.message === 'job_not_found') return reply.status(404).send({ error: 'Job não encontrado.' });
+      throw err;
+    }
   });
 
   // ── GET /jobs/:jobId/creative-drafts ──
