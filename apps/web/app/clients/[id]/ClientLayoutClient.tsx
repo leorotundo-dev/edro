@@ -82,6 +82,7 @@ const CLIENT_TABS = [
   { label: 'Inteligência',  path: '/inteligencia' },
   { label: 'Métricas',      path: '/metricas' },
   { label: 'Reuniões',      path: '/meetings' },
+  { label: 'Demandas',      path: '/demandas' },
   { label: 'Financeiro',    path: '/financeiro' },
   { label: 'WhatsApp',      path: '/whatsapp' },
   { label: 'Perfil',        path: '/perfil' },
