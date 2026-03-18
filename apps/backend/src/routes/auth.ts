@@ -195,9 +195,9 @@ export default async function authRoutes(app: FastifyInstance) {
 
     if (!delivery.ok) {
       console.error('[magic-link] email delivery failed:', delivery.error, '| to:', normalized);
-      // In production, surface the error so the user knows the code wasn't sent.
-      // Internal portals (freelancer/client) can afford explicit feedback.
-      if (env.NODE_ENV === 'production') {
+      // In production without echo mode, surface the error explicitly.
+      // When EDRO_LOGIN_ECHO_CODE=true, fall through and return the code on screen.
+      if (env.NODE_ENV === 'production' && !env.EDRO_LOGIN_ECHO_CODE) {
         return reply.status(503).send({ ok: false, error: 'Falha ao enviar e-mail. Tente novamente ou entre em contato com o suporte.' });
       }
     } else {
@@ -206,7 +206,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const resp: any = { ok: true };
     // Echo code in dev/staging or when EDRO_LOGIN_ECHO_CODE=true
-    if (env.NODE_ENV !== 'production' || env.EDRO_LOGIN_ECHO_CODE || !delivery.ok) resp.code = code;
+    if (env.NODE_ENV !== 'production' || env.EDRO_LOGIN_ECHO_CODE) resp.code = code;
     return reply.send(resp);
   });
 
