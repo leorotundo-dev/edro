@@ -12,6 +12,7 @@ import { getNextJobForOwner, recalculateOwnerETAs } from '../services/jobs/jobAu
 import { notifyEvent } from '../services/notificationService';
 import { sendWhatsAppText } from '../services/whatsappService';
 import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
+import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -216,6 +217,23 @@ async function getSupportData(tenantId: string) {
 export default async function jobsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
+
+  // ── GET /jobs/calibration ── estimation accuracy report
+  app.get('/jobs/calibration', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { days } = request.query as { days?: string };
+    const report = await generateCalibrationReport(tenantId, days ? Number(days) : 90);
+    return { data: report };
+  });
+
+  // ── GET /jobs/calibration/estimate ── single calibrated estimate
+  app.get('/jobs/calibration/estimate', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { job_type, complexity } = request.query as { job_type: string; complexity: string };
+    if (!job_type || !complexity) return { data: null };
+    const result = await getCalibratedEstimate(tenantId, job_type, complexity);
+    return { data: result };
+  });
 
   app.post('/jobs/sync-sources', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
@@ -605,14 +623,37 @@ export default async function jobsRoutes(app: FastifyInstance) {
     const completedAt = body.status === 'done' ? new Date().toISOString() : current.completed_at;
     const archivedAt = body.status === 'archived' ? new Date().toISOString() : current.archived_at;
 
+    // revision_count: increment every time job is sent back to in_review (re-review)
+    const isReReview = body.status === 'in_review' && current.status !== 'in_review';
+    const hadPreviousReview = isReReview && (current.revision_count ?? 0) > 0;
+    const revisionIncrement = hadPreviousReview ? 1 : 0;
+
+    // actual_minutes: compute elapsed time from first in_progress → done
+    let actualMinutes: number | null = current.actual_minutes ?? null;
+    if (body.status === 'done' && !actualMinutes) {
+      const startRow = await query<{ changed_at: string }>(
+        `SELECT changed_at FROM job_status_history
+          WHERE job_id = $1 AND to_status = 'in_progress'
+          ORDER BY changed_at ASC LIMIT 1`,
+        [jobId]
+      );
+      if (startRow.rows[0]) {
+        actualMinutes = Math.round(
+          (Date.now() - new Date(startRow.rows[0].changed_at).getTime()) / 60000
+        );
+      }
+    }
+
     const { rows } = await query(
       `UPDATE jobs
           SET status = $3,
               completed_at = $4,
-              archived_at = $5
+              archived_at = $5,
+              revision_count = revision_count + $6,
+              actual_minutes = COALESCE($7, actual_minutes)
         WHERE tenant_id = $1 AND id = $2
         RETURNING *`,
-      [tenantId, jobId, body.status, completedAt, archivedAt]
+      [tenantId, jobId, body.status, completedAt, archivedAt, revisionIncrement, actualMinutes]
     );
 
     await query(
@@ -742,5 +783,85 @@ export default async function jobsRoutes(app: FastifyInstance) {
     await enqueueJob(tenantId, 'job_automation', { jobId, step: body.step });
 
     return { success: true, step: body.step };
+  });
+
+  // ── POST /jobs/:jobId/creative-drafts/:draftId/approve ──
+  app.post('/jobs/:jobId/creative-drafts/:draftId/approve', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+    const { jobId, draftId } = request.params as { jobId: string; draftId: string };
+
+    const { rows } = await query(
+      `UPDATE job_creative_drafts
+          SET draft_approved_by = $3,
+              draft_approved_at = now(),
+              approval_status = 'approved'
+        WHERE tenant_id = $1 AND id = $2 AND job_id = $4
+        RETURNING *`,
+      [tenantId, draftId, userId, jobId]
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Rascunho não encontrado.' });
+
+    // If job is still in_review, auto-advance to approved
+    const jobRes = await query(
+      `SELECT status FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [tenantId, jobId]
+    );
+    if (jobRes.rows[0]?.status === 'in_review') {
+      await query(
+        `UPDATE jobs SET status = 'approved' WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, jobId]
+      );
+      await query(
+        `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
+         VALUES ($1, 'in_review', 'approved', $2, 'draft_approved')`,
+        [jobId, userId]
+      );
+      await syncOperationalRuntimeForJob(tenantId, jobId);
+    }
+
+    return { success: true, draft: rows[0] };
+  });
+
+  // ── POST /jobs/:jobId/creative-drafts/:draftId/reject ──
+  app.post('/jobs/:jobId/creative-drafts/:draftId/reject', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+    const { jobId, draftId } = request.params as { jobId: string; draftId: string };
+    const { reason } = z.object({ reason: z.string().max(500).optional() }).parse(request.body ?? {});
+
+    const { rows } = await query(
+      `UPDATE job_creative_drafts
+          SET approval_status = 'rejected',
+              draft_approved_by = NULL,
+              draft_approved_at = NULL
+        WHERE tenant_id = $1 AND id = $2 AND job_id = $3
+        RETURNING *`,
+      [tenantId, draftId, jobId]
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Rascunho não encontrado.' });
+
+    // Send back to in_progress (needs revision)
+    const jobRes = await query(
+      `SELECT status, revision_count FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [tenantId, jobId]
+    );
+    if (jobRes.rows[0] && ['in_review', 'approved'].includes(jobRes.rows[0].status)) {
+      await query(
+        `UPDATE jobs
+            SET status = 'in_progress',
+                revision_count = revision_count + 1
+          WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, jobId]
+      );
+      await query(
+        `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
+         VALUES ($1, $2, 'in_progress', $3, $4)`,
+        [jobId, jobRes.rows[0].status, userId, reason ?? 'draft_rejected']
+      );
+      await syncOperationalRuntimeForJob(tenantId, jobId);
+    }
+
+    return { success: true, draft: rows[0] };
   });
 }

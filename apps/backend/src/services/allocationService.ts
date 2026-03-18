@@ -252,6 +252,7 @@ export async function proposeAllocations(
        fp.approval_rate,
        fp.jobs_completed,
        fp.platform_expertise,
+       fp.unavailable_until,
        tu.user_id,
        COALESCE(wl.active_jobs, 0)         AS active_jobs,
        COALESCE(wl.active_minutes, 0)      AS active_minutes_this_week
@@ -266,7 +267,8 @@ export async function proposeAllocations(
         AND j.owner_id  = fp.user_id
         AND j.status NOT IN ('done', 'published', 'archived', 'cancelled')
      ) wl ON true
-    WHERE fp.is_active = true`,
+    WHERE fp.is_active = true
+      AND (fp.unavailable_until IS NULL OR fp.unavailable_until < CURRENT_DATE)`,
     [tenantId],
   );
 

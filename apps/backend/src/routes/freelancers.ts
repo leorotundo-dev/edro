@@ -177,6 +177,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     portfolio_url: z.string().optional().nullable(),
     platform_expertise: z.array(z.string()).optional().nullable(),
     languages: z.array(z.string()).optional().nullable(),
+    unavailable_until: z.string().optional().nullable(), // ISO date YYYY-MM-DD
   }).superRefine((body, ctx) => {
     if (!body.user_id && !body.user_email) {
       ctx.addIssue({
@@ -333,6 +334,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     portfolio_url: z.string().optional().nullable(),
     platform_expertise: z.array(z.string()).optional().nullable(),
     languages: z.array(z.string()).optional().nullable(),
+    unavailable_until: z.string().optional().nullable(),
   });
 
   app.patch('/freelancers/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -372,6 +374,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (body.portfolio_url       !== undefined) { sets.push(`portfolio_url = $${i++}`);          vals.push(body.portfolio_url); }
     if (body.platform_expertise  !== undefined) { sets.push(`platform_expertise = $${i++}`);     vals.push(body.platform_expertise); }
     if (body.languages           !== undefined) { sets.push(`languages = $${i++}`);              vals.push(body.languages); }
+    if (body.unavailable_until   !== undefined) { sets.push(`unavailable_until = $${i++}`);      vals.push(body.unavailable_until ? new Date(body.unavailable_until) : null); }
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     sets.push(`updated_at = now()`);

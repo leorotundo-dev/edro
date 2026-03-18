@@ -95,6 +95,7 @@ type FreelancerProfile = {
   punctuality_score: number | null;
   approval_rate: number | null;
   jobs_completed: number | null;
+  unavailable_until: string | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -175,6 +176,7 @@ type ContactForm = {
   portfolio_url: string;
   platform_expertise: string[];
   languages: string[];
+  unavailable_until: string;
 };
 
 const EMPTY_CONTACT_FORM: ContactForm = {
@@ -204,6 +206,7 @@ const EMPTY_CONTACT_FORM: ContactForm = {
   portfolio_url: '',
   platform_expertise: [],
   languages: [],
+  unavailable_until: '',
 };
 
 const AVATAR_COLORS = [
@@ -274,6 +277,7 @@ function FreelancerContacts({
       portfolio_url: fl.portfolio_url ?? '',
       platform_expertise: fl.platform_expertise ?? [],
       languages: fl.languages ?? [],
+      unavailable_until: fl.unavailable_until ? fl.unavailable_until.slice(0, 10) : '',
     });
   };
 
@@ -308,6 +312,7 @@ function FreelancerContacts({
         portfolio_url: form.portfolio_url.trim() || null,
         platform_expertise: form.platform_expertise.length > 0 ? form.platform_expertise : null,
         languages: form.languages.length > 0 ? form.languages : null,
+        unavailable_until: form.unavailable_until.trim() || null,
       });
       setEditingId(null);
       await onUpdated();
@@ -527,6 +532,15 @@ function FreelancerContacts({
                           sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'action.hover' }} />
                       )}
                     </Stack>
+                  )}
+
+                  {/* Unavailability banner */}
+                  {!isEditing && fl.unavailable_until && new Date(fl.unavailable_until) >= new Date() && (
+                    <Box sx={{ mt: 1, px: 1, py: 0.5, borderRadius: 1, bgcolor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>
+                        Indisponível até {new Date(fl.unavailable_until).toLocaleDateString('pt-BR')}
+                      </Typography>
+                    </Box>
                   )}
 
                   {/* Inline edit form */}
@@ -798,12 +812,21 @@ function FreelancerContacts({
                           ))}
                         </ToggleButtonGroup>
                       </Grid>
-                      <Grid size={{ xs: 12 }}>
+                      <Grid size={{ xs: 12, sm: 6 }}>
                         <TextField
                           fullWidth size="small" label="Portfólio URL"
                           value={form.portfolio_url}
                           onChange={(e) => set({ portfolio_url: e.target.value })}
                           placeholder="https://..."
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth size="small" label="Indisponível até" type="date"
+                          value={form.unavailable_until}
+                          onChange={(e) => set({ unavailable_until: e.target.value })}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                          helperText="Férias ou afastamento"
                         />
                       </Grid>
                     </Grid>

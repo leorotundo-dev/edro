@@ -36,7 +36,7 @@ import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import LinearProgress from '@mui/material/LinearProgress';
 import Tooltip from '@mui/material/Tooltip';
-import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt } from '@tabler/icons-react';
+import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt, IconCheck, IconX as IconXMark } from '@tabler/icons-react';
 import {
   AutomationPipeline,
   BlockReason,
@@ -83,6 +83,9 @@ type CreativeDraft = {
   id: string;
   draft_type: 'copy' | 'image' | 'layout';
   status: string;
+  approval_status?: string | null;
+  draft_approved_by?: string | null;
+  draft_approved_at?: string | null;
   hook_text?: string | null;
   content_text?: string | null;
   cta_text?: string | null;
@@ -114,6 +117,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
   const [drafts, setDrafts] = useState<CreativeDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -138,6 +142,22 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
     } finally {
       setRegenerating(null);
     }
+  };
+
+  const handleApprove = async (draftId: string) => {
+    setApproving(draftId);
+    try {
+      await apiPost(`/jobs/${jobId}/creative-drafts/${draftId}/approve`, {});
+      await fetchDrafts();
+    } catch { /* silent */ } finally { setApproving(null); }
+  };
+
+  const handleReject = async (draftId: string) => {
+    setApproving(`reject_${draftId}`);
+    try {
+      await apiPost(`/jobs/${jobId}/creative-drafts/${draftId}/reject`, { reason: 'needs_revision' });
+      await fetchDrafts();
+    } catch { /* silent */ } finally { setApproving(null); }
   };
 
   const copyDraft = drafts.find((d) => d.draft_type === 'copy' && d.status === 'done');
@@ -195,16 +215,34 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
               <FoggBar label="Gatilho" value={copyDraft.fogg_score.trigger} />
             </Stack>
           ) : null}
-          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-            <Button size="small" variant="contained" color="success" startIcon={<IconThumbUp size={14} />}>
-              Usar
-            </Button>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.5 }}>
+            {copyDraft.draft_approved_at ? (
+              <Chip size="small" icon={<IconCheck size={11} />} label="Aprovado" color="success"
+                sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+            ) : (
+              <>
+                <Button size="small" variant="contained" color="success"
+                  startIcon={approving === copyDraft.id ? undefined : <IconThumbUp size={14} />}
+                  disabled={!!approving}
+                  onClick={() => handleApprove(copyDraft.id)}
+                >
+                  {approving === copyDraft.id ? 'Aprovando...' : 'Aprovar'}
+                </Button>
+                <Button size="small" variant="outlined" color="error"
+                  startIcon={<IconXMark size={14} />}
+                  disabled={!!approving}
+                  onClick={() => handleReject(copyDraft.id)}
+                >
+                  Rejeitar
+                </Button>
+              </>
+            )}
             <Button
               size="small"
               variant="outlined"
               startIcon={<IconRefresh size={14} />}
               onClick={() => handleRegenerate('copy')}
-              disabled={regenerating === 'copy'}
+              disabled={!!regenerating}
             >
               {regenerating === 'copy' ? 'Gerando...' : 'Regenerar'}
             </Button>
@@ -234,16 +272,34 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
             alt="Rascunho visual"
             sx={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'cover' }}
           />
-          <Stack direction="row" spacing={1} sx={{ p: 1.5 }}>
-            <Button size="small" variant="contained" color="success" startIcon={<IconThumbUp size={14} />}>
-              Usar
-            </Button>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5 }}>
+            {imageDraft.draft_approved_at ? (
+              <Chip size="small" icon={<IconCheck size={11} />} label="Aprovada" color="success"
+                sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+            ) : (
+              <>
+                <Button size="small" variant="contained" color="success"
+                  startIcon={approving === imageDraft.id ? undefined : <IconThumbUp size={14} />}
+                  disabled={!!approving}
+                  onClick={() => handleApprove(imageDraft.id)}
+                >
+                  {approving === imageDraft.id ? 'Aprovando...' : 'Aprovar'}
+                </Button>
+                <Button size="small" variant="outlined" color="error"
+                  startIcon={<IconXMark size={14} />}
+                  disabled={!!approving}
+                  onClick={() => handleReject(imageDraft.id)}
+                >
+                  Rejeitar
+                </Button>
+              </>
+            )}
             <Button
               size="small"
               variant="outlined"
               startIcon={<IconRefresh size={14} />}
               onClick={() => handleRegenerate('image')}
-              disabled={regenerating === 'image'}
+              disabled={!!regenerating}
             >
               {regenerating === 'image' ? 'Gerando...' : 'Regenerar'}
             </Button>

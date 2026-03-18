@@ -669,10 +669,20 @@ export function AutomationPipeline({
                 color: dotColor,
                 border: `1.5px solid ${alpha(dotColor, done ? 0.5 : active ? 0.4 : 0.15)}`,
                 transition: 'all 200ms ease',
-                ...(loading && { opacity: 0.5 }),
+                ...(loading && {
+                  animation: 'ai-pulse 1.2s ease-in-out infinite',
+                  '@keyframes ai-pulse': {
+                    '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                    '50%': { opacity: 0.55, transform: 'scale(0.92)' },
+                  },
+                }),
               }}
             >
-              {loading ? <IconLoader2 size={compact ? 10 : 12} /> : step.icon}
+              {loading
+                ? <Box sx={{ animation: 'spin 1s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } }, display: 'flex' }}>
+                    <IconLoader2 size={compact ? 10 : 12} />
+                  </Box>
+                : step.icon}
             </Box>
             {!compact && (
               <Typography
@@ -682,9 +692,10 @@ export function AutomationPipeline({
                   fontWeight: done || active ? 800 : 500,
                   color: done ? '#13DEB9' : active ? dotColor : 'text.disabled',
                   lineHeight: 1,
+                  ...(loading && { animation: 'text-blink 1.4s ease-in-out infinite', '@keyframes text-blink': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }),
                 }}
               >
-                {step.label}
+                {loading ? `${step.label}...` : step.label}
               </Typography>
             )}
           </Stack>
