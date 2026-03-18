@@ -1356,7 +1356,8 @@ export default async function edroRoutes(app: FastifyInstance) {
   // PATCH /edro/briefings/:id/archive - Archive a briefing
   app.patch('/edro/briefings/:id/archive', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const briefing = await archiveBriefing(id);
+    const tenantId = (request as any).user?.tenant_id as string | undefined;
+    const briefing = await archiveBriefing(id, tenantId);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
     return reply.send({ success: true, data: briefing });
   });

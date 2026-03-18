@@ -19,16 +19,15 @@ export async function issueRefreshToken(userId: string, rawToken: string, days =
 
 export async function rotateRefreshToken(userId: string, oldToken: string, newToken: string) {
   const oldHash = hashToken(oldToken);
+  // Atomic: revoke and verify in one query — prevents concurrent reuse of the same token
   const { rows } = await query<{ id: string }>(
-    `SELECT id FROM refresh_tokens
+    `UPDATE refresh_tokens SET revoked=true
      WHERE user_id=$1 AND token_hash=$2 AND revoked=false AND expires_at > now()
-     LIMIT 1`,
+     RETURNING id`,
     [userId, oldHash]
   );
 
   if (!rows[0]) throw new Error('invalid_refresh');
-
-  await query(`UPDATE refresh_tokens SET revoked=true WHERE id=$1`, [rows[0].id]);
   return issueRefreshToken(userId, newToken, 14);
 }
 

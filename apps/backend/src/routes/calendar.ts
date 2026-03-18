@@ -1247,9 +1247,10 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const eventId = String(request.params.eventId || '');
       const body = request.body || {};
       const tenantId = (request.user as any).tenant_id;
-      const { rows } = await query<any>(`SELECT id, name, base_relevance FROM events WHERE id=$1 LIMIT 1`, [eventId]);
+      const { rows } = await query<any>(`SELECT id, name, base_relevance, tenant_id FROM events WHERE id=$1 LIMIT 1`, [eventId]);
       const ev = rows[0];
       if (!ev) return reply.status(404).send({ error: 'event_not_found' });
+      if (ev.tenant_id && ev.tenant_id !== tenantId) return reply.status(403).send({ error: 'cannot_edit_another_tenants_event' });
       const newName = (body.name?.trim()) ?? ev.name;
       const newRelevance = body.relevance_score !== undefined ? Math.max(0, Math.min(100, Math.round(Number(body.relevance_score)))) : ev.base_relevance;
       await query(`UPDATE events SET name=$1, base_relevance=$2, updated_at=NOW() WHERE id=$3`, [newName, newRelevance, eventId]);
@@ -1260,7 +1261,12 @@ export default async function calendarRoutes(app: FastifyInstance) {
     '/calendar/events/:eventId/manual',
     { preHandler: [requirePerm('calendars:write')] },
     async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
       const eventId = String(request.params.eventId || '');
+      const { rows } = await query<any>(`SELECT id, tenant_id FROM events WHERE id=$1 LIMIT 1`, [eventId]);
+      const ev = rows[0];
+      if (!ev) return reply.status(404).send({ error: 'event_not_found' });
+      if (ev.tenant_id && ev.tenant_id !== tenantId) return reply.status(403).send({ error: 'cannot_delete_another_tenants_event' });
       await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id=$1`, [eventId]);
       await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id=$1`, [eventId]);
       await query(`UPDATE events SET status='deleted', updated_at=NOW() WHERE id=$1`, [eventId]);

@@ -22,10 +22,16 @@ export async function enqueueJob(
 
 export async function fetchJobs(type: string, limit = 5) {
   const { rows } = await query<any>(
-    `SELECT * FROM job_queue
-     WHERE status='queued' AND scheduled_for <= NOW() AND type=$1
-     ORDER BY created_at ASC
-     LIMIT $2`,
+    `UPDATE job_queue
+     SET status='processing', updated_at=NOW(), attempts=attempts+1
+     WHERE id IN (
+       SELECT id FROM job_queue
+       WHERE status='queued' AND scheduled_for <= NOW() AND type=$1
+       ORDER BY created_at ASC
+       LIMIT $2
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING *`,
     [type, limit]
   );
   return rows;
@@ -33,10 +39,12 @@ export async function fetchJobs(type: string, limit = 5) {
 
 export async function markJob(id: string, status: 'processing' | 'done' | 'failed', error?: string): Promise<boolean> {
   if (status === 'processing') {
+    // Accept both 'queued' and 'processing' so fetchJobs (which already marks atomically)
+    // and legacy markJob callers both work correctly without double-increment attempts.
     const { rows } = await query<{ id: string }>(
       `UPDATE job_queue
-       SET status='processing', error_message=NULL, updated_at=NOW(), attempts=attempts+1
-       WHERE id=$1 AND status='queued'
+       SET status='processing', error_message=NULL, updated_at=NOW()
+       WHERE id=$1 AND status IN ('queued', 'processing')
        RETURNING id`,
       [id]
     );

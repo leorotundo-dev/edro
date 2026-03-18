@@ -158,6 +158,7 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.patch('/financial/contracts/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const tenantId = (request as any).user?.tenant_id;
     const body = contractSchema.partial().parse(request.body);
     const sets: string[] = [];
     const vals: any[] = [];
@@ -168,8 +169,9 @@ export default async function financialRoutes(app: FastifyInstance) {
     }
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     vals.push(id);
+    vals.push(tenantId);
     const res = await pool.query(
-      `UPDATE service_contracts SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, vals,
+      `UPDATE service_contracts SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING *`, vals,
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);
@@ -242,6 +244,7 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.patch('/financial/proposals/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const tenantId = (request as any).user?.tenant_id;
     const body = proposalSchema.partial().parse(request.body);
 
     // Recalculate totals if items changed
@@ -268,8 +271,9 @@ export default async function financialRoutes(app: FastifyInstance) {
 
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     vals.push(id);
+    vals.push(tenantId);
     const res = await pool.query(
-      `UPDATE proposals SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, vals,
+      `UPDATE proposals SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING *`, vals,
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);
@@ -278,11 +282,12 @@ export default async function financialRoutes(app: FastifyInstance) {
   // Send proposal — generates accept_token
   app.post('/financial/proposals/:id/send', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const tenantId = (request as any).user?.tenant_id;
     const token = crypto.randomUUID();
     const res = await pool.query(
       `UPDATE proposals SET status = 'sent', sent_at = NOW(), accept_token = $1
-       WHERE id = $2 AND status = 'draft' RETURNING *`,
-      [token, id],
+       WHERE id = $2 AND status = 'draft' AND tenant_id = $3 RETURNING *`,
+      [token, id, tenantId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found or already sent' });
     const proposal = res.rows[0];
@@ -401,6 +406,7 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.patch('/financial/invoices/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const tenantId = (request as any).user?.tenant_id;
     const body = invoiceSchema.partial().parse(request.body);
     const sets: string[] = [];
     const vals: any[] = [];
@@ -411,8 +417,9 @@ export default async function financialRoutes(app: FastifyInstance) {
     }
     if (!sets.length) return reply.status(400).send({ error: 'Nothing to update' });
     vals.push(id);
+    vals.push(tenantId);
     const res = await pool.query(
-      `UPDATE invoices SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, vals,
+      `UPDATE invoices SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING *`, vals,
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);
@@ -454,14 +461,14 @@ export default async function financialRoutes(app: FastifyInstance) {
       infAdic: { cObs: invoice.notes ?? undefined },
     });
 
-    await pool.query(`UPDATE invoices SET omie_os_id = $1, status = 'sent' WHERE id = $2`, [osRes.nCodOS, id]);
+    await pool.query(`UPDATE invoices SET omie_os_id = $1, status = 'sent' WHERE id = $2 AND tenant_id = $3`, [osRes.nCodOS, id, invoice.tenant_id]);
     return reply.send({ omie_os_id: osRes.nCodOS });
   });
 
   // Emit NFS-e
   app.post('/financial/invoices/:id/emit-nfe', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
-    const inv = await pool.query(`SELECT omie_os_id FROM invoices WHERE id = $1`, [id]);
+    const inv = await pool.query(`SELECT omie_os_id, tenant_id FROM invoices WHERE id = $1`, [id]);
     if (!inv.rows.length) return reply.status(404).send({ error: 'Not found' });
     const { omie_os_id } = inv.rows[0];
     if (!omie_os_id) return reply.status(400).send({ error: 'OS not created in Omie yet. Run send-omie first.' });
@@ -470,8 +477,8 @@ export default async function financialRoutes(app: FastifyInstance) {
 
     const nfeRes = await omieClient.emitirNFSe(omie_os_id);
     await pool.query(
-      `UPDATE invoices SET omie_nfe_id = $1, omie_nfe_numero = $2 WHERE id = $3`,
-      [nfeRes.nCodNFe, String(nfeRes.nNumNFe), id],
+      `UPDATE invoices SET omie_nfe_id = $1, omie_nfe_numero = $2 WHERE id = $3 AND tenant_id = $4`,
+      [nfeRes.nCodNFe, String(nfeRes.nNumNFe), id, inv.rows[0].tenant_id],
     );
     return reply.send({ omie_nfe_id: nfeRes.nCodNFe, nfe_numero: nfeRes.nNumNFe, status: nfeRes.cSitNFe });
   });
@@ -479,10 +486,11 @@ export default async function financialRoutes(app: FastifyInstance) {
   // Mark paid
   app.post('/financial/invoices/:id/mark-paid', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const tenantId = (request as any).user?.tenant_id;
     const { paid_at } = z.object({ paid_at: z.string().optional() }).parse(request.body ?? {});
     const res = await pool.query(
-      `UPDATE invoices SET status = 'paid', paid_at = $1 WHERE id = $2 RETURNING *`,
-      [paid_at ? new Date(paid_at) : new Date(), id],
+      `UPDATE invoices SET status = 'paid', paid_at = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      [paid_at ? new Date(paid_at) : new Date(), id, tenantId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);

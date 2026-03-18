@@ -447,7 +447,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
     const VISUAL_JOB_TYPES = ['copy', 'design_static', 'design_carousel', 'campaign', 'stories', 'reels', 'video'];
     if (VISUAL_JOB_TYPES.includes(body.job_type) && body.client_id) {
       enqueueJob(tenantId, 'job_automation', { jobId: rows[0].id, step: 'copy' }).catch(() => {});
-      query(`UPDATE jobs SET automation_status = 'copy_pending' WHERE id = $1`, [rows[0].id]).catch(() => {});
+      query(`UPDATE jobs SET automation_status = 'copy_pending' WHERE id = $1 AND tenant_id = $2`, [rows[0].id, tenantId]).catch(() => {});
     }
 
     return reply.status(201).send({ data: rows[0] });
@@ -715,7 +715,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
     }
 
     const automationStatus = body.step === 'copy' ? 'copy_pending' : 'image_pending';
-    await query(`UPDATE jobs SET automation_status = $2 WHERE id = $1`, [jobId, automationStatus]);
+    await query(`UPDATE jobs SET automation_status = $2 WHERE id = $1 AND tenant_id = $3`, [jobId, automationStatus, tenantId]);
     await enqueueJob(tenantId, 'job_automation', { jobId, step: body.step });
 
     return { success: true, step: body.step };

@@ -353,10 +353,12 @@ export async function deleteBriefing(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function archiveBriefing(id: string): Promise<EdroBriefing | null> {
+export async function archiveBriefing(id: string, tenantId?: string): Promise<EdroBriefing | null> {
   const { rows } = await query<EdroBriefing>(
-    `UPDATE edro_briefings SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING *`,
-    [id]
+    tenantId
+      ? `UPDATE edro_briefings SET status = 'archived', updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING *`
+      : `UPDATE edro_briefings SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING *`,
+    tenantId ? [id, tenantId] : [id]
   );
   return rows[0] ?? null;
 }

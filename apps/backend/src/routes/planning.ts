@@ -1886,7 +1886,8 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
     preHandler: [authGuard, tenantGuard()],
   }, async (request, reply) => {
     const { briefingId } = request.params;
-    const briefing = await archiveBriefing(briefingId);
+    const tenantId = (request as any).user?.tenant_id as string | undefined;
+    const briefing = await archiveBriefing(briefingId, tenantId);
     if (!briefing) return reply.status(404).send({ error: 'not_found' });
     return reply.send(briefing);
   });
