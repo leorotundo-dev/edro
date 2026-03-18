@@ -798,7 +798,8 @@ async function buildOperationalCalendarDays(params: {
          LEFT JOIN clients c ON c.id::text = COALESCE(m.client_id::text, jq.payload->>'clientId', jq.payload->>'client_id')
         WHERE caj.tenant_id = $1
           AND caj.scheduled_at >= $2::date
-          AND caj.scheduled_at < ($2::date + INTERVAL '1 month')`,
+          AND caj.scheduled_at < ($2::date + INTERVAL '1 month')
+          AND caj.meeting_id IS NULL`,
     ),
     autoJoinValues,
   );
