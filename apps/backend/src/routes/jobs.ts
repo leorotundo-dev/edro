@@ -195,6 +195,8 @@ async function getSupportData(tenantId: string) {
          u.email,
          tu.role,
          fp.specialty,
+         fp.skills,
+         fp.id AS freelancer_profile_id,
          CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type
        FROM tenant_users tu
        JOIN edro_users u ON u.id = tu.user_id

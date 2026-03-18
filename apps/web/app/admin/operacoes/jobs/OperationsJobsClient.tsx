@@ -434,7 +434,13 @@ export default function OperationsJobsClient() {
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
                       <EntityLinkCard label="Responsável" value={selectedJob.owner_name || 'Sem responsável'}
-                        href="/admin/operacoes/planner" subtitle={formatSkillLabel(selectedJob.required_skill)}
+                        href={(() => {
+                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
+                          return owner?.freelancer_profile_id
+                            ? `/admin/equipe/${owner.freelancer_profile_id}`
+                            : '/admin/operacoes/planner';
+                        })()}
+                        subtitle={formatSkillLabel(selectedJob.required_skill)}
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>

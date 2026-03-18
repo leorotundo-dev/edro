@@ -75,6 +75,7 @@ export type OperationsOwner = {
   specialty?: string | null;
   skills?: string[] | null;
   person_type?: 'internal' | 'freelancer';
+  freelancer_profile_id?: string | null;
 };
 
 const ESTIMATE_MATRIX: Record<string, Record<'s' | 'm' | 'l', number>> = {
