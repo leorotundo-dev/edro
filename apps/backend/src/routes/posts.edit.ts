@@ -46,8 +46,8 @@ export default async function postEditRoutes(app: FastifyInstance) {
       const diff = jsonDiff(current.payload ?? {}, body.payload ?? {});
 
       await query(
-        `UPDATE post_assets SET payload=$2::jsonb, updated_at=now() WHERE id=$1`,
-        [params.postAssetId, JSON.stringify(body.payload ?? {})]
+        `UPDATE post_assets SET payload=$2::jsonb, updated_at=now() WHERE id=$1 AND tenant_id=$3`,
+        [params.postAssetId, JSON.stringify(body.payload ?? {}), (request.user as any).tenant_id]
       );
 
       const version = await createPostVersion({

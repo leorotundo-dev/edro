@@ -55,15 +55,16 @@ export default async function webhooksRoutes(app: FastifyInstance) {
         `UPDATE publish_queue SET status='published', updated_at=now(), error_message=NULL WHERE id=$1`,
         [jobId]
       );
-      const { rows } = await query<{ post_asset_id: string }>(
-        `SELECT post_asset_id FROM publish_queue WHERE id=$1`,
+      const { rows } = await query<{ post_asset_id: string; tenant_id: string }>(
+        `SELECT post_asset_id, tenant_id FROM publish_queue WHERE id=$1`,
         [jobId]
       );
       const postId = rows[0]?.post_asset_id;
-      if (postId) {
+      const tenantId = rows[0]?.tenant_id;
+      if (postId && tenantId) {
         await query(
-          `UPDATE post_assets SET status='published', published_at=now(), updated_at=now() WHERE id=$1`,
-          [postId]
+          `UPDATE post_assets SET status='published', published_at=now(), updated_at=now() WHERE id=$1 AND tenant_id=$2`,
+          [postId, tenantId]
         );
       }
     } else {

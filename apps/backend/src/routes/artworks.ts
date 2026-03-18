@@ -209,8 +209,10 @@ export default async function artworksRoutes(app: FastifyInstance) {
       await pool.query(
         `UPDATE briefing_artworks
          SET status = 'approved', approved_at = NOW(), revision_comment = NULL
-         WHERE id = $1`,
-        [id],
+         WHERE id = $1 AND EXISTS (
+           SELECT 1 FROM edro_briefings b WHERE b.id = briefing_id AND b.main_client_id = $2
+         )`,
+        [id, clientId],
       );
 
       return reply.send({ ok: true });
@@ -239,8 +241,10 @@ export default async function artworksRoutes(app: FastifyInstance) {
       await pool.query(
         `UPDATE briefing_artworks
          SET status = 'revision', revision_comment = $1, approved_at = NULL
-         WHERE id = $2`,
-        [comment, id],
+         WHERE id = $2 AND EXISTS (
+           SELECT 1 FROM edro_briefings b WHERE b.id = briefing_id AND b.main_client_id = $3
+         )`,
+        [comment, id, clientId],
       );
 
       return reply.send({ ok: true });
