@@ -526,7 +526,7 @@ export default function PeopleDirectoryClient() {
 
   return (
     <AppShell title="Pessoas">
-      <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
           <Box sx={{
