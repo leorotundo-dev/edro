@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -121,7 +122,7 @@ function TeamHeatStrip({
   onSelect,
 }: {
   rows: Array<{
-    owner: { id: string; name: string; role?: string | null; specialty?: string | null; person_type?: 'internal' | 'freelancer' };
+    owner: { id: string; name: string; role?: string | null; specialty?: string | null; person_type?: 'internal' | 'freelancer'; freelancer_profile_id?: string | null };
     allocableMinutes: number;
     committedMinutes: number;
     usage: number;
@@ -174,7 +175,18 @@ function TeamHeatStrip({
             <Stack spacing={0.75} alignItems="center" textAlign="center">
               <PersonThumb name={row.owner.name} accent={accent} size={40} />
               <Box>
-                <Typography variant="body2" fontWeight={900} noWrap sx={{ maxWidth: 120 }}>
+                <Typography
+                  variant="body2"
+                  fontWeight={900}
+                  noWrap
+                  sx={{ maxWidth: 120 }}
+                  {...(row.owner.freelancer_profile_id ? {
+                    component: Link,
+                    href: `/admin/equipe/${row.owner.freelancer_profile_id}`,
+                    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+                    sx: { maxWidth: 120, textDecoration: 'none', color: 'inherit', '&:hover': { color: accent } },
+                  } as any : {})}
+                >
                   {row.owner.name}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', display: 'block', maxWidth: 120 }}>
@@ -225,6 +237,7 @@ export default function OperationsPlannerClient() {
         role?: string | null;
         specialty?: string | null;
         person_type?: 'internal' | 'freelancer';
+        freelancer_profile_id?: string | null;
       };
       allocable_minutes: number;
       committed_minutes: number;

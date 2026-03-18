@@ -1377,6 +1377,7 @@ export async function buildPlannerSnapshot(tenantId: string) {
        u.email,
        tu.role,
        fp.specialty,
+       fp.id AS freelancer_profile_id,
        CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type
      FROM tenant_users tu
      JOIN edro_users u ON u.id = tu.user_id
@@ -1408,6 +1409,7 @@ export async function buildPlannerSnapshot(tenantId: string) {
         role: owner.role,
         specialty: owner.specialty,
         person_type: owner.person_type,
+        freelancer_profile_id: owner.freelancer_profile_id ?? null,
       },
       allocable_minutes: allocable,
       committed_minutes: 0,
