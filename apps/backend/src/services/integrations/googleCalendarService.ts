@@ -56,8 +56,9 @@ let hasClientContactEmailColumn: boolean | null = null;
 
 export function calendarOAuthUrl(tenantId: string): string {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI;
-  if (!clientId || !redirectUri) throw new Error('GOOGLE_CLIENT_ID/CALENDAR_REDIRECT_URI não configurados.');
+  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
+  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? `${publicBase}/auth/google/calendar/callback`;
+  if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado.');
 
   const state = signOAuthState({ tenantId, ts: Date.now() });
 
@@ -84,7 +85,8 @@ export async function exchangeCalendarCode(code: string, rawState: string): Prom
 }> {
   const clientId = process.env.GOOGLE_CLIENT_ID!;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
-  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI!;
+  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
+  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? `${publicBase}/auth/google/calendar/callback`;
 
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',

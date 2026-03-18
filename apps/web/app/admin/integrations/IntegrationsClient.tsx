@@ -63,24 +63,6 @@ type CalendarStatus = {
   stats?: { totalMeetings: number; enqueuedMeetings: number };
 };
 
-type AutoJoin = {
-  id: string;
-  event_title: string | null;
-  video_url: string | null;
-  video_platform: string | null;
-  organizer_email: string | null;
-  scheduled_at: string | null;
-  job_enqueued_at: string | null;
-  meeting_id: string | null;
-  client_id: string | null;
-  client_match_source: string | null;
-  bot_id: string | null;
-  status: string;
-  last_error: string | null;
-  attempt_count: number | null;
-  processed_at: string | null;
-  created_at: string;
-};
 
 type WhatsAppStatus = {
   connected: boolean;
@@ -106,7 +88,6 @@ type OAuthStartResponse = {
   url: string;
 };
 
-type AutoJoinFilter = 'all' | 'attention' | 'active' | 'done';
 
 function fmtDateTime(value?: string | null) {
   if (!value) return '—';
@@ -126,55 +107,15 @@ function watchChip(calendar: CalendarStatus | null) {
   return <Chip label="Watch ativo" size="small" color="success" />;
 }
 
-function autoJoinStatusChip(status: string) {
-  const color =
-    status === 'done' ? 'success'
-      : status === 'failed' ? 'error'
-        : status === 'processing' || status === 'waiting' || status === 'queued' || status === 'bot_created' ? 'warning'
-          : 'default';
-  return <Chip label={status} size="small" color={color} variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />;
-}
-
-function isAutoJoinCritical(item: AutoJoin) {
-  return item.status === 'failed' || Boolean(item.last_error);
-}
-
-function matchesAutoJoinFilter(item: AutoJoin, filter: AutoJoinFilter) {
-  if (filter === 'all') return true;
-  if (filter === 'attention') return item.status === 'failed' || Boolean(item.last_error);
-  if (filter === 'active') {
-    return ['detected', 'queued', 'meeting_created', 'bot_created', 'waiting', 'processing'].includes(item.status);
-  }
-  if (filter === 'done') return item.status === 'done';
-  return true;
-}
-
-function autoJoinSortScore(item: AutoJoin) {
-  if (item.status === 'failed' || item.last_error) return 0;
-  if (['detected', 'queued', 'meeting_created', 'bot_created', 'waiting', 'processing'].includes(item.status)) return 1;
-  if (item.status === 'done') return 3;
-  return 2;
-}
-
-function autoJoinSortDate(item: AutoJoin) {
-  if (item.status === 'done') {
-    return -(new Date(item.processed_at ?? item.scheduled_at ?? item.created_at).getTime() || 0);
-  }
-  return new Date(item.scheduled_at ?? item.created_at).getTime() || 0;
-}
 
 export default function IntegrationsClient() {
   const searchParams = useSearchParams();
-  const requestedAutoJoinId = searchParams.get('autoJoinId');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [health, setHealth] = useState<IntegrationHealth | null>(null);
-  const [autoJoins, setAutoJoins] = useState<AutoJoin[]>([]);
   const [loading, setLoading] = useState(true);
   const [renewingCalendar, setRenewingCalendar] = useState(false);
-  const [requeueingAutoJoinId, setRequeueingAutoJoinId] = useState<string | null>(null);
-  const [autoJoinFilter, setAutoJoinFilter] = useState<AutoJoinFilter>('all');
   const [error, setError] = useState('');
   const [waTestPhone, setWaTestPhone] = useState('');
   const [waTestSending, setWaTestSending] = useState(false);
@@ -184,16 +125,14 @@ export default function IntegrationsClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [gmailRes, calRes, autoJoinRes, waRes, healthRes] = await Promise.all([
+      const [gmailRes, calRes, waRes, healthRes] = await Promise.all([
         apiGet<GmailStatus>('/gmail/status').catch(() => ({ configured: false } as GmailStatus)),
         apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
-        apiGet<{ data: AutoJoin[] }>('/calendar/auto-joins').catch(() => ({ data: [] as AutoJoin[] })),
         apiGet<WhatsAppStatus>('/whatsapp-groups/status').catch(() => ({ connected: false } as WhatsAppStatus)),
         apiGet<IntegrationHealth>('/admin/integrations/health').catch(() => null),
       ]);
       setGmail(gmailRes ?? { configured: false });
       setCalendar(calRes ?? { configured: false });
-      setAutoJoins(autoJoinRes.data ?? []);
       setWhatsapp(waRes ?? { connected: false });
       setHealth(healthRes ?? null);
     } finally {
@@ -261,40 +200,11 @@ export default function IntegrationsClient() {
     }
   };
 
-  const handleAutoJoinRequeue = async (autoJoinId: string) => {
-    setRequeueingAutoJoinId(autoJoinId);
-    setError('');
-    try {
-      await apiPost(`/calendar/auto-joins/${autoJoinId}/requeue`);
-      await load();
-    } catch (e: any) {
-      setError(e.message || 'Falha ao reenfileirar auto-join.');
-    } finally {
-      setRequeueingAutoJoinId(null);
-    }
-  };
 
   const gmailConnected = searchParams.get('gmail_connected');
   const gmailError = searchParams.get('gmail_error');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
-  const autoJoinCounts = {
-    all: autoJoins.length,
-    attention: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'attention')).length,
-    active: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'active')).length,
-    done: autoJoins.filter((item) => matchesAutoJoinFilter(item, 'done')).length,
-  };
-  const visibleAutoJoins = [...autoJoins]
-    .filter((item) => matchesAutoJoinFilter(item, autoJoinFilter))
-    .sort((left, right) => {
-      if (requestedAutoJoinId) {
-        if (left.id === requestedAutoJoinId) return -1;
-        if (right.id === requestedAutoJoinId) return 1;
-      }
-      const scoreDelta = autoJoinSortScore(left) - autoJoinSortScore(right);
-      if (scoreDelta !== 0) return scoreDelta;
-      return autoJoinSortDate(left) - autoJoinSortDate(right);
-    });
 
   return (
     <AppShell title="Integrações">
@@ -501,143 +411,6 @@ export default function IntegrationsClient() {
                       </Alert>
                     )}
 
-                    <Box sx={{ mt: 2 }}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2" fontWeight={700}>
-                          Últimos auto-joins detectados
-                        </Typography>
-                        <Button size="small" variant="text" href="/admin/reunioes">
-                          Abrir Meeting Ops
-                        </Button>
-                      </Stack>
-
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-                        {([
-                          ['all', 'Todos'],
-                          ['attention', 'Atenção'],
-                          ['active', 'Em fila'],
-                          ['done', 'Concluídos'],
-                        ] as Array<[AutoJoinFilter, string]>).map(([value, label]) => (
-                          <Chip
-                            key={value}
-                            label={`${label} (${autoJoinCounts[value]})`}
-                            clickable
-                            color={autoJoinFilter === value ? 'primary' : 'default'}
-                            variant={autoJoinFilter === value ? 'filled' : 'outlined'}
-                            onClick={() => setAutoJoinFilter(value)}
-                          />
-                        ))}
-                      </Stack>
-
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                        Falhas e itens com erro sobem para o topo. Depois, a fila operacional vem antes dos concluídos.
-                      </Typography>
-
-                      {requestedAutoJoinId && (
-                        <Alert severity="info" sx={{ mb: 1.5 }}>
-                          Auto-join aberto a partir do Meeting Ops. O item vinculado foi priorizado na lista.
-                        </Alert>
-                      )}
-
-                      {visibleAutoJoins.length === 0 ? (
-                        <Typography variant="caption" color="text.secondary">
-                          {autoJoins.length === 0
-                            ? 'Nenhum evento detectado ainda pelo Google Calendar.'
-                            : 'Nenhum auto-join encontrado para esse filtro.'}
-                        </Typography>
-                      ) : (
-                        <Stack spacing={1}>
-                          {visibleAutoJoins.slice(0, 5).map((item) => (
-                            <Box
-                              key={item.id}
-                              sx={{
-                                p: 1.25,
-                                border: 1,
-                                borderColor:
-                                  item.id === requestedAutoJoinId ? 'primary.main'
-                                    : isAutoJoinCritical(item) ? 'error.main'
-                                      : item.status === 'done' ? 'success.main'
-                                        : 'divider',
-                                borderRadius: 1.5,
-                                bgcolor:
-                                  item.id === requestedAutoJoinId ? 'action.selected'
-                                    : isAutoJoinCritical(item) ? 'rgba(211, 47, 47, 0.06)'
-                                      : item.status === 'queued' || item.status === 'processing' || item.status === 'waiting' || item.status === 'bot_created'
-                                        ? 'rgba(249, 171, 0, 0.06)'
-                                        : 'background.paper',
-                                boxShadow: isAutoJoinCritical(item) ? '0 0 0 1px rgba(211, 47, 47, 0.08)' : 'none',
-                              }}
-                            >
-                              <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap" useFlexGap>
-                                <Box>
-                                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.82rem' }}>
-                                    {item.event_title || 'Evento sem título'}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {item.video_platform || 'video'} · {fmtDateTime(item.scheduled_at)} · {item.organizer_email || 'sem organizer'}
-                                  </Typography>
-                                </Box>
-                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                                  {isAutoJoinCritical(item) && (
-                                    <Chip
-                                      label="Atenção operacional"
-                                      size="small"
-                                      color="error"
-                                      sx={{ fontSize: '0.68rem', height: 20, fontWeight: 700 }}
-                                    />
-                                  )}
-                                  {item.id === requestedAutoJoinId && (
-                                    <Chip
-                                      label="Vindo da reunião"
-                                      size="small"
-                                      color="primary"
-                                      variant="outlined"
-                                      sx={{ fontSize: '0.68rem', height: 20 }}
-                                    />
-                                  )}
-                                  {autoJoinStatusChip(item.status)}
-                                  {item.meeting_id && (
-                                    <Button
-                                      size="small"
-                                      variant="text"
-                                      href={`/admin/reunioes?meetingId=${encodeURIComponent(item.meeting_id)}`}
-                                      sx={{ minWidth: 0, py: 0.4, px: 1 }}
-                                    >
-                                      Abrir reunião
-                                    </Button>
-                                  )}
-                                  {item.status !== 'done' && (
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      onClick={() => void handleAutoJoinRequeue(item.id)}
-                                      disabled={requeueingAutoJoinId !== null}
-                                      startIcon={requeueingAutoJoinId === item.id ? <CircularProgress size={12} color="inherit" /> : <IconRefresh size={13} />}
-                                      sx={{ minWidth: 0, py: 0.4, px: 1 }}
-                                    >
-                                      {requeueingAutoJoinId === item.id ? 'Reenfileirando...' : 'Requeue'}
-                                    </Button>
-                                  )}
-                                </Stack>
-                              </Stack>
-
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                                <Chip label={`Match: ${item.client_match_source ?? '—'}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
-                                <Chip label={`Tentativas: ${item.attempt_count ?? 0}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
-                                <Chip label={`Job: ${item.job_enqueued_at ? fmtDateTime(item.job_enqueued_at) : 'não enfileirado'}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
-                                <Chip label={`Processado: ${fmtDateTime(item.processed_at)}`} size="small" variant="outlined" sx={{ fontSize: '0.66rem', height: 20 }} />
-                              </Stack>
-
-                              {item.last_error && (
-                                <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1, lineHeight: 1.5 }}>
-                                  {item.last_error}
-                                </Typography>
-                              )}
-                            </Box>
-                          ))}
-                        </Stack>
-                      )}
-                    </Box>
                   </>
                 )}
 

@@ -14,6 +14,10 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -296,6 +300,13 @@ function describeCreateMeetingError(err: any) {
   if (code === 'google_meet_create_failed') return message;
 
   return message;
+}
+
+function detectPlatform(url: string): Platform {
+  if (/teams\.microsoft\.com/i.test(url)) return 'teams';
+  if (/zoom\.us/i.test(url)) return 'zoom';
+  if (/meet\.google\.com/i.test(url)) return 'meet';
+  return 'other';
 }
 
 function meetingKindLabel(kind?: string | null) {
@@ -1362,6 +1373,15 @@ export default function MeetingsDashboardClient() {
   const [archivedLoading, setArchivedLoading] = useState(false);
   const requestedMeetingId = searchParams.get('meetingId');
 
+  // ── Quick Bot dialog state ─────────────────────────────────────────
+  const [quickBotOpen, setQuickBotOpen] = useState(false);
+  const [quickBotUrl, setQuickBotUrl] = useState('');
+  const [quickBotTime, setQuickBotTime] = useState(toLocalISO(new Date(Date.now() + 30 * 60_000)));
+  const [quickBotClient, setQuickBotClient] = useState<string | null>(null);
+  const [quickBotLoading, setQuickBotLoading] = useState(false);
+  const [quickBotError, setQuickBotError] = useState('');
+  const [quickBotDone, setQuickBotDone] = useState(false);
+
   // ── Load dashboard data ────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
@@ -1474,6 +1494,31 @@ export default function MeetingsDashboardClient() {
     }
   }, []);
 
+  // ── Quick Bot ──────────────────────────────────────────────────────
+  const handleQuickBot = async () => {
+    if (!quickBotUrl.trim()) { setQuickBotError('Insira o link da reuniao'); return; }
+    setQuickBotLoading(true);
+    setQuickBotError('');
+    const detectedPlatform = detectPlatform(quickBotUrl);
+    try {
+      await apiPost('/meetings/create', {
+        title: 'Reuniao via link',
+        platform: detectedPlatform,
+        meeting_url: quickBotUrl.trim(),
+        scheduled_at: new Date(quickBotTime).toISOString(),
+        duration_minutes: 60,
+        client_id: quickBotClient || undefined,
+        schedule_bot: true,
+      });
+      setQuickBotDone(true);
+      load();
+    } catch (err: any) {
+      setQuickBotError(describeCreateMeetingError(err));
+    } finally {
+      setQuickBotLoading(false);
+    }
+  };
+
   // ── Create meeting ─────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!title.trim()) { setCreateError('Titulo obrigatorio'); return; }
@@ -1554,9 +1599,27 @@ export default function MeetingsDashboardClient() {
             </Typography>
           </Box>
         </Stack>
-        <Button variant="outlined" size="small" startIcon={<IconRefresh size={16} />} onClick={load} disabled={loading}>
-          Atualizar
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<IconRobot size={16} />}
+            onClick={() => {
+              setQuickBotUrl('');
+              setQuickBotTime(toLocalISO(new Date(Date.now() + 30 * 60_000)));
+              setQuickBotClient(null);
+              setQuickBotError('');
+              setQuickBotDone(false);
+              setQuickBotOpen(true);
+            }}
+            sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c44411' } }}
+          >
+            Bot Rapido
+          </Button>
+          <Button variant="outlined" size="small" startIcon={<IconRefresh size={16} />} onClick={load} disabled={loading}>
+            Atualizar
+          </Button>
+        </Stack>
       </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -2092,6 +2155,81 @@ export default function MeetingsDashboardClient() {
           </Grid>
         </>
       )}
+      {/* ── Quick Bot Dialog ─────────────────────────────────────── */}
+      <Dialog open={quickBotOpen} onClose={() => setQuickBotOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconRobot size={20} color={EDRO_ORANGE} />
+            <Typography fontWeight={700}>Agendar Bot Rapido</Typography>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            Cole o link e defina o horario. O Jarvis Bot entra automaticamente.
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 0.5 }}>
+            {quickBotDone ? (
+              <Alert severity="success" onClose={() => setQuickBotOpen(false)}>
+                Bot agendado com sucesso!
+              </Alert>
+            ) : (
+              <>
+                <TextField
+                  label="Link da reuniao"
+                  placeholder="https://teams.microsoft.com/meet/..."
+                  value={quickBotUrl}
+                  onChange={e => setQuickBotUrl(e.target.value)}
+                  fullWidth
+                  size="small"
+                  helperText={
+                    quickBotUrl
+                      ? `Plataforma detectada: ${platformLabel(detectPlatform(quickBotUrl))}`
+                      : 'Suporte: Teams, Zoom, Google Meet'
+                  }
+                />
+                <TextField
+                  label="Horario"
+                  type="datetime-local"
+                  value={quickBotTime}
+                  onChange={e => setQuickBotTime(e.target.value)}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  select
+                  label="Cliente (opcional)"
+                  value={quickBotClient ?? ''}
+                  onChange={e => setQuickBotClient(e.target.value || null)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="">Sem cliente</MenuItem>
+                  {clients.map(c => (
+                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                  ))}
+                </TextField>
+                {quickBotError && <Alert severity="error">{quickBotError}</Alert>}
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+        {!quickBotDone && (
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setQuickBotOpen(false)} size="small">Cancelar</Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleQuickBot}
+              disabled={quickBotLoading || !quickBotUrl.trim()}
+              sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c44411' } }}
+              startIcon={quickBotLoading ? <CircularProgress size={14} color="inherit" /> : <IconSend size={14} />}
+            >
+              Agendar Bot
+            </Button>
+          </DialogActions>
+        )}
+      </Dialog>
     </AppShell>
   );
 }
