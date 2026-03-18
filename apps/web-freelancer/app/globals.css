@@ -959,6 +959,31 @@ img {
   font-weight: 700;
 }
 
+/* ── Login code display ──────────────────────────────────────────────────── */
+.portal-code-display {
+  text-align: center;
+}
+
+.portal-code-display .portal-card-subtitle {
+  margin-bottom: 8px;
+}
+
+.portal-code-value {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--portal-accent-strong);
+  background: var(--portal-bg-soft);
+  border: 1px solid var(--portal-border);
+  border-radius: var(--portal-radius-md);
+  padding: 16px 24px;
+}
+
+.portal-code-hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
 /* ── Error pill ──────────────────────────────────────────────────────────── */
 .portal-pill-error {
   background: rgba(250, 137, 107, 0.12);

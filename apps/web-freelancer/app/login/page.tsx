@@ -13,6 +13,7 @@ const FEATURES = [
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [echoedCode, setEchoedCode] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +30,12 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: 'staff' }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? await res.text());
+      if (data.code) {
+        setEchoedCode(data.code);
+        setCode(data.code);
+      }
       setStep('code');
     } catch (err: any) {
       setError(err.message ?? 'Erro ao enviar codigo');
@@ -126,9 +132,17 @@ export default function LoginPage() {
             </form>
           ) : (
             <form onSubmit={handleVerifyCode} className="portal-login-form">
-              <div className="portal-note">
-                Codigo enviado para <strong style={{ color: '#fff' }}>{email}</strong>.
-              </div>
+              {echoedCode ? (
+                <div className="portal-code-display">
+                  <p className="portal-card-subtitle">Seu código de acesso:</p>
+                  <div className="portal-code-value">{echoedCode}</div>
+                  <p className="portal-card-subtitle portal-code-hint">Válido por 15 minutos</p>
+                </div>
+              ) : (
+                <div className="portal-note">
+                  Codigo enviado para <strong>{email}</strong>.
+                </div>
+              )}
 
               <div>
                 <label className="portal-field-label" htmlFor="freelancer-code">Codigo</label>
