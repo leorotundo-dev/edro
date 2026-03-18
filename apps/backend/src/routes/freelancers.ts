@@ -727,7 +727,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // These are accessed by staff role users with their own JWT.
 
   app.get('/freelancers/portal/me', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const res = await pool.query(
@@ -743,7 +743,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   app.patch('/freelancers/portal/me', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
@@ -797,7 +797,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   app.get('/freelancers/portal/me/entries', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
     const { month } = (request.query as any);
 
@@ -817,7 +817,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   app.get('/freelancers/portal/me/jobs', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
@@ -846,7 +846,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   app.get('/freelancers/portal/me/jobs/:jobId', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const { jobId } = request.params as { jobId: string };
@@ -891,7 +891,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   app.get('/freelancers/portal/me/payables', async (request: any, reply) => {
-    const userId = request.user?.id;
+    const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
