@@ -426,6 +426,13 @@ export default function JobWorkbenchDrawer({
   const [directivesOpen, setDirectivesOpen] = useState(true);
 
   // ── Allocation proposals ──
+  type CalibratedEstimate = {
+    median: number;
+    p25: number;
+    p75: number;
+    confidence: 'high' | 'medium' | 'low' | 'none';
+    sampleCount: number;
+  };
   type AllocationProposal = {
     freelancerId: string;
     name: string;
@@ -444,6 +451,7 @@ export default function JobWorkbenchDrawer({
   };
   const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
+  const [calibratedEstimate, setCalibratedEstimate] = useState<CalibratedEstimate | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -493,6 +501,16 @@ export default function JobWorkbenchDrawer({
       .finally(() => { if (!cancelled) setLoadingProposals(false); });
     return () => { cancelled = true; };
   }, [mode, detailJob?.id, form.required_skill]);
+
+  useEffect(() => {
+    if (!open || !form.job_type) { setCalibratedEstimate(null); return; }
+    let cancelled = false;
+    const complexity = form.complexity === 's' ? 'low' : form.complexity === 'l' ? 'high' : 'medium';
+    apiGet<{ data: CalibratedEstimate | null }>(`/jobs/calibration/estimate?job_type=${encodeURIComponent(form.job_type)}&complexity=${complexity}`)
+      .then((res) => { if (!cancelled) setCalibratedEstimate(res?.data ?? null); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [open, form.job_type, form.complexity]);
 
   const selectedClient = clients.find((item) => item.id === form.client_id) || null;
   const selectedOwner = owners.find((item) => item.id === form.owner_id) || null;
@@ -626,7 +644,23 @@ export default function JobWorkbenchDrawer({
             <PriorityPill priorityBand={priorityPreview.priorityBand} />
             {detailJob ? <RiskFlag job={detailJob} /> : <Chip size="small" color="info" label="Beta guiado" />}
             {detailJob ? <Chip size="small" variant="outlined" label={detailJob.status} /> : null}
-            <Chip size="small" label={`Estimativa ${formatMinutes(estimatePreview)}`} />
+            {calibratedEstimate && calibratedEstimate.confidence !== 'none' ? (
+              <Tooltip title={`${calibratedEstimate.sampleCount} jobs históricos · P25 ${formatMinutes(calibratedEstimate.p25)} → P75 ${formatMinutes(calibratedEstimate.p75)}`} arrow>
+                <Chip
+                  size="small"
+                  icon={<IconSparkles size={12} />}
+                  label={`Real ${formatMinutes(calibratedEstimate.median)}`}
+                  sx={{
+                    bgcolor: calibratedEstimate.confidence === 'high' ? 'rgba(19,222,185,0.12)' : 'rgba(245,158,11,0.1)',
+                    color: calibratedEstimate.confidence === 'high' ? '#059669' : '#d97706',
+                    fontWeight: 700,
+                    '& .MuiChip-icon': { color: 'inherit' },
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Chip size="small" label={`Estimativa ${formatMinutes(estimatePreview)}`} />
+            )}
           </Stack>
           {detailJob ? (
             <NextActionBar
@@ -929,7 +963,22 @@ export default function JobWorkbenchDrawer({
 
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
           <Chip label={`Prioridade prevista ${priorityPreview.priorityBand.toUpperCase()}`} color={priorityPreview.priorityBand === 'p0' || priorityPreview.priorityBand === 'p1' ? 'error' : priorityPreview.priorityBand === 'p2' ? 'warning' : 'default'} />
-          <Chip label={`Estimativa base ${formatMinutes(estimatePreview)}`} />
+          {calibratedEstimate && calibratedEstimate.confidence !== 'none' ? (
+            <Tooltip title={`${calibratedEstimate.sampleCount} jobs históricos · intervalo P25-P75: ${formatMinutes(calibratedEstimate.p25)}–${formatMinutes(calibratedEstimate.p75)}`} arrow>
+              <Chip
+                icon={<IconSparkles size={14} />}
+                label={`Real ${formatMinutes(calibratedEstimate.median)} · confiança ${calibratedEstimate.confidence === 'high' ? 'alta' : 'média'}`}
+                sx={{
+                  bgcolor: calibratedEstimate.confidence === 'high' ? 'rgba(19,222,185,0.12)' : 'rgba(245,158,11,0.1)',
+                  color: calibratedEstimate.confidence === 'high' ? '#059669' : '#d97706',
+                  fontWeight: 700,
+                  '& .MuiChip-icon': { color: 'inherit' },
+                }}
+              />
+            </Tooltip>
+          ) : (
+            <Chip label={`Estimativa base ${formatMinutes(estimatePreview)}`} />
+          )}
           <Chip label={selectedOwner ? `Responsável ${selectedOwner.name}` : 'Sem responsável'} variant="outlined" />
           {form.deadline_at ? <Chip label={`Prazo ${formatDateTime(toIsoDateTime(form.deadline_at))}`} variant="outlined" /> : null}
         </Stack>
