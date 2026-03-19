@@ -6,6 +6,7 @@ import { pool } from '../db';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
+import { generateCopy } from '../services/ai/copyService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -903,5 +904,193 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [freelancerId],
     );
     return reply.send({ payables: res.rows });
+  });
+
+  // ── Creative Studio — copy versions for a briefing job ────────────────────
+
+  // Helper: check briefing is assigned to this user
+  async function assertBriefingAccess(briefingId: string, userId: string) {
+    const res = await pool.query(
+      `SELECT b.id, b.title, b.status, b.payload, b.due_at, c.name as client_name,
+              b.copy_approved_at, b.copy_approval_comment
+       FROM edro_briefings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.id = $1
+         AND (
+           b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $2::text))
+           OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $2 LIMIT 1)
+         )`,
+      [briefingId, userId],
+    );
+    return res.rows[0] ?? null;
+  }
+
+  // GET /freelancers/portal/me/studio — list briefings in copy-production status
+  app.get('/freelancers/portal/me/studio', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const res = await pool.query(
+      `SELECT b.id, b.title, b.status, b.due_at, b.payload,
+              c.name as client_name,
+              (SELECT COUNT(*) FROM edro_copy_versions cv WHERE cv.briefing_id = b.id) as copy_count
+       FROM edro_briefings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE (
+         b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
+         OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
+       )
+       AND b.status NOT IN ('done', 'iclips_out', 'published')
+       ORDER BY b.due_at ASC NULLS LAST, b.created_at DESC`,
+      [userId],
+    );
+    return reply.send({ briefings: res.rows });
+  });
+
+  // GET /freelancers/portal/me/studio/:briefingId — briefing detail + copy versions
+  app.get('/freelancers/portal/me/studio/:briefingId', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const { briefingId } = request.params as { briefingId: string };
+
+    const briefing = await assertBriefingAccess(briefingId, userId);
+    if (!briefing) return reply.status(404).send({ error: 'Briefing não encontrado ou não atribuído.' });
+
+    const versions = await pool.query(
+      `SELECT id, output, model, status, created_at, payload
+       FROM edro_copy_versions
+       WHERE briefing_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [briefingId],
+    );
+
+    return reply.send({ briefing, versions: versions.rows });
+  });
+
+  // POST /freelancers/portal/me/studio/:briefingId/generate — AI copy generation
+  app.post('/freelancers/portal/me/studio/:briefingId/generate', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const { briefingId } = request.params as { briefingId: string };
+    const { instructions, platform } = z.object({
+      instructions: z.string().max(1000).optional(),
+      platform: z.string().optional(),
+    }).parse(request.body);
+
+    const briefing = await assertBriefingAccess(briefingId, userId);
+    if (!briefing) return reply.status(404).send({ error: 'Briefing não encontrado ou não atribuído.' });
+
+    const payload = (briefing.payload ?? {}) as Record<string, any>;
+    const payloadLines = Object.entries(payload)
+      .filter(([k, v]) => v && !['client_id', 'tenant_id'].includes(k))
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${String(v)}`)
+      .slice(0, 15)
+      .join('\n');
+
+    const prompt = [
+      `Briefing: ${briefing.title}`,
+      `Cliente: ${briefing.client_name ?? 'não informado'}`,
+      platform ? `Plataforma: ${platform}` : null,
+      payloadLines ? `\nDetalhes:\n${payloadLines}` : null,
+      instructions ? `\nInstruções adicionais: ${instructions}` : null,
+    ].filter(Boolean).join('\n');
+
+    try {
+      const result = await generateCopy({
+        prompt,
+        count: 1,
+        usageContext: { briefing_id: briefingId, user_email: userId },
+      });
+
+      const output = result.output ?? '';
+
+      // Persist the version
+      const inserted = await pool.query(
+        `INSERT INTO edro_copy_versions (briefing_id, output, model, status, payload)
+         VALUES ($1, $2, $3, 'draft', $4)
+         RETURNING id, output, model, status, created_at`,
+        [briefingId, output, result.model ?? null,
+         JSON.stringify({ generated_by: 'freelancer_portal', platform: platform ?? null })],
+      );
+
+      return reply.send({ version: inserted.rows[0] });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message || 'Falha na geração de copy.' });
+    }
+  });
+
+  // PATCH /freelancers/portal/me/studio/:briefingId/copy — save manual copy
+  app.patch('/freelancers/portal/me/studio/:briefingId/copy', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const { briefingId } = request.params as { briefingId: string };
+    const { output, versionId } = z.object({
+      output: z.string().min(1),
+      versionId: z.string().uuid().optional(),
+    }).parse(request.body);
+
+    const briefing = await assertBriefingAccess(briefingId, userId);
+    if (!briefing) return reply.status(404).send({ error: 'Briefing não encontrado.' });
+
+    if (versionId) {
+      // Update existing version
+      const res = await pool.query(
+        `UPDATE edro_copy_versions SET output = $1 WHERE id = $2 AND briefing_id = $3 RETURNING id, output, status, created_at`,
+        [output, versionId, briefingId],
+      );
+      return reply.send({ version: res.rows[0] });
+    } else {
+      // Insert new manual version
+      const res = await pool.query(
+        `INSERT INTO edro_copy_versions (briefing_id, output, model, status, payload)
+         VALUES ($1, $2, 'manual', 'draft', '{"source":"freelancer_manual"}')
+         RETURNING id, output, model, status, created_at`,
+        [briefingId, output],
+      );
+      return reply.send({ version: res.rows[0] });
+    }
+  });
+
+  // POST /freelancers/portal/me/studio/:briefingId/submit — submit copy for review
+  app.post('/freelancers/portal/me/studio/:briefingId/submit', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const { briefingId } = request.params as { briefingId: string };
+    const { versionId, notes } = z.object({
+      versionId: z.string().uuid(),
+      notes: z.string().max(500).optional(),
+    }).parse(request.body);
+
+    const briefing = await assertBriefingAccess(briefingId, userId);
+    if (!briefing) return reply.status(404).send({ error: 'Briefing não encontrado.' });
+
+    // Mark version as selected
+    await pool.query(
+      `UPDATE edro_copy_versions SET status = 'selected' WHERE id = $1 AND briefing_id = $2`,
+      [versionId, briefingId],
+    );
+
+    // Advance briefing status to review
+    const nextStatus = briefing.status === 'copy_ia' ? 'aprovacao'
+      : briefing.status === 'producao' ? 'revisao'
+      : 'revisao';
+
+    await pool.query(
+      `UPDATE edro_briefings SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [nextStatus, briefingId],
+    );
+
+    // Log notes if provided
+    if (notes) {
+      await pool.query(
+        `INSERT INTO briefing_stage_log (briefing_id, stage, note, author_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT DO NOTHING`,
+        [briefingId, nextStatus, notes, userId],
+      ).catch(() => {}); // non-fatal
+    }
+
+    return reply.send({ ok: true, newStatus: nextStatus });
   });
 }

@@ -9,6 +9,7 @@ import clsx from 'clsx';
 const NAV = [
   { href: '/',           label: 'Dashboard',   icon: '⊞', match: (p: string) => p === '/' },
   { href: '/jobs',       label: 'Jobs',         icon: '◈', match: (p: string) => p.startsWith('/jobs') },
+  { href: '/studio',     label: 'Studio',       icon: '✦', match: (p: string) => p.startsWith('/studio') },
   { href: '/horas',      label: 'Horas',        icon: '◷', match: (p: string) => p.startsWith('/horas') },
   { href: '/pagamentos', label: 'Pagamentos',   icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
   { href: '/perfil',     label: 'Perfil',       icon: '◉', match: (p: string) => p.startsWith('/perfil') },
