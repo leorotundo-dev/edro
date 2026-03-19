@@ -29,8 +29,10 @@ import {
   IconCheck,
   IconClock,
   IconDatabase,
+  IconExternalLink,
   IconFlame,
   IconHistory,
+  IconNotes,
   IconPlus,
   IconSparkles,
   IconTrash,
@@ -464,6 +466,10 @@ export default function SimulationClient() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [accuracy, setAccuracy] = useState<ClientAccuracy | null>(null);
 
+  const [creatingBriefing, setCreatingBriefing] = useState(false);
+  const [createdBriefingId, setCreatedBriefingId] = useState<string | null>(null);
+  const [briefingError, setBriefingError] = useState('');
+
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
@@ -536,6 +542,36 @@ export default function SimulationClient() {
       setError(err?.message ?? 'Erro ao executar simulação.');
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleCreateBriefing() {
+    if (!report) return;
+    setCreatingBriefing(true);
+    setBriefingError('');
+    setCreatedBriefingId(null);
+    try {
+      const winner = report.variants.find((v) => v.index === report.winner_index);
+      const winnerText = variants.find((v) => v.index === report.winner_index)?.text ?? winner?.text_preview ?? '';
+      const data = await apiPost('/edro/briefings', {
+        title: `Simulação ${platform} — Variante ${report.winner_index + 1} (${new Date().toLocaleDateString('pt-BR')})`,
+        source: 'simulation',
+        client_id: clientId || undefined,
+        payload: {
+          copy_text: winnerText,
+          simulation_result_id: report.id,
+          platform,
+          predicted_save_rate: winner?.predicted_save_rate,
+          predicted_click_rate: winner?.predicted_click_rate,
+          fatigue_days: winner?.fatigue_days,
+          resonance_score: winner?.aggregate_resonance,
+        },
+      });
+      setCreatedBriefingId(data.briefing?.id ?? data.id);
+    } catch (err: any) {
+      setBriefingError(err?.message ?? 'Erro ao criar briefing.');
+    } finally {
+      setCreatingBriefing(false);
     }
   }
 
@@ -855,6 +891,51 @@ export default function SimulationClient() {
                       isWinner={vr.index === report.winner_index}
                     />
                   ))}
+
+                {/* Briefing CTA — closes the outcome-tracking loop */}
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, borderColor: '#5D87FF40', bgcolor: 'rgba(93,135,255,0.04)', borderRadius: 2 }}
+                >
+                  <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" gap={1}>
+                    <IconNotes size={18} color="#5D87FF" />
+                    <Box flex={1}>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Usar variante vencedora
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Cria um briefing pré-preenchido com a copy vencedora. O simulador rastreia o resultado real após a publicação.
+                      </Typography>
+                    </Box>
+                    {createdBriefingId ? (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="success"
+                        startIcon={<IconExternalLink size={14} />}
+                        href={`/studio/brief?id=${createdBriefingId}`}
+                        target="_blank"
+                        component="a"
+                      >
+                        Abrir briefing
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={creatingBriefing ? <CircularProgress size={12} color="inherit" /> : <IconNotes size={14} />}
+                        onClick={handleCreateBriefing}
+                        disabled={creatingBriefing}
+                        sx={{ background: 'linear-gradient(135deg, #5D87FF 0%, #13DEB9 100%)', fontWeight: 700 }}
+                      >
+                        {creatingBriefing ? 'Criando…' : 'Criar Briefing'}
+                      </Button>
+                    )}
+                  </Stack>
+                  {briefingError && (
+                    <Alert severity="error" sx={{ mt: 1, fontSize: 12 }}>{briefingError}</Alert>
+                  )}
+                </Paper>
               </Box>
             )}
           </Grid>
