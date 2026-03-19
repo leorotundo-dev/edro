@@ -47,7 +47,10 @@ export interface VariantResult {
   }>;
   risk_flags: RiskFlag[];
   fatigue_days: number;
-  fatigue_source: 'historical' | 'benchmark';
+  fatigue_source: 'historical' | 'reportei' | 'benchmark';
+  engagement_7d?: number | null;
+  engagement_30d?: number | null;
+  engagement_delta_pct?: number | null;
 }
 
 export interface SimulationReport {
@@ -176,12 +179,13 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
 
   // 5. Estimate fatigue + detect risks per variant
   const dominantAmd = variants[0]?.amd;
-  const { fatigue_days, source: fatigueSource } = await estimateFatiguedays(
+  const fatigueResult = await estimateFatiguedays(
     clientId ?? '',
     tenantId,
     dominantAmd,
     platform,
   );
+  const { fatigue_days, source: fatigueSource } = fatigueResult;
 
   const allRisks = await detectRisks(variants, clusters, clientId ?? '', tenantId);
 
@@ -209,6 +213,9 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
       risk_flags: risks,
       fatigue_days,
       fatigue_source: fatigueSource,
+      engagement_7d: fatigueResult.engagement_7d,
+      engagement_30d: fatigueResult.engagement_30d,
+      engagement_delta_pct: fatigueResult.engagement_delta_pct,
     };
   });
 

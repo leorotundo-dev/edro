@@ -77,7 +77,10 @@ interface VariantResult {
   scores_by_cluster: ClusterScore[];
   risk_flags: RiskFlag[];
   fatigue_days: number;
-  fatigue_source: 'historical' | 'benchmark';
+  fatigue_source: 'historical' | 'reportei' | 'benchmark';
+  engagement_7d?: number | null;
+  engagement_30d?: number | null;
+  engagement_delta_pct?: number | null;
 }
 
 interface SimulationReport {
@@ -327,7 +330,7 @@ function VariantResultCard({
             <Typography fontWeight={700} color="warning.main">
               {result.fatigue_days}d
               <Typography variant="caption" ml={0.5} color="text.secondary">
-                ({result.fatigue_source === 'historical' ? 'histórico' : 'benchmark'})
+                ({result.fatigue_source === 'historical' ? 'histórico real' : result.fatigue_source === 'reportei' ? 'Reportei' : 'benchmark'})
               </Typography>
             </Typography>
           </Grid>
@@ -652,9 +655,38 @@ export default function SimulationClient() {
                   <IconFlame size={18} color="#13DEB9" />
                   <Box>
                     <Typography variant="caption" fontWeight={700}>Fadiga estimada</Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Calculada a partir do histórico real de decaimento de engajamento do cliente. Sem dados, usa benchmarks por AMD × plataforma.
-                    </Typography>
+                    {(() => {
+                      const winner = report?.variants?.find(v => v.index === report.winner_index);
+                      if (!winner) return (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Calculada com histórico do cliente (Meta Ads), tendência real do Reportei ou benchmarks por AMD × plataforma.
+                        </Typography>
+                      );
+                      if (winner.fatigue_source === 'historical') return (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Baseado em {winner.engagement_30d != null ? `${winner.engagement_30d.toFixed(1)}% de taxa de engajamento` : 'dados'} do Meta Ads — série temporal real de posts anteriores.
+                        </Typography>
+                      );
+                      if (winner.fatigue_source === 'reportei') {
+                        const hasDelta = winner.engagement_delta_pct != null;
+                        const has7d30d = winner.engagement_7d != null && winner.engagement_30d != null;
+                        return (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Baseado em dados reais do Reportei.{' '}
+                            {hasDelta
+                              ? `Engajamento variou ${winner.engagement_delta_pct!.toFixed(1)}% nos últimos 30 dias.`
+                              : has7d30d
+                              ? `Taxa 7d: ${winner.engagement_7d!.toFixed(2)}% vs 30d: ${winner.engagement_30d!.toFixed(2)}%.`
+                              : ''}
+                          </Typography>
+                        );
+                      }
+                      return (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Sem dados históricos deste cliente — usando benchmarks do setor por AMD × plataforma.
+                        </Typography>
+                      );
+                    })()}
                   </Box>
                 </Stack>
               </Paper>
