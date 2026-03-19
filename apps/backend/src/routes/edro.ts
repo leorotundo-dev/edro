@@ -4809,4 +4809,74 @@ Retorne APENAS JSON válido (sem markdown):
     );
     return reply.send({ success: true, data: rows[0] });
   });
+
+  // ── POST /edro/briefings/:id/approve-and-schedule ─────────────────────────
+  // Approves an auto-generated briefing in one click and schedules it for
+  // optimal publish time (next business day 10h BRT = 13h UTC by default).
+  app.post('/edro/briefings/:id/approve-and-schedule', async (request: any, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId: string = request.user?.tenant_id;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Unauthorized' });
+
+    // Load briefing + latest copy
+    const briefingRes = await query<any>(
+      `SELECT b.id, b.title, b.status, b.source, b.main_client_id,
+              (b.payload->>'platform') AS platform
+       FROM edro_briefings b
+       WHERE b.id = $1`,
+      [id],
+    );
+    const briefing = briefingRes.rows[0];
+    if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+    if (!['auto_opportunity', 'fatigue_substitution'].includes(briefing.source)) {
+      return reply.status(400).send({ success: false, error: 'Apenas briefings gerados automaticamente podem ser aprovados aqui.' });
+    }
+    if (briefing.status !== 'draft') {
+      return reply.status(400).send({ success: false, error: `Briefing já está com status "${briefing.status}".` });
+    }
+
+    // Get latest copy text
+    const copyRes = await query<any>(
+      `SELECT output FROM edro_copy_versions WHERE briefing_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [id],
+    );
+    const copyText: string = copyRes.rows[0]?.output ?? '';
+
+    // Compute optimal scheduled_at: next business day at 10h BRT (13h UTC)
+    const now = new Date();
+    const scheduled = new Date(now);
+    scheduled.setUTCHours(13, 0, 0, 0);
+    if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
+    // Skip weekends
+    while (scheduled.getUTCDay() === 0 || scheduled.getUTCDay() === 6) {
+      scheduled.setDate(scheduled.getDate() + 1);
+    }
+
+    const platform = briefing.platform ?? 'instagram';
+
+    // Mark briefing approved
+    await query(
+      `UPDATE edro_briefings SET status = 'approved', updated_at = NOW() WHERE id = $1`,
+      [id],
+    );
+
+    // Insert into scheduled_publications
+    const schedRes = await query<any>(
+      `INSERT INTO scheduled_publications
+         (tenant_id, briefing_id, platform, scheduled_at, copy_text, status)
+       VALUES ($1::uuid, $2, $3, $4, $5, 'scheduled')
+       RETURNING id, scheduled_at`,
+      [tenantId, id, platform, scheduled.toISOString(), copyText || null],
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        briefing_id: id,
+        schedule_id: schedRes.rows[0]?.id,
+        platform,
+        scheduled_at: schedRes.rows[0]?.scheduled_at,
+      },
+    });
+  });
 }

@@ -27,7 +27,7 @@ import {
   IconBrandWhatsapp, IconCheck, IconX, IconMessageCircle,
   IconSparkles, IconRobot, IconChartBar,
 } from '@tabler/icons-react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 type Alert_t = {
   id: string;
@@ -150,6 +150,8 @@ export default function AdminIntelligencePage() {
   const [error, setError] = useState('');
   const [actioning, setActioning] = useState<string | null>(null);
   const [actioningInsight, setActioningInsight] = useState<string | null>(null);
+  const [approvingBriefing, setApprovingBriefing] = useState<string | null>(null);
+  const [approvedBriefings, setApprovedBriefings] = useState<Record<string, string>>({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -179,6 +181,24 @@ export default function AdminIntelligencePage() {
       } : prev);
     } catch { /* silent */ } finally {
       setActioning(null);
+    }
+  };
+
+  const handleApproveAndSchedule = async (briefingId: string) => {
+    setApprovingBriefing(briefingId);
+    try {
+      const res = await apiPost<{ data: { scheduled_at: string; platform: string } }>(
+        `/edro/briefings/${briefingId}/approve-and-schedule`,
+        {},
+      );
+      const scheduledAt = res.data?.scheduled_at
+        ? new Date(res.data.scheduled_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+        : '';
+      setApprovedBriefings(prev => ({ ...prev, [briefingId]: scheduledAt }));
+    } catch {
+      // silent — user can still open the brief manually
+    } finally {
+      setApprovingBriefing(null);
     }
   };
 
@@ -393,15 +413,30 @@ export default function AdminIntelligencePage() {
                         {' · '}{new Date(b.created_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
                       </Typography>
                     </Box>
-                    <Chip
-                      size="small"
-                      label={b.status === 'draft' ? 'Aguardando aprovação' : b.status}
-                      sx={{
-                        height: 18, fontSize: '0.6rem', flexShrink: 0,
-                        bgcolor: b.status === 'draft' ? 'rgba(248,168,0,0.12)' : 'rgba(19,222,185,0.12)',
-                        color: b.status === 'draft' ? '#F8A800' : '#13DEB9',
-                      }}
-                    />
+                    {approvedBriefings[b.id] ? (
+                      <Chip
+                        size="small"
+                        label={`Agendado ${approvedBriefings[b.id]}`}
+                        sx={{ height: 18, fontSize: '0.6rem', flexShrink: 0, bgcolor: 'rgba(19,222,185,0.12)', color: '#13DEB9' }}
+                      />
+                    ) : b.status === 'draft' ? (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        disabled={approvingBriefing === b.id}
+                        onClick={() => handleApproveAndSchedule(b.id)}
+                        startIcon={approvingBriefing === b.id ? <CircularProgress size={10} /> : <IconCheck size={11} />}
+                        sx={{ fontSize: '0.6rem', height: 22, px: 1, flexShrink: 0, bgcolor: '#13DEB9', '&:hover': { bgcolor: '#0bbfa3' } }}
+                      >
+                        Aprovar e Agendar
+                      </Button>
+                    ) : (
+                      <Chip
+                        size="small"
+                        label={b.status}
+                        sx={{ height: 18, fontSize: '0.6rem', flexShrink: 0, bgcolor: 'rgba(19,222,185,0.12)', color: '#13DEB9' }}
+                      />
+                    )}
                   </Stack>
                 ))}
               </Stack>

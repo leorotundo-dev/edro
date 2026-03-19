@@ -33,6 +33,8 @@ import { runOpsDigestWorkerOnce } from './opsDigestWorker';
 import { runSimulationOutcomeMatcherOnce } from './simulationOutcomeMatcherWorker';
 import { runAutoBriefingFromOpportunityOnce } from './autoBriefingFromOpportunityWorker';
 import { runContentFatigueMonitorOnce } from './contentFatigueMonitorWorker';
+import { runScheduledPublicationsOnce } from './scheduledPublicationsWorker';
+import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -137,4 +139,8 @@ export function startJobsRunner() {
   startWorkerLoop('autoBriefing', runAutoBriefingFromOpportunityOnce, 16500, 180_000);
   // Content Fatigue Monitor — 1x/hour, detects >25% engagement drops and auto-generates substitute copy
   startWorkerLoop('contentFatigue', runContentFatigueMonitorOnce, 17000, 120_000);
+  // Scheduled Publications — every 5 min, publishes LinkedIn or notifies for other platforms
+  startWorkerLoop('scheduledPublications', runScheduledPublicationsOnce, 17500, 60_000);
+  // Weekly Digest — every Monday 08h BRT, sends intelligence summary email to all admins
+  startWorkerLoop('weeklyDigest', runWeeklyDigestOnce, 18000, 120_000);
 }
