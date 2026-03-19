@@ -36,6 +36,7 @@ import { runContentFatigueMonitorOnce } from './contentFatigueMonitorWorker';
 import { runScheduledPublicationsOnce } from './scheduledPublicationsWorker';
 import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWorker';
+import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -146,4 +147,6 @@ export function startJobsRunner() {
   startWorkerLoop('weeklyDigest', runWeeklyDigestOnce, 18000, 120_000);
   // Competitor Intelligence — daily at 02h BRT, auto-analyzes AMD patterns for all clients with competitors
   startWorkerLoop('competitorIntelligence', runCompetitorIntelligenceWorkerOnce, 18500, 300_000);
+  // Opportunity Detector — daily at 06h BRT, scans clipping+social+calendar+Tavily+Google Trends for all clients
+  startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000);
 }

@@ -6,6 +6,7 @@ import { getClientAccuracy } from '../services/campaignSimulator/outcomeTracker'
 import { triggerOutcomeMatcherNow } from '../jobs/simulationOutcomeMatcherWorker';
 import { triggerAutoBriefingNow } from '../jobs/autoBriefingFromOpportunityWorker';
 import { triggerCompetitorIntelligenceNow } from '../jobs/competitorIntelligenceWorker';
+import { triggerOpportunityDetectorNow } from '../jobs/opportunityDetectorWorker';
 import { query } from '../db';
 
 const variantSchema = z.object({
@@ -131,6 +132,16 @@ export default async function simulationRoutes(app: FastifyInstance) {
     try {
       await triggerCompetitorIntelligenceNow();
       return reply.send({ ok: true, message: 'Competitor intelligence worker triggered.' });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /simulation/admin/trigger-opportunity-detector — force opportunity scan (admin only)
+  app.post('/simulation/admin/trigger-opportunity-detector', { preHandler: [authGuard, requirePerm('admin')] }, async (_request: any, reply) => {
+    try {
+      await triggerOpportunityDetectorNow();
+      return reply.send({ ok: true, message: 'Opportunity detector triggered.' });
     } catch (err: any) {
       return reply.status(500).send({ ok: false, error: err.message });
     }
