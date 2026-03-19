@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS project_lists (
   board_id      UUID NOT NULL REFERENCES project_boards(id) ON DELETE CASCADE,
   tenant_id     TEXT NOT NULL,
   name          TEXT NOT NULL,
-  position      NUMERIC(10,4) NOT NULL DEFAULT 0,
+  position      FLOAT8 NOT NULL DEFAULT 0,
   is_archived   BOOLEAN NOT NULL DEFAULT false,
   trello_list_id TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS project_cards (
   tenant_id       TEXT NOT NULL,
   title           TEXT NOT NULL,
   description     TEXT,
-  position        NUMERIC(10,4) NOT NULL DEFAULT 0,
+  position        FLOAT8 NOT NULL DEFAULT 0,
   due_date        DATE,
   due_complete    BOOLEAN DEFAULT false,
   labels          JSONB DEFAULT '[]',     -- [{color, name}]
