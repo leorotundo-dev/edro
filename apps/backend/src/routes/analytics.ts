@@ -1586,6 +1586,27 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
     });
   });
 
+  // ── GET /admin/roi-distribution ─────────────────────────────────────────────
+  // Global copy ROI label distribution (last 90 days) for dashboard home
+  app.get('/admin/roi-distribution', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (req: any, reply: any) => {
+    const tenantId = req.user.tenant_id as string;
+    if (!['admin', 'manager'].includes(req.user?.role)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+    const { rows } = await query<{ roi_label: string; count: string }>(
+      `SELECT roi_label, COUNT(*) AS count
+       FROM copy_roi_scores
+       WHERE tenant_id = $1 AND computed_at >= NOW() - INTERVAL '90 days'
+       GROUP BY roi_label`,
+      [tenantId]
+    );
+    const dist: Record<string, number> = { excellent: 0, good: 0, average: 0, poor: 0, no_data: 0 };
+    for (const r of rows) dist[r.roi_label] = parseInt(r.count);
+    return { distribution: dist };
+  });
+
   // ── GET /clients/:clientId/metrics/content-intelligence ─────────────────────
   // FASE 7: briefing topic → performance correlation
   app.get('/clients/:clientId/metrics/content-intelligence', {

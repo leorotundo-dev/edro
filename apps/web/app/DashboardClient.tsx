@@ -17,6 +17,7 @@ import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
@@ -25,8 +26,11 @@ import {
   IconClipboardList,
   IconFileText,
   IconFlame,
+  IconLayoutKanban,
   IconPlus,
   IconTrendingUp,
+  IconChartBar,
+  IconCurrencyReal,
 } from '@tabler/icons-react';
 import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 
@@ -78,6 +82,37 @@ type Metrics = {
   byStatus: Record<string, number>;
   overdue: number;
   totalCopies: number;
+};
+
+type PLRow = {
+  id: string;
+  name: string;
+  receita_brl: string;
+  margem_brl: string;
+  margem_pct: string | null;
+};
+
+type ClientHealth = {
+  id: string;
+  name: string;
+  score: number | null;
+  status: string;
+  statusColor: string;
+};
+
+type RoiDistribution = {
+  excellent: number;
+  good: number;
+  average: number;
+  poor: number;
+  no_data: number;
+};
+
+type TrelloBoard = {
+  id: string;
+  name: string;
+  card_count: number;
+  trello_board_id: string | null;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -145,6 +180,10 @@ export default function DashboardClient() {
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEventWithDate[]>([]);
   const [pendingByClient, setPendingByClient] = useState<PendingByClient[]>([]);
   const [opsCritical, setOpsCritical] = useState(0);
+  const [plRows, setPlRows] = useState<PLRow[]>([]);
+  const [clientsHealth, setClientsHealth] = useState<ClientHealth[]>([]);
+  const [roiDist, setRoiDist] = useState<RoiDistribution | null>(null);
+  const [trelloBoards, setTrelloBoards] = useState<TrelloBoard[]>([]);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -153,7 +192,7 @@ export default function DashboardClient() {
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes] = await Promise.all([
+      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes, plRes, healthRes, roiRes, trelloRes] = await Promise.all([
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
@@ -162,6 +201,10 @@ export default function DashboardClient() {
         ).catch(() => null),
         apiGet<{ success: boolean; data: PendingByClient[] }>('/edro/briefings/pending-by-client').catch(() => null),
         apiGet<{ data: { id: string; status: string; is_urgent: boolean; priority_band: string; owner_id: string | null }[] }>('/jobs?active=true').catch(() => null),
+        apiGet<{ rows: PLRow[] }>(`/financial/pl?month=${currentMonth}`).catch(() => null),
+        apiGet<{ clients: ClientHealth[] }>('/admin/clients-health').catch(() => null),
+        apiGet<{ distribution: RoiDistribution }>('/admin/roi-distribution').catch(() => null),
+        apiGet<{ boards: TrelloBoard[] }>('/trello/project-boards').catch(() => null),
       ]);
 
       if (metricsRes?.data) setMetrics(metricsRes.data);
@@ -177,6 +220,10 @@ export default function DashboardClient() {
         );
         setOpsCritical(criticalIds.size);
       }
+      if (plRes?.rows) setPlRows(plRes.rows);
+      if (healthRes?.clients) setClientsHealth(healthRes.clients);
+      if (roiRes?.distribution) setRoiDist(roiRes.distribution);
+      if (trelloRes?.boards) setTrelloBoards(trelloRes.boards);
 
       if (calendarRes?.days) {
         const todaysList = calendarRes.days[today] || [];
@@ -229,6 +276,13 @@ export default function DashboardClient() {
   const active = (metrics?.byStatus?.active ?? 0) + (metrics?.byStatus?.in_progress ?? 0);
   const pendingApprovals = metrics?.byStatus?.['aprovacao'] || 0;
 
+  const totalReceita = plRows.reduce((s, r) => s + parseFloat(r.receita_brl || '0'), 0);
+  const totalMargem = plRows.reduce((s, r) => s + parseFloat(r.margem_brl || '0'), 0);
+  const margemPct = totalReceita > 0 ? Math.round((totalMargem / totalReceita) * 100) : null;
+  const briefingsDone = metrics?.byStatus?.done ?? 0;
+
+  const roiTotal = roiDist ? Object.values(roiDist).reduce((s, v) => s + v, 0) : 0;
+
   const sortedPending = [...pendingByClient].sort((a, b) => {
     if (b.atrasados !== a.atrasados) return b.atrasados - a.atrasados;
     if (b.aprovacao !== a.aprovacao) return b.aprovacao - a.aprovacao;
@@ -279,6 +333,66 @@ export default function DashboardClient() {
             color="#dc2626"
             href="/admin/operacoes/jobs?group=risk"
           />
+        </Stack>
+
+        {/* ── KPIs Financeiros do Mês ───────────────────────────── */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <Card sx={{ flex: 1 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#16a34a18', color: '#16a34a' }}>
+                  <IconCurrencyReal size={22} />
+                </Box>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>
+                    {totalReceita > 0 ? `R$ ${(totalReceita / 1000).toFixed(0)}k` : '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Receita do mês</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+          <Card sx={{ flex: 1 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: margemPct !== null && margemPct >= 30 ? '#16a34a18' : '#f59e0b18', color: margemPct !== null && margemPct >= 30 ? '#16a34a' : '#f59e0b' }}>
+                  <IconChartBar size={22} />
+                </Box>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>
+                    {margemPct !== null ? `${margemPct}%` : '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Margem do mês</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+          <Card sx={{ flex: 1 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#6366f118', color: '#6366f1' }}>
+                  <IconFileText size={22} />
+                </Box>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>{briefingsDone}</Typography>
+                  <Typography variant="body2" color="text.secondary">Briefings entregues</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+          <Card sx={{ flex: 1 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#E8521918', color: '#E85219' }}>
+                  <IconClipboardList size={22} />
+                </Box>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>{metrics?.totalCopies ?? '—'}</Typography>
+                  <Typography variant="body2" color="text.secondary">Peças criadas</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
         </Stack>
 
         {/* ── Pipeline por Cliente ──────────────────────────────── */}
@@ -378,6 +492,149 @@ export default function DashboardClient() {
                 </Box>
               ))}
             </Stack>
+          </Card>
+        )}
+
+        {/* ── Saúde dos Clientes + ROI de Copy ─────────────────── */}
+        <Grid container spacing={2}>
+          {/* Saúde dos Clientes */}
+          {clientsHealth.length > 0 && (
+            <Grid size={{ xs: 12, md: roiDist && roiTotal > 0 ? 7 : 12 }}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Box>
+                      <Typography variant="h6" fontWeight={700}>Saúde dos Clientes</Typography>
+                      <Typography variant="caption" color="text.secondary">Score 0–100 · últimos 30 dias</Typography>
+                    </Box>
+                    <Button size="small" onClick={() => router.push('/clientes')}>Ver todos</Button>
+                  </Stack>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {clientsHealth.map((c) => (
+                      <Tooltip key={c.id} title={c.score !== null ? `Score: ${c.score}` : 'Sem dados'} arrow>
+                        <Chip
+                          label={c.name}
+                          size="small"
+                          onClick={() => router.push(`/clients/${c.id}`)}
+                          sx={{
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            bgcolor: c.score === null ? '#f1f5f9'
+                              : c.score >= 70 ? '#dcfce7'
+                              : c.score >= 40 ? '#fef9c3'
+                              : '#fee2e2',
+                            color: c.score === null ? '#64748b'
+                              : c.score >= 70 ? '#16a34a'
+                              : c.score >= 40 ? '#ca8a04'
+                              : '#dc2626',
+                            border: '1px solid',
+                            borderColor: c.score === null ? '#e2e8f0'
+                              : c.score >= 70 ? '#bbf7d0'
+                              : c.score >= 40 ? '#fde68a'
+                              : '#fecaca',
+                          }}
+                        />
+                      </Tooltip>
+                    ))}
+                  </Box>
+                  <Stack direction="row" spacing={2} mt={2}>
+                    {[
+                      { label: 'Saudável', color: '#16a34a', bg: '#dcfce7', count: clientsHealth.filter(c => (c.score ?? 0) >= 70).length },
+                      { label: 'Atenção', color: '#ca8a04', bg: '#fef9c3', count: clientsHealth.filter(c => (c.score ?? 0) >= 40 && (c.score ?? 0) < 70).length },
+                      { label: 'Crítico', color: '#dc2626', bg: '#fee2e2', count: clientsHealth.filter(c => c.score !== null && (c.score ?? 0) < 40).length },
+                    ].map(({ label, color, bg, count }) => (
+                      <Stack key={label} direction="row" spacing={0.5} alignItems="center">
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
+                        <Typography variant="caption" color="text.secondary">{count} {label}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* ROI de Copy */}
+          {roiDist && roiTotal > 0 && (
+            <Grid size={{ xs: 12, md: clientsHealth.length > 0 ? 5 : 12 }}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Box>
+                      <Typography variant="h6" fontWeight={700}>ROI de Copy</Typography>
+                      <Typography variant="caption" color="text.secondary">{roiTotal} peças · últimos 90 dias</Typography>
+                    </Box>
+                    <Button size="small" onClick={() => router.push('/admin/intelligence')}>Detalhes</Button>
+                  </Stack>
+                  <Stack spacing={1.5}>
+                    {([
+                      { key: 'excellent', label: 'Excelente', color: '#16a34a' },
+                      { key: 'good', label: 'Bom', color: '#2563eb' },
+                      { key: 'average', label: 'Médio', color: '#ca8a04' },
+                      { key: 'poor', label: 'Fraco', color: '#dc2626' },
+                    ] as const).map(({ key, label, color }) => {
+                      const count = roiDist[key] ?? 0;
+                      const pct = roiTotal > 0 ? Math.round((count / roiTotal) * 100) : 0;
+                      return (
+                        <Box key={key}>
+                          <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                            <Typography variant="caption" fontWeight={600} sx={{ color }}>{label}</Typography>
+                            <Typography variant="caption" color="text.secondary">{count} ({pct}%)</Typography>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            sx={{
+                              height: 6, borderRadius: 99, bgcolor: 'grey.100',
+                              '& .MuiLinearProgress-bar': { bgcolor: color },
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+
+        {/* ── Produção Trello ───────────────────────────────────── */}
+        {trelloBoards.length > 0 && (
+          <Card>
+            <CardContent sx={{ pb: 0 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                  <Typography variant="h6" fontWeight={700}>Produção em andamento</Typography>
+                  <Typography variant="caption" color="text.secondary">Boards Trello · cards totais por cliente</Typography>
+                </Box>
+                <Button size="small" startIcon={<IconLayoutKanban size={14} />} onClick={() => router.push('/projetos')}>
+                  Ver kanban
+                </Button>
+              </Stack>
+            </CardContent>
+            <Grid container spacing={0} sx={{ px: 2, pb: 2 }}>
+              {trelloBoards.map((board) => (
+                <Grid key={board.id} size={{ xs: 6, sm: 4, md: 3 }}>
+                  <Box
+                    onClick={() => router.push(`/projetos/${board.id}`)}
+                    sx={{
+                      p: 1.5, m: 0.5, borderRadius: 2, cursor: 'pointer',
+                      border: '1px solid', borderColor: 'divider',
+                      transition: 'all 0.15s', '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
+                    }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconLayoutKanban size={16} color="#E85219" />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" fontWeight={700} noWrap display="block">{board.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{board.card_count} cards</Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
           </Card>
         )}
 
