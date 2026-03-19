@@ -294,6 +294,7 @@ export async function syncTrelloBoard(
       if (!edroCardId) continue;
 
       const items = cl.checkItems.map((item) => ({
+        trello_id: item.id,
         text: item.name,
         checked: item.state === 'complete',
       }));

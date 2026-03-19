@@ -10,13 +10,17 @@ type Job = {
   status: string;
   due_at: string | null;
   client_name: string | null;
-  source: 'briefing' | 'ops_job';
+  source: 'briefing' | 'ops_job' | 'trello_card';
+  board_name?: string | null;
+  list_name?: string | null;
+  due_complete?: boolean;
 };
 
 // Platform/source icons
 const SOURCE_EMOJI: Record<string, string> = {
   briefing: '✍️',
   ops_job: '⚙️',
+  trello_card: '◈',
 };
 
 const STATUS_EMOJI: Record<string, string> = {
@@ -42,6 +46,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function getUrgency(job: Job, today: Date) {
+  if (job.source === 'trello_card' && job.due_complete) return { emoji: '✅', color: '#13DEB9', label: 'Prazo cumprido', badge: null, score: 10 };
   if (['done', 'published'].includes(job.status)) return { emoji: '✅', color: '#13DEB9', label: 'Concluído', badge: null, score: 10 };
   if (job.status === 'blocked') return { emoji: '🚫', color: '#ff4444', label: 'Bloqueado', badge: 'BLOQUEADO', score: 1 };
   if (!job.due_at) return { emoji: '📋', color: '#666', label: 'Sem prazo', badge: null, score: 9 };
@@ -141,9 +146,9 @@ export default function JobsPage() {
         <section className="portal-card">
           <div className="portal-list">
             {sorted.map(({ job, urg }) => {
-              const statusEmoji = STATUS_EMOJI[job.status] ?? '📋';
-              const statusLabel = STATUS_LABELS[job.status] ?? job.status;
-              const isDone = ['done', 'published'].includes(job.status);
+              const statusEmoji = job.source === 'trello_card' ? '◈' : (STATUS_EMOJI[job.status] ?? '📋');
+              const statusLabel = job.source === 'trello_card' ? (job.list_name ?? job.status) : (STATUS_LABELS[job.status] ?? job.status);
+              const isDone = ['done', 'published'].includes(job.status) || (job.source === 'trello_card' && !!job.due_complete);
               return (
                 <Link key={job.id} href={`/jobs/${job.id}?source=${job.source}`} className="portal-list-card">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -164,7 +169,7 @@ export default function JobsPage() {
                       </p>
                       {/* Badges row */}
                       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                        {/* Status badge */}
+                        {/* Status / list badge */}
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
                           background: isDone ? 'rgba(19,222,185,0.15)' : 'rgba(255,255,255,0.08)',
@@ -176,9 +181,14 @@ export default function JobsPage() {
                         {/* Source badge */}
                         <span style={{
                           fontSize: 10, padding: '2px 8px', borderRadius: 6,
-                          background: 'rgba(255,255,255,0.05)', color: 'var(--portal-muted)',
+                          background: job.source === 'trello_card' ? 'rgba(93,135,255,0.12)' : 'rgba(255,255,255,0.05)',
+                          color: job.source === 'trello_card' ? '#5D87FF' : 'var(--portal-muted)',
+                          fontWeight: job.source === 'trello_card' ? 700 : 400,
                         }}>
-                          {SOURCE_EMOJI[job.source]} {job.source === 'ops_job' ? 'Operação' : 'Briefing'}
+                          {SOURCE_EMOJI[job.source]}{' '}
+                          {job.source === 'trello_card'
+                            ? (job.board_name ?? 'Kanban')
+                            : job.source === 'ops_job' ? 'Operação' : 'Briefing'}
                         </span>
                       </div>
                     </div>

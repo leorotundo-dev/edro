@@ -824,21 +824,40 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const fpRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
     if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
 
-    // Briefings where in assignees or traffic_owner + ops jobs where owner
+    // Briefings + ops jobs + Trello cards assigned by email
     const res = await pool.query(
       `SELECT b.id, b.title, b.status, b.due_at,
-              c.name as client_name, 'briefing' as source
+              c.name as client_name, 'briefing' as source,
+              NULL::text as board_name, NULL::text as list_name, false as due_complete
        FROM edro_briefings b
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
           OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
        UNION ALL
        SELECT j.id, j.title, j.status, j.deadline_at as due_at,
-              c.name as client_name, 'ops_job' as source
+              c.name as client_name, 'ops_job' as source,
+              NULL::text as board_name, NULL::text as list_name, false as due_complete
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        WHERE j.owner_id = $1::text
          AND j.status NOT IN ('published', 'done', 'archived')
+       UNION ALL
+       SELECT pc.id, pc.title,
+              pl.name as status,
+              pc.due_date::timestamptz as due_at,
+              COALESCE(cl.name, pb.name) as client_name,
+              'trello_card' as source,
+              pb.name as board_name,
+              pl.name as list_name,
+              pc.due_complete
+       FROM project_cards pc
+       JOIN project_card_members pcm ON pcm.card_id = pc.id
+       JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE eu.id = $1::uuid
+         AND pc.is_archived = false
        ORDER BY due_at ASC NULLS LAST
        LIMIT 100`,
       [userId],
@@ -853,7 +872,54 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const { jobId } = request.params as { jobId: string };
     const { source } = request.query as { source?: string };
 
-    // Try ops job first (or if source=ops_job)
+    // ── Trello card ──────────────────────────────────────────────────────────
+    if (!source || source === 'trello_card') {
+      const res = await pool.query(
+        `SELECT pc.id, pc.title, pc.description, pc.due_date, pc.due_complete,
+                pc.labels, pc.cover_color, pc.trello_url,
+                pl.name as list_name,
+                pb.id as board_id, pb.name as board_name,
+                COALESCE(cl.name, pb.name) as client_name,
+                'trello_card' as source
+         FROM project_cards pc
+         JOIN project_card_members pcm ON pcm.card_id = pc.id
+         JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+         JOIN project_lists pl ON pl.id = pc.list_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         LEFT JOIN clients cl ON cl.id::text = pb.client_id
+         WHERE pc.id = $1 AND eu.id = $2::uuid AND pc.is_archived = false`,
+        [jobId, userId],
+      );
+      if (res.rows.length) {
+        const card = res.rows[0];
+        // Load checklists
+        const clRes = await pool.query(
+          `SELECT id, name, items FROM project_card_checklists WHERE card_id = $1 ORDER BY created_at`,
+          [jobId],
+        );
+        // Load comments (last 20)
+        const cmRes = await pool.query(
+          `SELECT body, author_name, author_avatar, commented_at
+           FROM project_card_comments WHERE card_id = $1 ORDER BY commented_at DESC LIMIT 20`,
+          [jobId],
+        );
+        // Load all lists on this board for "move to" actions
+        const listsRes = await pool.query(
+          `SELECT id, name FROM project_lists WHERE board_id = $2 AND is_archived = false ORDER BY position`,
+          [jobId, card.board_id],
+        );
+        return reply.send({
+          job: {
+            ...card,
+            checklists: clRes.rows,
+            comments: cmRes.rows,
+            board_lists: listsRes.rows,
+          },
+        });
+      }
+    }
+
+    // ── Ops job ──────────────────────────────────────────────────────────────
     if (!source || source === 'ops_job') {
       const res = await pool.query(
         `SELECT j.*, c.name as client_name, jt.name as job_type_name
@@ -868,7 +934,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       }
     }
 
-    // Try briefing (or if source=briefing)
+    // ── Briefing ─────────────────────────────────────────────────────────────
     if (!source || source === 'briefing') {
       const res = await pool.query(
         `SELECT b.id, b.title, b.status, b.due_at, b.payload, b.created_at,
@@ -889,6 +955,185 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     return reply.status(404).send({ error: 'Job não encontrado ou não atribuído a você.' });
+  });
+
+  // ── Trello card actions (bidirectional sync) ──────────────────────────────
+
+  app.patch('/freelancers/portal/me/trello-cards/:cardId', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { cardId } = request.params as { cardId: string };
+    const body = request.body as {
+      due_complete?: boolean;
+      move_to_list_id?: string;  // Edro list UUID
+      comment?: string;
+    };
+
+    // Verify this user is actually a member of the card
+    const authRes = await pool.query(
+      `SELECT pc.id, pc.trello_card_id, pc.board_id, pc.list_id,
+              pb.tenant_id
+       FROM project_cards pc
+       JOIN project_card_members pcm ON pcm.card_id = pc.id
+       JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       JOIN project_boards pb ON pb.id = pc.board_id
+       WHERE pc.id = $1 AND eu.id = $2::uuid AND pc.is_archived = false`,
+      [cardId, userId],
+    );
+    if (!authRes.rows.length) return reply.status(403).send({ error: 'Sem acesso a este card.' });
+
+    const card = authRes.rows[0];
+    const tenantId: string = card.tenant_id;
+
+    // ── Apply local DB update ─────────────────────────────────────────────
+    const updates: string[] = [];
+    const vals: any[] = [];
+
+    if (typeof body.due_complete === 'boolean') {
+      vals.push(body.due_complete);
+      updates.push(`due_complete = $${vals.length}`);
+    }
+    if (body.move_to_list_id) {
+      // Verify new list belongs to same board
+      const lRes = await pool.query(
+        `SELECT id, position FROM project_lists WHERE id = $1 AND board_id = $2`,
+        [body.move_to_list_id, card.board_id],
+      );
+      if (lRes.rows.length) {
+        vals.push(body.move_to_list_id);
+        updates.push(`list_id = $${vals.length}`);
+      }
+    }
+
+    if (updates.length) {
+      vals.push(cardId);
+      await pool.query(
+        `UPDATE project_cards SET ${updates.join(', ')}, updated_at = now() WHERE id = $${vals.length}`,
+        vals,
+      );
+    }
+
+    // ── Add comment to DB ─────────────────────────────────────────────────
+    if (body.comment?.trim()) {
+      const userRes = await pool.query(`SELECT name FROM edro_users WHERE id = $1`, [userId]);
+      const authorName = userRes.rows[0]?.name ?? 'Freelancer';
+      await pool.query(
+        `INSERT INTO project_card_comments (card_id, tenant_id, body, author_name, commented_at)
+         VALUES ($1, $2, $3, $4, now())`,
+        [cardId, tenantId, body.comment.trim(), authorName],
+      );
+    }
+
+    // ── Sync back to Trello ───────────────────────────────────────────────
+    if (card.trello_card_id) {
+      try {
+        const { getTrelloCredentials } = await import('../services/trelloSyncService');
+        const creds = await getTrelloCredentials(tenantId);
+        if (creds) {
+          const trelloBase = 'https://api.trello.com/1';
+          const auth = `key=${creds.apiKey}&token=${creds.apiToken}`;
+
+          if (typeof body.due_complete === 'boolean') {
+            await fetch(
+              `${trelloBase}/cards/${card.trello_card_id}?${auth}&dueComplete=${body.due_complete}`,
+              { method: 'PUT', signal: AbortSignal.timeout(8000) },
+            );
+          }
+          if (body.move_to_list_id) {
+            const newList = await pool.query(
+              `SELECT trello_list_id FROM project_lists WHERE id = $1`,
+              [body.move_to_list_id],
+            );
+            if (newList.rows[0]?.trello_list_id) {
+              await fetch(
+                `${trelloBase}/cards/${card.trello_card_id}?${auth}&idList=${newList.rows[0].trello_list_id}`,
+                { method: 'PUT', signal: AbortSignal.timeout(8000) },
+              );
+            }
+          }
+          if (body.comment?.trim()) {
+            await fetch(
+              `${trelloBase}/cards/${card.trello_card_id}/actions/comments?${auth}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: body.comment.trim() }),
+                signal: AbortSignal.timeout(8000),
+              },
+            );
+          }
+        }
+      } catch (err: any) {
+        console.warn('[trello sync] freelancer update sync failed:', err?.message);
+        // Non-fatal — local DB is already updated
+      }
+    }
+
+    return reply.send({ ok: true });
+  });
+
+  // Toggle a single checklist item (marks it complete/incomplete in DB + Trello)
+  app.patch('/freelancers/portal/me/trello-cards/:cardId/checklist-items/:itemId', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { cardId, itemId } = request.params as { cardId: string; itemId: string };
+    const { checked } = request.body as { checked: boolean };
+
+    // Verify access
+    const authRes = await pool.query(
+      `SELECT pc.trello_card_id, pb.tenant_id
+       FROM project_cards pc
+       JOIN project_card_members pcm ON pcm.card_id = pc.id
+       JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       JOIN project_boards pb ON pb.id = pc.board_id
+       WHERE pc.id = $1 AND eu.id = $2::uuid`,
+      [cardId, userId],
+    );
+    if (!authRes.rows.length) return reply.status(403).send({ error: 'Sem acesso.' });
+
+    // Find which checklist contains this item and update the JSON array
+    const clRes = await pool.query(
+      `SELECT id, items FROM project_card_checklists WHERE card_id = $1`,
+      [cardId],
+    );
+    let trelloItemId: string | null = null;
+    let trelloChecklistId: string | null = null;
+
+    for (const cl of clRes.rows) {
+      const items: any[] = cl.items ?? [];
+      const idx = items.findIndex((it: any) => it.id === itemId || it.trello_id === itemId);
+      if (idx >= 0) {
+        items[idx].checked = checked;
+        trelloItemId = items[idx].trello_id ?? null;
+        trelloChecklistId = cl.trello_checklist_id ?? null;
+        await pool.query(
+          `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
+          [JSON.stringify(items), cl.id],
+        );
+        break;
+      }
+    }
+
+    // Sync to Trello if we have the IDs
+    if (trelloItemId && authRes.rows[0].trello_card_id) {
+      try {
+        const { getTrelloCredentials } = await import('../services/trelloSyncService');
+        const creds = await getTrelloCredentials(authRes.rows[0].tenant_id);
+        if (creds) {
+          const auth = `key=${creds.apiKey}&token=${creds.apiToken}`;
+          await fetch(
+            `https://api.trello.com/1/cards/${authRes.rows[0].trello_card_id}/checkItem/${trelloItemId}?${auth}&state=${checked ? 'complete' : 'incomplete'}`,
+            { method: 'PUT', signal: AbortSignal.timeout(8000) },
+          );
+        }
+      } catch (err: any) {
+        console.warn('[trello sync] checklist item sync failed:', err?.message);
+      }
+    }
+
+    return reply.send({ ok: true });
   });
 
   app.get('/freelancers/portal/me/payables', async (request: any, reply) => {
