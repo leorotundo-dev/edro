@@ -63,6 +63,7 @@ import webhookRecallRoutes from './webhookRecall';
 import jobsRoutes from './jobs';
 import operationsRoutes from './operations';
 import peopleRoutes from './people';
+import simulationRoutes from './simulation';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -139,4 +140,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(jobsRoutes, { prefix: '/api' });
   app.register(operationsRoutes, { prefix: '/api' });
   app.register(webhookAdminRoutes, { prefix: '/api' });
+  app.register(simulationRoutes, { prefix: '/api' });
 }

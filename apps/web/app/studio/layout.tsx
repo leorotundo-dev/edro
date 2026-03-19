@@ -21,6 +21,7 @@ import {
   IconChevronRight,
   IconExternalLink,
   IconX,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { buildStudioHref } from './studioWorkflow';
 
@@ -284,6 +285,26 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
           >
             <Box component="span" className="material-symbols-rounded" sx={{ fontSize: 18 }}>menu_book</Box>
             <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Livro de Receitas</Typography>
+          </Box>
+        </Box>
+
+        {/* Simulador de Sucesso link */}
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Box
+            component={Link}
+            href="/studio/simulation"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              px: 2, py: 1, borderRadius: 3, textDecoration: 'none',
+              border: '1px solid rgba(19,222,185,0.25)',
+              bgcolor: 'rgba(19,222,185,0.05)',
+              color: '#13DEB9',
+              transition: 'background-color 0.2s',
+              '&:hover': { bgcolor: 'rgba(19,222,185,0.1)' },
+            }}
+          >
+            <IconSparkles size={16} />
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Simulador de Sucesso</Typography>
           </Box>
         </Box>
 
