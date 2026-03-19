@@ -1,18 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import AvatarGroup from '@mui/material/AvatarGroup';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
+import InputBase from '@mui/material/InputBase';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -22,6 +23,7 @@ import {
   IconCalendar,
   IconCheck,
   IconExternalLink,
+  IconPlus,
   IconRefresh,
   IconX,
 } from '@tabler/icons-react';
@@ -84,8 +86,6 @@ function labelBg(color: string) {
   return LABEL_COLORS[color] ?? '#64748b';
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function fmtDate(v?: string | null) {
   if (!v) return null;
   return new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
@@ -100,69 +100,119 @@ function isDueOverdue(due?: string | null, complete?: boolean) {
   return new Date(due) < new Date();
 }
 
-// ─── Card component ───────────────────────────────────────────────────────────
+// ─── KanbanCard ───────────────────────────────────────────────────────────────
 
-function KanbanCard({ card, onClick }: { card: ProjectCard; onClick: () => void }) {
+function KanbanCard({
+  card, index, onClick,
+}: { card: ProjectCard; index: number; onClick: () => void }) {
   const overdue = isDueOverdue(card.due_date, card.due_complete);
 
   return (
+    <Draggable draggableId={card.id} index={index}>
+      {(provided, snapshot) => (
+        <Box
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          onClick={onClick}
+          sx={{
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: snapshot.isDragging ? 'primary.main' : 'divider',
+            borderRadius: 1.5,
+            p: 1.25,
+            cursor: 'grab',
+            boxShadow: snapshot.isDragging ? 4 : 0,
+            opacity: snapshot.isDragging ? 0.95 : 1,
+            transition: 'box-shadow 0.1s',
+            '&:hover': { boxShadow: 2 },
+            ...(card.cover_color ? { borderTop: `3px solid ${labelBg(card.cover_color)}` } : {}),
+          }}
+        >
+          {card.labels.length > 0 && (
+            <Stack direction="row" flexWrap="wrap" gap={0.5} mb={0.75}>
+              {card.labels.map((l, i) => (
+                <Box key={i} sx={{ width: 36, height: 8, borderRadius: 4, bgcolor: labelBg(l.color) }} />
+              ))}
+            </Stack>
+          )}
+          <Typography variant="body2" sx={{ lineHeight: 1.4, mb: 0.5 }}>
+            {card.title}
+          </Typography>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mt={0.75}>
+            {card.due_date && (
+              <Chip
+                label={fmtDate(card.due_date)}
+                size="small"
+                icon={<IconCalendar size={12} />}
+                color={card.due_complete ? 'success' : overdue ? 'error' : 'default'}
+                sx={{ height: 20, fontSize: 11 }}
+              />
+            )}
+            <Box flex={1} />
+            {card.members?.length > 0 && (
+              <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: 10 } }}>
+                {card.members.map((m) => (
+                  <Tooltip key={m.id} title={m.display_name}>
+                    <Avatar src={m.avatar_url ?? undefined} sx={{ width: 22, height: 22, fontSize: 10 }}>
+                      {initials(m.display_name)}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+              </AvatarGroup>
+            )}
+          </Stack>
+        </Box>
+      )}
+    </Draggable>
+  );
+}
+
+// ─── AddCardForm ──────────────────────────────────────────────────────────────
+
+function AddCardForm({ onAdd, onCancel }: { onAdd: (title: string) => Promise<void>; onCancel: () => void }) {
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  async function handleSubmit() {
+    const t = title.trim();
+    if (!t) return;
+    setSaving(true);
+    try { await onAdd(t); } finally { setSaving(false); }
+  }
+
+  return (
     <Box
-      onClick={onClick}
       sx={{
-        bgcolor: 'background.paper',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 1.5,
-        p: 1.25,
-        cursor: 'pointer',
-        '&:hover': { boxShadow: 2 },
-        ...(card.cover_color ? { borderTop: `3px solid ${labelBg(card.cover_color)}` } : {}),
+        bgcolor: 'background.paper', border: '1px solid', borderColor: 'primary.main',
+        borderRadius: 1.5, p: 1,
       }}
     >
-      {/* Labels */}
-      {card.labels.length > 0 && (
-        <Stack direction="row" flexWrap="wrap" gap={0.5} mb={0.75}>
-          {card.labels.map((l, i) => (
-            <Box
-              key={i}
-              sx={{
-                width: 36, height: 8, borderRadius: 4,
-                bgcolor: labelBg(l.color),
-              }}
-            />
-          ))}
-        </Stack>
-      )}
-
-      <Typography variant="body2" sx={{ lineHeight: 1.4, mb: 0.5 }}>
-        {card.title}
-      </Typography>
-
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mt={0.75}>
-        {/* Due date */}
-        {card.due_date && (
-          <Chip
-            label={fmtDate(card.due_date)}
-            size="small"
-            icon={<IconCalendar size={12} />}
-            color={card.due_complete ? 'success' : overdue ? 'error' : 'default'}
-            sx={{ height: 20, fontSize: 11 }}
-          />
-        )}
-        <Box flex={1} />
-
-        {/* Members */}
-        {card.members?.length > 0 && (
-          <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: 10 } }}>
-            {card.members.map((m) => (
-              <Tooltip key={m.id} title={m.display_name}>
-                <Avatar src={m.avatar_url ?? undefined} sx={{ width: 22, height: 22, fontSize: 10 }}>
-                  {initials(m.display_name)}
-                </Avatar>
-              </Tooltip>
-            ))}
-          </AvatarGroup>
-        )}
+      <InputBase
+        inputRef={inputRef}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Título do card..."
+        multiline
+        fullWidth
+        sx={{ fontSize: 14, mb: 0.5 }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+          if (e.key === 'Escape') onCancel();
+        }}
+      />
+      <Stack direction="row" spacing={0.5} mt={0.5}>
+        <Button
+          size="small" variant="contained" disabled={saving || !title.trim()}
+          onClick={handleSubmit}
+          sx={{ fontSize: 12, py: 0.25 }}
+        >
+          {saving ? <CircularProgress size={12} /> : 'Adicionar'}
+        </Button>
+        <IconButton size="small" onClick={onCancel}><IconX size={14} /></IconButton>
       </Stack>
     </Box>
   );
@@ -171,18 +221,20 @@ function KanbanCard({ card, onClick }: { card: ProjectCard; onClick: () => void 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ProjectBoardClient({ boardId }: { boardId: string }) {
+  const [lists, setLists] = useState<ProjectList[]>([]);
   const [board, setBoard] = useState<ProjectBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
   const [selectedCard, setSelectedCard] = useState<CardDetail | null>(null);
   const [loadingCard, setLoadingCard] = useState(false);
+  const [addingToList, setAddingToList] = useState<string | null>(null);
 
   const loadBoard = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiGet(`/trello/project-boards/${boardId}`);
       setBoard(data.board);
+      setLists(data.board.lists ?? []);
     } catch (err: any) {
       setError(err?.message ?? 'Erro ao carregar board.');
     } finally {
@@ -190,9 +242,7 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
     }
   }, [boardId]);
 
-  useEffect(() => {
-    loadBoard();
-  }, [loadBoard]);
+  useEffect(() => { loadBoard(); }, [loadBoard]);
 
   async function openCard(card: ProjectCard) {
     setLoadingCard(true);
@@ -216,8 +266,78 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
     }
   }
 
+  // ── Drag & drop ─────────────────────────────────────────────────────────────
+
+  function onDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const srcListId = source.droppableId;
+    const dstListId = destination.droppableId;
+
+    // Optimistic update
+    setLists((prev) => {
+      const next = prev.map((l) => ({ ...l, cards: [...l.cards] }));
+      const srcList = next.find((l) => l.id === srcListId)!;
+      const dstList = next.find((l) => l.id === dstListId)!;
+      const activeCards = (l: ProjectList) => l.cards.filter((c) => !c.is_archived).sort((a, b) => a.position - b.position);
+
+      const srcActive = activeCards(srcList);
+      const [moved] = srcActive.splice(source.index, 1);
+
+      if (srcListId === dstListId) {
+        srcActive.splice(destination.index, 0, moved);
+        srcActive.forEach((c, i) => { c.position = i * 65536; });
+      } else {
+        const dstActive = activeCards(dstList);
+        dstActive.splice(destination.index, 0, { ...moved, list_id: dstListId });
+        dstActive.forEach((c, i) => { c.position = i * 65536; });
+        // rebuild both lists' cards arrays
+        srcList.cards = srcList.cards.filter((c) => c.id !== draggableId || c.is_archived);
+        dstList.cards = [
+          ...dstList.cards.filter((c) => c.id !== draggableId || c.is_archived),
+          ...dstActive,
+        ];
+        return next;
+      }
+
+      srcList.cards = [
+        ...srcList.cards.filter((c) => c.is_archived),
+        ...srcActive,
+      ];
+      return next;
+    });
+
+    // Compute new position for backend
+    const dstList = lists.find((l) => l.id === dstListId)!;
+    const dstActive = dstList.cards.filter((c) => !c.is_archived && c.id !== draggableId).sort((a, b) => a.position - b.position);
+    const before = dstActive[destination.index - 1]?.position ?? 0;
+    const after = dstActive[destination.index]?.position ?? (before + 131072);
+    const newPos = (before + after) / 2;
+
+    // Background sync
+    apiPatch(`/trello/project-boards/${boardId}/cards/${draggableId}`, {
+      list_id: dstListId,
+      position: newPos,
+    }).catch((err) => {
+      console.error('Move sync failed:', err);
+      loadBoard(); // revert on error
+    });
+  }
+
+  // ── Add card ─────────────────────────────────────────────────────────────────
+
+  async function addCard(listId: string, title: string) {
+    await apiPost(`/trello/project-boards/${boardId}/cards`, { list_id: listId, title });
+    setAddingToList(null);
+    await loadBoard();
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   if (loading) return (
-    <AppShell title="Projetos">
+    <AppShell title="Projetos" fullBleed>
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
         <CircularProgress />
       </Box>
@@ -225,31 +345,27 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
   );
 
   if (error) return (
-    <AppShell title="Projetos">
+    <AppShell title="Projetos" fullBleed>
       <Box sx={{ p: 4 }}>
         <Alert severity="error">{error}</Alert>
       </Box>
     </AppShell>
   );
 
-  const lists = board?.lists ?? [];
+  const visibleLists = lists.filter((l) => !l.cards?.every((c) => c.is_archived));
 
   return (
     <AppShell title={board?.name ?? 'Projetos'} fullBleed>
       {/* Header */}
       <Stack
-        direction="row"
-        alignItems="center"
-        spacing={1.5}
+        direction="row" alignItems="center" spacing={1.5}
         sx={{ px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0 }}
       >
         <IconButton size="small" href="/projetos">
           <IconArrowLeft size={18} />
         </IconButton>
         <IconBrandTrello size={20} color="#0052cc" />
-        <Typography variant="h6" fontWeight={700} flex={1}>
-          {board?.name}
-        </Typography>
+        <Typography variant="h6" fontWeight={700} flex={1}>{board?.name}</Typography>
         {board?.trello_url && (
           <Tooltip title="Ver no Trello">
             <IconButton size="small" component="a" href={board.trello_url} target="_blank" rel="noreferrer">
@@ -258,63 +374,92 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
           </Tooltip>
         )}
         <Tooltip title="Recarregar">
-          <IconButton size="small" onClick={loadBoard}>
-            <IconRefresh size={16} />
-          </IconButton>
+          <IconButton size="small" onClick={loadBoard}><IconRefresh size={16} /></IconButton>
         </Tooltip>
       </Stack>
 
-      {/* Kanban columns */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'row',
-          gap: 2,
-          p: 2,
-          overflowX: 'auto',
-          alignItems: 'flex-start',
-          minHeight: 'calc(100vh - 120px)',
-          bgcolor: '#f0f2f5',
-        }}
-      >
-        {lists.filter((l) => !l.cards?.every((c) => c.is_archived)).map((list) => {
-          const activeCards = list.cards.filter((c) => !c.is_archived);
-          return (
-            <Box
-              key={list.id}
-              sx={{
-                minWidth: 272,
-                maxWidth: 272,
-                bgcolor: '#ebecf0',
-                borderRadius: 2,
-                flexShrink: 0,
-              }}
-            >
-              {/* List header */}
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                sx={{ px: 1.5, pt: 1.5, pb: 1 }}
-              >
-                <Typography variant="subtitle2" fontWeight={700}>
-                  {list.name}
-                </Typography>
-                <Chip label={activeCards.length} size="small" sx={{ height: 18, fontSize: 11 }} />
-              </Stack>
+      {/* Kanban */}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Box
+          sx={{
+            display: 'flex', flexDirection: 'row', gap: 2, p: 2,
+            overflowX: 'auto', alignItems: 'flex-start',
+            minHeight: 'calc(100vh - 120px)', bgcolor: '#f0f2f5',
+          }}
+        >
+          {visibleLists.map((list) => {
+            const activeCards = list.cards
+              .filter((c) => !c.is_archived)
+              .sort((a, b) => a.position - b.position);
 
-              {/* Cards */}
-              <Stack spacing={1} sx={{ px: 1.5, pb: 1.5 }}>
-                {activeCards
-                  .sort((a, b) => a.position - b.position)
-                  .map((card) => (
-                    <KanbanCard key={card.id} card={card} onClick={() => openCard(card)} />
-                  ))}
-              </Stack>
-            </Box>
-          );
-        })}
-      </Box>
+            return (
+              <Box
+                key={list.id}
+                sx={{ minWidth: 272, maxWidth: 272, bgcolor: '#ebecf0', borderRadius: 2, flexShrink: 0 }}
+              >
+                {/* List header */}
+                <Stack
+                  direction="row" justifyContent="space-between" alignItems="center"
+                  sx={{ px: 1.5, pt: 1.5, pb: 1 }}
+                >
+                  <Typography variant="subtitle2" fontWeight={700}>{list.name}</Typography>
+                  <Chip label={activeCards.length} size="small" sx={{ height: 18, fontSize: 11 }} />
+                </Stack>
+
+                {/* Cards */}
+                <Droppable droppableId={list.id}>
+                  {(provided, snapshot) => (
+                    <Box
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      sx={{
+                        px: 1.5, pb: 1, minHeight: 8,
+                        bgcolor: snapshot.isDraggingOver ? '#d0d4db' : 'transparent',
+                        borderRadius: 1, transition: 'background 0.15s',
+                      }}
+                    >
+                      <Stack spacing={1}>
+                        {activeCards.map((card, index) => (
+                          <KanbanCard
+                            key={card.id}
+                            card={card}
+                            index={index}
+                            onClick={() => openCard(card)}
+                          />
+                        ))}
+                        {provided.placeholder}
+                      </Stack>
+                    </Box>
+                  )}
+                </Droppable>
+
+                {/* Add card */}
+                <Box sx={{ px: 1.5, pb: 1.5 }}>
+                  {addingToList === list.id ? (
+                    <AddCardForm
+                      onAdd={(title) => addCard(list.id, title)}
+                      onCancel={() => setAddingToList(null)}
+                    />
+                  ) : (
+                    <Button
+                      size="small"
+                      startIcon={<IconPlus size={14} />}
+                      onClick={() => setAddingToList(list.id)}
+                      sx={{
+                        width: '100%', justifyContent: 'flex-start',
+                        color: 'text.secondary', fontWeight: 400,
+                        '&:hover': { bgcolor: '#d4d8de', color: 'text.primary' },
+                      }}
+                    >
+                      Adicionar card
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      </DragDropContext>
 
       {/* Card detail drawer */}
       <Drawer
@@ -338,27 +483,19 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </IconButton>
             </Stack>
 
-            {/* Labels */}
             {selectedCard.labels.length > 0 && (
               <Stack direction="row" flexWrap="wrap" gap={0.5} mb={2}>
                 {selectedCard.labels.map((l, i) => (
-                  <Chip
-                    key={i}
-                    label={l.name || l.color}
-                    size="small"
-                    sx={{ bgcolor: labelBg(l.color), color: '#fff', height: 20, fontSize: 11 }}
-                  />
+                  <Chip key={i} label={l.name || l.color} size="small"
+                    sx={{ bgcolor: labelBg(l.color), color: '#fff', height: 20, fontSize: 11 }} />
                 ))}
               </Stack>
             )}
 
-            {/* Due date */}
             {selectedCard.due_date && (
               <Stack direction="row" alignItems="center" spacing={1} mb={2}>
                 <IconCalendar size={16} />
-                <Typography variant="body2">
-                  Prazo: {fmtDate(selectedCard.due_date)}
-                </Typography>
+                <Typography variant="body2">Prazo: {fmtDate(selectedCard.due_date)}</Typography>
                 <Button
                   size="small"
                   variant={selectedCard.due_complete ? 'contained' : 'outlined'}
@@ -372,7 +509,6 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </Stack>
             )}
 
-            {/* Members */}
             {selectedCard.members?.length > 0 && (
               <Stack direction="row" spacing={1} alignItems="center" mb={2} flexWrap="wrap">
                 {selectedCard.members.map((m) => (
@@ -386,7 +522,6 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </Stack>
             )}
 
-            {/* Description */}
             {selectedCard.description && (
               <Box mb={2}>
                 <Typography variant="subtitle2" fontWeight={600} mb={0.5}>Descrição</Typography>
@@ -396,26 +531,21 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </Box>
             )}
 
-            {/* Checklists */}
             {selectedCard.checklists?.map((cl) => (
               <Box key={cl.id} mb={2}>
                 <Typography variant="subtitle2" fontWeight={600} mb={0.5}>{cl.name}</Typography>
                 <Stack spacing={0.5}>
                   {cl.items.map((item, i) => (
                     <Stack key={i} direction="row" spacing={0.75} alignItems="flex-start">
-                      <Box
-                        sx={{
-                          width: 16, height: 16, borderRadius: 0.5, mt: 0.25, flexShrink: 0,
-                          bgcolor: item.checked ? 'success.main' : 'action.disabled',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
+                      <Box sx={{
+                        width: 16, height: 16, borderRadius: 0.5, mt: 0.25, flexShrink: 0,
+                        bgcolor: item.checked ? 'success.main' : 'action.disabled',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
                         {item.checked && <IconCheck size={10} color="#fff" />}
                       </Box>
-                      <Typography
-                        variant="body2"
-                        sx={{ textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary' }}
-                      >
+                      <Typography variant="body2"
+                        sx={{ textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary' }}>
                         {item.text}
                       </Typography>
                     </Stack>
@@ -424,7 +554,6 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </Box>
             ))}
 
-            {/* Comments */}
             {selectedCard.comments?.length > 0 && (
               <Box>
                 <Typography variant="subtitle2" fontWeight={600} mb={1}>
@@ -434,9 +563,7 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
                   {selectedCard.comments.map((c) => (
                     <Box key={c.id}>
                       <Stack direction="row" spacing={0.75} alignItems="center" mb={0.25}>
-                        <Avatar sx={{ width: 22, height: 22, fontSize: 10 }}>
-                          {initials(c.author_name)}
-                        </Avatar>
+                        <Avatar sx={{ width: 22, height: 22, fontSize: 10 }}>{initials(c.author_name)}</Avatar>
                         <Typography variant="caption" fontWeight={600}>{c.author_name}</Typography>
                         <Typography variant="caption" color="text.secondary">
                           {new Date(c.commented_at).toLocaleDateString('pt-BR')}
@@ -451,17 +578,10 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
               </Box>
             )}
 
-            {/* Open in Trello */}
             {selectedCard.trello_url && (
               <Box mt={3}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<IconExternalLink size={14} />}
-                  href={selectedCard.trello_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <Button size="small" variant="outlined" startIcon={<IconExternalLink size={14} />}
+                  href={selectedCard.trello_url} target="_blank" rel="noreferrer">
                   Ver no Trello
                 </Button>
               </Box>

@@ -6,6 +6,7 @@ import {
   listTrelloBoards,
   syncTrelloBoard,
   syncAllTrelloBoardsForTenant,
+  getTrelloCredentials,
 } from '../services/trelloSyncService';
 import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from '../services/trelloHistoryAnalyzer';
 import { query } from '../db';
@@ -204,7 +205,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     });
   });
 
-  // PATCH /trello/project-boards/:boardId/cards/:cardId — atualiza card (nativo, sem Trello)
+  // PATCH /trello/project-boards/:boardId/cards/:cardId — atualiza card + sync Trello
   app.patch('/trello/project-boards/:boardId/cards/:cardId', { preHandler: authGuard }, async (request: any, reply) => {
     const { cardId } = request.params as { boardId: string; cardId: string };
     const tenantId = request.user?.tenant_id as string;
@@ -231,17 +232,120 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
     }
 
-    if (!sets.length) return reply.send({ ok: true });
+    if (sets.length) {
+      sets.push(`updated_at = now()`);
+      vals.push(cardId, tenantId);
+      await query(
+        `UPDATE project_cards SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1}`,
+        vals,
+      );
+    }
 
-    sets.push(`updated_at = now()`);
-    vals.push(cardId, tenantId);
+    // Sync move/edit back to Trello
+    if (body.list_id !== undefined || body.due_complete !== undefined || body.title !== undefined || body.is_archived !== undefined) {
+      try {
+        const creds = await getTrelloCredentials(tenantId);
+        if (creds) {
+          const { rows: cardRows } = await query<{ trello_card_id: string }>(
+            `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+            [cardId, tenantId]
+          );
+          const trelloCardId = cardRows[0]?.trello_card_id;
 
-    await query(
-      `UPDATE project_cards SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1}`,
-      vals,
-    );
+          if (trelloCardId) {
+            const trelloUpdate: Record<string, string> = {};
+
+            if (body.list_id !== undefined) {
+              const { rows: listRows } = await query<{ trello_list_id: string }>(
+                `SELECT trello_list_id FROM project_lists WHERE id = $1 AND tenant_id = $2`,
+                [body.list_id, tenantId]
+              );
+              if (listRows[0]?.trello_list_id) trelloUpdate.idList = listRows[0].trello_list_id;
+              if (body.position !== undefined) trelloUpdate.pos = String(body.position);
+            }
+            if (body.due_complete !== undefined) trelloUpdate.dueComplete = String(body.due_complete);
+            if (body.title !== undefined) trelloUpdate.name = body.title;
+            if (body.is_archived !== undefined) trelloUpdate.closed = String(body.is_archived);
+
+            if (Object.keys(trelloUpdate).length) {
+              const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, ...trelloUpdate });
+              await fetch(`https://api.trello.com/1/cards/${trelloCardId}?${params}`, {
+                method: 'PUT',
+                signal: AbortSignal.timeout(8_000),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        // Non-fatal — local update already applied
+        console.warn('[trello] sync-back failed:', (err as any)?.message);
+      }
+    }
 
     return reply.send({ ok: true });
+  });
+
+  // POST /trello/project-boards/:boardId/cards — cria novo card (Edro + Trello)
+  app.post('/trello/project-boards/:boardId/cards', { preHandler: authGuard }, async (request: any, reply) => {
+    const { boardId } = request.params as { boardId: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    const body = z.object({
+      list_id: z.string().uuid(),
+      title: z.string().min(1),
+      due_date: z.string().nullable().optional(),
+    }).parse(request.body);
+
+    // Get list's trello_list_id and position for new card
+    const { rows: listRows } = await query<{ trello_list_id: string; board_id: string }>(
+      `SELECT trello_list_id, board_id FROM project_lists WHERE id = $1 AND tenant_id = $2`,
+      [body.list_id, tenantId]
+    );
+    if (!listRows[0]) return reply.status(404).send({ error: 'Lista não encontrada.' });
+
+    const { rows: posRows } = await query<{ max_pos: string }>(
+      `SELECT COALESCE(MAX(position), 0) + 65536 AS max_pos FROM project_cards WHERE list_id = $1 AND tenant_id = $2 AND NOT is_archived`,
+      [body.list_id, tenantId]
+    );
+    const position = parseFloat(posRows[0]?.max_pos ?? '65536');
+
+    let trelloCardId: string | null = null;
+    let trelloUrl: string | null = null;
+
+    // Create in Trello if connected
+    try {
+      const creds = await getTrelloCredentials(tenantId);
+      if (creds && listRows[0].trello_list_id) {
+        const params = new URLSearchParams({
+          key: creds.apiKey, token: creds.apiToken,
+          idList: listRows[0].trello_list_id,
+          name: body.title,
+          pos: 'bottom',
+          ...(body.due_date ? { due: body.due_date } : {}),
+        });
+        const res = await fetch(`https://api.trello.com/1/cards?${params}`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (res.ok) {
+          const created = await res.json() as { id: string; shortUrl: string };
+          trelloCardId = created.id;
+          trelloUrl = created.shortUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('[trello] create card on Trello failed:', (err as any)?.message);
+    }
+
+    // Insert locally
+    const { rows: inserted } = await query<{ id: string }>(
+      `INSERT INTO project_cards (board_id, list_id, tenant_id, title, position, due_date, trello_card_id, trello_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [boardId, body.list_id, tenantId, body.title, position, body.due_date ?? null, trelloCardId, trelloUrl]
+    );
+
+    return reply.send({ ok: true, card: { id: inserted[0].id, title: body.title, list_id: body.list_id } });
   });
 
   // ── Analytics ──────────────────────────────────────────────────────────────

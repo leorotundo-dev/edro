@@ -417,3 +417,13 @@ async function getConnectorCreds(tenantId: string): Promise<TrelloCredentials> {
   if (!res.rows.length) throw new Error(`Trello connector not configured for tenant ${tenantId}`);
   return { apiKey: res.rows[0].api_key, apiToken: res.rows[0].api_token };
 }
+
+/** Public — used by routes that need to sync back to Trello. Returns null if not configured. */
+export async function getTrelloCredentials(tenantId: string): Promise<TrelloCredentials | null> {
+  const res = await query<{ api_key: string; api_token: string }>(
+    `SELECT api_key, api_token FROM trello_connectors WHERE tenant_id = $1 AND is_active = true LIMIT 1`,
+    [tenantId],
+  );
+  if (!res.rows.length) return null;
+  return { apiKey: res.rows[0].api_key, apiToken: res.rows[0].api_token };
+}
