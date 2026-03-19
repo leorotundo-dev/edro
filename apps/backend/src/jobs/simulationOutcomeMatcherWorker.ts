@@ -17,6 +17,12 @@ import { matchSimulationToOutcome, saveOutcome } from '../services/campaignSimul
 
 let lastRunDate = '';
 
+/** Force a run right now regardless of time-gate (for admin manual triggers). */
+export async function triggerOutcomeMatcherNow(): Promise<void> {
+  lastRunDate = '';
+  return runSimulationOutcomeMatcherOnce();
+}
+
 /**
  * Auto-link: for each edro_briefing with payload.simulation_result_id that now
  * has a campaign_format linked, update simulation_results.campaign_format_id.

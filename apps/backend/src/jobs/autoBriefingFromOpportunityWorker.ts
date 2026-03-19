@@ -22,6 +22,12 @@ const MAX_PER_TICK = 5;
 
 let lastRunDate = '';
 
+/** Force a run right now regardless of time-gate (for admin manual triggers). */
+export async function triggerAutoBriefingNow(): Promise<void> {
+  lastRunDate = '';
+  return runAutoBriefingFromOpportunityOnce();
+}
+
 // ── AMD mapping from opportunity source/priority ──────────────────────────────
 
 function inferAmd(opportunity: any): string {
@@ -188,7 +194,7 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
           amd,
           triggers,
         },
-        simulation_id: simulationId,
+        simulation_result_id: simulationId,
         platform: 'instagram',
       };
 
@@ -236,7 +242,7 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
           userId: accountManager.id,
           title: `Proposta pronta: ${opp.title}`,
           body: `Confiança ${opp.confidence}% — copy gerada e simulada. 1 clique para aprovar.`,
-          link: `/studio/brief/${briefingId}`,
+          link: `/studio/brief?id=${briefingId}`,
           recipientEmail: accountManager.email,
           payload: { briefing_id: briefingId, opportunity_id: opp.id, simulation_id: simulationId },
         });

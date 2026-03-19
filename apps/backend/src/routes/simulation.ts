@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { runSimulation, loadSimulationResult } from '../services/campaignSimulator/simulationReport';
 import { getClientAccuracy } from '../services/campaignSimulator/outcomeTracker';
+import { triggerOutcomeMatcherNow } from '../jobs/simulationOutcomeMatcherWorker';
+import { triggerAutoBriefingNow } from '../jobs/autoBriefingFromOpportunityWorker';
 import { query } from '../db';
 
 const variantSchema = z.object({
@@ -101,5 +103,25 @@ export default async function simulationRoutes(app: FastifyInstance) {
       [campaign_format_id, id, tenantId],
     );
     return reply.send({ ok: true });
+  });
+
+  // POST /simulation/admin/trigger-matcher — force daily outcome matcher (admin only)
+  app.post('/simulation/admin/trigger-matcher', { preHandler: [authGuard, requirePerm('admin')] }, async (_request: any, reply) => {
+    try {
+      await triggerOutcomeMatcherNow();
+      return reply.send({ ok: true, message: 'Outcome matcher triggered.' });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /simulation/admin/trigger-auto-briefing — force daily auto-briefing worker (admin only)
+  app.post('/simulation/admin/trigger-auto-briefing', { preHandler: [authGuard, requirePerm('admin')] }, async (_request: any, reply) => {
+    try {
+      await triggerAutoBriefingNow();
+      return reply.send({ ok: true, message: 'Auto-briefing worker triggered.' });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
   });
 }

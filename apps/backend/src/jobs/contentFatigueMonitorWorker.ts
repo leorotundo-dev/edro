@@ -214,7 +214,7 @@ export async function runContentFatigueMonitorOnce(): Promise<void> {
           userId: accountManager.id,
           title: `Copy com fadiga: ${fmt.format_name}`,
           body: `Queda de ${dropPct}% no engajamento em ${fmt.platform}. Copy substituta gerada e pronta para aprovação.`,
-          link: `/studio/brief/${briefingId}`,
+          link: `/studio/brief?id=${briefingId}`,
           recipientEmail: accountManager.email,
           payload: {
             briefing_id: briefingId,
