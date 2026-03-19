@@ -4,11 +4,13 @@
  * Orquestra o simulador completo:
  *   1. Carrega clusters do cliente (real ou cold-start)
  *   2. Carrega learning rules + scoring weights calibrados
- *   3. Pontua variantes via resonanceScorer
- *   4. Estima fadiga via fatigueEstimator
- *   5. Detecta riscos via riskDetector
- *   6. Calcula prediction_confidence com base em dados disponíveis + acurácia histórica
- *   7. Consolida em SimulationReport e persiste em simulation_results
+ *   3. Calibra weights com copy intelligence (Fogg scale) + carrega client rates
+ *   4. Pontua variantes via resonanceScorer + aplica calibração de base rates
+ *   5. Estima fadiga via fatigueEstimator
+ *   6. Detecta riscos via riskDetector
+ *   7. Carrega timing context (melhor horário por plataforma)
+ *   8. Calcula prediction_confidence com base em dados disponíveis + acurácia histórica
+ *   9. Consolida em SimulationReport e persiste em simulation_results
  */
 
 import { query } from '../../db';
@@ -18,6 +20,9 @@ import { detectRisks, RiskFlag } from './riskDetector';
 import { getSimulationClusters, ColdStartResult } from './coldStartService';
 import { loadScoringWeights } from './scoringCalibrator';
 import { getClientAccuracy } from './outcomeTracker';
+import { loadClientBriefingRates, blendRates } from './clientRatesService';
+import { getTimingContext, TimingContext } from './timingScorer';
+import { loadCopyIntelligence } from './copyIntelligenceService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +72,10 @@ export interface SimulationReport {
   // Fase 5: cold start
   cold_start: boolean;
   cold_start_message?: string;
+  // Timing intelligence
+  timing_context: Pick<TimingContext, 'has_data' | 'best_slot_label' | 'peak_multiplier'> | null;
+  // Data richness
+  data_sources: string[];   // which real data sources contributed
   summary: string;
   created_at: string;
 }
@@ -171,11 +180,46 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
   // 2. Load learning rules
   const rules = clientId ? await loadClientRules(clientId, tenantId) : [];
 
-  // 3. Load calibrated scoring weights (Fase 3)
-  const weights = await loadScoringWeights(tenantId, clientId, platform);
+  // 3. Load calibrated scoring weights (Fase 3) + parallel data sources
+  const [weights, clientRates, copyIntel, timingCtx] = await Promise.all([
+    loadScoringWeights(tenantId, clientId, platform),
+    clientId ? loadClientBriefingRates(clientId, tenantId, platform) : Promise.resolve({ platform_rates: {}, overall: null, has_sufficient_data: false }),
+    clientId ? loadCopyIntelligence(clientId, tenantId, platform) : Promise.resolve({ has_data: false, avg_fogg_composite: null, high_roi_avg_fogg: null, fogg_scale_factor: 1.0, avg_ctr: null, avg_roi_score: null, sample_size: 0 }),
+    clientId ? getTimingContext(clientId, tenantId, platform) : Promise.resolve({ has_data: false, best_day: null, best_hour: null, best_day_label: null, best_slot_label: null, peak_multiplier: 1.0, scheduled_multiplier: 1.0, sample_size: 0 }),
+  ]);
 
-  // 4. Score variants with dynamic weights
-  const resonanceResults = await scoreVariantsAgainstClusters(variants, clusters, rules, weights);
+  // Apply copy intelligence: calibrate fogg_multiplier_scale based on client history
+  const calibratedWeights = copyIntel.fogg_scale_factor !== 1.0
+    ? { ...weights, fogg_multiplier_scale: Math.round(weights.fogg_multiplier_scale * copyIntel.fogg_scale_factor * 100) / 100 }
+    : weights;
+
+  // 4. Score variants with calibrated weights
+  const resonanceResults = await scoreVariantsAgainstClusters(variants, clusters, rules, calibratedWeights);
+
+  // Apply client briefing rates calibration to predicted rates
+  // Computes correction factor: (blended_rate / cluster_avg_rate) and scales predictions
+  if (clientRates.has_sufficient_data && clientRates.overall && clusters.length > 0) {
+    let clusterAvgSave = 0, clusterAvgClick = 0, clusterAvgEng = 0;
+    for (const c of clusters) {
+      clusterAvgSave += c.avg_save_rate;
+      clusterAvgClick += c.avg_click_rate;
+      clusterAvgEng += c.avg_engagement_rate;
+    }
+    clusterAvgSave /= clusters.length;
+    clusterAvgClick /= clusters.length;
+    clusterAvgEng /= clusters.length;
+
+    const blended = blendRates(clusterAvgSave, clusterAvgClick, clusterAvgEng, clientRates.overall);
+    const saveFactor  = clusterAvgSave  > 0 ? blended.save       / clusterAvgSave  : 1;
+    const clickFactor = clusterAvgClick > 0 ? blended.click      / clusterAvgClick : 1;
+    const engFactor   = clusterAvgEng   > 0 ? blended.engagement / clusterAvgEng   : 1;
+
+    for (const r of resonanceResults) {
+      r.predicted_save_rate        = Math.round(r.predicted_save_rate        * saveFactor  * 10000) / 10000;
+      r.predicted_click_rate       = Math.round(r.predicted_click_rate       * clickFactor * 10000) / 10000;
+      r.predicted_engagement_rate  = Math.round(r.predicted_engagement_rate  * engFactor   * 10000) / 10000;
+    }
+  }
 
   // 5. Estimate fatigue + detect risks per variant
   const dominantAmd = variants[0]?.amd;
@@ -247,6 +291,16 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
     historicalAccuracy,
   });
 
+  // Track which real data sources contributed to this simulation
+  const dataSources: string[] = [];
+  if (fatigueSource === 'historical') dataSources.push('historical_metrics');
+  if (fatigueSource === 'reportei') dataSources.push('reportei');
+  if (clientRates.has_sufficient_data) dataSources.push('briefing_metrics');
+  if (copyIntel.has_data) dataSources.push('copy_roi');
+  if (timingCtx.has_data) dataSources.push('timing_analytics');
+  if (!isColdStart && clusters.length > 0) dataSources.push('behavior_clusters');
+  if (rules.length > 0) dataSources.push('learning_rules');
+
   const summary = buildSummary(variantResults, winner.index);
 
   // 9. Persist
@@ -289,6 +343,10 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
     prediction_confidence_label: predConfidenceLabel,
     cold_start: isColdStart,
     cold_start_message: coldStartResult.message,
+    timing_context: timingCtx.has_data
+      ? { has_data: true, best_slot_label: timingCtx.best_slot_label, peak_multiplier: timingCtx.peak_multiplier }
+      : null,
+    data_sources: dataSources,
     summary,
     created_at: res.rows[0].created_at,
   };
@@ -315,6 +373,8 @@ export async function loadSimulationResult(id: string, tenantId: string): Promis
     prediction_confidence: 0,
     prediction_confidence_label: '',
     cold_start: false,
+    timing_context: null,
+    data_sources: [],
     summary: '',
     created_at: row.created_at,
   };

@@ -27,6 +27,8 @@ import {
   IconBolt,
   IconChartBar,
   IconCheck,
+  IconClock,
+  IconDatabase,
   IconFlame,
   IconHistory,
   IconPlus,
@@ -95,6 +97,12 @@ interface SimulationReport {
   prediction_confidence_label: string;
   cold_start: boolean;
   cold_start_message?: string;
+  timing_context?: {
+    has_data: boolean;
+    best_slot_label: string | null;
+    peak_multiplier: number;
+  } | null;
+  data_sources?: string[];
   summary: string;
   created_at: string;
 }
@@ -795,6 +803,47 @@ export default function SimulationClient() {
                     <Typography fontWeight={700} fontSize={22}>{(report.confidence_avg * 100).toFixed(0)}%</Typography>
                   </Paper>
                 </Stack>
+
+                {/* Timing + data sources row */}
+                {(report.timing_context?.has_data || (report.data_sources && report.data_sources.length > 0)) && (
+                  <Stack direction="row" spacing={1.5} mb={2} flexWrap="wrap" gap={1}>
+                    {report.timing_context?.has_data && report.timing_context.best_slot_label && (
+                      <Tooltip title={`Histórico de engajamento indica que ${report.timing_context.best_slot_label} é o melhor horário para publicação nesta plataforma`}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            px: 1.5, py: 0.75, display: 'flex', alignItems: 'center', gap: 0.75,
+                            borderColor: '#5D87FF30', bgcolor: 'rgba(93,135,255,0.05)', borderRadius: 2,
+                          }}
+                        >
+                          <IconClock size={13} color="#5D87FF" />
+                          <Typography variant="caption" fontWeight={700} color="#5D87FF">
+                            Melhor horário: {report.timing_context.best_slot_label}
+                            {report.timing_context.peak_multiplier > 1.05 && (
+                              <> (+{((report.timing_context.peak_multiplier - 1) * 100).toFixed(0)}%)</>
+                            )}
+                          </Typography>
+                        </Paper>
+                      </Tooltip>
+                    )}
+                    {report.data_sources && report.data_sources.length > 0 && (
+                      <Tooltip title={`Fontes utilizadas: ${report.data_sources.join(', ')}`}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            px: 1.5, py: 0.75, display: 'flex', alignItems: 'center', gap: 0.75,
+                            borderColor: '#13DEB930', bgcolor: 'rgba(19,222,185,0.05)', borderRadius: 2,
+                          }}
+                        >
+                          <IconDatabase size={13} color="#13DEB9" />
+                          <Typography variant="caption" fontWeight={700} color="#13DEB9">
+                            {report.data_sources.length} fonte{report.data_sources.length > 1 ? 's' : ''} de dados reais
+                          </Typography>
+                        </Paper>
+                      </Tooltip>
+                    )}
+                  </Stack>
+                )}
 
                 {/* Variant results sorted by resonance */}
                 {[...report.variants]

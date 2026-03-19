@@ -24,6 +24,7 @@ import {
   IconBulb, IconRefresh, IconTrendingUp, IconTrendingDown,
   IconHeartbeat, IconDna, IconSearch, IconRobot,
   IconPhoto, IconExternalLink, IconCheck, IconBookmark,
+  IconBrain,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import EdroAvatar from '@/components/shared/EdroAvatar';
@@ -79,6 +80,9 @@ type PredictiveCalendar = {
   best_posting_days: string[]; lead_time_summary: { avg_days: number };
   urgent: number;
 };
+
+type TopicPerformance = { topic: string; avg_impressions: number | null; avg_engagement_rate: number | null; avg_reach: number | null; sample_size: number; score: number };
+type ContentIntelligenceReport = { client_id: string; platform: string; top_topics: TopicPerformance[]; worst_topics: TopicPerformance[]; best_format: string | null; insight_summary: string; generated_at: string };
 
 type QualityTimelineRow = { month: string; avg_overall: number; avg_brand_dna: number; avg_platform: number; avg_cta: number; count: string };
 type QualityTimeline = { client_name: string; timeline: QualityTimelineRow[] };
@@ -293,6 +297,9 @@ export default function ClientAnalyticsCore({
   const [postMetrics, setPostMetrics] = useState<ClientPostMetric[]>([]);
   const [postMetricsLoading, setPostMetricsLoading] = useState(false);
 
+  const [contentIntel, setContentIntel] = useState<ContentIntelligenceReport | null>(null);
+  const [contentIntelLoading, setContentIntelLoading] = useState(false);
+
   const [clientIdentity, setClientIdentity] = useState<{ name: string; logo_url: string | null; brand_color: string | null } | null>(null);
 
   useEffect(() => {
@@ -396,6 +403,10 @@ export default function ClientAnalyticsCore({
     setPostMetrics(res?.data ?? []);
   });
 
+  const loadContentIntel = () => wrap(setContentIntelLoading, async () => {
+    setContentIntel(await apiGet<ContentIntelligenceReport>(`/clients/${clientId}/metrics/content-intelligence`));
+  });
+
   // Fetch client name + logo once on mount
   useEffect(() => {
     if (!clientId || clientIdentity) return;
@@ -433,7 +444,10 @@ export default function ClientAnalyticsCore({
     if (activeTab === 10 && !postMetrics.length && !postMetricsLoading) {
       void loadPostMetrics();
     }
-  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, gaps, gapsLoading, amdPerf.length, amdPerfLoading, postMetrics.length, postMetricsLoading]);
+    if (activeTab === 11 && !contentIntel && !contentIntelLoading) {
+      void loadContentIntel();
+    }
+  }, [activeTab, alerts, alertsLoading, clientId, healthLoading, healthScore, gaps, gapsLoading, amdPerf.length, amdPerfLoading, postMetrics.length, postMetricsLoading, contentIntel, contentIntelLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tabs = [
     { label: 'Health Score', icon: <IconHeartbeat size={18} /> },
@@ -447,6 +461,7 @@ export default function ClientAnalyticsCore({
     { label: 'Cal. Preditivo', icon: <IconCalendarEvent size={18} /> },
     { label: 'O que funcionou', icon: <IconTarget size={18} /> },
     { label: 'Posts Publicados', icon: <IconPhoto size={18} /> },
+    { label: 'Content Intel', icon: <IconBrain size={18} /> },
   ];
 
   return (
@@ -1437,6 +1452,151 @@ export default function ClientAnalyticsCore({
               </>
             );
           })()}
+        </Box>
+      )}
+
+      {/* ── TAB 11: Content Intelligence ──────────────────────────────────── */}
+      {activeTab === 11 && (
+        <Box>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>Content Intelligence</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Temas com melhor e pior performance — baseado em dados reais de publicações.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={contentIntelLoading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <IconRefresh size={18} />}
+              onClick={loadContentIntel}
+              disabled={contentIntelLoading}
+              sx={{ bgcolor: '#5D87FF', '&:hover': { bgcolor: '#4570e8' } }}
+            >
+              {contentIntelLoading ? 'Analisando...' : 'Atualizar'}
+            </Button>
+          </Stack>
+
+          {contentIntelLoading && (
+            <Card variant="outlined" sx={{ p: 3, textAlign: 'center' }}>
+              <CircularProgress size={32} sx={{ color: '#5D87FF' }} />
+              <Typography variant="body2" color="text.secondary" mt={1.5}>
+                Correlacionando tópicos com métricas reais...
+              </Typography>
+            </Card>
+          )}
+
+          {!contentIntelLoading && contentIntel && (
+            <Stack gap={3}>
+              {/* Insight summary */}
+              {contentIntel.insight_summary && (
+                <Alert severity="info" icon={<IconBulb size={18} />} sx={{ borderRadius: 2 }}>
+                  <Typography variant="body2" dangerouslySetInnerHTML={{ __html: formatAiText(contentIntel.insight_summary) }} />
+                </Alert>
+              )}
+
+              <Grid container spacing={3}>
+                {/* Best format */}
+                {contentIntel.best_format && (
+                  <Grid size={{ xs: 12 }}>
+                    <Card variant="outlined" sx={{ borderColor: 'rgba(19,222,185,0.3)', bgcolor: 'rgba(19,222,185,0.04)' }}>
+                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack direction="row" alignItems="center" gap={1.5}>
+                          <IconTrophy size={20} color="#13DEB9" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Formato com melhor desempenho</Typography>
+                            <Typography variant="h6" fontWeight={700} color="#13DEB9">{contentIntel.best_format}</Typography>
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+
+                {/* Top topics */}
+                {contentIntel.top_topics.length > 0 && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack direction="row" alignItems="center" gap={1} mb={2}>
+                          <IconTrendingUp size={16} color="#13DEB9" />
+                          <Typography variant="subtitle1" fontWeight={700}>Temas que performam bem</Typography>
+                        </Stack>
+                        <Stack gap={1.5}>
+                          {contentIntel.top_topics.slice(0, 8).map((t, i) => (
+                            <Box key={i}>
+                              <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                                <Typography variant="body2" fontWeight={500} sx={{ flex: 1, mr: 1, textTransform: 'capitalize' }}>{t.topic}</Typography>
+                                <Stack direction="row" alignItems="center" gap={1}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {t.sample_size} post{t.sample_size !== 1 ? 's' : ''}
+                                  </Typography>
+                                  <Chip label={`${t.score}/100`} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: t.score >= 70 ? 'rgba(19,222,185,0.12)' : 'rgba(93,135,255,0.1)', color: t.score >= 70 ? '#13DEB9' : '#5D87FF', fontWeight: 700 }} />
+                                </Stack>
+                              </Stack>
+                              <LinearProgress
+                                variant="determinate"
+                                value={t.score}
+                                sx={{ height: 5, borderRadius: 3, bgcolor: 'rgba(0,0,0,0.06)', '& .MuiLinearProgress-bar': { bgcolor: t.score >= 70 ? '#13DEB9' : '#5D87FF', borderRadius: 3 } }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+
+                {/* Worst topics */}
+                {contentIntel.worst_topics.length > 0 && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack direction="row" alignItems="center" gap={1} mb={2}>
+                          <IconTrendingDown size={16} color="#FA896B" />
+                          <Typography variant="subtitle1" fontWeight={700}>Temas com menor retorno</Typography>
+                        </Stack>
+                        <Stack gap={1.5}>
+                          {contentIntel.worst_topics.slice(0, 8).map((t, i) => (
+                            <Box key={i}>
+                              <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
+                                <Typography variant="body2" fontWeight={500} sx={{ flex: 1, mr: 1, textTransform: 'capitalize' }}>{t.topic}</Typography>
+                                <Stack direction="row" alignItems="center" gap={1}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {t.sample_size} post{t.sample_size !== 1 ? 's' : ''}
+                                  </Typography>
+                                  <Chip label={`${t.score}/100`} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(244,67,54,0.1)', color: '#f44336', fontWeight: 700 }} />
+                                </Stack>
+                              </Stack>
+                              <LinearProgress
+                                variant="determinate"
+                                value={t.score}
+                                sx={{ height: 5, borderRadius: 3, bgcolor: 'rgba(0,0,0,0.06)', '& .MuiLinearProgress-bar': { bgcolor: '#FA896B', borderRadius: 3 } }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+              </Grid>
+
+              {contentIntel.generated_at && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
+                  Gerado em {new Date(contentIntel.generated_at).toLocaleString('pt-BR')}
+                </Typography>
+              )}
+            </Stack>
+          )}
+
+          {!contentIntelLoading && !contentIntel && (
+            <Card variant="outlined" sx={{ p: 4, textAlign: 'center', borderStyle: 'dashed' }}>
+              <IconBrain size={40} color="#aaa" />
+              <Typography mt={2} color="text.secondary">
+                Clique em "Atualizar" para gerar o relatório de inteligência de conteúdo.
+              </Typography>
+            </Card>
+          )}
         </Box>
       )}
     </Box>

@@ -18,6 +18,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import CardContent from '@mui/material/CardContent';
 import {
   IconAt,
   IconBrain,
@@ -29,6 +30,7 @@ import {
   IconChartBar,
   IconPlus,
   IconRefresh,
+  IconShield,
   IconTarget,
   IconTrash,
   IconX,
@@ -198,14 +200,7 @@ export default function CompetitorsClient({ clientId }: { clientId: string }) {
         </Card>
       ) : (
         <Stack gap={2}>
-          {/* AMD coverage gap banner */}
-          {unusedAmds.length > 0 && (
-            <Alert severity="success" icon={<IconBulb size={18} />}>
-              <strong>Oportunidade de diferenciação:</strong> Seus concorrentes não estão usando os AMDs{' '}
-              {unusedAmds.map(a => AMD_LABELS[a]?.label ?? a).join(', ')}.
-              Esses são os ângulos menos saturados no seu mercado.
-            </Alert>
-          )}
+          <StrategicSummaryPanel competitors={competitors} unusedAmds={unusedAmds} />
 
           {/* Competitor cards */}
           {competitors.map(c => (
@@ -271,6 +266,101 @@ export default function CompetitorsClient({ clientId }: { clientId: string }) {
         </DialogContent>
       </Dialog>
     </Box>
+  );
+}
+
+// ── Strategic Summary Panel ────────────────────────────────────────────────────
+
+function StrategicSummaryPanel({
+  competitors,
+  unusedAmds,
+}: {
+  competitors: CompetitorProfile[];
+  unusedAmds: string[];
+}) {
+  const analyzed = competitors.filter(c => c.dominant_amd || c.differentiation_insight);
+  if (!analyzed.length) return null;
+
+  // Aggregate differentiation opportunities (deduplicated)
+  const opportunities = Array.from(
+    new Set(analyzed.filter(c => c.differentiation_insight).map(c => c.differentiation_insight!))
+  );
+
+  // AMD saturation map: how many competitors use each AMD
+  const amdCount: Record<string, number> = {};
+  for (const c of analyzed) {
+    if (c.dominant_amd) amdCount[c.dominant_amd] = (amdCount[c.dominant_amd] ?? 0) + 1;
+  }
+
+  return (
+    <Card variant="outlined" sx={{ borderColor: 'rgba(93,135,255,0.3)', bgcolor: 'rgba(93,135,255,0.03)' }}>
+      <CardContent>
+        <Stack direction="row" alignItems="center" gap={1} mb={2}>
+          <IconShield size={18} color="#5D87FF" />
+          <Typography variant="subtitle1" fontWeight={700}>Análise Estratégica</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+            {analyzed.length} concorrente{analyzed.length !== 1 ? 's' : ''} analisado{analyzed.length !== 1 ? 's' : ''}
+          </Typography>
+        </Stack>
+
+        <Stack gap={2.5}>
+          {/* AMD Saturation */}
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1 }}>
+              Saturação de AMDs no mercado
+            </Typography>
+            <Stack direction="row" flexWrap="wrap" gap={0.75}>
+              {Object.entries(AMD_LABELS).map(([amd, info]) => {
+                const count = amdCount[amd] ?? 0;
+                const isUnused = count === 0;
+                return (
+                  <Tooltip key={amd} title={isUnused ? 'Não usado por nenhum concorrente — oportunidade!' : `${count} concorrente${count > 1 ? 's' : ''} usando este AMD`} arrow>
+                    <Chip
+                      label={`${info.label}${count > 0 ? ` (${count})` : ''}`}
+                      size="small"
+                      icon={isUnused ? <IconBulb size={12} /> : undefined}
+                      sx={{
+                        bgcolor: isUnused ? 'rgba(76,175,80,0.12)' : info.color + '18',
+                        color: isUnused ? '#4CAF50' : info.color,
+                        border: `1px solid ${isUnused ? 'rgba(76,175,80,0.35)' : info.color + '40'}`,
+                        fontWeight: isUnused ? 700 : 500,
+                        cursor: 'default',
+                        '& .MuiChip-icon': { color: 'inherit' },
+                      }}
+                    />
+                  </Tooltip>
+                );
+              })}
+            </Stack>
+            {unusedAmds.length > 0 && (
+              <Typography variant="caption" color="success.main" sx={{ mt: 0.75, display: 'block', fontWeight: 600 }}>
+                ✓ AMDs livres: {unusedAmds.map(a => AMD_LABELS[a]?.label ?? a).join(', ')} — menor competição neste mercado.
+              </Typography>
+            )}
+          </Box>
+
+          {/* Differentiation Opportunities */}
+          {opportunities.length > 0 && (
+            <>
+              <Divider />
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1 }}>
+                  Oportunidades de diferenciação identificadas
+                </Typography>
+                <Stack gap={1}>
+                  {opportunities.map((op, i) => (
+                    <Stack key={i} direction="row" gap={1} alignItems="flex-start">
+                      <IconBulb size={14} color="#FFAE1F" style={{ flexShrink: 0, marginTop: 3 }} />
+                      <Typography variant="body2" color="text.secondary">{op}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            </>
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
 

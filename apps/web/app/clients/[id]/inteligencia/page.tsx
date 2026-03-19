@@ -5,22 +5,25 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBrain, IconBulb, IconDna } from '@tabler/icons-react';
+import { IconBrain, IconBulb, IconDna, IconShieldCheck } from '@tabler/icons-react';
 import ClientInsightsClient from '../insights/ClientInsightsClient';
 import ClientLearningClient from './ClientLearningClient';
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
+import CopyQualitySection from './CopyQualitySection';
 
-type SubTabValue = 'insights' | 'aprendizado' | 'dna';
+type SubTabValue = 'insights' | 'aprendizado' | 'dna' | 'qualidade';
 
 const SUB_TABS = [
-  { value: 'insights' as const,    label: 'Insights',     icon: <IconBulb size={16} /> },
-  { value: 'aprendizado' as const, label: 'Aprendizado',  icon: <IconBrain size={16} /> },
-  { value: 'dna' as const,         label: 'DNA de Marca', icon: <IconDna size={16} /> },
+  { value: 'insights' as const,    label: 'Insights',        icon: <IconBulb size={16} /> },
+  { value: 'aprendizado' as const, label: 'Aprendizado',     icon: <IconBrain size={16} /> },
+  { value: 'dna' as const,         label: 'DNA de Marca',    icon: <IconDna size={16} /> },
+  { value: 'qualidade' as const,   label: 'Qualidade Copy',  icon: <IconShieldCheck size={16} /> },
 ];
 
 function parseSubTab(value: string | null): SubTabValue {
   if (value === 'aprendizado') return 'aprendizado';
   if (value === 'dna') return 'dna';
+  if (value === 'qualidade') return 'qualidade';
   return 'insights';
 }
 
@@ -65,6 +68,8 @@ export default function InteligenciaPage() {
         <ClientLearningClient clientId={clientId} />
       ) : tab === 'dna' ? (
         <BrandVoiceSection clientId={clientId} />
+      ) : tab === 'qualidade' ? (
+        <CopyQualitySection clientId={clientId} />
       ) : (
         <ClientInsightsClient clientId={clientId} />
       )}
