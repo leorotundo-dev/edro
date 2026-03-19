@@ -209,6 +209,38 @@ const EVENT_TIER_CLASSES: Record<CalendarEventItem['tier'], string> = {
   C: 'tier-c',
 };
 
+// ── Production Calendar Layer ─────────────────────────────────────────────────
+type ProductionCard = {
+  id: string;
+  raw_title: string;
+  display_title: string;
+  due_date: string;
+  due_complete: boolean;
+  is_overdue: boolean;
+  stage_name: string;
+  stage_class: string;
+  board_id: string;
+  board_name: string;
+  client_id: string | null;
+  platform: string | null;
+  format: string | null;
+  trello_url: string | null;
+  labels: { color: string; name: string }[];
+  color_index: number;
+};
+
+type ProductionBoard = { id: string; name: string; client_id: string | null; color_index: number };
+
+const PRODUCTION_PALETTE = [
+  '#2563eb', '#16a34a', '#d97706', '#9333ea',
+  '#0891b2', '#65a30d', '#db2777', '#7c3aed',
+  '#ea580c', '#dc2626', '#0d9488', '#b45309',
+];
+
+function getBoardColor(colorIndex: number): string {
+  return PRODUCTION_PALETTE[colorIndex % PRODUCTION_PALETTE.length];
+}
+
 type CalendarHubProps = {
   initialClientId?: string | null;
   noShell?: boolean;
@@ -529,6 +561,13 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const [eventBriefingMap, setEventBriefingMap] = useState<Record<string, string>>({});
 
+  // ── Production Layer (Trello jobs supra-board) ─────────────────────────────
+  const [showProductionLayer, setShowProductionLayer] = useState(false);
+  const [productionCards, setProductionCards] = useState<ProductionCard[]>([]);
+  const [productionBoards, setProductionBoards] = useState<ProductionBoard[]>([]);
+  const [productionLoading, setProductionLoading] = useState(false);
+  // ──────────────────────────────────────────────────────────────────────────
+
   // ── Calendar Search ────────────────────────────────────────────────────────
   type LocalSearchResult = { dateISO: string; event: CalendarEventItem };
   type TavilyResult = { title: string; url: string; snippet: string };
@@ -830,6 +869,19 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setSelectedClientIds((prev) => [...prev, selectedClient.id]);
   }, [selectedClient, selectedClientIds, selectedEvent, relevanceByClientId]);
 
+  // Load production cards whenever the layer is toggled on or the month changes
+  useEffect(() => {
+    if (!showProductionLayer) { setProductionCards([]); setProductionBoards([]); return; }
+    setProductionLoading(true);
+    apiGet(`/trello/calendar?month=${monthFilter}`)
+      .then((data: any) => {
+        setProductionCards(data.cards ?? []);
+        setProductionBoards(data.boards ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setProductionLoading(false));
+  }, [showProductionLayer, monthFilter]);
+
   useEffect(() => {
     setSelectedDayISO(null);
     setSelectedEvent(null);
@@ -1015,8 +1067,39 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
         });
       });
     });
+
+    // ── Production Layer: inject Trello job due dates ─────────────────────────
+    if (showProductionLayer) {
+      productionCards.forEach((card) => {
+        const startDate = parseISODate(card.due_date);
+        if (!startDate) return;
+        output.push({
+          id: `prod-${card.id}`,
+          title: card.display_title,
+          start: startDate,
+          end: addDays(startDate, 1),
+          allDay: true,
+          tier: 'A',
+          score: 0,
+          resource: {
+            event: {
+              id: card.id,
+              name: card.display_title,
+              tier: 'A' as const,
+              score: 0,
+              layer: 'operational' as const,
+              origin: 'production_job',
+            },
+            dateISO: card.due_date,
+            productionCard: card,
+            isProductionCard: true,
+          } as any,
+        });
+      });
+    }
+
     return output;
-  }, [filteredEventsByDate]);
+  }, [filteredEventsByDate, showProductionLayer, productionCards]);
 
   const dayEvents = useMemo(() => {
     return filteredEventsByDate.get(activeDateISO) || [];
@@ -1491,6 +1574,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   const rbcEventPropGetter = useCallback((event: CalendarRbcEvent) => {
+    // ── Production job event ──────────────────────────────────────────────────
+    if ((event.resource as any).isProductionCard) {
+      const card = (event.resource as any).productionCard as ProductionCard;
+      const baseColor = getBoardColor(card.color_index);
+      return {
+        style: {
+          backgroundColor: card.is_overdue ? '#dc2626' : baseColor,
+          border: card.due_complete ? `2px solid #16a34a` : '1px solid rgba(0,0,0,0.15)',
+          opacity: card.due_complete ? 0.65 : 1,
+          color: '#fff',
+          fontSize: '11px',
+          fontStyle: card.stage_class === 'done' ? 'italic' : 'normal',
+        },
+      };
+    }
+    // ── Regular editorial/operational event ──────────────────────────────────
     const item = event.resource.event;
     if (item.origin && item.origin !== 'editorial_global') {
       return {
@@ -1640,6 +1739,23 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               <ToggleButton value="editorial">Editorial</ToggleButton>
               <ToggleButton value="operational">Operacional</ToggleButton>
             </ToggleButtonGroup>
+
+            {/* Production layer toggle */}
+            <Chip
+              label={
+                productionLoading
+                  ? 'Carregando jobs…'
+                  : showProductionLayer
+                  ? `Jobs (${productionCards.length})`
+                  : 'Ver Jobs de Produção'
+              }
+              onClick={() => setShowProductionLayer((v) => !v)}
+              color={showProductionLayer ? 'primary' : 'default'}
+              variant={showProductionLayer ? 'filled' : 'outlined'}
+              size="small"
+              icon={productionLoading ? <CircularProgress size={12} color="inherit" /> : undefined}
+              sx={{ fontWeight: 600, cursor: 'pointer' }}
+            />
 
             <TextField
               select
@@ -1897,6 +2013,21 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
             />
           </CardContent>
         </Card>
+
+        {/* Production layer board color legend */}
+        {showProductionLayer && productionBoards.length > 0 && (
+          <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ px: 1, pt: 0.5 }}>
+            {productionBoards.map((board) => (
+              <Stack key={board.id} direction="row" spacing={0.75} alignItems="center">
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: getBoardColor(board.color_index), flexShrink: 0 }} />
+                <Typography variant="caption" color="text.secondary">{board.name}</Typography>
+              </Stack>
+            ))}
+            <Typography variant="caption" color="text.disabled" sx={{ ml: 1 }}>
+              · Vermelho = atrasado · Tracejado verde = concluído
+            </Typography>
+          </Stack>
+        )}
 
         {selectedDayISO ? (
           <Card variant="outlined" sx={{ width: { xs: '100%', lg: 384 }, flexShrink: 0, alignSelf: 'flex-start' }}>

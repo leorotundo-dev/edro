@@ -1,6 +1,7 @@
 import {
   IconHome,
   IconLayoutDashboard,
+  IconLayoutKanban,
   IconClipboardList,
   IconUsers,
   IconCalendar,
@@ -117,6 +118,12 @@ const MenuItems: MenuGroupType[] = [
         icon: IconCalendar,
         href: '/calendar',
       },
+      {
+        id: 'projetos',
+        title: 'Projetos',
+        icon: IconLayoutKanban,
+        href: '/projetos',
+      },
     ],
   },
   {
@@ -172,6 +179,13 @@ const MenuItems: MenuGroupType[] = [
     subheader: 'Admin',
     requiredGroupRole: ['admin', 'manager'],
     items: [
+      {
+        id: 'admin-trello',
+        title: 'Integração Trello',
+        icon: IconLayoutKanban,
+        href: '/admin/trello',
+        requiredRole: ['admin'],
+      },
       {
         id: 'admin-system',
         title: 'System Admin',

@@ -37,6 +37,7 @@ import { runScheduledPublicationsOnce } from './scheduledPublicationsWorker';
 import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWorker';
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
+import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -149,4 +150,6 @@ export function startJobsRunner() {
   startWorkerLoop('competitorIntelligence', runCompetitorIntelligenceWorkerOnce, 18500, 300_000);
   // Opportunity Detector — daily at 06h BRT, scans clipping+social+calendar+Tavily+Google Trends for all clients
   startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000);
+  // Trello Sync — every 30min, keeps Edro boards in sync with Trello during migration
+  startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000);
 }

@@ -65,6 +65,7 @@ import operationsRoutes from './operations';
 import peopleRoutes from './people';
 import simulationRoutes from './simulation';
 import competitorsRoutes from './competitors';
+import trelloRoutes from './trello';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.register(tempPgVectorCheck);
@@ -143,4 +144,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(webhookAdminRoutes, { prefix: '/api' });
   app.register(simulationRoutes, { prefix: '/api' });
   app.register(competitorsRoutes, { prefix: '/api' });
+  app.register(trelloRoutes, { prefix: '/api' });
 }
