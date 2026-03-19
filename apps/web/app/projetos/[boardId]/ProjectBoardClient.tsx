@@ -235,13 +235,13 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
   const lists = board?.lists ?? [];
 
   return (
-    <AppShell title={board?.name ?? 'Projetos'}>
+    <AppShell title={board?.name ?? 'Projetos'} fullBleed>
       {/* Header */}
       <Stack
         direction="row"
         alignItems="center"
         spacing={1.5}
-        sx={{ px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}
+        sx={{ px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0 }}
       >
         <IconButton size="small" href="/projetos">
           <IconArrowLeft size={18} />

@@ -22,6 +22,8 @@ type AppShellProps = {
   topbarLeft?: React.ReactNode;
   topbarRight?: React.ReactNode;
   children: React.ReactNode;
+  /** Remove padding and allow horizontal scroll — for full-bleed layouts like kanban */
+  fullBleed?: boolean;
 };
 
 export default function AppShell({
@@ -32,6 +34,7 @@ export default function AppShell({
   topbarLeft,
   topbarRight,
   children,
+  fullBleed,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -52,7 +55,7 @@ export default function AppShell({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          overflow: 'hidden',
+          overflow: fullBleed ? 'auto' : 'hidden',
         }}
       >
         <Header
@@ -67,11 +70,11 @@ export default function AppShell({
         />
         <Box
           sx={{
-            p: { xs: 2, sm: 3 },
+            p: fullBleed ? 0 : { xs: 2, sm: 3 },
             flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
-            gap: 3,
+            gap: fullBleed ? 0 : 3,
             animation: 'edroFadeIn 0.22s ease-out',
             '@keyframes edroFadeIn': {
               from: { opacity: 0, transform: 'translateY(6px)' },
