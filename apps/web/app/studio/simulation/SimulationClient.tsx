@@ -34,6 +34,8 @@ import {
   IconTrash,
   IconTrophy,
   IconAlertTriangle,
+  IconShieldCheck,
+  IconTargetArrow,
 } from '@tabler/icons-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -86,8 +88,17 @@ interface SimulationReport {
   cluster_count: number;
   rule_count: number;
   confidence_avg: number;
+  prediction_confidence: number;
+  prediction_confidence_label: string;
+  cold_start: boolean;
+  cold_start_message?: string;
   summary: string;
   created_at: string;
+}
+
+interface ClientAccuracy {
+  outcome_count: number;
+  avg_accuracy_pct: number;
 }
 
 interface PastSimulation {
@@ -425,6 +436,7 @@ export default function SimulationClient() {
 
   const [history, setHistory] = useState<PastSimulation[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [accuracy, setAccuracy] = useState<ClientAccuracy | null>(null);
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -438,6 +450,14 @@ export default function SimulationClient() {
     } finally {
       setHistoryLoading(false);
     }
+  }, [clientId]);
+
+  // Load historical accuracy badge on mount
+  useEffect(() => {
+    if (!clientId) return;
+    apiGet(`/simulation/accuracy?client_id=${clientId}`)
+      .then((d) => { if (d.accuracy) setAccuracy(d.accuracy); })
+      .catch(() => {});
   }, [clientId]);
 
   useEffect(() => {
@@ -496,22 +516,44 @@ export default function SimulationClient() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
       {/* Header */}
-      <Stack direction="row" alignItems="center" spacing={1.5} mb={3}>
-        <Box
-          sx={{
-            width: 42, height: 42, borderRadius: 2,
-            background: 'linear-gradient(135deg, #5D87FF 0%, #13DEB9 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <IconSparkles size={22} color="#fff" />
-        </Box>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Simulador de Sucesso</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Preveja performance antes de publicar — clusters reais + learning rules do cliente
-          </Typography>
-        </Box>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} mb={3}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box
+            sx={{
+              width: 42, height: 42, borderRadius: 2,
+              background: 'linear-gradient(135deg, #5D87FF 0%, #13DEB9 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <IconSparkles size={22} color="#fff" />
+          </Box>
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Simulador de Sucesso</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Preveja performance antes de publicar — clusters reais + learning rules do cliente
+            </Typography>
+          </Box>
+        </Stack>
+        {/* Historical accuracy badge */}
+        {accuracy && accuracy.outcome_count >= 3 && (
+          <Tooltip title={`Baseado em ${accuracy.outcome_count} simulações anteriores deste cliente`}>
+            <Paper
+              variant="outlined"
+              sx={{
+                px: 1.5, py: 0.75, borderRadius: 2,
+                borderColor: accuracy.avg_accuracy_pct >= 70 ? '#13DEB930' : '#FFAE1F30',
+                bgcolor: accuracy.avg_accuracy_pct >= 70 ? 'rgba(19,222,185,0.05)' : 'rgba(255,174,31,0.05)',
+                display: 'flex', alignItems: 'center', gap: 0.75,
+              }}
+            >
+              <IconTargetArrow size={14} color={accuracy.avg_accuracy_pct >= 70 ? '#13DEB9' : '#FFAE1F'} />
+              <Typography variant="caption" fontWeight={700} color={accuracy.avg_accuracy_pct >= 70 ? '#13DEB9' : '#FFAE1F'}>
+                Acurácia histórica: {accuracy.avg_accuracy_pct.toFixed(0)}%
+              </Typography>
+            </Paper>
+          </Tooltip>
+        )}
       </Stack>
 
       {/* Tabs */}
@@ -639,6 +681,13 @@ export default function SimulationClient() {
                   <Chip label="Resultado da Simulação" size="small" />
                 </Divider>
 
+                {/* Cold start banner */}
+                {report.cold_start && report.cold_start_message && (
+                  <Alert severity="warning" icon={<IconAlertTriangle size={16} />} sx={{ mb: 2, fontSize: 12 }}>
+                    {report.cold_start_message}
+                  </Alert>
+                )}
+
                 {/* Summary card */}
                 <Alert
                   severity="success"
@@ -648,9 +697,41 @@ export default function SimulationClient() {
                   {report.summary}
                 </Alert>
 
+                {/* Prediction confidence bar */}
+                <Paper variant="outlined" sx={{ p: 2, mb: 2, borderColor: report.prediction_confidence >= 75 ? '#13DEB930' : report.prediction_confidence >= 50 ? '#FFAE1F30' : '#FA896B30' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.75}>
+                    <Stack direction="row" alignItems="center" spacing={0.75}>
+                      <IconShieldCheck size={15} color={report.prediction_confidence >= 75 ? '#13DEB9' : report.prediction_confidence >= 50 ? '#FFAE1F' : '#FA896B'} />
+                      <Typography variant="caption" fontWeight={700}>Confiança da previsão</Typography>
+                    </Stack>
+                    <Typography variant="caption" fontWeight={800} color={report.prediction_confidence >= 75 ? '#13DEB9' : report.prediction_confidence >= 50 ? '#FFAE1F' : '#FA896B'}>
+                      {report.prediction_confidence_label}
+                    </Typography>
+                  </Stack>
+                  <LinearProgress
+                    variant="determinate"
+                    value={report.prediction_confidence}
+                    sx={{
+                      height: 6, borderRadius: 3,
+                      backgroundColor: 'grey.100',
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: report.prediction_confidence >= 75 ? '#13DEB9' : report.prediction_confidence >= 50 ? '#FFAE1F' : '#FA896B',
+                        borderRadius: 3,
+                      },
+                    }}
+                  />
+                  <Typography variant="caption" color="text.secondary" mt={0.5} display="block">
+                    {report.prediction_confidence >= 75
+                      ? `Baseado em ${report.cluster_count} clusters reais + ${report.rule_count} learning rules`
+                      : report.cold_start
+                        ? 'Confiança aumenta após 5+ campanhas publicadas neste cliente'
+                        : `Poucos dados — ${report.cluster_count} clusters, ${report.rule_count} rules`}
+                  </Typography>
+                </Paper>
+
                 <Stack direction="row" spacing={2} mb={2}>
                   <Paper variant="outlined" sx={{ p: 1.5, flex: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">Clusters usados</Typography>
+                    <Typography variant="caption" color="text.secondary">Clusters</Typography>
                     <Typography fontWeight={700} fontSize={22}>{report.cluster_count}</Typography>
                   </Paper>
                   <Paper variant="outlined" sx={{ p: 1.5, flex: 1, textAlign: 'center' }}>
@@ -658,7 +739,7 @@ export default function SimulationClient() {
                     <Typography fontWeight={700} fontSize={22}>{report.rule_count}</Typography>
                   </Paper>
                   <Paper variant="outlined" sx={{ p: 1.5, flex: 1, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">Confiança média</Typography>
+                    <Typography variant="caption" color="text.secondary">Confiança clusters</Typography>
                     <Typography fontWeight={700} fontSize={22}>{(report.confidence_avg * 100).toFixed(0)}%</Typography>
                   </Paper>
                 </Stack>

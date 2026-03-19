@@ -15,6 +15,7 @@
 import { query } from '../../db';
 import { BehaviorCluster } from '../behaviorClusteringService';
 import { LearningRule } from '../learningEngine';
+import { ScoringWeights, DEFAULT_WEIGHTS } from './scoringCalibrator';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,16 +55,6 @@ export interface ResonanceResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function foggMultiplier(motivation = 5, ability = 5, prompt = 5): number {
-  // Geometric mean of normalized scores (1-10 → 0-1), bias toward 1.0 when absent
-  const m = motivation / 10;
-  const a = ability / 10;
-  const p = prompt / 10;
-  const geo = Math.cbrt(m * a * p);
-  // Map 0-1 → 0.6-1.2 so Fogg acts as a modifier, not eliminator
-  return 0.6 + geo * 0.6;
-}
-
 function triggerOverlap(variantTriggers: string[], clusterTriggers: string[]): string[] {
   if (!variantTriggers?.length || !clusterTriggers?.length) return [];
   const ct = new Set(clusterTriggers.map((t) => t.toLowerCase()));
@@ -76,6 +67,7 @@ export async function scoreVariantsAgainstClusters(
   variants: VariantInput[],
   clusters: BehaviorCluster[],
   rules: LearningRule[],
+  weights: ScoringWeights = DEFAULT_WEIGHTS,
 ): Promise<ResonanceResult[]> {
   return variants.map((variant) => {
     const clusterScores: ClusterScore[] = clusters.map((cluster) => {
@@ -110,19 +102,29 @@ export async function scoreVariantsAgainstClusters(
         }
       }
 
-      // 4. Fogg quality multiplier
-      const fogg = foggMultiplier(variant.fogg_motivation, variant.fogg_ability, variant.fogg_prompt);
+      // 4. Fogg quality multiplier (uses dynamic weights)
+      const { fogg_multiplier_base: fBase, fogg_multiplier_scale: fScale } = weights;
+      const m = (variant.fogg_motivation ?? 5) / 10;
+      const a = (variant.fogg_ability ?? 5) / 10;
+      const p = (variant.fogg_prompt ?? 5) / 10;
+      const geo = Math.cbrt(m * a * p);
+      const fogg = fBase + geo * fScale;
 
       // 5. Base rates from cluster
       const baseSave = cluster.avg_save_rate;
       const baseClick = cluster.avg_click_rate;
       const baseEngagement = cluster.avg_engagement_rate;
 
-      // 6. AMD boost: +30% if match, -10% if mismatch and cluster has strong preference
-      const amdBoost = amdMatch ? 0.30 : (cluster.preferred_amd && variant.amd ? -0.10 : 0);
+      // 6. AMD boost: dynamic weight if match, -10% if mismatch and cluster has preference
+      const amdBoost = amdMatch
+        ? weights.amd_match_boost
+        : (cluster.preferred_amd && variant.amd ? -0.10 : 0);
 
-      // 7. Trigger boost: +8% per match, capped at +40%
-      const triggerBoost = Math.min(triggerMatches.length * 0.08, 0.40);
+      // 7. Trigger boost: dynamic weight per match, dynamic cap
+      const triggerBoost = Math.min(
+        triggerMatches.length * weights.trigger_boost_per_match,
+        weights.trigger_boost_cap,
+      );
 
       // 8. Predicted rates
       const saveMultiplier = (1 + amdBoost + triggerBoost + ruleUpliftSave) * fogg;
@@ -133,11 +135,11 @@ export async function scoreVariantsAgainstClusters(
       const predictedClick = Math.max(0, baseClick * clickMultiplier);
       const predictedEngagement = Math.max(0, baseEngagement * engagementMultiplier);
 
-      // 9. Resonance score 0–100
-      const amdPoints = amdMatch ? 30 : 0;
+      // 9. Resonance score 0–100 (scaled proportionally to dynamic weights)
+      const amdPoints = amdMatch ? Math.round(weights.amd_match_boost * 100) : 0; // ~30pts at default
       const triggerPoints = Math.min(triggerMatches.length * 12, 36);
       const rulePoints = Math.min(appliedRules.length * 8, 24);
-      const foggPoints = Math.round((fogg - 0.6) / 0.6 * 10); // 0-10
+      const foggPoints = Math.round((fogg - fBase) / fScale * 10); // 0-10
       const resonance = Math.min(100, amdPoints + triggerPoints + rulePoints + foggPoints);
 
       // 10. Risk level

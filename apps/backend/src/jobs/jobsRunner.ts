@@ -30,6 +30,7 @@ import { runJobAutomationWorkerOnce } from './jobAutomationWorker';
 import { runWhatsAppMemoryBackfillWorkerOnce } from './whatsappMemoryBackfillWorker';
 import { runWhatsAppHealthWorkerOnce } from './whatsappHealthWorker';
 import { runOpsDigestWorkerOnce } from './opsDigestWorker';
+import { runSimulationOutcomeMatcherOnce } from './simulationOutcomeMatcherWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -128,4 +129,6 @@ export function startJobsRunner() {
   startWorkerLoop('whatsappHealth', runWhatsAppHealthWorkerOnce, 15000, 30_000);
   // Ops daily digest — email às 09h com resumo de demandas críticas, vencidas e sem dono
   startWorkerLoop('opsDigest', runOpsDigestWorkerOnce, 15500, 60_000);
+  // Simulation Outcome Matcher — runs at 03h BRT, links simulation predictions to real metrics
+  startWorkerLoop('simulationOutcomeMatcher', runSimulationOutcomeMatcherOnce, 16000, 120_000);
 }

@@ -2,17 +2,22 @@
  * Simulation Report
  *
  * Orquestra o simulador completo:
- *   1. Carrega clusters + learning rules do cliente
- *   2. Pontua variantes via resonanceScorer
- *   3. Estima fadiga via fatigueEstimator
- *   4. Detecta riscos via riskDetector
- *   5. Consolida em SimulationReport e persiste em simulation_results
+ *   1. Carrega clusters do cliente (real ou cold-start)
+ *   2. Carrega learning rules + scoring weights calibrados
+ *   3. Pontua variantes via resonanceScorer
+ *   4. Estima fadiga via fatigueEstimator
+ *   5. Detecta riscos via riskDetector
+ *   6. Calcula prediction_confidence com base em dados disponíveis + acurácia histórica
+ *   7. Consolida em SimulationReport e persiste em simulation_results
  */
 
 import { query } from '../../db';
 import { VariantInput, scoreVariantsAgainstClusters, loadClientClusters, loadClientRules } from './resonanceScorer';
 import { estimateFatiguedays } from './fatigueEstimator';
 import { detectRisks, RiskFlag } from './riskDetector';
+import { getSimulationClusters, ColdStartResult } from './coldStartService';
+import { loadScoringWeights } from './scoringCalibrator';
+import { getClientAccuracy } from './outcomeTracker';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,8 +31,8 @@ export interface SimulationInput {
 
 export interface VariantResult {
   index: number;
-  text_preview: string;           // primeiros 120 chars
-  aggregate_resonance: number;    // 0–100
+  text_preview: string;
+  aggregate_resonance: number;
   predicted_save_rate: number;
   predicted_click_rate: number;
   predicted_engagement_rate: number;
@@ -53,11 +58,62 @@ export interface SimulationReport {
   cluster_count: number;
   rule_count: number;
   confidence_avg: number;
-  summary: string;               // texto legível para o usuário
+  // Fase 4: prediction confidence
+  prediction_confidence: number;       // 0–100%, quão confiável é esta simulação
+  prediction_confidence_label: string; // "Alta (87%)", "Média (60%)", "Baixa (35%)"
+  // Fase 5: cold start
+  cold_start: boolean;
+  cold_start_message?: string;
+  summary: string;
   created_at: string;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Prediction confidence ─────────────────────────────────────────────────────
+
+function computePredictionConfidence(params: {
+  clusterCount: number;
+  ruleCount: number;
+  confidenceAvg: number;
+  coldStart: boolean;
+  historicalAccuracy?: number | null;  // null = no history yet
+}): { score: number; label: string } {
+  const { clusterCount, ruleCount, confidenceAvg, coldStart, historicalAccuracy } = params;
+
+  let score = 40; // base: benchmark sem dados
+
+  if (coldStart) {
+    score = 25; // cold start = menos confiança
+  } else {
+    // Cluster factor
+    if (clusterCount >= 4) score += 20;
+    else if (clusterCount >= 2) score += 10;
+
+    // Rule factor
+    if (ruleCount >= 8) score += 20;
+    else if (ruleCount >= 3) score += 10;
+
+    // Confidence avg factor
+    if (confidenceAvg >= 0.7) score += 10;
+    else if (confidenceAvg >= 0.5) score += 5;
+  }
+
+  // Historical accuracy override (most authoritative signal)
+  if (historicalAccuracy != null) {
+    // Blend: 60% historical + 40% data-based
+    score = Math.round(historicalAccuracy * 0.60 + score * 0.40);
+  }
+
+  score = Math.min(95, Math.max(10, score));
+
+  const label =
+    score >= 75 ? `Alta (${score}%)` :
+    score >= 50 ? `Média (${score}%)` :
+    `Baixa (${score}%)`;
+
+  return { score, label };
+}
+
+// ── Summary builder ───────────────────────────────────────────────────────────
 
 function buildSummary(variants: VariantResult[], winnerIndex: number): string {
   const winner = variants.find((v) => v.index === winnerIndex);
@@ -93,16 +149,32 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
 
   if (!variants.length) throw new Error('Nenhuma variante fornecida para simulação.');
 
-  // 1. Load clusters
-  const clusters = clientId ? await loadClientClusters(clientId, tenantId) : [];
+  // 1. Load clusters (real or cold-start)
+  const realClusters = clientId ? await loadClientClusters(clientId, tenantId) : [];
+  let coldStartResult: ColdStartResult;
+
+  if (clientId) {
+    coldStartResult = await getSimulationClusters(clientId, tenantId, realClusters);
+  } else {
+    // No client_id: pure benchmark
+    const { buildGlobalBenchmarkClusters } = await import('./coldStartService');
+    const benchmarkClusters = buildGlobalBenchmarkClusters();
+    coldStartResult = { clusters: benchmarkClusters, source: 'cold_start', peer_count: 0, message: 'Sem cliente selecionado — usando benchmarks gerais do mercado.' };
+  }
+
+  const clusters = coldStartResult.clusters;
+  const isColdStart = coldStartResult.source === 'cold_start';
 
   // 2. Load learning rules
   const rules = clientId ? await loadClientRules(clientId, tenantId) : [];
 
-  // 3. Score variants
-  const resonanceResults = await scoreVariantsAgainstClusters(variants, clusters, rules);
+  // 3. Load calibrated scoring weights (Fase 3)
+  const weights = await loadScoringWeights(tenantId, clientId, platform);
 
-  // 4. Estimate fatigue + detect risks per variant
+  // 4. Score variants with dynamic weights
+  const resonanceResults = await scoreVariantsAgainstClusters(variants, clusters, rules, weights);
+
+  // 5. Estimate fatigue + detect risks per variant
   const dominantAmd = variants[0]?.amd;
   const { fatigue_days, source: fatigueSource } = await estimateFatiguedays(
     clientId ?? '',
@@ -113,8 +185,8 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
 
   const allRisks = await detectRisks(variants, clusters, clientId ?? '', tenantId);
 
-  // 5. Build variant results
-  const variantResults: VariantResult[] = variants.map((v, i) => {
+  // 6. Build variant results
+  const variantResults: VariantResult[] = variants.map((v) => {
     const resonance = resonanceResults.find((r) => r.variant_index === v.index)!;
     const risks = allRisks.filter((f) => f.variant_index === v.index);
 
@@ -140,7 +212,7 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
     };
   });
 
-  // 6. Find winner (highest aggregate_resonance, tie-break by predicted_save_rate)
+  // 7. Find winner
   const winner = [...variantResults].sort(
     (a, b) =>
       b.aggregate_resonance - a.aggregate_resonance ||
@@ -151,9 +223,26 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
     ? clusters.reduce((s, c) => s + c.confidence_score, 0) / clusters.length
     : 0;
 
+  // 8. Compute prediction confidence (Fase 4)
+  let historicalAccuracy: number | null = null;
+  if (clientId) {
+    const accuracy = await getClientAccuracy(clientId, tenantId).catch(() => null);
+    if (accuracy && accuracy.outcome_count >= 3) {
+      historicalAccuracy = accuracy.avg_accuracy_pct;
+    }
+  }
+
+  const { score: predConfidence, label: predConfidenceLabel } = computePredictionConfidence({
+    clusterCount: clusters.length,
+    ruleCount: rules.length,
+    confidenceAvg,
+    coldStart: isColdStart,
+    historicalAccuracy,
+  });
+
   const summary = buildSummary(variantResults, winner.index);
 
-  // 7. Persist
+  // 9. Persist
   const res = await query<{ id: string; created_at: string }>(
     `INSERT INTO simulation_results
        (tenant_id, client_id, campaign_id, platform, variants, scores,
@@ -189,6 +278,10 @@ export async function runSimulation(input: SimulationInput): Promise<SimulationR
     cluster_count: clusters.length,
     rule_count: rules.length,
     confidence_avg: Math.round(confidenceAvg * 100) / 100,
+    prediction_confidence: predConfidence,
+    prediction_confidence_label: predConfidenceLabel,
+    cold_start: isColdStart,
+    cold_start_message: coldStartResult.message,
     summary,
     created_at: res.rows[0].created_at,
   };
@@ -204,7 +297,6 @@ export async function loadSimulationResult(id: string, tenantId: string): Promis
   if (!res.rows.length) return null;
 
   const row = res.rows[0];
-  // Reconstruct minimal report for display
   return {
     id: row.id,
     winner_index: row.winner_index ?? 0,
@@ -213,6 +305,9 @@ export async function loadSimulationResult(id: string, tenantId: string): Promis
     cluster_count: row.cluster_count ?? 0,
     rule_count: row.rule_count ?? 0,
     confidence_avg: parseFloat(row.confidence_avg ?? '0'),
+    prediction_confidence: 0,
+    prediction_confidence_label: '',
+    cold_start: false,
     summary: '',
     created_at: row.created_at,
   };

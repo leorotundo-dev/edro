@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { runSimulation, loadSimulationResult } from '../services/campaignSimulator/simulationReport';
+import { getClientAccuracy } from '../services/campaignSimulator/outcomeTracker';
+import { query } from '../db';
 
 const variantSchema = z.object({
   index: z.number().int().min(0),
@@ -62,8 +64,7 @@ export default async function simulationRoutes(app: FastifyInstance) {
     const tenantId = request.user?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ error: 'Unauthorized' });
 
-    const { pool } = await import('../db');
-    const res = await pool.query(
+    const res = await query<any>(
       `SELECT id, client_id, platform, winner_index, winner_predicted_save_rate,
               winner_predicted_click_rate, winner_fatigue_days, cluster_count,
               rule_count, confidence_avg, created_at
@@ -76,5 +77,29 @@ export default async function simulationRoutes(app: FastifyInstance) {
     );
 
     return reply.send({ simulations: res.rows });
+  });
+
+  // GET /simulation/accuracy — acurácia histórica do simulador por cliente
+  app.get('/simulation/accuracy', { preHandler: authGuard }, async (request: any, reply) => {
+    const { client_id } = request.query as { client_id?: string };
+    const tenantId = request.user?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const accuracy = await getClientAccuracy(client_id ?? '', tenantId);
+    return reply.send({ accuracy });
+  });
+
+  // PATCH /simulation/:id/link-format — vincula um campaign_format ao simulation result
+  app.patch('/simulation/:id/link-format', { preHandler: authGuard }, async (request: any, reply) => {
+    const { id } = request.params as { id: string };
+    const { campaign_format_id } = request.body as { campaign_format_id: string };
+    const tenantId = request.user?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    await query(
+      `UPDATE simulation_results SET campaign_format_id = $1 WHERE id = $2 AND tenant_id = $3`,
+      [campaign_format_id, id, tenantId],
+    );
+    return reply.send({ ok: true });
   });
 }
