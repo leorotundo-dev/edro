@@ -25,6 +25,7 @@ import {
   IconBrain, IconRefresh, IconAlertTriangle, IconTrendingUp, IconChevronRight,
   IconBolt, IconTarget, IconArrowUpRight, IconCircleCheck, IconAlertCircle,
   IconBrandWhatsapp, IconCheck, IconX, IconMessageCircle,
+  IconSparkles, IconRobot, IconChartBar,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch } from '@/lib/api';
 
@@ -72,11 +73,39 @@ type RoiRow = {
   computed_at: string;
 };
 
+type AutoBriefing = {
+  id: string;
+  title: string;
+  source: 'auto_opportunity' | 'fatigue_substitution';
+  status: string;
+  created_at: string;
+  client_id: string;
+  client_name: string;
+  drop_pct: number | null;
+  opportunity_confidence: number | null;
+};
+
+type SimulationStats = {
+  total_simulations: number;
+  simulations_this_week: number;
+  avg_accuracy_pct: number | null;
+  outcome_count: number;
+};
+
+type CompetitorStats = {
+  total_profiles: number;
+  analyzed_today: number;
+  clients_with_competitors: number;
+};
+
 type IntelData = {
-  alerts:           Alert_t[];
-  top_roi:          RoiRow[];
-  workers:          { meta_last_sync: string | null; meta_connectors: number };
-  pending_insights: PendingInsight[];
+  alerts:            Alert_t[];
+  top_roi:           RoiRow[];
+  workers:           { meta_last_sync: string | null; meta_connectors: number };
+  pending_insights:  PendingInsight[];
+  auto_briefings:    AutoBriefing[];
+  simulation_stats:  SimulationStats;
+  competitor_stats:  CompetitorStats;
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -259,6 +288,134 @@ export default function AdminIntelligencePage() {
 
       {data && (
         <>
+
+        {/* ── Pipeline Autônomo ── */}
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <IconRobot size={18} color="#A855F7" />
+              <Typography variant="h6">Pipeline Autônomo</Typography>
+              <Chip size="small" label="últimas 48h" sx={{ height: 18, fontSize: '0.6rem' }} />
+            </Stack>
+
+            <Grid container spacing={2} sx={{ mb: data.auto_briefings.length > 0 ? 2 : 0 }}>
+              {/* Briefings auto-gerados */}
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
+                    <IconBolt size={14} color="#A855F7" />
+                    <Typography sx={{ fontSize: '0.68rem', color: '#A855F7', fontWeight: 600 }}>Briefings gerados</Typography>
+                  </Stack>
+                  <Typography variant="h5" fontWeight={700}>
+                    {data.auto_briefings.filter(b => b.source === 'auto_opportunity').length}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">de oportunidades</Typography>
+                </Box>
+              </Grid>
+              {/* Substitutas de fadiga */}
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(248,168,0,0.06)', border: '1px solid rgba(248,168,0,0.15)' }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
+                    <IconBolt size={14} color="#F8A800" />
+                    <Typography sx={{ fontSize: '0.68rem', color: '#F8A800', fontWeight: 600 }}>Substitutas geradas</Typography>
+                  </Stack>
+                  <Typography variant="h5" fontWeight={700}>
+                    {data.auto_briefings.filter(b => b.source === 'fatigue_substitution').length}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">fadiga detectada</Typography>
+                </Box>
+              </Grid>
+              {/* Simulações */}
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(19,222,185,0.06)', border: '1px solid rgba(19,222,185,0.15)' }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
+                    <IconSparkles size={14} color="#13DEB9" />
+                    <Typography sx={{ fontSize: '0.68rem', color: '#13DEB9', fontWeight: 600 }}>Simulações esta semana</Typography>
+                  </Stack>
+                  <Typography variant="h5" fontWeight={700}>
+                    {data.simulation_stats?.simulations_this_week ?? 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {data.simulation_stats?.avg_accuracy_pct != null
+                      ? `acurácia média ${data.simulation_stats.avg_accuracy_pct}%`
+                      : 'sem dados de acurácia ainda'}
+                  </Typography>
+                </Box>
+              </Grid>
+              {/* Concorrentes */}
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(93,135,255,0.06)', border: '1px solid rgba(93,135,255,0.15)' }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
+                    <IconChartBar size={14} color="#5D87FF" />
+                    <Typography sx={{ fontSize: '0.68rem', color: '#5D87FF', fontWeight: 600 }}>Concorrentes monitorados</Typography>
+                  </Stack>
+                  <Typography variant="h5" fontWeight={700}>
+                    {data.competitor_stats?.total_profiles ?? 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {data.competitor_stats?.clients_with_competitors ?? 0} cliente(s)
+                    {(data.competitor_stats?.analyzed_today ?? 0) > 0 && ` · ${data.competitor_stats.analyzed_today} analisado(s) hoje`}
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+
+            {/* Auto-briefing list */}
+            {data.auto_briefings.length > 0 && (
+              <Stack spacing={0.75}>
+                {data.auto_briefings.map(b => (
+                  <Stack
+                    key={b.id}
+                    direction="row"
+                    alignItems="center"
+                    spacing={1.5}
+                    sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'action.hover' }}
+                  >
+                    <Box sx={{ flexShrink: 0 }}>
+                      {b.source === 'fatigue_substitution'
+                        ? <IconBolt size={14} color="#F8A800" />
+                        : <IconSparkles size={14} color="#A855F7" />}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        component={Link}
+                        href={`/studio/brief/${b.id}`}
+                        sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary',
+                          textDecoration: 'none', '&:hover': { color: 'primary.main' },
+                          display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {b.title}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {b.client_name}
+                        {b.drop_pct != null && ` · queda de ${b.drop_pct}%`}
+                        {b.opportunity_confidence != null && ` · confiança ${b.opportunity_confidence}%`}
+                        {' · '}{new Date(b.created_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={b.status === 'draft' ? 'Aguardando aprovação' : b.status}
+                      sx={{
+                        height: 18, fontSize: '0.6rem', flexShrink: 0,
+                        bgcolor: b.status === 'draft' ? 'rgba(248,168,0,0.12)' : 'rgba(19,222,185,0.12)',
+                        color: b.status === 'draft' ? '#F8A800' : '#13DEB9',
+                      }}
+                    />
+                  </Stack>
+                ))}
+              </Stack>
+            )}
+
+            {data.auto_briefings.length === 0 && (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1.5, color: 'text.disabled' }}>
+                <IconCircleCheck size={16} />
+                <Typography variant="caption">Nenhum briefing autônomo nas últimas 48h.</Typography>
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+
         <Grid container spacing={3}>
           {/* ── Account Manager Alerts ── */}
           <Grid size={{ xs: 12, lg: 7 }}>

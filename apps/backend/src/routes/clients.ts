@@ -1483,7 +1483,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     try {
-      const [alertsRes, roiRes, workersRes, insightsRes] = await Promise.all([
+      const [alertsRes, roiRes, workersRes, insightsRes, autoBriefingsRes, simulationStatsRes, competitorStatsRes] = await Promise.all([
         // All active alerts across clients
         query(
           `SELECT ama.id, ama.client_id, cl.name AS client_name,
@@ -1539,13 +1539,56 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
            LIMIT 120`,
           [tenantId],
         ).catch(() => ({ rows: [] as any[] })),
+        // Auto-briefings gerados nas últimas 48h (auto_opportunity + fatigue_substitution)
+        query(
+          `SELECT b.id, b.title, b.source, b.status, b.created_at,
+                  cl.id AS client_id, cl.name AS client_name,
+                  (b.payload->>'drop_pct')::int AS drop_pct,
+                  (b.payload->>'opportunity_confidence')::int AS opportunity_confidence
+           FROM edro_briefings b
+           LEFT JOIN clients cl ON cl.id::text = b.main_client_id::text
+           WHERE b.tenant_id IS NULL OR EXISTS (
+             SELECT 1 FROM clients c2
+             WHERE c2.id::text = b.main_client_id::text AND c2.tenant_id = $1
+           )
+           AND b.source IN ('auto_opportunity', 'fatigue_substitution')
+           AND b.created_at >= NOW() - INTERVAL '48 hours'
+           ORDER BY b.created_at DESC
+           LIMIT 20`,
+          [tenantId],
+        ).catch(() => ({ rows: [] as any[] })),
+        // Simulation stats: count de simulações + acurácia média dos outcomes
+        query(
+          `SELECT
+             COUNT(DISTINCT sr.id)::int AS total_simulations,
+             COUNT(DISTINCT CASE WHEN sr.created_at >= NOW() - INTERVAL '7 days' THEN sr.id END)::int AS simulations_this_week,
+             AVG(so.accuracy_pct)::numeric(5,1) AS avg_accuracy_pct,
+             COUNT(so.id)::int AS outcome_count
+           FROM simulation_results sr
+           LEFT JOIN simulation_outcomes so ON so.simulation_result_id = sr.id
+           WHERE sr.tenant_id = $1`,
+          [tenantId],
+        ).catch(() => ({ rows: [{}] as any[] })),
+        // Competitor profiles: quantos ativos + quantos analisados hoje
+        query(
+          `SELECT
+             COUNT(*)::int AS total_profiles,
+             COUNT(CASE WHEN last_analyzed_at >= NOW() - INTERVAL '24 hours' THEN 1 END)::int AS analyzed_today,
+             COUNT(DISTINCT client_id)::int AS clients_with_competitors
+           FROM competitor_profiles
+           WHERE tenant_id = $1 AND is_active = true`,
+          [tenantId],
+        ).catch(() => ({ rows: [{}] as any[] })),
       ]);
 
       return reply.send({
-        alerts:           alertsRes.rows,
-        top_roi:          roiRes.rows,
-        workers:          workersRes.rows[0] ?? {},
-        pending_insights: insightsRes.rows,
+        alerts:            alertsRes.rows,
+        top_roi:           roiRes.rows,
+        workers:           workersRes.rows[0] ?? {},
+        pending_insights:  insightsRes.rows,
+        auto_briefings:    autoBriefingsRes.rows,
+        simulation_stats:  simulationStatsRes.rows[0] ?? {},
+        competitor_stats:  competitorStatsRes.rows[0] ?? {},
       });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
