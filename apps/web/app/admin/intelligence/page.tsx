@@ -25,7 +25,7 @@ import {
   IconBrain, IconRefresh, IconAlertTriangle, IconTrendingUp, IconChevronRight,
   IconBolt, IconTarget, IconArrowUpRight, IconCircleCheck, IconAlertCircle,
   IconBrandWhatsapp, IconCheck, IconX, IconMessageCircle,
-  IconSparkles, IconRobot, IconChartBar,
+  IconSparkles, IconRobot, IconChartBar, IconTrendingUp2, IconExternalLink,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
@@ -85,6 +85,20 @@ type AutoBriefing = {
   opportunity_confidence: number | null;
 };
 
+type Opportunity = {
+  id: string;
+  title: string;
+  description: string;
+  source: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  confidence: number;
+  suggested_action: string;
+  trending_up: boolean;
+  created_at: string;
+  client_id: string;
+  client_name: string;
+};
+
 type SimulationStats = {
   total_simulations: number;
   simulations_this_week: number;
@@ -106,6 +120,7 @@ type IntelData = {
   auto_briefings:    AutoBriefing[];
   simulation_stats:  SimulationStats;
   competitor_stats:  CompetitorStats;
+  opportunities:     Opportunity[];
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -399,7 +414,7 @@ export default function AdminIntelligencePage() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography
                         component={Link}
-                        href={`/studio/brief/${b.id}`}
+                        href={`/studio/brief?id=${b.id}`}
                         sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary',
                           textDecoration: 'none', '&:hover': { color: 'primary.main' },
                           display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -450,6 +465,79 @@ export default function AdminIntelligencePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* ── Oportunidades Detectadas ── */}
+        {(data.opportunities?.length ?? 0) > 0 && (
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <IconTrendingUp2 size={18} color="#13DEB9" />
+                <Typography variant="h6">Oportunidades Detectadas</Typography>
+                <Chip size="small" label={`${data.opportunities.length} novas`}
+                  sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(19,222,185,0.12)', color: '#13DEB9' }} />
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                  últimas 72h · confiança ≥ 60%
+                </Typography>
+              </Stack>
+              <Stack spacing={0.75}>
+                {data.opportunities.map(opp => (
+                  <Box key={opp.id} sx={{
+                    p: 1.25, borderRadius: 1.5,
+                    border: '1px solid',
+                    borderColor: opp.priority === 'urgent' ? 'rgba(239,68,68,0.3)'
+                      : opp.trending_up ? 'rgba(19,222,185,0.25)'
+                      : 'divider',
+                    bgcolor: opp.priority === 'urgent' ? 'rgba(239,68,68,0.04)'
+                      : opp.trending_up ? 'rgba(19,222,185,0.03)'
+                      : 'transparent',
+                  }}>
+                    <Stack direction="row" alignItems="flex-start" spacing={1.25}>
+                      <Box sx={{ flexShrink: 0, mt: 0.25 }}>
+                        {opp.trending_up
+                          ? <IconTrendingUp size={15} color="#13DEB9" />
+                          : <IconTarget size={15} color="#5D87FF" />}
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" mb={0.25}>
+                          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, mr: 0.5 }}>
+                            {opp.title}
+                          </Typography>
+                          <Chip size="small" label={opp.client_name}
+                            sx={{ height: 16, fontSize: '0.55rem', bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF' }} />
+                          <Chip size="small" label={opp.source}
+                            sx={{ height: 16, fontSize: '0.55rem' }} />
+                          <Chip size="small" label={`${opp.confidence}%`}
+                            sx={{ height: 16, fontSize: '0.55rem',
+                              bgcolor: opp.confidence >= 80 ? 'rgba(19,222,185,0.1)' : 'transparent',
+                              color: opp.confidence >= 80 ? '#13DEB9' : 'text.secondary' }} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          {opp.description.slice(0, 160)}{opp.description.length > 160 ? '…' : ''}
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <IconTarget size={11} color="#A855F7" />
+                          <Typography sx={{ fontSize: '0.67rem', color: '#A855F7', fontStyle: 'italic' }}>
+                            {opp.suggested_action}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        endIcon={<IconExternalLink size={11} />}
+                        component={Link}
+                        href={`/clients/${opp.client_id}/planning`}
+                        sx={{ fontSize: '0.6rem', height: 22, px: 1, flexShrink: 0, whiteSpace: 'nowrap' }}
+                      >
+                        Ver cliente
+                      </Button>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
         <Grid container spacing={3}>
           {/* ── Account Manager Alerts ── */}

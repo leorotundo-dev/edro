@@ -1483,7 +1483,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     try {
-      const [alertsRes, roiRes, workersRes, insightsRes, autoBriefingsRes, simulationStatsRes, competitorStatsRes] = await Promise.all([
+      const [alertsRes, roiRes, workersRes, insightsRes, autoBriefingsRes, simulationStatsRes, competitorStatsRes, opportunitiesRes] = await Promise.all([
         // All active alerts across clients
         query(
           `SELECT ama.id, ama.client_id, cl.name AS client_name,
@@ -1579,6 +1579,22 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
            WHERE tenant_id = $1 AND is_active = true`,
           [tenantId],
         ).catch(() => ({ rows: [{}] as any[] })),
+        // AI Opportunities: new + high confidence, últimas 72h, com nome do cliente
+        query(
+          `SELECT o.id, o.title, o.description, o.source, o.priority, o.confidence,
+                  o.suggested_action, o.trending_up, o.created_at,
+                  c.id AS client_id, c.name AS client_name
+           FROM ai_opportunities o
+           JOIN edro_clients ec ON ec.id = o.client_id
+           JOIN clients c ON LOWER(c.name) = LOWER(ec.name)
+           WHERE c.tenant_id = $1
+             AND o.status = 'new'
+             AND o.confidence >= 60
+             AND o.created_at >= NOW() - INTERVAL '72 hours'
+           ORDER BY o.confidence DESC, o.created_at DESC
+           LIMIT 15`,
+          [tenantId],
+        ).catch(() => ({ rows: [] as any[] })),
       ]);
 
       return reply.send({
@@ -1589,6 +1605,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         auto_briefings:    autoBriefingsRes.rows,
         simulation_stats:  simulationStatsRes.rows[0] ?? {},
         competitor_stats:  competitorStatsRes.rows[0] ?? {},
+        opportunities:     opportunitiesRes.rows,
       });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
