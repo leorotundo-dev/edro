@@ -4,9 +4,10 @@ import crypto from 'crypto';
 import { listClientDocuments } from '../repos/clientIntelligenceRepo';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
+import { queryGoogleTrends, isTrendsConfigured } from '../services/googleTrendsService';
 
 type OpportunitySource = {
-  type: 'clipping' | 'social' | 'calendar' | 'web';
+  type: 'clipping' | 'social' | 'calendar' | 'web' | 'google_trends';
   id: string;
   title: string;
   description: string;
@@ -161,6 +162,35 @@ export async function detectOpportunitiesForClient(params: {
     } catch { /* non-blocking */ }
   }
 
+  // 5. Google Trends — search interest signal for client keywords
+  if (isTrendsConfigured()) {
+    try {
+      const cr = (await query<{ segment_primary?: string; profile?: any }>(
+        `SELECT segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+        [params.client_id, params.tenant_id]
+      )).rows[0];
+      const kws: string[] = Array.isArray(cr?.profile?.keywords)
+        ? cr.profile.keywords.slice(0, 5)
+        : cr?.segment_primary
+          ? [cr.segment_primary]
+          : [];
+      if (kws.length > 0) {
+        const signals = await queryGoogleTrends(kws);
+        for (const sig of signals) {
+          if (sig.score < 40) continue; // ignore low-interest signals
+          sources.push({
+            type: 'google_trends',
+            id: crypto.randomUUID(),
+            title: `Tendência Google: "${sig.topic}"`,
+            description: `Score de busca ${sig.score}/100 no Brasil (últimos 30 dias). Tópico com alta intenção de pesquisa — oportunidade de conteúdo educativo ou de referência.`,
+            score: 60 + Math.round(sig.score * 0.35), // 40→74, 100→95
+            metadata: { topic: sig.topic, trend_score: sig.score, source: 'google_trends' },
+          });
+        }
+      }
+    } catch { /* non-blocking */ }
+  }
+
   // Temporal scoring: boost opportunities closer to now
   const now = new Date();
   sources.forEach((source) => {
@@ -214,7 +244,7 @@ IMPORTANTE: NÃO sugira oportunidades sobre temas que o cliente já publicou rec
 Retorne APENAS JSON array:
 [
   {
-    "source_type": "clipping|social|calendar",
+    "source_type": "clipping|social|calendar|google_trends",
     "source_id": "id",
     "title": "...",
     "description": "...",
@@ -307,7 +337,7 @@ ${sources.map((s, i) => `${i + 1}. [${s.type}] ${s.title} (score: ${s.score})\n 
       opp.priority || 'medium',
       hash,
       opp.confidence || 70,
-      opp.source_type === 'social',
+      opp.source_type === 'social' || opp.source_type === 'google_trends',
     ]);
     inserted++;
   }

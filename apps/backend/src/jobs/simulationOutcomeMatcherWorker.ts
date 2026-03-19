@@ -17,6 +17,45 @@ import { matchSimulationToOutcome, saveOutcome } from '../services/campaignSimul
 
 let lastRunDate = '';
 
+/**
+ * Auto-link: for each edro_briefing with payload.simulation_result_id that now
+ * has a campaign_format linked, update simulation_results.campaign_format_id.
+ * Called before the main outcome-matching loop so the newly linked rows get
+ * picked up in the same daily run.
+ */
+async function autoLinkFormatsFromBriefings(): Promise<number> {
+  const { rows } = await query<{ simulation_result_id: string; campaign_format_id: string }>(
+    `SELECT
+       (b.payload->>'simulation_result_id')::uuid AS simulation_result_id,
+       cf.id AS campaign_format_id
+     FROM edro_briefings b
+     JOIN campaign_formats cf ON cf.briefing_id = b.id
+     WHERE b.payload->>'simulation_result_id' IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM simulation_results sr
+         WHERE sr.id = (b.payload->>'simulation_result_id')::uuid
+           AND sr.campaign_format_id IS NULL
+       )
+     LIMIT 50`,
+    [],
+  );
+
+  let linked = 0;
+  for (const row of rows) {
+    try {
+      await query(
+        `UPDATE simulation_results SET campaign_format_id = $1 WHERE id = $2 AND campaign_format_id IS NULL`,
+        [row.campaign_format_id, row.simulation_result_id],
+      );
+      linked++;
+    } catch { /* non-blocking */ }
+  }
+  if (linked > 0) {
+    console.log(`[simulationOutcomeMatcher] Auto-linked ${linked} formats via briefing payload`);
+  }
+  return linked;
+}
+
 export async function runSimulationOutcomeMatcherOnce(): Promise<void> {
   // Self-throttle: roda 1×/dia às 03:00
   const now = new Date();
@@ -27,6 +66,9 @@ export async function runSimulationOutcomeMatcherOnce(): Promise<void> {
 
   lastRunDate = dateKey;
   console.log('[simulationOutcomeMatcher] Starting daily run...');
+
+  // Auto-link any campaign_formats that came from simulation briefings
+  await autoLinkFormatsFromBriefings();
 
   // Busca simulations com campaign_format_id, ≥7 dias, sem outcome ainda
   const pending = await query<{ id: string; tenant_id: string; campaign_format_id: string }>(
