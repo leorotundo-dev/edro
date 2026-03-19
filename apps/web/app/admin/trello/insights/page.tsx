@@ -3,10 +3,11 @@ import TrelloInsightsClient from './TrelloInsightsClient';
 
 export const metadata = { title: 'Insights Trello | Edro' };
 
-export default function Page({ searchParams }: { searchParams: { boardId?: string } }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ boardId?: string }> }) {
+  const { boardId } = await searchParams;
   return (
     <Suspense>
-      <TrelloInsightsClient boardId={searchParams.boardId} />
+      <TrelloInsightsClient boardId={boardId} />
     </Suspense>
   );
 }

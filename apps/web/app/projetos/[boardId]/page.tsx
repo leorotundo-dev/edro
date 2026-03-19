@@ -3,10 +3,11 @@ import ProjectBoardClient from './ProjectBoardClient';
 
 export const metadata = { title: 'Kanban | Edro' };
 
-export default function Page({ params }: { params: { boardId: string } }) {
+export default async function Page({ params }: { params: Promise<{ boardId: string }> }) {
+  const { boardId } = await params;
   return (
     <Suspense>
-      <ProjectBoardClient boardId={params.boardId} />
+      <ProjectBoardClient boardId={boardId} />
     </Suspense>
   );
 }
