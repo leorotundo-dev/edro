@@ -2011,23 +2011,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
               components={{ event: CalendarEventContent, month: { dateHeader: CustomDateHeader } }}
               style={{ height: 1100 }}
             />
+            {/* Production layer board color legend — inside the card, below the calendar */}
+            {showProductionLayer && productionBoards.length > 0 && (
+              <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                {productionBoards.map((board) => (
+                  <Stack key={board.id} direction="row" spacing={0.75} alignItems="center">
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: getBoardColor(board.color_index), flexShrink: 0 }} />
+                    <Typography variant="caption" color="text.secondary">{board.name}</Typography>
+                  </Stack>
+                ))}
+                <Typography variant="caption" color="text.disabled" sx={{ ml: 'auto' }}>
+                  Vermelho = atrasado · Verde tracejado = concluído
+                </Typography>
+              </Stack>
+            )}
           </CardContent>
         </Card>
-
-        {/* Production layer board color legend */}
-        {showProductionLayer && productionBoards.length > 0 && (
-          <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ px: 1, pt: 0.5 }}>
-            {productionBoards.map((board) => (
-              <Stack key={board.id} direction="row" spacing={0.75} alignItems="center">
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: getBoardColor(board.color_index), flexShrink: 0 }} />
-                <Typography variant="caption" color="text.secondary">{board.name}</Typography>
-              </Stack>
-            ))}
-            <Typography variant="caption" color="text.disabled" sx={{ ml: 1 }}>
-              · Vermelho = atrasado · Tracejado verde = concluído
-            </Typography>
-          </Stack>
-        )}
 
         {selectedDayISO ? (
           <Card variant="outlined" sx={{ width: { xs: '100%', lg: 384 }, flexShrink: 0, alignSelf: 'flex-start' }}>
