@@ -80,6 +80,7 @@ const CLIENT_TABS = [
   { label: 'Conteúdo',      path: '/conteudo' },
   { label: 'Monitoramento',  path: '/monitoramento' },
   { label: 'Inteligência',  path: '/inteligencia' },
+  { label: 'Concorrentes', path: '/concorrentes' },
   { label: 'Métricas',      path: '/metricas' },
   { label: 'Reuniões',      path: '/meetings' },
   { label: 'Demandas',      path: '/demandas' },

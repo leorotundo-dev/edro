@@ -31,6 +31,8 @@ import { runWhatsAppMemoryBackfillWorkerOnce } from './whatsappMemoryBackfillWor
 import { runWhatsAppHealthWorkerOnce } from './whatsappHealthWorker';
 import { runOpsDigestWorkerOnce } from './opsDigestWorker';
 import { runSimulationOutcomeMatcherOnce } from './simulationOutcomeMatcherWorker';
+import { runAutoBriefingFromOpportunityOnce } from './autoBriefingFromOpportunityWorker';
+import { runContentFatigueMonitorOnce } from './contentFatigueMonitorWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -131,4 +133,8 @@ export function startJobsRunner() {
   startWorkerLoop('opsDigest', runOpsDigestWorkerOnce, 15500, 60_000);
   // Simulation Outcome Matcher — runs at 03h BRT, links simulation predictions to real metrics
   startWorkerLoop('simulationOutcomeMatcher', runSimulationOutcomeMatcherOnce, 16000, 120_000);
+  // Auto-Briefing from Opportunities — runs at 07h BRT, generates ready-to-approve briefings from high-confidence opportunities
+  startWorkerLoop('autoBriefing', runAutoBriefingFromOpportunityOnce, 16500, 180_000);
+  // Content Fatigue Monitor — 1x/hour, detects >25% engagement drops and auto-generates substitute copy
+  startWorkerLoop('contentFatigue', runContentFatigueMonitorOnce, 17000, 120_000);
 }

@@ -37,7 +37,7 @@ export default async function simulationRoutes(app: FastifyInstance) {
         clientId: body.client_id,
         campaignId: body.campaign_id,
         platform: body.platform,
-        variants: body.variants,
+        variants: body.variants as any,
       });
 
       return reply.send({ ok: true, simulation: report });
