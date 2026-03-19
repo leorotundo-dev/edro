@@ -5,6 +5,7 @@ import { runSimulation, loadSimulationResult } from '../services/campaignSimulat
 import { getClientAccuracy } from '../services/campaignSimulator/outcomeTracker';
 import { triggerOutcomeMatcherNow } from '../jobs/simulationOutcomeMatcherWorker';
 import { triggerAutoBriefingNow } from '../jobs/autoBriefingFromOpportunityWorker';
+import { triggerCompetitorIntelligenceNow } from '../jobs/competitorIntelligenceWorker';
 import { query } from '../db';
 
 const variantSchema = z.object({
@@ -120,6 +121,16 @@ export default async function simulationRoutes(app: FastifyInstance) {
     try {
       await triggerAutoBriefingNow();
       return reply.send({ ok: true, message: 'Auto-briefing worker triggered.' });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /simulation/admin/trigger-competitor-intelligence — force competitor analysis (admin only)
+  app.post('/simulation/admin/trigger-competitor-intelligence', { preHandler: [authGuard, requirePerm('admin')] }, async (_request: any, reply) => {
+    try {
+      await triggerCompetitorIntelligenceNow();
+      return reply.send({ ok: true, message: 'Competitor intelligence worker triggered.' });
     } catch (err: any) {
       return reply.status(500).send({ ok: false, error: err.message });
     }
