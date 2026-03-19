@@ -192,7 +192,7 @@ function VariantCard({
         />
 
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
               fullWidth
@@ -206,7 +206,7 @@ function VariantCard({
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Gatilhos (ex: urgência, prova_social)"
@@ -314,15 +314,15 @@ function VariantResultCard({
         <ResonanceBar score={result.aggregate_resonance} />
 
         <Grid container spacing={2} mt={1}>
-          <Grid item xs={4}>
+          <Grid size={{ xs: 4 }}>
             <Typography variant="caption" color="text.secondary">Save Rate</Typography>
             <Typography fontWeight={700} color="primary.main">{pct(result.predicted_save_rate)}</Typography>
           </Grid>
-          <Grid item xs={4}>
+          <Grid size={{ xs: 4 }}>
             <Typography variant="caption" color="text.secondary">CTR</Typography>
             <Typography fontWeight={700} color="success.main">{pct(result.predicted_click_rate)}</Typography>
           </Grid>
-          <Grid item xs={4}>
+          <Grid size={{ xs: 4 }}>
             <Typography variant="caption" color="text.secondary">Vida Útil</Typography>
             <Typography fontWeight={700} color="warning.main">
               {result.fatigue_days}d
@@ -581,7 +581,7 @@ export default function SimulationClient() {
       {tab === 0 && (
         <Grid container spacing={3}>
           {/* Left: Config */}
-          <Grid item xs={12} md={5}>
+          <Grid size={{ xs: 12, md: 5 }}>
             <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
               <Typography variant="subtitle2" fontWeight={700} mb={1.5}>
                 Configuração
@@ -662,7 +662,7 @@ export default function SimulationClient() {
           </Grid>
 
           {/* Right: Variants + results */}
-          <Grid item xs={12} md={7}>
+          <Grid size={{ xs: 12, md: 7 }}>
             {variants.map((v) => (
               <VariantCard
                 key={v.index}
