@@ -1129,6 +1129,31 @@ function CampaignDetail({
                                     >
                                       Copiar texto
                                     </Button>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      startIcon={<IconSparkles size={11} />}
+                                      component="a"
+                                      href={(() => {
+                                        const copyText = [result.draft.hook_text, result.audit.approved_text, result.draft.cta_text].filter(Boolean).join('\n\n');
+                                        const triggers = (result.audit.behavior_tags?.triggers ?? bi.triggers ?? []) as string[];
+                                        const params = new URLSearchParams({
+                                          client_id: clientId,
+                                          campaign_id: campaign.id,
+                                          platform: biPlatform[bi.id] || 'instagram',
+                                          v0_text: copyText.slice(0, 2000),
+                                          v0_amd: bi.amd ?? '',
+                                          v0_triggers: triggers.join(','),
+                                          v0_fm: String(result.audit.fogg_score?.motivation ?? 7),
+                                          v0_fa: String(result.audit.fogg_score?.ability ?? 7),
+                                          v0_fp: String(result.audit.fogg_score?.prompt ?? 7),
+                                        });
+                                        return `/studio/simulation?${params}`;
+                                      })()}
+                                      sx={{ fontSize: '0.65rem', height: 24, px: 1, color: '#13DEB9', borderColor: '#13DEB940', textTransform: 'none', '&:hover': { bgcolor: 'rgba(19,222,185,0.06)', borderColor: '#13DEB9' } }}
+                                    >
+                                      Simular
+                                    </Button>
                                   </Stack>
                                 );
                               })()}

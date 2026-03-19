@@ -427,9 +427,24 @@ export default function SimulationClient() {
   const clientId = searchParams.get('client_id') ?? '';
   const campaignId = searchParams.get('campaign_id') ?? '';
 
+  // Pre-fill from URL params if coming from campaign (v0_text, v0_amd, etc.)
+  const initialVariants = (() => {
+    const text = searchParams.get('v0_text') ?? '';
+    if (!text) return [makeEmptyVariant(0), makeEmptyVariant(1)];
+    return [{
+      index: 0,
+      text,
+      amd: searchParams.get('v0_amd') ?? '',
+      triggers: searchParams.get('v0_triggers') ?? '',
+      fogg_motivation: Number(searchParams.get('v0_fm') ?? 7),
+      fogg_ability: Number(searchParams.get('v0_fa') ?? 7),
+      fogg_prompt: Number(searchParams.get('v0_fp') ?? 7),
+    }, makeEmptyVariant(1)];
+  })();
+
   const [tab, setTab] = useState(0);
-  const [variants, setVariants] = useState<Variant[]>([makeEmptyVariant(0), makeEmptyVariant(1)]);
-  const [platform, setPlatform] = useState('instagram');
+  const [variants, setVariants] = useState<Variant[]>(initialVariants);
+  const [platform, setPlatform] = useState(searchParams.get('platform') ?? 'instagram');
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<SimulationReport | null>(null);
   const [error, setError] = useState('');
@@ -586,7 +601,12 @@ export default function SimulationClient() {
                 ))}
               </TextField>
 
-              {clientId && (
+              {clientId && campaignId && searchParams.get('v0_text') && (
+                <Alert severity="success" icon={<IconBolt size={14} />} sx={{ mb: 2, fontSize: 12 }}>
+                  Copy da campanha pré-carregada na Variante 1. Adicione mais variantes para comparar.
+                </Alert>
+              )}
+              {clientId && !campaignId && (
                 <Alert severity="info" sx={{ mb: 2, fontSize: 12 }}>
                   Usando clusters do cliente <strong>{clientId}</strong>
                 </Alert>
