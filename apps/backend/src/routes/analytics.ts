@@ -1256,58 +1256,102 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       [tenantId]
     );
 
-    const results = await Promise.all(clients.map(async (client) => {
-      if (!client.edro_id) {
-        return { id: client.id, name: client.name, segment: client.segment, score: null, status: 'no_data', statusColor: '#94a3b8' };
-      }
+    // Batch all 6 scoring queries for every client at once — O(6) instead of O(6N)
+    const clientsWithId = clients.filter((c) => c.edro_id);
+    const clientsNoId   = clients.filter((c) => !c.edro_id);
+    const edroIds = clientsWithId.map((c) => c.edro_id!);
 
-      try {
-        const [onTimeRes, velocityRes, copyRes, volumeRes, activityRes] = await Promise.all([
-          query<{ total: string; on_time: string }>(
-            `SELECT COUNT(*) FILTER (WHERE status = 'done') AS total,
+    const [onTimeRes, velocityRes, copyRes, volumeRes, activityRes, botsRes] = edroIds.length
+      ? await Promise.all([
+          query<{ client_id: string; total: string; on_time: string }>(
+            `SELECT client_id,
+               COUNT(*) FILTER (WHERE status = 'done') AS total,
                COUNT(*) FILTER (WHERE status = 'done' AND (due_at IS NULL OR updated_at <= due_at)) AS on_time
-             FROM edro_briefings WHERE client_id = $1 AND created_at >= $2`,
-            [client.edro_id, thirtyDaysAgo]
+             FROM edro_briefings
+             WHERE client_id = ANY($1::text[]) AND created_at >= $2
+             GROUP BY client_id`,
+            [edroIds, thirtyDaysAgo]
           ),
-          query<{ avg_hours: string }>(
-            `SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/3600) AS avg_hours
-             FROM edro_briefing_stages WHERE briefing_id IN (
-               SELECT id FROM edro_briefings WHERE client_id=$1 AND created_at>=$2
-             ) AND updated_at > created_at`,
-            [client.edro_id, thirtyDaysAgo]
+          query<{ client_id: string; avg_hours: string }>(
+            `SELECT b.client_id,
+               AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_hours
+             FROM edro_briefing_stages s
+             JOIN edro_briefings b ON b.id = s.briefing_id
+             WHERE b.client_id = ANY($1::text[]) AND b.created_at >= $2 AND s.updated_at > s.created_at
+             GROUP BY b.client_id`,
+            [edroIds, thirtyDaysAgo]
           ),
-          query<{ total: string; approved: string }>(
-            `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status='approved') AS approved
-             FROM edro_copy_versions WHERE briefing_id IN (
-               SELECT id FROM edro_briefings WHERE client_id=$1 AND created_at>=$2
-             )`,
-            [client.edro_id, thirtyDaysAgo]
+          query<{ client_id: string; total: string; approved: string }>(
+            `SELECT b.client_id,
+               COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE cv.status = 'approved') AS approved
+             FROM edro_copy_versions cv
+             JOIN edro_briefings b ON b.id = cv.briefing_id
+             WHERE b.client_id = ANY($1::text[]) AND b.created_at >= $2
+             GROUP BY b.client_id`,
+            [edroIds, thirtyDaysAgo]
           ),
-          query<{ current_count: string; previous_count: string }>(
-            `SELECT COUNT(*) FILTER (WHERE created_at>=$2) AS current_count,
-               COUNT(*) FILTER (WHERE created_at>=$3 AND created_at<$2) AS previous_count
-             FROM edro_briefings WHERE client_id=$1`,
-            [client.edro_id, thirtyDaysAgo, sixtyDaysAgo]
+          query<{ client_id: string; current_count: string; previous_count: string }>(
+            `SELECT client_id,
+               COUNT(*) FILTER (WHERE created_at >= $2) AS current_count,
+               COUNT(*) FILTER (WHERE created_at >= $3 AND created_at < $2) AS previous_count
+             FROM edro_briefings
+             WHERE client_id = ANY($1::text[])
+             GROUP BY client_id`,
+            [edroIds, thirtyDaysAgo, sixtyDaysAgo]
           ),
-          query<{ count: string }>(
-            `SELECT COUNT(*) AS count FROM edro_briefings WHERE client_id=$1 AND updated_at>=$2`,
-            [client.edro_id, sevenDaysAgo]
+          query<{ client_id: string; count: string }>(
+            `SELECT client_id, COUNT(*) AS count
+             FROM edro_briefings
+             WHERE client_id = ANY($1::text[]) AND updated_at >= $2
+             GROUP BY client_id`,
+            [edroIds, sevenDaysAgo]
           ),
-        ]);
+          query<{ client_id: string; count: string }>(
+            `SELECT b.client_id, COUNT(*) AS count
+             FROM edro_briefings b
+             JOIN LATERAL (
+               SELECT created_at FROM edro_briefing_stages
+               WHERE briefing_id = b.id ORDER BY position DESC LIMIT 1
+             ) s ON TRUE
+             WHERE b.client_id = ANY($1::text[])
+               AND b.status NOT IN ('done','cancelled')
+               AND EXTRACT(EPOCH FROM (NOW()-s.created_at))/3600 > 48
+             GROUP BY b.client_id`,
+            [edroIds]
+          ),
+        ])
+      : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }] as any[];
 
-        const totalCompleted = parseInt(onTimeRes.rows[0]?.total || '0');
-        const onTime = parseInt(onTimeRes.rows[0]?.on_time || '0');
+    const onTimeMap   = new Map(onTimeRes.rows.map((r: any) => [r.client_id, r]));
+    const velocityMap = new Map(velocityRes.rows.map((r: any) => [r.client_id, r]));
+    const copyMap     = new Map(copyRes.rows.map((r: any) => [r.client_id, r]));
+    const volumeMap   = new Map(volumeRes.rows.map((r: any) => [r.client_id, r]));
+    const activityMap = new Map(activityRes.rows.map((r: any) => [r.client_id, r]));
+    const botsMap     = new Map(botsRes.rows.map((r: any) => [r.client_id, r]));
+
+    const scoredClients = clientsWithId.map((client) => {
+      try {
+        const ot  = onTimeMap.get(client.edro_id!);
+        const vel = velocityMap.get(client.edro_id!);
+        const cp  = copyMap.get(client.edro_id!);
+        const vol = volumeMap.get(client.edro_id!);
+        const act = activityMap.get(client.edro_id!);
+        const bot = botsMap.get(client.edro_id!);
+
+        const totalCompleted = parseInt(ot?.total || '0');
+        const onTime = parseInt(ot?.on_time || '0');
         const onTimeRate = totalCompleted > 0 ? onTime / totalCompleted : 0.5;
-        const avgHours = parseFloat(velocityRes.rows[0]?.avg_hours || '24');
+        const avgHours = parseFloat(vel?.avg_hours || '24');
         const velocityScore = Math.max(0, Math.min(100, 100 - (avgHours / 96) * 100));
-        const totalCopies = parseInt(copyRes.rows[0]?.total || '0');
-        const approvedCopies = parseInt(copyRes.rows[0]?.approved || '0');
+        const totalCopies = parseInt(cp?.total || '0');
+        const approvedCopies = parseInt(cp?.approved || '0');
         const approvalRate = totalCopies > 0 ? approvedCopies / totalCopies : 0.5;
-        const current = parseInt(volumeRes.rows[0]?.current_count || '0');
-        const previous = parseInt(volumeRes.rows[0]?.previous_count || '0');
+        const current = parseInt(vol?.current_count || '0');
+        const previous = parseInt(vol?.previous_count || '0');
         const growthRate = previous > 0 ? (current - previous) / previous : 0;
         const volumeScore = Math.min(100, Math.max(0, 50 + growthRate * 50));
-        const recentActivity = parseInt(activityRes.rows[0]?.count || '0');
+        const recentActivity = parseInt(act?.count || '0');
         const activityScore = Math.min(100, recentActivity * 20);
 
         const score = Math.round(
@@ -1317,27 +1361,20 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
         const status = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'warning' : 'critical';
         const statusColor = status === 'excellent' ? '#13DEB9' : status === 'good' ? '#5D87FF' : status === 'warning' ? '#FFAE1F' : '#FA896B';
 
-        // Count bottlenecks
-        const { rows: bots } = await query<{ count: string }>(
-          `SELECT COUNT(*) AS count FROM edro_briefings b
-           JOIN LATERAL (
-             SELECT created_at FROM edro_briefing_stages
-             WHERE briefing_id = b.id ORDER BY position DESC LIMIT 1
-           ) s ON TRUE
-           WHERE b.client_id=$1 AND b.status NOT IN ('done','cancelled')
-             AND EXTRACT(EPOCH FROM (NOW()-s.created_at))/3600 > 48`,
-          [client.edro_id]
-        );
-
         return {
           id: client.id, name: client.name, segment: client.segment,
           score, status, statusColor, briefings: current,
-          bottlenecks: parseInt(bots[0]?.count || '0'),
+          bottlenecks: parseInt(bot?.count || '0'),
         };
       } catch {
         return { id: client.id, name: client.name, segment: client.segment, score: null, status: 'error', statusColor: '#94a3b8' };
       }
-    }));
+    });
+
+    const results = [
+      ...clientsNoId.map((c) => ({ id: c.id, name: c.name, segment: c.segment, score: null, status: 'no_data', statusColor: '#94a3b8' })),
+      ...scoredClients,
+    ];
 
     const scored = results.filter((r) => r.score !== null);
     const avgScore = scored.length > 0 ? Math.round(scored.reduce((s, r) => s + (r.score ?? 0), 0) / scored.length) : 0;

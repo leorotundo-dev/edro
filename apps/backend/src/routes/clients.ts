@@ -883,6 +883,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EdroBot/1.0; +https://edro.digital)' },
         signal: AbortSignal.timeout(10_000),
       });
+      if (!res.ok) return [];
       const html = await res.text();
       const colors: string[] = [];
 

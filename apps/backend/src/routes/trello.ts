@@ -1277,40 +1277,42 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
-    const scores = await Promise.all(members.map(async (m) => {
-      const email = m.email?.toLowerCase() ?? '';
+    if (!members.length) return reply.send({ data: [] });
+    const emails = members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[];
 
-      // Active (non-complete, non-archived) cards
-      const { rows: activeRows } = await query<{ count: string }>(
-        `SELECT COUNT(*) as count
+    // Batch all 5 scoring queries — O(5) total instead of O(5N)
+
+    const [activeRes, doneRes, slaRes, lastRes, labelRes] = await Promise.all([
+      // 1. Active non-completed cards per member
+      query<{ email: string; count: string }>(
+        `SELECT LOWER(pcm.email) as email, COUNT(*) as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_lists pl ON pl.id = pc.list_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+         WHERE pb.tenant_id = $1
            AND pc.is_archived = false AND pl.is_archived = false
-           AND (pc.due_complete IS NULL OR pc.due_complete = false)`,
-        [tenantId, email],
-      );
-      const activeCards = parseInt(activeRows[0]?.count ?? '0', 10);
-
-      // Cards completed this month
-      const { rows: doneRows } = await query<{ count: string }>(
-        `SELECT COUNT(*) as count
+           AND (pc.due_complete IS NULL OR pc.due_complete = false)
+           AND LOWER(pcm.email) = ANY($2::text[])
+         GROUP BY LOWER(pcm.email)`,
+        [tenantId, emails],
+      ),
+      // 2. Cards completed this month per member
+      query<{ email: string; count: string }>(
+        `SELECT LOWER(pcm.email) as email, COUNT(*) as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
-           AND pc.due_complete = true AND pc.updated_at >= $3::date`,
-        [tenantId, email, monthStart],
-      );
-      const completedMonth = parseInt(doneRows[0]?.count ?? '0', 10);
-
-      // SLA: completed cards in last 30d with a due_date
-      const { rows: slaRows } = await query<{
-        total: string; met: string; avg_variance: string;
-      }>(
+         WHERE pb.tenant_id = $1
+           AND pc.due_complete = true AND pc.updated_at >= $2::date
+           AND LOWER(pcm.email) = ANY($3::text[])
+         GROUP BY LOWER(pcm.email)`,
+        [tenantId, monthStart, emails],
+      ),
+      // 3. SLA history last 30d per member
+      query<{ email: string; total: string; met: string; avg_variance: string }>(
         `SELECT
+           LOWER(pcm.email) as email,
            COUNT(*) FILTER (WHERE pc.due_date IS NOT NULL) as total,
            COUNT(*) FILTER (WHERE pc.due_complete = true AND pc.due_date IS NOT NULL
              AND pc.updated_at::date <= pc.due_date) as met,
@@ -1319,52 +1321,65 @@ export default async function trelloRoutes(app: FastifyInstance) {
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+         WHERE pb.tenant_id = $1
            AND pc.due_complete = true
-           AND pc.updated_at >= $3`,
-        [tenantId, email, thirtyDaysAgo.toISOString()],
-      );
-      const slaTotal = parseInt(slaRows[0]?.total ?? '0', 10);
-      const slaMet = parseInt(slaRows[0]?.met ?? '0', 10);
-      const slaRate = slaTotal > 0 ? Math.round((slaMet / slaTotal) * 100) : null;
-      const avgVariance = slaRows[0]?.avg_variance != null ? Math.round(parseFloat(slaRows[0].avg_variance) * 10) / 10 : null;
-
-      // Last completed card
-      const { rows: lastRows } = await query<{ updated_at: string; title: string }>(
-        `SELECT pc.updated_at, pc.title
+           AND pc.updated_at >= $2
+           AND LOWER(pcm.email) = ANY($3::text[])
+         GROUP BY LOWER(pcm.email)`,
+        [tenantId, thirtyDaysAgo.toISOString(), emails],
+      ),
+      // 4. Last completed card per member (DISTINCT ON avoids subquery per member)
+      query<{ email: string; updated_at: string; title: string }>(
+        `SELECT DISTINCT ON (LOWER(pcm.email))
+           LOWER(pcm.email) as email, pc.updated_at, pc.title
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+         WHERE pb.tenant_id = $1
            AND pc.due_complete = true
-         ORDER BY pc.updated_at DESC LIMIT 1`,
-        [tenantId, email],
-      );
-      const lastCompletedAt = lastRows[0]?.updated_at ?? null;
-      const lastCompletedTitle = lastRows[0]?.title ?? null;
-
-      // Job type from labels
-      const { rows: labelRows } = await query<{ labels: any }>(
-        `SELECT pc.labels
+           AND LOWER(pcm.email) = ANY($2::text[])
+         ORDER BY LOWER(pcm.email), pc.updated_at DESC`,
+        [tenantId, emails],
+      ),
+      // 5. Label text aggregated per member for job type inference
+      query<{ email: string; label_text: string }>(
+        `SELECT LOWER(pcm.email) as email,
+           string_agg(LOWER(l.value->>'name'), ' ') as label_text
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(pc.labels, '[]'::jsonb)) AS l(value)
+         WHERE pb.tenant_id = $1
            AND pc.is_archived = false
-         LIMIT 20`,
-        [tenantId, email],
-      );
-      const labelText = labelRows.flatMap((r) => {
-        const arr = Array.isArray(r.labels) ? r.labels : [];
-        return arr.map((l: any) => l.name?.toLowerCase() ?? '');
-      }).join(' ');
+           AND LOWER(pcm.email) = ANY($2::text[])
+         GROUP BY LOWER(pcm.email)`,
+        [tenantId, emails],
+      ),
+    ]);
+
+    const activeMap = new Map(activeRes.rows.map((r) => [r.email, parseInt(r.count, 10)]));
+    const doneMap   = new Map(doneRes.rows.map((r) => [r.email, parseInt(r.count, 10)]));
+    const slaMap    = new Map(slaRes.rows.map((r) => [r.email, r]));
+    const lastMap   = new Map(lastRes.rows.map((r) => [r.email, r]));
+    const labelMap  = new Map(labelRes.rows.map((r) => [r.email, r.label_text ?? '']));
+
+    const scores = members.map((m) => {
+      const email = m.email?.toLowerCase() ?? '';
+      const activeCards    = activeMap.get(email) ?? 0;
+      const completedMonth = doneMap.get(email) ?? 0;
+      const sla = slaMap.get(email);
+      const slaTotal   = parseInt(sla?.total ?? '0', 10);
+      const slaMet     = parseInt(sla?.met   ?? '0', 10);
+      const slaRate    = slaTotal > 0 ? Math.round((slaMet / slaTotal) * 100) : null;
+      const avgVariance = sla?.avg_variance != null ? Math.round(parseFloat(sla.avg_variance) * 10) / 10 : null;
+      const last = lastMap.get(email);
+      const labelText = labelMap.get(email) ?? '';
       const jobTypePrimary = /design|arte|artes|visual|criativo/.test(labelText) ? 'design'
         : /video|vídeo|reels|stories/.test(labelText) ? 'video'
         : 'copy';
 
-      // Score: load (40%) + SLA (40%) + delivery this month (20%)
-      const loadScore = Math.max(0, 100 - activeCards * 15);
-      const slaScore = slaRate ?? 65;
+      const loadScore    = Math.max(0, 100 - activeCards * 15);
+      const slaScore     = slaRate ?? 65;
       const deliveryScore = Math.min(100, completedMonth * 12);
       const score = Math.round(loadScore * 0.40 + slaScore * 0.40 + deliveryScore * 0.20);
 
@@ -1377,12 +1392,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
         completed_month: completedMonth,
         sla_rate: slaRate,
         avg_days_variance: avgVariance,
-        last_completed_at: lastCompletedAt,
-        last_completed_title: lastCompletedTitle,
+        last_completed_at: last?.updated_at ?? null,
+        last_completed_title: last?.title ?? null,
         job_type_primary: jobTypePrimary,
         score,
       };
-    }));
+    });
 
     return reply.send({ data: scores.sort((a, b) => b.score - a.score) });
   });
