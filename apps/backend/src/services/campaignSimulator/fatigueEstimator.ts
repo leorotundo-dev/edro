@@ -70,7 +70,7 @@ async function loadHistoricalFatigue(
        fpm.total_impressions as imp
      FROM campaign_formats cf
      JOIN campaigns c ON c.id = cf.campaign_id
-     JOIN format_performance_metrics fpm ON fpm.format_id = cf.id
+     JOIN format_performance_metrics fpm ON fpm.campaign_format_id = cf.id
      LEFT JOIN LATERAL (
        SELECT bi->>'amd' as amd
        FROM jsonb_array_elements(COALESCE(c.behavior_intents, '[]'::jsonb)) bi

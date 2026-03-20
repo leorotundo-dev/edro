@@ -57,7 +57,7 @@ async function detectFatiguedFormats(): Promise<FatigueCandidate[]> {
        (SELECT bi->>'amd' FROM jsonb_array_elements(COALESCE(c.behavior_intents, '[]'::jsonb)) bi LIMIT 1) as amd
      FROM campaign_formats cf
      JOIN campaigns c ON c.id = cf.campaign_id
-     JOIN format_performance_metrics fpm ON fpm.format_id = cf.id
+     JOIN format_performance_metrics fpm ON fpm.campaign_format_id = cf.id
      WHERE cf.launched_at IS NOT NULL
        AND cf.launched_at <= NOW() - INTERVAL '${MIN_HISTORY_DAYS} days'
        AND c.status IN ('active', 'running', 'published')
