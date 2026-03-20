@@ -100,6 +100,7 @@ function JobRow({
   const dueColor = isOverdue ? '#ff4444' : isToday ? '#F8A800' : '#5D87FF';
 
   return (
+    <>
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '13px 18px',
@@ -254,7 +255,7 @@ function JobRow({
         </div>
       </div>
     )}
-  </div>
+    </>
   );
 }
 
