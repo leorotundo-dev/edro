@@ -235,7 +235,7 @@ export default function NewBriefingClient() {
 
                 <Autocomplete
                   options={clients}
-                  getOptionLabel={(o) => o.name}
+                  getOptionLabel={(o) => typeof o === 'string' ? o : o.name}
                   value={selectedClient}
                   onChange={(_, v) => setSelectedClient(v)}
                   freeSolo
