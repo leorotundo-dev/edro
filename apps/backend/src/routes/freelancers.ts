@@ -827,10 +827,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     // Briefings + ops jobs + Trello cards assigned by email
     const res = await pool.query(
       `SELECT b.id, b.title, b.status, b.due_at,
-              c.name as client_name, 'briefing' as source,
+              ec.name as client_name, 'briefing' as source,
               NULL::text as board_name, NULL::text as list_name, false as due_complete
        FROM edro_briefings b
-       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
           OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
        UNION ALL
@@ -1177,10 +1177,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT b.id, b.title, b.status, b.due_at, b.payload,
-              c.name as client_name,
+              ec.name as client_name,
               (SELECT COUNT(*) FROM edro_copy_versions cv WHERE cv.briefing_id = b.id) as copy_count
        FROM edro_briefings b
-       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE (
          b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
          OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
