@@ -192,7 +192,7 @@ export default function DashboardClient() {
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes, plRes, healthRes, roiRes, trelloRes] = await Promise.all([
+      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes, healthRes, roiRes, trelloRes] = await Promise.all([
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
@@ -201,7 +201,6 @@ export default function DashboardClient() {
         ).catch(() => null),
         apiGet<{ success: boolean; data: PendingByClient[] }>('/edro/briefings/pending-by-client').catch(() => null),
         apiGet<{ data: { id: string; status: string; is_urgent: boolean; priority_band: string; owner_id: string | null }[] }>('/jobs?active=true').catch(() => null),
-        apiGet<{ rows: PLRow[] }>(`/financial/pl?month=${currentMonth}`).catch(() => null),
         apiGet<{ clients: ClientHealth[] }>('/admin/clients-health').catch(() => null),
         apiGet<{ distribution: RoiDistribution }>('/admin/roi-distribution').catch(() => null),
         apiGet<{ boards: TrelloBoard[] }>('/trello/project-boards').catch(() => null),
@@ -220,7 +219,6 @@ export default function DashboardClient() {
         );
         setOpsCritical(criticalIds.size);
       }
-      if (plRes?.rows) setPlRows(plRes.rows);
       if (healthRes?.clients) setClientsHealth(healthRes.clients);
       if (roiRes?.distribution) setRoiDist(roiRes.distribution);
       if (trelloRes?.boards) setTrelloBoards(trelloRes.boards);
@@ -299,32 +297,32 @@ export default function DashboardClient() {
         {/* ── Quick Stats ───────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <StatCard
-            label="Em andamento"
+            label="Jobs ativos"
             value={active || (metrics?.total ?? 0)}
             icon={<IconTrendingUp size={22} />}
             color="#f59e0b"
-            href="/edro"
+            href="/admin/operacoes"
           />
           <StatCard
             label="Aguardando aprovação"
             value={pendingApprovals}
             icon={<IconClipboardList size={22} />}
             color="#E85219"
-            href="/edro?status=aprovacao"
+            href="/admin/operacoes"
           />
           <StatCard
             label="Atrasados"
             value={metrics?.overdue ?? 0}
             icon={<IconAlertTriangle size={22} />}
             color="#ef4444"
-            href="/edro?filter=overdue"
+            href="/admin/operacoes"
           />
           <StatCard
-            label="Tarefas pendentes"
-            value={todayTasks.length}
+            label="Peças criadas"
+            value={metrics?.totalCopies ?? 0}
             icon={<IconCheck size={22} />}
             color="#6366f1"
-            href="/edro"
+            href="/studio"
           />
           <StatCard
             label="Ops críticas"
@@ -333,66 +331,6 @@ export default function DashboardClient() {
             color="#dc2626"
             href="/admin/operacoes/jobs?group=risk"
           />
-        </Stack>
-
-        {/* ── KPIs Financeiros do Mês ───────────────────────────── */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Card sx={{ flex: 1 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#16a34a18', color: '#16a34a' }}>
-                  <IconCurrencyReal size={22} />
-                </Box>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>
-                    {totalReceita > 0 ? `R$ ${(totalReceita / 1000).toFixed(0)}k` : '—'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">Receita do mês</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-          <Card sx={{ flex: 1 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: margemPct !== null && margemPct >= 30 ? '#16a34a18' : '#f59e0b18', color: margemPct !== null && margemPct >= 30 ? '#16a34a' : '#f59e0b' }}>
-                  <IconChartBar size={22} />
-                </Box>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>
-                    {margemPct !== null ? `${margemPct}%` : '—'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">Margem do mês</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-          <Card sx={{ flex: 1 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#6366f118', color: '#6366f1' }}>
-                  <IconFileText size={22} />
-                </Box>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>{briefingsDone}</Typography>
-                  <Typography variant="body2" color="text.secondary">Briefings entregues</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-          <Card sx={{ flex: 1 }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#E8521918', color: '#E85219' }}>
-                  <IconClipboardList size={22} />
-                </Box>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>{metrics?.totalCopies ?? '—'}</Typography>
-                  <Typography variant="body2" color="text.secondary">Peças criadas</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
         </Stack>
 
         {/* ── Pipeline por Cliente ──────────────────────────────── */}

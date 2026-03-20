@@ -1,19 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
 import { alpha } from '@mui/material/styles';
-import Link from 'next/link';
-import { IconBrain, IconSend, IconMessage } from '@tabler/icons-react';
+import {
+  IconBrain, IconSend, IconMessage,
+  IconFileText, IconAlertTriangle, IconSparkles,
+  IconMicrophone, IconChevronRight,
+} from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiGet } from '@/lib/api';
 
@@ -27,6 +31,97 @@ type RecentConversation = {
   client_text_id?: string;
   message_count: string;
 };
+
+type FeedItem = {
+  id: string;
+  kind: 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
+  title: string;
+  subtitle?: string;
+  href?: string;
+  color: string;
+  icon: React.ReactNode;
+  cta: string;
+};
+
+type JarvisFeed = {
+  briefing_pending: any[];
+  alerts: any[];
+  auto_briefings: any[];
+  proposals: any[];
+  opportunities: any[];
+  total_actions: number;
+};
+
+function buildFeedItems(feed: JarvisFeed): FeedItem[] {
+  const items: FeedItem[] = [];
+
+  for (const j of feed.briefing_pending.slice(0, 3)) {
+    items.push({
+      id: `bp-${j.id}`,
+      kind: 'briefing',
+      title: j.title || 'Job sem título',
+      subtitle: j.client_name,
+      href: `/admin/operacoes/jobs/${j.id}/briefing`,
+      color: '#FFAE1F',
+      icon: <IconFileText size={14} />,
+      cta: 'Preencher briefing',
+    });
+  }
+
+  for (const a of feed.alerts.slice(0, 2)) {
+    items.push({
+      id: `al-${a.id}`,
+      kind: 'alert',
+      title: a.title,
+      subtitle: a.client_name,
+      href: `/clients/${a.client_id}`,
+      color: '#ef4444',
+      icon: <IconAlertTriangle size={14} />,
+      cta: 'Ver cliente',
+    });
+  }
+
+  for (const b of feed.auto_briefings.slice(0, 2)) {
+    items.push({
+      id: `ab-${b.id}`,
+      kind: 'auto_briefing',
+      title: b.title,
+      subtitle: b.client_name + (b.drop_pct ? ` · queda de ${b.drop_pct}%` : ''),
+      href: `/edro/${b.id}`,
+      color: '#a855f7',
+      icon: <IconSparkles size={14} />,
+      cta: 'Aprovar briefing',
+    });
+  }
+
+  for (const p of feed.proposals.slice(0, 2)) {
+    items.push({
+      id: `pr-${p.id}`,
+      kind: 'proposal',
+      title: p.title || p.meeting_title,
+      subtitle: p.client_name,
+      href: '/edro/jarvis',
+      color: '#5D87FF',
+      icon: <IconMicrophone size={14} />,
+      cta: 'Ver proposta',
+    });
+  }
+
+  for (const o of feed.opportunities.slice(0, 2)) {
+    items.push({
+      id: `op-${o.id}`,
+      kind: 'opportunity',
+      title: o.title,
+      subtitle: o.client_name + ` · ${o.confidence}% confiança`,
+      href: `/clients/${o.client_id}`,
+      color: '#13DEB9',
+      icon: <IconSparkles size={14} />,
+      cta: 'Ver oportunidade',
+    });
+  }
+
+  return items.slice(0, 6);
+}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -65,6 +160,8 @@ export default function JarvisHomeSection() {
   const { open, setConversationId, clientId } = useJarvis();
   const [input, setInput] = useState('');
   const [conversations, setConversations] = useState<RecentConversation[]>([]);
+  const [feed, setFeed] = useState<JarvisFeed | null>(null);
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
 
@@ -76,10 +173,17 @@ export default function JarvisHomeSection() {
   }, []);
 
   useEffect(() => {
-    apiGet<{ data?: { conversations?: RecentConversation[] } }>('/planning/conversations?limit=5')
-      .then(res => setConversations(res?.data?.conversations ?? []))
-      .catch(() => setConversations([]))
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiGet<{ data?: { conversations?: RecentConversation[] } }>('/planning/conversations?limit=5')
+        .then(res => setConversations(res?.data?.conversations ?? []))
+        .catch(() => setConversations([])),
+      apiGet<JarvisFeed>('/jarvis/feed')
+        .then(res => {
+          setFeed(res);
+          setFeedItems(buildFeedItems(res));
+        })
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const handleSend = (text?: string) => {
@@ -126,6 +230,85 @@ export default function JarvisHomeSection() {
             </Typography>
           </Box>
         </Stack>
+
+        {/* Fila de Decisões */}
+        {(loading || feedItems.length > 0) && (
+          <Box sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                Fila de decisões
+              </Typography>
+              {feed && feed.total_actions > 6 && (
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                  +{feed.total_actions - 6} mais
+                </Typography>
+              )}
+            </Stack>
+            <Stack spacing={0.5}>
+              {loading
+                ? [1, 2, 3].map((i) => <Skeleton key={i} height={44} sx={{ borderRadius: 1.5 }} />)
+                : feedItems.map((item) => (
+                    <Box
+                      key={item.id}
+                      component={Link}
+                      href={item.href ?? '#'}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 1.25,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        textDecoration: 'none',
+                        border: `1px solid ${alpha(item.color, 0.18)}`,
+                        bgcolor: alpha(item.color, 0.05),
+                        transition: 'all 120ms ease',
+                        '&:hover': { bgcolor: alpha(item.color, 0.1), borderColor: alpha(item.color, 0.35) },
+                      }}
+                    >
+                      <Box sx={{ color: item.color, display: 'flex', flexShrink: 0 }}>{item.icon}</Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                          {item.title}
+                        </Typography>
+                        {item.subtitle && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }} noWrap>
+                            {item.subtitle}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Chip
+                        label={item.cta}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.62rem',
+                          fontWeight: 600,
+                          bgcolor: alpha(item.color, 0.12),
+                          color: item.color,
+                          flexShrink: 0,
+                          '& .MuiChip-label': { px: 0.75 },
+                        }}
+                      />
+                    </Box>
+                  ))}
+            </Stack>
+          </Box>
+        )}
+
+        {feedItems.length === 0 && !loading && (
+          <Box
+            sx={{
+              mb: 2, px: 1.5, py: 1.25, borderRadius: 1.5,
+              bgcolor: (theme) => alpha(theme.palette.success.main, 0.06),
+              border: (theme) => `1px solid ${alpha(theme.palette.success.main, 0.18)}`,
+            }}
+          >
+            <Typography variant="body2" sx={{ fontSize: '0.78rem', color: 'success.main', fontWeight: 600 }}>
+              Tudo em dia — nenhuma decisão pendente.
+            </Typography>
+          </Box>
+        )}
 
         {/* Input */}
         <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>

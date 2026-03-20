@@ -26,7 +26,7 @@ type Conversation = {
 
 export default function JarvisDrawer() {
   const router = useRouter();
-  const { isOpen, close, clientId, clientName, setConversationId, conversationId } = useJarvis();
+  const { isOpen, close, clientId, clientName, setConversationId, conversationId, pageContext } = useJarvis();
   const [showHistory, setShowHistory] = useState(false);
 
   const handleExpand = () => {
@@ -85,11 +85,15 @@ export default function JarvisDrawer() {
           <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
             Jarvis{clientName ? ` · ${clientName}` : ''}
           </Typography>
-          {conversationId && (
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
-              Conversa ativa
-            </Typography>
-          )}
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+            {pageContext.type === 'job' && pageContext.label
+              ? `Job: ${pageContext.label}`
+              : pageContext.type === 'client' && clientName
+              ? `Cliente: ${clientName}`
+              : conversationId
+              ? 'Conversa ativa'
+              : 'Contexto global'}
+          </Typography>
         </Box>
 
         <Tooltip title="Nova conversa">

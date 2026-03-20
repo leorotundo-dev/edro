@@ -17,6 +17,8 @@ type JarvisContextValue = {
   unreadCount: number;
   bump: () => void;
   clearUnread: () => void;
+  // Page context — auto-detected from URL
+  pageContext: { type: 'client' | 'job' | 'global'; id: string | null; label: string | null };
 };
 
 const JarvisContext = createContext<JarvisContextValue | null>(null);
@@ -27,6 +29,15 @@ export function useJarvis() {
   return ctx;
 }
 
+function detectPageContext(pathname: string | null): { type: 'client' | 'job' | 'global'; id: string | null; label: string | null } {
+  if (!pathname) return { type: 'global', id: null, label: null };
+  const jobMatch = pathname.match(/\/admin\/operacoes\/jobs\/([^\/]+)/);
+  if (jobMatch) return { type: 'job', id: jobMatch[1], label: null };
+  const clientMatch = pathname.match(/\/clients\/([^\/]+)/);
+  if (clientMatch) return { type: 'client', id: clientMatch[1], label: null };
+  return { type: 'global', id: null, label: null };
+}
+
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -34,21 +45,27 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [clientName, setClientName] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pageContext, setPageContext] = useState<{ type: 'client' | 'job' | 'global'; id: string | null; label: string | null }>(
+    { type: 'global', id: null, label: null }
+  );
 
-  // Auto-detect clientId from URL /clients/[id]/...
+  // Auto-detect context from URL — clients and jobs
   useEffect(() => {
-    const match = pathname?.match(/\/clients\/([^\/]+)/);
-    const urlClientId = match?.[1] ?? null;
-    if (urlClientId) {
-      setClientIdState(urlClientId);
-      try { localStorage.setItem('edro_active_client_id', urlClientId); } catch { /* ignore */ }
+    const ctx = detectPageContext(pathname);
+    setPageContext(ctx);
+
+    if (ctx.type === 'client' && ctx.id) {
+      setClientIdState(ctx.id);
+      try { localStorage.setItem('edro_active_client_id', ctx.id); } catch { /* ignore */ }
       return;
     }
-    // Fallback: localStorage
-    try {
-      const stored = localStorage.getItem('edro_active_client_id');
-      if (stored) setClientIdState(stored);
-    } catch { /* ignore */ }
+    if (ctx.type !== 'client') {
+      // Fallback: localStorage for client (persists last visited client)
+      try {
+        const stored = localStorage.getItem('edro_active_client_id');
+        if (stored) setClientIdState(stored);
+      } catch { /* ignore */ }
+    }
   }, [pathname]);
 
   // Load client name whenever clientId changes
@@ -58,6 +75,19 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       .then(res => setClientName(res?.data?.client?.name ?? res?.data?.name ?? null))
       .catch(() => setClientName(null));
   }, [clientId]);
+
+  // Load job label when page context is a job
+  useEffect(() => {
+    if (pageContext.type !== 'job' || !pageContext.id) return;
+    apiGet<{ data?: { title?: string; client_name?: string } }>(`/jobs/${pageContext.id}`)
+      .then(res => {
+        const label = res?.data?.title ?? null;
+        const jobClientId = (res?.data as any)?.client_id ?? null;
+        setPageContext(prev => ({ ...prev, label }));
+        if (jobClientId) setClientIdState(jobClientId);
+      })
+      .catch(() => {});
+  }, [pageContext.type, pageContext.id]);
 
   const open = useCallback((id?: string) => {
     if (id) setClientIdState(id);
@@ -91,6 +121,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       clientId, clientName, setClientId,
       conversationId, setConversationId,
       unreadCount, bump, clearUnread,
+      pageContext,
     }}>
       {children}
     </JarvisContext.Provider>
