@@ -1225,4 +1225,143 @@ export default async function trelloRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // GET /trello/ops-team-scores — production score per member for the Equipe grid
+  app.get('/trello/ops-team-scores', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    // All distinct members linked to cards of this tenant
+    const { rows: members } = await query<{
+      email: string;
+      display_name: string;
+      trello_member_id: string | null;
+      freelancer_id: string | null;
+    }>(
+      `SELECT DISTINCT
+         pcm.email,
+         pcm.display_name,
+         pcm.trello_member_id,
+         f.id as freelancer_id
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN freelancers f ON LOWER(f.email) = LOWER(pcm.email) AND f.tenant_id = $1
+       WHERE pb.tenant_id = $1 AND pcm.display_name IS NOT NULL
+       ORDER BY pcm.display_name`,
+      [tenantId],
+    );
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+    const scores = await Promise.all(members.map(async (m) => {
+      const email = m.email?.toLowerCase() ?? '';
+
+      // Active (non-complete, non-archived) cards
+      const { rows: activeRows } = await query<{ count: string }>(
+        `SELECT COUNT(*) as count
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_lists pl ON pl.id = pc.list_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+           AND pc.is_archived = false AND pl.is_archived = false
+           AND (pc.due_complete IS NULL OR pc.due_complete = false)`,
+        [tenantId, email],
+      );
+      const activeCards = parseInt(activeRows[0]?.count ?? '0', 10);
+
+      // Cards completed this month
+      const { rows: doneRows } = await query<{ count: string }>(
+        `SELECT COUNT(*) as count
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+           AND pc.due_complete = true AND pc.updated_at >= $3::date`,
+        [tenantId, email, monthStart],
+      );
+      const completedMonth = parseInt(doneRows[0]?.count ?? '0', 10);
+
+      // SLA: completed cards in last 30d with a due_date
+      const { rows: slaRows } = await query<{
+        total: string; met: string; avg_variance: string;
+      }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE pc.due_date IS NOT NULL) as total,
+           COUNT(*) FILTER (WHERE pc.due_complete = true AND pc.due_date IS NOT NULL
+             AND pc.updated_at::date <= pc.due_date) as met,
+           AVG(EXTRACT(EPOCH FROM (pc.updated_at - pc.due_date::timestamptz)) / 86400.0)
+             FILTER (WHERE pc.due_complete = true AND pc.due_date IS NOT NULL) as avg_variance
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+           AND pc.due_complete = true
+           AND pc.updated_at >= $3`,
+        [tenantId, email, thirtyDaysAgo.toISOString()],
+      );
+      const slaTotal = parseInt(slaRows[0]?.total ?? '0', 10);
+      const slaMet = parseInt(slaRows[0]?.met ?? '0', 10);
+      const slaRate = slaTotal > 0 ? Math.round((slaMet / slaTotal) * 100) : null;
+      const avgVariance = slaRows[0]?.avg_variance != null ? Math.round(parseFloat(slaRows[0].avg_variance) * 10) / 10 : null;
+
+      // Last completed card
+      const { rows: lastRows } = await query<{ updated_at: string; title: string }>(
+        `SELECT pc.updated_at, pc.title
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+           AND pc.due_complete = true
+         ORDER BY pc.updated_at DESC LIMIT 1`,
+        [tenantId, email],
+      );
+      const lastCompletedAt = lastRows[0]?.updated_at ?? null;
+      const lastCompletedTitle = lastRows[0]?.title ?? null;
+
+      // Job type from labels
+      const { rows: labelRows } = await query<{ labels: any }>(
+        `SELECT pc.labels
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND LOWER(pcm.email) = $2
+           AND pc.is_archived = false
+         LIMIT 20`,
+        [tenantId, email],
+      );
+      const labelText = labelRows.flatMap((r) => {
+        const arr = Array.isArray(r.labels) ? r.labels : [];
+        return arr.map((l: any) => l.name?.toLowerCase() ?? '');
+      }).join(' ');
+      const jobTypePrimary = /design|arte|artes|visual|criativo/.test(labelText) ? 'design'
+        : /video|vídeo|reels|stories/.test(labelText) ? 'video'
+        : 'copy';
+
+      // Score: load (40%) + SLA (40%) + delivery this month (20%)
+      const loadScore = Math.max(0, 100 - activeCards * 15);
+      const slaScore = slaRate ?? 65;
+      const deliveryScore = Math.min(100, completedMonth * 12);
+      const score = Math.round(loadScore * 0.40 + slaScore * 0.40 + deliveryScore * 0.20);
+
+      return {
+        email: m.email,
+        display_name: m.display_name,
+        trello_member_id: m.trello_member_id,
+        freelancer_id: m.freelancer_id,
+        active_cards: activeCards,
+        completed_month: completedMonth,
+        sla_rate: slaRate,
+        avg_days_variance: avgVariance,
+        last_completed_at: lastCompletedAt,
+        last_completed_title: lastCompletedTitle,
+        job_type_primary: jobTypePrimary,
+        score,
+      };
+    }));
+
+    return reply.send({ data: scores.sort((a, b) => b.score - a.score) });
+  });
 }

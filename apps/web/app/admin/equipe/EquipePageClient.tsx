@@ -58,6 +58,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { alpha } from '@mui/material/styles';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 type FreelancerProfile = {
@@ -872,6 +873,214 @@ function FreelancerContacts({
   );
 }
 
+type TeamScore = {
+  email: string;
+  display_name: string;
+  trello_member_id: string | null;
+  freelancer_id: string | null;
+  active_cards: number;
+  completed_month: number;
+  sla_rate: number | null;
+  avg_days_variance: number | null;
+  last_completed_at: string | null;
+  last_completed_title: string | null;
+  job_type_primary: string;
+  score: number;
+};
+
+function scoreColor(score: number) {
+  if (score >= 70) return '#13DEB9';
+  if (score >= 50) return '#FFAE1F';
+  return '#FA896B';
+}
+
+function scoreLabel(score: number) {
+  if (score >= 80) return 'Excelente';
+  if (score >= 70) return 'Bom';
+  if (score >= 50) return 'Regular';
+  if (score >= 30) return 'Atenção';
+  return 'Crítico';
+}
+
+function relativeTime(iso: string | null) {
+  if (!iso) return null;
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff === 0) return 'hoje';
+  if (diff === 1) return 'ontem';
+  if (diff < 7) return `${diff}d atrás`;
+  if (diff < 30) return `${Math.floor(diff / 7)}sem atrás`;
+  return `${Math.floor(diff / 30)}m atrás`;
+}
+
+function TeamScoreGrid({ scores, freelancers, loading }: {
+  scores: TeamScore[];
+  freelancers: FreelancerProfile[];
+  loading: boolean;
+}) {
+  const router = useRouter();
+  const [search, setSearch] = useState('');
+
+  const filtered = scores.filter((s) =>
+    !search || s.display_name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  // map email → freelancer profile for extra info
+  const flByEmail = Object.fromEntries(
+    freelancers.map((f) => [f.email.toLowerCase(), f]),
+  );
+
+  if (loading) return <Stack alignItems="center" py={6}><CircularProgress /></Stack>;
+
+  return (
+    <Stack spacing={2}>
+      <TextField
+        size="small"
+        placeholder="Buscar colaborador..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        slotProps={{ input: { startAdornment: <InputAdornment position="start"><IconSearch size={16} /></InputAdornment> } }}
+        sx={{ maxWidth: 340 }}
+      />
+      {filtered.length === 0 && (
+        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+          {scores.length === 0 ? 'Nenhum dado de produção ainda. Sincronize o Trello primeiro.' : 'Nenhum resultado.'}
+        </Typography>
+      )}
+      <Grid container spacing={2}>
+        {filtered.map((s) => {
+          const color = scoreColor(s.score);
+          const fl = flByEmail[s.email?.toLowerCase() ?? ''];
+          const profileId = s.freelancer_id ?? fl?.id ?? null;
+          const specialty = fl?.specialty ?? fl?.role_title ?? s.job_type_primary;
+          const hasTimer = (fl?.active_timers ?? []).length > 0;
+
+          return (
+            <Grid key={s.email} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+              <Card
+                onClick={() => profileId && router.push(`/admin/equipe/${profileId}`)}
+                sx={(theme) => ({
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: alpha(color, 0.30),
+                  borderTop: `4px solid ${color}`,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.06) : alpha(color, 0.03),
+                  cursor: profileId ? 'pointer' : 'default',
+                  transition: 'all 180ms ease',
+                  '&:hover': profileId ? {
+                    transform: 'translateY(-3px)',
+                    boxShadow: `0 8px 24px ${alpha(color, 0.18)}`,
+                  } : {},
+                })}
+              >
+                <CardContent sx={{ p: '16px !important' }}>
+                  {/* Header: avatar + name + score badge */}
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start" mb={1.5}>
+                    <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                      <Avatar sx={{
+                        width: 44, height: 44, fontSize: '0.9rem', fontWeight: 800,
+                        bgcolor: alpha(color, 0.18), color,
+                      }}>
+                        {initials(s.display_name)}
+                      </Avatar>
+                      {hasTimer && (
+                        <Box sx={{
+                          position: 'absolute', bottom: 0, right: 0,
+                          width: 10, height: 10, borderRadius: '50%',
+                          bgcolor: '#13DEB9', border: '1.5px solid white',
+                          animation: 'pulse 1.4s infinite',
+                        }} />
+                      )}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={800} noWrap>{s.display_name}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.68rem' }}>
+                        {specialty ?? s.email}
+                      </Typography>
+                    </Box>
+                    <Tooltip title={`Score de produção: ${scoreLabel(s.score)}`}>
+                      <Box sx={{
+                        px: 1, py: 0.25, borderRadius: 1.5,
+                        bgcolor: alpha(color, 0.15),
+                        border: `1px solid ${alpha(color, 0.35)}`,
+                        flexShrink: 0,
+                      }}>
+                        <Typography variant="caption" fontWeight={900} sx={{ color, fontSize: '0.75rem', lineHeight: 1 }}>
+                          {s.score}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                  </Stack>
+
+                  {/* Score bar */}
+                  <Box sx={{ mb: 1.5 }}>
+                    <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                        {scoreLabel(s.score)}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color, fontSize: '0.62rem', fontWeight: 700 }}>
+                        {s.sla_rate !== null ? `${s.sla_rate}% SLA` : 'Sem SLA'}
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ height: 4, borderRadius: 99, bgcolor: alpha(color, 0.12) }}>
+                      <Box sx={{
+                        height: 4, borderRadius: 99, bgcolor: color,
+                        width: `${s.score}%`, transition: 'width 400ms ease',
+                      }} />
+                    </Box>
+                  </Box>
+
+                  {/* Stats row */}
+                  <Stack direction="row" spacing={0} divider={
+                    <Box sx={{ width: 1, bgcolor: 'divider', mx: 0.5 }} />
+                  }>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
+                      <Typography variant="body2" fontWeight={800} sx={{ lineHeight: 1.2 }}>{s.active_cards}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>Ativos</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
+                      <Typography variant="body2" fontWeight={800} sx={{ lineHeight: 1.2 }}>{s.completed_month}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>Concluídos/mês</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
+                      <Typography variant="body2" fontWeight={800} sx={{ lineHeight: 1.2, color: s.avg_days_variance == null ? 'text.disabled' : s.avg_days_variance <= 0 ? '#13DEB9' : '#FA896B' }}>
+                        {s.avg_days_variance == null ? '—' : s.avg_days_variance > 0 ? `+${s.avg_days_variance}d` : `${s.avg_days_variance}d`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>Variância</Typography>
+                    </Box>
+                  </Stack>
+
+                  {/* Last activity */}
+                  {s.last_completed_at && (
+                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1.25, fontSize: '0.62rem' }} noWrap>
+                      Última entrega: {relativeTime(s.last_completed_at)}
+                      {s.last_completed_title ? ` · ${s.last_completed_title}` : ''}
+                    </Typography>
+                  )}
+
+                  {/* Job type chip */}
+                  <Stack direction="row" spacing={0.75} mt={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      label={s.job_type_primary}
+                      sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'action.hover' }}
+                    />
+                    {hasTimer && (
+                      <Chip size="small" label="● ao vivo" sx={{ height: 18, fontSize: '0.6rem', bgcolor: alpha('#13DEB9', 0.12), color: '#13DEB9', fontWeight: 700 }} />
+                    )}
+                    {!profileId && (
+                      <Chip size="small" label="sem perfil" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'action.hover', color: 'text.disabled' }} />
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+    </Stack>
+  );
+}
+
 export default function EquipePage() {
   const [tab, setTab] = useState(0);
 
@@ -882,6 +1091,8 @@ export default function EquipePage() {
   const [drawerFl, setDrawerFl]       = useState<FreelancerProfile | null>(null);
   const [flEntries, setFlEntries]     = useState<any[]>([]);
   const [flHours, setFlHours]         = useState<{ [id: string]: number }>({});
+  const [teamScores, setTeamScores]   = useState<TeamScore[]>([]);
+  const [scoresLoading, setScoresLoading] = useState(false);
 
   // Analytics state
   const [analyticsMonth, setAnalyticsMonth] = useState(() => {
@@ -924,6 +1135,7 @@ export default function EquipePage() {
 
   const load = async () => {
     setLoading(true);
+    setScoresLoading(true);
     try {
       const [rows, peopleRes] = await Promise.all([
         apiGet<FreelancerProfile[]>('/freelancers'),
@@ -948,6 +1160,13 @@ export default function EquipePage() {
     } finally {
       setLoading(false);
     }
+
+    // Load team scores from Trello production data
+    try {
+      const res = await apiGet<{ data: TeamScore[] }>('/trello/ops-team-scores');
+      setTeamScores(res?.data ?? []);
+    } catch { /* silent — Trello might not be configured */ }
+    finally { setScoresLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -1220,9 +1439,13 @@ export default function EquipePage() {
           <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
         )}
 
-        {tab === 0 && loading ? (
+        {tab === 0 && (
+          <TeamScoreGrid scores={teamScores} freelancers={freelancers} loading={loading || scoresLoading} />
+        )}
+
+        {tab === 0 && false && loading ? (
           <Stack alignItems="center" py={6}><CircularProgress /></Stack>
-        ) : tab === 0 && (
+        ) : tab === 0 && false && (
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
