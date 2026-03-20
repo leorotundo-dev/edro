@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS simulation_scoring_weights (
   calibration_sample_size INT NOT NULL DEFAULT 0,
   last_calibrated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- UNIQUE on expressions requires a separate index (inline UNIQUE doesn't support COALESCE)

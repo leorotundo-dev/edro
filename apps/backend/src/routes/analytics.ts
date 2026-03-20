@@ -1268,7 +1268,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
                COUNT(*) FILTER (WHERE status = 'done') AS total,
                COUNT(*) FILTER (WHERE status = 'done' AND (due_at IS NULL OR updated_at <= due_at)) AS on_time
              FROM edro_briefings
-             WHERE client_id = ANY($1::text[]) AND created_at >= $2
+             WHERE client_id = ANY($1::uuid[]) AND created_at >= $2
              GROUP BY client_id`,
             [edroIds, thirtyDaysAgo]
           ),
@@ -1277,7 +1277,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
                AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))/3600) AS avg_hours
              FROM edro_briefing_stages s
              JOIN edro_briefings b ON b.id = s.briefing_id
-             WHERE b.client_id = ANY($1::text[]) AND b.created_at >= $2 AND s.updated_at > s.created_at
+             WHERE b.client_id = ANY($1::uuid[]) AND b.created_at >= $2 AND s.updated_at > s.created_at
              GROUP BY b.client_id`,
             [edroIds, thirtyDaysAgo]
           ),
@@ -1287,7 +1287,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
                COUNT(*) FILTER (WHERE cv.status = 'approved') AS approved
              FROM edro_copy_versions cv
              JOIN edro_briefings b ON b.id = cv.briefing_id
-             WHERE b.client_id = ANY($1::text[]) AND b.created_at >= $2
+             WHERE b.client_id = ANY($1::uuid[]) AND b.created_at >= $2
              GROUP BY b.client_id`,
             [edroIds, thirtyDaysAgo]
           ),
@@ -1296,14 +1296,14 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
                COUNT(*) FILTER (WHERE created_at >= $2) AS current_count,
                COUNT(*) FILTER (WHERE created_at >= $3 AND created_at < $2) AS previous_count
              FROM edro_briefings
-             WHERE client_id = ANY($1::text[])
+             WHERE client_id = ANY($1::uuid[])
              GROUP BY client_id`,
             [edroIds, thirtyDaysAgo, sixtyDaysAgo]
           ),
           query<{ client_id: string; count: string }>(
             `SELECT client_id, COUNT(*) AS count
              FROM edro_briefings
-             WHERE client_id = ANY($1::text[]) AND updated_at >= $2
+             WHERE client_id = ANY($1::uuid[]) AND updated_at >= $2
              GROUP BY client_id`,
             [edroIds, sevenDaysAgo]
           ),
@@ -1314,7 +1314,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
                SELECT created_at FROM edro_briefing_stages
                WHERE briefing_id = b.id ORDER BY position DESC LIMIT 1
              ) s ON TRUE
-             WHERE b.client_id = ANY($1::text[])
+             WHERE b.client_id = ANY($1::uuid[])
                AND b.status NOT IN ('done','cancelled')
                AND EXTRACT(EPOCH FROM (NOW()-s.created_at))/3600 > 48
              GROUP BY b.client_id`,
