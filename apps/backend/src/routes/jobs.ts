@@ -1020,4 +1020,300 @@ export default async function jobsRoutes(app: FastifyInstance) {
     if (!rows.length) return reply.status(404).send({ error: 'Entrada não encontrada.' });
     return { success: true };
   });
+
+  /* ── Job Briefings ─────────────────────────────────────────────────── */
+
+  // GET /jobs/:jobId/briefing
+  // Returns the briefing + pieces + client context (pre-filled from profile)
+  app.get('/jobs/:jobId/briefing', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+
+    // Fetch job (to get client_id)
+    const { rows: jobRows } = await query<any>(
+      `SELECT j.*, c.name AS client_name FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+        WHERE j.id = $1 AND j.tenant_id = $2`,
+      [jobId, tenantId],
+    );
+    if (!jobRows.length) return reply.status(404).send({ error: 'Job não encontrado.' });
+    const job = jobRows[0];
+
+    // Fetch existing briefing + pieces (may not exist yet)
+    const { rows: briefRows } = await query<any>(
+      `SELECT * FROM job_briefings WHERE job_id = $1 AND tenant_id = $2`,
+      [jobId, tenantId],
+    );
+    const briefing = briefRows[0] ?? null;
+
+    const pieces = briefing
+      ? (await query<any>(
+          `SELECT * FROM job_briefing_pieces WHERE briefing_id = $1 ORDER BY sort_order, created_at`,
+          [briefing.id],
+        )).rows
+      : [];
+
+    // Build client_context from profile + behavior clusters + learning rules
+    let clientContext: Record<string, any> = {};
+    if (job.client_id) {
+      const { rows: clientRows } = await query<any>(
+        `SELECT profile, profile_suggestions FROM clients WHERE id = $1 AND tenant_id = $2`,
+        [job.client_id, tenantId],
+      );
+      const clientRow = clientRows[0];
+      const profile = clientRow?.profile ?? {};
+      const kb = profile.knowledge_base ?? {};
+      const bt = profile.brand_tokens ?? {};
+
+      // Behavior clusters
+      const { rows: clusterRows } = await query<any>(
+        `SELECT id, cluster_type, cluster_label, preferred_amd, preferred_triggers,
+                avg_save_rate, avg_click_rate, avg_engagement_rate, preferred_format
+           FROM client_behavior_profiles
+          WHERE client_id = $1 AND tenant_id = $2
+          ORDER BY confidence_score DESC`,
+        [job.client_id, tenantId],
+      );
+
+      // Visual style
+      const { rows: vsRows } = await query<any>(
+        `SELECT style_summary, photo_style, mood, dominant_colors
+           FROM client_visual_style
+          WHERE client_id = $1 AND tenant_id = $2
+          ORDER BY analyzed_at DESC LIMIT 1`,
+        [job.client_id, tenantId],
+      );
+
+      // Learning rules (top 5 active)
+      const { rows: ruleRows } = await query<any>(
+        `SELECT rule_type, rule_text, uplift_pct, confidence_score
+           FROM learning_rules
+          WHERE client_id = $1 AND tenant_id = $2 AND is_active = true
+          ORDER BY uplift_pct DESC LIMIT 5`,
+        [job.client_id, tenantId],
+      );
+
+      clientContext = {
+        tone_description: profile.tone_description ?? null,
+        personality_traits: profile.personality_traits ?? [],
+        formality_level: profile.formality_level ?? null,
+        emoji_usage: profile.emoji_usage ?? null,
+        tone_profile: profile.tone_profile ?? null,
+        reference_brands: bt.referenceStyles ?? [],
+        forbidden_claims: kb.forbidden_claims ?? [],
+        negative_keywords: profile.negative_keywords ?? [],
+        pillars: profile.pillars ?? [],
+        audience: kb.audience ?? null,
+        brand_promise: kb.brand_promise ?? null,
+        visual_style: vsRows[0]?.style_summary ?? null,
+        visual_mood: vsRows[0]?.mood ?? null,
+        dominant_colors: vsRows[0]?.dominant_colors ?? [],
+        behavior_clusters: clusterRows,
+        learning_rules: ruleRows,
+      };
+    }
+
+    return {
+      job: { id: job.id, title: job.title, job_type: job.job_type, client_id: job.client_id, client_name: job.client_name },
+      briefing,
+      pieces,
+      client_context: clientContext,
+    };
+  });
+
+  // POST /jobs/:jobId/briefing
+  // Creates or fully replaces the briefing (upsert by job_id)
+  app.post('/jobs/:jobId/briefing', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const bodySchema = z.object({
+      context_trigger: z.string().optional().nullable(),
+      consumer_moment: z.string().optional().nullable(),
+      main_risk: z.string().optional().nullable(),
+      main_objective: z.string().optional().nullable(),
+      success_metrics: z.array(z.string()).optional().nullable(),
+      target_cluster_ids: z.array(z.string().uuid()).optional().nullable(),
+      specific_barriers: z.array(z.string()).optional().nullable(),
+      message_structure: z.string().optional().nullable(),
+      desired_emotion: z.array(z.string()).max(2).optional().nullable(),
+      desired_amd: z.string().optional().nullable(),
+      tone_override: z.record(z.any()).optional().nullable(),
+      regulatory_flags: z.array(z.string()).optional().nullable(),
+      ref_links: z.array(z.string()).optional().nullable(),
+      ref_notes: z.string().optional().nullable(),
+      pieces: z.array(z.object({
+        format_type: z.string(),
+        platform: z.string().optional().nullable(),
+        versions: z.number().int().min(1).max(10).default(1),
+        priority: z.enum(['alta', 'media', 'baixa']).default('media'),
+        notes: z.string().optional().nullable(),
+        sort_order: z.number().int().optional().default(0),
+      })).optional(),
+    });
+
+    const body = bodySchema.parse(request.body ?? {});
+
+    // Verify job belongs to tenant
+    const { rows: jobRows } = await query<any>(
+      `SELECT id, client_id FROM jobs WHERE id = $1 AND tenant_id = $2`,
+      [jobId, tenantId],
+    );
+    if (!jobRows.length) return reply.status(404).send({ error: 'Job não encontrado.' });
+    const clientId = jobRows[0].client_id;
+    if (!clientId) return reply.status(400).send({ error: 'Job sem cliente associado.' });
+
+    // Upsert briefing (only allowed in draft status)
+    const { rows: existing } = await query<any>(
+      `SELECT id, status FROM job_briefings WHERE job_id = $1 AND tenant_id = $2`,
+      [jobId, tenantId],
+    );
+    if (existing.length && existing[0].status !== 'draft') {
+      return reply.status(409).send({ error: 'Briefing já submetido. Solicite rejeição para editar.' });
+    }
+
+    const { rows: briefRows } = await query<any>(
+      `INSERT INTO job_briefings (
+          job_id, tenant_id, client_id,
+          context_trigger, consumer_moment, main_risk,
+          main_objective, success_metrics,
+          target_cluster_ids, specific_barriers,
+          message_structure, desired_emotion, desired_amd,
+          tone_override, regulatory_flags,
+          ref_links, ref_notes
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17)
+        ON CONFLICT (job_id) DO UPDATE SET
+          context_trigger   = EXCLUDED.context_trigger,
+          consumer_moment   = EXCLUDED.consumer_moment,
+          main_risk         = EXCLUDED.main_risk,
+          main_objective    = EXCLUDED.main_objective,
+          success_metrics   = EXCLUDED.success_metrics,
+          target_cluster_ids = EXCLUDED.target_cluster_ids,
+          specific_barriers = EXCLUDED.specific_barriers,
+          message_structure = EXCLUDED.message_structure,
+          desired_emotion   = EXCLUDED.desired_emotion,
+          desired_amd       = EXCLUDED.desired_amd,
+          tone_override     = EXCLUDED.tone_override,
+          regulatory_flags  = EXCLUDED.regulatory_flags,
+          ref_links         = EXCLUDED.ref_links,
+          ref_notes         = EXCLUDED.ref_notes,
+          updated_at        = now()
+        RETURNING *`,
+      [
+        jobId, tenantId, clientId,
+        body.context_trigger ?? null,
+        body.consumer_moment ?? null,
+        body.main_risk ?? null,
+        body.main_objective ?? null,
+        body.success_metrics ?? null,
+        body.target_cluster_ids ?? null,
+        body.specific_barriers ?? null,
+        body.message_structure ?? null,
+        body.desired_emotion ?? null,
+        body.desired_amd ?? null,
+        body.tone_override ? JSON.stringify(body.tone_override) : null,
+        body.regulatory_flags ?? null,
+        body.ref_links ?? null,
+        body.ref_notes ?? null,
+      ],
+    );
+    const briefing = briefRows[0];
+
+    // Replace pieces
+    if (body.pieces !== undefined) {
+      await query(`DELETE FROM job_briefing_pieces WHERE briefing_id = $1`, [briefing.id]);
+      for (const [i, p] of (body.pieces ?? []).entries()) {
+        await query(
+          `INSERT INTO job_briefing_pieces
+             (briefing_id, format_type, platform, versions, priority, notes, sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [briefing.id, p.format_type, p.platform ?? null, p.versions, p.priority, p.notes ?? null, p.sort_order ?? i],
+        );
+      }
+    }
+
+    const { rows: pieces } = await query<any>(
+      `SELECT * FROM job_briefing_pieces WHERE briefing_id = $1 ORDER BY sort_order`,
+      [briefing.id],
+    );
+    return reply.status(201).send({ briefing, pieces });
+  });
+
+  // POST /jobs/:jobId/briefing/submit
+  // Submits briefing for approval; job automation_status → briefing_pending
+  app.post('/jobs/:jobId/briefing/submit', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const { rows } = await query<any>(
+      `UPDATE job_briefings
+          SET status = 'submitted', submitted_at = now()
+        WHERE job_id = $1 AND tenant_id = $2 AND status = 'draft'
+        RETURNING *`,
+      [jobId, tenantId],
+    );
+    if (!rows.length) return reply.status(400).send({ error: 'Briefing não encontrado ou não está em rascunho.' });
+
+    await query(
+      `UPDATE jobs SET automation_status = 'briefing_pending', updated_at = now()
+        WHERE id = $1 AND tenant_id = $2`,
+      [jobId, tenantId],
+    );
+
+    return { success: true, briefing: rows[0] };
+  });
+
+  // POST /jobs/:jobId/briefing/approve
+  // Approves briefing; triggers AI copy generation
+  app.post('/jobs/:jobId/briefing/approve', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id) as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const { rows } = await query<any>(
+      `UPDATE job_briefings
+          SET status = 'approved', approved_at = now(), approved_by = $3::uuid
+        WHERE job_id = $1 AND tenant_id = $2 AND status = 'submitted'
+        RETURNING *`,
+      [jobId, tenantId, userId],
+    );
+    if (!rows.length) return reply.status(400).send({ error: 'Briefing não encontrado ou não está submetido.' });
+
+    // Advance job status to in_progress if still at intake/planned/ready
+    await query(
+      `UPDATE jobs SET status = 'in_progress', automation_status = 'copy_pending', updated_at = now()
+        WHERE id = $1 AND tenant_id = $2 AND status IN ('intake', 'planned', 'ready', 'allocated')`,
+      [jobId, tenantId],
+    );
+
+    // Enqueue copy generation
+    await enqueueJob(tenantId, 'job_automation', { jobId, step: 'copy' });
+
+    return { success: true, briefing: rows[0] };
+  });
+
+  // POST /jobs/:jobId/briefing/reject
+  // Rejects briefing; returns to draft for editing
+  app.post('/jobs/:jobId/briefing/reject', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const { reason } = z.object({ reason: z.string().max(500).optional() }).parse(request.body ?? {});
+
+    const { rows } = await query<any>(
+      `UPDATE job_briefings
+          SET status = 'draft', rejection_reason = $3, submitted_at = NULL
+        WHERE job_id = $1 AND tenant_id = $2 AND status = 'submitted'
+        RETURNING *`,
+      [jobId, tenantId, reason ?? null],
+    );
+    if (!rows.length) return reply.status(400).send({ error: 'Briefing não encontrado ou não está submetido.' });
+
+    await query(
+      `UPDATE jobs SET automation_status = 'none', updated_at = now()
+        WHERE id = $1 AND tenant_id = $2`,
+      [jobId, tenantId],
+    );
+
+    return { success: true, briefing: rows[0] };
+  });
 }

@@ -84,74 +84,240 @@ export async function generateJobCopy(tenantId: string, jobId: string): Promise<
   const channel = String(job.channel || 'instagram').toLowerCase();
   const platform = CHANNEL_PLATFORM[channel] || 'Instagram';
 
-  // Build persona from client profile
+  // ── Load briefing (if approved) ───────────────────────────────────────────
+  const { rows: briefRows } = await query<any>(
+    `SELECT b.*, array_agg(
+        jsonb_build_object(
+          'format_type', p.format_type,
+          'platform', p.platform,
+          'versions', p.versions,
+          'priority', p.priority,
+          'notes', p.notes,
+          'sort_order', p.sort_order
+        ) ORDER BY p.sort_order
+      ) FILTER (WHERE p.id IS NOT NULL) AS pieces
+     FROM job_briefings b
+     LEFT JOIN job_briefing_pieces p ON p.briefing_id = b.id
+     WHERE b.job_id = $1 AND b.tenant_id = $2 AND b.status = 'approved'
+     GROUP BY b.id`,
+    [jobId, tenantId],
+  );
+  const briefing = briefRows[0] ?? null;
+  const pieces: any[] = briefing?.pieces ?? [];
+
+  // ── Layer 2: Client profile context ──────────────────────────────────────
+  const kb = profile.knowledge_base ?? {};
+  const bt = profile.brand_tokens ?? {};
+
+  // Behavior clusters for targeted clusters (if specified in briefing)
+  let behaviorClusters: any[] = [];
+  if (briefing?.target_cluster_ids?.length) {
+    const { rows: clusterRows } = await query<any>(
+      `SELECT cluster_label, preferred_amd, preferred_triggers, preferred_format,
+              avg_save_rate, avg_click_rate, avg_engagement_rate
+         FROM client_behavior_profiles
+        WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+      [briefing.target_cluster_ids, tenantId],
+    );
+    behaviorClusters = clusterRows;
+  }
+
+  // Learning rules
+  const { rows: ruleRows } = await query<any>(
+    `SELECT rule_type, rule_text, uplift_pct
+       FROM learning_rules
+      WHERE client_id = $1 AND tenant_id = $2 AND is_active = true
+      ORDER BY uplift_pct DESC LIMIT 8`,
+    [job.client_id, tenantId],
+  );
+
+  // Visual style
+  const { rows: vsRows } = await query<any>(
+    `SELECT style_summary FROM client_visual_style
+      WHERE client_id = $1 AND tenant_id = $2
+      ORDER BY analyzed_at DESC LIMIT 1`,
+    [job.client_id, tenantId],
+  );
+
+  // ── Layer 2 block (client profile) ───────────────────────────────────────
+  const toneBlock = briefing?.tone_override
+    ? [
+        briefing.tone_override.tone_profile ? `Tom: ${briefing.tone_override.tone_profile}` : '',
+        briefing.tone_override.personality_traits?.length
+          ? `Traços de personalidade: ${briefing.tone_override.personality_traits.join(', ')}`
+          : '',
+        briefing.tone_override.formality_level ? `Formalidade: ${briefing.tone_override.formality_level}` : '',
+        briefing.tone_override.emoji_usage ? `Uso de emoji: ${briefing.tone_override.emoji_usage}` : '',
+      ].filter(Boolean).join('\n')
+    : [
+        profile.tone_description ? `Tom de voz: ${profile.tone_description}` : '',
+        profile.personality_traits?.length ? `Traços: ${profile.personality_traits.join(', ')}` : '',
+        profile.formality_level ? `Formalidade: ${profile.formality_level}` : '',
+        profile.emoji_usage ? `Emoji: ${profile.emoji_usage}` : '',
+        bt.referenceStyles?.length ? `Referências de tom: ${bt.referenceStyles.join(', ')}` : '',
+      ].filter(Boolean).join('\n');
+
+  const clientProfileBlock = [
+    `CLIENTE: ${client.name}`,
+    kb.audience ? `Público-alvo: ${kb.audience}` : '',
+    kb.brand_promise ? `Promessa de marca: ${kb.brand_promise}` : '',
+    kb.differentiators ? `Diferenciais: ${kb.differentiators}` : '',
+    kb.forbidden_claims?.length ? `Evitar: ${kb.forbidden_claims.join('; ')}` : '',
+    profile.negative_keywords?.length ? `Palavras proibidas: ${profile.negative_keywords.join(', ')}` : '',
+    profile.pillars?.length ? `Pilares de conteúdo: ${profile.pillars.join(', ')}` : '',
+    vsRows[0]?.style_summary ? `Estilo visual: ${vsRows[0].style_summary}` : '',
+    toneBlock,
+    ruleRows.length
+      ? `REGRAS DE APRENDIZADO (padrões com melhor performance):\n${ruleRows.map((r: any) => `- ${r.rule_text} (+${r.uplift_pct}%)`).join('\n')}`
+      : '',
+  ].filter(Boolean).join('\n\n');
+
+  // ── Layer 3: Briefing context (job-specific) ──────────────────────────────
+  const AMD_LABELS: Record<string, string> = {
+    salvar: 'salvar o conteúdo',
+    clicar: 'clicar no link',
+    compartilhar: 'compartilhar',
+    responder: 'comentar ou responder',
+    marcar_amigo: 'marcar um amigo',
+    proposta_direta: 'solicitar proposta ou orçamento',
+  };
+  const TRIGGER_LABELS: Record<string, string> = {
+    lançamento_produto: 'Lançamento de produto/serviço',
+    ativacao_sazonalidade: 'Ativação sazonal',
+    oportunidade_tendencia: 'Oportunidade de tendência',
+    demanda_cliente: 'Demanda do cliente',
+    estrategia_proativa: 'Estratégia proativa',
+    crise_reputacao: 'Gestão de crise/reputação',
+  };
+  const MOMENT_LABELS: Record<string, string> = {
+    descobrindo_problema: 'descobrindo o problema',
+    comparando_solucoes: 'comparando soluções',
+    decidindo_compra: 'decidindo a compra',
+    ja_cliente_upsell: 'já cliente (upsell)',
+    pos_compra_retencao: 'pós-compra (retenção)',
+  };
+
+  const briefingBlock = briefing
+    ? [
+        '── BRIEFING DO JOB ──',
+        briefing.context_trigger
+          ? `Contexto: ${TRIGGER_LABELS[briefing.context_trigger] ?? briefing.context_trigger}`
+          : '',
+        briefing.consumer_moment
+          ? `Momento do consumidor: ${MOMENT_LABELS[briefing.consumer_moment] ?? briefing.consumer_moment}`
+          : '',
+        briefing.main_objective ? `Objetivo: ${briefing.main_objective}` : '',
+        briefing.success_metrics?.length ? `Métricas de sucesso: ${briefing.success_metrics.join(', ')}` : '',
+        briefing.desired_amd
+          ? `Ação desejada (AMD): ${AMD_LABELS[briefing.desired_amd] ?? briefing.desired_amd}`
+          : '',
+        briefing.message_structure ? `Estrutura da mensagem: ${briefing.message_structure}` : '',
+        briefing.desired_emotion?.length ? `Emoção desejada: ${briefing.desired_emotion.join(', ')}` : '',
+        briefing.main_risk ? `Risco a evitar: ${briefing.main_risk}` : '',
+        briefing.specific_barriers?.length
+          ? `Barreiras de conversão: ${briefing.specific_barriers.join(', ')}`
+          : '',
+        briefing.regulatory_flags?.length && !briefing.regulatory_flags.includes('sem_restricoes')
+          ? `Restrições regulatórias: ${briefing.regulatory_flags.join(', ')}`
+          : '',
+        behaviorClusters.length
+          ? `Clusters alvo:\n${behaviorClusters.map((c: any) => `  - ${c.cluster_label} (prefere: ${c.preferred_amd}, triggers: ${c.preferred_triggers?.join(', ')})`).join('\n')}`
+          : '',
+        briefing.ref_notes ? `Referências adicionais: ${briefing.ref_notes}` : '',
+      ].filter(Boolean).join('\n')
+    : '';
+
+  // ── Build persona and behavior intent ────────────────────────────────────
   const persona: PersonaContext = {
     name: profile.personas?.[0]?.name || 'Público geral',
     role: profile.personas?.[0]?.role,
     language_style: profile.tone_description || profile.tone || undefined,
-    forbidden_terms: profile.forbidden_terms || [],
+    forbidden_terms: [
+      ...(profile.forbidden_terms || []),
+      ...(kb.forbidden_claims || []),
+    ],
     pain_points: profile.personas?.[0]?.pain_points || [],
   };
 
-  // Build behavior intent from job context
+  const resolvedAmd = briefing?.desired_amd || (job.job_type === 'copy' ? 'compartilhar' : 'clicar');
+
   const behaviorIntent: BehaviorIntentContext = {
-    amd: job.job_type === 'copy' ? 'compartilhar' : 'clicar',
-    momento: 'solucao',
-    triggers: [job.title],
-    target_behavior: `Engajar com conteúdo de ${client.name} no ${platform}`,
+    amd: resolvedAmd,
+    momento: briefing?.consumer_moment?.replace('descobrindo_problema', 'problema')
+      .replace('comparando_solucoes', 'comparacao')
+      .replace('decidindo_compra', 'decisao')
+      ?? 'solucao',
+    triggers: briefing?.message_structure ? [briefing.message_structure, job.title] : [job.title],
+    target_behavior: briefing?.desired_amd
+      ? `Levar o público a ${AMD_LABELS[briefing.desired_amd] ?? briefing.desired_amd}`
+      : `Engajar com conteúdo de ${client.name} no ${platform}`,
   };
 
-  // Knowledge block from client
+  // ── Combined knowledge block (Layers 2 + 3) ───────────────────────────────
   const knowledgeBlock = [
-    profile.knowledge_block || '',
-    profile.brand_colors?.length ? `Cores da marca: ${profile.brand_colors.join(', ')}` : '',
-    profile.tone ? `Tom de voz: ${profile.tone}` : '',
+    clientProfileBlock,
+    briefingBlock,
     job.summary ? `Contexto do job: ${job.summary}` : '',
     job.definition_of_done ? `Definição de pronto: ${job.definition_of_done}` : '',
   ].filter(Boolean).join('\n\n');
 
+  // ── Layer 4: Generate per piece or single draft ───────────────────────────
+  const effectivePieces = pieces.length
+    ? pieces
+    : [{ format_type: 'post_feed', platform: channel, versions: 1, priority: 'media', notes: null }];
+
   try {
-    // Generate copy
-    const draft: DraftContent = await generateBehavioralDraft({
-      platform,
-      format: job.job_type === 'design_carousel' ? 'Carrossel' : 'Post',
-      persona,
-      behaviorIntent,
-      campaignObjective: job.title,
-      clientName: client.name,
-      clientSegment: profile.segment || undefined,
-      knowledgeBlock,
-    });
+    for (const [idx, piece] of effectivePieces.entries()) {
+      const pieceLabel = `---PEÇA ${String(idx + 1).padStart(2, '0')}---`;
+      const pieceInstruction = [
+        pieceLabel,
+        `Formato: ${piece.format_type}`,
+        `Plataforma: ${piece.platform ?? platform}`,
+        `Versões: ${piece.versions ?? 1}`,
+        piece.notes ? `Instrução especial: ${piece.notes}` : '',
+      ].filter(Boolean).join('\n');
 
-    // Audit copy
-    const audit = await auditDraftContent({
-      draft,
-      persona,
-      behaviorIntent,
-      clientName: client.name,
-    });
+      const piecePlatform = CHANNEL_PLATFORM[piece.platform ?? channel] ?? platform;
+      const isCarousel = ['carrossel', 'design_carousel'].includes(piece.format_type);
 
-    // Persist
-    await insertDraft(tenantId, jobId, 'copy', 'done', {
-      hook_text: audit.approved_text || draft.hook_text,
-      content_text: draft.content_text,
-      cta_text: draft.cta_text,
-      copy_approval_status: audit.approval_status,
-      fogg_score: audit.fogg_score,
-      model_used: 'claude',
-    });
+      const draft: DraftContent = await generateBehavioralDraft({
+        platform: piecePlatform,
+        format: isCarousel ? 'Carrossel' : 'Post',
+        persona,
+        behaviorIntent,
+        campaignObjective: job.title,
+        clientName: client.name,
+        clientSegment: profile.segment || undefined,
+        knowledgeBlock: `${knowledgeBlock}\n\n${pieceInstruction}`,
+      });
+
+      const audit = await auditDraftContent({
+        draft,
+        persona,
+        behaviorIntent,
+        clientName: client.name,
+      });
+
+      await insertDraft(tenantId, jobId, 'copy', 'done', {
+        hook_text: audit.approved_text || draft.hook_text,
+        content_text: draft.content_text,
+        cta_text: draft.cta_text,
+        copy_approval_status: audit.approval_status,
+        fogg_score: audit.fogg_score,
+        model_used: 'claude',
+        prompt_used: pieceInstruction,
+      });
+    }
 
     await setAutomationStatus(tenantId, jobId, 'copy_done');
 
-    // Chain: if copy is usable, generate image next
-    if (audit.approval_status !== 'blocked') {
-      await enqueueJob(tenantId, 'job_automation', { jobId, step: 'image' });
-    }
+    // Chain to image generation (for the first/primary piece)
+    await enqueueJob(tenantId, 'job_automation', { jobId, step: 'image' });
   } catch (err: any) {
     await insertDraft(tenantId, jobId, 'copy', 'failed', {
       error_message: err?.message || 'Erro ao gerar copy',
     });
-    await setAutomationStatus(tenantId, jobId, 'copy_done'); // move on even if failed
+    await setAutomationStatus(tenantId, jobId, 'copy_done');
   }
 }
 
