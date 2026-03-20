@@ -212,8 +212,8 @@ export default function OperationsAgendaClient() {
   async function reloadAgenda() {
     await refresh();
     const [calendarResponse, plannerResponse] = await Promise.all([
-      apiGet<{ data?: { days?: typeof agendaDays } }>('/operations/calendar'),
-      apiGet<{ data?: PlannerData }>('/operations/planner'),
+      apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar'),
+      apiGet<{ data?: PlannerData }>('/trello/ops-planner'),
     ]);
     setAgendaDays(calendarResponse?.data?.days || []);
     setPlannerData(plannerResponse?.data || { owners: [], unassigned_jobs: [] });
@@ -731,7 +731,7 @@ export default function OperationsAgendaClient() {
                         variant="outlined"
                         onClick={async () => {
                           await refresh();
-                          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/operations/calendar');
+                          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar');
                           setAgendaDays(response?.data?.days || []);
                         }}
                       >
@@ -768,7 +768,7 @@ export default function OperationsAgendaClient() {
         onUpdate={async (jobId, payload) => {
           const updated = await updateJob(jobId, payload);
           await refresh();
-          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/operations/calendar');
+          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar');
           setAgendaDays(response?.data?.days || []);
           setSelectedJob(updated as OperationsJob);
           return updated;
@@ -776,7 +776,7 @@ export default function OperationsAgendaClient() {
         onStatusChange={async (jobId, status, reason) => {
           const updated = await changeStatus(jobId, status, reason);
           await refresh();
-          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/operations/calendar');
+          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar');
           setAgendaDays(response?.data?.days || []);
           setSelectedJob(updated as OperationsJob);
           return updated;
