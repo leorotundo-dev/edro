@@ -614,8 +614,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pb.id as board_id, pb.name as board_name,
          pb.client_id,
          cl.name as client_name,
-         cl.logo_url as client_logo_url,
-         cl.brand_color as client_brand_color,
+         NULL::text as client_logo_url,
+         NULL::text as client_brand_color,
          -- first assigned member
          (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
          (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_email,
@@ -702,7 +702,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     // Clients
     const { rows: clientRows } = await query<{ id: string; name: string; logo_url: string | null; brand_color: string | null }>(
-      `SELECT DISTINCT cl.id, cl.name, cl.logo_url, cl.brand_color
+      `SELECT DISTINCT cl.id, cl.name, NULL::text as logo_url, NULL::text as brand_color
        FROM clients cl
        JOIN project_boards pb ON pb.client_id = cl.id::text
        WHERE pb.tenant_id = $1 AND pb.is_archived = false`,
@@ -835,7 +835,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.trello_url, pc.trello_card_id,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name, pb.client_id,
-         cl.name as client_name, cl.logo_url as client_logo_url, cl.brand_color as client_brand_color,
+         cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          pcm.display_name as owner_name, pcm.email as owner_email,
          eu.id as owner_user_id
        FROM project_cards pc
@@ -913,7 +913,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.trello_url, pc.trello_card_id,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name, pb.client_id,
-         cl.name as client_name, cl.logo_url as client_logo_url, cl.brand_color as client_brand_color,
+         cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
          (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_email,
          (SELECT eu.id FROM project_card_members pcm
