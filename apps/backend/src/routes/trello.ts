@@ -1402,4 +1402,106 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     return reply.send({ data: scores.sort((a, b) => b.score - a.score) });
   });
+
+  // ── Collaborator profile by trello_member_id ───────────────────────────────
+  app.get('/trello/member-profile/:trelloId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { trelloId } = request.params as { trelloId: string };
+    const tenantId = (request as any).user?.tenant_id;
+
+    // Member info
+    const memberRes = await query<{
+      display_name: string; email: string | null; trello_member_id: string;
+      freelancer_id: string | null;
+    }>(
+      `SELECT DISTINCT
+         pcm.display_name, pcm.email, pcm.trello_member_id,
+         f.id AS freelancer_id
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN edro_users fu ON LOWER(fu.email) = LOWER(pcm.email)
+       LEFT JOIN freelancer_profiles f ON f.user_id = fu.id
+       WHERE pb.tenant_id = $1
+         AND pcm.trello_member_id = $2
+       LIMIT 1`,
+      [tenantId, trelloId],
+    );
+    if (!memberRes.rows.length) return reply.status(404).send({ error: 'Membro não encontrado' });
+    const member = memberRes.rows[0];
+
+    // Active cards (not complete, not archived)
+    const activeRes = await query<{
+      id: string; title: string; due_date: string | null; board_name: string;
+      list_name: string | null; labels: any;
+    }>(
+      `SELECT pc.id, pc.title, pc.due_date,
+              pb.name AS board_name,
+              pc.list_name,
+              pc.labels
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+        WHERE pb.tenant_id = $1
+          AND pcm.trello_member_id = $2
+          AND pc.due_complete = false
+          AND pc.is_archived = false
+        ORDER BY pc.due_date ASC NULLS LAST
+        LIMIT 50`,
+      [tenantId, trelloId],
+    );
+
+    // Completed cards (last 60 days)
+    const doneRes = await query<{
+      id: string; title: string; due_date: string | null; updated_at: string;
+      board_name: string; list_name: string | null; labels: any;
+    }>(
+      `SELECT pc.id, pc.title, pc.due_date, pc.updated_at,
+              pb.name AS board_name,
+              pc.list_name,
+              pc.labels
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+        WHERE pb.tenant_id = $1
+          AND pcm.trello_member_id = $2
+          AND pc.due_complete = true
+          AND pc.updated_at > now() - interval '60 days'
+        ORDER BY pc.updated_at DESC
+        LIMIT 40`,
+      [tenantId, trelloId],
+    );
+
+    // Score metrics
+    const totalDone = doneRes.rows.length;
+    const totalActive = activeRes.rows.length;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const completedMonth = doneRes.rows.filter(
+      (r) => r.updated_at && new Date(r.updated_at) >= monthStart,
+    ).length;
+
+    const lateCards = doneRes.rows.filter((r) => {
+      if (!r.due_date || !r.updated_at) return false;
+      return new Date(r.updated_at) > new Date(r.due_date);
+    }).length;
+    const slaRate = totalDone > 0 ? Math.round(((totalDone - lateCards) / totalDone) * 100) : null;
+
+    const loadScore    = Math.max(0, 100 - totalActive * 15);
+    const slaScore     = slaRate ?? 65;
+    const deliveryScore = Math.min(100, completedMonth * 12);
+    const score = Math.round(loadScore * 0.40 + slaScore * 0.40 + deliveryScore * 0.20);
+
+    return reply.send({
+      member,
+      activeCards: activeRes.rows,
+      completedCards: doneRes.rows,
+      metrics: {
+        score,
+        active_cards: totalActive,
+        completed_month: completedMonth,
+        sla_rate: slaRate,
+        total_done_60d: totalDone,
+      },
+    });
+  });
 }

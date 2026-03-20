@@ -954,19 +954,25 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
           const specialty = fl?.specialty ?? fl?.role_title ?? s.job_type_primary;
           const hasTimer = (fl?.active_timers ?? []).length > 0;
 
+          const navTarget = profileId
+            ? `/admin/equipe/${profileId}`
+            : s.trello_member_id
+            ? `/admin/equipe/m/${s.trello_member_id}`
+            : null;
+
           return (
             <Grid key={s.email} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
               <Card
-                onClick={() => profileId && router.push(`/admin/equipe/${profileId}`)}
+                onClick={() => navTarget && router.push(navTarget)}
                 sx={(theme) => ({
                   borderRadius: 3,
                   border: '1px solid',
                   borderColor: alpha(color, 0.30),
                   borderTop: `4px solid ${color}`,
                   bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.06) : alpha(color, 0.03),
-                  cursor: profileId ? 'pointer' : 'default',
+                  cursor: navTarget ? 'pointer' : 'default',
                   transition: 'all 180ms ease',
-                  '&:hover': profileId ? {
+                  '&:hover': navTarget ? {
                     transform: 'translateY(-3px)',
                     boxShadow: `0 8px 24px ${alpha(color, 0.18)}`,
                   } : {},
