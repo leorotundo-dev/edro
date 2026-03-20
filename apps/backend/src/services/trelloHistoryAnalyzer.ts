@@ -82,7 +82,12 @@ function parseCardTitle(title: string): ParsedTitle {
       const month = d.slice(2, 4);
       const yr = parseInt('20' + d.slice(4, 6));
       if (yr >= 2020 && yr <= 2030) {
-        parsed_date = `${yr}-${month}-${day}`;
+        const candidate = `${yr}-${month}-${day}`;
+        const dt = new Date(candidate + 'T00:00:00Z');
+        // Only accept if the date is actually valid (avoids e.g. Feb 29 in non-leap years)
+        if (!isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === candidate) {
+          parsed_date = candidate;
+        }
       }
       continue;
     }
