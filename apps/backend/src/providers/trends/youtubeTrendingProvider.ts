@@ -23,6 +23,10 @@ export class YouTubeTrendingProvider implements TrendProvider {
       `?part=snippet,statistics&chart=mostPopular&maxResults=50&regionCode=${regionCode}&key=${apiKey}`;
 
     const response = await fetch(url);
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`YouTube API error ${response.status}: ${errBody.slice(0, 200)}`);
+    }
     const data = await response.json();
     const items = data.items ?? [];
     const now = new Date().toISOString();

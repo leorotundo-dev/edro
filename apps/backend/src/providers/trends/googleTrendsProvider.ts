@@ -35,6 +35,10 @@ export class GoogleTrendsProvider implements TrendProvider {
       }),
     });
 
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`Google Trends proxy error ${response.status}: ${errBody.slice(0, 200)}`);
+    }
     const data = await response.json();
     const now = data.observed_at ?? new Date().toISOString();
 

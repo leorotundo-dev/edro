@@ -64,6 +64,10 @@ SAIDA (JSON):
         },
         body: JSON.stringify({ prompt }),
       });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Custom Gemini endpoint error: ${response.status} ${errText.slice(0, 200)}`);
+      }
       raw = await response.text();
     } else {
       const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';

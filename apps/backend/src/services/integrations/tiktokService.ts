@@ -68,6 +68,10 @@ async function initVideoUpload(
     body: JSON.stringify(body),
   });
 
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`TikTok API error ${res.status}: ${errBody.slice(0, 300)}`);
+  }
   const data = await res.json() as {
     data?:  { publish_id: string; upload_url?: string };
     error?: { code: string; message: string; log_id: string };
