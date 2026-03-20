@@ -911,6 +911,61 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         [JSON.stringify(updatedAssignees), newStatus, jobId]
       );
 
+      // Auto-schedule Google Calendar alignment meeting when freelancer accepts
+      if (action === 'accept' && newStatus === 'alinhamento') {
+        setImmediate(async () => {
+          try {
+            const { rows: briefFull } = await pool.query(
+              `SELECT b.title, b.payload, b.traffic_owner, b.due_at,
+                      (SELECT tenant_id FROM tenants LIMIT 1) AS tenant_id,
+                      ec.name AS client_name
+                 FROM edro_briefings b
+                 LEFT JOIN edro_clients ec ON ec.id = b.client_id
+                WHERE b.id = $1`,
+              [jobId]
+            );
+            const bf = briefFull[0];
+            if (!bf?.tenant_id) return;
+
+            // Schedule tomorrow at 10:00 local (or +2 business days if deadline is tight)
+            const now = new Date();
+            const meetStart = new Date(now);
+            meetStart.setDate(meetStart.getDate() + 1);
+            meetStart.setHours(10, 0, 0, 0);
+
+            // Collect attendee emails: traffic_owner + manager_email from payload
+            const attendees: string[] = [];
+            if (bf.traffic_owner && bf.traffic_owner.includes('@')) attendees.push(bf.traffic_owner);
+            const managerEmail = bf.payload?.manager_email;
+            if (managerEmail && managerEmail.includes('@') && !attendees.includes(managerEmail)) {
+              attendees.push(managerEmail);
+            }
+
+            const { createCalendarMeeting } = await import('../services/integrations/googleCalendarService');
+            const meeting = await createCalendarMeeting({
+              tenantId: bf.tenant_id,
+              title: `Alinhamento — ${bf.title}${bf.client_name ? ` (${bf.client_name})` : ''}`,
+              startAt: meetStart,
+              durationMinutes: 30,
+              attendeeEmails: attendees,
+              description: `Reunião de alinhamento para o job: ${bf.title}\n\nLink do briefing: ${process.env.WEB_URL ?? ''}/edro/${jobId}`,
+              clientName: bf.client_name ?? null,
+            });
+
+            // Save meeting URL back to briefing
+            await pool.query(
+              `UPDATE edro_briefings
+                  SET meeting_url = $2,
+                      payload = jsonb_set(COALESCE(payload,'{}'), '{alignment_meeting_url}', to_jsonb($2::text))
+                WHERE id = $1`,
+              [jobId, meeting.meetUrl]
+            );
+          } catch (err) {
+            console.warn('[freelancers/respond] Google Calendar auto-schedule failed:', err);
+          }
+        });
+      }
+
       return reply.send({ ok: true, action, new_status: newStatus });
     }
 
@@ -941,6 +996,94 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ ok: true, action });
+    }
+
+    return reply.status(400).send({ error: 'source inválido' });
+  });
+
+  // POST /freelancers/portal/me/jobs/:jobId/complete — freelancer marks job as done → aprovacao_interna
+  app.post('/freelancers/portal/me/jobs/:jobId/complete', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { jobId } = request.params as { jobId: string };
+    const { notes, source } = (request.body as any) ?? {};
+
+    if (!source || source === 'briefing') {
+      const { rows: briefRows } = await pool.query(
+        `SELECT b.id, b.title, b.status, b.assignees, b.traffic_owner, b.payload,
+                (SELECT tenant_id FROM tenants LIMIT 1) AS tenant_id,
+                ec.name AS client_name
+           FROM edro_briefings b
+           LEFT JOIN edro_clients ec ON ec.id = b.client_id
+          WHERE b.id = $1`,
+        [jobId]
+      );
+      if (!briefRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
+
+      const b = briefRows[0];
+
+      // Only the assigned freelancer (or any assigned person) can mark complete
+      const assignees: any[] = Array.isArray(b.assignees) ? b.assignees : [];
+      const isAssigned = assignees.some((a: any) => a.user_id === userId && a.accepted !== false);
+      if (!isAssigned) {
+        return reply.status(403).send({ error: 'Você não está assignado a este job.' });
+      }
+
+      // Must be in producao or ajustes to mark complete
+      if (!['producao', 'ajustes'].includes(b.status)) {
+        return reply.status(409).send({
+          error: `Job em "${b.status}" não pode ser marcado como concluído. Precisa estar em Produção ou Ajustes.`,
+          current_status: b.status,
+        });
+      }
+
+      // Update status → aprovacao_interna, save completion notes
+      await pool.query(
+        `UPDATE edro_briefings
+            SET status = 'aprovacao_interna',
+                payload = jsonb_set(
+                  COALESCE(payload,'{}'),
+                  '{freelancer_completion_notes}',
+                  to_jsonb($2::text)
+                ),
+                updated_at = now()
+          WHERE id = $1`,
+        [jobId, notes ?? '']
+      );
+
+      // Notify managers via email
+      setImmediate(async () => {
+        try {
+          const notifyEmails: string[] = [];
+          if (b.traffic_owner && b.traffic_owner.includes('@')) notifyEmails.push(b.traffic_owner);
+          const managerEmail = b.payload?.manager_email;
+          if (managerEmail && !notifyEmails.includes(managerEmail)) notifyEmails.push(managerEmail);
+
+          if (notifyEmails.length === 0) return;
+
+          const { sendEmail } = await import('../services/emailService');
+          const { rows: flRows } = await pool.query(
+            `SELECT name, email FROM users WHERE id = $1 LIMIT 1`,
+            [userId]
+          );
+          const flName = flRows[0]?.name ?? flRows[0]?.email ?? 'Freelancer';
+          const webUrl = process.env.WEB_URL ?? '';
+          const briefingUrl = `${webUrl}/edro/${jobId}`;
+          const clientLabel = b.client_name ? ` — ${b.client_name}` : '';
+
+          const subject = `[Edro] Job pronto para aprovação: "${b.title}"${clientLabel}`;
+          const text = `${flName} marcou o job "${b.title}" como concluído.\n\nPróxima etapa: Aprovação Interna.\n\nAcessar: ${briefingUrl}${notes ? `\n\nNotas: ${notes}` : ''}`;
+
+          for (const to of notifyEmails) {
+            await sendEmail({ to, subject, text }).catch(() => {});
+          }
+        } catch (err) {
+          console.warn('[freelancers/complete] Email notification failed:', err);
+        }
+      });
+
+      return reply.send({ ok: true, new_status: 'aprovacao_interna' });
     }
 
     return reply.status(400).send({ error: 'source inválido' });

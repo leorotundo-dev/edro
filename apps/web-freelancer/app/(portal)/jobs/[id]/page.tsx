@@ -91,9 +91,12 @@ const OPS_STATUS_LABELS: Record<string, string> = {
 };
 
 const BRIEFING_STATUS_LABELS: Record<string, string> = {
-  briefing: 'Briefing', iclips_in: 'iClips entrada', alinhamento: 'Alinhamento',
-  copy_ia: 'Copy IA', aprovacao: 'Aprovação', producao: 'Produção',
-  revisao: 'Revisão', iclips_out: 'iClips saída', done: 'Concluído',
+  briefing: 'Briefing', copy_ia: 'Copy IA', alinhamento: 'Alinhamento',
+  producao: 'Produção', aprovacao_interna: 'Aprovação Interna',
+  ajustes: 'Ajustes', aprovacao_cliente: 'Aprovação Cliente', concluido: 'Concluído',
+  // Legacy
+  iclips_in: 'iClips entrada', iclips_out: 'iClips saída',
+  aprovacao: 'Aprovação', revisao: 'Revisão', entrega: 'Entrega', done: 'Concluído',
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -808,9 +811,100 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <BriefingTimerSection briefingId={job.id} profile={profile} onRefresh={() => mutateProfile()} />
       )}
 
+      {/* Marcar Concluído — only for briefings in producao or ajustes */}
+      {!isOps && briefing && ['producao', 'ajustes'].includes(briefing.status) && (
+        <CompleteJobSection
+          briefingId={briefing.id}
+          status={briefing.status}
+          onDone={() => mutateJob()}
+        />
+      )}
+
       <button className="portal-button-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => router.push('/jobs')}>
         ← Voltar
       </button>
     </div>
+  );
+}
+
+// ── Complete job section ───────────────────────────────────────────────────────
+
+function CompleteJobSection({ briefingId, status, onDone }: { briefingId: string; status: string; onDone: () => void }) {
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleComplete = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await apiPost(`/freelancers/portal/me/jobs/${briefingId}/complete`, {
+        notes: notes.trim() || null,
+        source: 'briefing',
+      });
+      setSuccess(true);
+      setTimeout(() => onDone(), 1500);
+    } catch (err: any) {
+      setError(err?.message ?? 'Erro ao marcar como concluído.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <section className="portal-card">
+        <div className="portal-alert portal-alert-success">
+          ✅ Job enviado para Aprovação Interna! Os gestores serão notificados.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="portal-card">
+      <div className="portal-section-head">
+        <div>
+          <h3 className="portal-section-title">
+            {status === 'ajustes' ? 'Ajustes Concluídos' : 'Marcar como Concluído'}
+          </h3>
+          <p className="portal-card-subtitle">
+            {status === 'ajustes'
+              ? 'Informe os gestores que os ajustes foram feitos.'
+              : 'Anexe os layouts e marque o job como pronto para revisão interna.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="portal-page" style={{ gap: 16 }}>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={
+            status === 'ajustes'
+              ? 'Descreva os ajustes realizados... (opcional)'
+              : 'Observações para a equipe, links de entrega, etc. (opcional)'
+          }
+          rows={3}
+          className="portal-textarea"
+        />
+
+        {error && <div className="portal-alert portal-alert-error">{error}</div>}
+
+        <button
+          onClick={handleComplete}
+          disabled={loading}
+          className="portal-button"
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {loading
+            ? 'Enviando...'
+            : status === 'ajustes'
+            ? 'Confirmar ajustes concluídos'
+            : 'Marcar como pronto'}
+        </button>
+      </div>
+    </section>
   );
 }

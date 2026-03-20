@@ -5014,4 +5014,163 @@ Retorne APENAS JSON válido, sem markdown, com este formato exato:
       return reply.status(500).send({ ok: false, error: err?.message || 'Falha ao analisar job.' });
     }
   });
+
+  // ── Stage Action — unified admin transition endpoint ──────────────────────
+  // POST /edro/briefings/:id/stage-action
+  // Body: { action: 'approve_internal'|'request_changes'|'approve_client'|'send_to_client', comment?, notifyEmails? }
+  app.post('/edro/briefings/:id/stage-action', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+
+    const bodySchema = z.object({
+      action: z.enum([
+        'approve_internal',   // aprovacao_interna → aprovacao_cliente
+        'request_changes',    // aprovacao_interna → ajustes
+        'send_to_client',     // aprovacao_interna → aprovacao_cliente + send email
+        'approve_client',     // aprovacao_cliente → concluido
+        'client_feedback',    // aprovacao_cliente → ajustes (com feedback)
+        'resume_production',  // ajustes → producao
+      ]),
+      comment: z.string().max(2000).optional(),
+      clientFeedback: z.string().max(4000).optional(),
+      clientEmail: z.string().email().optional(),
+      notifyEmails: z.array(z.string().email()).optional(),
+    });
+
+    const body = bodySchema.parse(request.body);
+    const user = resolveUser(request);
+
+    const briefing = await getBriefingById(id);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+
+    const { transitionBriefingStage, sendClientApprovalEmail } =
+      await import('../services/stageTransitionService');
+
+    const actor = { name: user.email, email: user.email };
+
+    let toStage: WorkflowStage;
+    switch (body.action) {
+      case 'approve_internal':
+      case 'send_to_client':
+        toStage = 'aprovacao_cliente';
+        break;
+      case 'request_changes':
+      case 'client_feedback':
+        toStage = 'ajustes';
+        break;
+      case 'approve_client':
+        toStage = 'concluido';
+        break;
+      case 'resume_production':
+        toStage = 'producao';
+        break;
+      default:
+        return reply.status(400).send({ success: false, error: 'action inválida' });
+    }
+
+    const result = await transitionBriefingStage(id, toStage, {
+      actor,
+      comment: body.comment,
+      clientFeedback: body.clientFeedback,
+      notifyEmails: body.notifyEmails,
+    });
+
+    if (!result.ok) {
+      return reply.status(400).send({ success: false, error: result.error });
+    }
+
+    // Send email to client when sending for approval
+    if ((body.action === 'send_to_client' || body.action === 'approve_internal') && body.clientEmail) {
+      const clientName = (briefing as any).client_name ?? (briefing.payload?.client_name as string | null) ?? null;
+      setImmediate(() =>
+        sendClientApprovalEmail(id, body.clientEmail!, briefing.title, clientName).catch(
+          (err) => console.warn('[stage-action] sendClientApprovalEmail failed:', err)
+        )
+      );
+    }
+
+    return reply.send({ success: true, toStage });
+  });
+
+  // ── Client Approval — public endpoints (no auth) ─────────────────────────
+
+  // GET /edro/client-approval/:token — verify token and return briefing info
+  app.get('/edro/client-approval/:token', { config: { public: true } } as any, async (request, reply) => {
+    const { token } = z.object({ token: z.string() }).parse(request.params);
+
+    const { verifyClientApprovalToken } = await import('../services/stageTransitionService');
+    const payload = verifyClientApprovalToken(token);
+
+    if (!payload) {
+      return reply.status(401).send({ success: false, error: 'Link inválido ou expirado.' });
+    }
+
+    const briefing = await getBriefingById(payload.briefingId);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+
+    // Return safe subset — no internal payloads
+    return reply.send({
+      success: true,
+      data: {
+        id: briefing.id,
+        title: briefing.title,
+        status: briefing.status,
+        client_name: (briefing as any).client_name ?? briefing.payload?.client_name ?? null,
+        due_at: briefing.due_at,
+        copy: briefing.payload?.copy ?? briefing.payload?.generated_copy ?? null,
+        notes: briefing.payload?.notes ?? null,
+        channels: briefing.payload?.channels ?? [],
+        objective: briefing.payload?.objective ?? null,
+        target_audience: briefing.payload?.target_audience ?? null,
+        client_feedback: briefing.payload?.client_feedback ?? null,
+      },
+    });
+  });
+
+  // POST /edro/client-approval/:token — client submits approval or feedback
+  app.post('/edro/client-approval/:token', { config: { public: true } } as any, async (request, reply) => {
+    const { token } = z.object({ token: z.string() }).parse(request.params);
+
+    const bodySchema = z.object({
+      action: z.enum(['approve', 'request_changes']),
+      feedback: z.string().max(4000).optional(),
+      clientName: z.string().max(200).optional(),
+    });
+    const body = bodySchema.parse(request.body);
+
+    const { verifyClientApprovalToken, transitionBriefingStage } =
+      await import('../services/stageTransitionService');
+    const payload = verifyClientApprovalToken(token);
+
+    if (!payload) {
+      return reply.status(401).send({ success: false, error: 'Link inválido ou expirado.' });
+    }
+
+    const briefing = await getBriefingById(payload.briefingId);
+    if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+
+    if (briefing.status !== 'aprovacao_cliente') {
+      return reply.send({
+        success: false,
+        error: 'Este conteúdo não está aguardando aprovação no momento.',
+        status: briefing.status,
+      });
+    }
+
+    const toStage: WorkflowStage = body.action === 'approve' ? 'concluido' : 'ajustes';
+    const actor = { name: body.clientName ?? 'Cliente', email: null };
+
+    const result = await transitionBriefingStage(payload.briefingId, toStage, {
+      actor,
+      clientFeedback: body.feedback,
+      comment: body.action === 'approve'
+        ? `Cliente aprovou o conteúdo${body.feedback ? `: "${body.feedback}"` : '.'}`
+        : `Cliente solicitou ajustes: "${body.feedback ?? '(sem comentário)'}"`,
+    });
+
+    if (!result.ok) {
+      return reply.status(500).send({ success: false, error: result.error });
+    }
+
+    return reply.send({ success: true, toStage, action: body.action });
+  });
 }

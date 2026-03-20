@@ -19,6 +19,12 @@ import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import {
   IconBulb,
   IconCalendar,
@@ -31,6 +37,9 @@ import {
   IconPlayerStop,
   IconPlus,
   IconRepeat,
+  IconSend,
+  IconThumbDown,
+  IconThumbUp,
   IconTrash,
   IconUpload,
   IconUser,
@@ -56,15 +65,20 @@ export function getLabelPreset(key: string) {
 // ── Workflow stages ───────────────────────────────────────────────────────────
 
 const WORKFLOW_STAGES = [
-  { key: 'briefing',   label: 'Briefing' },
-  { key: 'iclips_in',  label: 'iClips Entrada' },
-  { key: 'alinhamento',label: 'Alinhamento' },
-  { key: 'copy_ia',    label: 'Copy IA' },
-  { key: 'aprovacao',  label: 'Aprovação' },
-  { key: 'producao',   label: 'Produção' },
-  { key: 'revisao',    label: 'Revisão' },
-  { key: 'iclips_out', label: 'iClips Saída' },
-  { key: 'done',       label: 'Concluído' },
+  { key: 'briefing',          label: 'Briefing' },
+  { key: 'copy_ia',           label: 'Copy IA' },
+  { key: 'alinhamento',       label: 'Alinhamento' },
+  { key: 'producao',          label: 'Produção' },
+  { key: 'aprovacao_interna', label: 'Aprovação Interna' },
+  { key: 'ajustes',           label: 'Ajustes' },
+  { key: 'aprovacao_cliente', label: 'Aprovação Cliente' },
+  { key: 'concluido',         label: 'Concluído' },
+  // Legacy — kept so old briefings still show a valid label
+  { key: 'iclips_in',         label: 'iClips Entrada (legado)' },
+  { key: 'iclips_out',        label: 'iClips Saída (legado)' },
+  { key: 'aprovacao',         label: 'Aprovação (legado)' },
+  { key: 'revisao',           label: 'Revisão (legado)' },
+  { key: 'entrega',           label: 'Entrega (legado)' },
 ];
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -275,6 +289,47 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
   const [totalMinutes,     setTotalMinutes]     = useState<number>(0);
   const [stopDialogOpen,   setStopDialogOpen]   = useState(false);
   const [stopDescription,  setStopDescription]  = useState('');
+
+  // Stage action panel state
+  const [stageActionLoading, setStageActionLoading] = useState(false);
+  const [stageActionError,   setStageActionError]   = useState<string | null>(null);
+  const [stageActionSuccess, setStageActionSuccess] = useState<string | null>(null);
+  const [sendClientDialog,   setSendClientDialog]   = useState(false);
+  const [clientEmail,        setClientEmail]        = useState('');
+  const [actionComment,      setActionComment]      = useState('');
+
+  const handleStageAction = async (
+    action: string,
+    opts: { comment?: string; clientEmail?: string } = {}
+  ) => {
+    if (!briefingId) return;
+    setStageActionLoading(true);
+    setStageActionError(null);
+    setStageActionSuccess(null);
+    try {
+      const res = await apiPost<{ success: boolean; toStage?: string; error?: string }>(
+        `/edro/briefings/${briefingId}/stage-action`,
+        { action, comment: opts.comment, clientEmail: opts.clientEmail }
+      );
+      if (!res.success) throw new Error(res.error ?? 'Erro ao atualizar etapa');
+      const stageLabels: Record<string, string> = {
+        aprovacao_cliente: 'Aprovação Cliente',
+        ajustes: 'Ajustes',
+        concluido: 'Concluído',
+        producao: 'Produção',
+      };
+      const label = stageLabels[res.toStage ?? ''] ?? res.toStage ?? '';
+      setStageActionSuccess(`Etapa atualizada para: ${label}`);
+      if (res.toStage && data) {
+        setData({ ...data, status: res.toStage });
+        onUpdate(briefingId, { status: res.toStage });
+      }
+    } catch (err: any) {
+      setStageActionError(err.message ?? 'Erro desconhecido');
+    } finally {
+      setStageActionLoading(false);
+    }
+  };
 
   // Load briefing detail when drawer opens
   useEffect(() => {
@@ -694,6 +749,143 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
             </Box>
 
             <Divider />
+
+            {/* Stage Action Panel */}
+            {data && ['aprovacao_interna', 'aprovacao_cliente', 'ajustes'].includes(data.status) && (
+              <Box>
+                <Typography variant="caption" fontWeight={700} color="text.secondary" mb={1} display="block">
+                  Ações da Etapa
+                </Typography>
+
+                {stageActionError && (
+                  <Alert severity="error" sx={{ mb: 1.5, py: 0.5 }} onClose={() => setStageActionError(null)}>
+                    {stageActionError}
+                  </Alert>
+                )}
+                {stageActionSuccess && (
+                  <Alert severity="success" sx={{ mb: 1.5, py: 0.5 }} onClose={() => setStageActionSuccess(null)}>
+                    {stageActionSuccess}
+                  </Alert>
+                )}
+
+                {/* Aprovação Interna actions */}
+                {data.status === 'aprovacao_interna' && (
+                  <Stack direction="row" flexWrap="wrap" gap={1}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      startIcon={stageActionLoading ? <CircularProgress size={14} color="inherit" /> : <IconThumbUp size={14} />}
+                      disabled={stageActionLoading}
+                      onClick={() => setSendClientDialog(true)}
+                    >
+                      Aprovar → Enviar ao Cliente
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<IconThumbDown size={14} />}
+                      disabled={stageActionLoading}
+                      onClick={() => handleStageAction('request_changes')}
+                    >
+                      Solicitar Ajustes
+                    </Button>
+                  </Stack>
+                )}
+
+                {/* Aprovação Cliente actions */}
+                {data.status === 'aprovacao_cliente' && (
+                  <Stack direction="row" flexWrap="wrap" gap={1}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      startIcon={stageActionLoading ? <CircularProgress size={14} color="inherit" /> : <IconCheck size={14} />}
+                      disabled={stageActionLoading}
+                      onClick={() => handleStageAction('approve_client')}
+                    >
+                      Marcar Concluído
+                    </Button>
+                  </Stack>
+                )}
+
+                {/* Ajustes actions */}
+                {data.status === 'ajustes' && (
+                  <Stack direction="row" flexWrap="wrap" gap={1}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      startIcon={stageActionLoading ? <CircularProgress size={14} color="inherit" /> : <IconSend size={14} />}
+                      disabled={stageActionLoading}
+                      onClick={() => handleStageAction('resume_production')}
+                    >
+                      Retomar Produção
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="success"
+                      startIcon={<IconSend size={14} />}
+                      disabled={stageActionLoading}
+                      onClick={() => setSendClientDialog(true)}
+                    >
+                      Reenviar ao Cliente
+                    </Button>
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            {/* Send to client dialog */}
+            <Dialog open={sendClientDialog} onClose={() => setSendClientDialog(false)} maxWidth="sm" fullWidth>
+              <DialogTitle>Enviar para aprovação do cliente</DialogTitle>
+              <DialogContent sx={{ pt: 2 }}>
+                <TextField
+                  fullWidth
+                  label="E-mail do cliente"
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  placeholder="cliente@empresa.com"
+                  sx={{ mb: 2, mt: 1 }}
+                  size="small"
+                />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  label="Comentário interno (opcional)"
+                  value={actionComment}
+                  onChange={(e) => setActionComment(e.target.value)}
+                  placeholder="Notas internas sobre esta versão..."
+                  size="small"
+                />
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button onClick={() => setSendClientDialog(false)}>Cancelar</Button>
+                <Button
+                  variant="contained"
+                  disabled={stageActionLoading}
+                  onClick={async () => {
+                    setSendClientDialog(false);
+                    await handleStageAction('send_to_client', {
+                      clientEmail: clientEmail || undefined,
+                      comment: actionComment || undefined,
+                    });
+                    setClientEmail('');
+                    setActionComment('');
+                  }}
+                >
+                  Enviar
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {data && ['aprovacao_interna', 'aprovacao_cliente', 'ajustes'].includes(data.status) && (
+              <Divider />
+            )}
 
             {/* Checklist */}
             <Box>
