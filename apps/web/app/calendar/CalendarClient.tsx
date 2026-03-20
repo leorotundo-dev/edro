@@ -1196,6 +1196,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     return filteredEventsByDate.get(selectedDayISO) || [];
   }, [filteredEventsByDate, selectedDayISO]);
 
+  // Production cards (Trello) for the selected day — separate from filteredEventsByDate
+  const selectedDayProductionCards = useMemo(() => {
+    if (!selectedDayISO || !showProductionLayer) return [];
+    return productionCards.filter((c) => c.due_date.slice(0, 10) === selectedDayISO);
+  }, [selectedDayISO, showProductionLayer, productionCards]);
+
   const selectedDayPosts = useMemo(() => {
     if (!selectedDayISO) return [];
     return postsByDate.get(selectedDayISO) || [];
@@ -2083,7 +2089,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                   sx={{ borderBottom: 1, borderColor: 'divider', mx: -2, px: 0 }}
                 >
                   <Tab
-                    label={selectedDayEvents.length ? `Eventos (${selectedDayEvents.length})` : 'Eventos'}
+                    label={(selectedDayEvents.length + selectedDayProductionCards.length) > 0 ? `Eventos (${selectedDayEvents.length + selectedDayProductionCards.length})` : 'Eventos'}
                     value={0}
                     sx={{ minHeight: 40, fontSize: '0.72rem', textTransform: 'none' }}
                   />
@@ -2118,10 +2124,40 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                       </Button>
                     </Stack>
                   ) : null}
-                  {selectedDayEvents.length ? (
+                  {(selectedDayEvents.length || selectedDayProductionCards.length) ? (
                     <>
+                      {selectedDayProductionCards.length > 0 && (
+                        <List dense disablePadding sx={{ mb: selectedDayEvents.length ? 1 : 0 }}>
+                          {selectedDayProductionCards.map((card) => (
+                            <ListItemButton
+                              key={card.id}
+                              component={card.trello_url ? 'a' : 'div'}
+                              href={card.trello_url || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ borderRadius: 1, mb: 0.5 }}
+                            >
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <Avatar sx={{ width: 28, height: 28, bgcolor: `${PRODUCTION_PALETTE[card.color_index % PRODUCTION_PALETTE.length]}22`, color: PRODUCTION_PALETTE[card.color_index % PRODUCTION_PALETTE.length] }}>
+                                  <IconBriefcase size={15} />
+                                </Avatar>
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={card.display_title}
+                                secondary={[card.stage_name, card.board_name].filter(Boolean).join(' · ')}
+                              />
+                              <Chip
+                                size="small"
+                                label="Job"
+                                sx={{ bgcolor: '#f3f4f6', color: '#6b7280', fontSize: '0.65rem', height: 20 }}
+                              />
+                            </ListItemButton>
+                          ))}
+                        </List>
+                      )}
+                      {selectedDayEvents.length > 0 && (
                       <List dense disablePadding>
-                        {selectedDayEvents.map((event) => {
+                      {selectedDayEvents.map((event) => {
                           const isActioning = eventActionLoading === event.id;
                           const { Icon: EvIcon, color: evColor } = getEventMeta(event);
                           return (
@@ -2185,6 +2221,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                           );
                         })}
                       </List>
+                      )}
 
                       {/* Menu de ações do evento */}
                       <Menu
