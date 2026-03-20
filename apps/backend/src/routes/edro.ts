@@ -1572,7 +1572,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     if (
-      params.stage === 'aprovacao' &&
+      (params.stage === 'aprovacao_interna' || params.stage === 'aprovacao_cliente') &&
       body.status === 'done' &&
       user.role !== 'gestor' &&
       user.role !== 'admin'
@@ -1607,7 +1607,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         });
       }
 
-      if (params.stage === 'iclips_in' || params.stage === 'iclips_out') {
+      if ((params.stage as string) === 'iclips_in' || (params.stage as string) === 'iclips_out') {
         const briefing = await getBriefingById(params.id);
         const recipient = env.EDRO_ICLIPS_NOTIFY_EMAIL || briefing?.traffic_owner || user.email;
         if (recipient) {
@@ -2481,7 +2481,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       metadata: { copyVersionId: copy.id },
     });
 
-    await promoteStageIfPending(briefing.id, 'aprovacao', user.email);
+    await promoteStageIfPending(briefing.id, 'aprovacao_interna', user.email);
 
     await refreshBriefingStatus(briefing.id);
 
@@ -3436,18 +3436,18 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     if (body.action === 'approve') {
       await updateBriefingStageStatus({
         briefingId: approval.briefing_id,
-        stage: 'aprovacao',
+        stage: 'aprovacao_cliente',
         status: 'done',
         updatedBy: approval.client_name || 'cliente',
         metadata: { approvedCopyId: body.copyId, approvedViaPortal: true, comments: body.comments },
       });
 
-      const nextStage = getNextStage('aprovacao');
+      const nextStage = getNextStage('aprovacao_cliente');
       if (nextStage) {
         await promoteStageIfPending(approval.briefing_id, nextStage, approval.client_name);
         notifyStageChange({
           briefingId: approval.briefing_id,
-          fromStage: 'aprovacao',
+          fromStage: 'aprovacao_cliente',
           toStage: nextStage,
           updatedBy: approval.client_name || 'cliente (portal)',
         });

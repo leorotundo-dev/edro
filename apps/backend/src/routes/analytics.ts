@@ -1323,12 +1323,12 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
         ])
       : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }] as any[];
 
-    const onTimeMap   = new Map(onTimeRes.rows.map((r: any) => [r.client_id, r]));
-    const velocityMap = new Map(velocityRes.rows.map((r: any) => [r.client_id, r]));
-    const copyMap     = new Map(copyRes.rows.map((r: any) => [r.client_id, r]));
-    const volumeMap   = new Map(volumeRes.rows.map((r: any) => [r.client_id, r]));
-    const activityMap = new Map(activityRes.rows.map((r: any) => [r.client_id, r]));
-    const botsMap     = new Map(botsRes.rows.map((r: any) => [r.client_id, r]));
+    const onTimeMap   = new Map<string, any>(onTimeRes.rows.map((r: any) => [r.client_id, r]));
+    const velocityMap = new Map<string, any>(velocityRes.rows.map((r: any) => [r.client_id, r]));
+    const copyMap     = new Map<string, any>(copyRes.rows.map((r: any) => [r.client_id, r]));
+    const volumeMap   = new Map<string, any>(volumeRes.rows.map((r: any) => [r.client_id, r]));
+    const activityMap = new Map<string, any>(activityRes.rows.map((r: any) => [r.client_id, r]));
+    const botsMap     = new Map<string, any>(botsRes.rows.map((r: any) => [r.client_id, r]));
 
     const scoredClients = clientsWithId.map((client) => {
       try {

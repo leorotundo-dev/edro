@@ -1468,8 +1468,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     try {
       const result = await generateCopy({
         prompt,
-        count: 1,
-        usageContext: { briefing_id: briefingId, user_email: userId },
+        usageContext: { tenant_id: (briefing as any).tenant_id ?? '', feature: 'freelancer-copy-gen', metadata: { briefing_id: briefingId } },
       });
 
       const output = result.output ?? '';
